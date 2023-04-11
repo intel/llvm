@@ -780,6 +780,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 }
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
+
                                     const AliasAnalysis &aliasAnalysis,
                                     const DominanceInfo &domInfo) {
   Operation *loopOp = loop;
@@ -791,7 +792,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
-  LoopTools loopTools(*loop.getContext());
+  LoopTools loopTools;
   loopTools.guardLoop(loop);
 
   size_t numOpsHoisted = 0;

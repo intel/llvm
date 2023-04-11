@@ -107,6 +107,94 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw
 
 // -----
 
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+!sycl_accessor_1_i32_r_gb = !sycl.accessor<[1, i32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+
+// CHECK: [[GUARD_COND:#.*]] = affine_set<() : (7 >= 0)>
+
+// COM: There is only one loop, i.e., the loop is not versioned.
+// 1PAIR-LABEL: testAffineLoopVersioning
+// CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_gb]], 4>)
+
+// CHECK: affine.if [[GUARD_COND]]() {
+// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+
+// COM: Obtain a pointer to the beginning of the accessor %arg1.
+// CHECK-DAG:  [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
+// CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
+// CHECK-DAG:  [[C0_index:%.*]] = arith.constant 0 : index
+// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xindex>
+// CHECK-NEXT: memref.store [[C0_index]], [[ID_GET]][[[C0_index]]] : memref<?xindex>
+// CHECK-NEXT: [[ARG1_BEGIN:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] {ArgumentTypes = [memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
+
+// COM: Obtain a pointer to the end of the accessor %arg1.
+// CHECK-DAG:  [[RANGE_ALLOCA:%.*]] = memref.alloca() : memref<1x[[RANGE:!sycl_range_1_]]>
+// CHECK-DAG:  [[C0_index:%.*]] = arith.constant 0 : index
+// CHECK-DAG:  [[GET_RANGE:%.*]] = sycl.accessor.get_range([[ARG1]]) {ArgumentTypes = [memref<?x[[ACC_R]], 4>], FunctionName = @get_range, TypeName = @accessor} : (memref<?x[[ACC_R]], 4>) -> [[RANGE]]
+// CHECK-NEXT: memref.store [[GET_RANGE]], [[RANGE_ALLOCA]][[[C0_index]]] : memref<1x[[RANGE]]>
+// CHECK-DAG:  [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
+// CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
+// CHECK-DAG:  [[C1_index:%.*]] = arith.constant 1 : index
+// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xindex>
+// CHECK-NEXT: [[C0_i32:%.*]] = arith.constant 0 : i32
+// CHECK-NEXT: [[RANGE_GET:%.*]] = sycl.range.get [[RANGE_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[RANGE]]>, i32], FunctionName = @get, TypeName = @range} : (memref<1x[[RANGE]]>, i32) -> index
+// CHECK-NEXT: memref.store [[RANGE_GET]], [[ID_GET]][[[C0_index]]] : memref<?xindex>
+// CHECK-NEXT: [[ARG1_END:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] {ArgumentTypes = [memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
+
+// CHECK: [[ARG0_BEGIN:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] {ArgumentTypes = [memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
+// CHECK: [[ARG0_END:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] {ArgumentTypes = [memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
+// CHECK-DAG:  [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
+// CHECK-DAG:  [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
+// CHECK-NEXT: [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG1_END_PTR]], [[ARG0_BEGIN_PTR]] : !llvm.ptr<i32, 1>
+// CHECK-DAG:  [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
+// CHECK-DAG:  [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
+// CHECK-NEXT: [[AFTER_COND:%.*]] = llvm.icmp "uge" [[ARG1_BEGIN_PTR]], [[ARG0_END_PTR]] : !llvm.ptr<i32, 1>
+
+// COM: Version with condition: [[ARG1_END]] <= [[ARG0_BEGIN]] || [[ARG1_BEGIN]] >= [[ARG0_END]].
+// CHECK-NEXT: [[COND:%.*]] = arith.ori [[BEFORE_COND]], [[AFTER_COND]] : i1
+// CHECK-NEXT: scf.if [[COND]] {
+
+// COM: Load of %arg1 accessor can be hoisted.
+// CHECK: %{{.*}} = affine.load [[ARG1_ACC]][0] : memref<?xi32, 4>
+// CHECK: affine.for
+// CHECK: } else {
+// CHECK-NEXT: affine.for
+
+func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
+  %c0_i64 = arith.constant 0 : i64
+  %alloca = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_1 = memref.cast %alloca_0 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_2 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_3 = memref.cast %alloca_2 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_4 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_5 = memref.cast %alloca_4 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %memspacecast = memref.memory_space_cast %cast_5 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+  %memspacecast_6 = memref.memory_space_cast %cast_1 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+  affine.for %i = 0 to 8 {
+    %2 = arith.index_cast %i : index to i64
+    sycl.constructor @id(%memspacecast, %c0_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+    %3 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
+    affine.store %3, %alloca_2[0] : memref<1x!sycl_id_1_>
+    %4 = sycl.accessor.subscript %arg1[%cast_3] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %5 = affine.load %4[0] : memref<?xi32, 4>
+    sycl.constructor @id(%memspacecast_6, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+    %6 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
+    affine.store %6, %alloca[0] : memref<1x!sycl_id_1_>
+    %7 = sycl.accessor.subscript %arg0[%cast] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %8 = affine.load %7[0] : memref<?xi32, 4>
+    %9 = arith.addi %8, %5 : i32
+    affine.store %9, %7[0] : memref<?xi32, 4>
+  }
+  return
+}
+
+// -----
+
 // This test requires -licm-sycl-accessor-pairs-limit >= 2.
 // Original loop:
 // for(size_t i = 0; i < 8; i++) {
@@ -213,3 +301,4 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_w_
   }
   return
 }
+

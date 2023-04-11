@@ -82,70 +82,39 @@ struct AffineIfBuilder {
 // LoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
-std::unique_ptr<LoopVersionBuilder>
-LoopVersionBuilder::create(LoopLikeOpInterface loop) {
-  return TypeSwitch<Operation *, std::unique_ptr<LoopVersionBuilder>>(loop)
-      .Case<scf::ForOp, scf::ParallelOp>([](auto loop) {
-        return std::make_unique<SCFLoopVersionBuilder>(loop);
-      })
-      .Case<AffineForOp, AffineParallelOp>([](auto loop) {
-        return std::make_unique<AffineLoopVersionBuilder>(loop);
-      });
-}
-
-void LoopVersionBuilder::versionLoop(RegionBranchOpInterface ifOp) const {
-  createThenBody(ifOp);
-  createElseBody(ifOp);
-  replaceUsesOfLoopReturnValues(loop, ifOp);
-}
-
-//===----------------------------------------------------------------------===//
-// SCFLoopVersionBuilder
-//===----------------------------------------------------------------------===//
-
-void SCFLoopVersionBuilder::versionLoop(
+void LoopVersionBuilder::versionLoop(
     const LoopVersionCondition &versionCond) const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp =
-      SCFIfBuilder::createIfOp(versionCond.getSCFCondition(),
-                               loop->getResults(), builder, loop.getLoc());
-  LoopVersionBuilder::versionLoop(ifOp);
+
+  if (versionCond.hasSCFCondition()) {
+    scf::IfOp ifOp =
+        SCFIfBuilder::createIfOp(versionCond.getSCFCondition(),
+                                 loop->getResults(), builder, loop.getLoc());
+    createThenBody(loop, ifOp);
+    createElseBody(ifOp);
+    replaceUsesOfLoopReturnValues(loop, ifOp);
+  } else {
+    assert(versionCond.hasAffineCondition() && "Expecting an affine condition");
+    const auto &affineCond = versionCond.getAffineCondition();
+    AffineIfOp ifOp = AffineIfBuilder::createIfOp(
+        affineCond.ifCondSet, affineCond.setOperands, loop->getResults(),
+        builder, loop.getLoc());
+    createThenBody(loop, ifOp);
+    createElseBody(ifOp);
+    replaceUsesOfLoopReturnValues(loop, ifOp);
+  }
 }
 
-void SCFLoopVersionBuilder::createThenBody(RegionBranchOpInterface ifOp) const {
-  ::createThenBody(loop, cast<scf::IfOp>(ifOp));
-}
-
-void SCFLoopVersionBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
+void LoopVersionBuilder::createElseBody(scf::IfOp ifOp) const {
   Operation &origYield = getElseBlock(ifOp).back();
-  OpBuilder elseBodyBuilder = cast<scf::IfOp>(ifOp).getElseBodyBuilder();
+  OpBuilder elseBodyBuilder = ifOp.getElseBodyBuilder();
   Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
   elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), clonedLoop->getResults());
   origYield.erase();
 }
 
-//===----------------------------------------------------------------------===//
-// AffineLoopVersionBuilder
-//===----------------------------------------------------------------------===//
-
-void AffineLoopVersionBuilder::versionLoop(
-    const LoopVersionCondition &versionCond) const {
-  OpBuilder builder(loop);
-  const auto &affineCond = versionCond.getAffineCondition();
-  RegionBranchOpInterface ifOp =
-      AffineIfBuilder::createIfOp(affineCond.ifCondSet, affineCond.setOperands,
-                                  loop->getResults(), builder, loop.getLoc());
-  LoopVersionBuilder::versionLoop(ifOp);
-}
-
-void AffineLoopVersionBuilder::createThenBody(
-    RegionBranchOpInterface ifOp) const {
-  ::createThenBody(loop, cast<AffineIfOp>(ifOp));
-}
-
-void AffineLoopVersionBuilder::createElseBody(
-    RegionBranchOpInterface ifOp) const {
-  OpBuilder elseBodyBuilder = cast<AffineIfOp>(ifOp).getElseBodyBuilder();
+void LoopVersionBuilder::createElseBody(AffineIfOp ifOp) const {
+  OpBuilder elseBodyBuilder = ifOp.getElseBodyBuilder();
   Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
   if (!clonedLoop->getResults().empty())
     elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(),
@@ -422,11 +391,11 @@ AffineMap AffineParallelGuardBuilder::getUpperBoundsMap() const {
 // Loop Tools
 //===----------------------------------------------------------------------===//
 
-void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
+void LoopTools::guardLoop(LoopLikeOpInterface loop) {
   LoopGuardBuilder::create(loop)->guardLoop();
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const LoopVersionCondition &versionCond) const {
-  LoopVersionBuilder::create(loop)->versionLoop(versionCond);
+                            const LoopVersionCondition &versionCond) {
+  LoopVersionBuilder(loop).versionLoop(versionCond);
 }

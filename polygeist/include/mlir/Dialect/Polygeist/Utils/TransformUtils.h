@@ -90,45 +90,15 @@ private:
 /// Abstract base class to version a loop like operation.
 class LoopVersionBuilder {
 public:
-  static std::unique_ptr<LoopVersionBuilder> create(LoopLikeOpInterface);
-  virtual ~LoopVersionBuilder() = default;
-
-  virtual void versionLoop(const LoopVersionCondition &) const;
-
-protected:
   LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
 
-  virtual void createThenBody(RegionBranchOpInterface) const = 0;
-  virtual void createElseBody(RegionBranchOpInterface) const = 0;
+  void versionLoop(const LoopVersionCondition &) const;
 
-  void versionLoop(RegionBranchOpInterface) const;
+protected:
+  void createElseBody(scf::IfOp) const;
+  void createElseBody(AffineIfOp) const;
 
   mutable LoopLikeOpInterface loop; /// The loop to version.
-};
-
-/// Concrete class to version a SCF loop operation.
-class SCFLoopVersionBuilder : public LoopVersionBuilder {
-public:
-  SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
-
-  void versionLoop(const LoopVersionCondition &) const final;
-
-private:
-  void createThenBody(RegionBranchOpInterface) const final;
-  void createElseBody(RegionBranchOpInterface) const final;
-};
-
-/// Concrete class to version an affine loop operation.
-class AffineLoopVersionBuilder : public LoopVersionBuilder {
-public:
-  AffineLoopVersionBuilder(LoopLikeOpInterface loop)
-      : LoopVersionBuilder(loop) {}
-
-  void versionLoop(const LoopVersionCondition &) const final;
-
-private:
-  void createThenBody(RegionBranchOpInterface) const final;
-  void createElseBody(RegionBranchOpInterface) const final;
 };
 
 //===----------------------------------------------------------------------===//
@@ -254,17 +224,12 @@ private:
 /// A collection of tools for loop transformations.
 class LoopTools {
 public:
-  LoopTools(MLIRContext &ctx) : builder(&ctx) {}
-
   /// Guard the given loop \p loop.
-  void guardLoop(LoopLikeOpInterface loop) const;
+  void guardLoop(LoopLikeOpInterface loop);
 
   /// Version the given loop \p loop using the condition \p versionCond.
   void versionLoop(LoopLikeOpInterface loop,
-                   const LoopVersionCondition &versionCond) const;
-
-private:
-  OpBuilder builder;
+                   const LoopVersionCondition &versionCond);
 };
 
 } // namespace mlir

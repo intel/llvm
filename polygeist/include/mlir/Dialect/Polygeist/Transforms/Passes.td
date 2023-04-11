@@ -109,7 +109,7 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
 
 def LICM : Pass<"licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
-  let dependentDialects = ["polygeist::PolygeistDialect", "sycl::SYCLDialect"];
+  let dependentDialects = ["polygeist::PolygeistDialect", "sycl::SYCLDialect", "scf::SCFDialect", "AffineDialect"];
   let constructor = "mlir::polygeist::createLICMPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
