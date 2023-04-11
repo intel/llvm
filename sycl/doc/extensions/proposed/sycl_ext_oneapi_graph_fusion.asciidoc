@@ -465,18 +465,23 @@ int main() {
 
   queue q{default_selector_v};
 
-  ext::oneapi::experimental::command_graph graph;
+  ext::oneapi::experimental::command_graph graph{q.get_context(),
+                                                 q.get_device()};
   {
     buffer<int> bIn1{in1, range{dataSize}};
     buffer<int> bIn2{in2, range{dataSize}};
     buffer<int> bIn3{in3, range{dataSize}};
     buffer<int> bTmp1{tmp1, range{dataSize}};
     // Internalization specified on the buffer
-    buffer<int> bTmp2{tmp2, range{dataSize}, 
-      {sycl::ext::oneapi::experimental::property::promote_private{}}};
+    buffer<int> bTmp2{
+        tmp2,
+        range{dataSize},
+        {sycl::ext::oneapi::experimental::property::promote_private{}}};
     // Internalization specified on the buffer
-    buffer<int> bTmp3{tmp3, range{dataSize}, 
-      {sycl::ext::oneapi::experimental::property::promote_private{}}};
+    buffer<int> bTmp3{
+        tmp3,
+        range{dataSize},
+        {sycl::ext::oneapi::experimental::property::promote_private{}}};
     buffer<int> bOut{out, range{dataSize}};
 
     graph.begin_recording(q);
@@ -484,14 +489,14 @@ int main() {
     q.submit([&](handler &cgh) {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
-      // Internalization specified on each accessor. 
+      // Internalization specified on each accessor.
       auto accTmp1 = bTmp1.get_access(
           cgh, sycl::ext::oneapi::experimental::property::promote_private{});
       cgh.parallel_for<AddKernel>(dataSize, AddKernel{accIn1, accIn2, accTmp1});
     });
 
     q.submit([&](handler &cgh) {
-      // Internalization specified on each accessor. 
+      // Internalization specified on each accessor.
       auto accTmp1 = bTmp1.get_access(
           cgh, sycl::ext::oneapi::experimental::property::promote_private{});
       auto accIn3 = bIn3.get_access(cgh);
@@ -501,7 +506,7 @@ int main() {
     });
 
     q.submit([&](handler &cgh) {
-      // Internalization specified on each accessor. 
+      // Internalization specified on each accessor.
       auto accTmp1 = bTmp1.get_access(
           cgh, sycl::ext::oneapi::experimental::property::promote_private{});
       auto accTmp3 = bTmp3.get_access(cgh);
@@ -520,12 +525,11 @@ int main() {
     graph.end_recording();
 
     // Trigger fusion during finalization.
-    auto exec_graph = graph.finalize(q.get_context(), 
-      {sycl::ext::oneapi::experimental::property::command_graph::perform_fusion});
+    auto exec_graph =
+        graph.finalize({sycl::ext::oneapi::experimental::property::
+                            command_graph::perform_fusion});
 
-    q.submit([&](handler& cgh) {
-      cgh.ext_oneapi_graph(exec_graph);
-    });
+    q.ext_oneapi_graph(exec_graph);
   }
   return 0;
 }
@@ -548,7 +552,7 @@ int main() {
 
   queue q{default_selector_v};
 
-  sycl_ext::command_graph graph;
+  sycl_ext::command_graph graph{q.get_context(), q.get_device()};
 
   int *dIn1, dIn2, dIn3, dTmp, dOut;
 
@@ -558,7 +562,8 @@ int main() {
   dOut = malloc_device<int>(q, dataSize);
 
   // Specify internalization for an USM pointer
-  dTmp = malloc_device<int>(q, dataSize,
+  dTmp = malloc_device<int>(
+      q, dataSize,
       {sycl::ext::oneapi::experimental::property::promote_private});
 
   // This explicit memory operation is compatible with fusion, as it can be
@@ -597,8 +602,7 @@ int main() {
                 {sycl_ext::property::node::depends_on(kernel2)});
 
   // Trigger fusion during finalization.
-  auto exec = graph.finalize(q.get_context(),
-                             {sycl::ext::oneapi::experimental::property::
+  auto exec = graph.finalize({sycl::ext::oneapi::experimental::property::
                                   command_graph::perform_fusion});
 
   // use queue shortcut for graph submission
@@ -630,4 +634,5 @@ Ewan Crawford, Codeplay +
 |Rev|Date|Authors|Changes
 |1|2023-02-16|Lukas Sommer|*Initial draft*
 |2|2023-03-16|Lukas Sommer|*Remove reference to outdated `add_malloc_device` API*
+|3|2023-04-11|Lukas Sommer|*Update usage examples for graph API changes*
 |========================================
