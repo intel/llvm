@@ -43,7 +43,7 @@ namespace polygeist {
 using namespace mlir;
 
 static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
-    "enable-licm-sycl-accessor-versioning", llvm::cl::init(false),
+    "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),
     llvm::cl::desc("Enable loop versioning for SYCL accessors in LICM"));
 
 static llvm::cl::opt<unsigned> LICMSYCLAccessorPairsLimit(
