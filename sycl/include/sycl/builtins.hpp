@@ -27,13 +27,13 @@ template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
 }
 template <class T, size_t N> vec<T, N> to_vec(marray<T, N> x) {
   vec<T, N> vec;
-  for (int i = 0; i < N; i++)
+  for (size_t i = 0; i < N; i++)
     vec[i] = x[i];
   return vec;
 }
 template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
   marray<T, N> marray;
-  for (int i = 0; i < N; i++)
+  for (size_t i = 0; i < N; i++)
     marray[i] = x[i];
   return marray;
 }
@@ -1749,7 +1749,8 @@ std::enable_if_t<detail::is_gengeomarray<T>::value, T> normalize(T p) __NOEXC {
 template <typename T>
 std::enable_if_t<detail::is_gengeomarrayfloat<T>::value, T>
 fast_normalize(T p) __NOEXC {
-  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(normalize, detail::to_vec(p))
+  __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL(fast_normalize,
+                                                 detail::to_vec(p))
 }
 
 #undef __SYCL_MARRAY_GEOMETRIC_FUNCTION_OVERLOAD_IMPL
