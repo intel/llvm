@@ -1863,6 +1863,53 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// NDItemGetGroupLinearID - Converts `sycl.nd_item.get_group_linear_id` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetGroupLinearIDOp to LLVM.
+class NDItemGetGroupLinearIDPattern
+    : public ConvertOpToLLVMPattern<SYCLNDItemGetGroupLinearIDOp>,
+      public GetMemberPattern<NDItemGroup> {
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLNDItemGetGroupLinearIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLNDItemGetGroupLinearIDOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    // TODO: We query the group type from the body. Not ideal. Drop this when
+    // body is dropped and we can create group type more easily.
+    const auto indices = GetMemberPattern<NDItemGroup>::getIndices();
+    assert(indices.size() == 1 && "Expecting a single index");
+    const auto groupTy =
+        cast<NdItemType>(op.getNDItem().getType().getElementType())
+            .getBody()[indices[0]];
+    const auto convGroupTy = getTypeConverter()->convertType(groupTy);
+    bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
+    auto group = GetMemberPattern<NDItemGroup>::getRef(
+        rewriter, loc, convGroupTy, adaptor.getNDItem(), std::nullopt,
+        useOpaquePointers);
+    const auto thisTy = MemRefType::get(ShapedType::kDynamic, groupTy);
+    // We have the already converted group, but, in order to not replicate
+    // `sycl.group.get_group_linear_id` conversion to LLVM, we just reuse that
+    // using `builtin.unrealized_conversion_cast` to convert the pointer into a
+    // memref to sycl type.
+    const auto syclGroup =
+        rewriter.create<UnrealizedConversionCastOp>(loc, thisTy, group)
+            .getResult(0);
+    const auto argTys = rewriter.getTypeArrayAttr({thisTy});
+    const auto funcName =
+        rewriter.getAttr<FlatSymbolRefAttr>("get_group_linear_id");
+    const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>("group");
+    rewriter.replaceOpWithNewOp<SYCLGroupGetGroupLinearIDOp>(
+        op, rewriter.getI64Type(), syclGroup, argTys, funcName,
+        FlatSymbolRefAttr{}, typeName);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // NDItemGetGroupRange - Converts `sycl.nd_item.get_group_range` to LLVM.
 //===----------------------------------------------------------------------===//
 
@@ -2318,32 +2365,32 @@ void mlir::populateSYCLToLLVMConversionPatterns(
   patterns.add<CallPattern>(typeConverter);
   patterns.add<CastPattern>(typeConverter);
   patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
-  patterns
-      .add<AccessorGetPointerPattern, AccessorGetRangePattern,
-           AccessorSizePattern, AddZeroArgPattern<SYCLIDGetOp>,
-           AddZeroArgPattern<SYCLItemGetIDOp>, AtomicSubscriptIDOffset,
-           BarePtrAddrSpaceCastPattern, GroupGetGroupIDPattern,
-           GroupGetGroupLinearRangePattern, GroupGetGroupRangeDimPattern,
-           GroupGetLocalIDPattern, GroupGetLocalLinearRangePattern,
-           GroupGetLocalRangeDimPattern, IDGetPattern, IDGetRefPattern,
-           ItemGetIDDimPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
-           NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
-           NDItemGetGlobalRangeDimPattern, NDItemGetGlobalRangePattern,
-           NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
-           NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
-           NDItemGetNDRange, NDRangeGetGroupRangePattern,
-           NDRangeGetLocalRangePattern, RangeGetRefPattern, RangeSizePattern,
-           SubscriptScalarOffsetND, GroupGetGroupIDDimPattern,
-           GroupGetGroupLinearIDPattern, GroupGetGroupRangePattern,
-           GroupGetLocalIDDimPattern, GroupGetLocalLinearIDPattern,
-           GroupGetLocalRangePattern, GroupGetMaxLocalRangePattern,
-           ItemGetIDPattern, ItemNoOffsetGetLinearIDPattern,
-           ItemOffsetGetLinearIDPattern, NDItemGetGlobalLinearIDPattern,
-           NDItemGetGroupDimPattern, NDItemGetGroupRangePattern,
-           NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
-           NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern,
-           RangeGetPattern, SubscriptIDOffset, SubscriptScalarOffset1D>(
-          typeConverter);
+  patterns.add<AccessorGetPointerPattern, AccessorGetRangePattern,
+               AccessorSizePattern, AddZeroArgPattern<SYCLIDGetOp>,
+               AddZeroArgPattern<SYCLItemGetIDOp>, AtomicSubscriptIDOffset,
+               BarePtrAddrSpaceCastPattern, GroupGetGroupIDPattern,
+               GroupGetGroupLinearRangePattern, GroupGetGroupRangeDimPattern,
+               GroupGetLocalIDPattern, GroupGetLocalLinearRangePattern,
+               GroupGetLocalRangeDimPattern, IDGetPattern, IDGetRefPattern,
+               ItemGetIDDimPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
+               NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
+               NDItemGetGlobalRangeDimPattern, NDItemGetGlobalRangePattern,
+               NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
+               NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
+               NDItemGetNDRange, NDRangeGetGroupRangePattern,
+               NDRangeGetLocalRangePattern, RangeGetRefPattern,
+               RangeSizePattern, SubscriptScalarOffsetND,
+               GroupGetGroupIDDimPattern, GroupGetGroupLinearIDPattern,
+               GroupGetGroupRangePattern, GroupGetLocalIDDimPattern,
+               GroupGetLocalLinearIDPattern, GroupGetLocalRangePattern,
+               GroupGetMaxLocalRangePattern, ItemGetIDPattern,
+               ItemNoOffsetGetLinearIDPattern, ItemOffsetGetLinearIDPattern,
+               NDItemGetGlobalLinearIDPattern, NDItemGetGroupDimPattern,
+               NDItemGetGroupLinearIDPattern, NDItemGetGroupRangePattern,
+               NDItemGetLocalIDPattern, NDItemGetLocalRangeDimPattern,
+               NDItemGetLocalRangePattern, NDRangeGetGlobalRangePattern,
+               RangeGetPattern, SubscriptIDOffset, SubscriptScalarOffset1D>(
+      typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
 }
 
