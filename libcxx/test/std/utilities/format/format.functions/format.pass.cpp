@@ -10,6 +10,8 @@
 // TODO FMT Evaluate gcc-12 status
 // UNSUPPORTED: gcc-12
 
+// XFAIL: availability-fp_to_chars-missing
+
 // Note this formatter shows additional information when tests are failing.
 // This aids the development. Since other formatters fail in the same fashion
 // they don't have this additional output.

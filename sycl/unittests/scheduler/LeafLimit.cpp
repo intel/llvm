@@ -20,8 +20,8 @@
 
 using namespace sycl;
 
-inline constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+inline constexpr auto DisableCleanupName =
+    "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
 // correctly with dependency tracking when leaf-limit for generic commands is

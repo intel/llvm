@@ -15,6 +15,7 @@
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/LostDebugLocObserver.h"
@@ -103,13 +104,13 @@ LegalizerHelper::LegalizerHelper(MachineFunction &MF,
                                  MachineIRBuilder &Builder)
     : MIRBuilder(Builder), Observer(Observer), MRI(MF.getRegInfo()),
       LI(*MF.getSubtarget().getLegalizerInfo()),
-      TLI(*MF.getSubtarget().getTargetLowering()) { }
+      TLI(*MF.getSubtarget().getTargetLowering()), KB(nullptr) {}
 
 LegalizerHelper::LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
                                  GISelChangeObserver &Observer,
-                                 MachineIRBuilder &B)
-  : MIRBuilder(B), Observer(Observer), MRI(MF.getRegInfo()), LI(LI),
-    TLI(*MF.getSubtarget().getTargetLowering()) { }
+                                 MachineIRBuilder &B, GISelKnownBits *KB)
+    : MIRBuilder(B), Observer(Observer), MRI(MF.getRegInfo()), LI(LI),
+      TLI(*MF.getSubtarget().getTargetLowering()), KB(KB) {}
 
 LegalizerHelper::LegalizeResult
 LegalizerHelper::legalizeInstrStep(MachineInstr &MI,
@@ -4977,9 +4978,8 @@ LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
   }
 }
 
-/// Expand source vectors to the size of destination vector.
-static LegalizerHelper::LegalizeResult
-equalizeVectorShuffleLengths(MachineInstr &MI, MachineIRBuilder &MIRBuilder) {
+LegalizerHelper::LegalizeResult
+LegalizerHelper::equalizeVectorShuffleLengths(MachineInstr &MI) {
   MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
 
   LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
@@ -4990,10 +4990,24 @@ equalizeVectorShuffleLengths(MachineInstr &MI, MachineIRBuilder &MIRBuilder) {
   Register DstReg = MI.getOperand(0).getReg();
   LLT DestEltTy = DstTy.getElementType();
 
-  // TODO: Normalize the shuffle vector since mask and vector length don't
-  // match.
-  if (MaskNumElts <= SrcNumElts) {
-    return LegalizerHelper::LegalizeResult::UnableToLegalize;
+  if (MaskNumElts == SrcNumElts)
+    return Legalized;
+
+  if (MaskNumElts < SrcNumElts) {
+    // Extend mask to match new destination vector size with
+    // undef values.
+    SmallVector<int, 16> NewMask(Mask);
+    for (unsigned I = MaskNumElts; I < SrcNumElts; ++I)
+      NewMask.push_back(-1);
+
+    moreElementsVectorDst(MI, SrcTy, 0);
+    MIRBuilder.setInstrAndDebugLoc(MI);
+    MIRBuilder.buildShuffleVector(MI.getOperand(0).getReg(),
+                                  MI.getOperand(1).getReg(),
+                                  MI.getOperand(2).getReg(), NewMask);
+    MI.eraseFromParent();
+
+    return Legalized;
   }
 
   unsigned PaddedMaskNumElts = alignTo(MaskNumElts, SrcNumElts);
@@ -5054,8 +5068,8 @@ LegalizerHelper::moreElementsVectorShuffle(MachineInstr &MI,
   unsigned WidenNumElts = MoreTy.getNumElements();
 
   if (DstTy.isVector() && Src1Ty.isVector() &&
-      DstTy.getNumElements() > Src1Ty.getNumElements()) {
-    return equalizeVectorShuffleLengths(MI, MIRBuilder);
+      DstTy.getNumElements() != Src1Ty.getNumElements()) {
+    return equalizeVectorShuffleLengths(MI);
   }
 
   if (TypeIdx != 0)
@@ -7345,14 +7359,14 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
   Register SrcReg = MI.getOperand(1).getReg();
   LLT DstTy = MRI.getType(DstReg);
   LLT SrcTy = MRI.getType(SrcReg);
-  uint64_t Mask = MI.getOperand(2).getImm();
+  FPClassTest Mask = static_cast<FPClassTest>(MI.getOperand(2).getImm());
 
-  if (Mask == 0) {
+  if (Mask == fcNone) {
     MIRBuilder.buildConstant(DstReg, 0);
     MI.eraseFromParent();
     return Legalized;
   }
-  if ((Mask & fcAllFlags) == fcAllFlags) {
+  if (Mask == fcAllFlags) {
     MIRBuilder.buildConstant(DstReg, 1);
     MI.eraseFromParent();
     return Legalized;
@@ -7374,7 +7388,7 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
   APInt AllOneMantissa = APFloat::getLargest(Semantics).bitcastToAPInt() & ~Inf;
   APInt QNaNBitMask =
       APInt::getOneBitSet(BitSize, AllOneMantissa.getActiveBits() - 1);
-  APInt InvertionMask = APInt::getAllOnesValue(DstTy.getScalarSizeInBits());
+  APInt InvertionMask = APInt::getAllOnes(DstTy.getScalarSizeInBits());
 
   auto SignBitC = MIRBuilder.buildConstant(IntTy, SignBit);
   auto ValueMaskC = MIRBuilder.buildConstant(IntTy, ValueMask);
@@ -7412,7 +7426,7 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
   }
 
   // Check for individual classes.
-  if (unsigned PartialCheck = Mask & fcZero) {
+  if (FPClassTest PartialCheck = Mask & fcZero) {
     if (PartialCheck == fcPosZero)
       appendToRes(MIRBuilder.buildICmp(CmpInst::Predicate::ICMP_EQ, DstTy,
                                        AsInt, ZeroC));
@@ -7424,7 +7438,21 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
                                        AsInt, SignBitC));
   }
 
-  if (unsigned PartialCheck = Mask & fcInf) {
+  if (FPClassTest PartialCheck = Mask & fcSubnormal) {
+    // issubnormal(V) ==> unsigned(abs(V) - 1) u< (all mantissa bits set)
+    // issubnormal(V) && V>0 ==> unsigned(V - 1) u< (all mantissa bits set)
+    auto V = (PartialCheck == fcPosSubnormal) ? AsInt : Abs;
+    auto OneC = MIRBuilder.buildConstant(IntTy, 1);
+    auto VMinusOne = MIRBuilder.buildSub(IntTy, V, OneC);
+    auto SubnormalRes =
+        MIRBuilder.buildICmp(CmpInst::Predicate::ICMP_ULT, DstTy, VMinusOne,
+                             MIRBuilder.buildConstant(IntTy, AllOneMantissa));
+    if (PartialCheck == fcNegSubnormal)
+      SubnormalRes = MIRBuilder.buildAnd(DstTy, SubnormalRes, Sign);
+    appendToRes(SubnormalRes);
+  }
+
+  if (FPClassTest PartialCheck = Mask & fcInf) {
     if (PartialCheck == fcPosInf)
       appendToRes(MIRBuilder.buildICmp(CmpInst::Predicate::ICMP_EQ, DstTy,
                                        AsInt, InfC));
@@ -7439,7 +7467,7 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
     }
   }
 
-  if (unsigned PartialCheck = Mask & fcNan) {
+  if (FPClassTest PartialCheck = Mask & fcNan) {
     auto InfWithQnanBitC = MIRBuilder.buildConstant(IntTy, Inf | QNaNBitMask);
     if (PartialCheck == fcNan) {
       // isnan(V) ==> abs(V) u> int(inf)
@@ -7460,21 +7488,7 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
     }
   }
 
-  if (unsigned PartialCheck = Mask & fcSubnormal) {
-    // issubnormal(V) ==> unsigned(abs(V) - 1) u< (all mantissa bits set)
-    // issubnormal(V) && V>0 ==> unsigned(V - 1) u< (all mantissa bits set)
-    auto V = (PartialCheck == fcPosSubnormal) ? AsInt : Abs;
-    auto OneC = MIRBuilder.buildConstant(IntTy, 1);
-    auto VMinusOne = MIRBuilder.buildSub(IntTy, V, OneC);
-    auto SubnormalRes =
-        MIRBuilder.buildICmp(CmpInst::Predicate::ICMP_ULT, DstTy, VMinusOne,
-                             MIRBuilder.buildConstant(IntTy, AllOneMantissa));
-    if (PartialCheck == fcNegSubnormal)
-      SubnormalRes = MIRBuilder.buildAnd(DstTy, SubnormalRes, Sign);
-    appendToRes(SubnormalRes);
-  }
-
-  if (unsigned PartialCheck = Mask & fcNormal) {
+  if (FPClassTest PartialCheck = Mask & fcNormal) {
     // isnormal(V) ==> (0 u< exp u< max_exp) ==> (unsigned(exp-1) u<
     // (max_exp-1))
     APInt ExpLSB = ExpMask & ~(ExpMask.shl(1));

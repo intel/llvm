@@ -176,8 +176,8 @@ static Attribute minMaxValueForSignedInt(Type type, bool min) {
 static Attribute minMaxValueForUnsignedInt(Type type, bool min) {
   auto intType = type.cast<IntegerType>();
   unsigned bitwidth = intType.getWidth();
-  return IntegerAttr::get(type, min ? llvm::APInt::getNullValue(bitwidth)
-                                    : llvm::APInt::getAllOnesValue(bitwidth));
+  return IntegerAttr::get(type, min ? llvm::APInt::getZero(bitwidth)
+                                    : llvm::APInt::getAllOnes(bitwidth));
 }
 
 /// Creates an OpenMP reduction declaration and inserts it into the provided
@@ -298,7 +298,7 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
     omp::ReductionDeclareOp decl = createDecl(
         builder, symbolTable, reduce,
         builder.getIntegerAttr(
-            type, llvm::APInt::getAllOnesValue(type.getIntOrFloatBitWidth())));
+            type, llvm::APInt::getAllOnes(type.getIntOrFloatBitWidth())));
     return addAtomicRMW(builder, LLVM::AtomicBinOp::_and, decl, reduce,
                         useOpaquePointers);
   }
@@ -309,6 +309,10 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
   if (matchSimpleReduction<arith::MulFOp, LLVM::FMulOp>(reduction)) {
     return createDecl(builder, symbolTable, reduce,
                       builder.getFloatAttr(type, 1.0));
+  }
+  if (matchSimpleReduction<arith::MulIOp, LLVM::MulOp>(reduction)) {
+    return createDecl(builder, symbolTable, reduce,
+                      builder.getIntegerAttr(type, 1));
   }
 
   // Match select-based min/max reductions.

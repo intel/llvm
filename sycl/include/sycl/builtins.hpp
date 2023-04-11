@@ -12,6 +12,7 @@
 #include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
@@ -775,6 +776,95 @@ detail::enable_if_t<detail::is_svgenfloat<T>::value, T> trunc(T x) __NOEXC {
   return __sycl_std::__invoke_trunc<T>(x);
 }
 
+// other marray math functions
+
+// TODO: can be optimized in the way marray math functions above are optimized
+// (usage of vec<T, 2>)
+#define __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, ARGPTR,   \
+                                                               ...)            \
+  marray<T, N> res;                                                            \
+  for (int j = 0; j < N; j++) {                                                \
+    res[j] =                                                                   \
+        NAME(__VA_ARGS__,                                                      \
+             address_space_cast<AddressSpace, IsDecorated,                     \
+                                detail::marray_element_t<T2>>(&(*ARGPTR)[j])); \
+  }                                                                            \
+  return res;
+
+#define __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(        \
+    NAME, ARG1, ARG2, ...)                                                     \
+  template <typename T, size_t N, typename T2,                                 \
+            access::address_space AddressSpace, access::decorated IsDecorated> \
+  std::enable_if_t<                                                            \
+      detail::is_svgenfloat<T>::value &&                                       \
+          detail::is_genfloatptr_marray<T2, AddressSpace, IsDecorated>::value, \
+      marray<T, N>>                                                            \
+  NAME(marray<T, N> ARG1, multi_ptr<T2, AddressSpace, IsDecorated> ARG2)       \
+      __NOEXC {                                                                \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, ARG2,         \
+                                                           __VA_ARGS__)        \
+  }
+
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(fract, x, iptr,
+                                                               x[j])
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(modf, x, iptr,
+                                                               x[j])
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(sincos, x,
+                                                               cosval, x[j])
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_GENFLOATPTR_OVERLOAD
+
+#define __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENINTPTR_OVERLOAD(          \
+    NAME, ARG1, ARG2, ...)                                                     \
+  template <typename T, size_t N, typename T2,                                 \
+            access::address_space AddressSpace, access::decorated IsDecorated> \
+  std::enable_if_t<                                                            \
+      detail::is_svgenfloat<T>::value &&                                       \
+          detail::is_genintptr_marray<T2, AddressSpace, IsDecorated>::value,   \
+      marray<T, N>>                                                            \
+  NAME(marray<T, N> ARG1, multi_ptr<T2, AddressSpace, IsDecorated> ARG2)       \
+      __NOEXC {                                                                \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, ARG2,         \
+                                                           __VA_ARGS__)        \
+  }
+
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENINTPTR_OVERLOAD(frexp, x, exp,
+                                                             x[j])
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENINTPTR_OVERLOAD(lgamma_r, x, signp,
+                                                             x[j])
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_GENINTPTR_OVERLOAD
+
+#define __SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD(NAME, ...)                 \
+  template <typename T, size_t N, typename T2,                                 \
+            access::address_space AddressSpace, access::decorated IsDecorated> \
+  std::enable_if_t<                                                            \
+      detail::is_svgenfloat<T>::value &&                                       \
+          detail::is_genintptr_marray<T2, AddressSpace, IsDecorated>::value,   \
+      marray<T, N>>                                                            \
+  NAME(marray<T, N> x, marray<T, N> y,                                         \
+       multi_ptr<T2, AddressSpace, IsDecorated> quo) __NOEXC {                 \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, quo,          \
+                                                           __VA_ARGS__)        \
+  }
+
+__SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD(remquo, x[j], y[j])
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL
+
+template <typename T, size_t N>
+std::enable_if_t<detail::is_nan_type<T>::value,
+                 marray<detail::nan_return_t<T>, N>>
+nan(marray<T, N> nancode) __NOEXC {
+  marray<detail::nan_return_t<T>, N> res;
+  for (int j = 0; j < N; j++) {
+    res[j] = nan(nancode[j]);
+  }
+  return res;
+}
+
 /* --------------- 4.13.5 Common functions. ---------------------------------*/
 // svgenfloat clamp (svgenfloat x, svgenfloat minval, svgenfloat maxval)
 template <typename T>
@@ -933,15 +1023,16 @@ __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T x, x[i])
 // errors.
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x, T y, x[i], y[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x,
-                                             detail::marray_element_type<T> y,
+                                             detail::marray_element_t<T> y,
                                              x[i], y)
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x, T y, x[i], y[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x,
-                                             detail::marray_element_type<T> y,
+                                             detail::marray_element_t<T> y,
                                              x[i], y)
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step, T edge, T x, edge[i], x[i])
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(
-    step, detail::marray_element_type<T> edge, T x, edge, x[i])
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step,
+                                             detail::marray_element_t<T> edge,
+                                             T x, edge, x[i])
 
 #undef __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD
 
@@ -956,18 +1047,18 @@ __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(clamp, T x, T minval, T maxval,
                                              x[i], minval[i], maxval[i])
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(
-    clamp, T x, detail::marray_element_type<T> minval,
-    detail::marray_element_type<T> maxval, x[i], minval, maxval)
+    clamp, T x, detail::marray_element_t<T> minval,
+    detail::marray_element_t<T> maxval, x[i], minval, maxval)
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(mix, T x, T y, T a, x[i], y[i],
                                              a[i])
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(mix, T x, T y,
-                                             detail::marray_element_type<T> a,
+                                             detail::marray_element_t<T> a,
                                              x[i], y[i], a)
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(smoothstep, T edge0, T edge1, T x,
                                              edge0[i], edge1[i], x[i])
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(
-    smoothstep, detail::marray_element_type<T> edge0,
-    detail::marray_element_type<T> edge1, T x, edge0, edge1, x[i])
+    smoothstep, detail::marray_element_t<T> edge0,
+    detail::marray_element_t<T> edge1, T x, edge0, edge1, x[i])
 
 #undef __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD
 #undef __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL
@@ -1309,6 +1400,264 @@ detail::enable_if_t<detail::is_ugeninteger32bit<T>::value, T>
 mul24(T x, T y) __NOEXC {
   return __sycl_std::__invoke_u_mul24<T>(x, y);
 }
+
+// marray integer functions
+
+// TODO: can be optimized in the way math functions are optimized (usage of
+// vec<T, 2>)
+#define __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, ...)                \
+  marray<T, N> res;                                                            \
+  for (int j = 0; j < N; j++) {                                                \
+    res[j] = NAME(__VA_ARGS__);                                                \
+  }                                                                            \
+  return res;
+
+// Keep NAME for readability
+#define __SYCL_MARRAY_INTEGER_FUNCTION_ABS_U_OVERLOAD(NAME, ARG, ...)          \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG) __NOEXC {                                              \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_ABS_I_OVERLOAD(NAME, ARG, ...)          \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger<T>::value,                           \
+                   marray<detail::make_unsigned_t<T>, N>>                      \
+  NAME(marray<T, N> ARG) __NOEXC {                                             \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_ABS_U_OVERLOAD(abs, x, x[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_ABS_I_OVERLOAD(abs, x, x[j])
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_ABS_I_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_ABS_U_OVERLOAD
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_UNOP_OVERLOAD(NAME, ARG, ...)           \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_geninteger<T>::value, marray<T, N>> NAME(        \
+      marray<T, N> ARG) __NOEXC {                                              \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_UNOP_OVERLOAD(clz, x, x[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_UNOP_OVERLOAD(ctz, x, x[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_UNOP_OVERLOAD(popcount, x, x[j])
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_UNOP_OVERLOAD
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(NAME, ARG1, ARG2, ...) \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, marray<T, N> ARG2) __NOEXC {                          \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_RET_U_OVERLOAD(NAME, ARG1,      \
+                                                              ARG2, ...)       \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger<T>::value,                           \
+                   marray<detail::make_unsigned_t<T>, N>>                      \
+  NAME(marray<T, N> ARG1, marray<T, N> ARG2) __NOEXC {                         \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(NAME, ARG1, ARG2, ...) \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, marray<T, N> ARG2) __NOEXC {                          \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_2ND_ARG_SCALAR_OVERLOAD(        \
+    NAME, ARG1, ARG2, ...)                                                     \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, T ARG2) __NOEXC {                                     \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_2ND_ARG_SCALAR_OVERLOAD(        \
+    NAME, ARG1, ARG2, ...)                                                     \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, T ARG2) __NOEXC {                                     \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(abs_diff, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_RET_U_OVERLOAD(abs_diff, x, y, x[j],
+                                                      y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(add_sat, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(add_sat, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(hadd, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(hadd, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(rhadd, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(rhadd, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD((max), x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD((max), x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_2ND_ARG_SCALAR_OVERLOAD((max), x, y,
+                                                               x[j], y)
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_2ND_ARG_SCALAR_OVERLOAD((max), x, y,
+                                                               x[j], y)
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD((min), x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD((min), x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_2ND_ARG_SCALAR_OVERLOAD((min), x, y,
+                                                               x[j], y)
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_2ND_ARG_SCALAR_OVERLOAD((min), x, y,
+                                                               x[j], y)
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(mul_hi, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(mul_hi, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(rotate, v, i, v[j], i[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(rotate, v, i, v[j], i[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD(sub_sat, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD(sub_sat, x, y, x[j], y[j])
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_2ND_ARG_SCALAR_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_2ND_ARG_SCALAR_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_I_RET_U_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_BINOP_U_OVERLOAD
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_OVERLOAD(NAME, ARG1, ARG2,      \
+                                                        ARG3, ...)             \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, marray<T, N> ARG2, marray<T, N> ARG3) __NOEXC {       \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_OVERLOAD(NAME, ARG1, ARG2,      \
+                                                        ARG3, ...)             \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, marray<T, N> ARG2, marray<T, N> ARG3) __NOEXC {       \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_2ND_3RD_ARGS_SCALAR_OVERLOAD(   \
+    NAME, ARG1, ARG2, ARG3, ...)                                               \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, T ARG2, T ARG3) __NOEXC {                             \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_2ND_3RD_ARGS_SCALAR_OVERLOAD(   \
+    NAME, ARG1, ARG2, ARG3, ...)                                               \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG1, T ARG2, T ARG3) __NOEXC {                             \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_OVERLOAD(clamp, x, minval, maxval, x[j],
+                                                minval[j], maxval[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_OVERLOAD(clamp, x, minval, maxval, x[j],
+                                                minval[j], maxval[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_2ND_3RD_ARGS_SCALAR_OVERLOAD(
+    clamp, x, minval, maxval, x[j], minval, maxval)
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_2ND_3RD_ARGS_SCALAR_OVERLOAD(
+    clamp, x, minval, maxval, x[j], minval, maxval)
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_OVERLOAD(mad_hi, a, b, c, a[j], b[j],
+                                                c[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_OVERLOAD(mad_hi, a, b, c, a[j], b[j],
+                                                c[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_OVERLOAD(mad_sat, a, b, c, a[j], b[j],
+                                                c[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_OVERLOAD(mad_sat, a, b, c, a[j], b[j],
+                                                c[j])
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_2ND_3RD_ARGS_SCALAR_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_2ND_3RD_ARGS_SCALAR_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_I_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_TEROP_U_OVERLOAD
+
+// Keep NAME for readability
+#define __SYCL_MARRAY_INTEGER_FUNCTION_MAD24_U_OVERLOAD(NAME, ARG1, ARG2,      \
+                                                        ARG3, ...)             \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger32bit<T>::value, marray<T, N>> NAME(  \
+      marray<T, N> ARG1, marray<T, N> ARG2, marray<T, N> ARG3) __NOEXC {       \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_MAD24_I_OVERLOAD(NAME, ARG1, ARG2,      \
+                                                        ARG3, ...)             \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger32bit<T>::value, marray<T, N>> NAME(  \
+      marray<T, N> ARG1, marray<T, N> ARG2, marray<T, N> ARG3) __NOEXC {       \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_MAD24_U_OVERLOAD(mad24, x, y, z, x[j], y[j],
+                                                z[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_MAD24_I_OVERLOAD(mad24, x, y, z, x[j], y[j],
+                                                z[j])
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_MAD24_I_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_MAD24_U_OVERLOAD
+
+// Keep NAME for readability
+#define __SYCL_MARRAY_INTEGER_FUNCTION_MUL24_U_OVERLOAD(NAME, ARG1, ARG2, ...) \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger32bit<T>::value, marray<T, N>> NAME(  \
+      marray<T, N> ARG1, marray<T, N> ARG2) __NOEXC {                          \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_MUL24_I_OVERLOAD(NAME, ARG1, ARG2, ...) \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_igeninteger32bit<T>::value, marray<T, N>> NAME(  \
+      marray<T, N> ARG1, marray<T, N> ARG2) __NOEXC {                          \
+    __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_MUL24_U_OVERLOAD(mul24, x, y, x[j], y[j])
+__SYCL_MARRAY_INTEGER_FUNCTION_MUL24_I_OVERLOAD(mul24, x, y, x[j], y[j])
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_MUL24_I_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_MUL24_U_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL
+
+// TODO: can be optimized in the way math functions are optimized (usage of
+// vec<T, 2>)
+#define __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_OVERLOAD_IMPL(NAME)            \
+  detail::make_larger_t<marray<T, N>> res;                                     \
+  for (int j = 0; j < N; j++) {                                                \
+    res[j] = NAME(hi[j], lo[j]);                                               \
+  }                                                                            \
+  return res;
+
+// Keep NAME for readability
+#define __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_UU_OVERLOAD(NAME, KBIT)        \
+  template <typename T, size_t N>                                              \
+  std::enable_if_t<detail::is_ugeninteger##KBIT<T>::value,                     \
+                   detail::make_larger_t<marray<T, N>>>                        \
+  NAME(marray<T, N> hi, marray<T, N> lo) __NOEXC {                             \
+    __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_OVERLOAD_IMPL(NAME)                \
+  }
+
+#define __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_IU_OVERLOAD(NAME, KBIT)        \
+  template <typename T, typename T2, size_t N>                                 \
+  std::enable_if_t<detail::is_igeninteger##KBIT<T>::value &&                   \
+                       detail::is_ugeninteger##KBIT<T2>::value,                \
+                   detail::make_larger_t<marray<T, N>>>                        \
+  NAME(marray<T, N> hi, marray<T2, N> lo) __NOEXC {                            \
+    __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_OVERLOAD_IMPL(NAME)                \
+  }
+
+__SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_UU_OVERLOAD(upsample, 8bit)
+__SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_IU_OVERLOAD(upsample, 8bit)
+__SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_UU_OVERLOAD(upsample, 16bit)
+__SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_IU_OVERLOAD(upsample, 16bit)
+__SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_UU_OVERLOAD(upsample, 32bit)
+__SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_IU_OVERLOAD(upsample, 32bit)
+
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_IU_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_UU_OVERLOAD
+#undef __SYCL_MARRAY_INTEGER_FUNCTION_UPSAMPLE_OVERLOAD_IMPL
 
 /* --------------- 4.13.6 Geometric Functions. ------------------------------*/
 // float3 cross (float3 p0, float3 p1)
@@ -1654,9 +2003,9 @@ detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
 // mgentype select (mgentype a, mgentype b, marray<bool, { N }> c)
 template <typename T,
           typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>
-sycl::marray<detail::marray_element_type<T>, T::size()>
+sycl::marray<detail::marray_element_t<T>, T::size()>
 select(T a, T b, sycl::marray<bool, T::size()> c) __NOEXC {
-  sycl::marray<detail::marray_element_type<T>, T::size()> res;
+  sycl::marray<detail::marray_element_t<T>, T::size()> res;
   for (int i = 0; i < a.size(); i++) {
     res[i] = select(a[i], b[i], c[i]);
   }

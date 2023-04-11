@@ -26,15 +26,12 @@
 // RUN: %clang --target=riscv64-linux -### %s -fsyntax-only 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=DEFAULT-LINUX
 
-// DEFAULT-LINUX: "-target-feature" "+m"
+// DEFAULT-LINUX: "-funwind-tables=2"
+// DEFAULT-LINUX-SAME: "-target-feature" "+m"
 // DEFAULT-LINUX-SAME: "-target-feature" "+a"
 // DEFAULT-LINUX-SAME: "-target-feature" "+f"
 // DEFAULT-LINUX-SAME: "-target-feature" "+d"
 // DEFAULT-LINUX-SAME: "-target-feature" "+c"
-
-// RUN: not %clang -cc1 -triple riscv64-unknown-elf -target-feature +e 2>&1 | FileCheck %s -check-prefix=RV64-WITH-E
-
-// RV64-WITH-E: error: invalid feature combination: standard user-level extension 'e' requires 'rv32'
 
 // RUN: not %clang -c --target=riscv64-linux-gnu -gsplit-dwarf %s 2>&1 | FileCheck %s --check-prefix=ERR-SPLIT-DWARF
 // RUN: not %clang -c --target=riscv64 -gsplit-dwarf=single %s 2>&1 | FileCheck %s --check-prefix=ERR-SPLIT-DWARF

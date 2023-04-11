@@ -46,8 +46,16 @@ int64_t GPUWarpMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getWarp());
 }
 
+int64_t GPULinearIdMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getLinearId());
+}
+
 int64_t GPUThreadMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getThread());
+}
+
+int64_t GPUMemorySpaceMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getAddressSpace());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1333,7 +1341,7 @@ public:
         continue;
       validOperands.push_back(operand);
     }
-    op->setOperands(validOperands);
+    rewriter.updateRootInPlace(op, [&]() { op->setOperands(validOperands); });
     return success();
   }
 };

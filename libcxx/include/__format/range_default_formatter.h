@@ -83,40 +83,23 @@ inline constexpr range_format format_kind<_Rp> = [] {
     return range_format::sequence;
 }();
 
-// This is a non-standard work-around to fix instantiation of
-//   formatter<const _CharT[N], _CharT>
-// const _CharT[N] satisfies the ranges::input_range concept.
-// remove_cvref_t<const _CharT[N]> is _CharT[N] so it does not satisfy the
-// requirement of the above specialization. Instead it will instantiate the
-// primary template, which is ill-formed.
-//
-// An alternative solution is to remove the offending formatter.
-//
-// https://godbolt.org/z/bqjhhaexx
-//
-// The removal is proposed in LWG3833, but use the work-around until the issue
-// has been adopted.
-// TODO FMT Implement LWG3833.
-template <class _CharT, size_t N>
-inline constexpr range_format format_kind<const _CharT[N]> = range_format::disabled;
-
 template <range_format _Kp, ranges::input_range _Rp, class _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __range_default_formatter;
+struct _LIBCPP_TEMPLATE_VIS __range_default_formatter;
 
 // Required specializations
 
 template <ranges::input_range _Rp, class _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __range_default_formatter<range_format::sequence, _Rp, _CharT> {
+struct _LIBCPP_TEMPLATE_VIS __range_default_formatter<range_format::sequence, _Rp, _CharT> {
 private:
   using __maybe_const_r = __fmt_maybe_const<_Rp, _CharT>;
   range_formatter<remove_cvref_t<ranges::range_reference_t<__maybe_const_r>>, _CharT> __underlying_;
 
 public:
-  _LIBCPP_HIDE_FROM_ABI constexpr void set_separator(basic_string_view<_CharT> __separator) {
+  _LIBCPP_HIDE_FROM_ABI constexpr void set_separator(basic_string_view<_CharT> __separator) noexcept {
     __underlying_.set_separator(__separator);
   }
   _LIBCPP_HIDE_FROM_ABI constexpr void
-  set_brackets(basic_string_view<_CharT> __opening_bracket, basic_string_view<_CharT> __closing_bracket) {
+  set_brackets(basic_string_view<_CharT> __opening_bracket, basic_string_view<_CharT> __closing_bracket) noexcept {
     __underlying_.set_brackets(__opening_bracket, __closing_bracket);
   }
 
@@ -132,7 +115,7 @@ public:
 };
 
 template <ranges::input_range _Rp, class _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __range_default_formatter<range_format::map, _Rp, _CharT> {
+struct _LIBCPP_TEMPLATE_VIS __range_default_formatter<range_format::map, _Rp, _CharT> {
 private:
   using __maybe_const_map = __fmt_maybe_const<_Rp, _CharT>;
   using __element_type    = remove_cvref_t<ranges::range_reference_t<__maybe_const_map>>;
@@ -160,7 +143,7 @@ public:
 };
 
 template <ranges::input_range _Rp, class _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __range_default_formatter<range_format::set, _Rp, _CharT> {
+struct _LIBCPP_TEMPLATE_VIS __range_default_formatter<range_format::set, _Rp, _CharT> {
 private:
   using __maybe_const_set = __fmt_maybe_const<_Rp, _CharT>;
   using __element_type    = remove_cvref_t<ranges::range_reference_t<__maybe_const_set>>;
@@ -185,14 +168,13 @@ public:
 
 template <range_format _Kp, ranges::input_range _Rp, class _CharT>
   requires(_Kp == range_format::string || _Kp == range_format::debug_string)
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __range_default_formatter<_Kp, _Rp, _CharT> {
+struct _LIBCPP_TEMPLATE_VIS __range_default_formatter<_Kp, _Rp, _CharT> {
   __range_default_formatter() = delete; // TODO FMT Implement
 };
 
 template <ranges::input_range _Rp, class _CharT>
   requires(format_kind<_Rp> != range_format::disabled && formattable<ranges::range_reference_t<_Rp>, _CharT>)
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<_Rp, _CharT>
-    : __range_default_formatter<format_kind<_Rp>, _Rp, _CharT> {};
+struct _LIBCPP_TEMPLATE_VIS formatter<_Rp, _CharT> : __range_default_formatter<format_kind<_Rp>, _Rp, _CharT> {};
 
 #endif //_LIBCPP_STD_VER >= 23
 

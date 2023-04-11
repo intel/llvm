@@ -144,8 +144,8 @@ LLVM_LIBC_FUNCTION(void, sincosf, (float x, float *sinp, float *cosp)) {
   // x is inf or nan.
   if (LIBC_UNLIKELY(x_abs >= 0x7f80'0000U)) {
     if (x_abs == 0x7f80'0000U) {
-      errno = EDOM;
-      fputil::set_except(FE_INVALID);
+      fputil::set_errno_if_required(EDOM);
+      fputil::raise_except_if_required(FE_INVALID);
     }
     *sinp =
         x + FPBits::build_nan(1 << (fputil::MantissaWidth<float>::VALUE - 1));
@@ -193,10 +193,10 @@ LLVM_LIBC_FUNCTION(void, sincosf, (float x, float *sinp, float *cosp)) {
 
   sincosf_eval(xd, x_abs, sin_k, cos_k, sin_y, cosm1_y);
 
-  *sinp = fputil::multiply_add(sin_y, cos_k,
-                               fputil::multiply_add(cosm1_y, sin_k, sin_k));
-  *cosp = fputil::multiply_add(sin_y, -sin_k,
-                               fputil::multiply_add(cosm1_y, cos_k, cos_k));
+  *sinp = static_cast<float>(fputil::multiply_add(
+      sin_y, cos_k, fputil::multiply_add(cosm1_y, sin_k, sin_k)));
+  *cosp = static_cast<float>(fputil::multiply_add(
+      sin_y, -sin_k, fputil::multiply_add(cosm1_y, cos_k, cos_k)));
 }
 
 } // namespace __llvm_libc

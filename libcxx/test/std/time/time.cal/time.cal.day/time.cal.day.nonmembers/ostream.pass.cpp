@@ -15,6 +15,9 @@
 // TODO FMT Evaluate gcc-12 status
 // UNSUPPORTED: gcc-12
 
+// TODO FMT This test should not require std::to_chars(floating-point)
+// XFAIL: availability-fp_to_chars-missing
+
 // REQUIRES: locale.fr_FR.UTF-8
 // REQUIRES: locale.ja_JP.UTF-8
 

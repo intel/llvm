@@ -1007,7 +1007,16 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
     // 2D USM operations currently not supported.
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
                             false);
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // These queries should be dealt with in context_impl.cpp by calling the
+    // queries of each device separately and building the intersection set.
+    setErrorMessage("These queries should have never come here.",
+                    PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -1654,8 +1663,21 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    device->get_reference_count());
   }
   case PI_DEVICE_INFO_VERSION: {
+    std::stringstream s;
+
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+#if defined(__HIP_PLATFORM_NVIDIA__)
+    s << props.major << "." << props.minor;
+#elif defined(__HIP_PLATFORM_AMD__)
+    s << props.gcnArchName;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "PI 0.0");
+                   s.str().c_str());
   }
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
@@ -1856,10 +1878,32 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_int32{1});
   }
 
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED |
                                                 PI_MEMORY_ORDER_ACQUIRE |
                                                 PI_MEMORY_ORDER_RELEASE;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence/memory_scope_capabilities.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities capabilities = PI_MEMORY_SCOPE_WORK_ITEM |
+                                                PI_MEMORY_SCOPE_SUB_GROUP |
+                                                PI_MEMORY_SCOPE_WORK_GROUP;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence_order_capabilities.
+    pi_memory_order_capabilities capabilities =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
@@ -1889,7 +1933,6 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   // TODO: Investigate if this information is available on HIP.
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -1899,7 +1942,9 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
-    return PI_ERROR_INVALID_VALUE;
+    setErrorMessage("HIP backend does not support this query",
+                    PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -2586,6 +2631,13 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
   return PI_SUCCESS;
 }
 
+pi_result hip_piextQueueGetNativeHandle2(pi_queue queue,
+                                         pi_native_handle *nativeHandle,
+                                         int32_t *NativeHandleDesc) {
+  (void)NativeHandleDesc;
+  return hip_piextQueueGetNativeHandle(queue, nativeHandle);
+}
+
 /// Created a PI queue object from a HIP queue handle.
 /// TODO: Implement this.
 /// NOTE: The created PI object takes ownership of the native handle.
@@ -2611,6 +2663,16 @@ pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
+}
+
+pi_result hip_piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *queue) {
+  (void)NativeHandleDesc;
+  (void)Properties;
+  return hip_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
+                                              ownNativeHandle, queue);
 }
 
 pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -5341,6 +5403,44 @@ pi_result hip_piextEnqueueDeviceGlobalVariableRead(
 
   sycl::detail::pi::die(
       "hip_piextEnqueueDeviceGlobalVariableRead not implemented");
+}
+
+/// Host Pipes
+pi_result hip_piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                       const char *pipe_symbol,
+                                       pi_bool blocking, void *ptr, size_t size,
+                                       pi_uint32 num_events_in_waitlist,
+                                       const pi_event *events_waitlist,
+                                       pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  sycl::detail::pi::die("hip_piextEnqueueReadHostPipe not implemented");
+  return {};
+}
+
+pi_result hip_piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  sycl::detail::pi::die("hip_piextEnqueueWriteHostPipe not implemented");
   return {};
 }
 
@@ -5434,13 +5534,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piextQueueCreate, hip_piextQueueCreate)
+  _PI_CL(piextQueueCreate2, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, hip_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2,
+         hip_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, hip_piMemBufferCreate)
   _PI_CL(piMemImageCreate, hip_piMemImageCreate)
@@ -5529,6 +5633,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          hip_piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          hip_piextEnqueueDeviceGlobalVariableRead)
+
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)

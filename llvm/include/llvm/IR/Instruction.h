@@ -183,10 +183,10 @@ public:
   /// its operands.
   bool isOnlyUserOfAnyOperand();
 
-  static const char* getOpcodeName(unsigned OpCode);
+  static const char *getOpcodeName(unsigned Opcode);
 
-  static inline bool isTerminator(unsigned OpCode) {
-    return OpCode >= TermOpsBegin && OpCode < TermOpsEnd;
+  static inline bool isTerminator(unsigned Opcode) {
+    return Opcode >= TermOpsBegin && Opcode < TermOpsEnd;
   }
 
   static inline bool isUnaryOp(unsigned Opcode) {
@@ -225,19 +225,19 @@ public:
     return isBitwiseLogicOp(getOpcode());
   }
 
-  /// Determine if the OpCode is one of the CastInst instructions.
-  static inline bool isCast(unsigned OpCode) {
-    return OpCode >= CastOpsBegin && OpCode < CastOpsEnd;
+  /// Determine if the Opcode is one of the CastInst instructions.
+  static inline bool isCast(unsigned Opcode) {
+    return Opcode >= CastOpsBegin && Opcode < CastOpsEnd;
   }
 
-  /// Determine if the OpCode is one of the FuncletPadInst instructions.
-  static inline bool isFuncletPad(unsigned OpCode) {
-    return OpCode >= FuncletPadOpsBegin && OpCode < FuncletPadOpsEnd;
+  /// Determine if the Opcode is one of the FuncletPadInst instructions.
+  static inline bool isFuncletPad(unsigned Opcode) {
+    return Opcode >= FuncletPadOpsBegin && Opcode < FuncletPadOpsEnd;
   }
 
-  /// Returns true if the OpCode is a terminator related to exception handling.
-  static inline bool isExceptionalTerminator(unsigned OpCode) {
-    switch (OpCode) {
+  /// Returns true if the Opcode is a terminator related to exception handling.
+  static inline bool isExceptionalTerminator(unsigned Opcode) {
+    switch (Opcode) {
     case Instruction::CatchSwitch:
     case Instruction::CatchRet:
     case Instruction::CleanupRet:
@@ -320,7 +320,7 @@ public:
   /// @{
   /// Passes are required to drop metadata they don't understand. This is a
   /// convenience method for passes to do so.
-  /// dropUndefImplyingAttrsAndUnknownMetadata should be used instead of
+  /// dropUBImplyingAttrsAndUnknownMetadata should be used instead of
   /// this API if the Instruction being modified is a call.
   void dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs);
   void dropUnknownNonDebugMetadata() {
@@ -404,8 +404,7 @@ public:
   /// dropUnknownNonDebugMetadata). For calls, it also drops parameter and 
   /// return attributes that can cause undefined behaviour. Both of these should
   /// be done by passes which move instructions in IR.
-  void
-  dropUndefImplyingAttrsAndUnknownMetadata(ArrayRef<unsigned> KnownIDs = {});
+  void dropUBImplyingAttrsAndUnknownMetadata(ArrayRef<unsigned> KnownIDs = {});
 
   /// Determine whether the exact flag is set.
   bool isExact() const LLVM_READONLY;

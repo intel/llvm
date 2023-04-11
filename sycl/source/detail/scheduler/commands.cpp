@@ -10,6 +10,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
@@ -859,6 +860,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // PI_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
+        !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MMarkedForCleanup);
       MMarkedForCleanup = true;
@@ -2225,7 +2227,8 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    RT::PiKernelCacheConfig KernelCacheConfig) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2315,6 +2318,17 @@ pi_int32 enqueueImpKernel(
   {
     assert(KernelMutex);
     std::lock_guard<std::mutex> Lock(*KernelMutex);
+
+    // Set SLM/Cache configuration for the kernel if non-default value is
+    // provided.
+    if (KernelCacheConfig == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM ||
+        KernelCacheConfig == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA) {
+      const detail::plugin &Plugin = Queue->getPlugin();
+      Plugin.call<PiApiKind::piKernelSetExecInfo>(
+          Kernel, PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG,
+          sizeof(RT::PiKernelCacheConfig), &KernelCacheConfig);
+    }
+
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
@@ -2328,6 +2342,39 @@ pi_int32 enqueueImpKernel(
   }
 
   return PI_SUCCESS;
+}
+
+pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                  const std::string &PipeName, bool blocking,
+                                  void *ptr, size_t size,
+                                  std::vector<RT::PiEvent> &RawEvents,
+                                  RT::PiEvent *OutEvent, bool read) {
+  detail::HostPipeMapEntry *hostPipeEntry =
+      ProgramManager::getInstance().getHostPipeEntry(PipeName);
+
+  RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
+      *(hostPipeEntry->mDeviceImage), Queue->get_context(),
+      Queue->get_device());
+
+  // Get plugin for calling opencl functions
+  const detail::plugin &Plugin = Queue->getPlugin();
+
+  pi_queue pi_q = Queue->getHandleRef();
+  pi_result Error;
+  if (read) {
+    Error =
+        Plugin.call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
+            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEvent);
+  } else {
+    Error =
+        Plugin.call_nocheck<sycl::detail::PiApiKind::piextEnqueueWriteHostPipe>(
+            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEvent);
+  }
+  return Error;
 }
 
 pi_int32 ExecCGCommand::enqueueImp() {
@@ -2551,7 +2598,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);
+        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc,
+        ExecKernel->MKernelCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -2737,6 +2785,21 @@ pi_int32 ExecCGCommand::enqueueImp() {
         Copy->getOSModuleHandle(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
+  }
+  case CG::CGTYPE::ReadWriteHostPipe: {
+    CGReadWriteHostPipe *ExecReadWriteHostPipe =
+        (CGReadWriteHostPipe *)MCommandGroup.get();
+    std::string pipeName = ExecReadWriteHostPipe->getPipeName();
+    void *hostPtr = ExecReadWriteHostPipe->getHostPtr();
+    size_t typeSize = ExecReadWriteHostPipe->getTypeSize();
+    bool blocking = ExecReadWriteHostPipe->isBlocking();
+    bool read = ExecReadWriteHostPipe->isReadHostPipe();
+
+    if (!Event) {
+      Event = &MEvent->getHandleRef();
+    }
+    return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
+                                    typeSize, RawEvents, Event, read);
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

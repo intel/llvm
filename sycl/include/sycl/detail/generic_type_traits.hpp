@@ -59,12 +59,10 @@ using is_vgenfloat = is_contained<T, gtl::vector_floating_list>;
 template <typename T>
 using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
 
-template <typename T> using marray_element_type = typename T::value_type;
-
 template <typename T>
 using is_mgenfloat = bool_constant<
-    std::is_same<T, sycl::marray<marray_element_type<T>, T::size()>>::value &&
-    is_svgenfloat<marray_element_type<T>>::value>;
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    is_svgenfloat<marray_element_t<T>>::value>;
 
 template <typename T>
 using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
@@ -234,10 +232,29 @@ using is_genintptr = bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+using is_genintptr_marray = bool_constant<
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    is_genint<marray_element_t<remove_pointer_t<T>>>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
+
 template <typename T>
 using is_genfloatptr = bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+using is_genfloatptr_marray = bool_constant<
+    is_mgenfloat<T>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
 
 template <typename T>
 using is_genptr = bool_constant<

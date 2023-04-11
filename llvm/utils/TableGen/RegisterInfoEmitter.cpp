@@ -1908,10 +1908,5 @@ void RegisterInfoEmitter::debugDump(raw_ostream &OS) {
   }
 }
 
-namespace llvm {
-
-void EmitRegisterInfo(RecordKeeper &RK, raw_ostream &OS) {
-  RegisterInfoEmitter(RK).run(OS);
-}
-
-} // end namespace llvm
+static TableGen::Emitter::OptClass<RegisterInfoEmitter>
+    X("gen-register-info", "Generate registers and register classes info");

@@ -36,6 +36,12 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg")
 
+if(NOT SYCL_TEST_E2E_STANDALONE)
+  list(APPEND SYCL_E2E_TEST_DEPS
+    sycl-toolchain
+  )
+endif() # Standalone.
+
 if(SYCL_TEST_E2E_TARGETS)
   message("Configure iterative execution on multiple backends")
   add_custom_target(check-sycl-e2e)
@@ -58,6 +64,7 @@ if(SYCL_TEST_E2E_TARGETS)
     add_custom_target(${TARGET}
       COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
       COMMENT "Running the SYCL tests for ${TARGET} backend"
+      DEPENDS ${SYCL_E2E_TEST_DEPS}
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       USES_TERMINAL
     )
@@ -67,6 +74,5 @@ if(SYCL_TEST_E2E_TARGETS)
   endforeach()
 endif(SYCL_TEST_E2E_TARGETS)
 
-# TODO: Re-enable when moving the entire intel/llvm-test-suite back in-tree.
-# add_subdirectory(External)
-# add_subdirectory(ExtraTests)
+add_subdirectory(External)
+add_subdirectory(ExtraTests)

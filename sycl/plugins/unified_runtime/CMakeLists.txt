@@ -105,10 +105,12 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
   INCLUDE_DIRS
+    ${sycl_inc_dir}
   LIBRARIES
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
     LevelZeroLoader
+    Threads::Threads
 )
 
 set_target_properties("ur_adapter_level_zero" PROPERTIES

@@ -20,8 +20,8 @@ int Initialize(const Descriptor &instance, const typeInfo::DerivedType &derived,
   std::size_t elements{instance.Elements()};
   std::size_t byteStride{instance.ElementBytes()};
   int stat{StatOk};
-  // Initialize data components in each element; the per-element iteration
-  // constitutes the inner loops, not outer
+  // Initialize data components in each element; the per-element iterations
+  // constitute the inner loops, not the outer ones
   std::size_t myComponents{componentDesc.Elements()};
   for (std::size_t k{0}; k < myComponents; ++k) {
     const auto &comp{
@@ -36,7 +36,14 @@ int Initialize(const Descriptor &instance, const typeInfo::DerivedType &derived,
         if (comp.genre() == typeInfo::Component::Genre::Automatic) {
           stat = ReturnError(terminator, allocDesc.Allocate(), errMsg, hasStat);
           if (stat == StatOk) {
-            stat = Initialize(allocDesc, derived, terminator, hasStat, errMsg);
+            if (const DescriptorAddendum * addendum{allocDesc.Addendum()}) {
+              if (const auto *derived{addendum->derivedType()}) {
+                if (!derived->noInitializationNeeded()) {
+                  stat = Initialize(
+                      allocDesc, *derived, terminator, hasStat, errMsg);
+                }
+              }
+            }
           }
           if (stat != StatOk) {
             break;
@@ -224,15 +231,18 @@ void Destroy(const Descriptor &descriptor, bool finalize,
   const Descriptor &componentDesc{derived.component()};
   std::size_t myComponents{componentDesc.Elements()};
   std::size_t elements{descriptor.Elements()};
-  std::size_t byteStride{descriptor.ElementBytes()};
+  SubscriptValue at[maxRank];
+  descriptor.GetLowerBounds(at);
   for (std::size_t k{0}; k < myComponents; ++k) {
     const auto &comp{
         *componentDesc.ZeroBasedIndexedElement<typeInfo::Component>(k)};
     if (comp.genre() == typeInfo::Component::Genre::Allocatable ||
         comp.genre() == typeInfo::Component::Genre::Automatic) {
       for (std::size_t j{0}; j < elements; ++j) {
-        descriptor.OffsetElement<Descriptor>(j * byteStride + comp.offset())
-            ->Deallocate();
+        Descriptor *d{reinterpret_cast<Descriptor *>(
+            descriptor.Element<char>(at) + comp.offset())};
+        d->Deallocate();
+        descriptor.IncrementSubscripts(at);
       }
     }
   }

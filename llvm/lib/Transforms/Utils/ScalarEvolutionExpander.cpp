@@ -174,7 +174,7 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
       assert(DL.getTypeAllocSize(Builder.getInt8Ty()) == 1 &&
              "alloc size of i8 must by 1 byte for the GEP to be correct");
       auto *GEP = Builder.CreateGEP(
-          Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "uglygep");
+          Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "scevgep");
       return Builder.CreateBitCast(GEP, Ty);
     }
   }
@@ -613,7 +613,7 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
     }
 
     // Emit a GEP.
-    return Builder.CreateGEP(Builder.getInt8Ty(), V, Idx, "uglygep");
+    return Builder.CreateGEP(Builder.getInt8Ty(), V, Idx, "scevgep");
   }
 
   {
@@ -680,6 +680,7 @@ const Loop *SCEVExpander::getRelevantLoop(const SCEV *S) {
 
   switch (S->getSCEVType()) {
   case scConstant:
+  case scVScale:
     return nullptr; // A constant has no relevant loops.
   case scTruncate:
   case scZeroExtend:
@@ -1744,6 +1745,10 @@ Value *SCEVExpander::visitSequentialUMinExpr(const SCEVSequentialUMinExpr *S) {
   return expandMinMaxExpr(S, Intrinsic::umin, "umin", /*IsSequential*/true);
 }
 
+Value *SCEVExpander::visitVScale(const SCEVVScale *S) {
+  return Builder.CreateVScale(ConstantInt::get(S->getType(), 1));
+}
+
 Value *SCEVExpander::expandCodeForImpl(const SCEV *SH, Type *Ty,
                                        Instruction *IP) {
   setInsertPoint(IP);
@@ -2124,6 +2129,7 @@ template<typename T> static InstructionCost costAndCollectOperands(
     llvm_unreachable("Attempt to use a SCEVCouldNotCompute object!");
   case scUnknown:
   case scConstant:
+  case scVScale:
     return 0;
   case scPtrToInt:
     Cost = CastCost(Instruction::PtrToInt);
@@ -2260,6 +2266,7 @@ bool SCEVExpander::isHighCostExpansionHelper(
   case scCouldNotCompute:
     llvm_unreachable("Attempt to use a SCEVCouldNotCompute object!");
   case scUnknown:
+  case scVScale:
     // Assume to be zero-cost.
     return false;
   case scConstant: {

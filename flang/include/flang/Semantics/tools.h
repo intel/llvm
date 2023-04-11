@@ -108,7 +108,7 @@ bool IsBindCProcedure(const Scope &);
 // Returns a pointer to the function's symbol when true, else null
 const Symbol *IsFunctionResultWithSameNameAsFunction(const Symbol &);
 bool IsOrContainsEventOrLockComponent(const Symbol &);
-bool CanBeTypeBoundProc(const Symbol *);
+bool CanBeTypeBoundProc(const Symbol &);
 // Does a non-PARAMETER symbol have explicit initialization with =value or
 // =>target in its declaration (but not in a DATA statement)? (Being
 // ALLOCATABLE or having a derived type with default component initialization
@@ -145,9 +145,6 @@ inline bool IsAllocatable(const Symbol &symbol) {
 inline bool IsAllocatableOrPointer(const Symbol &symbol) {
   return IsPointer(symbol) || IsAllocatable(symbol);
 }
-inline bool IsSave(const Symbol &symbol) {
-  return symbol.attrs().test(Attr::SAVE);
-}
 inline bool IsNamedConstant(const Symbol &symbol) {
   return symbol.attrs().test(Attr::PARAMETER);
 }
@@ -169,6 +166,7 @@ inline bool IsProtected(const Symbol &symbol) {
 inline bool IsImpliedDoIndex(const Symbol &symbol) {
   return symbol.owner().kind() == Scope::Kind::ImpliedDos;
 }
+SymbolVector FinalsForDerivedTypeInstantiation(const DerivedTypeSpec &);
 bool IsFinalizable(
     const Symbol &, std::set<const DerivedTypeSpec *> * = nullptr);
 bool IsFinalizable(
@@ -252,7 +250,7 @@ const Symbol *FindExternallyVisibleObject(
       expr.u);
 }
 
-// Apply GetUltimate(), then if the symbol is a generic procedure shadowing a
+// Applies GetUltimate(), then if the symbol is a generic procedure shadowing a
 // specific procedure of the same name, return it instead.
 const Symbol &BypassGeneric(const Symbol &);
 
@@ -629,6 +627,21 @@ bool HasDefinedIo(
 // `operator(==)`). GetAllNames() returns them all, including symbolName.
 std::forward_list<std::string> GetAllNames(
     const SemanticsContext &, const SourceName &);
+
+// Determines the derived type of a procedure's initial "dtv" dummy argument,
+// assuming that the procedure is a specific procedure of a user-defined
+// derived type I/O generic interface,
+const DerivedTypeSpec *GetDtvArgDerivedType(const Symbol &);
+
+// Locates a non-type-bound generic interface in the enclosing scopes for a
+// given user-defined derived type I/O operation, given a specific derived type
+// spec. Intended for use when lowering I/O data list items to identify a remote
+// or dynamic non-type-bound UDDTIO subroutine so that it can be passed to the
+// I/O runtime's NonTypeBoundDefinedIo() API.
+std::pair<const Symbol *, bool /*isPolymorphic*/> FindNonTypeBoundDefinedIo(
+    const SemanticsContext, const parser::OutputItem &, bool isFormatted);
+std::pair<const Symbol *, bool /*isPolymorphic*/> FindNonTypeBoundDefinedIo(
+    const SemanticsContext, const parser::InputItem &, bool isFormatted);
 
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_TOOLS_H_

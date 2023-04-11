@@ -196,7 +196,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
 
     // Support splatting
     for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
-		   MVT::v2f64})
+                   MVT::v2f64})
       setOperationAction(ISD::SPLAT_VECTOR, T, Legal);
 
     // Custom lowering since wasm shifts must have a scalar shift amount
@@ -534,11 +534,12 @@ LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
   assert(CallResults.getOpcode() == WebAssembly::CALL_RESULTS ||
          CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS);
 
-  bool IsIndirect = CallParams.getOperand(0).isReg();
+  bool IsIndirect =
+      CallParams.getOperand(0).isReg() || CallParams.getOperand(0).isFI();
   bool IsRetCall = CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS;
 
   bool IsFuncrefCall = false;
-  if (IsIndirect) {
+  if (IsIndirect && CallParams.getOperand(0).isReg()) {
     Register Reg = CallParams.getOperand(0).getReg();
     const MachineFunction *MF = BB->getParent();
     const MachineRegisterInfo &MRI = MF->getRegInfo();
@@ -2150,7 +2151,8 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
         assert((LaneBits == 64 || Val >= -(1ll << (LaneBits - 1))) &&
                "Unexpected out of bounds negative value");
         if (Const && LaneBits != 64 && Val > (1ll << (LaneBits - 1)) - 1) {
-          auto NewVal = ((uint64_t)Val % (1ll << LaneBits)) - (1ll << LaneBits);
+          uint64_t Mask = (1ll << LaneBits) - 1;
+          auto NewVal = (((uint64_t)Val & Mask) - (1ll << LaneBits)) & Mask;
           ConstLanes.push_back(DAG.getConstant(NewVal, SDLoc(Lane), LaneT));
         } else {
           ConstLanes.push_back(Lane);
@@ -2240,7 +2242,7 @@ WebAssemblyTargetLowering::LowerAccessVectorElement(SDValue Op,
                                                     SelectionDAG &DAG) const {
   // Allow constant lane indices, expand variable lane indices
   SDNode *IdxNode = Op.getOperand(Op.getNumOperands() - 1).getNode();
-  if (isa<ConstantSDNode>(IdxNode) || IdxNode->isUndef()) {
+  if (isa<ConstantSDNode>(IdxNode)) {
     // Ensure the index type is i32 to match the tablegen patterns
     uint64_t Idx = cast<ConstantSDNode>(IdxNode)->getZExtValue();
     SmallVector<SDValue, 3> Ops(Op.getNode()->ops());
@@ -2287,10 +2289,43 @@ SDValue WebAssemblyTargetLowering::LowerShift(SDValue Op,
   // Only manually lower vector shifts
   assert(Op.getSimpleValueType().isVector());
 
-  auto ShiftVal = DAG.getSplatValue(Op.getOperand(1));
+  uint64_t LaneBits = Op.getValueType().getScalarSizeInBits();
+  auto ShiftVal = Op.getOperand(1);
+
+  // Try to skip bitmask operation since it is implied inside shift instruction
+  auto SkipImpliedMask = [](SDValue MaskOp, uint64_t MaskBits) {
+    if (MaskOp.getOpcode() != ISD::AND)
+      return MaskOp;
+    SDValue LHS = MaskOp.getOperand(0);
+    SDValue RHS = MaskOp.getOperand(1);
+    if (MaskOp.getValueType().isVector()) {
+      APInt MaskVal;
+      if (!ISD::isConstantSplatVector(RHS.getNode(), MaskVal))
+        std::swap(LHS, RHS);
+
+      if (ISD::isConstantSplatVector(RHS.getNode(), MaskVal) &&
+          MaskVal == MaskBits)
+        MaskOp = LHS;
+    } else {
+      if (!isa<ConstantSDNode>(RHS.getNode()))
+        std::swap(LHS, RHS);
+
+      auto ConstantRHS = dyn_cast<ConstantSDNode>(RHS.getNode());
+      if (ConstantRHS && ConstantRHS->getAPIntValue() == MaskBits)
+        MaskOp = LHS;
+    }
+
+    return MaskOp;
+  };
+
+  // Skip vector and operation
+  ShiftVal = SkipImpliedMask(ShiftVal, LaneBits - 1);
+  ShiftVal = DAG.getSplatValue(ShiftVal);
   if (!ShiftVal)
     return unrollVectorShift(Op, DAG);
 
+  // Skip scalar and operation
+  ShiftVal = SkipImpliedMask(ShiftVal, LaneBits - 1);
   // Use anyext because none of the high bits can affect the shift
   ShiftVal = DAG.getAnyExtOrTrunc(ShiftVal, DL, MVT::i32);
 

@@ -19,8 +19,8 @@
 
 using namespace sycl;
 
-inline constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+inline constexpr auto DisableCleanupName =
+    "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
 // correctly with dependency tracking when leaf-limit for generic commands is
@@ -32,8 +32,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
   unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+      DisableCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
   default_selector Selector;
   device Device = Selector.select_device();

@@ -668,7 +668,7 @@ looks as below if packed as 8x8 matrix with `uint32_t` elements:
 
 and is passed to `xmx::dpas()` as simd<uint32_t, 8*8> {(b0<<16)|a0, | (b1<<16)|a1, ..., (b7<<16)|a7, (d0<<16)|c0, ..., ..., p7<<16\|o7}.
 
-Some more examples can be found in test for `xmx::dpas()` in [LIT tests](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD/dpas).
+Some more examples can be found in test for `xmx::dpas()` in [LIT tests](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/ESIMD/dpas).
 
 ### Other APIs
 
@@ -815,6 +815,37 @@ simd<float, 8> __regcall SCALE(simd<float, 8> v);
 The parameter and the return type in the ABI form will be `<8 x float>`.
 <br>
 
+### Inline assembly
+Inline assembly is supported with ESIMD classes `simd`, `simd_mask` and `simd_view`. `simd_view` only supports read operations.
+In order the access the raw underlying vector required for inline assembly, the `data` function can be used for read-only access and
+the `data_ref` function can be used for write access. The `data_ref` function only exists for `simd` and `simd_mask`, and should only be used in inline assembly.
+If the `simd` or `simd_mask` object is a private global variable, the `commit` function must be called after any write in inline assembly.
+
+Example of inline GEN assembly:
+```cpp
+simd<float, 16> va;
+simd<float, 16> vb;
+simd<float, 16> vc;
+
+__asm__("add (M1, 16) %0 %1 %2"
+                    : "=rw"(vc.data_ref())
+                    : "rw"(va.data()), "rw"(vb.data()));
+```
+
+Example of inline GEN assembly writing to a private global variable:
+```cpp
+ESIMD_PRIVATE ESIMD_REGISTER(0) simd<float, 16> vc;
+
+void calledFromKernel() {
+  simd<float, 16> va;
+  simd<float, 16> vb;
+  __asm__("add (M1, 16) %0 %1 %2"
+                    : "=rw"(vc.data_ref())
+                    : "rw"(va.data()), "rw"(vb.data()));
+  vc.commit();
+}
+```
+
 ## Examples
 ### Vector addition (USM)
 ```cpp
@@ -907,4 +938,4 @@ int main(void) {
 }
 ```
 more examples can be found in the
-[ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github.
+[ESIMD test suite](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/ESIMD) on github.
