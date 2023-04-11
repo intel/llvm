@@ -5,16 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: ocloc, gpu
 // UNSUPPORTED: cuda || hip
 // UNSUPPORTED: esimd_emulator
-// Temporary disable everywhere until "Unsupported required sub group size" is
-// fixed in some configurations.
-// UNSUPPORTED: windows
-// UNSUPPORTED: linux
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" -o %t.sycl.out -DENABLE_SYCL=0 %s
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// TODO: Remove '-options -vc-codegen' and replace '-device gen9' with gpu_aot_target_opts after driver uplift
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9 -options -vc-codegen" -o %t.sycl.out -DENABLE_SYCL=0 %s
 // RUN: %GPU_RUN_PLACEHOLDER %t.sycl.out
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9 -options -vc-codegen" -o %t.out %s
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // This test checks the following ESIMD ahead-of-time compilation scenarios:
