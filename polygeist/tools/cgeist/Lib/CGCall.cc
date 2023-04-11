@@ -21,6 +21,7 @@ using namespace mlir;
 
 extern llvm::cl::opt<bool> CudaLower;
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
+extern llvm::cl::opt<bool> UseOpaquePointers;
 
 /******************************************************************************/
 /*                           Utility Functions                                */
@@ -195,7 +196,7 @@ ValueCategory MLIRScanner::callHelper(
             Loc,
             MemRefType::get(Shape, MT.getElementType(),
                             MemRefLayoutAttrInterface(), MT.getMemorySpace()));
-        ValueCategory(Alloc, /*isRef*/ true)
+        ValueCategory(Alloc, /*isRef*/ true, MT.getElementType())
             .store(Builder, Arg, /*isArray*/ IsArray);
         Shape[0] = Pshape;
         Val = Builder.create<memref::CastOp>(
@@ -222,10 +223,11 @@ ValueCategory MLIRScanner::callHelper(
                                 Arg.getValue(Builder).getType()),
                 Val);
           } else
+            // TODO(Lukas)
             Val = ABuilder.create<LLVM::AllocaOp>(
                 Loc, Ty, ABuilder.create<arith::ConstantIntOp>(Loc, 1, 64), 0);
 
-          ValueCategory(Val, /*isRef*/ true)
+          ValueCategory(Val, /*isRef*/ true, Ty)
               .store(Builder, Arg.getValue(Builder));
         } else
           Val = Arg.getValue(Builder);
@@ -291,6 +293,7 @@ ValueCategory MLIRScanner::callHelper(
     Glob.getTypes().getMLIRType(RetType, &IsArrayReturn);
 
   Value Alloc;
+  std::optional<mlir::Type> ElementType = std::nullopt;
   if (IsArrayReturn) {
     auto MT = cast<MemRefType>(Glob.getTypes().getMLIRType(
         Glob.getCGM().getContext().getLValueReferenceType(RetType)));
@@ -313,6 +316,7 @@ ValueCategory MLIRScanner::callHelper(
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace()),
         Alloc);
+    ElementType = MT.getElementType();
     Args.push_back(Alloc);
   }
 
@@ -410,12 +414,18 @@ ValueCategory MLIRScanner::callHelper(
     if (RetReference)
       Expr->dump();
     assert(!RetReference);
-    return ValueCategory(Alloc, /*isReference*/ true);
+    assert(ElementType);
+    return ValueCategory(Alloc, /*isReference*/ true, ElementType);
+  }
+
+  if (RetReference) {
+    ElementType = Glob.getTypes().getMLIRType(
+        cast<clang::ReferenceType>(RetType)->getPointeeType());
   }
 
   if (Op->getNumResults())
     return ValueCategory(Op->getResult(0),
-                         /*isReference*/ RetReference);
+                         /*isReference*/ RetReference, ElementType);
 
   return nullptr;
 }
@@ -498,7 +508,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
             return CommonArrayToPointer(ValueCategory(
                 Glob.getOrCreateGlobalLLVMString(
                     Loc, Builder, Val, mlirclang::getFuncContext(Function)),
-                /*isReference*/ true));
+                /*isReference*/ true,
+                mlir::IntegerType::get(Builder.getContext(), 8)));
           }
         }
     }
@@ -587,16 +598,18 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       OpBuilder ABuilder(Builder.getContext());
       ABuilder.setInsertionPointToStart(AllocationScope);
       auto One = ABuilder.create<arith::ConstantIntOp>(Loc, 1, 64);
-      auto Alloc = ABuilder.create<LLVM::AllocaOp>(
-          Loc,
-          LLVM::LLVMPointerType::get(
-              TypeTranslator.translateType(mlirclang::anonymize(
-                  mlirclang::getLLVMType(E->getType(), Glob.getCGM()))),
-              0),
-          One, 0);
-      ValueCategory(Alloc, /*isRef*/ true)
+
+      auto ElementType = TypeTranslator.translateType(mlirclang::anonymize(
+          mlirclang::getLLVMType(E->getType(), Glob.getCGM())));
+      auto PointerType =
+          (UseOpaquePointers)
+              ? LLVM::LLVMPointerType::get(ElementType.getContext(), 0)
+              : LLVM::LLVMPointerType::get(ElementType, 0);
+      auto Alloc = ABuilder.create<LLVM::AllocaOp>(Loc, PointerType,
+                                                   ElementType, One, 0);
+      ValueCategory(Alloc, /*isRef*/ true, ElementType)
           .store(Builder, Sub, /*isArray*/ IsArray);
-      Sub = ValueCategory(Alloc, /*isRef*/ true);
+      Sub = ValueCategory(Alloc, /*isRef*/ true, ElementType);
     }
     auto Val = Sub.getValue(Builder);
     if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
@@ -1070,8 +1083,14 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         }
         if (!Called)
           return nullptr;
-        return ValueCategory(Called, /*isReference*/ Expr->isLValue() ||
-                                         Expr->isXValue());
+
+        bool IsReference = Expr->isLValue() || Expr->isXValue();
+        std::optional<mlir::Type> ElementType = std::nullopt;
+        if (IsReference) {
+          ElementType = Glob.getTypes().getMLIRType(
+              cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
+        }
+        return ValueCategory(Called, IsReference, ElementType);
       }
     }
 
@@ -1100,6 +1119,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         RTs.clear();
       Called = Builder.create<LLVM::CallOp>(Loc, RTs, Args).getResult();
     }
+    std::optional<mlir::Type> ElementType = std::nullopt;
     if (IsReference) {
       if (!(isa<LLVM::LLVMPointerType>(Called.getType()) ||
             isa<MemRefType>(Called.getType()))) {
@@ -1107,10 +1127,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         Expr->getType()->dump();
         llvm::errs() << " call: " << Called << "\n";
       }
+      ElementType = Glob.getTypes().getMLIRType(
+          cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
     }
     if (!Called)
       return nullptr;
-    return ValueCategory(Called, IsReference);
+    return ValueCategory(Called, IsReference, ElementType);
   }
 
   FunctionToEmit F(*Callee, mlirclang::getInputContext(Builder));
@@ -1239,7 +1261,7 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
                                             1, MT.getContext()))
                       : MT,
                   Args);
-              ValueCategory(Dst, /*isReference*/ true)
+              ValueCategory(Dst, /*isReference*/ true, MT)
                   .store(Builder,
                          Builder.create<memref::CastOp>(Loc, MT, Alloc));
               auto RetTy = Glob.getTypes().getMLIRType(Expr->getType());

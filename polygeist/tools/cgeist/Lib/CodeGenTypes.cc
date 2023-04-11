@@ -1791,7 +1791,7 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
   if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},
                                  AddressSpace);
-
+  // TODO(Lukas)
   return LLVM::LLVMPointerType::get(Ty, AddressSpace);
 }
 

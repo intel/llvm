@@ -121,7 +121,7 @@ MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *Expr) {
       Iloc, Visit(Expr->getSubExpr()).getValue(Builder), Alloc,
       getConstantIndex(1));
   return ValueCategory(Alloc,
-                       /*isReference*/ true);
+                       /*isReference*/ true, Ty);
 }
 
 ValueCategory
@@ -139,7 +139,7 @@ ValueCategory MLIRScanner::VisitStringLiteral(clang::StringLiteral *Expr) {
   return ValueCategory(
       Glob.getOrCreateGlobalLLVMString(Loc, Builder, Expr->getString(),
                                        mlirclang::getFuncContext(Function)),
-      /*isReference*/ true);
+      /*isReference*/ true, IntegerType::get(Builder.getContext(), 8));
 }
 
 ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {
@@ -345,7 +345,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
     bool IsArray = false;
     Glob.getTypes().getMLIRType(Expr->getType(), &IsArray);
     ValueCategory Sub = Visit(Expr);
-    ValueCategory(ToInit, /*isReference*/ true).store(Builder, Sub, IsArray);
+    ValueCategory(ToInit, /*isReference*/ true, Sub.val.getType())
+        .store(Builder, Sub, IsArray);
     if (!Sub.isReference)
       if (auto MT = dyn_cast<MemRefType>(ToInit.getType())) {
         if (auto Cop = Sub.val.getDefiningOp<arith::ConstantIntOp>()) {
@@ -451,7 +452,7 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
 
   auto Op = createAllocOp(SubType, nullptr, /*memtype*/ 0, IsArray, LLVMABI);
   InitializeValueByInitListExpr(Op, Expr);
-  return ValueCategory(Op, true);
+  return ValueCategory(Op, true, SubType);
 }
 
 ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
@@ -605,7 +606,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
                               MemRefLayoutAttrInterface(), MT.getMemorySpace());
   }
 
-  auto Op = createAllocOp(T, nullptr, /*memtype*/ 0, IsArray, LLVMABI);
+  const auto Op = createAllocOp(T, nullptr, /*memtype*/ 0, IsArray, LLVMABI);
   for (auto Tup : llvm::zip(Expr->getLambdaClass()->captures(),
                             Expr->getLambdaClass()->fields())) {
     auto C = std::get<0>(Tup);
@@ -685,7 +686,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
           .store(Builder, Val);
     }
   }
-  return ValueCategory(Op, /*isReference*/ true);
+  return ValueCategory(Op, /*isReference*/ true, T);
 }
 
 // TODO actually deallocate
@@ -709,14 +710,14 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
   CGEIST_WARNING(llvm::WithColor::warning()
                  << "cleanup of materialized not handled\n");
-  auto Op =
-      createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
-                    nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
+  auto ElemTy = Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType());
+  auto Op = createAllocOp(ElemTy, nullptr, 0, /*isArray*/ IsArray,
+                          /*LLVMABI*/ LLVMABI);
   unsigned int AS = Glob.getCGM().getContext().getTargetAddressSpace(
       QualType(Expr->getSubExpr()->getType()).getAddressSpace());
   Op = castToMemSpace(Op, AS);
-  ValueCategory(Op, /*isRefererence*/ true).store(Builder, V, IsArray);
-  return ValueCategory(Op, /*isRefererence*/ true);
+  ValueCategory(Op, /*isRefererence*/ true, ElemTy).store(Builder, V, IsArray);
+  return ValueCategory(Op, /*isRefererence*/ true, ElemTy);
 }
 
 ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
@@ -906,13 +907,13 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
 
   CXXConstructorDecl *CtorDecl = Cons->getConstructor();
   if (CtorDecl->isTrivial() && CtorDecl->isDefaultConstructor())
-    return ValueCategory(Op, /*isReference*/ true);
+    return ValueCategory(Op, /*isReference*/ true, SubType);
 
   mlir::Block::iterator OldPoint;
   mlir::Block *OldBlock;
-  ValueCategory EndObj(Op, /*isReference*/ true);
+  ValueCategory EndObj(Op, /*isReference*/ true, SubType);
 
-  ValueCategory Obj(Op, /*isReference*/ true);
+  ValueCategory Obj(Op, /*isReference*/ true, SubType);
   QualType InnerType = Cons->getType();
   if (const auto *ArrayType =
           Glob.getCGM().getContext().getAsArrayType(Cons->getType())) {
@@ -1342,11 +1343,11 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   });
 
   FunctionContext FuncContext = mlirclang::getFuncContext(Function);
-  if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl()))
-    return ValueCategory(
-        Builder.create<LLVM::AddressOfOp>(
-            Loc, Glob.getOrCreateLLVMFunction(Tocall, FuncContext)),
-        /*isReference*/ true);
+  if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl())) {
+    auto Func = Glob.getOrCreateLLVMFunction(Tocall, FuncContext);
+    return ValueCategory(Builder.create<LLVM::AddressOfOp>(Loc, Func),
+                         /*isReference*/ true, Func.getFunctionType());
+  }
 
   if (auto *VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
@@ -1383,9 +1384,10 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
             Glob.getCGM().getContext().getPointerType(E->getType()))) ||
         Name == "stderr" || Name == "stdout" || Name == "stdin" ||
         (E->hasQualifier())) {
-      return ValueCategory(Builder.create<mlir::LLVM::AddressOfOp>(
-                               Loc, Glob.getOrCreateLLVMGlobal(VD)),
-                           /*isReference*/ true);
+      auto LLVMGlobal = Glob.getOrCreateLLVMGlobal(VD);
+      return ValueCategory(
+          Builder.create<mlir::LLVM::AddressOfOp>(Loc, LLVMGlobal),
+          /*isReference*/ true, LLVMGlobal.getType());
     }
 
     // We need to decide where to put the Global.  If we are in a device
@@ -1401,7 +1403,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
                                  VD->getType().getAddressSpace()));
 
     // TODO check reference
-    return ValueCategory(V, /*isReference*/ true);
+    return ValueCategory(V, /*isReference*/ true, Gv.first.getType());
   }
 
   llvm_unreachable("couldn't find value");
@@ -1536,7 +1538,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     unsigned AS = Glob.getCGM().getContext().getTargetAddressSpace(
         DestTy->isPointerType() ? DestTy->getPointeeType().getAddressSpace()
                                 : DestTy.getAddressSpace());
-    return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference);
+    return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference,
+                         Scalar.ElementType);
   }
   case clang::CastKind::CK_Dynamic: {
     E->dump();
@@ -1583,7 +1586,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             Ty.getElementType() != UT.getElementType()) {
           return ValueCategory(
               Builder.create<mlir::sycl::SYCLCastOp>(Loc, Ty, SE.val),
-              /*isReference*/ SE.isReference);
+              /*isReference*/ SE.isReference, SE.ElementType);
         }
       }
     }
@@ -1609,7 +1612,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       Val = Builder.create<arith::SelectOp>(Loc, NE, Val, NullptrLlvm);
     }
 
-    return ValueCategory(Val, SE.isReference);
+    return ValueCategory(Val, SE.isReference, SE.ElementType);
   }
   case clang::CastKind::CK_BaseToDerived: {
     auto SE = Visit(E->getSubExpr());
@@ -1623,7 +1626,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             : E->getType()->getPointeeCXXRecordDecl();
     mlir::Value Val = GetAddressOfDerivedClass(SE.val, Derived, E->path_begin(),
                                                E->path_end());
-    return ValueCategory(Val, SE.isReference);
+    return ValueCategory(Val, SE.isReference, SE.ElementType);
   }
   case clang::CastKind::CK_BitCast: {
     if (auto *CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
