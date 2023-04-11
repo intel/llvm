@@ -13,20 +13,20 @@
 #ifndef MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 #define MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 
 namespace mlir {
 class AffineForOp;
 class AffineParallelOp;
 class DominanceInfo;
-class IntegerSet;
 class LoopLikeOpInterface;
 class PatternRewriter;
 class RegionBranchOpInterface;
 
 namespace scf {
-class ParallelOp;
 class ForOp;
+class ParallelOp;
 } // namespace scf
 
 //===----------------------------------------------------------------------===//
@@ -53,19 +53,47 @@ protected:
 // Loop Versioning Utilities
 //===----------------------------------------------------------------------===//
 
+/// Represents a loop versioning condition.
+class LoopVersionCondition {
+public:
+  using SCFCondition = Value;
+
+  struct AffineCondition {
+    IntegerSet ifCondSet;
+    SmallVectorImpl<Value> &setOperands;
+  };
+
+  /// Create a loop versioning condition for SCF loops.
+  LoopVersionCondition(SCFCondition scfCond)
+      : versionCondition({&scfCond, nullptr}) {}
+
+  LoopVersionCondition(AffineCondition affineCond)
+      : versionCondition({nullptr, &affineCond}) {}
+
+  const SCFCondition &getSCFCondition() const {
+    assert(versionCondition.scfCond && "expecting valid pointer");
+    return *versionCondition.scfCond;
+  }
+  const AffineCondition &getAffineCondition() const {
+    assert(versionCondition.affineCond && "expecting valid pointer");
+    return *versionCondition.affineCond;
+  }
+
+private:
+  struct VersionCondition {
+    VersionCondition(SCFCondition *scfCond, AffineCondition *affineCond)
+        : scfCond(scfCond), affineCond(affineCond) {}
+    SCFCondition *scfCond;
+    AffineCondition *affineCond;
+  } versionCondition;
+};
+
 /// Abstract base class to version a loop like operation.
 class LoopVersionBuilder : public IfThenElseBodyInterface {
 public:
   static std::unique_ptr<LoopVersionBuilder> create(LoopLikeOpInterface);
 
-  /// Version the loop using the \p condition supplied.
-  /// Note: this is legal for SCF loops.
-  virtual void versionLoop(Value condition) const;
-
-  /// Version the loop using the \p ifCondSet and \p setOperands supplied.
-  /// Note: This is legal for affine loops.
-  virtual void versionLoop(IntegerSet ifCondSet,
-                           SmallVectorImpl<Value> &setOperands) const;
+  virtual void versionLoop(const LoopVersionCondition &) const;
 
 protected:
   LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
@@ -80,8 +108,7 @@ class SCFLoopVersionBuilder : public LoopVersionBuilder {
 public:
   SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
 
-  /// Version the loop using the \p condition supplied.
-  void versionLoop(Value condition) const final;
+  void versionLoop(const LoopVersionCondition &) const final;
 
 private:
   void createThenBody(RegionBranchOpInterface) const final;
@@ -94,9 +121,7 @@ public:
   AffineLoopVersionBuilder(LoopLikeOpInterface loop)
       : LoopVersionBuilder(loop) {}
 
-  /// Version the loop using the \p ifCondSet and \p setOperands supplied.
-  void versionLoop(IntegerSet ifCondSet,
-                   SmallVectorImpl<Value> &setOperands) const final;
+  void versionLoop(const LoopVersionCondition &) const final;
 
 private:
   void createThenBody(RegionBranchOpInterface) const final;

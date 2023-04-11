@@ -359,11 +359,33 @@ private:
 class VersionConditionBuilder {
 public:
   VersionConditionBuilder(
+      LoopLikeOpInterface loop,
       ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
-      : accessorPairs(requireNoOverlapAccessorPairs) {}
+      : loop(loop), accessorPairs(requireNoOverlapAccessorPairs) {}
 
+  using SCFCondition = LoopVersionCondition::SCFCondition;
+  using AffineCondition = LoopVersionCondition::AffineCondition;
+
+  std::unique_ptr<LoopVersionCondition> createCondition() {
+    OpBuilder builder(loop);
+    Location loc = loop.getLoc();
+
+    return TypeSwitch<Operation *, std::unique_ptr<LoopVersionCondition>>(loop)
+        .Case<scf::ForOp, scf::ParallelOp>([&](auto) {
+          SCFCondition scfCond = createConditionForSCFLoop(builder, loc);
+          return std::make_unique<LoopVersionCondition>(scfCond);
+        })
+        .Case<AffineForOp, AffineParallelOp>([&](auto) {
+          AffineCondition affineCond =
+              createConditionForAffineLoop(builder, loc);
+          return std::make_unique<LoopVersionCondition>(affineCond);
+        });
+  }
+
+private:
   /// Create a loop versioning condition suitable for versioning an SCF loop.
-  Value createConditionForSCFLoop(OpBuilder builder, Location loc) const {
+  SCFCondition createConditionForSCFLoop(OpBuilder builder,
+                                         Location loc) const {
     auto GetMemref2PointerOp = [&](Value op) {
       auto MT = cast<MemRefType>(op.getType());
       return builder.create<polygeist::Memref2PointerOp>(
@@ -394,7 +416,8 @@ public:
   }
 
   /// Create a loop versioning condition suitable for versioning an affine loop.
-  IntegerSet createConditionForAffineLoop(SmallVectorImpl<Value> &) const {
+  AffineCondition createConditionForAffineLoop(OpBuilder &builder,
+                                               Location loc) const {
     llvm_unreachable("TODO");
   }
 
@@ -498,6 +521,7 @@ public:
     return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
   }
 
+  LoopLikeOpInterface loop;
   ArrayRef<AccessorPairType> accessorPairs;
 };
 
@@ -770,11 +794,9 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
-      // TODO: find a way to create a versioning condition that works for
-      // creating either SCF loops or affine loops.
-      Value condition = VersionConditionBuilder(accessorPairs)
-                            .createConditionForSCFLoop(builder, loop.getLoc());
-      LoopVersionBuilder::create(loop)->versionLoop(condition);
+      std::unique_ptr<LoopVersionCondition> condition =
+          VersionConditionBuilder(loop, accessorPairs).createCondition();
+      LoopVersionBuilder::create(loop)->versionLoop(*condition);
     }
 
     loop.moveOutOfLoop(&candidate.getOperation());
