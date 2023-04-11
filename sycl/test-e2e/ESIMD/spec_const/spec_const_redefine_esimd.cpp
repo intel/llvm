@@ -1,6 +1,6 @@
 // REQUIRES: gpu
 // UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 
