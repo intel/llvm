@@ -530,40 +530,23 @@ static void getLinearIDRewriter(Operation *op, unsigned dimension,
                                 IDGetter getID, RangeGetter getRange,
                                 ConversionPatternRewriter &rewriter) {
   const auto loc = op->getLoc();
-  Value newValue;
-  switch (dimension) {
-  case 1:
-    // get_id(0)
-    newValue = getID(rewriter, loc, 0);
-    break;
-  case 2: {
-    // get_id(0) * get_range(1) + get_id(1)
-    const auto id0 = getID(rewriter, loc, 0);
-    const auto r1 = getRange(rewriter, loc, 1);
-    const Value prod = rewriter.create<arith::MulIOp>(loc, id0, r1);
-    const auto id1 = getID(rewriter, loc, 1);
-    newValue = rewriter.create<arith::AddIOp>(loc, prod, id1);
-    break;
+  Value linearID;
+  assert(1 <= dimension && dimension < 4 && "Invalid number of dimensions");
+  std::array<Value, 3> ranges;
+  const auto getRangeCached = [&](unsigned dim) {
+    auto &r = ranges[dim];
+    if (!r)
+      r = getRange(rewriter, loc, dim);
+    return r;
+  };
+  for (unsigned i = 0; i < dimension; ++i) {
+    Value id = getID(rewriter, loc, i);
+    for (unsigned j = i + 1; j < dimension; ++j)
+      id = rewriter.create<arith::MulIOp>(loc, id, getRangeCached(j));
+    linearID =
+        linearID ? rewriter.create<arith::AddIOp>(loc, linearID, id) : id;
   }
-  case 3: {
-    // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
-    // get_id(2)
-    const auto id0 = getID(rewriter, loc, 0);
-    const auto r1 = getRange(rewriter, loc, 1);
-    const Value prod0 = rewriter.create<arith::MulIOp>(loc, id0, r1);
-    const auto r2 = getRange(rewriter, loc, 2);
-    const Value prod1 = rewriter.create<arith::MulIOp>(loc, prod0, r2);
-    const auto id1 = getID(rewriter, loc, 1);
-    const Value prod2 = rewriter.create<arith::MulIOp>(loc, id1, r2);
-    const Value add = rewriter.create<arith::AddIOp>(loc, prod1, prod2);
-    const auto id2 = getID(rewriter, loc, 2);
-    newValue = rewriter.create<arith::AddIOp>(loc, add, id2);
-    break;
-  }
-  default:
-    llvm_unreachable("Invalid number of dimensions");
-  }
-  rewriter.replaceOp(op, newValue);
+  rewriter.replaceOp(op, linearID);
 }
 
 template <typename Op>
@@ -657,12 +640,11 @@ public:
     const auto argTypes =
         rewriter.getTypeArrayAttr({id.getType(), offset.getType()});
     const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
-    const auto mangledFuncName = funcName;
     const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>(
         std::is_same_v<SYCLIDGetOp, Getter> ? "id" : "range");
     Value res =
         rewriter.create<Getter>(op.getLoc(), indexType, id, offset, argTypes,
-                                funcName, mangledFuncName, typeName);
+                                funcName, FlatSymbolRefAttr{}, typeName);
     rewriter.replaceOpWithNewOp<arith::IndexCastUIOp>(op, op.getType(), res);
   }
 };
@@ -2218,7 +2200,6 @@ public:
     const auto argTys =
         rewriter.getTypeArrayAttr({localID.getType(), rewriter.getI32Type()});
     const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
-    const auto mangledFuncName = funcName;
     const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>("id");
     // The local linear ID is calculated from the local ID and the group's local
     // range.
@@ -2229,7 +2210,7 @@ public:
               loc, indexType, localID,
               builder.create<arith::ConstantIntOp>(loc, index,
                                                    /*bitwidth=*/32),
-              argTys, funcName, mangledFuncName, typeName);
+              argTys, funcName, FlatSymbolRefAttr{}, typeName);
         },
         [&](OpBuilder &builder, Location loc, int32_t index) -> Value {
           return GetMemberPattern<GroupGetLocalRange, RangeGetDim>::loadValue(
