@@ -401,14 +401,8 @@ static int optimize(mlir::MLIRContext &Ctx,
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
 
-    // Note: the inliner pass needs the `MangledFunctionName` attribute to build
-    // the call graph.
-    if (OmitOptionalMangledFunctionName)
-      PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
-
     PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
-                                       /* RemoveDeadCallees */ true,
-                                       InlineSYCLMethodOps}));
+                                       /* RemoveDeadCallees */ true}));
 
     if (RaiseToAffine)
       OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
