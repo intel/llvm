@@ -32,27 +32,6 @@ Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
 bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
 } // namespace detail
 
-static detail::Bfloat16StorageT from_float_fallback(const float &a) {
-#if defined(__NVPTX__)
-  if (a != a)
-    return 0xffc1;
-#elif defined(__AMDGCN__)
-  if (sycl::isnan(a))
-    return 0xffc1;
-#else
-  if (std::isnan(a))
-    return 0xffc1;
-#endif
-  union {
-    uint32_t intStorage;
-    float floatValue;
-  };
-  floatValue = a;
-  // Do RNE and truncate
-  uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
-  return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
-}
-
 class bfloat16 {
   detail::Bfloat16StorageT value;
 
@@ -67,6 +46,19 @@ public:
   ~bfloat16() = default;
 
 private:
+  static detail::Bfloat16StorageT from_float_fallback(const float &a) {
+    if (sycl::isnan(a))
+      return 0xffc1;
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    floatValue = a;
+    // Do RNE and truncate
+    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+  }
+
   // Explicit conversion functions
   static detail::Bfloat16StorageT from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
