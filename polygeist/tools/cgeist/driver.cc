@@ -266,14 +266,18 @@ static void registerDialects(MLIRContext &Ctx, const CgeistOptions &options) {
 }
 
 // Enable various options for the passmanager
-static void enableOptionsPM(mlir::PassManager &PM) {
+static LogicalResult enableOptionsPM(mlir::PassManager &PM) {
   DefaultTimingManager TM;
   applyDefaultTimingManagerCLOptions(TM);
   TimingScope Timing = TM.getRootScope();
 
   PM.enableVerifier(EarlyVerifier);
-  applyPassManagerCLOptions(PM);
+  if (mlir::failed(applyPassManagerCLOptions(PM))) {
+    llvm::errs() << "*** PassManager CL options application failed. ***\n";
+    return failure();
+  }
   PM.enableTiming(Timing);
+  return success();
 }
 
 // MLIR canonicalization & cleanup.
@@ -281,7 +285,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
                         mlir::OwningOpRef<mlir::ModuleOp> &Module,
                         Options &options) {
   mlir::PassManager PM(&Ctx);
-  enableOptionsPM(PM);
+  if (mlir::failed(enableOptionsPM(PM)))
+    return 18;
 
   mlir::OpPassManager &OptPM = PM.nestAny();
   GreedyRewriteConfig CanonicalizerConfig;
@@ -359,7 +364,8 @@ static int optimize(mlir::MLIRContext &Ctx,
       options.getCgeistOpts().getOptimizationLevel();
 
   mlir::PassManager PM(&Ctx);
-  enableOptionsPM(PM);
+  if (mlir::failed(enableOptionsPM(PM)))
+    return 18;
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -439,7 +445,8 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   mlir::PassManager PM(&Ctx);
-  enableOptionsPM(PM);
+  if (mlir::failed(enableOptionsPM(PM)))
+    return 18;
 
   mlir::OpPassManager &OptPM = PM.nestAny();
   OptPM.addPass(mlir::createLowerAffinePass());
@@ -593,7 +600,8 @@ static int finalize(mlir::MLIRContext &Ctx,
                     mlir::OwningOpRef<mlir::ModuleOp> &Module, Options &options,
                     llvm::DataLayout &DL, bool &LinkOMP) {
   mlir::PassManager PM(&Ctx);
-  enableOptionsPM(PM);
+  if (mlir::failed(enableOptionsPM(PM)))
+    return 18;
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
