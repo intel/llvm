@@ -1866,7 +1866,7 @@ public:
 // NDItemGetGroupLinearID - Converts `sycl.nd_item.get_group_linear_id` to LLVM.
 //===----------------------------------------------------------------------===//
 
-/// Converts SYCLNDItemGetGroupOp with an ID return type to LLVM
+/// Converts SYCLNDItemGetGroupLinearIDOp to LLVM.
 class NDItemGetGroupLinearIDPattern
     : public ConvertOpToLLVMPattern<SYCLNDItemGetGroupLinearIDOp>,
       public GetMemberPattern<NDItemGroup> {
