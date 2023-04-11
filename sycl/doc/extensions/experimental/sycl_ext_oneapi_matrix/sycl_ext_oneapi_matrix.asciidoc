@@ -595,13 +595,13 @@ IMPORTANT: When compiling for the `ext_oneapi_cuda` backend the target arch back
 |======================
 |Tm (`use::a` or `use::b`) |Tc (`use::accumulator`) |M |N |K | Minimum Compute Capability
 .3+|half  .3+|float
-|16 |16 |16| sm_70
-|8 |32 |16| sm_70
-|32 |8 |16| sm_70
+|16 |16 |16 .6+| sm_70
+|8 |32 |16
+|32 |8 |16
 .3+|half  .3+|half
-|16 |16 |16| sm_70
-|8 |32 |16| sm_70
-|32 |8 |16| sm_70
+|16 |16 |16
+|8 |32 |16
+|32 |8 |16
 .3+|int8_t  .3+|int32_t
 |16 |16 |16| sm_72
 |8 |32 |16| sm_72
@@ -630,7 +630,7 @@ The M, N, K triple from the above table defines the complete set of matrix shape
 |======================
 --
 
-IMPORTANT: The `stride` argument to `joint_matrix_load` and `joint_matrix_store` must be a multiple of 8 when `T` is `half`, and a multiple of 4 when `T` is `float`; where `T` is the type of the `joint_matrix` elements.
+IMPORTANT: The `stride` argument to `joint_matrix_load` and `joint_matrix_store` must be a multiple of 8 when `T` is `half`, and a multiple of 4 when `T` is `float`; where `T` is the type of the `joint_matrix` elements. When `T` is not `half` or `float` there are no restrictions to `stride`.
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
