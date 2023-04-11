@@ -55,21 +55,20 @@ template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, double>();
 }
 
-template <typename T, typename OpT>
-void check_ops(OpT op, T c1, T c2) {
-  auto check = [&](sycl::vec<T,2> vres) {
+template <typename T, typename OpT> void check_ops(OpT op, T c1, T c2) {
+  auto check = [&](sycl::vec<T, 2> vres) {
     assert(op(c1, c2) == vres[0]);
     assert(op(c1, c2) == vres[1]);
   };
 
   sycl::vec<T, 2> v1(c1);
   sycl::vec<T, 2> v2(c2);
-  check(op(v1.template swizzle<0,1>(), v2.template swizzle<0,1>()));
-  check(op(v1.template swizzle<0,1>(), v2));
-  check(op(v1.template swizzle<0,1>(), c2));
-  check(op(c1, v2.template swizzle<0,1>()));
+  check(op(v1.template swizzle<0, 1>(), v2.template swizzle<0, 1>()));
+  check(op(v1.template swizzle<0, 1>(), v2));
+  check(op(v1.template swizzle<0, 1>(), c2));
+  check(op(c1, v2.template swizzle<0, 1>()));
   check(op(c1, v2));
-  check(op(v1, v2.template swizzle<0,1>()));
+  check(op(v1, v2.template swizzle<0, 1>()));
   check(op(v1, v2));
   check(op(v1, c2));
 }
@@ -110,7 +109,7 @@ int main() {
   assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.5));
-  b_vec.swizzle<0,1,2,3>() = 0.6;
+  b_vec.swizzle<0, 1, 2, 3>() = 0.6;
   assert(static_cast<float>(b_vec.x()) == static_cast<float>(0.6));
   assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.6));
   assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.6));

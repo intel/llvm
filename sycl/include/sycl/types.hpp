@@ -1617,7 +1617,7 @@ public:
 
   template <int IdxNum = getNumElements(),
             EnableIfMultipleIndexes<IdxNum, bool> = true>
-  SwizzleOp &operator=(const DataT& Rhs) {
+  SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (auto Idx : Idxs) {
       m_Vector->setValue(Idx, Rhs);
