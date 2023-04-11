@@ -42,6 +42,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-to-llvm"
@@ -523,6 +524,31 @@ public:
   }
 };
 
+/// Helper function to calculate the linear ID using ID and range getters.
+template <typename IDGetter, typename RangeGetter>
+static void getLinearIDRewriter(Operation *op, unsigned dimension,
+                                IDGetter getID, RangeGetter getRange,
+                                ConversionPatternRewriter &rewriter) {
+  const auto loc = op->getLoc();
+  Value linearID;
+  assert(1 <= dimension && dimension < 4 && "Invalid number of dimensions");
+  std::array<Value, 3> ranges;
+  const auto getRangeCached = [&](unsigned dim) {
+    auto &r = ranges[dim];
+    if (!r)
+      r = getRange(rewriter, loc, dim);
+    return r;
+  };
+  for (unsigned i = 0; i < dimension; ++i) {
+    Value id = getID(rewriter, loc, i);
+    for (unsigned j = i + 1; j < dimension; ++j)
+      id = rewriter.create<arith::MulIOp>(loc, id, getRangeCached(j));
+    linearID =
+        linearID ? rewriter.create<arith::AddIOp>(loc, linearID, id) : id;
+  }
+  rewriter.replaceOp(op, linearID);
+}
+
 template <typename Op>
 class GetLinearIDPattern : public ConvertOpToLLVMPattern<Op> {
 protected:
@@ -546,43 +572,17 @@ public:
                ConversionPatternRewriter &rewriter) const final {
     const auto thisArg = adaptor.getOperands()[0];
     const auto elTy = getTypeConverter()->convertType(op.getType());
-    const auto loc = op.getLoc();
     const auto dimension = getDimensions(op.getOperand().getType());
     const auto convBaseTy = getTypeConverter()->convertType(getBaseType(op));
-    Value newValue;
-    switch (dimension) {
-    case 1:
-      // get_id(0)
-      newValue = getID(rewriter, loc, convBaseTy, elTy, thisArg, 0);
-      break;
-    case 2: {
-      // get_id(0) * get_range(1) + get_id(1)
-      const auto id0 = getID(rewriter, loc, convBaseTy, elTy, thisArg, 0);
-      const auto r1 = getRange(rewriter, loc, convBaseTy, elTy, thisArg, 1);
-      const Value prod = rewriter.create<arith::MulIOp>(loc, id0, r1);
-      const auto id1 = getID(rewriter, loc, convBaseTy, elTy, thisArg, 1);
-      newValue = rewriter.create<arith::AddIOp>(loc, prod, id1);
-      break;
-    }
-    case 3: {
-      // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
-      // get_id(2)
-      const auto id0 = getID(rewriter, loc, convBaseTy, elTy, thisArg, 0);
-      const auto r1 = getRange(rewriter, loc, convBaseTy, elTy, thisArg, 1);
-      const Value prod0 = rewriter.create<arith::MulIOp>(loc, id0, r1);
-      const auto r2 = getRange(rewriter, loc, convBaseTy, elTy, thisArg, 2);
-      const Value prod1 = rewriter.create<arith::MulIOp>(loc, prod0, r2);
-      const auto id1 = getID(rewriter, loc, convBaseTy, elTy, thisArg, 1);
-      const Value prod2 = rewriter.create<arith::MulIOp>(loc, id1, r2);
-      const Value add = rewriter.create<arith::AddIOp>(loc, prod1, prod2);
-      const auto id2 = getID(rewriter, loc, convBaseTy, elTy, thisArg, 2);
-      newValue = rewriter.create<arith::AddIOp>(loc, add, id2);
-      break;
-    }
-    default:
-      llvm_unreachable("Invalid number of dimensions");
-    }
-    rewriter.replaceOp(op, newValue);
+    getLinearIDRewriter(
+        op, dimension,
+        [&](OpBuilder &builder, Location loc, int32_t index) {
+          return getID(builder, loc, convBaseTy, elTy, thisArg, index);
+        },
+        [&](OpBuilder &builder, Location loc, int32_t index) {
+          return getRange(builder, loc, convBaseTy, elTy, thisArg, index);
+        },
+        rewriter);
   }
 };
 
@@ -610,7 +610,9 @@ public:
 
 /// Base pattern for operations returning the result of a SYCL grid operation
 /// \tparam GridOp.
-template <typename Op, typename GridOp>
+template <typename Op, typename GridOp, typename Getter,
+          typename = std::enable_if_t<
+              llvm::is_one_of<Getter, SYCLIDGetOp, SYCLRangeGetOp>::value>>
 class GridOpInitDimPattern : public ConvertOpToLLVMPattern<Op> {
 protected:
   using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
@@ -623,9 +625,27 @@ public:
 
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
-    const Value id = rewriter.create<GridOp>(
-        op.getLoc(), rewriter.getIndexType(), adaptor.getOperands()[1]);
-    rewriter.replaceOpWithNewOp<arith::IndexCastUIOp>(op, op.getType(), id);
+    const auto indexType =
+        ConvertOpToLLVMPattern<Op>::getTypeConverter()->getIndexType();
+    const auto dimensions = getDimensions(op.getOperands()[0].getType());
+    const auto arrayType = rewriter.getType<ArrayType>(
+        dimensions, MemRefType::get(dimensions, indexType));
+    const auto idType = rewriter.getType<IDType>(dimensions, arrayType);
+    const auto loc = op.getLoc();
+    Value idVal = rewriter.create<GridOp>(loc, idType, Value{});
+    Value id =
+        rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, idType));
+    rewriter.create<memref::StoreOp>(loc, idVal, id);
+    const auto offset = adaptor.getOperands()[1];
+    const auto argTypes =
+        rewriter.getTypeArrayAttr({id.getType(), offset.getType()});
+    const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
+    const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>(
+        std::is_same_v<SYCLIDGetOp, Getter> ? "id" : "range");
+    Value res =
+        rewriter.create<Getter>(op.getLoc(), indexType, id, offset, argTypes,
+                                funcName, FlatSymbolRefAttr{}, typeName);
+    rewriter.replaceOpWithNewOp<arith::IndexCastUIOp>(op, op.getType(), res);
   }
 };
 
@@ -2076,10 +2096,11 @@ public:
 
 /// Converts SYCLGroupGetLocalID with a scalar return type to LLVM
 class GroupGetLocalIDDimPattern
-    : public GridOpInitDimPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp> {
+    : public GridOpInitDimPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp,
+                                  SYCLIDGetOp> {
 public:
-  using GridOpInitDimPattern<SYCLGroupGetLocalIDOp,
-                             SYCLLocalIDOp>::GridOpInitDimPattern;
+  using GridOpInitDimPattern<SYCLGroupGetLocalIDOp, SYCLLocalIDOp,
+                             SYCLIDGetOp>::GridOpInitDimPattern;
 
   LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
     return success(isa<IntegerType>(op.getRes().getType()));
@@ -2195,29 +2216,57 @@ public:
 
 /// Converts SYCLGroupGetLocalLinearIDOp to LLVM
 class GroupGetLocalLinearIDPattern
-    : public GetLinearIDPattern<SYCLGroupGetLocalLinearIDOp>,
-      public GetMemberPattern<GroupGetGroupRange, RangeGetDim> {
-  Value getID(OpBuilder &builder, Location loc, Type baseTy, Type ty, Value,
-              int32_t offset) const final {
-    const Value dim = builder.create<arith::ConstantIntOp>(loc, offset, 32);
-    const Value val =
-        builder.create<SYCLLocalIDOp>(loc, builder.getIndexType(), dim);
-    return builder.create<arith::IndexCastUIOp>(loc, ty, val);
-  }
-
-  Value getRange(OpBuilder &builder, Location loc, Type baseTy, Type ty,
-                 Value thisArg, int32_t offset) const final {
-    return GetMemberPattern<GroupGetGroupRange, RangeGetDim>::loadValue(
-        builder, loc, baseTy, ty, thisArg,
-        getTypeConverter()->useOpaquePointers(), offset);
-  }
-
-  Type getBaseType(SYCLGroupGetLocalLinearIDOp op) const final {
-    return op.getGroup().getType().getElementType();
-  }
-
+    : public ConvertOpToLLVMPattern<SYCLGroupGetLocalLinearIDOp>,
+      public GetMemberPattern<GroupGetLocalRange, RangeGetDim> {
 public:
-  using GetLinearIDPattern<SYCLGroupGetLocalLinearIDOp>::GetLinearIDPattern;
+  using ConvertOpToLLVMPattern<
+      SYCLGroupGetLocalLinearIDOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLGroupGetLocalLinearIDOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const auto groupTy =
+        cast<GroupType>(op.getGroup().getType().getElementType());
+    const auto dimension = groupTy.getDimension();
+    auto indexType = getTypeConverter()->getIndexType();
+    const auto arrayType = rewriter.getType<ArrayType>(
+        dimension, MemRefType::get(dimension, indexType));
+    const auto idType = rewriter.getType<IDType>(dimension, arrayType);
+    // Obtain the local ID (already mirrored)
+    Value localIDVal =
+        rewriter.create<SYCLLocalIDOp>(loc, idType, /*dimension=*/Value{});
+    // Store it in a memref to access its elements
+    Value localID =
+        rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, idType));
+    rewriter.create<memref::StoreOp>(loc, localIDVal, localID);
+    const auto group = adaptor.getGroup();
+    const auto convGroupTy =
+        typeConverter->convertType(op.getGroup().getType());
+    const auto useOpaquePointers = getTypeConverter()->useOpaquePointers();
+    const auto argTys =
+        rewriter.getTypeArrayAttr({localID.getType(), rewriter.getI32Type()});
+    const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
+    const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>("id");
+    // The local linear ID is calculated from the local ID and the group's local
+    // range.
+    getLinearIDRewriter(
+        op, dimension,
+        [&](OpBuilder &builder, Location loc, int32_t index) -> Value {
+          return builder.create<SYCLIDGetOp>(
+              loc, indexType, localID,
+              builder.create<arith::ConstantIntOp>(loc, index,
+                                                   /*bitwidth=*/32),
+              argTys, funcName, FlatSymbolRefAttr{}, typeName);
+        },
+        [&](OpBuilder &builder, Location loc, int32_t index) -> Value {
+          return GetMemberPattern<GroupGetLocalRange, RangeGetDim>::loadValue(
+              builder, loc, convGroupTy, indexType, group, useOpaquePointers,
+              index);
+        },
+        rewriter);
+    return success();
+  }
 };
 
 //===----------------------------------------------------------------------===//
