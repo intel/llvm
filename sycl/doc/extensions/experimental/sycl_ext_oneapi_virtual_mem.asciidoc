@@ -101,7 +101,7 @@ minimum granularity. In such cases, the reasoning for a different recommended
 granularity is unspecified. Devices may return the same minimum granularity as
 the recommended granularity.
 
-The interfaces for querying the these granularities are defined as:
+The interfaces for querying these granularities are defined as:
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -233,6 +233,8 @@ returned.
 
 === Physical memory representation
 
+:crs: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
+
 To represent the underlying physical device memory a virtual address is mapped,
 the `physical_mem` class is added. This new class is defined as:
 
@@ -259,7 +261,7 @@ public:
 ```
 
 `physical_mem` has common reference semantics, as described in
-[section 4.5.2. Common reference semantics](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics).
+{crs}[section 4.5.2. Common reference semantics].
 
 [frame="topbot",options="header,footer"]
 |============================
@@ -267,9 +269,9 @@ public:
 
 |`physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes)` |
 Constructs a `physical_mem` instance using the `syclDevice` provided. This
-device must either be contained by syclContext or it must be a descendent device
-of some device that is contained by that context, otherwise this function throws
-a synchronous exception with the errc::invalid error code.
+device must either be contained by `syclContext` or it must be a descendent
+device of some device that is contained by that context, otherwise this function
+throws a synchronous exception with the `errc::invalid` error code.
 
 This will allocate `numBytes` of physical memory on the device. `numBytes` must
 be a multiple of the minimum granularity, as returned by a call to
@@ -280,7 +282,8 @@ Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
 
 |`void map(const void *ptr, size_t numBytes, size_t offset)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
-memory corresponding to the corresponding instance of `physical_mem`.
+memory corresponding to this instance of `physical_mem`, starting at an offset
+of `offset` bytes.
 
 The virtual memory range is inaccessible after this call and can be made
 accessible through a call to `set_access_mode`. Accessing an address in an
@@ -329,7 +332,9 @@ void unmap(const void *ptr, size_t numBytes, const context &syclContext);
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
-must not be a proper sub-range of a previously mapped range.
+must not be a proper sub-range of a previously mapped range. `syclContext`
+must be the same as the context returned by the `get_context()` member function
+on the `physical_mem` the address range is currently mapped to.
 
 After this call, the range will again be ready to be mapped through a call to
 `physical_mem::map()`.
