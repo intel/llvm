@@ -1437,7 +1437,7 @@ public:
   using LoadMemberDimPattern<SYCLRangeGetOp, RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLRangeGetOp op) const final {
-    return success(isa<IntegerType>(op.getType()));
+    return success(op.getType().isIntOrIndex());
   }
 };
 
