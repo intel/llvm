@@ -67,10 +67,26 @@ struct joint_matrix;
 
 } // namespace matrix
 } // namespace experimental
+
+namespace detail {
+// Differentiating between the "element type" and the "storage element type"
+template <typename T> struct jm_type_interpretation_helper_trait {
+  using element_type = T;
+  using storage_element_type = T;
+};
+
+template <>
+struct jm_type_interpretation_helper_trait<
+    sycl::ext::oneapi::experimental::matrix::precision::tf32> {
+  using element_type = sycl::ext::oneapi::experimental::matrix::precision::tf32;
+  using storage_element_type = float;
+};
+} // namespace detail
 } // namespace oneapi
 
 namespace intel::experimental::matrix {
 
+using namespace sycl::ext::oneapi::experimental::matrix;
 // Begin wi_element definition
 
 template <typename T, size_t NumRows, size_t NumCols,
@@ -84,6 +100,9 @@ class wi_element {
   std::size_t idx;
 
 public:
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
   wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                  Group, T, Use, NumRows, NumCols, Layout> &Mat,
              std::size_t i)
@@ -102,9 +121,15 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  operator T() {
+  operator storage_element_type() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx);
+    storage_element_type elem =
+        __spirv_VectorExtractDynamic<storage_element_type, T, NumRows, NumCols,
+                                     spv_matrix_use_traits<Use>::value,
+                                     spv_matrix_layout_traits<Layout>::value,
+                                     spv_scope_traits<Group>::value>(M.spvm,
+                                                                     idx);
+    return elem;
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -113,7 +138,12 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx) != static_cast<T>(0);
+    return __spirv_VectorExtractDynamic<storage_element_type, T, NumRows,
+                                        NumCols,
+                                        spv_matrix_use_traits<Use>::value,
+                                        spv_matrix_layout_traits<Layout>::value,
+                                        spv_scope_traits<Group>::value>(
+               M.spvm, idx) != static_cast<storage_element_type>(0);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -122,7 +152,8 @@ public:
 
   template <typename T2> wi_element &operator=(const T2 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(M.spvm, static_cast<T>(rhs), idx);
+    M.spvm = __spirv_VectorInsertDynamic(
+        M.spvm, static_cast<storage_element_type>(rhs), idx);
     return *this;
 #else
     (void)rhs;
@@ -135,7 +166,13 @@ public:
   operator=(const wi_element<T, NumRows, NumCols, Use, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx), idx);
+        M.spvm,
+        __spirv_VectorExtractDynamic<storage_element_type, T, NumRows, NumCols,
+                                     spv_matrix_use_traits<Use>::value,
+                                     spv_matrix_layout_traits<Layout>::value,
+                                     spv_scope_traits<Group>::value>(rhs.M.spvm,
+                                                                     rhs.idx),
+        idx);
     return *this;
 #else
     (void)rhs;
@@ -149,8 +186,13 @@ public:
   template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
-        static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx)               \
-                           op static_cast<T>(rhs)),                            \
+        static_cast<storage_element_type>(                                     \
+            __spirv_VectorExtractDynamic<                                      \
+                storage_element_type, T, NumRows, NumCols,                     \
+                spv_matrix_use_traits<Use>::value,                             \
+                spv_matrix_layout_traits<Layout>::value,                       \
+                spv_scope_traits<Group>::value>(M.spvm, idx)                   \
+                op static_cast<storage_element_type>(rhs)),                    \
         idx);                                                                  \
     return *this;                                                              \
   }
@@ -201,7 +243,11 @@ public:
 
   operator sycl::ext::oneapi::bfloat16() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx);
+    return __spirv_VectorExtractDynamic<
+        sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows,
+        NumCols, spv_matrix_use_traits<Use>::value,
+        spv_matrix_layout_traits<Layout>::value,
+        spv_scope_traits<Group>::value>(M.spvm, idx);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -210,8 +256,13 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(static_cast<float>(__spirv_VectorExtractDynamic(
-               M.spvm, idx))) >= std::numeric_limits<float>::epsilon();
+    return std::fabs(static_cast<float>(
+               __spirv_VectorExtractDynamic<
+                   sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16,
+                   NumRows, NumCols, spv_matrix_use_traits<Use>::value,
+                   spv_matrix_layout_traits<Layout>::value,
+                   spv_scope_traits<Group>::value>(M.spvm, idx))) >=
+           std::numeric_limits<float>::epsilon();
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -233,7 +284,14 @@ public:
                                          NumCols, Use, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx), idx);
+        M.spvm,
+        __spirv_VectorExtractDynamic<sycl::ext::oneapi::bfloat16,
+                                     sycl::ext::oneapi::bfloat16, NumRows,
+                                     NumCols, spv_matrix_use_traits<Use>::value,
+                                     spv_matrix_layout_traits<Layout>::value,
+                                     spv_scope_traits<Group>::value>(rhs.M.spvm,
+                                                                     rhs.idx),
+        idx);
     return *this;
 #else
     (void)rhs;
@@ -246,7 +304,13 @@ public:
 #define OP(opassign, op)                                                       \
   wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
-        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) op rhs, idx);        \
+        M.spvm,                                                                \
+        __spirv_VectorExtractDynamic<                                          \
+            sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows, \
+            NumCols, spv_matrix_use_traits<Use>::value,                        \
+            spv_matrix_layout_traits<Layout>::value,                           \
+            spv_scope_traits<Group>::value>(M.spvm, idx) op rhs,               \
+        idx);                                                                  \
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
@@ -269,13 +333,21 @@ public:
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
                        Layout, Group> &lhs,                                    \
       const sycl::ext::oneapi::bfloat16 &rhs) {                                \
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) op rhs;           \
+    return __spirv_VectorExtractDynamic<                                       \
+        sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows,     \
+        NumCols, spv_matrix_use_traits<Use>::value,                            \
+        spv_matrix_layout_traits<Layout>::value,                               \
+        spv_scope_traits<Group>::value>(lhs.M.spvm, lhs.idx) op rhs;           \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &lhs,                                  \
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
                        Layout, Group> &rhs) {                                  \
-    return __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx) op lhs;           \
+    return __spirv_VectorExtractDynamic<                                       \
+        sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows,     \
+        NumCols, spv_matrix_use_traits<Use>::value,                            \
+        spv_matrix_layout_traits<Layout>::value,                               \
+        spv_scope_traits<Group>::value>(rhs.M.spvm, rhs.idx) op lhs;           \
   }
   OP(sycl::ext::oneapi::bfloat16, +)
   OP(sycl::ext::oneapi::bfloat16, -)
@@ -287,15 +359,25 @@ public:
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
                        Layout, Group> &lhs,                                    \
       const sycl::ext::oneapi::bfloat16 &rhs) {                                \
-    return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
-        lhs.M.spvm, lhs.idx)) op static_cast<float>(rhs)};                     \
+    return type{static_cast<float>(                                            \
+        __spirv_VectorExtractDynamic<                                          \
+            sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows, \
+            NumCols, spv_matrix_use_traits<Use>::value,                        \
+            spv_matrix_layout_traits<Layout>::value,                           \
+            spv_scope_traits<Group>::value>(lhs.M.spvm, lhs.idx))              \
+                    op static_cast<float>(rhs)};                               \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &lhs,                                  \
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
                        Layout, Group> &rhs) {                                  \
-    return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
-        rhs.M.spvm, rhs.idx)) op static_cast<float>(lhs)};                     \
+    return type{static_cast<float>(                                            \
+        __spirv_VectorExtractDynamic<                                          \
+            sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows, \
+            NumCols, spv_matrix_use_traits<Use>::value,                        \
+            spv_matrix_layout_traits<Layout>::value,                           \
+            spv_scope_traits<Group>::value>(rhs.M.spvm, rhs.idx))              \
+                    op static_cast<float>(lhs)};                               \
   }
   OP(bool, ==)
   OP(bool, !=)
@@ -386,7 +468,7 @@ get_wi_data(Group sg, sycl::ext::oneapi::experimental::matrix::joint_matrix<
 // End wi_data definition
 
 template <
-    typename Group, typename T,
+    typename Group, typename T, typename Tp,
     sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
     size_t NumCols, sycl::ext::oneapi::experimental::matrix::layout Layout,
     access::address_space Space, access::decorated IsDecorated,
@@ -396,7 +478,7 @@ template <
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_store(Group sg,
                    sycl::ext::oneapi::experimental::matrix::joint_matrix<
-                       Group, T, Use, NumRows, NumCols, Layout> &src,
+                       Group, Tp, Use, NumRows, NumCols, Layout> &src,
                    multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -411,7 +493,7 @@ joint_matrix_store(Group sg,
 #else
   // intel's impl
   T *Ptr = dst.get();
-  __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+  __spirv_JointMatrixStoreINTEL<T, Tp, NumRows, NumCols,
                                 sycl::ext::oneapi::experimental::matrix::
                                     spv_matrix_use_traits<Use>::value,
                                 sycl::ext::oneapi::experimental::matrix::

@@ -18,12 +18,6 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
-namespace precision {
-class tf32 {
-  tf32() = delete;
-};
-} // namespace precision
-
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout = layout::dynamic>
 struct joint_matrix;
