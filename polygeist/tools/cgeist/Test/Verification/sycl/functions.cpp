@@ -1,5 +1,6 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - -Xcgeist -no-mangled-function-name | FileCheck %s --check-prefix=CHECK-MLIR-NO-MANGLED-FUNCTION-NAME
+// RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-llvm %s -o %t -Xcgeist -no-mangled-function-name && rm %t
 
 #include <sycl/sycl.hpp>
 
