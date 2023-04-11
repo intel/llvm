@@ -4,7 +4,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 
-//==----------- spec_const_redefine_esimd.cpp ------------------------------==//
+//==----------- spec_const_redefine.cpp ------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
