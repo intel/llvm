@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.6.0)
 
 include(GNUInstallDirs)
+include(CheckIncludeFileCXX)
 include(CMakePackageConfigHelpers)
 include(CTest)
 
@@ -51,6 +52,13 @@ if(NOT MSVC)
         $<$<CXX_COMPILER_ID:Clang>:-fcolor-diagnostics>)
     if(UR_DEVELOPER_MODE)
         add_compile_options(-Werror -fno-omit-frame-pointer)
+    endif()
+    # If <filesystem> is not found, e.g. with the libstdc++ from GCC 7.5,
+    # <experimental/filesystem> will be used instead which requires linking
+    # libstdc++fs.a to resolve the filesystem symbols.
+    check_include_file_cxx("filesystem" HAS_INCLUDE_FILESYSTEM)
+    if(NOT HAS_INCLUDE_FILESYSTEM)
+        link_libraries(stdc++fs)
     endif()
 elseif(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
