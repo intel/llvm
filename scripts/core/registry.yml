@@ -346,3 +346,6 @@ etors:
 - name: USM_POOL_DESTROY
   desc: Enumerator for $xUSMPoolDestroy
   value: '113'
+- name: PLATFORM_GET_BACKEND_OPTION
+  desc: Enumerator for $xPlatformGetBackendOption
+  value: '114'

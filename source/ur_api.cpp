@@ -208,6 +208,40 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the adapter specific compiler backend option from a generic
+///        frontend option.
+///
+/// @details
+///     - The string returned via the ppAdapterOption is a NULL terminated C
+///       style string.
+///     - The string returned via the ppAdapterOption is thread local.
+///     - The memory in the string returned via the ppAdapterOption is owned by
+///       the adapter.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPlatform`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pFrontendOption`
+///         + `NULL == ppAdapterOption`
+ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
+    const char
+        *pFrontendOption, ///< [in] string containing the frontend option.
+    const char **
+        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
+                        ///< frontend option.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieve string representation of the underlying adapter specific
 ///        result reported by the the last API that returned
 ///        UR_RESULT_ADAPTER_SPECIFIC. Allows for an adapter independent way to

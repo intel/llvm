@@ -171,6 +171,31 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPlatformGetBackendOption
+__urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
+    const char
+        *pFrontendOption, ///< [in] string containing the frontend option.
+    const char **
+        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
+                        ///< frontend option.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnGetBackendOption =
+        d_context.urDdiTable.Platform.pfnGetBackendOption;
+    if (nullptr != pfnGetBackendOption) {
+        result =
+            pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGetLastResult
 __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
@@ -3341,6 +3366,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
         driver::urPlatformCreateWithNativeHandle;
 
     pDdiTable->pfnGetApiVersion = driver::urPlatformGetApiVersion;
+
+    pDdiTable->pfnGetBackendOption = driver::urPlatformGetBackendOption;
 
     return result;
 }

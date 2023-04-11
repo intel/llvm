@@ -4270,6 +4270,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_USM_POOL_DESTROY:
         os << "UR_FUNCTION_USM_POOL_DESTROY";
         break;
+
+    case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION:
+        os << "UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -6732,6 +6736,27 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
+           const struct ur_platform_get_backend_option_params_t *params) {
+
+    os << ".hPlatform = ";
+
+    ur_params::serializePtr(os, *(params->phPlatform));
+
+    os << ", ";
+    os << ".pFrontendOption = ";
+
+    ur_params::serializePtr(os, *(params->ppFrontendOption));
+
+    os << ", ";
+    os << ".ppAdapterOption = ";
+
+    ur_params::serializePtr(os, *(params->pppAdapterOption));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
            const struct ur_program_create_with_il_params_t *params) {
 
     os << ".hContext = ";
@@ -7932,6 +7957,9 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     } break;
     case UR_FUNCTION_PLATFORM_GET_API_VERSION: {
         os << (const struct ur_platform_get_api_version_params_t *)params;
+    } break;
+    case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION: {
+        os << (const struct ur_platform_get_backend_option_params_t *)params;
     } break;
     case UR_FUNCTION_PROGRAM_CREATE_WITH_IL: {
         os << (const struct ur_program_create_with_il_params_t *)params;
