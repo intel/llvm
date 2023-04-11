@@ -943,6 +943,10 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
+pi_result piextQueueCreate2(pi_context Context, pi_device Device,
+                            pi_queue_properties *Properties, pi_queue *Queue) {
+  return piextQueueCreate(Context, Device, Properties, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
@@ -1015,8 +1019,18 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextQueueGetNativeHandle2(pi_queue, pi_native_handle *, int32_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
                                            pi_device, bool, pi_queue *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextQueueCreateWithNativeHandle2(pi_native_handle, int32_t,
+                                            pi_context, pi_device, bool,
+                                            pi_queue_properties *, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -2005,6 +2019,19 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
+/// Host Pipes
+pi_result piextEnqueueReadHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                   void *, size_t, pi_uint32, const pi_event *,
+                                   pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                    void *, size_t, pi_uint32, const pi_event *,
+                                    pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
                               const void *) {
   DIE_NO_IMPLEMENTATION;
@@ -2071,8 +2098,7 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                  uint64_t *hostTime) {
+pi_result piGetDeviceAndHostTimer(pi_device, uint64_t *, uint64_t *) {
   PiTrace(
       "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
   return PI_SUCCESS;

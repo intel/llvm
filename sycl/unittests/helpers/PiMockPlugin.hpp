@@ -345,6 +345,12 @@ inline pi_result mock_piextQueueCreate(pi_context context, pi_device device,
   *queue = createDummyHandle<pi_queue>();
   return PI_SUCCESS;
 }
+inline pi_result mock_piextQueueCreate2(pi_context context, pi_device device,
+                                        pi_queue_properties *properties,
+                                        pi_queue *queue) {
+  *queue = createDummyHandle<pi_queue>();
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piQueueGetInfo(pi_queue command_queue,
                                      pi_queue_info param_name,
@@ -387,9 +393,25 @@ mock_piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle) {
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextQueueGetNativeHandle2(pi_queue queue,
+                                                 pi_native_handle *nativeHandle,
+                                                 int32_t *nativeHandleDesc) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(queue);
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
     bool pluginOwnsNativeHandle, pi_queue *queue) {
+  *queue = reinterpret_cast<pi_queue>(nativeHandle);
+  retainDummyHandle(*queue);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
+    pi_device device, bool pluginOwnsNativeHandle,
+    pi_queue_properties *Properties, pi_queue *queue) {
   *queue = reinterpret_cast<pi_queue>(nativeHandle);
   retainDummyHandle(*queue);
   return PI_SUCCESS;
@@ -1136,5 +1158,21 @@ inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
   if (hostTime) {
     *hostTime = timeNanoseconds;
   }
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueReadHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }

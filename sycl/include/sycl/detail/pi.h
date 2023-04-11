@@ -82,9 +82,13 @@
 // the new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property.
 // 12.25 Added PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES and
 // PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES for piDeviceGetInfo.
+// 12.26 Added piextEnqueueReadHostPipe and piextEnqueueWriteHostPipe functions.
+// 12.27 Added new queue create and get APIs for immediate commandlists
+// piextQueueCreate2, piextQueueCreateWithNativeHandle2,
+// piextQueueGetNativeHandle2
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 25
+#define _PI_H_VERSION_MINOR 27
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -120,6 +124,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
 #ifdef __cplusplus
 extern "C" {
@@ -827,6 +832,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
   "SYCL/device requirements"
+/// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1183,6 +1190,12 @@ __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
 __SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
                                          pi_queue_properties *properties,
                                          pi_queue *queue);
+/// \param properties points to a zero-terminated array of extra data describing
+/// desired queue properties. Format is
+///  {[PROPERTY[, property-specific elements of data]*,]* 0}
+__SYCL_EXPORT pi_result piextQueueCreate2(pi_context context, pi_device device,
+                                          pi_queue_properties *properties,
+                                          pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,
@@ -1205,6 +1218,14 @@ __SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
 __SYCL_EXPORT pi_result
 piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 
+/// Gets the native handle of a PI queue object.
+///
+/// \param queue is the PI queue to get the native handle of.
+/// \param nativeHandle is the native handle of queue or commandlist.
+/// \param nativeHandleDesc provides additional properties of the native handle.
+__SYCL_EXPORT pi_result piextQueueGetNativeHandle2(
+    pi_queue queue, pi_native_handle *nativeHandle, int32_t *nativeHandleDesc);
+
 /// Creates PI queue object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
@@ -1219,6 +1240,24 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
     bool pluginOwnsNativeHandle, pi_queue *queue);
+
+/// Creates PI queue object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI queue from.
+/// \param nativeHandleDesc provides additional properties of the native handle.
+/// \param context is the PI context of the queue.
+/// \param device is the PI device associated with the native device used when
+///   creating the native queue. This parameter is optional but some backends
+///   may fail to create the right PI queue if omitted.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
+/// \param Properties holds queue properties.
+/// \param queue is the PI queue created from the native handle.
+__SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
+    pi_device device, bool pluginOwnsNativeHandle,
+    pi_queue_properties *Properties, pi_queue *queue);
 
 //
 // Memory
@@ -1947,6 +1986,55 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 ///
 /// Plugin
 ///
+///
+// Host Pipes
+///
+
+/// Read from pipe of a given name
+///
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory that will hold resulting data
+/// from pipe
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+__SYCL_EXPORT pi_result piextEnqueueReadHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
+
+/// Write to pipe of a given name
+///
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory that holds data to be written
+/// to host pipe.
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+__SYCL_EXPORT pi_result piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it
