@@ -291,7 +291,8 @@ inaccessible virtual memory range results in undefined behavior.
 
 |`void map(const void *ptr, size_t numBytes, size_t offset, access_mode mode)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
-memory corresponding to the corresponding instance of `physical_mem`.
+memory corresponding to this instance of `physical_mem`, starting at an offset
+of `offset` bytes.
 
 After this call the virtual memory range is accessible on the corresponding
 device in the access mode specified by `mode`. `mode` must either be
