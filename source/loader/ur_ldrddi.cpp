@@ -274,6 +274,35 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPlatformGetBackendOption
+__urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
+    const char
+        *pFrontendOption, ///< [in] string containing the frontend option.
+    const char **
+        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
+                        ///< frontend option.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_platform_object_t *>(hPlatform)->dditable;
+    auto pfnGetBackendOption = dditable->ur.Platform.pfnGetBackendOption;
+    if (nullptr == pfnGetBackendOption) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
+
+    // forward to device-platform
+    result = pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGetLastResult
 __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
@@ -5109,6 +5138,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
             pDdiTable->pfnCreateWithNativeHandle =
                 ur_loader::urPlatformCreateWithNativeHandle;
             pDdiTable->pfnGetApiVersion = ur_loader::urPlatformGetApiVersion;
+            pDdiTable->pfnGetBackendOption =
+                ur_loader::urPlatformGetBackendOption;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =

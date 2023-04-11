@@ -523,6 +523,36 @@ urPlatformCreateWithNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the adapter specific compiler backend option from a generic
+///        frontend option.
+///
+/// @details
+///     - The string returned via the ppAdapterOption is a NULL terminated C
+///       style string.
+///     - The string returned via the ppAdapterOption is thread local.
+///     - The memory in the string returned via the ppAdapterOption is owned by
+///       the adapter.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPlatform`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pFrontendOption`
+///         + `NULL == ppAdapterOption`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
+    const char *pFrontendOption,    ///< [in] string containing the frontend option.
+    const char **ppAdapterOption    ///< [out] returns the correct adapter specific option based on the
+                                    ///< frontend option.
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieve string representation of the underlying adapter specific
 ///        result reported by the the last API that returned
 ///        UR_RESULT_ADAPTER_SPECIFIC. Allows for an adapter independent way to
@@ -4295,6 +4325,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,              ///< Enumerator for ::urUSMGetMemAllocInfo
     UR_FUNCTION_USM_POOL_CREATE = 112,                     ///< Enumerator for ::urUSMPoolCreate
     UR_FUNCTION_USM_POOL_DESTROY = 113,                    ///< Enumerator for ::urUSMPoolDestroy
+    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,         ///< Enumerator for ::urPlatformGetBackendOption
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5527,6 +5558,28 @@ typedef void(UR_APICALL *ur_pfnPlatformGetApiVersionCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urPlatformGetBackendOption
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_platform_get_backend_option_params_t {
+    ur_platform_handle_t *phPlatform;
+    const char **ppFrontendOption;
+    const char ***pppAdapterOption;
+} ur_platform_get_backend_option_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urPlatformGetBackendOption
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void(UR_APICALL *ur_pfnPlatformGetBackendOptionCb_t)(
+    ur_platform_get_backend_option_params_t *params,
+    ur_result_t result,
+    void *pTracerUserData,
+    void **ppTracerInstanceUserData);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Platform callback functions pointers
 typedef struct ur_platform_callbacks_t {
     ur_pfnPlatformGetCb_t pfnGetCb;
@@ -5534,6 +5587,7 @@ typedef struct ur_platform_callbacks_t {
     ur_pfnPlatformGetNativeHandleCb_t pfnGetNativeHandleCb;
     ur_pfnPlatformCreateWithNativeHandleCb_t pfnCreateWithNativeHandleCb;
     ur_pfnPlatformGetApiVersionCb_t pfnGetApiVersionCb;
+    ur_pfnPlatformGetBackendOptionCb_t pfnGetBackendOptionCb;
 } ur_platform_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
