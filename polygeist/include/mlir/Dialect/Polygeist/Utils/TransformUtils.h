@@ -13,11 +13,13 @@
 #ifndef MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 #define MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 
 namespace mlir {
 class AffineForOp;
+class AffineIfOp;
 class AffineParallelOp;
 class DominanceInfo;
 class LoopLikeOpInterface;
@@ -26,6 +28,7 @@ class RegionBranchOpInterface;
 
 namespace scf {
 class ForOp;
+class IfOp;
 class ParallelOp;
 } // namespace scf
 
@@ -38,16 +41,6 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        SmallVectorImpl<Value> *operands,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
-
-//===----------------------------------------------------------------------===//
-// Interface classes
-//===----------------------------------------------------------------------===//
-class IfThenElseBodyInterface {
-protected:
-  virtual ~IfThenElseBodyInterface() = default;
-  virtual void createThenBody(RegionBranchOpInterface) const = 0;
-  virtual void createElseBody(RegionBranchOpInterface) const = 0;
-};
 
 //===----------------------------------------------------------------------===//
 // Loop Versioning Utilities
@@ -70,14 +63,17 @@ public:
   LoopVersionCondition(AffineCondition affineCond)
       : versionCondition({std::nullopt, affineCond}) {}
 
+  bool hasSCFCondition() const { return versionCondition.scfCond.has_value(); }
+  bool hasAffineCondition() const {
+    return versionCondition.affineCond.has_value();
+  }
+
   SCFCondition getSCFCondition() const {
-    assert(versionCondition.scfCond.has_value() &&
-           "expecting valid SCF condition");
+    assert(hasSCFCondition() && "expecting valid SCF condition");
     return *versionCondition.scfCond;
   }
   AffineCondition getAffineCondition() const {
-    assert(versionCondition.affineCond.has_value() &&
-           "expecting valid affine condition");
+    assert(hasAffineCondition() && "expecting valid affine condition");
     return *versionCondition.affineCond;
   }
 
@@ -92,14 +88,18 @@ private:
 };
 
 /// Abstract base class to version a loop like operation.
-class LoopVersionBuilder : public IfThenElseBodyInterface {
+class LoopVersionBuilder {
 public:
   static std::unique_ptr<LoopVersionBuilder> create(LoopLikeOpInterface);
+  virtual ~LoopVersionBuilder() = default;
 
   virtual void versionLoop(const LoopVersionCondition &) const;
 
 protected:
   LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
+
+  virtual void createThenBody(RegionBranchOpInterface) const = 0;
+  virtual void createElseBody(RegionBranchOpInterface) const = 0;
 
   void versionLoop(RegionBranchOpInterface) const;
 
@@ -136,9 +136,10 @@ private:
 //===----------------------------------------------------------------------===//
 
 /// Abstract base class to guard a loop like operation.
-class LoopGuardBuilder : public IfThenElseBodyInterface {
+class LoopGuardBuilder {
 public:
   static std::unique_ptr<LoopGuardBuilder> create(LoopLikeOpInterface);
+  virtual ~LoopGuardBuilder() = default;
 
   virtual void guardLoop() const = 0;
 
@@ -146,6 +147,9 @@ protected:
   LoopGuardBuilder(LoopLikeOpInterface loop) : loop(loop) {}
 
   virtual OperandRange getInitVals() const = 0;
+  virtual void createThenBody(RegionBranchOpInterface) const = 0;
+  virtual void createElseBody(RegionBranchOpInterface) const = 0;
+
   void guardLoop(RegionBranchOpInterface) const;
 
   mutable LoopLikeOpInterface loop; /// The loop to guard.
@@ -250,12 +254,17 @@ private:
 /// A collection of tools for loop transformations.
 class LoopTools {
 public:
+  LoopTools(MLIRContext &ctx) : builder(&ctx) {}
+
   /// Guard the given loop \p loop.
   void guardLoop(LoopLikeOpInterface loop) const;
 
   /// Version the given loop \p loop using the condition \p versionCond.
   void versionLoop(LoopLikeOpInterface loop,
                    const LoopVersionCondition &versionCond) const;
+
+private:
+  OpBuilder builder;
 };
 
 } // namespace mlir

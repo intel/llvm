@@ -2,21 +2,17 @@
 // RUN: polygeist-opt -licm -enable-licm-sycl-accessor-versioning -licm-sycl-accessor-pairs-limit=2 --split-input-file %s | FileCheck %s --check-prefixes=CHECK,2PAIRS
 
 // Original loop:
-// for(size_t i = 0; i < 8; i++) {
+// for(size_t i = 0; i < 8; i++)
 //   A[i] += B[0];
-// }
 // Optimized loop:
 // if (0 < 8) {
 //   if (&A[A.get_range()] <= &B[0] || &A[0] >= &B[B.get_range()]) {
 //     b = B[0];
-//     for(size_t i = 0; i < 8; i++) {
+//     for(size_t i = 0; i < 8; i++) 
 //       A[i] += b;
-//     }
-//   } else {
-//     for(size_t i = 0; i < 8; i++) {
+//   } else 
+//     for(size_t i = 0; i < 8; i++) 
 //       A[i] += b;
-//     }
-//   }
 // }
 // Note: The version condition implementation doesn't do short-circuit evaluation.
 
@@ -26,7 +22,7 @@
 !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 !sycl_accessor_1_i32_r_gb = !sycl.accessor<[1, i32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 
-// CHECK-LABEL: test
+// CHECK-LABEL: testSCFLoopVersioning
 // CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_gb]], 4>) 
 
 // CHECK-DAG:  [[C0:%.*]] = arith.constant 0 : index
@@ -76,7 +72,7 @@
 // CHECK: } else {
 // CHECK-NEXT: scf.for
 
-func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
+func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c8 = arith.constant 8 : index
@@ -127,13 +123,12 @@ func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: m
 //       B[i] = 2;
 //       C[i] = 3;
 //     }
-//   } else {
+//   } else 
 //     for(size_t i = 0; i < 8; i++) {
 //       A[0] = 1;
 //       B[i] = 2;
 //       C[i] = 3;
 //     }
-//   }
 // }
 // Note: The version condition implementation doesn't do short-circuit evaluation.
 
@@ -143,7 +138,7 @@ func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: m
 !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 
 // COM: There is only one loop, i.e., the loop is not versioned.
-// 1PAIR-LABEL: test
+// 1PAIR-LABEL: testSCFLoopVersioning
 // 1PAIR-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
 // 1PAIR: [[C1_i32:%.*]] = arith.constant 1 : i32
 // 1PAIR: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
@@ -152,7 +147,7 @@ func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: m
 // 1PAIR-NOT: } else {
 // 1PAIR-NOT: scf.for
 
-// 2PAIRS-LABEL: test
+// 2PAIRS-LABEL: testSCFLoopVersioning
 // 2PAIRS-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
 
 // 2PAIRS: [[C1_i32:%.*]] = arith.constant 1 : i32
@@ -175,7 +170,7 @@ func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: m
 // 2PAIRS: } else {
 // 2PAIRS-NEXT: scf.for
 
-func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg2: memref<?x!sycl_accessor_1_i32_w_gb, 4>) {
+func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg2: memref<?x!sycl_accessor_1_i32_w_gb, 4>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c8 = arith.constant 8 : index

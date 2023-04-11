@@ -52,9 +52,8 @@ static void createThenBody(LoopLikeOpInterface loop, AffineIfOp ifOp) {
 namespace {
 
 struct SCFIfBuilder {
-  static RegionBranchOpInterface createIfOp(Value condition,
-                                            Operation::result_range results,
-                                            OpBuilder &builder, Location loc) {
+  static scf::IfOp createIfOp(Value condition, Operation::result_range results,
+                              OpBuilder &builder, Location loc) {
     assert(condition && "Expecting a valid condition");
     return builder.create<scf::IfOp>(
         loc, condition,
@@ -68,10 +67,10 @@ struct SCFIfBuilder {
 };
 
 struct AffineIfBuilder {
-  static RegionBranchOpInterface createIfOp(IntegerSet ifCondSet,
-                                            SmallVectorImpl<Value> &setOperands,
-                                            Operation::result_range results,
-                                            OpBuilder &builder, Location loc) {
+  static AffineIfOp createIfOp(IntegerSet ifCondSet,
+                               SmallVectorImpl<Value> &setOperands,
+                               Operation::result_range results,
+                               OpBuilder &builder, Location loc) {
     TypeRange types(results);
     return builder.create<AffineIfOp>(loc, types, ifCondSet, setOperands, true);
   }
