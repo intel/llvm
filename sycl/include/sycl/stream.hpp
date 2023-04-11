@@ -822,6 +822,10 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
 
+  // NOTE: Some members are required for reconstructing the stream, but are not
+  // part of the implementation class. If more members are added, they should
+  // also be added to the weak_object specialization for streams.
+
   // Accessor to the global stream buffer. Global buffer contains all output
   // from the kernel.
   mutable detail::GlobalBufAccessorT GlobalBuf;
