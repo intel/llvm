@@ -302,6 +302,16 @@ enum class queue_state {
 };
 
 namespace property {
+
+namespace graph {
+
+class no_cycle_check {
+  public:
+    no_cycle_check() = default; 
+};
+
+} // namespace graph
+
 namespace node {
 
 class depends_on {
@@ -526,8 +536,8 @@ Parameters:
   an immutable characteristic of the graph. Must be associated with
   `syclContext`.
 
-* `propList` - Optional parameter for passing properties. Properties for
-  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
 
 Exceptions:
 
@@ -629,6 +639,9 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if `src` and `dest`
   are the same node.
+  
+* Throws synchronously with error code `invalid` if the resulting dependency would
+  lead to a cycle. This error is omitted when `property::graph::no_cycle_check` is set.
 
 |
 [source,c++]
@@ -657,6 +670,9 @@ Parameters:
 Returns: A new executable graph object which can be submitted to a queue.
 
 Exceptions:
+
+* Throws synchronously with error code `invalid` if the graph contains a
+  node which targets a device not present in `syclContext`.
 
 * Throws synchronously with error code `invalid` if the graph contains a cycle.
   A cycle may be introduced to the graph via a call to `make_edge()` that
@@ -834,6 +850,19 @@ Exceptions:
 * Throws synchronously with error code `invalid` if the context associated with
   `graph` does not match that of the `command_graph` being updated.
 |===
+
+==== Graph Properties
+
+There is the one following property defined that can be passed to a `command_graph`
+on construction via the property list parameter.
+
+1. `property::graph::no_cycle_check` - This property disables any checks if
+   a newly added dependency will lead to a cycle in a specific `command_graph`.
+   As a result, no errors are reported when a function tries to create a cyclic
+   dependency. Thus, it's the user's responsibility to create an acyclic graph 
+   for execution when this property is set. Creating a `command_graph` in
+   executable state through `finalize` from a graph with cyclic dependencies
+   is not allowed and results in undefined behavior.
 
 === Queue Class Modifications
 
