@@ -369,7 +369,7 @@ public:
   using SCFCondition = LoopVersionCondition::SCFCondition;
   using AffineCondition = LoopVersionCondition::AffineCondition;
 
-  std::unique_ptr<LoopVersionCondition> createCondition() {
+  std::unique_ptr<LoopVersionCondition> createCondition() const {
     OpBuilder builder(loop);
     Location loc = loop.getLoc();
 
@@ -524,7 +524,7 @@ private:
     return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
   }
 
-  LoopLikeOpInterface loop;
+  mutable LoopLikeOpInterface loop;
   ArrayRef<AccessorPairType> accessorPairs;
 };
 
