@@ -71,6 +71,8 @@ using namespace clang;
 /// Section name which holds target symbol names.
 #define SYMBOLS_SECTION_NAME ".tgtsym"
 
+#define DEBUG_TYPE "clang-offload-bundler"
+
 OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
                                      const OffloadBundlerConfig &BC)
     : BundlerConfig(BC) {
@@ -1365,6 +1367,20 @@ Error OffloadBundler::BundleFiles() {
   return Error::success();
 }
 
+bool OffloadBundler::CheckTripleIsExcluded(StringRef Triple) {
+  // NOTE: "-sycldevice" Triple component has been deprecated.
+  // However, it still can be met in libraries that have been compiled before
+  // deprecation. For example, here Triple might be the following:
+  //  sycl-fpga_aoco-intel-unknown-sycldevice
+  //
+  // The workaround is to strip this Triple component if it is present.
+  Triple.consume_back("-sycldevice");
+  const auto &ExcludedTargetNames = BundlerConfig.ExcludedTargetNames;
+  auto it =
+      std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(), Triple);
+  return it != ExcludedTargetNames.end();
+}
+
 // Unbundle the files. Return true if an error was found.
 Error OffloadBundler::UnbundleFiles() {
   // Open Input file.
@@ -1414,6 +1430,11 @@ Error OffloadBundler::UnbundleFiles() {
 
     StringRef CurTriple = **CurTripleOrErr;
     assert(!CurTriple.empty());
+    if (CheckTripleIsExcluded(CurTriple)) {
+      LLVM_DEBUG(outs() << "Triple: \"" << CurTriple.str()
+                        << "\" has been skipped by -excluded-targets list\n");
+      continue;
+    }
 
     auto Output = Worklist.begin();
     for (auto E = Worklist.end(); Output != E; Output++) {
