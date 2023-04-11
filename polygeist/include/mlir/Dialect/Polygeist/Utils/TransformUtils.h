@@ -65,26 +65,29 @@ public:
 
   /// Create a loop versioning condition for SCF loops.
   LoopVersionCondition(SCFCondition scfCond)
-      : versionCondition({&scfCond, nullptr}) {}
+      : versionCondition({scfCond, std::nullopt}) {}
 
   LoopVersionCondition(AffineCondition affineCond)
-      : versionCondition({nullptr, &affineCond}) {}
+      : versionCondition({std::nullopt, affineCond}) {}
 
-  const SCFCondition &getSCFCondition() const {
-    assert(versionCondition.scfCond && "expecting valid pointer");
+  SCFCondition getSCFCondition() const {
+    assert(versionCondition.scfCond.has_value() &&
+           "expecting valid SCF condition");
     return *versionCondition.scfCond;
   }
-  const AffineCondition &getAffineCondition() const {
-    assert(versionCondition.affineCond && "expecting valid pointer");
+  AffineCondition getAffineCondition() const {
+    assert(versionCondition.affineCond.has_value() &&
+           "expecting valid affine condition");
     return *versionCondition.affineCond;
   }
 
 private:
   struct VersionCondition {
-    VersionCondition(SCFCondition *scfCond, AffineCondition *affineCond)
+    VersionCondition(Optional<SCFCondition> scfCond,
+                     Optional<AffineCondition> affineCond)
         : scfCond(scfCond), affineCond(affineCond) {}
-    SCFCondition *scfCond;
-    AffineCondition *affineCond;
+    Optional<SCFCondition> scfCond;
+    Optional<AffineCondition> affineCond;
   } versionCondition;
 };
 
@@ -238,6 +241,21 @@ private:
   OperandRange getUpperBoundsOperands() const final;
   AffineMap getLowerBoundsMap() const final;
   AffineMap getUpperBoundsMap() const final;
+};
+
+//===----------------------------------------------------------------------===//
+// Loop Tools
+//===----------------------------------------------------------------------===//
+
+/// A collection of tools for loop transformations.
+class LoopTools {
+public:
+  /// Guard the given loop \p loop.
+  void guardLoop(LoopLikeOpInterface loop) const;
+
+  /// Version the given loop \p loop using the condition \p versionCond.
+  void versionLoop(LoopLikeOpInterface loop,
+                   const LoopVersionCondition &versionCond) const;
 };
 
 } // namespace mlir

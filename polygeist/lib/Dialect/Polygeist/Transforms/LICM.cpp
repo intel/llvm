@@ -61,6 +61,9 @@ struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
   using LICMBase<LICM>::LICMBase;
 
   void runOnOperation() override;
+
+private:
+  LoopTools loopTools;
 };
 
 /// Represents the side effects associated with an operation.
@@ -774,6 +777,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 }
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
+                                    LoopTools loopTools,
                                     const AliasAnalysis &aliasAnalysis,
                                     const DominanceInfo &domInfo) {
   Operation *loopOp = loop;
@@ -785,7 +789,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
-  LoopGuardBuilder::create(loop)->guardLoop();
+  loopTools.guardLoop(loop);
 
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
@@ -796,7 +800,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
       OpBuilder builder(loop);
       std::unique_ptr<LoopVersionCondition> condition =
           VersionConditionBuilder(loop, accessorPairs).createCondition();
-      LoopVersionBuilder::create(loop)->versionLoop(*condition);
+      loopTools.versionLoop(loop, *condition);
     }
 
     loop.moveOutOfLoop(&candidate.getOperation());
@@ -839,7 +843,8 @@ void LICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo);
+      size_t OpHoisted =
+          moveLoopInvariantCode(loop, loopTools, aliasAnalysis, domInfo);
       numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({

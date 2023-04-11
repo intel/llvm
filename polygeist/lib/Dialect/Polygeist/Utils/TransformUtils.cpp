@@ -55,6 +55,7 @@ struct SCFIfBuilder {
   static RegionBranchOpInterface createIfOp(Value condition,
                                             Operation::result_range results,
                                             OpBuilder &builder, Location loc) {
+    assert(condition && "Expecting a valid condition");
     return builder.create<scf::IfOp>(
         loc, condition,
         [&](OpBuilder &b, Location loc) {
@@ -416,4 +417,17 @@ AffineMap AffineParallelGuardBuilder::getLowerBoundsMap() const {
 
 AffineMap AffineParallelGuardBuilder::getUpperBoundsMap() const {
   return getLoop().getUpperBoundsMap();
+}
+
+//===----------------------------------------------------------------------===//
+// Loop Tools
+//===----------------------------------------------------------------------===//
+
+void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
+  LoopGuardBuilder::create(loop)->guardLoop();
+}
+
+void LoopTools::versionLoop(LoopLikeOpInterface loop,
+                            const LoopVersionCondition &versionCond) const {
+  LoopVersionBuilder::create(loop)->versionLoop(versionCond);
 }
