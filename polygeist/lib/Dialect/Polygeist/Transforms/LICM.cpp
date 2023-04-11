@@ -21,6 +21,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
@@ -352,26 +353,21 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
-// SYCLAccessorVersionBuilder
+// VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-// TODO: Support other kind of loops.
-class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
+class VersionConditionBuilder {
 public:
-  SYCLAccessorVersionBuilder(
-      LoopLikeOpInterface loop,
+  VersionConditionBuilder(
       ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
-      : SCFLoopVersionBuilder(loop),
-        accessorPairs(requireNoOverlapAccessorPairs) {}
+      : accessorPairs(requireNoOverlapAccessorPairs) {}
 
-private:
-  Value createCondition() const final {
-    Location loc = loop.getLoc();
-
+  /// Create a loop versioning condition suitable for versioning an SCF loop.
+  Value createConditionForSCFLoop(OpBuilder builder, Location loc) const {
     auto GetMemref2PointerOp = [&](Value op) {
       auto MT = cast<MemRefType>(op.getType());
       return builder.create<polygeist::Memref2PointerOp>(
-          loop.getLoc(),
+          loc,
           LLVM::LLVMPointerType::get(MT.getElementType(),
                                      MT.getMemorySpaceAsInt()),
           op);
@@ -395,6 +391,11 @@ private:
                       : orOp;
     }
     return condition;
+  }
+
+  /// Create a loop versioning condition suitable for versioning an affine loop.
+  IntegerSet createConditionForAffineLoop(SmallVectorImpl<Value> &) const {
+    llvm_unreachable("TODO");
   }
 
   template <typename OpTy>
@@ -499,8 +500,6 @@ private:
 
   ArrayRef<AccessorPairType> accessorPairs;
 };
-
-//===----------------------------------------------------------------------===//
 
 /// Return the accessor used by \p op if found, and nullptr otherwise.
 static Optional<AccessorType> getAccessorUsedByOperation(const Operation &op) {
@@ -769,8 +768,14 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   for (const LICMCandidate &candidate : LICMCandidates) {
     ArrayRef<AccessorPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
-    if (!accessorPairs.empty())
-      SYCLAccessorVersionBuilder(loop, accessorPairs).versionLoop();
+    if (!accessorPairs.empty()) {
+      OpBuilder builder(loop);
+      // TODO: find a way to create a versioning condition that works for
+      // creating either SCF loops or affine loops.
+      Value condition = VersionConditionBuilder(accessorPairs)
+                            .createConditionForSCFLoop(builder, loop.getLoc());
+      LoopVersionBuilder::create(loop)->versionLoop(condition);
+    }
 
     loop.moveOutOfLoop(&candidate.getOperation());
     ++numOpsHoisted;
