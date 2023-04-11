@@ -2,8 +2,15 @@
 // SPDX-License-Identifier: MIT
 
 #include <cstring>
-#include <filesystem>
 #include <fstream>
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace filesystem = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace filesystem = std::experimental::filesystem;
+#endif
 
 #include <uur/environment.h>
 #include <uur/utils.h>
@@ -264,7 +271,7 @@ KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
     }
 
     std::string binary_name;
-    for (const auto &entry : std::filesystem::directory_iterator(path.str())) {
+    for (const auto &entry : filesystem::directory_iterator(path.str())) {
         auto file_name = entry.path().filename().string();
         if (file_name.find(il_postfix) != std::string::npos) {
             binary_name = file_name;

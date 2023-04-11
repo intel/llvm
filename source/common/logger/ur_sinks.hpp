@@ -4,9 +4,18 @@
 #ifndef UR_SINKS_HPP
 #define UR_SINKS_HPP 1
 
-#include <filesystem>
 #include <fstream>
 #include <iostream>
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace filesystem = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace filesystem = std::experimental::filesystem;
+#endif
+
+#include "ur_level.hpp"
 
 namespace logger {
 
@@ -123,7 +132,7 @@ class StderrSink : public Sink {
 
 class FileSink : public Sink {
   public:
-    FileSink(std::string logger_name, std::filesystem::path file_path)
+    FileSink(std::string logger_name, filesystem::path file_path)
         : Sink(logger_name) {
         ofstream = std::ofstream(file_path, std::ofstream::out);
         if (!ofstream.good()) {
@@ -135,7 +144,7 @@ class FileSink : public Sink {
         this->ostream = &ofstream;
     }
 
-    FileSink(std::string logger_name, std::filesystem::path file_path,
+    FileSink(std::string logger_name, filesystem::path file_path,
              Level flush_lvl)
         : FileSink(logger_name, file_path) {
         this->flush_level = flush_lvl;
