@@ -116,7 +116,7 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw
 // CHECK: [[GUARD_COND:#.*]] = affine_set<() : (7 >= 0)>
 
 // COM: There is only one loop, i.e., the loop is not versioned.
-// 1PAIR-LABEL: testAffineLoopVersioning
+// CHECK-LABEL: testAffineLoopVersioning
 // CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_gb]], 4>)
 
 // CHECK: affine.if [[GUARD_COND]]() {
