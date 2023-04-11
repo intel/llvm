@@ -409,20 +409,24 @@ template <class Callable> constexpr void verify_callable() {
     static_assert(
         !callable_has_ref_arg,
         "invoke_simd does not support callables with reference arguments");
+#ifdef __SYCL_DEVICE_ONLY__
     constexpr bool callable_has_uniform_non_trivially_copyable_ret =
         has_non_trivially_copyable_uniform_ret(obj);
     static_assert(!callable_has_uniform_non_trivially_copyable_ret,
                   "invoke_simd does not support callables returning uniforms "
                   "that are not trivially copyable");
+#endif
   }
 }
 
 template <class... Ts>
 constexpr void verify_no_uniform_non_trivially_copyable_args() {
+#ifdef __SYCL_DEVICE_ONLY__
   constexpr bool has_non_trivially_copyable_uniform_arg =
       (... || is_non_trivially_copyable_uniform_v<Ts>);
   static_assert(!has_non_trivially_copyable_uniform_arg,
                 "Uniform arguments must be trivially copyable");
+#endif
 }
 
 template <class Callable, class... Ts>
