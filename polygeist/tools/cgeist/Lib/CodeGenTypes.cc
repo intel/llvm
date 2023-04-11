@@ -1416,15 +1416,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
     SmallVector<mlir::Type, 4> Types;
 
-    bool InnerLLVM = false;
-    bool InnerSYCL = false;
     if (CXRD) {
       for (auto F : CXRD->bases()) {
         bool SubRef = false;
         auto Ty = getMLIRTypeForMem(F.getType(), &SubRef, /*AllowMerge*/ false);
         assert(!SubRef);
-        InnerLLVM |= isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
-                         LLVM::LLVMArrayType>(Ty);
         Types.push_back(Ty);
       }
     }
@@ -1433,10 +1429,6 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       bool SubRef = false;
       auto Ty = getMLIRTypeForMem(F->getType(), &SubRef, /*AllowMerge*/ false);
       assert(!SubRef);
-      InnerLLVM |=
-          isa<LLVM::LLVMPointerType, LLVM::LLVMStructType, LLVM::LLVMArrayType>(
-              Ty);
-      InnerSYCL |= mlir::sycl::isSYCLType(Ty);
       Types.push_back(Ty);
     }
 
