@@ -28,23 +28,6 @@ func.func @test_global_id() -> !sycl_id_2_ {
   return %0 : !sycl_id_2_
 }
 
-// CHECK-LABEL:   func.func @test_global_id_dim(
-// CHECK-SAME:                                  %[[VAL_0:.*]]: i32) -> index {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant dense<0> : vector<3xindex>
-// CHECK-NEXT:      %[[VAL_3:.*]] = gpu.global_id  x
-// CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_1]] [0] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_5:.*]] = gpu.global_id  y
-// CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_5]], %[[VAL_4]] [1] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_7:.*]] = gpu.global_id  z
-// CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_7]], %[[VAL_6]] [2] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extractelement %[[VAL_8]]{{\[}}%[[VAL_0]] : i32] : vector<3xindex>
-// CHECK-NEXT:      return %[[VAL_9]] : index
-// CHECK-NEXT:    }
-func.func @test_global_id_dim(%i: i32) -> index {
-  %0 = sycl.global_id %i : index
-  return %0 : index
-}
-
 // CHECK-LABEL:   func.func @test_local_id() -> !sycl_id_3_ {
 // CHECK-NEXT:      %[[VAL_0:.*]] = memref.alloca() : memref<1x!sycl_id_3_>
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0 : index
@@ -69,23 +52,6 @@ func.func @test_global_id_dim(%i: i32) -> index {
 func.func @test_local_id() -> !sycl_id_3_ {
   %0 = sycl.local_id : !sycl_id_3_
   return %0 : !sycl_id_3_
-}
-
-// CHECK-LABEL:   func.func @test_local_id_dim(
-// CHECK-SAME:                                 %[[VAL_0:.*]]: i32) -> index {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant dense<0> : vector<3xindex>
-// CHECK-NEXT:      %[[VAL_3:.*]] = gpu.thread_id  x
-// CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_1]] [0] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_5:.*]] = gpu.thread_id  y
-// CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_5]], %[[VAL_4]] [1] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_7:.*]] = gpu.thread_id  z
-// CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_7]], %[[VAL_6]] [2] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extractelement %[[VAL_8]]{{\[}}%[[VAL_0]] : i32] : vector<3xindex>
-// CHECK-NEXT:      return %[[VAL_9]] : index
-// CHECK-NEXT:    }
-func.func @test_local_id_dim(%i: i32) -> index {
-  %0 = sycl.local_id %i : index
-  return %0 : index
 }
 
 // CHECK-LABEL:   func.func @test_work_group_size() -> !sycl_range_3_ {
@@ -114,23 +80,6 @@ func.func @test_work_group_size() -> !sycl_range_3_ {
   return %0 : !sycl_range_3_
 }
 
-// CHECK-LABEL:   func.func @test_work_group_size_dim(
-// CHECK-SAME:                                        %[[VAL_0:.*]]: i32) -> index {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant dense<0> : vector<3xindex>
-// CHECK-NEXT:      %[[VAL_3:.*]] = gpu.block_dim  x
-// CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_1]] [0] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_5:.*]] = gpu.block_dim  y
-// CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_5]], %[[VAL_4]] [1] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_7:.*]] = gpu.block_dim  z
-// CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_7]], %[[VAL_6]] [2] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extractelement %[[VAL_8]]{{\[}}%[[VAL_0]] : i32] : vector<3xindex>
-// CHECK-NEXT:      return %[[VAL_9]] : index
-// CHECK-NEXT:    }
-func.func @test_work_group_size_dim(%i: i32) -> index {
-  %0 = sycl.work_group_size %i : index
-  return %0 : index
-}
-
 // CHECK-LABEL:   func.func @test_work_group_id() -> !sycl_id_1_ {
 // CHECK-NEXT:      %[[VAL_0:.*]] = memref.alloca() : memref<1x!sycl_id_1_>
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0 : index
@@ -145,23 +94,6 @@ func.func @test_work_group_size_dim(%i: i32) -> index {
 func.func @test_work_group_id() -> !sycl_id_1_ {
   %0 = sycl.work_group_id : !sycl_id_1_
   return %0 : !sycl_id_1_
-}
-
-// CHECK-LABEL:   func.func @test_work_group_id_dim(
-// CHECK-SAME:                                      %[[VAL_0:.*]]: i32) -> index {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant dense<0> : vector<3xindex>
-// CHECK-NEXT:      %[[VAL_3:.*]] = gpu.block_id  x
-// CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_1]] [0] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_5:.*]] = gpu.block_id  y
-// CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_5]], %[[VAL_4]] [1] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_7:.*]] = gpu.block_id  z
-// CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_7]], %[[VAL_6]] [2] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extractelement %[[VAL_8]]{{\[}}%[[VAL_0]] : i32] : vector<3xindex>
-// CHECK-NEXT:      return %[[VAL_9]] : index
-// CHECK-NEXT:    }
-func.func @test_work_group_id_dim(%i: i32) -> index {
-  %0 = sycl.work_group_id %i : index
-  return %0 : index
 }
 
 // CHECK-LABEL:   func.func @test_num_sub_groups() -> i32 {

@@ -46,31 +46,6 @@ module attributes {gpu.container_module} {
       return %0 : !sycl_range_1_
     }
 
-    // CHECK-LABEL:     llvm.func @test_num_work_items_dim(
-    // CHECK-SAME:                                         %[[VAL_15:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_16:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalSize : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_17:.*]] = llvm.load %[[VAL_16]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_18:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_19:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_20:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_19]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_21:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_22:.*]] = llvm.insertelement %[[VAL_20]], %[[VAL_18]]{{\[}}%[[VAL_21]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_23:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_24:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_23]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_25:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_26:.*]] = llvm.insertelement %[[VAL_24]], %[[VAL_22]]{{\[}}%[[VAL_25]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_27:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_28:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_27]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_29:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_30:.*]] = llvm.insertelement %[[VAL_28]], %[[VAL_26]]{{\[}}%[[VAL_29]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_31:.*]] = llvm.extractelement %[[VAL_30]]{{\[}}%[[VAL_15]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_31]] : i64
-    // CHECK-NEXT:      }
-    func.func @test_num_work_items_dim(%i: i32) -> index {
-      %0 = sycl.num_work_items %i : index
-      return %0 : index
-    }
-
     // CHECK-LABEL:     llvm.func @test_global_id() -> !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_32:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_33:.*]] = llvm.load %[[VAL_32]] : !llvm.ptr<1> -> vector<3xi64>
@@ -99,31 +74,6 @@ module attributes {gpu.container_module} {
     func.func @test_global_id() -> !sycl_id_2_ {
       %0 = sycl.global_id : !sycl_id_2_
       return %0 : !sycl_id_2_
-    }
-
-    // CHECK-LABEL:     llvm.func @test_global_id_dim(
-    // CHECK-SAME:                                    %[[VAL_52:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_53:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_54:.*]] = llvm.load %[[VAL_53]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_55:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_56:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_57:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_56]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_58:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_59:.*]] = llvm.insertelement %[[VAL_57]], %[[VAL_55]]{{\[}}%[[VAL_58]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_60:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_61:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_60]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_62:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_63:.*]] = llvm.insertelement %[[VAL_61]], %[[VAL_59]]{{\[}}%[[VAL_62]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_64:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_65:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_64]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_66:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_67:.*]] = llvm.insertelement %[[VAL_65]], %[[VAL_63]]{{\[}}%[[VAL_66]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_68:.*]] = llvm.extractelement %[[VAL_67]]{{\[}}%[[VAL_52]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_68]] : i64
-    // CHECK-NEXT:      }
-    func.func @test_global_id_dim(%i: i32) -> index {
-      %0 = sycl.global_id %i : index
-      return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_local_id() -> !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
@@ -162,31 +112,6 @@ module attributes {gpu.container_module} {
       return %0 : !sycl_id_3_
     }
 
-    // CHECK-LABEL:     llvm.func @test_local_id_dim(
-    // CHECK-SAME:                                   %[[VAL_94:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_95:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_96:.*]] = llvm.load %[[VAL_95]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_97:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_98:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_99:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_98]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_100:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_101:.*]] = llvm.insertelement %[[VAL_99]], %[[VAL_97]]{{\[}}%[[VAL_100]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_102:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_103:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_102]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_104:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_105:.*]] = llvm.insertelement %[[VAL_103]], %[[VAL_101]]{{\[}}%[[VAL_104]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_106:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_107:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_106]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_108:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_109:.*]] = llvm.insertelement %[[VAL_107]], %[[VAL_105]]{{\[}}%[[VAL_108]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_110:.*]] = llvm.extractelement %[[VAL_109]]{{\[}}%[[VAL_94]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_110]] : i64
-    // CHECK-NEXT:      }
-    func.func @test_local_id_dim(%i: i32) -> index {
-      %0 = sycl.local_id %i : index
-      return %0 : index
-    }
-
     // CHECK-LABEL:     llvm.func @test_work_group_size() -> !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_111:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_112:.*]] = llvm.load %[[VAL_111]] : !llvm.ptr<1> -> vector<3xi64>
@@ -223,31 +148,6 @@ module attributes {gpu.container_module} {
       return %0 : !sycl_range_3_
     }
 
-    // CHECK-LABEL:     llvm.func @test_work_group_size_dim(
-    // CHECK-SAME:                                          %[[VAL_136:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_137:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_138:.*]] = llvm.load %[[VAL_137]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_139:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_140:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_141:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_140]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_142:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_143:.*]] = llvm.insertelement %[[VAL_141]], %[[VAL_139]]{{\[}}%[[VAL_142]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_144:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_145:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_144]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_146:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_147:.*]] = llvm.insertelement %[[VAL_145]], %[[VAL_143]]{{\[}}%[[VAL_146]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_148:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_149:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_148]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_150:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_151:.*]] = llvm.insertelement %[[VAL_149]], %[[VAL_147]]{{\[}}%[[VAL_150]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_152:.*]] = llvm.extractelement %[[VAL_151]]{{\[}}%[[VAL_136]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_152]] : i64
-    // CHECK-NEXT:      }
-    func.func @test_work_group_size_dim(%i: i32) -> index {
-      %0 = sycl.work_group_size %i : index
-      return %0 : index
-    }
-
     // CHECK-LABEL:     llvm.func @test_work_group_id() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_153:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_154:.*]] = llvm.load %[[VAL_153]] : !llvm.ptr<1> -> vector<3xi64>
@@ -270,31 +170,6 @@ module attributes {gpu.container_module} {
     func.func @test_work_group_id() -> !sycl_id_1_ {
       %0 = sycl.work_group_id : !sycl_id_1_
       return %0 : !sycl_id_1_
-    }
-
-    // CHECK-LABEL:     llvm.func @test_work_group_id_dim(
-    // CHECK-SAME:                                        %[[VAL_168:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_169:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_170:.*]] = llvm.load %[[VAL_169]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_171:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_172:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_173:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_172]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_174:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_175:.*]] = llvm.insertelement %[[VAL_173]], %[[VAL_171]]{{\[}}%[[VAL_174]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_176:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_177:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_176]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_178:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_179:.*]] = llvm.insertelement %[[VAL_177]], %[[VAL_175]]{{\[}}%[[VAL_178]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_180:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_181:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_180]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_182:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_183:.*]] = llvm.insertelement %[[VAL_181]], %[[VAL_179]]{{\[}}%[[VAL_182]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_184:.*]] = llvm.extractelement %[[VAL_183]]{{\[}}%[[VAL_168]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_184]] : i64
-    // CHECK-NEXT:      }
-    func.func @test_work_group_id_dim(%i: i32) -> index {
-      %0 = sycl.work_group_id %i : index
-      return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_num_sub_groups() -> i32 {
@@ -351,31 +226,6 @@ module attributes {gpu.container_module} {
       return %0 : !sycl_id_1_
     }
 
-    // CHECK-LABEL:     llvm.func @test_global_offset_dim(
-    // CHECK-SAME:                                        %[[VAL_222:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_223:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalOffset : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_224:.*]] = llvm.load %[[VAL_223]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_225:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_226:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.extractelement %[[VAL_224]]{{\[}}%[[VAL_226]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_228:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_229:.*]] = llvm.insertelement %[[VAL_227]], %[[VAL_225]]{{\[}}%[[VAL_228]] : i64] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_230:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_231:.*]] = llvm.extractelement %[[VAL_224]]{{\[}}%[[VAL_230]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_232:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_233:.*]] = llvm.insertelement %[[VAL_231]], %[[VAL_229]]{{\[}}%[[VAL_232]] : i64] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_234:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_235:.*]] = llvm.extractelement %[[VAL_224]]{{\[}}%[[VAL_234]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_236:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_237:.*]] = llvm.insertelement %[[VAL_235]], %[[VAL_233]]{{\[}}%[[VAL_236]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_238:.*]] = llvm.extractelement %[[VAL_237]]{{\[}}%[[VAL_222]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_238]] : i64
-    // CHECK-NEXT:      }
-    func.func @test_global_offset_dim(%i: i32) -> index {
-      %0 = sycl.global_offset %i : index
-      return %0 : index
-    }
-
     // CHECK-LABEL:     llvm.func @test_num_work_groups() -> !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_226:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.load %[[VAL_226]] : !llvm.ptr<1> -> vector<3xi64>
@@ -404,31 +254,6 @@ module attributes {gpu.container_module} {
     func.func @test_num_work_groups() -> !sycl_range_2_ {
       %0 = sycl.num_work_groups : !sycl_range_2_
       return %0 : !sycl_range_2_
-    }
-
-    // CHECK-LABEL:     llvm.func @test_num_work_groups_dim(
-    // CHECK-SAME:                                          %[[VAL_246:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_247:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr<1>
-    // CHECK-NEXT:        %[[VAL_248:.*]] = llvm.load %[[VAL_247]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-DAG:         %[[VAL_249:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_250:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_251:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_250]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_252:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_253:.*]] = llvm.insertelement %[[VAL_251]], %[[VAL_249]]{{\[}}%[[VAL_252]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_254:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_255:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_254]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_256:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_257:.*]] = llvm.insertelement %[[VAL_255]], %[[VAL_253]]{{\[}}%[[VAL_256]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_258:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_259:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_258]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_260:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_261:.*]] = llvm.insertelement %[[VAL_259]], %[[VAL_257]]{{\[}}%[[VAL_260]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_262:.*]] = llvm.extractelement %[[VAL_261]]{{\[}}%[[VAL_246]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_262]] : i64
-    // CHECK-NEXT:       }
-    func.func @test_num_work_groups_dim(%i: i32) -> index {
-      %0 = sycl.num_work_groups %i : index
-      return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_sub_group_max_size() -> i32 {

@@ -378,8 +378,6 @@ def SYCLMemref : AnyTypeOf<[
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
 def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
-def SYCLIndexSpaceGetIDResult : AnyTypeOf<[Index, SYCL_IDType]>;
-def SYCLIndexSpaceGetRangeResult : AnyTypeOf<[Index, SYCL_RangeType]>;
 def SYCLGetResult : AnyTypeOf<[IndexType, MemRefOf<[IndexType]>]>;
 def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
 def VectorSplatArg : MemRefOf<[VectorEltTy]>;
@@ -397,18 +395,16 @@ class SYCL1DGridOp<string mnemonic, list<Trait> traits = []>
 
 class SYCL3DGridOp<string mnemonic, list<Trait> traits = []>
     : SYCL_Op<mnemonic, !listconcat(traits, [Pure])> {
-  let arguments = (ins Optional<I32>:$dimension);
-  let assemblyFormat = "$dimension attr-dict `:` type($result)";
+  let arguments = (ins);
+  let assemblyFormat = "attr-dict `:` type($result)";
 }
 
-class SYCL3DIDGridOp<string mnemonic>
-    : SYCL3DGridOp<mnemonic, [SYCLIndexSpaceGetID]> {
-  let results = (outs SYCLIndexSpaceGetIDResult:$result);
+class SYCL3DIDGridOp<string mnemonic> : SYCL3DGridOp<mnemonic> {
+  let results = (outs SYCL_IDType:$result);
 }
 
-class SYCL3DRangeGridOp<string mnemonic>
-    : SYCL3DGridOp<mnemonic, [SYCLIndexSpaceGetRange]> {
-  let results = (outs SYCLIndexSpaceGetRangeResult:$result);
+class SYCL3DRangeGridOp<string mnemonic> : SYCL3DGridOp<mnemonic> {
+  let results = (outs SYCL_RangeType:$result);
 }
 
 def SYCLNumWorkItemsOp : SYCL3DRangeGridOp<"num_work_items"> {

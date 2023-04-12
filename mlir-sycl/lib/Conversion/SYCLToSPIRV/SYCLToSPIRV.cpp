@@ -134,52 +134,6 @@ protected:
   constexpr static spirv::BuiltIn spirvBuiltin{builtin};
 };
 
-/// Replace \p op with a sequence of operations that:
-/// 1. Allocate a new array of the result type in the stack;
-/// 2. Initialize the dimensions of the array with the result of calling SPIR-V
-/// builtin \p builtin;
-/// 3. Load the value in position \p index (assumed to be inbounds).
-void rewriteNDIndex(Operation *op, spirv::BuiltIn builtin, Value index,
-                    TypeConverter &typeConverter,
-                    ConversionPatternRewriter &rewriter) {
-  // TODO: Get default dimensions from parent modules.
-  constexpr int64_t dimensions{3};
-  constexpr std::array<int64_t, dimensions> vecInit{0, 0, 0};
-
-  const auto values = ::getBuiltinVariableValue(
-      op, builtin, typeConverter.convertType(rewriter.getIndexType()),
-      rewriter);
-  const auto loc = op->getLoc();
-  const auto indexTy = rewriter.getIndexType();
-  const auto vecTy = VectorType::get(dimensions, indexTy);
-  Value vec = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIndexVectorAttr(vecInit), vecTy);
-  for (int64_t i = 0; i < dimensions; ++i) {
-    const Value val = rewriter.create<arith::IndexCastOp>(
-        loc, indexTy, getDimension(rewriter, loc, values, i));
-    vec = rewriter.create<vector::InsertOp>(loc, val, vec, i);
-  }
-  rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, vec, index);
-}
-
-/// Converts n-dimensional operations of type \tparam OpTy not being passed an
-/// argument to a call to a SPIRV builtin.
-template <typename OpTy> class GridOpPatternIndex : public GridOpPattern<OpTy> {
-public:
-  using GridOpPattern<OpTy>::GridOpPattern;
-
-  LogicalResult match(OpTy op) const final {
-    return success(op.getNumOperands() == 1);
-  }
-
-  void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
-               ConversionPatternRewriter &rewriter) const final {
-    rewriteNDIndex(op, GridOpPattern<OpTy>::spirvBuiltin,
-                   opAdaptor.getDimension(),
-                   *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
-  }
-};
-
 template <unsigned Dimensions>
 static std::enable_if_t<(1 <= Dimensions && Dimensions < 4), int64_t>
 mirrorIndexCalc(int64_t index);
@@ -259,14 +213,12 @@ class GridOpPatternNoIndex : public GridOpPattern<OpTy> {
 public:
   using GridOpPattern<OpTy>::GridOpPattern;
 
-  LogicalResult match(OpTy op) const final {
-    return success(op.getNumOperands() == 0);
-  }
-
-  void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
-               ConversionPatternRewriter &rewriter) const final {
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
     rewriteNDNoIndex(op, GridOpPattern<OpTy>::spirvBuiltin,
                      *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
+    return success();
   }
 };
 
@@ -294,9 +246,7 @@ public:
 template <typename... OpTys>
 void addGridOpPatterns(RewritePatternSet &patterns,
                        TypeConverter &typeConverter, MLIRContext *context) {
-  (patterns.add<GridOpPatternIndex<OpTys>, GridOpPatternNoIndex<OpTys>>(
-       typeConverter, context),
-   ...);
+  (patterns.add<GridOpPatternNoIndex<OpTys>>(typeConverter, context), ...);
 }
 } // namespace
 
