@@ -426,9 +426,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   case UR_PROFILING_INFO_COMMAND_QUEUED:
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
     // Note: No users for this case
-    // TODO: Implement commmand submission time when needed,
-    //        by recording device timestamp (using zeDeviceGetGlobalTimestamps)
-    //        before submitting command to device
+    // The "command_submit" time is implemented by recording submission
+    // timestamp with a call to piGetDeviceAndHostTimer before command enqueue.
+    //
     return ReturnValue(uint64_t{0});
   default:
     urPrint("urEventGetProfilingInfo: not supported ParamName\n");
