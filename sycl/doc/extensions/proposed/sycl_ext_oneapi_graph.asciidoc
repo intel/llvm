@@ -674,10 +674,6 @@ Exceptions:
 * Throws synchronously with error code `invalid` if the graph contains a
   node which targets a device not present in `syclContext`.
 
-* Throws synchronously with error code `invalid` if the graph contains a cycle.
-  A cycle may be introduced to the graph via a call to `make_edge()` that
-  creates a forward dependency.
-
 |===
 
 Table {counter: tableNumber}. Member functions of the `command_graph` class for queue recording.
