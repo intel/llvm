@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements a target parser to recognise hardware features
-// FOR RISC-V CPUS.
+// for RISC-V CPUs.
 //
 //===----------------------------------------------------------------------===//
 
@@ -103,7 +103,7 @@ bool getCPUFeaturesExceptStdExt(CPUKind Kind,
 
 bool isX18ReservedByDefault(const Triple &TT) {
   // X18 is reserved for the ShadowCallStack ABI (even when not enabled).
-  return TT.isOSFuchsia();
+  return TT.isOSFuchsia() || TT.isAndroid();
 }
 
 } // namespace RISCV

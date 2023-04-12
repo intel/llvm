@@ -589,6 +589,10 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
       [&](const Twine &Error, StringRef Context, const DWARFDie *) {
         error(Error, Context);
       });
+  GeneralLinker.setInputVerificationHandler([&](const DWARFFile &File) {
+    reportWarning("input verification failed", File.FileName);
+    HasVerificationErrors = true;
+  });
   objFileLoader Loader = [&DebugMap, &RL,
                           this](StringRef ContainerName,
                                 StringRef Path) -> ErrorOr<DWARFFile &> {
@@ -654,7 +658,7 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
   if (!Options.NoOutput && !ReflectionSectionsPresentInBinary) {
     auto SectionToOffsetInDwarf =
         calculateStartOfStrippableReflectionSections(Map);
-    for (const auto &Obj : Map.objects()) 
+    for (const auto &Obj : Map.objects())
       copySwiftReflectionMetadata(Obj.get(), Streamer.get(),
                                   SectionToOffsetInDwarf, RelocationsToApply);
   }
@@ -675,7 +679,7 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
       StringRef File = Obj->getObjectFilename();
       auto ErrorOrMem = MemoryBuffer::getFile(File);
       if (!ErrorOrMem) {
-        warn("Could not open '" + File + "'\n");
+        warn("Could not open '" + File + "'");
         continue;
       }
       sys::fs::file_status Stat;
@@ -1004,7 +1008,8 @@ bool DwarfLinkerForBinary::AddressManager::isLiveSubprogram(
 
   dwarf::Form Form = Abbrev->getFormByIndex(*LowPcIdx);
 
-  if (Form == dwarf::DW_FORM_addr) {
+  switch (Form) {
+  case dwarf::DW_FORM_addr: {
     uint64_t Offset = DIE.getOffset() + getULEB128Size(Abbrev->getCode());
     uint64_t LowPcOffset, LowPcEndOffset;
     std::tie(LowPcOffset, LowPcEndOffset) =
@@ -1012,8 +1017,11 @@ bool DwarfLinkerForBinary::AddressManager::isLiveSubprogram(
     return hasValidRelocationAt(ValidDebugInfoRelocs, LowPcOffset,
                                 LowPcEndOffset, MyInfo);
   }
-
-  if (Form == dwarf::DW_FORM_addrx) {
+  case dwarf::DW_FORM_addrx:
+  case dwarf::DW_FORM_addrx1:
+  case dwarf::DW_FORM_addrx2:
+  case dwarf::DW_FORM_addrx3:
+  case dwarf::DW_FORM_addrx4: {
     std::optional<DWARFFormValue> AddrValue = DIE.find(dwarf::DW_AT_low_pc);
     if (std::optional<uint64_t> AddrOffsetSectionBase =
             DIE.getDwarfUnit()->getAddrOffsetSectionBase()) {
@@ -1022,11 +1030,14 @@ bool DwarfLinkerForBinary::AddressManager::isLiveSubprogram(
           StartOffset + DIE.getDwarfUnit()->getAddressByteSize();
       return hasValidRelocationAt(ValidDebugAddrRelocs, StartOffset, EndOffset,
                                   MyInfo);
-    } else
-      Linker.reportWarning("no base offset for address table", SrcFileName);
-  }
+    }
 
-  return false;
+    Linker.reportWarning("no base offset for address table", SrcFileName);
+    return false;
+  }
+  default:
+    return false;
+  }
 }
 
 uint64_t
@@ -1061,12 +1072,6 @@ bool DwarfLinkerForBinary::AddressManager::applyValidRelocs(
   }
 
   return Relocs.size() > 0;
-}
-
-bool linkDwarf(raw_fd_ostream &OutFile, BinaryHolder &BinHolder,
-               const DebugMap &DM, LinkOptions Options) {
-  DwarfLinkerForBinary Linker(OutFile, BinHolder, std::move(Options));
-  return Linker.link(DM);
 }
 
 } // namespace dsymutil

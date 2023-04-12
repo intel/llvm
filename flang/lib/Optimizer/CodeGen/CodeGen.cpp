@@ -16,8 +16,10 @@
 #include "flang/ISO_Fortran_binding.h"
 #include "flang/Optimizer/Dialect/FIRAttr.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
+#include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Optimizer/Support/TypeCode.h"
+#include "flang/Optimizer/Support/Utils.h"
 #include "flang/Semantics/runtime-type-info.h"
 #include "mlir/Conversion/ArithCommon/AttrToLLVMConverter.h"
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
@@ -50,9 +52,6 @@ namespace fir {
 // fir::LLVMTypeConverter for converting to LLVM IR dialect types.
 #include "TypeConverter.h"
 
-using BindingTable = llvm::DenseMap<llvm::StringRef, unsigned>;
-using BindingTables = llvm::DenseMap<llvm::StringRef, BindingTable>;
-
 // TODO: This should really be recovered from the specified target.
 static constexpr unsigned defaultAlign = 8;
 
@@ -80,10 +79,12 @@ static mlir::Block *createBlock(mlir::ConversionPatternRewriter &rewriter,
                               mlir::Region::iterator(insertBefore));
 }
 
-/// Extract constant from a value that must be the result of one of the
-/// ConstantOp operations.
-static int64_t getConstantIntValue(mlir::Value val) {
-  assert(val && val.dyn_cast<mlir::OpResult>() && "must not be null value");
+/// Extract constant from a value if it is a result of one of the
+/// ConstantOp operations, otherwise, return std::nullopt.
+static std::optional<int64_t> getIfConstantIntValue(mlir::Value val) {
+  if (!val || !val.dyn_cast<mlir::OpResult>())
+    return {};
+
   mlir::Operation *defop = val.getDefiningOp();
 
   if (auto constOp = mlir::dyn_cast<mlir::arith::ConstantIntOp>(defop))
@@ -91,6 +92,15 @@ static int64_t getConstantIntValue(mlir::Value val) {
   if (auto llConstOp = mlir::dyn_cast<mlir::LLVM::ConstantOp>(defop))
     if (auto attr = llConstOp.getValue().dyn_cast<mlir::IntegerAttr>())
       return attr.getValue().getSExtValue();
+
+  return {};
+}
+
+/// Extract constant from a value that must be the result of one of the
+/// ConstantOp operations.
+static int64_t getConstantIntValue(mlir::Value val) {
+  if (auto constVal = getIfConstantIntValue(val))
+    return *constVal;
   fir::emitFatalError(val.getLoc(), "must be a constant");
 }
 
@@ -105,10 +115,8 @@ template <typename FromOp>
 class FIROpConversion : public mlir::ConvertOpToLLVMPattern<FromOp> {
 public:
   explicit FIROpConversion(fir::LLVMTypeConverter &lowering,
-                           const fir::FIRToLLVMPassOptions &options,
-                           const BindingTables &bindingTables)
-      : mlir::ConvertOpToLLVMPattern<FromOp>(lowering), options(options),
-        bindingTables(bindingTables) {}
+                           const fir::FIRToLLVMPassOptions &options)
+      : mlir::ConvertOpToLLVMPattern<FromOp>(lowering), options(options) {}
 
 protected:
   mlir::Type convertType(mlir::Type ty) const {
@@ -352,13 +360,13 @@ protected:
     return *static_cast<fir::LLVMTypeConverter *>(this->getTypeConverter());
   }
 
-  void attachTBAATag(mlir::Operation *op, mlir::Type baseFIRType,
-                     mlir::Type accessFIRType, mlir::LLVM::GEPOp gep) const {
+  void attachTBAATag(mlir::LLVM::AliasAnalysisOpInterface op,
+                     mlir::Type baseFIRType, mlir::Type accessFIRType,
+                     mlir::LLVM::GEPOp gep) const {
     lowerTy().attachTBAATag(op, baseFIRType, accessFIRType, gep);
   }
 
   const fir::FIRToLLVMPassOptions &options;
-  const BindingTables &bindingTables;
 };
 
 /// FIR conversion pattern template
@@ -861,11 +869,67 @@ struct ConvertOpConversion : public FIROpConversion<fir::ConvertOp> {
     auto fromTy = convertType(fromFirTy);
     auto toTy = convertType(toFirTy);
     mlir::Value op0 = adaptor.getOperands()[0];
+
+    if (fromFirTy == toFirTy) {
+      rewriter.replaceOp(convert, op0);
+      return mlir::success();
+    }
+
+    auto loc = convert.getLoc();
+    auto i1Type = mlir::IntegerType::get(convert.getContext(), 1);
+
+    if (fromFirTy.isa<fir::LogicalType>() || toFirTy.isa<fir::LogicalType>()) {
+      // By specification fir::LogicalType value may be any number,
+      // where non-zero value represents .true. and zero value represents
+      // .false.
+      //
+      // integer<->logical conversion requires value normalization.
+      // Conversion from wide logical to narrow logical must set the result
+      // to non-zero iff the input is non-zero - the easiest way to implement
+      // it is to compare the input agains zero and set the result to
+      // the canonical 0/1.
+      // Conversion from narrow logical to wide logical may be implemented
+      // as a zero or sign extension of the input, but it may use value
+      // normalization as well.
+      if (!fromTy.isa<mlir::IntegerType>() || !toTy.isa<mlir::IntegerType>())
+        return mlir::emitError(loc)
+               << "unsupported types for logical conversion: " << fromTy
+               << " -> " << toTy;
+
+      // Do folding for constant inputs.
+      if (auto constVal = getIfConstantIntValue(op0)) {
+        mlir::Value normVal =
+            genConstantIndex(loc, toTy, rewriter, *constVal ? 1 : 0);
+        rewriter.replaceOp(convert, normVal);
+        return mlir::success();
+      }
+
+      // If the input is i1, then we can just zero extend it, and
+      // the result will be normalized.
+      if (fromTy == i1Type) {
+        rewriter.replaceOpWithNewOp<mlir::LLVM::ZExtOp>(convert, toTy, op0);
+        return mlir::success();
+      }
+
+      // Compare the input with zero.
+      mlir::Value zero = genConstantIndex(loc, fromTy, rewriter, 0);
+      auto isTrue = rewriter.create<mlir::LLVM::ICmpOp>(
+          loc, mlir::LLVM::ICmpPredicate::ne, op0, zero);
+
+      // Zero extend the i1 isTrue result to the required type (unless it is i1
+      // itself).
+      if (toTy != i1Type)
+        rewriter.replaceOpWithNewOp<mlir::LLVM::ZExtOp>(convert, toTy, isTrue);
+      else
+        rewriter.replaceOp(convert, isTrue.getResult());
+
+      return mlir::success();
+    }
+
     if (fromTy == toTy) {
       rewriter.replaceOp(convert, op0);
       return mlir::success();
     }
-    auto loc = convert.getLoc();
     auto convertFpToFp = [&](mlir::Value val, unsigned fromBits,
                              unsigned toBits, mlir::Type toTy) -> mlir::Value {
       if (fromBits == toBits) {
@@ -899,21 +963,6 @@ struct ConvertOpConversion : public FIROpConversion<fir::ConvertOp> {
       return mlir::success();
     }
 
-    // Follow UNIX F77 convention for logicals:
-    // 1. underlying integer is not zero => logical is .TRUE.
-    // 2. logical is .TRUE. => set underlying integer to 1.
-    auto i1Type = mlir::IntegerType::get(convert.getContext(), 1);
-    if (fromFirTy.isa<fir::LogicalType>() && toFirTy == i1Type) {
-      mlir::Value zero = genConstantIndex(loc, fromTy, rewriter, 0);
-      rewriter.replaceOpWithNewOp<mlir::LLVM::ICmpOp>(
-          convert, mlir::LLVM::ICmpPredicate::ne, op0, zero);
-      return mlir::success();
-    }
-    if (fromFirTy == i1Type && toFirTy.isa<fir::LogicalType>()) {
-      rewriter.replaceOpWithNewOp<mlir::LLVM::ZExtOp>(convert, toTy, op0);
-      return mlir::success();
-    }
-
     // Floating point to floating point conversion.
     if (isFloatingPointTy(fromTy)) {
       if (isFloatingPointTy(toTy)) {
@@ -935,6 +984,10 @@ struct ConvertOpConversion : public FIROpConversion<fir::ConvertOp> {
         assert(fromBits != toBits);
         if (fromBits > toBits) {
           rewriter.replaceOpWithNewOp<mlir::LLVM::TruncOp>(convert, toTy, op0);
+          return mlir::success();
+        }
+        if (fromFirTy == i1Type) {
+          rewriter.replaceOpWithNewOp<mlir::LLVM::ZExtOp>(convert, toTy, op0);
           return mlir::success();
         }
         rewriter.replaceOpWithNewOp<mlir::LLVM::SExtOp>(convert, toTy, op0);
@@ -963,131 +1016,6 @@ struct ConvertOpConversion : public FIROpConversion<fir::ConvertOp> {
       }
     }
     return emitError(loc) << "cannot convert " << fromTy << " to " << toTy;
-  }
-};
-
-/// Lower `fir.dispatch` operation. A virtual call to a method in a dispatch
-/// table.
-struct DispatchOpConversion : public FIROpConversion<fir::DispatchOp> {
-  using FIROpConversion::FIROpConversion;
-
-  mlir::LogicalResult
-  matchAndRewrite(fir::DispatchOp dispatch, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
-    mlir::Location loc = dispatch.getLoc();
-
-    if (bindingTables.empty())
-      return emitError(loc) << "no binding tables found";
-
-    // Get derived type information.
-    mlir::Type declaredType =
-        fir::getDerivedType(dispatch.getObject().getType().getEleTy());
-    assert(declaredType.isa<fir::RecordType>() && "expecting fir.type");
-    auto recordType = declaredType.dyn_cast<fir::RecordType>();
-
-    // Lookup for the binding table.
-    auto bindingsIter = bindingTables.find(recordType.getName());
-    if (bindingsIter == bindingTables.end())
-      return emitError(loc)
-             << "cannot find binding table for " << recordType.getName();
-
-    // Lookup for the binding.
-    const BindingTable &bindingTable = bindingsIter->second;
-    auto bindingIter = bindingTable.find(dispatch.getMethod());
-    if (bindingIter == bindingTable.end())
-      return emitError(loc)
-             << "cannot find binding for " << dispatch.getMethod();
-    unsigned bindingIdx = bindingIter->second;
-
-    mlir::Value passedObject = dispatch.getObject();
-
-    auto module = dispatch.getOperation()->getParentOfType<mlir::ModuleOp>();
-    mlir::Type typeDescTy;
-    std::string typeDescName =
-        fir::NameUniquer::getTypeDescriptorName(recordType.getName());
-    if (auto global = module.lookupSymbol<fir::GlobalOp>(typeDescName)) {
-      typeDescTy = convertType(global.getType());
-    } else if (auto global =
-                   module.lookupSymbol<mlir::LLVM::GlobalOp>(typeDescName)) {
-      // The global may have already been translated to LLVM.
-      typeDescTy = global.getType();
-    }
-
-    unsigned typeDescFieldId = getTypeDescFieldId(passedObject.getType());
-
-    auto descPtr = adaptor.getOperands()[0]
-                       .getType()
-                       .dyn_cast<mlir::LLVM::LLVMPointerType>();
-
-    // TODO: the following loads from the type descriptor related
-    // data structures must have proper TBAA access tags.
-    // These loads cannot alias with any real data accesses nor
-    // with any box accesses. Moreover, they can probably be marked
-    // as reading from constant memory (fourth operand of a TBAA
-    // tag may be set to true). These accesses probably deserve
-    // separate sub-root in the TBAA graph.
-
-    // Load the descriptor.
-    auto desc = rewriter.create<mlir::LLVM::LoadOp>(
-        loc, descPtr.getElementType(), adaptor.getOperands()[0]);
-
-    // Load the type descriptor.
-    auto typeDescPtr =
-        rewriter.create<mlir::LLVM::ExtractValueOp>(loc, desc, typeDescFieldId);
-    auto typeDesc =
-        rewriter.create<mlir::LLVM::LoadOp>(loc, typeDescTy, typeDescPtr);
-
-    // Load the bindings descriptor.
-    auto typeDescStructTy = typeDescTy.dyn_cast<mlir::LLVM::LLVMStructType>();
-    auto bindingDescType =
-        typeDescStructTy.getBody()[0].dyn_cast<mlir::LLVM::LLVMStructType>();
-    auto bindingDesc =
-        rewriter.create<mlir::LLVM::ExtractValueOp>(loc, typeDesc, 0);
-
-    // Load the correct binding.
-    auto bindingType =
-        bindingDescType.getBody()[0].dyn_cast<mlir::LLVM::LLVMPointerType>();
-    auto baseBindingPtr = rewriter.create<mlir::LLVM::ExtractValueOp>(
-        loc, bindingDesc, kAddrPosInBox);
-    auto bindingPtr = rewriter.create<mlir::LLVM::GEPOp>(
-        loc, bindingType, baseBindingPtr,
-        llvm::ArrayRef<mlir::LLVM::GEPArg>{static_cast<int32_t>(bindingIdx)});
-    auto binding = rewriter.create<mlir::LLVM::LoadOp>(
-        loc, bindingType.getElementType(), bindingPtr);
-
-    // Get the function type.
-    llvm::SmallVector<mlir::Type> argTypes;
-    for (mlir::Value operand : adaptor.getOperands().drop_front())
-      argTypes.push_back(operand.getType());
-    mlir::Type resultType;
-    if (dispatch.getResults().empty())
-      resultType = mlir::LLVM::LLVMVoidType::get(dispatch.getContext());
-    else
-      resultType = convertType(dispatch.getResults()[0].getType());
-    auto fctType = mlir::LLVM::LLVMFunctionType::get(resultType, argTypes,
-                                                     /*isVarArg=*/false);
-
-    // Get the function pointer.
-    auto builtinFuncPtr =
-        rewriter.create<mlir::LLVM::ExtractValueOp>(loc, binding, 0);
-    auto funcAddr =
-        rewriter.create<mlir::LLVM::ExtractValueOp>(loc, builtinFuncPtr, 0);
-    auto funcPtr = rewriter.create<mlir::LLVM::IntToPtrOp>(
-        loc, mlir::LLVM::LLVMPointerType::get(fctType), funcAddr);
-
-    // Indirect calls are done with the function pointer as the first operand.
-    llvm::SmallVector<mlir::Value> args;
-    args.push_back(funcPtr);
-    for (mlir::Value operand : adaptor.getOperands().drop_front())
-      args.push_back(operand);
-    auto callOp = rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(
-        dispatch,
-        dispatch.getResults().empty() ? mlir::TypeRange{}
-                                      : fctType.getReturnType(),
-        "", args);
-    callOp.removeCalleeAttr(); // Indirect calls do not have callee attr.
-
-    return mlir::success();
   }
 };
 
@@ -1335,22 +1263,6 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
     return CFI_attribute_other;
   }
 
-  static fir::RecordType unwrapIfDerived(fir::BaseBoxType boxTy) {
-    return fir::unwrapSequenceType(fir::dyn_cast_ptrOrBoxEleTy(boxTy))
-        .template dyn_cast<fir::RecordType>();
-  }
-  static bool isDerivedTypeWithLenParams(fir::BaseBoxType boxTy) {
-    auto recTy = unwrapIfDerived(boxTy);
-    return recTy && recTy.getNumLenParams() > 0;
-  }
-  static bool isDerivedType(fir::BaseBoxType boxTy) {
-    return static_cast<bool>(unwrapIfDerived(boxTy));
-  }
-  static bool hasAddendum(fir::BaseBoxType boxTy) {
-    return static_cast<bool>(unwrapIfDerived(boxTy)) ||
-           fir::isUnlimitedPolymorphicType(boxTy);
-  }
-
   // Get the element size and CFI type code of the boxed value.
   std::tuple<mlir::Value, mlir::Value> getSizeAndTypeCode(
       mlir::Location loc, mlir::ConversionPatternRewriter &rewriter,
@@ -1570,7 +1482,7 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
     descriptor =
         insertField(rewriter, loc, descriptor, {kAttributePosInBox},
                     this->genI32Constant(loc, rewriter, getCFIAttr(boxTy)));
-    const bool hasAddendum = isDerivedType(boxTy) || isUnlimitedPolymorphic;
+    const bool hasAddendum = fir::boxHasAddendum(boxTy);
     descriptor =
         insertField(rewriter, loc, descriptor, {kF18AddendumPosInBox},
                     this->genI32Constant(loc, rewriter, hasAddendum ? 1 : 0));
@@ -1590,8 +1502,8 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
                 loc, ::getVoidPtrType(mod.getContext()));
           }
         } else {
-          typeDesc =
-              getTypeDescriptor(mod, rewriter, loc, unwrapIfDerived(boxTy));
+          typeDesc = getTypeDescriptor(mod, rewriter, loc,
+                                       fir::unwrapIfDerived(boxTy));
         }
       }
       if (typeDesc)
@@ -1673,7 +1585,7 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
       // TODO: For initial box that are unlimited polymorphic entities, this
       // code must be made conditional because unlimited polymorphic entities
       // with intrinsic type spec does not have addendum.
-      if (hasAddendum(inputBoxTy))
+      if (fir::boxHasAddendum(inputBoxTy))
         typeDesc = this->loadTypeDescAddress(loc, box.getBox().getType(),
                                              loweredBox, rewriter);
     }
@@ -1825,7 +1737,7 @@ struct EmboxOpConversion : public EmboxCommonConversion<fir::EmboxOp> {
         /*rank=*/0, /*lenParams=*/operands.drop_front(1), sourceBox,
         sourceBoxType);
     dest = insertBaseAddress(rewriter, embox.getLoc(), dest, operands[0]);
-    if (isDerivedTypeWithLenParams(boxTy)) {
+    if (fir::isDerivedTypeWithLenParams(boxTy)) {
       TODO(embox.getLoc(),
            "fir.embox codegen of derived with length parameters");
       return mlir::failure();
@@ -2009,7 +1921,7 @@ struct XEmboxOpConversion : public EmboxCommonConversion<fir::cg::XEmboxOp> {
                              fieldIndices, substringOffset);
     }
     dest = insertBaseAddress(rewriter, loc, dest, base);
-    if (isDerivedTypeWithLenParams(boxTy))
+    if (fir::isDerivedTypeWithLenParams(boxTy))
       TODO(loc, "fir.embox codegen of derived with length parameters");
 
     mlir::Value result =
@@ -3668,9 +3580,8 @@ struct NegcOpConversion : public FIROpConversion<fir::NegcOp> {
 template <typename FromOp>
 struct MustBeDeadConversion : public FIROpConversion<FromOp> {
   explicit MustBeDeadConversion(fir::LLVMTypeConverter &lowering,
-                                const fir::FIRToLLVMPassOptions &options,
-                                const BindingTables &bindingTables)
-      : FIROpConversion<FromOp>(lowering, options, bindingTables) {}
+                                const fir::FIRToLLVMPassOptions &options)
+      : FIROpConversion<FromOp>(lowering, options) {}
   using OpAdaptor = typename FromOp::Adaptor;
 
   mlir::LogicalResult
@@ -3772,27 +3683,13 @@ public:
     mathConvertionPM.addPass(
         mlir::createConvertMathToFuncs(mathToFuncsOptions));
     mathConvertionPM.addPass(mlir::createConvertComplexToStandardPass());
+    // Convert Math dialect operations into LLVM dialect operations.
+    // There is no way to prefer MathToLLVM patterns over MathToLibm
+    // patterns (applied below), so we have to run MathToLLVM conversion here.
+    mathConvertionPM.addNestedPass<mlir::func::FuncOp>(
+        mlir::createConvertMathToLLVMPass());
     if (mlir::failed(runPipeline(mathConvertionPM, mod)))
       return signalPassFailure();
-
-    // Reconstruct binding tables for dynamic dispatch. The binding tables
-    // are defined in FIR from lowering as fir.dispatch_table operation.
-    // Go through each binding tables and store the procedure name
-    // and binding index for later use by the fir.dispatch conversion pattern.
-    BindingTables bindingTables;
-    for (auto dispatchTableOp : mod.getOps<fir::DispatchTableOp>()) {
-      unsigned bindingIdx = 0;
-      BindingTable bindings;
-      if (dispatchTableOp.getRegion().empty()) {
-        bindingTables[dispatchTableOp.getSymName()] = bindings;
-        continue;
-      }
-      for (auto dtEntry : dispatchTableOp.getBlock().getOps<fir::DTEntryOp>()) {
-        bindings[dtEntry.getMethod()] = bindingIdx;
-        ++bindingIdx;
-      }
-      bindingTables[dispatchTableOp.getSymName()] = bindings;
-    }
 
     auto *context = getModule().getContext();
     fir::LLVMTypeConverter typeConverter{getModule(),
@@ -3806,11 +3703,11 @@ public:
         BoxProcHostOpConversion, BoxRankOpConversion, BoxTypeCodeOpConversion,
         BoxTypeDescOpConversion, CallOpConversion, CmpcOpConversion,
         ConstcOpConversion, ConvertOpConversion, CoordinateOpConversion,
-        DispatchOpConversion, DispatchTableOpConversion, DTEntryOpConversion,
-        DivcOpConversion, EmboxOpConversion, EmboxCharOpConversion,
-        EmboxProcOpConversion, ExtractValueOpConversion, FieldIndexOpConversion,
-        FirEndOpConversion, FreeMemOpConversion, GlobalLenOpConversion,
-        GlobalOpConversion, HasValueOpConversion, InsertOnRangeOpConversion,
+        DispatchTableOpConversion, DTEntryOpConversion, DivcOpConversion,
+        EmboxOpConversion, EmboxCharOpConversion, EmboxProcOpConversion,
+        ExtractValueOpConversion, FieldIndexOpConversion, FirEndOpConversion,
+        FreeMemOpConversion, GlobalLenOpConversion, GlobalOpConversion,
+        HasValueOpConversion, InsertOnRangeOpConversion,
         InsertValueOpConversion, IsPresentOpConversion,
         LenParamIndexOpConversion, LoadOpConversion, MulcOpConversion,
         NegcOpConversion, NoReassocOpConversion, SelectCaseOpConversion,
@@ -3820,16 +3717,15 @@ public:
         SubcOpConversion, TypeDescOpConversion, UnboxCharOpConversion,
         UnboxProcOpConversion, UndefOpConversion, UnreachableOpConversion,
         XArrayCoorOpConversion, XEmboxOpConversion, XReboxOpConversion,
-        ZeroOpConversion>(typeConverter, options, bindingTables);
+        ZeroOpConversion>(typeConverter, options);
     mlir::populateFuncToLLVMConversionPatterns(typeConverter, pattern);
     mlir::populateOpenMPToLLVMConversionPatterns(typeConverter, pattern);
     mlir::arith::populateArithToLLVMConversionPatterns(typeConverter, pattern);
     mlir::cf::populateControlFlowToLLVMConversionPatterns(typeConverter,
                                                           pattern);
-    // Convert math-like dialect operations, which can be produced
-    // when late math lowering mode is used, into llvm dialect.
-    mlir::populateMathToLLVMConversionPatterns(typeConverter, pattern);
-    mlir::populateMathToLibmConversionPatterns(pattern, /*benefit=*/0);
+    // Math operations that have not been converted yet must be converted
+    // to Libm.
+    mlir::populateMathToLibmConversionPatterns(pattern);
     mlir::populateComplexToLLVMConversionPatterns(typeConverter, pattern);
     mlir::ConversionTarget target{*context};
     target.addLegalDialect<mlir::LLVM::LLVMDialect>();

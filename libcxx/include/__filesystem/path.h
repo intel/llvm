@@ -18,10 +18,13 @@
 #include <__fwd/hash.h>
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/iterator_traits.h>
+#include <__type_traits/decay.h>
+#include <__type_traits/is_pointer.h>
+#include <__type_traits/remove_const.h>
+#include <__type_traits/remove_pointer.h>
 #include <cstddef>
 #include <string>
 #include <string_view>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
 # include <iomanip> // for quoted
@@ -141,7 +144,7 @@ struct __is_pathable_string<
   }
 };
 
-template <class _Source, class _DS = typename decay<_Source>::type,
+template <class _Source, class _DS = __decay_t<_Source>,
           class _UnqualPtrType =
               __remove_const_t<__remove_pointer_t<_DS> >,
           bool _IsCharPtr = is_pointer<_DS>::value&&

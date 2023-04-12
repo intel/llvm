@@ -188,12 +188,12 @@ struct RewriteExtractSliceFromCollapseShapeBase
 
     // Materialize the output shape values of the slice operation.
     ReifiedRankedShapedTypeDims reifiedShapes;
-    if (failed(op.reifyResultShapes(rewriter, reifiedShapes)))
+    if (failed(reifyResultShapes(rewriter, op, reifiedShapes)))
       return rewriter.notifyMatchFailure(op, "failed to reify result shapes");
 
     // Create the destination tensor using the above values.
     Type elementType = op.getSourceType().getElementType();
-    SmallVector<OpFoldResult> outputShape = getAsOpFoldResult(reifiedShapes[0]);
+    SmallVector<OpFoldResult> outputShape = reifiedShapes[0];
     Value dest = rewriter.create<tensor::EmptyOp>(op->getLoc(), outputShape,
                                                   elementType);
 

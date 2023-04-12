@@ -94,7 +94,7 @@ struct _pi_platform : public _ur_platform_handle_t {
   // TODO: should be deleted when memory isolation in the context is implemented
   // in the driver.
   std::list<pi_context> Contexts;
-  pi_shared_mutex ContextsMutex;
+  ur_shared_mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -261,11 +261,11 @@ struct _pi_context : _pi_object {
   // Mutex for the immediate command list. Per the Level Zero spec memory copy
   // operations submitted to an immediate command list are not allowed to be
   // called from simultaneous threads.
-  pi_mutex ImmediateCommandListMutex;
+  ur_mutex ImmediateCommandListMutex;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
-  pi_mutex ZeCommandListCacheMutex;
+  ur_mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -394,10 +394,10 @@ private:
 
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
-  pi_mutex ZeEventPoolCacheMutex;
+  ur_mutex ZeEventPoolCacheMutex;
 
   // Mutex to control operations on event caches.
-  pi_mutex EventCacheMutex;
+  ur_mutex EventCacheMutex;
 
   // Caches for events.
   std::vector<std::list<pi_event>> EventCaches{4};
@@ -417,7 +417,8 @@ struct _pi_queue : _pi_object {
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties Properties = 0, int ForceComputeIndex = -1);
+            pi_queue_properties Properties = 0, int ForceComputeIndex = -1,
+            bool oldAPI = false);
 
   using queue_type = _pi_device::queue_group_info_t::type;
 
@@ -458,6 +459,9 @@ struct _pi_queue : _pi_object {
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
+    // This function sets an immediate commandlist from the interop interface.
+    void setImmCmdList(ze_command_list_handle_t);
+
     // This function returns the next immediate commandlist to use.
     pi_command_list_ptr_t &getImmCmdList();
 
@@ -468,16 +472,58 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
+  // Helper class to facilitate per-thread queue groups
+  // We maintain a hashtable of queue groups if requested to do them per-thread.
+  // Otherwise it is just single entry used for all threads.
+  struct pi_queue_group_by_tid_t
+      : public std::unordered_map<std::thread::id, pi_queue_group_t> {
+    bool PerThread = false;
+
+    // Returns thread id if doing per-thread, or a generic id that represents
+    // all the threads.
+    std::thread::id tid() const {
+      return PerThread ? std::this_thread::get_id() : std::thread::id();
+    }
+
+    // Make the specified queue group be the master
+    void set(const pi_queue_group_t &QueueGroup) {
+      const auto &Device = QueueGroup.Queue->Device;
+      PerThread = Device->ImmCommandListUsed == _pi_device::PerThreadPerQueue;
+      assert(empty());
+      insert({tid(), QueueGroup});
+    }
+
+    // Get a queue group to use for this thread
+    pi_queue_group_t &get() {
+      assert(!empty());
+      auto It = find(tid());
+      if (It != end()) {
+        return It->second;
+      }
+      // Add new queue group for this thread initialized from a master entry.
+      auto QueueGroup = begin()->second;
+      // Create space for queues and immediate commandlists, which are created
+      // on demand.
+      QueueGroup.ZeQueues = std::vector<ze_command_queue_handle_t>(
+          QueueGroup.ZeQueues.size(), nullptr);
+      QueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+          QueueGroup.ZeQueues.size(), QueueGroup.Queue->CommandListMap.end());
+
+      std::tie(It, std::ignore) = insert({tid(), QueueGroup});
+      return It->second;
+    }
+  };
+
   // A map of compute groups containing compute queue handles, one per thread.
   // When a queue is accessed from multiple host threads, a separate queue group
   // is created for each thread. The key used for mapping is the thread ID.
-  std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
+  pi_queue_group_by_tid_t ComputeQueueGroupsByTID;
 
   // A group containing copy queue handles. The main copy engine, if available,
   // comes first followed by link copy engines, if available.
   // When a queue is accessed from multiple host threads, a separate queue group
   // is created for each thread. The key used for mapping is the thread ID.
-  std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
+  pi_queue_group_by_tid_t CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   pi_result synchronize();
@@ -500,6 +546,12 @@ struct _pi_queue : _pi_object {
   // This field is only set at _pi_queue creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_queue.
   const pi_device Device;
+
+  // A queue may use either standard or immediate commandlists. At queue
+  // construction time this is set based on the device and any env var settings
+  // that change the default for the device type. When an interop queue is
+  // constructed, the caller chooses the type of commandlists to use.
+  bool UsingImmCmdLists;
 
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add
@@ -985,7 +1037,7 @@ struct _pi_ze_event_list_t {
   // when an event is initially created.  However, it might be
   // possible to have multiple threads racing to destroy the list,
   // so this will be used to make list destruction thread-safe.
-  pi_mutex PiZeEventListMutex;
+  ur_mutex PiZeEventListMutex;
 
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.

@@ -71,7 +71,6 @@ class FunctionLoweringInfo;
 class FunctionVarLocs;
 class GlobalValue;
 struct KnownBits;
-class LegacyDivergenceAnalysis;
 class LLVMContext;
 class MachineBasicBlock;
 class MachineConstantPoolValue;
@@ -88,6 +87,11 @@ class TargetLowering;
 class TargetMachine;
 class TargetSubtargetInfo;
 class Value;
+
+template <typename T> class GenericSSAContext;
+using SSAContext = GenericSSAContext<Function>;
+template <typename T> class GenericUniformityInfo;
+using UniformityInfo = GenericUniformityInfo<SSAContext>;
 
 class SDVTListNode : public FoldingSetNode {
   friend struct FoldingSetTrait<SDVTListNode>;
@@ -229,7 +233,7 @@ class SelectionDAG {
   LLVMContext *Context;
   CodeGenOpt::Level OptLevel;
 
-  LegacyDivergenceAnalysis * DA = nullptr;
+  UniformityInfo *UA = nullptr;
   FunctionLoweringInfo * FLI = nullptr;
 
   /// The function-level optimization remark emitter.  Used to emit remarks
@@ -451,7 +455,7 @@ public:
   /// Prepare this SelectionDAG to process code in the given MachineFunction.
   void init(MachineFunction &NewMF, OptimizationRemarkEmitter &NewORE,
             Pass *PassPtr, const TargetLibraryInfo *LibraryInfo,
-            LegacyDivergenceAnalysis *Divergence, ProfileSummaryInfo *PSIin,
+            UniformityInfo *UA, ProfileSummaryInfo *PSIin,
             BlockFrequencyInfo *BFIin, FunctionVarLocs const *FnVarLocs);
 
   void setFunctionLoweringInfo(FunctionLoweringInfo * FuncInfo) {
@@ -474,7 +478,7 @@ public:
   const TargetLowering &getTargetLoweringInfo() const { return *TLI; }
   const TargetLibraryInfo &getLibInfo() const { return *LibInfo; }
   const SelectionDAGTargetInfo &getSelectionDAGInfo() const { return *TSI; }
-  const LegacyDivergenceAnalysis *getDivergenceAnalysis() const { return DA; }
+  const UniformityInfo *getUniformityInfo() const { return UA; }
   /// Returns the result of the AssignmentTrackingAnalysis pass if it's
   /// available, otherwise return nullptr.
   const FunctionVarLocs *getFunctionVarLocs() const { return FnVarLocs; }
@@ -1059,12 +1063,8 @@ public:
   }
 
   /// Return a node that represents the runtime scaling 'MulImm * RuntimeVL'.
-  SDValue getVScale(const SDLoc &DL, EVT VT, APInt MulImm) {
-    assert(MulImm.getMinSignedBits() <= VT.getSizeInBits() &&
-           "Immediate does not fit VT");
-    return getNode(ISD::VSCALE, DL, VT,
-                   getConstant(MulImm.sextOrTrunc(VT.getSizeInBits()), DL, VT));
-  }
+  SDValue getVScale(const SDLoc &DL, EVT VT, APInt MulImm,
+                    bool ConstantFold = true);
 
   /// Return a GLOBAL_OFFSET_TABLE node. This does not have a useful SDLoc.
   SDValue getGLOBAL_OFFSET_TABLE(EVT VT) {
@@ -2183,6 +2183,11 @@ public:
   /// Infer alignment of a load / store address. Return std::nullopt if it
   /// cannot be inferred.
   MaybeAlign InferPtrAlign(SDValue Ptr) const;
+
+  /// Split the scalar node with EXTRACT_ELEMENT using the provided VTs and
+  /// return the low/high part.
+  std::pair<SDValue, SDValue> SplitScalar(const SDValue &N, const SDLoc &DL,
+                                          const EVT &LoVT, const EVT &HiVT);
 
   /// Compute the VTs needed for the low/hi parts of a type
   /// which is split (or expanded) into two not necessarily identical pieces.

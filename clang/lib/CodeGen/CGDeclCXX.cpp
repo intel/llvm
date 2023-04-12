@@ -218,9 +218,11 @@ void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
           &D, DeclAddr, D.getAttr<OMPThreadPrivateDeclAttr>()->getLocation(),
           PerformInit, this);
     }
+    bool NeedsDtor =
+        D.needsDestruction(getContext()) == QualType::DK_cxx_destructor;
     if (PerformInit)
       EmitDeclInit(*this, D, DeclAddr);
-    if (CGM.isTypeConstant(D.getType(), true))
+    if (CGM.isTypeConstant(D.getType(), true, !NeedsDtor))
       EmitDeclInvariant(*this, D, DeclPtr);
     else
       EmitDeclDestroy(*this, D, DeclAddr);
@@ -882,9 +884,11 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
 
   // Include the filename in the symbol name. Including "sub_" matches gcc
   // and makes sure these symbols appear lexicographically behind the symbols
-  // with priority emitted above.
+  // with priority emitted above.  Module implementation units behave the same
+  // way as a non-modular TU with imports.
   llvm::Function *Fn;
-  if (CXX20ModuleInits && getContext().getNamedModuleForCodeGen()) {
+  if (CXX20ModuleInits && getContext().getNamedModuleForCodeGen() &&
+      !getContext().getNamedModuleForCodeGen()->isModuleImplementation()) {
     SmallString<256> InitFnName;
     llvm::raw_svector_ostream Out(InitFnName);
     cast<ItaniumMangleContext>(getCXXABI().getMangleContext())

@@ -33,6 +33,51 @@ def OpenMP_Dialect : Dialect {
 // OmpCommon requires definition of OpenACC_Dialect.
 include "mlir/Dialect/OpenMP/OmpCommon.td"
 
+//===----------------------------------------------------------------------===//
+//  OpenMP Attributes
+//===----------------------------------------------------------------------===//
+
+class OpenMP_Attr<string name, string attrMnemonic,
+                list<Trait> traits = [],
+                string baseCppClass = "::mlir::Attribute">
+    : AttrDef<OpenMP_Dialect, name, traits, baseCppClass> {
+  let mnemonic = attrMnemonic;
+}
+
+def IsDeviceAttr : OpenMP_Attr<"IsDevice", "isdevice"> {
+  let parameters = (ins 
+    "bool":$is_device
+  );
+  
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+//===----------------------------------------------------------------------===//
+// Runtime library flag's attribute that holds information for lowering to LLVM
+//===----------------------------------------------------------------------===//
+
+def FlagsAttr : OpenMP_Attr<"Flags", "flags"> {
+  let parameters = (ins 
+    DefaultValuedParameter<"uint32_t", "0">:$debug_kind,
+    DefaultValuedParameter<"bool", "false">:$assume_teams_oversubscription,
+    DefaultValuedParameter<"bool", "false">:$assume_threads_oversubscription,
+    DefaultValuedParameter<"bool", "false">:$assume_no_thread_state,
+    DefaultValuedParameter<"bool", "false">:$assume_no_nested_parallelism
+  );
+  
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+def TargetAttr : OpenMP_Attr<"Target", "target"> {
+  let parameters = (ins
+    StringRefParameter<>:$target_cpu,
+    StringRefParameter<>:$target_features
+  );
+
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
+
 class OpenMP_Op<string mnemonic, list<Trait> traits = []> :
       Op<OpenMP_Dialect, mnemonic, traits>;
 
@@ -887,7 +932,7 @@ def Target_DataOp: OpenMP_Op<"target_data", [AttrSizedOperandSegments]>{
                        Optional<AnyInteger>:$device,
                        Variadic<AnyType>:$use_device_ptr,
                        Variadic<AnyType>:$use_device_addr,
-                       Variadic<AnyType>:$map_operands,
+                       Variadic<OpenMP_PointerLikeType>:$map_operands,
                        I64ArrayAttr:$map_types);
 
   let regions = (region AnyRegion:$region);
@@ -937,7 +982,7 @@ def Target_EnterDataOp: OpenMP_Op<"target_enter_data",
   let arguments = (ins Optional<I1>:$if_expr,
                        Optional<AnyInteger>:$device,
                        UnitAttr:$nowait,
-                       Variadic<AnyType>:$map_operands,
+                       Variadic<OpenMP_PointerLikeType>:$map_operands,
                        I64ArrayAttr:$map_types);
 
   let assemblyFormat = [{
@@ -984,7 +1029,7 @@ def Target_ExitDataOp: OpenMP_Op<"target_exit_data",
   let arguments = (ins Optional<I1>:$if_expr,
                        Optional<AnyInteger>:$device,
                        UnitAttr:$nowait,
-                       Variadic<AnyType>:$map_operands,
+                       Variadic<OpenMP_PointerLikeType>:$map_operands,
                        I64ArrayAttr:$map_types);
 
   let assemblyFormat = [{

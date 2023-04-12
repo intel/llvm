@@ -12,6 +12,7 @@
 
 #include <__assert>
 #include <__config>
+#include <__exception/exception.h>
 #include <__functional/binary_function.h>
 #include <__functional/invoke.h>
 #include <__functional/unary_function.h>
@@ -23,15 +24,17 @@
 #include <__memory/builtin_new_allocator.h>
 #include <__memory/compressed_pair.h>
 #include <__memory/unique_ptr.h>
+#include <__type_traits/aligned_storage.h>
+#include <__type_traits/is_trivially_copy_constructible.h>
+#include <__type_traits/is_trivially_destructible.h>
 #include <__type_traits/strip_signature.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/piecewise_construct.h>
 #include <__utility/swap.h>
-#include <exception>
+#include <__verbose_abort>
 #include <new>
 #include <tuple>
-#include <type_traits>
 #include <typeinfo>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -71,7 +74,7 @@ void __throw_bad_function_call()
 #ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     throw bad_function_call();
 #else
-    _VSTD::abort();
+    _LIBCPP_VERBOSE_ABORT("bad_function_call was thrown in -fno-exceptions mode");
 #endif
 }
 
@@ -427,7 +430,7 @@ template <class _Rp, class... _ArgTypes> class __value_func<_Rp(_ArgTypes...)>
     }
 
     template <class _Fp,
-        class = typename enable_if<!is_same<typename decay<_Fp>::type, __value_func>::value>::type>
+        class = typename enable_if<!is_same<__decay_t<_Fp>, __value_func>::value>::type>
     _LIBCPP_INLINE_VISIBILITY explicit __value_func(_Fp&& __f)
         : __value_func(_VSTD::forward<_Fp>(__f), allocator<_Fp>()) {}
 
@@ -770,7 +773,7 @@ template <class _Rp, class... _ArgTypes> class __policy_func<_Rp(_ArgTypes...)>
         }
     }
 
-    template <class _Fp, class = typename enable_if<!is_same<typename decay<_Fp>::type, __policy_func>::value>::type>
+    template <class _Fp, class = typename enable_if<!is_same<__decay_t<_Fp>, __policy_func>::value>::type>
     _LIBCPP_INLINE_VISIBILITY explicit __policy_func(_Fp&& __f)
         : __policy_(__policy::__create_empty()) {
       typedef __default_alloc_func<_Fp, _Rp(_ArgTypes...)> _Fun;
@@ -1026,7 +1029,7 @@ public:
     function& operator=(const function&);
     function& operator=(function&&) _NOEXCEPT;
     function& operator=(nullptr_t) _NOEXCEPT;
-    template<class _Fp, class = _EnableIfLValueCallable<typename decay<_Fp>::type>>
+    template<class _Fp, class = _EnableIfLValueCallable<__decay_t<_Fp>>>
     function& operator=(_Fp&&);
 
     ~function();

@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_LIB_TARGET_LLVMIR_DEBUGIMPORT_H_
-#define MLIR_LIB_TARGET_LLVMIR_DEBUGIMPORT_H_
+#ifndef MLIR_LIB_TARGET_LLVMIR_DEBUGIMPORTER_H_
+#define MLIR_LIB_TARGET_LLVMIR_DEBUGIMPORTER_H_
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -67,6 +67,10 @@ private:
   DISubroutineTypeAttr translateImpl(llvm::DISubroutineType *node);
   DITypeAttr translateImpl(llvm::DIType *node);
 
+  /// Constructs a StringAttr from the MDString if it is non-null. Returns a
+  /// null attribute otherwise.
+  StringAttr getStringAttrOrNull(llvm::MDString *stringNode);
+
   /// A mapping between LLVM debug metadata and the corresponding attribute.
   DenseMap<llvm::DINode *, DINodeAttr> nodeToAttr;
 
@@ -82,4 +86,4 @@ private:
 } // namespace LLVM
 } // namespace mlir
 
-#endif // MLIR_LIB_TARGET_LLVMIR_DEBUIMPORTN_H_
+#endif // MLIR_LIB_TARGET_LLVMIR_DEBUGIMPORTER_H_

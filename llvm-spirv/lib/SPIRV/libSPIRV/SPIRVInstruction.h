@@ -1761,7 +1761,9 @@ public:
     assert(Module && "Invalid module");
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
     assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug ||
-            ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100) &&
+            ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) &&
            "not supported");
   }
   void encode(spv_ostream &O) const override {
@@ -1772,6 +1774,8 @@ public:
       break;
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getEncoder(O) << ExtOpDebug;
       break;
     default:
@@ -1789,6 +1793,8 @@ public:
       break;
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getDecoder(I) >> ExtOpDebug;
       break;
     default:
@@ -3327,7 +3333,22 @@ _SPIRV_OP(JointMatrixMad, true, 7)
 _SPIRV_OP(JointMatrixSUMad, true, 7)
 _SPIRV_OP(JointMatrixUSMad, true, 7)
 _SPIRV_OP(JointMatrixUUMad, true, 7)
+// TODO: move to SPIRVJointMatrixINTELWorkItemInst
 _SPIRV_OP(JointMatrixWorkItemLength, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVJointMatrixINTELWorkItemInst : public SPIRVJointMatrixINTELInstBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityJointMatrixWIInstructionsINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVJointMatrixINTELWorkItemInst,                 \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(JointMatrixGetElementCoord, true, 5)
 #undef _SPIRV_OP
 
 class SPIRVSplitBarrierINTELBase : public SPIRVInstTemplateBase {
@@ -3566,10 +3587,10 @@ _SPIRV_OP(MaskedScatter, false, 5)
 #undef _SPIRV_OP
 
 template <Op OC>
-class SPIRVTensorFloat32ConversionINTELInstBase : public SPIRVUnaryInst<OC> {
+class SPIRVTensorFloat32RoundingINTELInstBase : public SPIRVUnaryInst<OC> {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityTensorFloat32ConversionINTEL);
+    return getVec(internal::CapabilityTensorFloat32RoundingINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -3590,8 +3611,8 @@ protected:
     // because it may call a method of class Module that may modify LiteralMap
     // of Module field. That modification is not impacting validate method for
     // these instructions, so const_cast is safe here.
-    using SPVTF32ConvTy = SPIRVTensorFloat32ConversionINTELInstBase<OC>;
-    SPIRVValue *Input = const_cast<SPVTF32ConvTy *>(this)->getOperand(0);
+    using SPVTF32RoundTy = SPIRVTensorFloat32RoundingINTELInstBase<OC>;
+    SPIRVValue *Input = const_cast<SPVTF32RoundTy *>(this)->getOperand(0);
 
     SPIRVType *InCompTy = Input->getType();
     SPIRVWord InCompCount = 1;
@@ -3619,8 +3640,8 @@ protected:
 };
 
 #define _SPIRV_OP(x)                                                           \
-  typedef SPIRVTensorFloat32ConversionINTELInstBase<internal::Op##x> SPIRV##x;
-_SPIRV_OP(ConvertFToTF32INTEL)
+  typedef SPIRVTensorFloat32RoundingINTELInstBase<internal::Op##x> SPIRV##x;
+_SPIRV_OP(RoundFToTF32INTEL)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

@@ -104,6 +104,12 @@ ParsePICArgs(const ToolChain &ToolChain, const llvm::opt::ArgList &Args);
 unsigned ParseFunctionAlignment(const ToolChain &TC,
                                 const llvm::opt::ArgList &Args);
 
+void addDebugInfoKind(llvm::opt::ArgStringList &CmdArgs,
+                      llvm::codegenoptions::DebugInfoKind DebugInfoKind);
+
+llvm::codegenoptions::DebugInfoKind
+debugLevelToInfoKind(const llvm::opt::Arg &A);
+
 // Extract the integer N from a string spelled "-dwarf-N", returning 0
 // on mismatch. The StringRef input (rather than an Arg) allows
 // for use by the "-Xassembler" option parser.
@@ -117,9 +123,6 @@ void AddAssemblerKPIC(const ToolChain &ToolChain,
                       const llvm::opt::ArgList &Args,
                       llvm::opt::ArgStringList &CmdArgs);
 
-void addOpenMPRuntimeSpecificRPath(const ToolChain &TC,
-                                   const llvm::opt::ArgList &Args,
-                                   llvm::opt::ArgStringList &CmdArgs);
 void addArchSpecificRPath(const ToolChain &TC, const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs);
 void addOpenMPRuntimeLibraryPath(const ToolChain &TC,

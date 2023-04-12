@@ -1088,6 +1088,9 @@ public:
   SPIRVValue *getLayout() const { return Args[2]; }
   SPIRVValue *getScope() const { return Args[3]; }
   SPIRVValue *getUse() const { return Args.size() > 4 ? Args[4] : nullptr; }
+  SPIRVValue *getComponentTypeInterpretation() const {
+    return Args.size() > 5 ? Args[5] : nullptr;
+  }
 };
 
 } // namespace SPIRV

@@ -38,7 +38,7 @@ With compiler tools available in the PATH:
 ```
 # Configure
 cmake \
- -DSYCL_CXX_COMPILER=clang++ \
+ -DCMAKE_CXX_COMPILER=clang++ \
  -DSYCL_TEST_E2E_TARGETS="opencl:cpu" \
  ..
 
@@ -71,7 +71,7 @@ CC=<> CXX=<> python llvm/buildbot/configure.py -o build ... \
 
 These parameters can be used to configure tests:
 
-***SYCL_CXX_COMPILER*** - path to DPCPP compiler
+***CMAKE_CXX_COMPILER*** - path to DPCPP compiler
 
 ***TEST_SUITE_LLVM_SIZE*** - path to llvm-size tool, required for code size
 collection

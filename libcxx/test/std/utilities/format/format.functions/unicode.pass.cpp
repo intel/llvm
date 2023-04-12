@@ -15,6 +15,9 @@
 // UNSUPPORTED msvc, target={{.+}}-windows-gnu
 // UNSUPPORTED: LIBCXX-AIX-FIXME
 
+// TODO FMT This test should not require std::to_chars(floating-point)
+// XFAIL: availability-fp_to_chars-missing
+
 // <format>
 
 // Tests the Unicode width support of the standard format specifiers.

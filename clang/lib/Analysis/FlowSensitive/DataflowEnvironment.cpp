@@ -203,7 +203,33 @@ static void getFieldsAndGlobalVars(const Stmt &S,
 
 // FIXME: Add support for resetting globals after function calls to enable
 // the implementation of sound analyses.
-void Environment::initVars(llvm::DenseSet<const VarDecl *> Vars) {
+void Environment::initFieldsAndGlobals(const FunctionDecl *FuncDecl) {
+  assert(FuncDecl->getBody() != nullptr);
+
+  llvm::DenseSet<const FieldDecl *> Fields;
+  llvm::DenseSet<const VarDecl *> Vars;
+
+  // Look for global variable and field references in the
+  // constructor-initializers.
+  if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(FuncDecl)) {
+    for (const auto *Init : CtorDecl->inits()) {
+      if (const auto *M = Init->getAnyMember())
+          Fields.insert(M);
+      const Expr *E = Init->getInit();
+      assert(E != nullptr);
+      getFieldsAndGlobalVars(*E, Fields, Vars);
+    }
+    // Add all fields mentioned in default member initializers.
+    for (const FieldDecl *F : CtorDecl->getParent()->fields())
+      if (const auto *I = F->getInClassInitializer())
+          getFieldsAndGlobalVars(*I, Fields, Vars);
+  }
+  getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
+
+  // These have to be added before the lines that follow to ensure that
+  // `create*` work correctly for structs.
+  DACtx->addModeledFields(Fields);
+
   for (const VarDecl *D : Vars) {
     if (getStorageLocation(*D, SkipPast::None) != nullptr)
       continue;
@@ -239,26 +265,7 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
   if (const auto *FuncDecl = dyn_cast<FunctionDecl>(&DeclCtx)) {
     assert(FuncDecl->getBody() != nullptr);
 
-    llvm::DenseSet<const FieldDecl *> Fields;
-    llvm::DenseSet<const VarDecl *> Vars;
-
-    // Look for global variable references in the constructor-initializers.
-    if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(&DeclCtx)) {
-      for (const auto *Init : CtorDecl->inits()) {
-        if (const auto *M = Init->getAnyMember())
-          Fields.insert(M);
-        const Expr *E = Init->getInit();
-        assert(E != nullptr);
-        getFieldsAndGlobalVars(*E, Fields, Vars);
-      }
-    }
-    getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
-
-    // These have to be added before the lines that follow to ensure that
-    // `create*` work correctly for structs.
-    DACtx.addModeledFields(Fields);
-
-    initVars(Vars);
+    initFieldsAndGlobals(FuncDecl);
 
     for (const auto *ParamDecl : FuncDecl->parameters()) {
       assert(ParamDecl != nullptr);
@@ -332,26 +339,7 @@ void Environment::pushCallInternal(const FunctionDecl *FuncDecl,
                                    ArrayRef<const Expr *> Args) {
   CallStack.push_back(FuncDecl);
 
-  // FIXME: Share this code with the constructor, rather than duplicating it.
-  llvm::DenseSet<const FieldDecl *> Fields;
-  llvm::DenseSet<const VarDecl *> Vars;
-  // Look for global variable references in the constructor-initializers.
-  if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(FuncDecl)) {
-    for (const auto *Init : CtorDecl->inits()) {
-      if (const auto *M = Init->getAnyMember())
-        Fields.insert(M);
-      const Expr *E = Init->getInit();
-      assert(E != nullptr);
-      getFieldsAndGlobalVars(*E, Fields, Vars);
-    }
-  }
-  getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
-
-  // These have to be added before the lines that follow to ensure that
-  // `create*` work correctly for structs.
-  DACtx->addModeledFields(Fields);
-
-  initVars(Vars);
+  initFieldsAndGlobals(FuncDecl);
 
   const auto *ParamIt = FuncDecl->param_begin();
 
@@ -578,7 +566,7 @@ StorageLocation &Environment::createStorageLocation(const Expr &E) {
 }
 
 void Environment::setStorageLocation(const ValueDecl &D, StorageLocation &Loc) {
-  assert(DeclToLoc.find(&D) == DeclToLoc.end());
+  assert(!DeclToLoc.contains(&D));
   DeclToLoc[&D] = &Loc;
 }
 
@@ -590,7 +578,7 @@ StorageLocation *Environment::getStorageLocation(const ValueDecl &D,
 
 void Environment::setStorageLocation(const Expr &E, StorageLocation &Loc) {
   const Expr &CanonE = ignoreCFGOmittedNodes(E);
-  assert(ExprToLoc.find(&CanonE) == ExprToLoc.end());
+  assert(!ExprToLoc.contains(&CanonE));
   ExprToLoc[&CanonE] = &Loc;
 }
 
@@ -807,7 +795,7 @@ void Environment::dump(raw_ostream &OS) const {
   }
 
   OS << "FlowConditionToken:\n";
-  DACtx->dumpFlowCondition(*FlowConditionToken);
+  DACtx->dumpFlowCondition(*FlowConditionToken, OS);
 }
 
 void Environment::dump() const {

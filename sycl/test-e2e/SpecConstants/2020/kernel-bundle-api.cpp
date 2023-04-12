@@ -31,6 +31,7 @@ class TestSetAndGetOnDevice;
 bool test_default_values(sycl::queue q);
 bool test_set_and_get_on_host(sycl::queue q);
 bool test_set_and_get_on_device(sycl::queue q);
+bool test_native_specialization_constant(sycl::queue q);
 
 int main() {
   auto exception_handler = [&](sycl::exception_list exceptions) {
@@ -60,6 +61,12 @@ int main() {
 
   if (!test_set_and_get_on_device(q)) {
     std::cout << "Test for set and get API on device failed!" << std::endl;
+    return 1;
+  }
+
+  if (!test_native_specialization_constant(q)) {
+    std::cout << "Test for native specialization constants failed!"
+              << std::endl;
     return 1;
   }
 
@@ -256,4 +263,12 @@ bool test_set_and_get_on_device(sycl::queue q) {
     return false;
 
   return true;
+}
+
+bool test_native_specialization_constant(sycl::queue q) {
+  const auto always_false_selector = [](auto device_image) { return false; };
+  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+      q.get_context(), always_false_selector);
+  return check_value(bundle.native_specialization_constant(), false,
+                     "empty bundle native specialization constant");
 }

@@ -281,7 +281,8 @@ void MatcherGen::EmitLeafMatchCode(const TreePatternNode *N) {
     return;
   }
 
-  if (LeafRec->getName() == "immAllOnesV") {
+  if (LeafRec->getName() == "immAllOnesV" ||
+      LeafRec->getName() == "immAllZerosV") {
     // If this is the root of the dag we're matching, we emit a redundant opcode
     // check to ensure that this gets folded into the normal top-level
     // OpcodeSwitch.
@@ -291,19 +292,11 @@ void MatcherGen::EmitLeafMatchCode(const TreePatternNode *N) {
       const SDNodeInfo &NI = CGP.getSDNodeInfo(CGP.getSDNodeNamed(Name));
       AddMatcher(new CheckOpcodeMatcher(NI));
     }
-    return AddMatcher(new CheckImmAllOnesVMatcher());
-  }
-  if (LeafRec->getName() == "immAllZerosV") {
-    // If this is the root of the dag we're matching, we emit a redundant opcode
-    // check to ensure that this gets folded into the normal top-level
-    // OpcodeSwitch.
-    if (N == Pattern.getSrcPattern()) {
-      MVT VT = N->getSimpleType(0);
-      StringRef Name = VT.isScalableVector() ? "splat_vector" : "build_vector";
-      const SDNodeInfo &NI = CGP.getSDNodeInfo(CGP.getSDNodeNamed(Name));
-      AddMatcher(new CheckOpcodeMatcher(NI));
-    }
-    return AddMatcher(new CheckImmAllZerosVMatcher());
+    if (LeafRec->getName() == "immAllOnesV")
+      AddMatcher(new CheckImmAllOnesVMatcher());
+    else
+      AddMatcher(new CheckImmAllZerosVMatcher());
+    return;
   }
 
   errs() << "Unknown leaf kind: " << *N << "\n";
@@ -585,8 +578,9 @@ bool MatcherGen::EmitMatcherCode(unsigned Variant) {
 
   // If the pattern has a predicate on it (e.g. only enabled when a subtarget
   // feature is around, do the check).
-  if (!Pattern.getPredicateCheck().empty())
-    AddMatcher(new CheckPatternPredicateMatcher(Pattern.getPredicateCheck()));
+  std::string PredicateCheck = Pattern.getPredicateCheck();
+  if (!PredicateCheck.empty())
+    AddMatcher(new CheckPatternPredicateMatcher(PredicateCheck));
 
   // Now that we've completed the structural type match, emit any ComplexPattern
   // checks (e.g. addrmode matches).  We emit this after the structural match
@@ -701,12 +695,11 @@ void MatcherGen::EmitResultLeafAsOperand(const TreePatternNode *N,
     }
 
     if (Def->getName() == "undef_tied_input") {
-      std::array<MVT::SimpleValueType, 1> ResultVTs = {{ N->getSimpleType(0) }};
-      std::array<unsigned, 0> InstOps;
+      MVT::SimpleValueType ResultVT = N->getSimpleType(0);
       auto IDOperandNo = NextRecordedOperandNo++;
       AddMatcher(new EmitNodeMatcher("TargetOpcode::IMPLICIT_DEF",
-                                     ResultVTs, InstOps, false, false, false,
-                                     false, -1, IDOperandNo));
+                                     ResultVT, std::nullopt, false, false,
+                                     false, false, -1, IDOperandNo));
       ResultOps.push_back(IDOperandNo);
       return;
     }
