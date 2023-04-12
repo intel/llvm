@@ -323,7 +323,7 @@ an application to create a SYCL object that encapsulates a corresponding Level-Z
 
 ``` C++
 template <backend Backend>
-platform make_platform<Backend>(
+platform make_platform(
     const backend_input_t<Backend, platform> &)
 ```
 </td>
@@ -333,7 +333,7 @@ platform make_platform<Backend>(
 
 ``` C++
 template <backend Backend>
-device make_device<Backend>(
+device make_device(
     const backend_input_t<Backend, device> &)
 ```
 </td>
@@ -343,7 +343,7 @@ device make_device<Backend>(
 
 ``` C++
 template <backend Backend>
-context make_context<Backend>(
+context make_context(
     const backend_input_t<Backend, context> &)
 ```
 </td>
@@ -353,7 +353,7 @@ context make_context<Backend>(
 
 ``` C++
 template <backend Backend>
-queue make_queue<Backend>(
+queue make_queue(
     const backend_input_t<Backend, queue> &,
     const context &Context)
 ```
@@ -370,7 +370,7 @@ the ```compute_index``` property which is built into the command queue or comman
 
 ``` C++
 template <backend Backend>
-event make_event<Backend>(
+event make_event(
     const backend_input_t<Backend, event> &,
     const context &Context)
 ```
@@ -382,7 +382,7 @@ event make_event<Backend>(
 ``` C++
 // State must be bundle_state::executable
 template <backend Backend, bundle_state State>
-kernel_bundle<State> make_kernel_bundle<Backend, State>(
+kernel_bundle<State> make_kernel_bundle(
     const backend_input_t<Backend,
         kernel_bundle<State>> &,
     const context &Context)
@@ -407,7 +407,7 @@ interoperability <code>kernel_bundle</code> destructor is called.</td>
 
 ``` C++
 template <backend Backend>
-kernel make_kernel<Backend>(
+kernel make_kernel(
     const backend_input_t<Backend, kernel> &,
     const context &Context)
 ```
