@@ -9,11 +9,8 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/half_type.hpp>
-
-#if !defined(__SYCL_DEVICE_ONLY__)
-#include <cmath>
-#endif
 
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
