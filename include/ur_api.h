@@ -523,14 +523,14 @@ urPlatformCreateWithNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the adapter specific compiler backend option from a generic
+/// @brief Get the platform specific compiler backend option from a generic
 ///        frontend option.
 ///
 /// @details
-///     - The string returned via the ppAdapterOption is a NULL terminated C
+///     - The string returned via the ppPlatformOption is a NULL terminated C
 ///       style string.
-///     - The string returned via the ppAdapterOption is thread local.
-///     - The memory in the string returned via the ppAdapterOption is owned by
+///     - The string returned via the ppPlatformOption is thread local.
+///     - The memory in the string returned via the ppPlatformOption is owned by
 ///       the adapter.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function should be lock-free.
@@ -543,15 +543,15 @@ urPlatformCreateWithNativeHandle(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFrontendOption`
-///         + `NULL == ppAdapterOption`
+///         + `NULL == ppPlatformOption`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + If `pFrontendOption` is not a valid frontend option.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetBackendOption(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
     const char *pFrontendOption,    ///< [in] string containing the frontend option.
-    const char **ppAdapterOption    ///< [out] returns the correct adapter specific option based on the
-                                    ///< frontend option.
+    const char **ppPlatformOption   ///< [out] returns the correct platform specific compiler option based on
+                                    ///< the frontend option.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5566,7 +5566,7 @@ typedef void(UR_APICALL *ur_pfnPlatformGetApiVersionCb_t)(
 typedef struct ur_platform_get_backend_option_params_t {
     ur_platform_handle_t *phPlatform;
     const char **ppFrontendOption;
-    const char ***pppAdapterOption;
+    const char ***pppPlatformOption;
 } ur_platform_get_backend_option_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

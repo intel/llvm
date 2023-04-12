@@ -215,8 +215,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char
         *pFrontendOption, ///< [in] string containing the frontend option.
     const char **
-        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
-                        ///< frontend option.
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
 ) {
     auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
 
@@ -225,13 +225,13 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     }
 
     ur_platform_get_backend_option_params_t params = {
-        &hPlatform, &pFrontendOption, &ppAdapterOption};
+        &hPlatform, &pFrontendOption, &ppPlatformOption};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
                              "urPlatformGetBackendOption", &params);
 
     ur_result_t result =
-        pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+        pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
                        "urPlatformGetBackendOption", &params, &result,

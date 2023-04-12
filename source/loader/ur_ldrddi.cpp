@@ -280,8 +280,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char
         *pFrontendOption, ///< [in] string containing the frontend option.
     const char **
-        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
-                        ///< frontend option.
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -297,7 +297,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
 
     // forward to device-platform
-    result = pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+    result = pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
 
     return result;
 }

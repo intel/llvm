@@ -13,36 +13,36 @@ INSTANTIATE_TEST_SUITE_P(, urPlatfromGetBackendOptionTestWithParam,
                          });
 
 TEST_P(urPlatfromGetBackendOptionTestWithParam, Success) {
-    const char *adapterOption = nullptr;
+    const char *platformOption = nullptr;
     ASSERT_SUCCESS(urPlatformGetBackendOption(platform, GetParam().c_str(),
-                                              &adapterOption));
-    ASSERT_NE(adapterOption, nullptr);
+                                              &platformOption));
+    ASSERT_NE(platformOption, nullptr);
 }
 
 using urPlatfromGetBackendOptionTest = uur::platform::urPlatformTest;
 
 TEST_F(urPlatfromGetBackendOptionTest, InvalidNullHandle) {
-    const char *adapterOption = nullptr;
+    const char *platformOption = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urPlatformGetBackendOption(nullptr, "-O0", &adapterOption));
+        urPlatformGetBackendOption(nullptr, "-O0", &platformOption));
 }
 
 TEST_F(urPlatfromGetBackendOptionTest, InvalidNullPointerFrontendOption) {
-    const char *adapterOption = nullptr;
+    const char *platformOption = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
-        urPlatformGetBackendOption(platform, nullptr, &adapterOption));
+        urPlatformGetBackendOption(platform, nullptr, &platformOption));
 }
 
-TEST_F(urPlatfromGetBackendOptionTest, InvalidNullPointerAdapterOption) {
+TEST_F(urPlatfromGetBackendOptionTest, InvalidNullPointerPlatformOption) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urPlatformGetBackendOption(platform, "-O0", nullptr));
 }
 
 TEST_F(urPlatfromGetBackendOptionTest, InvalidValueFrontendOption) {
-    const char *adapterOption = nullptr;
+    const char *platformOption = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
-        urPlatformGetBackendOption(platform, "-sycl-sucks", &adapterOption));
+        urPlatformGetBackendOption(platform, "-sycl-sucks", &platformOption));
 }

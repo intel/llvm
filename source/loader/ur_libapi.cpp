@@ -252,14 +252,14 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the adapter specific compiler backend option from a generic
+/// @brief Get the platform specific compiler backend option from a generic
 ///        frontend option.
 ///
 /// @details
-///     - The string returned via the ppAdapterOption is a NULL terminated C
+///     - The string returned via the ppPlatformOption is a NULL terminated C
 ///       style string.
-///     - The string returned via the ppAdapterOption is thread local.
-///     - The memory in the string returned via the ppAdapterOption is owned by
+///     - The string returned via the ppPlatformOption is thread local.
+///     - The memory in the string returned via the ppPlatformOption is owned by
 ///       the adapter.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function should be lock-free.
@@ -272,7 +272,7 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFrontendOption`
-///         + `NULL == ppAdapterOption`
+///         + `NULL == ppPlatformOption`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + If `pFrontendOption` is not a valid frontend option.
 ur_result_t UR_APICALL urPlatformGetBackendOption(
@@ -280,8 +280,8 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char
         *pFrontendOption, ///< [in] string containing the frontend option.
     const char **
-        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
-                        ///< frontend option.
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
 ) {
     auto pfnGetBackendOption =
         ur_lib::context->urDdiTable.Platform.pfnGetBackendOption;
@@ -289,7 +289,7 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+    return pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
