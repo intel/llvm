@@ -94,7 +94,7 @@ struct _pi_platform : public _ur_platform_handle_t {
   // TODO: should be deleted when memory isolation in the context is implemented
   // in the driver.
   std::list<pi_context> Contexts;
-  pi_shared_mutex ContextsMutex;
+  ur_shared_mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -261,11 +261,11 @@ struct _pi_context : _pi_object {
   // Mutex for the immediate command list. Per the Level Zero spec memory copy
   // operations submitted to an immediate command list are not allowed to be
   // called from simultaneous threads.
-  pi_mutex ImmediateCommandListMutex;
+  ur_mutex ImmediateCommandListMutex;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
-  pi_mutex ZeCommandListCacheMutex;
+  ur_mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -394,10 +394,10 @@ private:
 
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
-  pi_mutex ZeEventPoolCacheMutex;
+  ur_mutex ZeEventPoolCacheMutex;
 
   // Mutex to control operations on event caches.
-  pi_mutex EventCacheMutex;
+  ur_mutex EventCacheMutex;
 
   // Caches for events.
   std::vector<std::list<pi_event>> EventCaches{4};
@@ -1037,7 +1037,7 @@ struct _pi_ze_event_list_t {
   // when an event is initially created.  However, it might be
   // possible to have multiple threads racing to destroy the list,
   // so this will be used to make list destruction thread-safe.
-  pi_mutex PiZeEventListMutex;
+  ur_mutex PiZeEventListMutex;
 
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.
