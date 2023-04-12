@@ -430,10 +430,13 @@ Level-Zero kernel</td>
 ``` C++
 template <backend Backend, 
           typename T, int Dimensions = 1,
-          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
+          typename AllocatorT = 
+            buffer_allocator<std::remove_const_t<T>>>
 buffer<T, Dimensions, AllocatorT> make_buffer(
     const backend_input_t<Backend,
-                          buffer<T, Dimensions, AllocatorT>> &,
+                          buffer<T, 
+                                 Dimensions, 
+                                 AllocatorT>> &,
     const context &Context)
 ```
 </td>
@@ -449,10 +452,13 @@ Synchronization rules for a buffer that is created with this API are described i
 ``` C++
 template <backend Backend, 
           typename T, int Dimensions = 1,
-          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
+          typename AllocatorT = 
+            buffer_allocator<std::remove_const_t<T>>>
 buffer<T, Dimensions, AllocatorT> make_buffer(
     const backend_input_t<Backend,
-                          buffer<T, Dimensions, AllocatorT>> &,
+                          buffer<T, 
+                                 Dimensions, 
+                                 AllocatorT>> &,
     const context &Context, event AvailableEvent)
 ```
 </td>
