@@ -24,20 +24,20 @@ from templates import helper as th
 #include <bitset>
 
 namespace ${x}_params {
-
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
+} // namespace ${x}_params
 
 <%def name="member(iname, itype, loop)">
     %if iname == "pNext":
-        serializeStruct(os, ${caller.body()});
+        ${x}_params::serializeStruct(os, ${caller.body()});
     %elif th.type_traits.is_flags(itype):
-        serializeFlag_${itype}(os, ${caller.body()});
+        ${x}_params::serializeFlag_${itype}(os, ${caller.body()});
     %elif not loop and th.type_traits.is_pointer(itype):
-        serializePtr(os, ${caller.body()});
+        ${x}_params::serializePtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
-        serializePtr(os, ${caller.body()});
+        ${x}_params::serializePtr(os, ${caller.body()});
     %elif th.type_traits.is_handle(itype):
-        serializePtr(os, ${caller.body()});
+        ${x}_params::serializePtr(os, ${caller.body()});
     %else:
         os << ${caller.body()};
     %endif
@@ -103,9 +103,10 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
     }
     %endif
     %if "structure_type" in obj['name']:
+    namespace ${x}_params {
     inline void serializeStruct(std::ostream &os, const void *ptr) {
         if (ptr == NULL) {
-            serializePtr(os, ptr);
+            ${x}_params::serializePtr(os, ptr);
             return;
         }
 
@@ -118,7 +119,7 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
                 %>
                 case ${ename}: {
                     const ${th.subt(n, tags, item['desc'])} *pstruct = (const ${th.subt(n, tags, item['desc'])} *)ptr;
-                    serializePtr(os, pstruct);
+                    ${x}_params::serializePtr(os, pstruct);
                 } break;
             %endfor
                 default:
@@ -126,8 +127,10 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
                     break;
         }
     }
+    } // namespace ${x}_params
     %endif
 %if th.type_traits.is_flags(obj['name']):
+namespace ${x}_params {
 inline void serializeFlag_${th.make_type_name(n, tags, obj)}(std::ostream &os, ${th.make_type_name(n, tags, obj)} flag) {
     uint32_t val = flag;
     bool first = true;
@@ -158,6 +161,7 @@ inline void serializeFlag_${th.make_type_name(n, tags, obj)}(std::ostream &os, $
         os << "0";
     }
 }
+} // namespace ${x}_params
 %endif
 ## STRUCT/UNION ###############################################################
 %elif re.match(r"struct|union", obj['type']):
@@ -187,6 +191,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ${th.make_pfncb_p
 %endfor
 %endfor
 
+namespace ${x}_params {
 ## This is needed to avoid dereferencing forward declared handles
 // https://devblogs.microsoft.com/oldnewthing/20190710-00/?p=102678
 template<typename, typename = void>
@@ -223,7 +228,6 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function, const vo
     }
     return 0;
 }
-
-}
+} // namespace ur_params
 
 #endif /* ${X}_PARAMS_HPP */
