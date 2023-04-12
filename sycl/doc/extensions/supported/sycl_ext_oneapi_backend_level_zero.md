@@ -468,10 +468,11 @@ The additional <code>AvailableEvent</code> argument must be a valid SYCL event. 
 
 ``` C++
 template<backend Backend, int Dimensions = 1, 
-         typename AllocatorT = sycl::image_allocator>
-image<Dimensions, AllocatorT> make_image(
+         typename AllocrT = sycl::image_allocator>
+image<Dimensions, AllocrT> make_image(
     const backend_input_t<Backend, 
-                          image<Dimensions, AllocatorT>> &backendObject,
+                          image<Dimensions, 
+                            AllocrT>> &backendObject,
     const context &targetContext);
 ```
 </td>
@@ -534,10 +535,11 @@ The <code>Ownership</code> input structure member specifies if the SYCL runtime 
 
 ``` C++
 template<backend Backend, int Dimensions = 1, 
-         typename AllocatorT = sycl::image_allocator>
-image<Dimensions, AllocatorT> make_image(
+         typename AllocrT = sycl::image_allocator>
+image<Dimensions, AllocrT> make_image(
     const backend_input_t<Backend, 
-                          image<Dimensions, AllocatorT>> &backendObject,
+                          image<Dimensions, 
+                            AllocrT>> &backendObject,
     const context &targetContext, event availableEvent);
 ```
 </td>
