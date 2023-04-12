@@ -131,7 +131,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnContextCreateWithNativeHandle_t)(
     ur_native_handle_t,
     uint32_t,
     const ur_device_handle_t *,
-    const ur_context_native_desc_t *,
+    const ur_context_native_properties_t *,
     ur_context_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

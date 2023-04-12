@@ -769,7 +769,7 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
 ///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
-///         + `NULL == pContextNativeDesc`
+///         + `NULL == pContextNativeProperties`
 ///         + `NULL == phContext`
 ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
@@ -777,8 +777,8 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
-    const ur_context_native_desc_t
-        *pContextNativeDesc, ///< [in] pointer to descriptor
+    const ur_context_native_properties_t
+        *pContextNativeProperties, ///< [in] pointer to properties struct
     ur_context_handle_t *
         phContext ///< [out] pointer to the handle of the context object created.
 ) {

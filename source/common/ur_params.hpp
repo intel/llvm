@@ -156,6 +156,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_context_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_info_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_context_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value);
@@ -606,8 +609,8 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC:
-        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC";
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -713,9 +716,9 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC: {
-        const ur_context_native_desc_t *pstruct =
-            (const ur_context_native_desc_t *)ptr;
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES: {
+        const ur_context_native_properties_t *pstruct =
+            (const ur_context_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -3757,9 +3760,10 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
     }
 }
 } // namespace ur_params
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_context_native_desc_t params) {
-    os << "(struct ur_context_native_desc_t){";
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_context_native_properties_t params) {
+    os << "(struct ur_context_native_properties_t){";
 
     os << ".stype = ";
 
@@ -7564,9 +7568,9 @@ operator<<(std::ostream &os,
     os << "]";
 
     os << ", ";
-    os << ".pContextNativeDesc = ";
+    os << ".pContextNativeProperties = ";
 
-    ur_params::serializePtr(os, *(params->ppContextNativeDesc));
+    ur_params::serializePtr(os, *(params->ppContextNativeProperties));
 
     os << ", ";
     os << ".phContext = ";
