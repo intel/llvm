@@ -81,6 +81,7 @@ Basic/boolean.cpp
 Basic/buffer/buffer.cpp
 Basic/built-ins.cpp
 Basic/built-ins/marray_common.cpp
+Basic/built-ins/marray_geometric.cpp
 Basic/built-ins/marray_math.cpp
 Basic/device_event.cpp
 Basic/device_implicitly_copyable.cpp
@@ -112,6 +113,7 @@ Basic/stream/stream.cpp
 Basic/stream/stream_copies_buffer_sync.cpp
 Basic/stream/stream_max_stmt_exceed.cpp
 Basic/sub_group_size_prop.cpp
+Basic/vec_bool.cpp
 Basic/vector_operators.cpp
 Basic/work_group_size_prop.cpp
 Complex/sycl_complex_math_test.cpp
@@ -147,6 +149,7 @@ DiscardEvents/discard_events_check_images.cpp
 DiscardEvents/discard_events_using_assert.cpp
 DotProduct/dot_product_int_test.cpp
 DotProduct/dot_product_vec_test.cpp
+ESIMD/thread_id_test.cpp
 Functor/functor_inheritance.cpp
 GroupAlgorithm/SYCL2020/group_broadcast.cpp
 GroupAlgorithm/SYCL2020/permute_select.cpp
