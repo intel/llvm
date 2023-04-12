@@ -14,7 +14,6 @@
 // This is basic test to validate thread id functions.
 // TODO: Enable the test once the GPU RT supporting the functionality reaches
 // the CI
-
 #include <cmath>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>

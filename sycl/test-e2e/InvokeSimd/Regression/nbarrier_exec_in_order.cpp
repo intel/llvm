@@ -57,9 +57,9 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(int localID,
   esimd::simd<int, VL> val(localID);
 
   if constexpr (UseSLM) {
-    /* TODO: SLM has to be allocated of outside invoke_simd, but propper
-     * intarface is not yet ready. Current test implementation in this regard
-     * is a subject to future changes.
+    /* TODO: SLM needs to be allocated from outside invoke_simd, but the proper
+     * intarface is not yet ready. Current test implementation in this regard is
+     * subject to future changes.
      */
     esimd::slm_init(Size * sizeof(int));
     esimd::simd<int, VL> zero(0);
