@@ -19,4 +19,6 @@ function(add_device_binary SOURCE_FILE)
     endforeach()
 endfunction()
 
-add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/nop.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/bar.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/foo.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/spec_constant.cpp)

@@ -2,4 +2,16 @@
 # SPDX-License-Identifier: MIT
 
 add_conformance_test_with_kernels_environment(program
-    urProgramCreateWithIL.cpp)
+    urProgramBuild.cpp
+    urProgramCompile.cpp
+    urProgramCreateWithBinary.cpp
+    urProgramCreateWithIL.cpp
+    urProgramCreateWithNativeHandle.cpp
+    urProgramGetBuildInfo.cpp
+    urProgramGetFunctionPointer.cpp
+    urProgramGetInfo.cpp
+    urProgramGetNativeHandle.cpp
+    urProgramLink.cpp
+    urProgramRelease.cpp
+    urProgramRetain.cpp
+    urProgramSetSpecializationConstants.cpp)
