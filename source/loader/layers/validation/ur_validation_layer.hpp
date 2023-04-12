@@ -29,8 +29,8 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     context_t();
     ~context_t();
 
-    bool isEnabled() { return enableValidation; };
-    ur_result_t init(ur_dditable_t *dditable);
+    bool isEnabled() override { return enableValidation; };
+    ur_result_t init(ur_dditable_t *dditable) override;
 };
 
 extern context_t context;
