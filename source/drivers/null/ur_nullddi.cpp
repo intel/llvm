@@ -177,8 +177,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char
         *pFrontendOption, ///< [in] string containing the frontend option.
     const char **
-        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
-                        ///< frontend option.
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -187,7 +187,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
         d_context.urDdiTable.Platform.pfnGetBackendOption;
     if (nullptr != pfnGetBackendOption) {
         result =
-            pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+            pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
     } else {
         // generic implementation
     }

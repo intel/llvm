@@ -6748,9 +6748,9 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->ppFrontendOption));
 
     os << ", ";
-    os << ".ppAdapterOption = ";
+    os << ".ppPlatformOption = ";
 
-    ur_params::serializePtr(os, *(params->pppAdapterOption));
+    ur_params::serializePtr(os, *(params->pppPlatformOption));
 
     return os;
 }

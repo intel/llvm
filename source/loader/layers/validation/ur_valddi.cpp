@@ -218,8 +218,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char
         *pFrontendOption, ///< [in] string containing the frontend option.
     const char **
-        ppAdapterOption ///< [out] returns the correct adapter specific option based on the
-                        ///< frontend option.
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
 ) {
     auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
 
@@ -236,13 +236,13 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == ppAdapterOption) {
+        if (NULL == ppPlatformOption) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
     ur_result_t result =
-        pfnGetBackendOption(hPlatform, pFrontendOption, ppAdapterOption);
+        pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
 
     return result;
 }

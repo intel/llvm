@@ -168,14 +168,14 @@ params:
             [out] pointer to the handle of the platform object created.
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Get the adapter specific compiler backend option from a generic frontend option."
+desc: "Get the platform specific compiler backend option from a generic frontend option."
 class: $xPlatform
 name: GetBackendOption
 decl: static
 details:
-    - "The string returned via the ppAdapterOption is a NULL terminated C style string."
-    - "The string returned via the ppAdapterOption is thread local."
-    - "The memory in the string returned via the ppAdapterOption is owned by the adapter."
+    - "The string returned via the ppPlatformOption is a NULL terminated C style string."
+    - "The string returned via the ppPlatformOption is thread local."
+    - "The memory in the string returned via the ppPlatformOption is owned by the adapter."
     - "The application may call this function from simultaneous threads."
     - "The implementation of this function should be lock-free."
 params:
@@ -186,8 +186,8 @@ params:
       name: pFrontendOption
       desc: "[in] string containing the frontend option."
     - type: const char**
-      name: ppAdapterOption
-      desc: "[out] returns the correct adapter specific option based on the frontend option."
+      name: ppPlatformOption
+      desc: "[out] returns the correct platform specific compiler option based on the frontend option."
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "If `pFrontendOption` is not a valid frontend option."
