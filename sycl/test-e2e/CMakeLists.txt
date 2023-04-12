@@ -33,8 +33,17 @@ set(SYCL_E2E_TESTS_LIT_FLAGS "-sv" CACHE STRING "Flags used when running lit")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
-               "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg")
+if(SYCL_TEST_E2E_STANDALONE)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
+                 "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")
+else()
+  configure_lit_site_cfg(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+    MAIN_CONFIG
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
+    )
+endif() # Standalone.
 
 if(NOT SYCL_TEST_E2E_STANDALONE)
   list(APPEND SYCL_E2E_TEST_DEPS

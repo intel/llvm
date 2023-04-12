@@ -546,6 +546,7 @@
 ??0sampler@_V1@sycl@@QEAA@W4coordinate_normalization_mode@12@W4addressing_mode@12@W4filtering_mode@12@AEBVproperty_list@12@@Z
 ??0sampler_impl@detail@_V1@sycl@@QEAA@PEAU_cl_sampler@@AEBVcontext@23@@Z
 ??0sampler_impl@detail@_V1@sycl@@QEAA@W4coordinate_normalization_mode@23@W4addressing_mode@23@W4filtering_mode@23@AEBVproperty_list@23@@Z
+??0stream@_V1@sycl@@AEAA@V?$shared_ptr@Vstream_impl@detail@_V1@sycl@@@std@@V?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@_V1@sycl@@@12@V?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@_V1@sycl@@@12@1@Z
 ??0stream@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0stream@_V1@sycl@@QEAA@AEBV012@@Z
 ??0stream@_V1@sycl@@QEAA@_K0AEAVhandler@12@@Z
