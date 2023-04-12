@@ -799,11 +799,10 @@ processInputModule(std::unique_ptr<Module> M) {
     std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
         module_split::getSplitterByKernelType(std::move(MDesc),
                                               EmitOnlyKernelsAsEntryPoints);
-    SplitOccurred |= ESIMDSplitter->remainingSplits() > 1;
-    Modified |= SplitOccurred;
+    bool ESIMDSplitOccurred = ESIMDSplitter->remainingSplits() > 1;
 
-    if (SplitOccurred && (SplitMode == module_split::SPLIT_PER_KERNEL) &&
-        !SplitEsimd) {
+    if (ESIMDSplitOccurred && SplitOccurred &&
+        (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
       // Controversial state reached - SYCL and ESIMD entry points resulting
       // from SYCL/ESIMD split (which is done always) are linked back, since
       // -split-esimd is not specified, but per-kernel split is requested.
@@ -812,6 +811,8 @@ processInputModule(std::unique_ptr<Module> M) {
               SplitEsimd.ValueStr + " must also be specified");
     }
     SmallVector<module_split::ModuleDesc, 2> MMs;
+    SplitOccurred |= ESIMDSplitOccurred;
+    Modified |= SplitOccurred;
 
     while (ESIMDSplitter->hasMoreSplits()) {
       module_split::ModuleDesc MDesc2 = ESIMDSplitter->nextSplit();
