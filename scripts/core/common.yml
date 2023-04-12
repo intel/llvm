@@ -294,8 +294,8 @@ etors:
       desc: $x_queue_properties_t
     - name: QUEUE_INDEX_PROPERTIES
       desc: $x_queue_properties_t
-    - name: CONTEXT_NATIVE_DESC
-      desc: $x_context_native_desc_t
+    - name: CONTEXT_NATIVE_PROPERTIES
+      desc: $x_context_native_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

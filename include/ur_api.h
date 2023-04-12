@@ -239,7 +239,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
     UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
     UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_properties_t
-    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC = 16,             ///< ::ur_context_native_desc_t
+    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1458,16 +1458,16 @@ urContextGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Descriptor for ::urContextCreateWithNativeHandle.
-typedef struct ur_context_native_desc_t {
+/// @brief Properties for for ::urContextCreateWithNativeHandle.
+typedef struct ur_context_native_properties_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC
-    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+                               ///< ::UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
     bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an interoperability
                                ///< operation in the application that asked to not transfer the ownership to
                                ///< the unified-runtime.
 
-} ur_context_native_desc_t;
+} ur_context_native_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime context object from native context handle.
@@ -1486,15 +1486,15 @@ typedef struct ur_context_native_desc_t {
 ///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
-///         + `NULL == pContextNativeDesc`
+///         + `NULL == pContextNativeProperties`
 ///         + `NULL == phContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext,                  ///< [in] the native handle of the context.
-    uint32_t numDevices,                                ///< [in] number of devices associated with the context
-    const ur_device_handle_t *phDevices,                ///< [in][range(0, numDevices)] list of devices associated with the context
-    const ur_context_native_desc_t *pContextNativeDesc, ///< [in] pointer to descriptor
-    ur_context_handle_t *phContext                      ///< [out] pointer to the handle of the context object created.
+    ur_native_handle_t hNativeContext,                              ///< [in] the native handle of the context.
+    uint32_t numDevices,                                            ///< [in] number of devices associated with the context
+    const ur_device_handle_t *phDevices,                            ///< [in][range(0, numDevices)] list of devices associated with the context
+    const ur_context_native_properties_t *pContextNativeProperties, ///< [in] pointer to properties struct
+    ur_context_handle_t *phContext                                  ///< [out] pointer to the handle of the context object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5752,7 +5752,7 @@ typedef struct ur_context_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeContext;
     uint32_t *pnumDevices;
     const ur_device_handle_t **pphDevices;
-    const ur_context_native_desc_t **ppContextNativeDesc;
+    const ur_context_native_properties_t **ppContextNativeProperties;
     ur_context_handle_t **pphContext;
 } ur_context_create_with_native_handle_params_t;
 

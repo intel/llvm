@@ -184,10 +184,10 @@ params:
             [out] a pointer to the native handle of the context.
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Descriptor for $xContextCreateWithNativeHandle."
+desc: "Properties for for $xContextCreateWithNativeHandle."
 class: $xContext
-name: $x_context_native_desc_t
-base: $x_base_desc_t
+name: $x_context_native_properties_t
+base: $x_base_properties_t
 members:
     - type: bool
       name: isNativeHandleOwned
@@ -217,9 +217,9 @@ params:
     - type: "const $x_device_handle_t*"
       name: phDevices
       desc: "[in][range(0, numDevices)] list of devices associated with the context"
-    - type: "const $x_context_native_desc_t*"
-      name: pContextNativeDesc
-      desc: "[in] pointer to descriptor"
+    - type: "const $x_context_native_properties_t*"
+      name: pContextNativeProperties
+      desc: "[in] pointer to properties struct"
     - type: "$x_context_handle_t*"
       name: phContext
       desc: |
