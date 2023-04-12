@@ -1,0 +1,51 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+name: coverity-unified-runtime
+# It runs static analysis build - Coverity. It requires special token (set in CI's secret).
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  WORKDIR:                           ${{ github.workspace }}
+  COVERITY_SCAN_NOTIFICATION_EMAIL:  ${{ secrets.COVERITY_SCAN_NOTIFICATION_EMAIL }}
+  COVERITY_SCAN_TOKEN:               ${{ secrets.COVERITY_SCAN_TOKEN }}
+  COVERITY_SCAN_PROJECT_NAME:        ${{ github.repository }}
+  COVERITY_SCAN_BUILD_COMMAND:       "make"
+  COVERITY_SCAN_BRANCH_PATTERN:      "main"
+  TRAVIS_BRANCH:                     ${{ github.ref_name }}
+
+jobs:
+  linux:
+    name: Coverity
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: Clone the git repo
+        uses: actions/checkout@v3
+
+      - name: Install apt packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen
+       
+      - name: Install pip packages
+        run: pip install -r third_party/requirements.txt
+
+      - name: Configure CMake
+        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON
+
+      - name: Generate source from spec, check for uncommitted diff
+        run: |
+          cmake --build $WORKDIR/build --target check-generated
+      - name: Run Coverity
+        run: |
+          cd $WORKDIR/build
+          wget https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh
+          patch < "../.github/scripts/0001-travis-fix-travisci_build_coverity_scan.sh.patch"
+          bash ./travisci_build_coverity_scan.sh
