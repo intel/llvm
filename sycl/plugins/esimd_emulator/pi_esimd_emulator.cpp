@@ -2026,21 +2026,15 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
 }
 
 /// Host Pipes
-pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
-                                   const char *pipe_symbol, pi_bool blocking,
-                                   void *ptr, size_t size,
-                                   pi_uint32 num_events_in_waitlist,
-                                   const pi_event *events_waitlist,
-                                   pi_event *event) {
+pi_result piextEnqueueReadHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                   void *, size_t, pi_uint32, const pi_event *,
+                                   pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
-                                    const char *pipe_symbol, pi_bool blocking,
-                                    void *ptr, size_t size,
-                                    pi_uint32 num_events_in_waitlist,
-                                    const pi_event *events_waitlist,
-                                    pi_event *event) {
+pi_result piextEnqueueWriteHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                    void *, size_t, pi_uint32, const pi_event *,
+                                    pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -2110,8 +2104,7 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                  uint64_t *hostTime) {
+pi_result piGetDeviceAndHostTimer(pi_device, uint64_t *, uint64_t *) {
   PiTrace(
       "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
   return PI_SUCCESS;

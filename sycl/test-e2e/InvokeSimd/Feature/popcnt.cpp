@@ -2,8 +2,9 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 //
-// TODO: enable after simd_mask supported
-// XFAIL: gpu
+// NOTE: The feature is not yet supported, there is a discussion on the
+// feasibility of tests
+// REQUIRES: TEMPORARY_DISABLED
 //
 // Check that full compilation works:
 // RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out

@@ -70,6 +70,12 @@ using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
 template <typename T>
 using is_gengeodouble = is_contained<T, gtl::geo_double_list>;
 
+template <typename T>
+using is_gengeomarrayfloat = is_contained<T, gtl::marray_geo_float_list>;
+
+template <typename T>
+using is_gengeomarray = is_contained<T, gtl::marray_geo_list>;
+
 template <typename T> using is_gengeohalf = is_contained<T, gtl::geo_half_list>;
 
 template <typename T>
@@ -96,6 +102,9 @@ using is_gencrosshalf = is_contained<T, gtl::cross_half_list>;
 
 template <typename T>
 using is_gencross = is_contained<T, gtl::cross_floating_list>;
+
+template <typename T>
+using is_gencrossmarray = is_contained<T, gtl::cross_marray_list>;
 
 template <typename T>
 using is_charn = is_contained<T, gtl::vector_default_char_list>;

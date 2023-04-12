@@ -37,6 +37,9 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   sycl::accessor<int, 3, sycl::access::mode::read_write,
                  sycl::access::target::host_buffer>
       HAcc3D;
+  sycl::host_accessor<int, 1> HAcc1D_2020;
+  sycl::host_accessor<int, 2> HAcc2D_2020;
+  sycl::host_accessor<int, 3> HAcc3D_2020;
 
   CallableT<decltype(Plt)>()(Plt);
   CallableT<decltype(Dev)>()(Dev);
@@ -54,6 +57,9 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   CallableT<decltype(HAcc1D)>()(HAcc1D);
   CallableT<decltype(HAcc2D)>()(HAcc2D);
   CallableT<decltype(HAcc3D)>()(HAcc3D);
+  CallableT<decltype(HAcc1D_2020)>()(HAcc1D_2020);
+  CallableT<decltype(HAcc2D_2020)>()(HAcc2D_2020);
+  CallableT<decltype(HAcc3D_2020)>()(HAcc3D_2020);
 
   Q.submit([&](sycl::handler &CGH) {
     sycl::accessor DAcc1D{Buf1D, CGH, sycl::read_only};
@@ -62,6 +68,7 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
     sycl::local_accessor<int> LAcc1D{1, CGH};
     sycl::local_accessor<int, 2> LAcc2D{sycl::range<2>{1, 2}, CGH};
     sycl::local_accessor<int, 3> LAcc3D{sycl::range<3>{1, 2, 3}, CGH};
+    sycl::stream Stream{1024, 32, CGH};
 
     CallableT<decltype(DAcc1D)>()(DAcc1D);
     CallableT<decltype(DAcc2D)>()(DAcc2D);
@@ -69,6 +76,7 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
     CallableT<decltype(LAcc1D)>()(LAcc1D);
     CallableT<decltype(LAcc2D)>()(LAcc2D);
     CallableT<decltype(LAcc3D)>()(LAcc3D);
+    CallableT<decltype(Stream)>()(Stream);
   });
 }
 
@@ -120,6 +128,12 @@ void runTestMulti(sycl::queue Q1) {
   sycl::accessor<int, 3, sycl::access::mode::read_write,
                  sycl::access::target::host_buffer>
       HAcc3D2;
+  sycl::host_accessor<int, 1> HAcc1D1_2020;
+  sycl::host_accessor<int, 2> HAcc2D1_2020;
+  sycl::host_accessor<int, 3> HAcc3D1_2020;
+  sycl::host_accessor<int, 1> HAcc1D2_2020;
+  sycl::host_accessor<int, 2> HAcc2D2_2020;
+  sycl::host_accessor<int, 3> HAcc3D2_2020;
 
   CallableT<decltype(Ctx1)>()(Ctx1, Ctx2);
   CallableT<decltype(Q1)>()(Q1, Q2);
@@ -135,6 +149,9 @@ void runTestMulti(sycl::queue Q1) {
   CallableT<decltype(HAcc1D1)>()(HAcc1D1, HAcc1D2);
   CallableT<decltype(HAcc2D1)>()(HAcc2D1, HAcc2D2);
   CallableT<decltype(HAcc3D1)>()(HAcc3D1, HAcc3D2);
+  CallableT<decltype(HAcc1D1_2020)>()(HAcc1D1_2020, HAcc1D2_2020);
+  CallableT<decltype(HAcc2D1_2020)>()(HAcc2D1_2020, HAcc2D2_2020);
+  CallableT<decltype(HAcc3D1_2020)>()(HAcc3D1_2020, HAcc3D2_2020);
 
   Q1.submit([&](sycl::handler &CGH) {
     sycl::accessor DAcc1D1{Buf1D1, CGH, sycl::read_only};
@@ -149,6 +166,8 @@ void runTestMulti(sycl::queue Q1) {
     sycl::local_accessor<int, 2> LAcc2D2{sycl::range<2>{1, 2}, CGH};
     sycl::local_accessor<int, 3> LAcc3D1{sycl::range<3>{1, 2, 3}, CGH};
     sycl::local_accessor<int, 3> LAcc3D2{sycl::range<3>{1, 2, 3}, CGH};
+    sycl::stream Stream1{1024, 32, CGH};
+    sycl::stream Stream2{1024, 32, CGH};
 
     CallableT<decltype(DAcc1D1)>()(DAcc1D1, DAcc1D2);
     CallableT<decltype(DAcc2D1)>()(DAcc2D1, DAcc2D2);
@@ -156,5 +175,6 @@ void runTestMulti(sycl::queue Q1) {
     CallableT<decltype(LAcc1D1)>()(LAcc1D1, LAcc1D2);
     CallableT<decltype(LAcc2D1)>()(LAcc2D1, LAcc2D2);
     CallableT<decltype(LAcc3D1)>()(LAcc3D1, LAcc3D2);
+    CallableT<decltype(Stream1)>()(Stream1, Stream2);
   });
 }
