@@ -22,8 +22,8 @@
 #include <iostream>
 #include <type_traits>
 
-/* Subgroup size attribute is optional
- * In case it is absent compiler decides what subgroup size to use
+/* Subgroup size attribute is optional.
+ * In case it is absent compiler decides what subgroup size to use.
  */
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
@@ -77,8 +77,8 @@ int main() {
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
 
-  float *A = static_cast<float *>(malloc_shared(Size * sizeof(float), q));
-  float *B = static_cast<float *>(malloc_shared(Size * sizeof(float), q));
+  auto *A = malloc_shared<float>(Size, q);
+  auto *B = malloc_shared<float>(Size, q);
 
   for (unsigned i = 0; i < Size; ++i) {
     A[i] = i;

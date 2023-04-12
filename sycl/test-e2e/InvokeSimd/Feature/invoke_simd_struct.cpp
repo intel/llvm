@@ -25,8 +25,8 @@
 #include <iostream>
 #include <type_traits>
 
-/* Subgroup size attribute is optional
- * In case it is absent compiler decides what subgroup size to use
+/* Subgroup size attribute is optional.
+ * In case it is absent compiler decides what subgroup size to use.
  */
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
@@ -53,19 +53,19 @@ template <class TZ, class TY, class TX> struct trio {
   TX x;
 };
 
-template <class StructTY>
+template <class StructTy>
 __attribute__((always_inline)) esimd::simd<float, VL>
-ESIMD_CALLEE(float *A, int i, StructTY S) SYCL_ESIMD_FUNCTION {
+ESIMD_CALLEE(float *A, int i, StructTy S) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> a;
   a.copy_from(A + i);
   return a * S.x;
 }
 
-template <class StructTY>
+template <class StructTy>
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL
     simd<float, VL> __regcall SIMD_CALLEE(float *A, int i,
-                                          StructTY S) SYCL_ESIMD_FUNCTION {
-  esimd::simd<float, VL> res = ESIMD_CALLEE<StructTY>(A, i, S);
+                                          StructTy S) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> res = ESIMD_CALLEE<StructTy>(A, i, S);
   return res;
 }
 
@@ -79,34 +79,29 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 4 * VL;
 
-  auto dev = q.get_device();
-  auto ctx = q.get_context();
-
-  float *A =
-      static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctx));
-  float *C =
-      static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctx));
+  auto *A = malloc_shared<float>(Size, q);
+  auto *C = malloc_shared<float>(Size, q);
 
   for (unsigned i = 0; i < Size; ++i) {
     A[i] = i;
     C[i] = -1;
   }
 
-  // solo case, declared outside parallel_for
-  // could be represented internally as a basic type value
+  // Solo case, declared outside parallel_for.
+  // Could be represented internally as a basic type value.
   auto uno = solo<float>{-1.0};
 
-  // duo same type case, declared inside parallel_for
-  // could be represented internally as an array
+  // Duo same type case, declared inside parallel_for.
+  // Could be represented internally as an array.
   float X = -1.0;
   float Y = 2;
 
-  // duo case, declared outside parallel_for
-  // could be represented internally as a tuple
+  // Duo case, declared outside parallel_for.
+  // Could be represented internally as a tuple.
   auto dos = duo<char, float>{2, -1.0};
 
-  // trio case, declared outside parallel_for
-  // not quite sure how exactly this one will be represented internally
+  // Trio case, declared outside parallel_for.
+  // Could be represented internally as a tuple.
   auto tres = trio<char, int, float>{2, 10, -1.0};
 
   sycl::range<1> GlobalRange{Size};
@@ -149,8 +144,8 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
     });
     e.wait();
   } catch (sycl::exception const &e) {
-    sycl::free(A, ctx);
-    sycl::free(C, ctx);
+    sycl::free(A, q);
+    sycl::free(C, q);
 
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.code().value();
@@ -172,8 +167,8 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
               << (Size - err_cnt) << "/" << Size << ")\n";
   }
 
-  sycl::free(A, ctx);
-  sycl::free(C, ctx);
+  sycl::free(A, q);
+  sycl::free(C, q);
 
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt == 0;

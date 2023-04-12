@@ -17,12 +17,11 @@
  *
  * Test case description:
  * -----------------------------
- * This is a simple test case that defines a struct named
- * multipliers with 2 int members, x and y. Suppose these
- * members represent values by which we want to scale the
- * addtion of vectors A + B. That is, we want to compute
- * C = A + B * x * y (the sum of A + B scaled by x,
- * and then scaled by y).
+ * This is a simple test that defines a struct called 'multipliers' with 2 int
+ * members, x and y. The pointer to an instance of this structure is passed to
+ * a function called by invoke_simd. This function multiplies the vector B by
+ * both x and y and adds the resulting value to the vector A. The result of the
+ * addition is returned and stored in C.
  */
 
 #include <sycl/ext/intel/esimd.hpp>
@@ -33,8 +32,8 @@
 #include <iostream>
 #include <type_traits>
 
-/* Subgroup size attribute is optional
- * In case it is absent compiler decides what subgroup size to use
+/* Subgroup size attribute is optional.
+ * In case it is absent compiler decides what subgroup size to use.
  */
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
@@ -51,13 +50,12 @@ struct multipliers {
   int y;
 };
 
-/* Performs the addition of vectors A + B scaled by scalars->x and scalars->y. */
+/* Performs: A + B * scalars->x * scalars->y. */
 __attribute__((always_inline)) esimd::simd<int, VL>
 ESIMD_CALLEE(int *A, esimd::simd<int, VL> b, int i,
              multipliers *scalars) SYCL_ESIMD_FUNCTION {
   esimd::simd<int, VL> a;
   a.copy_from(A + i);
-  // Add vectors A + B and scale them by x and y.
   return a + b * scalars->x * scalars->y;
 }
 
@@ -72,8 +70,6 @@ int SPMD_CALLEE(int *A, int b, int i, multipliers *scalars) {
 
 using namespace sycl;
 
-constexpr bool use_invoke_simd = true;
-
 int main(void) {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 4 * VL;
@@ -82,11 +78,10 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
-  auto ctx = q.get_context();
 
-  int *A = static_cast<int *>(malloc_shared(Size * sizeof(int), dev, ctx));
-  int *B = static_cast<int *>(malloc_shared(Size * sizeof(int), dev, ctx));
-  int *C = static_cast<int *>(malloc_shared(Size * sizeof(int), dev, ctx));
+  auto *A = malloc_shared<int>(Size, q);
+  auto *B = malloc_shared<int>(Size, q);
+  auto *C = malloc_shared<int>(Size, q);
 
   for (unsigned i = 0; i < Size; ++i) {
     A[i] = B[i] = i;
@@ -94,8 +89,7 @@ int main(void) {
   }
 
   // USM shared memory allocation for a struct multipliers.
-  multipliers *scalars = static_cast<multipliers *>(
-      malloc_shared(sizeof(multipliers), dev, ctx));
+  auto *scalars  = malloc_shared<multipliers>(Size, q);
   scalars->x = 2;
   scalars->y = 3;
 
@@ -115,21 +109,17 @@ int main(void) {
         uint32_t wi_id = i + sg.get_local_id();
         int res;
 
-        if constexpr (use_invoke_simd) {
-          res = invoke_simd(sg, SIMD_CALLEE, uniform{A}, B[wi_id], uniform{i},
-                            uniform{scalars});
-        } else {
-          res = SPMD_CALLEE(A, B[wi_id], wi_id, scalars);
-        }
+        res = invoke_simd(sg, SIMD_CALLEE, uniform{A}, B[wi_id], uniform{i},
+                          uniform{scalars});
         C[wi_id] = res;
       });
     });
     e.wait();
   } catch (sycl::exception const &e) {
-    sycl::free(scalars, ctx);
-    sycl::free(A, ctx);
-    sycl::free(B, ctx);
-    sycl::free(C, ctx);
+    sycl::free(scalars, q);
+    sycl::free(A, q);
+    sycl::free(B, q);
+    sycl::free(C, q);
 
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.code().value();
@@ -151,10 +141,10 @@ int main(void) {
               << (Size - err_cnt) << "/" << Size << ")\n";
   }
 
-  sycl::free(scalars, ctx);
-  sycl::free(A, ctx);
-  sycl::free(B, ctx);
-  sycl::free(C, ctx);
+  sycl::free(scalars, q);
+  sycl::free(A, q);
+  sycl::free(B, q);
+  sycl::free(C, q);
 
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt > 0 ? 1 : 0;
