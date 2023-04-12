@@ -8,7 +8,6 @@
 
 #include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
 
-#include <algorithm>
 #include <numeric>
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
@@ -1511,17 +1510,15 @@ struct EraseSPIRVBuiltinPattern
     if (!parent)
       return failure();
     const auto name = global.getName();
-    auto &region = parent->getRegion(0);
-    bool alreadyDefined =
-        std::any_of(region.begin(), region.end(), [&](auto &block) {
-          return std::any_of(block.begin(), block.end(), [&](auto &op) {
-            if (&op == global.getOperation())
-              return false;
-            auto nameAttr = op.template getAttrOfType<StringAttr>(
-                mlir::SymbolTable::getSymbolAttrName());
-            return nameAttr && nameAttr.getValue() == name;
-          });
-        });
+    bool alreadyDefined = llvm::any_of(parent->getRegion(0), [&](auto &block) {
+      return llvm::any_of(block, [&](auto &op) {
+        if (&op == global.getOperation())
+          return false;
+        auto nameAttr = op.template getAttrOfType<StringAttr>(
+            mlir::SymbolTable::getSymbolAttrName());
+        return nameAttr && nameAttr.getValue() == name;
+      });
+    });
     if (!alreadyDefined)
       return failure();
     rewriter.eraseOp(global);
