@@ -3305,8 +3305,12 @@ struct hash<sycl::host_accessor<DataT, Dimensions, AccessMode>> {
   using AccType = sycl::host_accessor<DataT, Dimensions, AccessMode>;
 
   size_t operator()(const AccType &A) const {
-#ifndef __SYCL_DEVICE_ONLY__
-    // getSyclObjImpl() here returns a pointer to either AccessorImplHost
+#ifdef __SYCL_DEVICE_ONLY__
+    // Hash is not supported on DEVICE. Just return 0 here.
+    (void)A;
+    return 0;
+#else
+    // getSyclObjImpl() here returns a pointer to AccessorImplHost.
     auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
     return hash<decltype(AccImplPtr)>()(AccImplPtr);
 #endif
