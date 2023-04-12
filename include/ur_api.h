@@ -3230,11 +3230,25 @@ typedef enum ur_kernel_sub_group_info_t {
 } ur_kernel_sub_group_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel Cache Configuartion.
+typedef enum ur_kernel_cache_config_t {
+    UR_KERNEL_CACHE_CONFIG_DEFAULT = 0,    ///< No preference for SLM or data cache.
+    UR_KERNEL_CACHE_CONFIG_LARGE_SLM = 1,  ///< Large Shared Local Memory (SLM) size.
+    UR_KERNEL_CACHE_CONFIG_LARGE_DATA = 2, ///< Large General Data size.
+    /// @cond
+    UR_KERNEL_CACHE_CONFIG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_kernel_cache_config_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Set additional Kernel execution information
 typedef enum ur_kernel_exec_info_t {
     UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS = 0, ///< Kernel might access data through USM pointer, type bool_t*
     UR_KERNEL_EXEC_INFO_USM_PTRS = 1,            ///< Provide an explicit list of USM pointers that the kernel will access,
                                                  ///< type void*[].
+    UR_KERNEL_EXEC_INFO_CACHE_CONFIG = 2,        ///< Provide the preferred cache configuration, type
+                                                 ///< ::ur_kernel_cache_config_t
     /// @cond
     UR_KERNEL_EXEC_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3417,7 +3431,7 @@ urKernelSetArgPointer(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_EXEC_INFO_USM_PTRS < propName`
+///         + `::UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 UR_APIEXPORT ur_result_t UR_APICALL
