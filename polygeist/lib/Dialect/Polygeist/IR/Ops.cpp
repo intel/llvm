@@ -572,7 +572,7 @@ public:
     auto dims = srcMemRefType.getShape().size();
 
     // For now, restrict subview lowering to statically defined memref's
-    if (!srcMemRefType.hasStaticShape() | !resMemRefType.hasStaticShape())
+    if (!srcMemRefType.hasStaticShape() || !resMemRefType.hasStaticShape())
       return failure();
 
     // For now, restrict to simple rank-reducing indexing
