@@ -912,18 +912,17 @@ Table {counter: tableNumber}. Queue info query
 Events returned from queue submissions when a queue is in the recording state
 may only be used as parameters to `handler::depends_on()` or as dependent
 events for queue shortcuts like `queue::parallel_for()` for submissions which
-are being recorded to the same modifiable `command_graph`. These events have
-status `info::event_command_status::complete`. The event status of an event
-returned from an executable graph submission will have
-`info::event_command_status::running` once any command group node starts
-executing on a device, and status `info::event_command_status::complete`
-once all the nodes have finished execution.
+are being recorded to the same modifiable `command_graph`.
+
+Calling `event::get_info<info::event::command_execution_status>()` or
+`event::get_profiling_info()` on an event returned from a queue submission
+recorded to a graph will throw synchronously with error code `invalid`.
 
 Waiting on an event returned from a queue submission recorded to a graph
 will throw synchronously with error code `invalid`.
 
-Calling `queue::wait()` on a queue in the recording state is an error and
-will throw synchronously with error code `invalid`.
+Waiting on a queue in the recording state is an error and will throw
+synchronously with error code `invalid`.
 
 ==== Queue Properties
 
@@ -977,6 +976,10 @@ event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 |Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::ext_oneapi_graph(graph)`.
 
+The command status of the event returned will be
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete` once
+all the nodes have finished execution.
 |
 [source,c++]
 ----
@@ -988,6 +991,10 @@ event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
 containing `handler::depends_on(depEvent)` and
 `handler::ext_oneapi_graph(graph)`.
 
+The command status of the event returned will be
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete` once
+all the nodes have finished execution.
 |
 [source,c++]
 ----
@@ -998,6 +1005,11 @@ event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
 |Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::depends_on(depEvents)` and
 `handler::ext_oneapi_graph(graph)`.
+
+The command status of the event returned will be
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete` once
+all the nodes have finished execution.
 |===
 
 ==== New Handler Member Functions
