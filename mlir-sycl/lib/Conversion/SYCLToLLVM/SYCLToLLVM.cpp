@@ -471,7 +471,7 @@ public:
   using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
 
   LogicalResult match(Op op) const final {
-    return success(op.getNumOperands() == 1 && isa<IntegerType>(op.getType()));
+    return success(op.getNumOperands() == 1 && op.getType().isIntOrIndex());
   }
 
   void rewrite(Op op, OpAdaptor adaptor,
@@ -1564,7 +1564,7 @@ public:
   using LoadMemberDimPattern<SYCLIDGetOp, IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLIDGetOp op) const final {
-    return success(op.getNumOperands() > 1 && isa<IntegerType>(op.getType()));
+    return success(op.getNumOperands() > 1 && op.getType().isIntOrIndex());
   }
 };
 
