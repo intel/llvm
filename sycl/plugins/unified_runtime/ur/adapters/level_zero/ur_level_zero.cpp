@@ -282,7 +282,7 @@ ur_result_t urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<pi_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
@@ -1043,7 +1043,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
-    if (Device->ImmCommandListUsed)
+    if (Device->useImmediateCommandLists())
       return std::pair<int, int>(-1, -1);   // No copy engines can be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
@@ -1079,7 +1079,7 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 // The default is standard commandlists. Setting 1 or 2 specifies use of
 // immediate commandlists.
 
-// Get value of immediate commandlists env var setting or -1 if unset
+// Get value of immediate commandlists env var setting or -1 if unset.
 _ur_device_handle_t::ImmCmdlistMode
 _ur_device_handle_t::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
@@ -1291,7 +1291,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
-  std::shared_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
@@ -1306,7 +1306,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
 // Check the device cache and load it if necessary.
 ur_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
-  std::scoped_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::scoped_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return UR_RESULT_SUCCESS;

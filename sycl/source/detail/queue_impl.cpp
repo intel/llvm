@@ -526,6 +526,16 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
+pi_native_handle queue_impl::getNative2(int32_t &NativeHandleDesc) const {
+  const detail::plugin &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
+  pi_native_handle Handle{};
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle2>(MQueues[0], &Handle,
+                                                     &NativeHandleDesc);
+  return Handle;
+}
+
 bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.

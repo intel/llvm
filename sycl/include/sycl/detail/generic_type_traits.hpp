@@ -70,6 +70,12 @@ using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
 template <typename T>
 using is_gengeodouble = is_contained<T, gtl::geo_double_list>;
 
+template <typename T>
+using is_gengeomarrayfloat = is_contained<T, gtl::marray_geo_float_list>;
+
+template <typename T>
+using is_gengeomarray = is_contained<T, gtl::marray_geo_list>;
+
 template <typename T> using is_gengeohalf = is_contained<T, gtl::geo_half_list>;
 
 template <typename T>
@@ -96,6 +102,9 @@ using is_gencrosshalf = is_contained<T, gtl::cross_half_list>;
 
 template <typename T>
 using is_gencross = is_contained<T, gtl::cross_floating_list>;
+
+template <typename T>
+using is_gencrossmarray = is_contained<T, gtl::cross_marray_list>;
 
 template <typename T>
 using is_charn = is_contained<T, gtl::vector_default_char_list>;
@@ -232,10 +241,29 @@ using is_genintptr = bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+using is_genintptr_marray = bool_constant<
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    is_genint<marray_element_t<remove_pointer_t<T>>>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
+
 template <typename T>
 using is_genfloatptr = bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+using is_genfloatptr_marray = bool_constant<
+    is_mgenfloat<T>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
 
 template <typename T>
 using is_genptr = bool_constant<
