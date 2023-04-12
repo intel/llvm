@@ -780,7 +780,6 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 }
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
-
                                     const AliasAnalysis &aliasAnalysis,
                                     const DominanceInfo &domInfo) {
   Operation *loopOp = loop;

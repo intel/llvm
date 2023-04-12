@@ -84,7 +84,7 @@ class SYCL_Op<string mnemonic, list<Trait> traits = []>
 
 class SYCLMethodOpInterfaceImpl<
     string mnemonic, string type, list<string> methodNames, list<Trait> traits = []>
-        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface, CallOpInterface])> {
+        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface])> {
   string baseType = type;
   list<string> memberFunctionNames = methodNames;
   int arrSize = !size(memberFunctionNames);
@@ -95,21 +95,6 @@ class SYCLMethodOpInterfaceImpl<
      }};
     static ::mlir::TypeID getTypeID() { return ::mlir::sycl::}] # type # [{::getTypeID(); }
     static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
-
-    Operation::operand_iterator arg_operand_begin() { return (*this)->operand_begin(); }
-    Operation::operand_iterator arg_operand_end() { return (*this)->operand_end(); }
-
-    /// Return the callee of the generic SYCL call operation, this is required
-    /// by the call interface.
-    CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
-    }
-
-    /// Get the argument operands to the called function, this is required by
-    /// the call interface.
-    Operation::operand_range getArgOperands() {
-      return {arg_operand_begin(), arg_operand_end()};
-    }
   }];
 
   let extraClassDefinition = [{

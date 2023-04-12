@@ -16,6 +16,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
+#include <variant>
 
 namespace mlir {
 class AffineForOp;
@@ -57,37 +58,32 @@ public:
   };
 
   /// Create a loop versioning condition for SCF loops.
-  LoopVersionCondition(SCFCondition scfCond)
-      : versionCondition({scfCond, std::nullopt}) {}
+  LoopVersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
 
   LoopVersionCondition(AffineCondition affineCond)
-      : versionCondition({std::nullopt, affineCond}) {}
+      : versionCondition(affineCond) {}
 
-  bool hasSCFCondition() const { return versionCondition.scfCond.has_value(); }
-  bool hasAffineCondition() const {
-    return versionCondition.affineCond.has_value();
+  bool hasSCFCondition() const {
+    return std::holds_alternative<SCFCondition>(versionCondition);
   }
-
   SCFCondition getSCFCondition() const {
     assert(hasSCFCondition() && "expecting valid SCF condition");
-    return *versionCondition.scfCond;
+    return std::get<SCFCondition>(versionCondition);
+  }
+
+  bool hasAffineCondition() const {
+    return std::holds_alternative<AffineCondition>(versionCondition);
   }
   AffineCondition getAffineCondition() const {
     assert(hasAffineCondition() && "expecting valid affine condition");
-    return *versionCondition.affineCond;
+    return std::get<AffineCondition>(versionCondition);
   }
 
 private:
-  struct VersionCondition {
-    VersionCondition(Optional<SCFCondition> scfCond,
-                     Optional<AffineCondition> affineCond)
-        : scfCond(scfCond), affineCond(affineCond) {}
-    Optional<SCFCondition> scfCond;
-    Optional<AffineCondition> affineCond;
-  } versionCondition;
+  std::variant<SCFCondition, AffineCondition> versionCondition;
 };
 
-/// Abstract base class to version a loop like operation.
+/// Version a loop like operation.
 class LoopVersionBuilder {
 public:
   LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
@@ -225,11 +221,11 @@ private:
 class LoopTools {
 public:
   /// Guard the given loop \p loop.
-  void guardLoop(LoopLikeOpInterface loop);
+  void guardLoop(LoopLikeOpInterface loop) const;
 
   /// Version the given loop \p loop using the condition \p versionCond.
   void versionLoop(LoopLikeOpInterface loop,
-                   const LoopVersionCondition &versionCond);
+                   const LoopVersionCondition &versionCond) const;
 };
 
 } // namespace mlir

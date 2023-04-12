@@ -291,9 +291,9 @@ operator<<(llvm::raw_ostream &OS, const InlineHeuristic &Heuristic) {
 class Inliner : public InlinerInterface {
 public:
   Inliner(MLIRContext *Ctx, CallGraph &CG, SymbolTableCollection &SymTable,
-          const InlineHeuristic &Heuristic, bool InlineSYCLMethodOps)
+          const InlineHeuristic &Heuristic)
       : InlinerInterface(Ctx), CG(CG), SymbolTable(SymTable),
-        Heuristic(Heuristic), InlineSYCLMethodOps(InlineSYCLMethodOps) {}
+        Heuristic(Heuristic) {}
 
   ResolvedCall &getCall(unsigned Index) {
     assert(Index < Calls.size() && "Out of bound index");
@@ -360,9 +360,6 @@ private:
 
   /// The inline heuristic controlling when to inline a call edge.
   const InlineHeuristic &Heuristic;
-
-  /// Whether to inline SYCLMethodOp operations.
-  const bool InlineSYCLMethodOps;
 };
 
 class InlinePass : public sycl::impl::InlinePassBase<InlinePass> {
@@ -707,14 +704,6 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
     LLVM_DEBUG(llvm::dbgs() << "* Inlining call: " << I << ". "
                             << ResolvedCall.Call << "\n");
 
-    if (auto Method = dyn_cast<sycl::SYCLMethodOpInterface>(
-            ResolvedCall.Call.getOperation())) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "* Adapting argument of SYCLMethodOpInterface...");
-      OpBuilder Builder(Method);
-      Method->setOperands(sycl::adaptArgumentsForSYCLCall(Builder, Method));
-    }
-
     Region *TgtRegion = ResolvedCall.TgtNode->getCallableRegion();
     LogicalResult InlineRes =
         inlineCall(Inliner, ResolvedCall.Call,
@@ -766,8 +755,6 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
       return false;
 
     const auto *Op = Call.getOperation();
-    if (!InlineSYCLMethodOps && isa<sycl::SYCLMethodOpInterface>(Op))
-      return false;
 
     // Always inline calls to "alwaysinline" functions.
     if (const auto PassThroughAttrs = getPassThroughAttrs(Call);
@@ -781,8 +768,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
     case sycl::InlineMode::Ludicrous:
       return true;
     case sycl::InlineMode::Aggressive:
-      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp,
-                 sycl::SYCLMethodOpInterface>(Op);
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Op);
     case sycl::InlineMode::Simple:
       return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Op);
     case sycl::InlineMode::AlwaysInline:
@@ -817,7 +803,7 @@ void InlinePass::runOnOperation() {
   SymbolTableCollection SymTable;
   CGUseList UseList(getOperation(), CG, SymTable);
   InlineHeuristic Heuristic(InlineMode);
-  Inliner Inliner(Ctx, CG, SymTable, Heuristic, InlineSYCLMethodOps);
+  Inliner Inliner(Ctx, CG, SymTable, Heuristic);
 
   LLVM_DEBUG(llvm::dbgs() << "Inline Heuristic: " << Heuristic << "\n");
 

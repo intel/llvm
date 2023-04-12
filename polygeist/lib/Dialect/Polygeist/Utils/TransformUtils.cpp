@@ -391,11 +391,11 @@ AffineMap AffineParallelGuardBuilder::getUpperBoundsMap() const {
 // Loop Tools
 //===----------------------------------------------------------------------===//
 
-void LoopTools::guardLoop(LoopLikeOpInterface loop) {
+void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
   LoopGuardBuilder::create(loop)->guardLoop();
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const LoopVersionCondition &versionCond) {
+                            const LoopVersionCondition &versionCond) const {
   LoopVersionBuilder(loop).versionLoop(versionCond);
 }
