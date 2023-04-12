@@ -132,7 +132,7 @@ struct first_symbol_in_high_order_bits_key {
                                            std::bool_constant<HighOrder>>;
 };
 
-enum class protocol_name : std::uint16_t {
+enum class protocol_name : /* unspecified */ {
   AVALON_STREAMING = 0,
   AVALON_STREAMING_USES_READY = 1,
   AVALON_MM = 2,
@@ -187,24 +187,24 @@ Default value: 8
 
 Describes how the data is broken into symbols on the data bus.
 
-Data is broken down according to how you set the first_symbol_in_high_order_bits
+Data is broken down according to how you set the `first_symbol_in_high_order_bits`
 property. By default, data is broken down in little endian order.
 
 This property is not guaranteed to be respected if the pipe is an inter-kernel
 pipe. The compiler is allowed to optimize the pipe if both sides are visible.
 
 |`uses_valid`
-| Valid values: true or false
+| Valid values: `true` or `false`
 
-Default value: true
+Default value: `true`
 
-Controls whether a valid signal is present on the pipe interface. If false, the
+Controls whether a valid signal is present on the pipe interface. If `false`, the
 upstream source must provide valid data on every cycle that ready is asserted.
 
 This is equivalent to changing the pipe read calls to tryRead and assuming that
 success is always true.
 
-If set to false, the min_capacity pipe class template parameter and ready_latency
+If set to `false`, the `min_capacity` pipe class template parameter and `ready_latency`
 property must be 0.
 
 This property is not guaranteed to be respected if the pipe is an inter-kernel
@@ -247,7 +247,7 @@ With this protocol, an implicit ready signal is held high, and the sink cannot b
 
 Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
-With this protocol, an additional memory mapped location is created to hold the ready signal. You must set the uses_valid property to true.
+With this protocol, an additional memory mapped location is created to hold the ready signal. You must set the `uses_valid` property to `true`.
 
 The default protocol is *AVALON_STREAMING_USES_READY*
 |====
