@@ -30,7 +30,7 @@ def generate_registry(path, specs):
     try:
         existing_registry = list(util.yamlRead(path))[1]['etors']
         for etor in existing_registry:
-            valid_ids.discard(etor['value'])
+            valid_ids.discard(int(etor['value']))
             etors[etor['name']] = etor['value']
     except (TypeError, IndexError, KeyError) as e:
         print('invalid existing registry, ignoring... ' + str(e))
