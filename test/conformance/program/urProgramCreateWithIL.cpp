@@ -3,8 +3,18 @@
 
 #include <uur/fixtures.h>
 
-using urProgramCreateWithILTest = uur::urProgramILBinaryTest;
+struct urProgramCreateWithILTest : uur::urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+    }
 
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    std::shared_ptr<std::vector<char>> il_binary;
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramCreateWithILTest);
 
 TEST_P(urProgramCreateWithILTest, Success) {
