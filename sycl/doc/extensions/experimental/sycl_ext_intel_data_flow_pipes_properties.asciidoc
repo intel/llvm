@@ -133,10 +133,10 @@ struct first_symbol_in_high_order_bits_key {
 };
 
 enum class protocol_name : /* unspecified */ {
-  AVALON_STREAMING = 0,
-  AVALON_STREAMING_USES_READY = 1,
-  AVALON_MM = 2,
-  AVALON_MM_USES_READY = 3
+  avalon_streaming = 0,
+  avalon_streaming_uses_ready = 1,
+  avalon_mm = 2,
+  avalon_mm_uses_ready = 3
 };
 
 struct protocol_key {
@@ -201,7 +201,7 @@ Default value: `true`
 Controls whether a valid signal is present on the pipe interface. If `false`, the
 upstream source must provide valid data on every cycle that ready is asserted.
 
-This is equivalent to changing the pipe read calls to tryRead and assuming that
+This is equivalent to changing the pipe read calls to a non-blocking call and assuming that
 success is always true.
 
 If set to `false`, the `min_capacity` pipe class template parameter and `ready_latency`
@@ -223,33 +223,33 @@ pipe. The compiler is allowed to optimize the pipe if both sides are visible.
 
 |`protocol`
 | Specifies the protocol for the pipe interface. Currently, the protocols supported
-are: *AVALON_STREAMING*, *AVALON_STREAMING_USES_READY*, *AVALON_MM*, and *AVALON_MM_USES_READY*.
+are: *avalon_streaming*, *avalon_streaming_uses_ready*, *avalon_mm*, and *avalon_mm_uses_ready*.
 
-*AVALON_STREAMING*
+*avalon_streaming*
 
 Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
 With this choice of protocol, no ready signal is exposed by the host pipe, and the sink cannot backpressure.
 
-*AVALON_STREAMING_USES_READY*
+*avalon_streaming_uses_ready*
 
 Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
 This protocol allows the sink to backpressure by deasserting the ready signal asserted. The sink signifies that it is ready to consume data by asserting the ready signal. 
 
-*AVALON_MM*
+*avalon_mm*
 
 Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
 With this protocol, an implicit ready signal is held high, and the sink cannot backpressure.
 
-*AVALON_MM_USES_READY*
+*avalon_mm_uses_ready*
 
 Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
 With this protocol, an additional memory mapped location is created to hold the ready signal. You must set the `uses_valid` property to `true`.
 
-The default protocol is *AVALON_STREAMING_USES_READY*
+The default protocol is *avalon_streaming_uses_ready*
 |====
 --
 
