@@ -4995,6 +4995,12 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   // Walk the DeclTypeInfo, building the recursive type as we go.
   // DeclTypeInfos are ordered from the identifier out, which is
   // opposite of what we want :).
+
+  // Track if the produced type matches the structure of the declarator.
+  // This is used later to decide if we can fill `TypeLoc` from
+  // `DeclaratorChunk`s. E.g. it must be false if Clang recovers from
+  // an error by replacing the type with `int`.
+  bool AreDeclaratorChunksValid = true;
   for (unsigned i = 0, e = D.getNumTypeObjects(); i != e; ++i) {
     unsigned chunkIndex = e - i - 1;
     state.setCurrentChunkIndex(chunkIndex);
@@ -5188,6 +5194,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                        : diag::err_deduced_return_type);
             T = Context.IntTy;
             D.setInvalidType(true);
+            AreDeclaratorChunksValid = false;
           } else {
             S.Diag(D.getDeclSpec().getTypeSpecTypeLoc(),
                    diag::warn_cxx11_compat_deduced_return_type);
@@ -5198,6 +5205,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             S.Diag(D.getBeginLoc(), diag::err_trailing_return_in_parens)
                 << T << D.getSourceRange();
             D.setInvalidType(true);
+            // FIXME: recover and fill decls in `TypeLoc`s.
+            AreDeclaratorChunksValid = false;
           } else if (D.getName().getKind() ==
                      UnqualifiedIdKind::IK_DeductionGuideName) {
             if (T != Context.DependentTy) {
@@ -5205,6 +5214,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                      diag::err_deduction_guide_with_complex_decl)
                   << D.getSourceRange();
               D.setInvalidType(true);
+              // FIXME: recover and fill decls in `TypeLoc`s.
+              AreDeclaratorChunksValid = false;
             }
           } else if (D.getContext() != DeclaratorContext::LambdaExpr &&
                      (T.hasQualifiers() || !isa<AutoType>(T) ||
@@ -5215,6 +5226,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                    diag::err_trailing_return_without_auto)
                 << T << D.getDeclSpec().getSourceRange();
             D.setInvalidType(true);
+            // FIXME: recover and fill decls in `TypeLoc`s.
+            AreDeclaratorChunksValid = false;
           }
           T = S.GetTypeFromParser(FTI.getTrailingReturnType(), &TInfo);
           if (T.isNull()) {
@@ -5255,6 +5268,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         S.Diag(DeclType.Loc, diagID) << T->isFunctionType() << T;
         T = Context.IntTy;
         D.setInvalidType(true);
+        AreDeclaratorChunksValid = false;
       }
 
       // Do not allow returning half FP value.
@@ -5332,6 +5346,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ObjCObjectPointerTypeLoc TLoc = TLB.push<ObjCObjectPointerTypeLoc>(T);
           TLoc.setStarLoc(FixitLoc);
           TInfo = TLB.getTypeSourceInfo(Context, T);
+        } else {
+          AreDeclaratorChunksValid = false;
         }
 
         D.setInvalidType(true);
@@ -5452,6 +5468,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           T = (!LangOpts.requiresStrictPrototypes() && !LangOpts.OpenCL)
                   ? Context.getFunctionNoProtoType(T, EI)
                   : Context.IntTy;
+          AreDeclaratorChunksValid = false;
           break;
         }
 
@@ -5686,9 +5703,13 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       if (!ClsType.isNull())
         T = S.BuildMemberPointerType(T, ClsType, DeclType.Loc,
                                      D.getIdentifier());
+      else
+        AreDeclaratorChunksValid = false;
+
       if (T.isNull()) {
         T = Context.IntTy;
         D.setInvalidType(true);
+        AreDeclaratorChunksValid = false;
       } else if (DeclType.Mem.TypeQuals) {
         T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Mem.TypeQuals);
       }
@@ -5706,6 +5727,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     if (T.isNull()) {
       D.setInvalidType(true);
       T = Context.IntTy;
+      AreDeclaratorChunksValid = false;
     }
 
     // See if there are any attributes on this declarator chunk.
@@ -5964,9 +5986,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   }
 
   assert(!T.isNull() && "T must not be null at the end of this function");
-  if (D.isInvalidType())
+  if (!AreDeclaratorChunksValid)
     return Context.getTrivialTypeSourceInfo(T);
-
   return GetTypeSourceInfoForDeclarator(state, T, TInfo);
 }
 

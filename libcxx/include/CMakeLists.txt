@@ -302,7 +302,6 @@ set(files
   __coroutine/trivial_awaitables.h
   __debug
   __debug_utils/randomize_range.h
-  __errc
   __exception/exception.h
   __exception/exception_ptr.h
   __exception/nested_exception.h
@@ -569,7 +568,6 @@ set(files
   __ranges/views.h
   __ranges/zip_view.h
   __split_buffer
-  __std_stream
   __string/char_traits.h
   __string/constexpr_c_functions.h
   __string/extern_template_lists.h
@@ -589,6 +587,11 @@ set(files
   __support/xlocale/__nop_locale_mgmt.h
   __support/xlocale/__posix_l_fallback.h
   __support/xlocale/__strtonum_fallback.h
+  __system_error/errc.h
+  __system_error/error_category.h
+  __system_error/error_code.h
+  __system_error/error_condition.h
+  __system_error/system_error.h
   __thread/poll_with_backoff.h
   __thread/timed_backoff_policy.h
   __threading_support

@@ -15,30 +15,30 @@
 
 using namespace mlir;
 
-FailureOr<OpFoldResult> mlir::reifyValueBound(OpBuilder &b, Location loc,
-                                              presburger::BoundType type,
-                                              Value value,
-                                              std::optional<int64_t> dim) {
+FailureOr<OpFoldResult>
+mlir::reifyValueBound(OpBuilder &b, Location loc, presburger::BoundType type,
+                      Value value, std::optional<int64_t> dim, bool closedUB) {
   // We are trying to reify a bound for `value`. Construct a stop condition that
   // evaluates to "true" for any SSA value expect for `value`. I.e., the bound
-  // will be computed in terms of any SSA values expect for `value`. The first
+  // will be computed in terms of any SSA values except for `value`. The first
   // such values are operands of the owner of `value`.
-  auto stopCondition = [&](Value v) {
+  auto stopCondition = [&](Value v, std::optional<int64_t> d) {
     // Reify in terms of SSA values that are different from `value`.
     return v != value;
   };
-  return reifyValueBound(b, loc, type, value, dim, stopCondition);
+  return reifyValueBound(b, loc, type, value, dim, stopCondition, closedUB);
 }
 
-FailureOr<OpFoldResult>
-mlir::reifyValueBound(OpBuilder &b, Location loc, presburger::BoundType type,
-                      Value value, std::optional<int64_t> dim,
-                      function_ref<bool(Value)> stopCondition) {
+FailureOr<OpFoldResult> mlir::reifyValueBound(
+    OpBuilder &b, Location loc, presburger::BoundType type, Value value,
+    std::optional<int64_t> dim,
+    function_ref<bool(Value, std::optional<int64_t>)> stopCondition,
+    bool closedUB) {
   // Compute bound.
   AffineMap boundMap;
   ValueDimList mapOperands;
-  if (failed(ValueBoundsConstraintSet::computeBound(boundMap, mapOperands, type,
-                                                    value, dim, stopCondition)))
+  if (failed(ValueBoundsConstraintSet::computeBound(
+          boundMap, mapOperands, type, value, dim, stopCondition, closedUB)))
     return failure();
 
   // Materialize tensor.dim/memref.dim ops.

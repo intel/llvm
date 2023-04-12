@@ -1,3 +1,6 @@
+//
+// NOTE: this test requires gpu-sm80
+//
 // RUN: mlir-opt %s \
 // RUN:   --sparse-compiler="enable-runtime-library=false parallelization-strategy=dense-outer-loop gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71" \
 // RUN: | mlir-cpu-runner \

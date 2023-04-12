@@ -12,8 +12,8 @@
 
 #include <__availability>
 #include <__chrono/time_point.h>
+#include <__compare/ordering.h>
 #include <__config>
-#include <__errc>
 #include <__filesystem/file_status.h>
 #include <__filesystem/file_time_type.h>
 #include <__filesystem/file_type.h>
@@ -21,11 +21,12 @@
 #include <__filesystem/operations.h>
 #include <__filesystem/path.h>
 #include <__filesystem/perms.h>
+#include <__system_error/errc.h>
+#include <__system_error/error_code.h>
+#include <__utility/move.h>
 #include <__utility/unreachable.h>
 #include <cstdint>
-#include <cstdlib>
 #include <iosfwd>
-#include <system_error>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

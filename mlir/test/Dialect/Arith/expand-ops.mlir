@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -arith-expand -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -arith-expand="include-bf16=true" -split-input-file | FileCheck %s
 
 // Test ceil divide with signed integer
 // CHECK-LABEL:       func @ceildivi
@@ -209,9 +209,59 @@ func.func @minf(%a: f32, %b: f32) -> f32 {
   %result = arith.minf %a, %b : f32
   return %result : f32
 }
+
 // CHECK-SAME: %[[LHS:.*]]: f32, %[[RHS:.*]]: f32)
 // CHECK-NEXT: %[[CMP:.*]] = arith.cmpf ult, %[[LHS]], %[[RHS]] : f32
 // CHECK-NEXT: %[[SELECT:.*]] = arith.select %[[CMP]], %[[LHS]], %[[RHS]] : f32
 // CHECK-NEXT: %[[IS_NAN:.*]] = arith.cmpf uno, %[[RHS]], %[[RHS]] : f32
 // CHECK-NEXT: %[[RESULT:.*]] = arith.select %[[IS_NAN]], %[[RHS]], %[[SELECT]] : f32
 // CHECK-NEXT: return %[[RESULT]] : f32
+
+// -----
+
+func.func @truncf_f32(%arg0 : f32) -> bf16 {
+    %0 = arith.truncf %arg0 : f32 to bf16
+    return %0 : bf16
+}
+
+// CHECK-LABEL: @truncf_f32
+
+// CHECK-DAG: %[[C16:.+]] = arith.constant 16
+// CHECK-DAG: %[[C32768:.+]] = arith.constant 32768
+// CHECK-DAG: %[[C2130706432:.+]] = arith.constant 2130706432
+// CHECK-DAG: %[[C2139095040:.+]] = arith.constant 2139095040
+// CHECK-DAG: %[[C8388607:.+]] = arith.constant 8388607
+// CHECK-DAG: %[[C31:.+]] = arith.constant 31
+// CHECK-DAG: %[[C23:.+]] = arith.constant 23
+// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %arg0
+// CHECK-DAG: %[[SIGN:.+]] = arith.shrui %[[BITCAST:.+]], %[[C31]]
+// CHECK-DAG: %[[ROUND:.+]] = arith.subi %[[C32768]], %[[SIGN]]
+// CHECK-DAG: %[[MANTISSA:.+]] = arith.andi %[[BITCAST]], %[[C8388607]]
+// CHECK-DAG: %[[ROUNDED:.+]] = arith.addi %[[MANTISSA]], %[[ROUND]]
+// CHECK-DAG: %[[ROLL:.+]] = arith.shrui %[[ROUNDED]], %[[C23]]
+// CHECK-DAG: %[[SHR:.+]] = arith.shrui %[[ROUNDED]], %[[ROLL]]
+// CHECK-DAG: %[[EXP:.+]] = arith.andi %0, %[[C2139095040]]
+// CHECK-DAG: %[[EXPROUND:.+]] = arith.addi %[[EXP]], %[[ROUNDED]]
+// CHECK-DAG: %[[EXPROLL:.+]] = arith.andi %[[EXPROUND]], %[[C2139095040]]
+// CHECK-DAG: %[[EXPMAX:.+]] = arith.cmpi uge, %[[EXP]], %[[C2130706432]]
+// CHECK-DAG: %[[EXPNEW:.+]] = arith.select %[[EXPMAX]], %[[EXP]], %[[EXPROLL]]
+// CHECK-DAG: %[[OVERFLOW_B:.+]] = arith.trunci %[[ROLL]]
+// CHECK-DAG: %[[KEEP_MAN:.+]] = arith.andi %[[EXPMAX]], %[[OVERFLOW_B]]
+// CHECK-DAG: %[[MANNEW:.+]] = arith.select %[[KEEP_MAN]], %[[MANTISSA]], %[[SHR]]
+// CHECK-DAG: %[[NEWSIGN:.+]] = arith.shli %[[SIGN]], %[[C31]]
+// CHECK-DAG: %[[WITHEXP:.+]] = arith.ori %[[NEWSIGN]], %[[EXPNEW]]
+// CHECK-DAG: %[[WITHMAN:.+]] = arith.ori %[[WITHEXP]], %[[MANNEW]]
+// CHECK-DAG: %[[SHIFT:.+]] = arith.shrui %[[WITHMAN]], %[[C16]]
+// CHECK-DAG: %[[TRUNC:.+]] = arith.trunci %[[SHIFT]]
+// CHECK-DAG: %[[RES:.+]] = arith.bitcast %[[TRUNC]]
+// CHECK: return %[[RES]]
+
+// -----
+
+func.func @truncf_vector_f32(%arg0 : vector<4xf32>) -> vector<4xbf16> {
+    %0 = arith.truncf %arg0 : vector<4xf32> to vector<4xbf16>
+    return %0 : vector<4xbf16>
+}
+
+// CHECK-LABEL: @truncf_vector_f32
+// CHECK-NOT: arith.truncf

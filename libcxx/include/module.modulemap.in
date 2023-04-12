@@ -904,6 +904,7 @@ module std [system] {
         private header "__format/format_context.h"
         export optional
         export locale
+        export __locale
       }
       module format_error                    { private header "__format/format_error.h" }
       module format_functions                {
@@ -1433,7 +1434,24 @@ module std [system] {
   }
   module system_error {
     header "system_error"
+    export __errc
     export *
+    module __system_error {
+      module errc           { private header "__system_error/errc.h" }
+      module error_category { private header "__system_error/error_category.h" }
+      module error_code {
+        private header "__system_error/error_code.h"
+        export functional.__functional.hash
+        export functional.__functional.unary_function
+      }
+      module error_condition {
+        private header "__system_error/error_condition.h"
+        export functional.__functional.hash
+        export functional.__functional.unary_function
+      }
+      module system_error { private header "__system_error/system_error.h" }
+
+    }
   }
   module thread {
     @requires_LIBCXX_ENABLE_THREADS@
@@ -1699,7 +1717,6 @@ module std [system] {
   module __availability      { private header "__availability"      export * }
   module __bit_reference     { private header "__bit_reference"     export * }
   module __debug             {         header "__debug"             export * }
-  module __errc              { private header "__errc"              export * }
   module __hash_table        {         header "__hash_table"        export * }
   module __locale            {
     @requires_LIBCXX_ENABLE_LOCALIZATION@
@@ -1708,10 +1725,6 @@ module std [system] {
   module __mbstate_t         { private header "__mbstate_t.h"       export * }
   module __node_handle       { private header "__node_handle"       export * }
   module __split_buffer      { private header "__split_buffer"      export * }
-  module __std_stream        {
-    @requires_LIBCXX_ENABLE_LOCALIZATION@
-    private header "__std_stream" export *
-  }
   module __threading_support {         header "__threading_support" export * }
   module __tree              {         header "__tree"              export * }
   module __undef_macros      {         header "__undef_macros"      export * }

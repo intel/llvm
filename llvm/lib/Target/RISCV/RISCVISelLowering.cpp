@@ -577,7 +577,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
       // Mask VTs are custom-expanded into a series of standard nodes
       setOperationAction({ISD::TRUNCATE, ISD::CONCAT_VECTORS,
-                          ISD::INSERT_SUBVECTOR, ISD::EXTRACT_SUBVECTOR},
+                          ISD::INSERT_SUBVECTOR, ISD::EXTRACT_SUBVECTOR,
+                          ISD::SCALAR_TO_VECTOR},
                          VT, Custom);
 
       setOperationAction({ISD::INSERT_VECTOR_ELT, ISD::EXTRACT_VECTOR_ELT}, VT,
@@ -703,9 +704,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
            ISD::EXPERIMENTAL_VP_STRIDED_STORE, ISD::VP_GATHER, ISD::VP_SCATTER},
           VT, Custom);
 
-      setOperationAction(
-          {ISD::CONCAT_VECTORS, ISD::INSERT_SUBVECTOR, ISD::EXTRACT_SUBVECTOR},
-          VT, Custom);
+      setOperationAction({ISD::CONCAT_VECTORS, ISD::INSERT_SUBVECTOR,
+                          ISD::EXTRACT_SUBVECTOR, ISD::SCALAR_TO_VECTOR},
+                         VT, Custom);
 
       setOperationAction(ISD::SELECT, VT, Custom);
       setOperationAction(ISD::SELECT_CC, VT, Expand);
@@ -798,9 +799,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::SELECT, VT, Custom);
       setOperationAction(ISD::SELECT_CC, VT, Expand);
 
-      setOperationAction(
-          {ISD::CONCAT_VECTORS, ISD::INSERT_SUBVECTOR, ISD::EXTRACT_SUBVECTOR},
-          VT, Custom);
+      setOperationAction({ISD::CONCAT_VECTORS, ISD::INSERT_SUBVECTOR,
+                          ISD::EXTRACT_SUBVECTOR, ISD::SCALAR_TO_VECTOR},
+                         VT, Custom);
 
       setOperationAction(ISD::VECTOR_DEINTERLEAVE, VT, Custom);
       setOperationAction(ISD::VECTOR_INTERLEAVE, VT, Custom);
@@ -876,6 +877,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
         setOperationAction({ISD::INSERT_VECTOR_ELT, ISD::EXTRACT_VECTOR_ELT},
                            VT, Custom);
+
+        setOperationAction(ISD::SCALAR_TO_VECTOR, VT, Custom);
 
         setOperationAction({ISD::LOAD, ISD::STORE}, VT, Custom);
 
@@ -1221,8 +1224,8 @@ bool RISCVTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   case Intrinsic::riscv_seg6_store:
   case Intrinsic::riscv_seg7_store:
   case Intrinsic::riscv_seg8_store:
-    // Operands are (vec, ..., vec, ptr, vl, int_id)
-    return SetRVVLoadStoreInfo(/*PtrOp*/ I.getNumOperands() - 3,
+    // Operands are (vec, ..., vec, ptr, vl)
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 2,
                                /*IsStore*/ true,
                                /*IsUnitStrided*/ false);
   case Intrinsic::riscv_vle:
@@ -1251,6 +1254,156 @@ bool RISCVTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   case Intrinsic::riscv_vsoxei:
   case Intrinsic::riscv_vsuxei:
     return SetRVVLoadStoreInfo(/*PtrOp*/ 1,
+                               /*IsStore*/ true,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vlseg2:
+  case Intrinsic::riscv_vlseg3:
+  case Intrinsic::riscv_vlseg4:
+  case Intrinsic::riscv_vlseg5:
+  case Intrinsic::riscv_vlseg6:
+  case Intrinsic::riscv_vlseg7:
+  case Intrinsic::riscv_vlseg8:
+  case Intrinsic::riscv_vlseg2ff:
+  case Intrinsic::riscv_vlseg3ff:
+  case Intrinsic::riscv_vlseg4ff:
+  case Intrinsic::riscv_vlseg5ff:
+  case Intrinsic::riscv_vlseg6ff:
+  case Intrinsic::riscv_vlseg7ff:
+  case Intrinsic::riscv_vlseg8ff:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 2,
+                               /*IsStore*/ false,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vlseg2_mask:
+  case Intrinsic::riscv_vlseg3_mask:
+  case Intrinsic::riscv_vlseg4_mask:
+  case Intrinsic::riscv_vlseg5_mask:
+  case Intrinsic::riscv_vlseg6_mask:
+  case Intrinsic::riscv_vlseg7_mask:
+  case Intrinsic::riscv_vlseg8_mask:
+  case Intrinsic::riscv_vlseg2ff_mask:
+  case Intrinsic::riscv_vlseg3ff_mask:
+  case Intrinsic::riscv_vlseg4ff_mask:
+  case Intrinsic::riscv_vlseg5ff_mask:
+  case Intrinsic::riscv_vlseg6ff_mask:
+  case Intrinsic::riscv_vlseg7ff_mask:
+  case Intrinsic::riscv_vlseg8ff_mask:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 4,
+                               /*IsStore*/ false,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vlsseg2:
+  case Intrinsic::riscv_vlsseg3:
+  case Intrinsic::riscv_vlsseg4:
+  case Intrinsic::riscv_vlsseg5:
+  case Intrinsic::riscv_vlsseg6:
+  case Intrinsic::riscv_vlsseg7:
+  case Intrinsic::riscv_vlsseg8:
+  case Intrinsic::riscv_vloxseg2:
+  case Intrinsic::riscv_vloxseg3:
+  case Intrinsic::riscv_vloxseg4:
+  case Intrinsic::riscv_vloxseg5:
+  case Intrinsic::riscv_vloxseg6:
+  case Intrinsic::riscv_vloxseg7:
+  case Intrinsic::riscv_vloxseg8:
+  case Intrinsic::riscv_vluxseg2:
+  case Intrinsic::riscv_vluxseg3:
+  case Intrinsic::riscv_vluxseg4:
+  case Intrinsic::riscv_vluxseg5:
+  case Intrinsic::riscv_vluxseg6:
+  case Intrinsic::riscv_vluxseg7:
+  case Intrinsic::riscv_vluxseg8:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 3,
+                               /*IsStore*/ false,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vlsseg2_mask:
+  case Intrinsic::riscv_vlsseg3_mask:
+  case Intrinsic::riscv_vlsseg4_mask:
+  case Intrinsic::riscv_vlsseg5_mask:
+  case Intrinsic::riscv_vlsseg6_mask:
+  case Intrinsic::riscv_vlsseg7_mask:
+  case Intrinsic::riscv_vlsseg8_mask:
+  case Intrinsic::riscv_vloxseg2_mask:
+  case Intrinsic::riscv_vloxseg3_mask:
+  case Intrinsic::riscv_vloxseg4_mask:
+  case Intrinsic::riscv_vloxseg5_mask:
+  case Intrinsic::riscv_vloxseg6_mask:
+  case Intrinsic::riscv_vloxseg7_mask:
+  case Intrinsic::riscv_vloxseg8_mask:
+  case Intrinsic::riscv_vluxseg2_mask:
+  case Intrinsic::riscv_vluxseg3_mask:
+  case Intrinsic::riscv_vluxseg4_mask:
+  case Intrinsic::riscv_vluxseg5_mask:
+  case Intrinsic::riscv_vluxseg6_mask:
+  case Intrinsic::riscv_vluxseg7_mask:
+  case Intrinsic::riscv_vluxseg8_mask:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 5,
+                               /*IsStore*/ false,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vsseg2:
+  case Intrinsic::riscv_vsseg3:
+  case Intrinsic::riscv_vsseg4:
+  case Intrinsic::riscv_vsseg5:
+  case Intrinsic::riscv_vsseg6:
+  case Intrinsic::riscv_vsseg7:
+  case Intrinsic::riscv_vsseg8:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 2,
+                               /*IsStore*/ true,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vsseg2_mask:
+  case Intrinsic::riscv_vsseg3_mask:
+  case Intrinsic::riscv_vsseg4_mask:
+  case Intrinsic::riscv_vsseg5_mask:
+  case Intrinsic::riscv_vsseg6_mask:
+  case Intrinsic::riscv_vsseg7_mask:
+  case Intrinsic::riscv_vsseg8_mask:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 3,
+                               /*IsStore*/ true,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vssseg2:
+  case Intrinsic::riscv_vssseg3:
+  case Intrinsic::riscv_vssseg4:
+  case Intrinsic::riscv_vssseg5:
+  case Intrinsic::riscv_vssseg6:
+  case Intrinsic::riscv_vssseg7:
+  case Intrinsic::riscv_vssseg8:
+  case Intrinsic::riscv_vsoxseg2:
+  case Intrinsic::riscv_vsoxseg3:
+  case Intrinsic::riscv_vsoxseg4:
+  case Intrinsic::riscv_vsoxseg5:
+  case Intrinsic::riscv_vsoxseg6:
+  case Intrinsic::riscv_vsoxseg7:
+  case Intrinsic::riscv_vsoxseg8:
+  case Intrinsic::riscv_vsuxseg2:
+  case Intrinsic::riscv_vsuxseg3:
+  case Intrinsic::riscv_vsuxseg4:
+  case Intrinsic::riscv_vsuxseg5:
+  case Intrinsic::riscv_vsuxseg6:
+  case Intrinsic::riscv_vsuxseg7:
+  case Intrinsic::riscv_vsuxseg8:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 3,
+                               /*IsStore*/ true,
+                               /*IsUnitStrided*/ false);
+  case Intrinsic::riscv_vssseg2_mask:
+  case Intrinsic::riscv_vssseg3_mask:
+  case Intrinsic::riscv_vssseg4_mask:
+  case Intrinsic::riscv_vssseg5_mask:
+  case Intrinsic::riscv_vssseg6_mask:
+  case Intrinsic::riscv_vssseg7_mask:
+  case Intrinsic::riscv_vssseg8_mask:
+  case Intrinsic::riscv_vsoxseg2_mask:
+  case Intrinsic::riscv_vsoxseg3_mask:
+  case Intrinsic::riscv_vsoxseg4_mask:
+  case Intrinsic::riscv_vsoxseg5_mask:
+  case Intrinsic::riscv_vsoxseg6_mask:
+  case Intrinsic::riscv_vsoxseg7_mask:
+  case Intrinsic::riscv_vsoxseg8_mask:
+  case Intrinsic::riscv_vsuxseg2_mask:
+  case Intrinsic::riscv_vsuxseg3_mask:
+  case Intrinsic::riscv_vsuxseg4_mask:
+  case Intrinsic::riscv_vsuxseg5_mask:
+  case Intrinsic::riscv_vsuxseg6_mask:
+  case Intrinsic::riscv_vsuxseg7_mask:
+  case Intrinsic::riscv_vsuxseg8_mask:
+    return SetRVVLoadStoreInfo(/*PtrOp*/ I.arg_size() - 4,
                                /*IsStore*/ true,
                                /*IsUnitStrided*/ false);
   }
@@ -4138,6 +4291,25 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     return lowerINSERT_VECTOR_ELT(Op, DAG);
   case ISD::EXTRACT_VECTOR_ELT:
     return lowerEXTRACT_VECTOR_ELT(Op, DAG);
+  case ISD::SCALAR_TO_VECTOR: {
+    MVT VT = Op.getSimpleValueType();
+    SDLoc DL(Op);
+    SDValue Scalar = Op.getOperand(0);
+    if (VT.getVectorElementType() == MVT::i1) {
+      MVT WideVT = VT.changeVectorElementType(MVT::i8);
+      SDValue V = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, WideVT, Scalar);
+      return DAG.getNode(ISD::TRUNCATE, DL, VT, V);
+    }
+    MVT ContainerVT = VT;
+    if (VT.isFixedLengthVector())
+      ContainerVT = getContainerForFixedLengthVector(VT);
+    SDValue VL = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget).second;
+    SDValue V = DAG.getNode(RISCVISD::VMV_S_X_VL, DL, ContainerVT,
+                            DAG.getUNDEF(ContainerVT), Scalar, VL);
+    if (VT.isFixedLengthVector())
+      V = convertFromScalableVector(VT, V, DAG, Subtarget);
+    return V;
+  }
   case ISD::VSCALE: {
     MVT VT = Op.getSimpleValueType();
     SDLoc DL(Op);
@@ -6660,14 +6832,13 @@ SDValue RISCVTargetLowering::lowerINSERT_SUBVECTOR(SDValue Op,
         getDefaultVLOps(VecVT, ContainerVT, DL, DAG, Subtarget).first;
     // Set the vector length to only the number of elements we care about. Note
     // that for slideup this includes the offset.
-    SDValue VL =
-        getVLOp(OrigIdx + SubVecVT.getVectorNumElements(), DL, DAG, Subtarget);
+    unsigned EndIndex = OrigIdx + SubVecVT.getVectorNumElements();
+    SDValue VL = getVLOp(EndIndex, DL, DAG, Subtarget);
     SDValue SlideupAmt = DAG.getConstant(OrigIdx, DL, XLenVT);
 
-    // Use tail agnostic policy if OrigIdx is the last index of Vec.
+    // Use tail agnostic policy if we're inserting over Vec's tail.
     unsigned Policy = RISCVII::TAIL_UNDISTURBED_MASK_UNDISTURBED;
-    if (VecVT.isFixedLengthVector() &&
-        OrigIdx + 1 == VecVT.getVectorNumElements())
+    if (VecVT.isFixedLengthVector() && EndIndex == VecVT.getVectorNumElements())
       Policy = RISCVII::TAIL_AGNOSTIC;
     SDValue Slideup = getVSlideup(DAG, Subtarget, DL, ContainerVT, Vec, SubVec,
                                   SlideupAmt, Mask, VL, Policy);
@@ -9109,10 +9280,23 @@ static SDValue performSUBCombine(SDNode *N, SelectionDAG &DAG,
   if (SDValue V = combineSubOfBoolean(N, DAG))
     return V;
 
-  // fold (sub x, (select lhs, rhs, cc, 0, y)) ->
-  //      (select lhs, rhs, cc, x, (sub x, y))
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
+  // fold (sub 0, (setcc x, 0, setlt)) -> (sra x, xlen - 1)
+  if (isNullConstant(N0) && N1.getOpcode() == ISD::SETCC && N1.hasOneUse() &&
+      isNullConstant(N1.getOperand(1))) {
+    ISD::CondCode CCVal = cast<CondCodeSDNode>(N1.getOperand(2))->get();
+    if (CCVal == ISD::SETLT) {
+      EVT VT = N->getValueType(0);
+      SDLoc DL(N);
+      unsigned ShAmt = N0.getValueSizeInBits() - 1;
+      return DAG.getNode(ISD::SRA, DL, VT, N1.getOperand(0),
+                         DAG.getConstant(ShAmt, DL, VT));
+    }
+  }
+
+  // fold (sub x, (select lhs, rhs, cc, 0, y)) ->
+  //      (select lhs, rhs, cc, x, (sub x, y))
   return combineSelectAndUse(N, N1, N0, DAG, /*AllOnes*/ false, Subtarget);
 }
 
@@ -14523,10 +14707,9 @@ void RISCVTargetLowering::LowerAsmOperandForConstraint(
       return;
     case 'J':
       // Validate & create an integer zero operand.
-      if (auto *C = dyn_cast<ConstantSDNode>(Op))
-        if (C->getZExtValue() == 0)
-          Ops.push_back(
-              DAG.getTargetConstant(0, SDLoc(Op), Subtarget.getXLenVT()));
+      if (isNullConstant(Op))
+        Ops.push_back(
+            DAG.getTargetConstant(0, SDLoc(Op), Subtarget.getXLenVT()));
       return;
     case 'K':
       // Validate & create a 5-bit unsigned immediate operand.

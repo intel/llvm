@@ -8390,6 +8390,8 @@ public:
                                 SourceLocation EqualLoc,
                                 ParsedType DefaultArg, bool HasTypeConstraint);
 
+  bool CheckTypeConstraint(TemplateIdAnnotation *TypeConstraint);
+
   bool ActOnTypeConstraint(const CXXScopeSpec &SS,
                            TemplateIdAnnotation *TypeConstraint,
                            TemplateTypeParmDecl *ConstrainedParameter,
