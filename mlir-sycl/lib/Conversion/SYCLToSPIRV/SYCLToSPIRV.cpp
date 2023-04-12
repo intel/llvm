@@ -169,9 +169,9 @@ static llvm::function_ref<int64_t(int64_t)> getMirror(unsigned dimensions) {
 /// 2. Load the object;
 /// 3. Initialize the dimensions of the object with the values in builtin \p
 /// builtin.
-void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
-                      TypeConverter &typeConverter,
-                      ConversionPatternRewriter &rewriter) {
+void rewriteND(Operation *op, spirv::BuiltIn builtin,
+               TypeConverter &typeConverter,
+               ConversionPatternRewriter &rewriter) {
   // This conversion is platform dependent
   const auto dimensions = getDimensions(op->getResultTypes()[0]);
   const auto values = ::getBuiltinVariableValue(
@@ -208,16 +208,15 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
 
 /// Converts n-dimensional operations of type \tparam OpTy not being passed an
 /// argument to a call to a SPIRV builtin.
-template <typename OpTy>
-class GridOpPatternNoIndex : public GridOpPattern<OpTy> {
+template <typename OpTy> class NDGridOpPattern : public GridOpPattern<OpTy> {
 public:
   using GridOpPattern<OpTy>::GridOpPattern;
 
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriteNDNoIndex(op, GridOpPattern<OpTy>::spirvBuiltin,
-                     *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
+    rewriteND(op, GridOpPattern<OpTy>::spirvBuiltin,
+              *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
     return success();
   }
 };
@@ -242,26 +241,21 @@ public:
     return success();
   }
 };
-
-template <typename... OpTys>
-void addGridOpPatterns(RewritePatternSet &patterns,
-                       TypeConverter &typeConverter, MLIRContext *context) {
-  (patterns.add<GridOpPatternNoIndex<OpTys>>(typeConverter, context), ...);
-}
 } // namespace
 
 void mlir::populateSYCLToSPIRVConversionPatterns(TypeConverter &typeConverter,
                                                  RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  addGridOpPatterns<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp, SYCLWorkGroupIDOp,
-                    SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp, SYCLLocalIDOp,
-                    SYCLGlobalIDOp>(patterns, typeConverter, context);
-  patterns.add<SingleDimGridOpPattern<SYCLSubGroupMaxSizeOp>,
-               SingleDimGridOpPattern<SYCLSubGroupLocalIDOp>,
-               SingleDimGridOpPattern<SYCLSubGroupIDOp>,
-               SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
-               SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(typeConverter,
-                                                           context);
+  patterns.add<
+      NDGridOpPattern<SYCLGlobalOffsetOp>, NDGridOpPattern<SYCLNumWorkGroupsOp>,
+      NDGridOpPattern<SYCLWorkGroupIDOp>, NDGridOpPattern<SYCLNumWorkItemsOp>,
+      NDGridOpPattern<SYCLWorkGroupSizeOp>, NDGridOpPattern<SYCLLocalIDOp>,
+      NDGridOpPattern<SYCLGlobalIDOp>,
+      SingleDimGridOpPattern<SYCLSubGroupMaxSizeOp>,
+      SingleDimGridOpPattern<SYCLSubGroupLocalIDOp>,
+      SingleDimGridOpPattern<SYCLSubGroupIDOp>,
+      SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
+      SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(typeConverter, context);
 }
 
 namespace {

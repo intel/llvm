@@ -155,7 +155,7 @@ protected:
 /// Converts n-dimensional operations of type \tparam OpTy not being passed an
 /// argument to operations of type \tparam GPUOpTy.
 template <typename OpTy>
-class GridOpPatternNoIndex final : public GridOpPattern<OpTy> {
+class NDGridOpPattern final : public GridOpPattern<OpTy> {
 public:
   using GridOpPattern<OpTy>::GridOpPattern;
 
@@ -193,18 +193,14 @@ public:
     return success();
   }
 };
-
-template <typename... OpTys>
-void addGridOpPatterns(RewritePatternSet &patterns, MLIRContext *context) {
-  (patterns.add<GridOpPatternNoIndex<OpTys>>(context), ...);
-}
 } // namespace
 
 void mlir::populateSYCLToGPUConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  addGridOpPatterns<SYCLWorkGroupIDOp, SYCLWorkGroupSizeOp, SYCLLocalIDOp,
-                    SYCLGlobalIDOp>(patterns, context);
-  patterns.add<SingleDimGridOpPattern<SYCLSubGroupIDOp>,
+  patterns.add<NDGridOpPattern<SYCLWorkGroupIDOp>,
+               NDGridOpPattern<SYCLWorkGroupSizeOp>,
+               NDGridOpPattern<SYCLLocalIDOp>, NDGridOpPattern<SYCLGlobalIDOp>,
+               SingleDimGridOpPattern<SYCLSubGroupIDOp>,
                SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
                SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(context);
 }
