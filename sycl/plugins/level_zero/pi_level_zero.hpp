@@ -85,16 +85,8 @@ struct MemAllocRecord : _pi_object {
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
-struct _pi_platform : public _ur_platform_handle_t {
-  using _ur_platform_handle_t::_ur_platform_handle_t;
-
-  // Keep track of all contexts in the platform. This is needed to manage
-  // a lifetime of memory allocations in each context when there are kernels
-  // with indirect access.
-  // TODO: should be deleted when memory isolation in the context is implemented
-  // in the driver.
-  std::list<pi_context> Contexts;
-  ur_shared_mutex ContextsMutex;
+struct _pi_platform : public ur_platform_handle_t_ {
+  using ur_platform_handle_t_::ur_platform_handle_t_;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.

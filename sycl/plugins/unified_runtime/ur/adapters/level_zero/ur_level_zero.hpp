@@ -22,13 +22,13 @@
 
 #include "ur_level_zero_common.hpp"
 
-struct _ur_platform_handle_t;
-// using ur_platform_handle_t = _ur_platform_handle_t *;
+struct ur_platform_handle_t_;
+// using ur_platform_handle_t = ur_platform_handle_t_ *;
 struct _ur_device_handle_t;
 // using ur_device_handle_t = _ur_device_handle_t *;
 
-struct _ur_platform_handle_t : public _ur_platform {
-  _ur_platform_handle_t(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+struct ur_platform_handle_t_ : public _ur_platform {
+  ur_platform_handle_t_(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
   // Performs initialization of a newly constructed PI platform.
   ur_result_t initialize();
 
@@ -59,6 +59,14 @@ struct _ur_platform_handle_t : public _ur_platform {
   // Return the PI device from cache that represents given native device.
   // If not found, then nullptr is returned.
   ur_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
+
+  // Keep track of all contexts in the platform. This is needed to manage
+  // a lifetime of memory allocations in each context when there are kernels
+  // with indirect access.
+  // TODO: should be deleted when memory isolation in the context is implemented
+  // in the driver.
+  std::list<pi_context> Contexts;
+  ur_shared_mutex ContextsMutex;
 };
 
 enum EventsScope {
@@ -220,7 +228,7 @@ public:
 
   ZeUSMImportExtension() : Enabled{false} {}
 
-  void setZeUSMImport(_ur_platform_handle_t *Platform);
+  void setZeUSMImport(ur_platform_handle_t_ *Platform);
   void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
                      size_t Size);
   void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
