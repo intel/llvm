@@ -572,6 +572,11 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgBaseType(const DIBasicType *BT) {
   auto Encoding = static_cast<dwarf::TypeKind>(BT->getEncoding());
   SPIRVDebug::EncodingTag EncTag = SPIRVDebug::Unspecified;
   SPIRV::DbgEncodingMap::find(Encoding, &EncTag);
+  // Unset encoding if it's complex and NonSemantic.Shader.DebugInfo.200 is not
+  // enabled
+  if (EncTag == SPIRVDebug::Complex &&
+      BM->getDebugInfoEIS() != SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    EncTag = SPIRVDebug::Unspecified;
   Ops[EncodingIdx] = EncTag;
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {EncodingIdx});
