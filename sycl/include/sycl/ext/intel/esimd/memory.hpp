@@ -1258,6 +1258,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
   } else if constexpr (Op == atomic_op::store) {
     return atomic_update<atomic_op::xchg, Tx, N>(acc, offset, src0, mask);
   } else {
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);  
     using T = typename detail::__raw_t<Tx>;
     return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offset.data(), src0.data());
@@ -1361,15 +1362,15 @@ __ESIMD_API __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                   offset, mask);
 #else
   detail::check_atomic<Op, Tx, N, 0>();
-  //static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   if constexpr (Op == atomic_op::load) {
     return atomic_update<atomic_op::bit_or, Tx, N>(acc, offset, simd<Tx, N>(0),
                                                    mask);
   } else {
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);  
     using T = typename detail::__raw_t<Tx>;
-    simd<T, N> ddd;
-    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data(),ddd.data());
+    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data());
   }
 #endif
 }
@@ -1464,6 +1465,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(acc, offset, src0,
                                                                 src1, mask);
   } else {
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);  
     using T = typename detail::__raw_t<Tx>;
     return __esimd_dword_atomic2<Op, T, N>(mask.data(),si, offset.data(), src0.data(), src1.data());

@@ -17,5 +17,4 @@
 #define USE_DWORD_ATOMICS
 // This macro enforces usage of accessor based API in the included test
 #define USE_ACCESSORS
-
 #include "lsc/atomic_smoke.cpp"

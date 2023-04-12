@@ -891,8 +891,7 @@ template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                       SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
-                      __ESIMD_DNS::vector_type_t<Ty, N> ddd)
+                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else

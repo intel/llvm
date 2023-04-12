@@ -713,11 +713,13 @@ bool test_int_types(queue q, const Config &cfg) {
     // passed &= test<int8_t, N, Op>(q, cfg);
 
     passed &= test<int32_t, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
     passed &= test<int64_t, N, Op>(q, cfg);
     if constexpr (!std::is_same_v<signed long, int64_t> &&
                   !std::is_same_v<signed long, int32_t>) {
       passed &= test<signed long, N, Op>(q, cfg);
     }
+#endif
   }
 
   if constexpr (SignMask & Unsigned) {
@@ -728,11 +730,13 @@ bool test_int_types(queue q, const Config &cfg) {
     // passed &= test<uint8_t, N, Op>(q, cfg);
 
     passed &= test<uint32_t, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
     passed &= test<uint64_t, N, Op>(q, cfg);
     if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
                   !std::is_same_v<unsigned long, uint32_t>) {
       passed &= test<unsigned long, N, Op>(q, cfg);
     }
+#endif
   }
   return passed;
 }
