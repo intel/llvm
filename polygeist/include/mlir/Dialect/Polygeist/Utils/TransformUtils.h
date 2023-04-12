@@ -15,6 +15,7 @@
 
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
+#include <variant>
 
 namespace mlir {
 class AffineForOp;
@@ -64,31 +65,24 @@ public:
   };
 
   /// Create a loop versioning condition for SCF loops.
-  LoopVersionCondition(SCFCondition scfCond)
-      : versionCondition({scfCond, std::nullopt}) {}
+  LoopVersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
 
   LoopVersionCondition(AffineCondition affineCond)
-      : versionCondition({std::nullopt, affineCond}) {}
+      : versionCondition(affineCond) {}
 
   SCFCondition getSCFCondition() const {
-    assert(versionCondition.scfCond.has_value() &&
+    assert(std::holds_alternative<SCFCondition>(versionCondition) &&
            "expecting valid SCF condition");
-    return *versionCondition.scfCond;
+    return std::get<SCFCondition>(versionCondition);
   }
   AffineCondition getAffineCondition() const {
-    assert(versionCondition.affineCond.has_value() &&
+    assert(std::holds_alternative<AffineCondition>(versionCondition) &&
            "expecting valid affine condition");
-    return *versionCondition.affineCond;
+    return std::get<AffineCondition>(versionCondition);
   }
 
 private:
-  struct VersionCondition {
-    VersionCondition(Optional<SCFCondition> scfCond,
-                     Optional<AffineCondition> affineCond)
-        : scfCond(scfCond), affineCond(affineCond) {}
-    Optional<SCFCondition> scfCond;
-    Optional<AffineCondition> affineCond;
-  } versionCondition;
+  std::variant<SCFCondition, AffineCondition> versionCondition;
 };
 
 /// Abstract base class to version a loop like operation.
