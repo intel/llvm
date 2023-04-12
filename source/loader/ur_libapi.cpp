@@ -2545,7 +2545,7 @@ ur_result_t UR_APICALL urKernelSetArgPointer(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_EXEC_INFO_USM_PTRS < propName`
+///         + `::UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ur_result_t UR_APICALL urKernelSetExecInfo(
