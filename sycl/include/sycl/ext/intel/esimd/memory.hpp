@@ -1248,6 +1248,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
   return atomic_update<Op, Tx, N>(
       __ESIMD_DNS::accessorToPointer<Tx>(acc), offset, src0, mask);
 #else
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   detail::check_atomic<Op, Tx, N, 1>();
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
@@ -1257,10 +1258,9 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
   } else if constexpr (Op == atomic_op::store) {
     return atomic_update<atomic_op::xchg, Tx, N>(acc, offset, src0, mask);
   } else {
-    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);  
     using T = typename detail::__raw_t<Tx>;
-    return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offset.data() src0.data());
+    return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offset.data(), src0.data());
   }
 #endif
 }
@@ -1324,7 +1324,9 @@ __ESIMD_API std::enable_if_t<
     simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
+  uint32_t loc_offset = offset;
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(loc_offset), src0,
+                                  mask);
 }
 
 /// @anchor accessor_atomic_update0
@@ -1359,14 +1361,15 @@ __ESIMD_API __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                   offset, mask);
 #else
   detail::check_atomic<Op, Tx, N, 0>();
+  //static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   if constexpr (Op == atomic_op::load) {
     return atomic_update<atomic_op::bit_or, Tx, N>(acc, offset, simd<Tx, N>(0),
                                                    mask);
   } else {
-    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);  
     using T = typename detail::__raw_t<Tx>;
-    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data());
+    simd<T, N> ddd;
+    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data(),ddd.data());
   }
 #endif
 }
@@ -1418,7 +1421,8 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask = 1) {
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
+  uint32_t loc_offset = offset;
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(loc_offset), mask);
 }
 
 /// @anchor accessor_atomic_update2
@@ -1454,12 +1458,12 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                   offset, src0, src1, mask);
 #else
   detail::check_atomic<Op, Tx, N, 2>();
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(acc, offset, src0,
                                                                 src1, mask);
   } else {
-    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);  
     using T = typename detail::__raw_t<Tx>;
     return __esimd_dword_atomic2<Op, T, N>(mask.data(),si, offset.data(), src0.data(), src1.data());
@@ -1520,11 +1524,10 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
+  uint32_t loc_offset = offset;
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(loc_offset), src0, src1,
                                   mask);
 }
-
-
 
 /// @} sycl_esimd_memory_atomics
 

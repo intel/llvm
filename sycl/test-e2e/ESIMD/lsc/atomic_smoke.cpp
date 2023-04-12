@@ -360,20 +360,20 @@ bool test(queue q, const Config &cfg) {
             // the atomic operation itself applied in a loop:
             for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
               if constexpr (n_args == 0) {
-                atomic_update<op>(accessor, offsets, m);
+                atomic_update<op, T, N>(accessor, offsets, m);
               } else if constexpr (n_args == 1) {
                 simd<T, N> v0 = ImplF<T, N>::arg0(i);
-                atomic_update<op>(accessor, offsets, v0, m);
+                atomic_update<op, T, N>(accessor, offsets, v0, m);
               } else if constexpr (n_args == 2) {
                 simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
                 simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
                 // do compare-and-swap in a loop until we get expected value;
                 // arg0 and arg1 must provide values which guarantee the loop
                 // is not endless:
-                for (auto old_val = atomic_update<op>(accessor, offsets,
+                for (auto old_val = atomic_update<op, T, N>(accessor, offsets,
                                                       new_val, exp_val, m);
                      any(old_val < exp_val, !m);
-                     old_val = atomic_update<op>(accessor, offsets, new_val,
+                     old_val = atomic_update<op, T, N>(accessor, offsets, new_val,
                                                  exp_val, m))
                   ;
               }
@@ -409,7 +409,6 @@ bool test(queue q, const Config &cfg) {
   } else {
     std::cout << " passed\n";
   }
-  free(arr, q);
 #if USE_FULL_BARRIER
   free(flag_ptr, q);
 #endif // USE_FULL_BARRIER
