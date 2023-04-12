@@ -20,8 +20,10 @@
           });                                                                  \
         });                                                                    \
       }                                                                        \
-      for (int i = 0; i < DIM; i++)                                            \
+      for (int i = 0; i < DIM; i++) {                                            \
+        std::cout << result[i] << " " << EXPECTED[i] << std::endl; \
         assert(abs(result[i] - EXPECTED[i]) <= DELTA);                         \
+        } \
     }                                                                          \
   }
 
@@ -50,6 +52,8 @@
         });                                                                    \
       }                                                                        \
       for (int i = 0; i < DIM; i++) {                                          \
+        std::cout << result[i] << " " << EXPECTED_1[i] << std::endl; \
+        std::cout << result_ptr[i] << " " << EXPECTED_2[i] << std::endl; \
         assert(std::abs(result[i] - EXPECTED_1[i]) <= DELTA);                  \
         assert(std::abs(result_ptr[i] - EXPECTED_2[i]) <= DELTA);              \
       }                                                                        \
@@ -71,6 +75,7 @@
           });                                                                  \
         });                                                                    \
       }                                                                        \
+      std::cout << "Here" << std::endl; \
     }                                                                          \
   }
 
