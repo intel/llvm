@@ -1,7 +1,7 @@
 // REQUIRES: TEMPORARY_DISABLED
 //  Unified Runtime will soon be changing its reporting.
 //
-// RUN: env ONEAPI_DEVICE_SELECTOR="ext_oneapi_unified_runtime:*" sycl-ls --verbose 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env ONEAPI_DEVICE_SELECTOR="ext_oneapi_level_zero:*" sycl-ls --verbose 2>&1 %GPU_CHECK_PLACEHOLDER
 
 // CHECK: 	Platforms: 1
 // CHECK-NEXT:	Platform [#1]:
