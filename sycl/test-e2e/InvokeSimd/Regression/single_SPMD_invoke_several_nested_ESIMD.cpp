@@ -11,7 +11,7 @@
 /*
  * This test checks the case of calling an external function from the SPMD and
  * the one nested in the first one.
-*/
+ */
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
@@ -37,16 +37,19 @@ constexpr int VL = 16;
 
 /* *** */
 
-esimd::simd<float, VL> SYCL_EXTERNAL ESIMD_CALLEE_DEC(esimd::simd<float, VL> a) SYCL_ESIMD_FUNCTION {
+esimd::simd<float, VL> SYCL_EXTERNAL ESIMD_CALLEE_DEC(esimd::simd<float, VL> a)
+    SYCL_ESIMD_FUNCTION {
   return a - 1;
 }
 
-esimd::simd<float, VL> SYCL_EXTERNAL ESIMD_CALLEE_INC(esimd::simd<float, VL> a) SYCL_ESIMD_FUNCTION {
+esimd::simd<float, VL> SYCL_EXTERNAL ESIMD_CALLEE_INC(esimd::simd<float, VL> a)
+    SYCL_ESIMD_FUNCTION {
   return a + 1;
 }
 
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL
-    simd<float, VL> __regcall SIMD_CALLEE_INC(float *A, int i) SYCL_ESIMD_FUNCTION {
+    simd<float, VL> __regcall SIMD_CALLEE_INC(float *A,
+                                              int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> a;
   a.copy_from(A + i);
   return ESIMD_CALLEE_INC(a);
@@ -54,7 +57,8 @@ esimd::simd<float, VL> SYCL_EXTERNAL ESIMD_CALLEE_INC(esimd::simd<float, VL> a) 
 
 /* *** */
 
-esimd::simd<float, VL> ESIMD_CALLEE_ATTUNITE(esimd::simd<float, VL> a, bool flag) SYCL_ESIMD_FUNCTION {
+esimd::simd<float, VL> ESIMD_CALLEE_ATTUNITE(esimd::simd<float, VL> a,
+                                             bool flag) SYCL_ESIMD_FUNCTION {
   return flag ? ESIMD_CALLEE_INC(a) : ESIMD_CALLEE_DEC(a);
 }
 
@@ -119,8 +123,8 @@ int main() {
   for (unsigned i = 0; i < Size; ++i) {
     if ((1 + 2 * A[i]) != B[i]) {
       if (++err_cnt < 10) {
-        std::cout << "failed at index " << i << ", 1 + 2 * " << A[i] << " != " << B[i]
-                  << "\n";
+        std::cout << "failed at index " << i << ", 1 + 2 * " << A[i]
+                  << " != " << B[i] << "\n";
       }
     }
   }

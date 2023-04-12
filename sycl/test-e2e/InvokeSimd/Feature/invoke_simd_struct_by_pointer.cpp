@@ -89,7 +89,7 @@ int main(void) {
   }
 
   // USM shared memory allocation for a struct multipliers.
-  auto *scalars  = malloc_shared<multipliers>(Size, q);
+  auto *scalars = malloc_shared<multipliers>(Size, q);
   scalars->x = 2;
   scalars->y = 3;
 
