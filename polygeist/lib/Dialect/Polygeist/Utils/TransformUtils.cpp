@@ -9,7 +9,6 @@
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -56,6 +55,7 @@ struct SCFIfBuilder {
   static RegionBranchOpInterface createIfOp(Value condition,
                                             Operation::result_range results,
                                             OpBuilder &builder, Location loc) {
+    assert(condition && "Expecting a valid condition");
     return builder.create<scf::IfOp>(
         loc, condition,
         [&](OpBuilder &b, Location loc) {
@@ -94,15 +94,6 @@ LoopVersionBuilder::create(LoopLikeOpInterface loop) {
       });
 }
 
-void LoopVersionBuilder::versionLoop(Value) const {
-  llvm_unreachable("Can't version this kind of loop using this API");
-}
-
-void LoopVersionBuilder::versionLoop(IntegerSet,
-                                     SmallVectorImpl<Value> &) const {
-  llvm_unreachable("Can't version this kind of loop using this API");
-}
-
 void LoopVersionBuilder::versionLoop(RegionBranchOpInterface ifOp) const {
   createThenBody(ifOp);
   createElseBody(ifOp);
@@ -113,10 +104,12 @@ void LoopVersionBuilder::versionLoop(RegionBranchOpInterface ifOp) const {
 // SCFLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFLoopVersionBuilder::versionLoop(Value condition) const {
+void SCFLoopVersionBuilder::versionLoop(
+    const LoopVersionCondition &versionCond) const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp = SCFIfBuilder::createIfOp(
-      condition, loop->getResults(), builder, loop.getLoc());
+  RegionBranchOpInterface ifOp =
+      SCFIfBuilder::createIfOp(versionCond.getSCFCondition(),
+                               loop->getResults(), builder, loop.getLoc());
   LoopVersionBuilder::versionLoop(ifOp);
 }
 
@@ -137,10 +130,12 @@ void SCFLoopVersionBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
 //===----------------------------------------------------------------------===//
 
 void AffineLoopVersionBuilder::versionLoop(
-    IntegerSet ifCondSet, SmallVectorImpl<Value> &setOperands) const {
+    const LoopVersionCondition &versionCond) const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp = AffineIfBuilder::createIfOp(
-      ifCondSet, setOperands, loop->getResults(), builder, loop.getLoc());
+  const auto &affineCond = versionCond.getAffineCondition();
+  RegionBranchOpInterface ifOp =
+      AffineIfBuilder::createIfOp(affineCond.ifCondSet, affineCond.setOperands,
+                                  loop->getResults(), builder, loop.getLoc());
   LoopVersionBuilder::versionLoop(ifOp);
 }
 
@@ -422,4 +417,17 @@ AffineMap AffineParallelGuardBuilder::getLowerBoundsMap() const {
 
 AffineMap AffineParallelGuardBuilder::getUpperBoundsMap() const {
   return getLoop().getUpperBoundsMap();
+}
+
+//===----------------------------------------------------------------------===//
+// Loop Tools
+//===----------------------------------------------------------------------===//
+
+void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
+  LoopGuardBuilder::create(loop)->guardLoop();
+}
+
+void LoopTools::versionLoop(LoopLikeOpInterface loop,
+                            const LoopVersionCondition &versionCond) const {
+  LoopVersionBuilder::create(loop)->versionLoop(versionCond);
 }
