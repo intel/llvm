@@ -133,9 +133,9 @@ static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV,
   return 1;
 }
 
-static int emitBinary(const char *Argv0, const char *Filename,
-                      const llvm::ArrayRef<const char *> LinkArgs,
-                      bool LinkOMP) {
+static mlir::LogicalResult
+emitBinary(const char *Argv0, const char *Filename,
+           const llvm::ArrayRef<const char *> LinkArgs, bool LinkOMP) {
   using namespace clang;
 
   ArgumentList Argv;
@@ -176,7 +176,7 @@ static int emitBinary(const char *Argv0, const char *Filename,
   const std::unique_ptr<driver::Compilation> C(
       TheDriver.BuildCompilation(Argv.getArguments()));
   if (!C)
-    return 1;
+    return mlir::failure();
 
   if (ResourceDir != "")
     TheDriver.ResourceDir = ResourceDir;
@@ -212,7 +212,7 @@ static int emitBinary(const char *Argv0, const char *Filename,
   }
   Diags.getClient()->finish();
 
-  return Res;
+  return mlir::success();
 }
 
 #include "Lib/clang-mlir.cc"
@@ -281,12 +281,12 @@ static LogicalResult enableOptionsPM(mlir::PassManager &PM) {
 }
 
 // MLIR canonicalization & cleanup.
-static int canonicalize(mlir::MLIRContext &Ctx,
-                        mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                        Options &options) {
+static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
+                                  mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                                  Options &options) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
-    return 18;
+    return failure();
 
   mlir::OpPassManager &OptPM = PM.nestAny();
   GreedyRewriteConfig CanonicalizerConfig;
@@ -340,32 +340,32 @@ static int canonicalize(mlir::MLIRContext &Ctx,
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Canonicalization failed. Module: ***\n";
     Module->dump();
-    return 4;
+    return failure();
   }
   if (mlir::failed(mlir::verify(Module.get()))) {
     llvm::errs()
         << "*** Verification after canonicalization failed. Module: ***\n";
     Module->dump();
-    return 5;
+    return failure();
   }
   LLVM_DEBUG({
     llvm::dbgs() << "*** Module after canonicalize ***\n";
     Module->dump();
   });
 
-  return 0;
+  return success();
 }
 
 // Optimize the MLIR.
-static int optimize(mlir::MLIRContext &Ctx,
-                    mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                    Options &options) {
+static LogicalResult optimize(mlir::MLIRContext &Ctx,
+                              mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                              Options &options) {
   const llvm::OptimizationLevel OptLevel =
       options.getCgeistOpts().getOptimizationLevel();
 
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
-    return 18;
+    return failure();
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -401,14 +401,8 @@ static int optimize(mlir::MLIRContext &Ctx,
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
 
-    // Note: the inliner pass needs the `MangledFunctionName` attribute to build
-    // the call graph.
-    if (OmitOptionalMangledFunctionName)
-      PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
-
     PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
-                                       /* RemoveDeadCallees */ true,
-                                       InlineSYCLMethodOps}));
+                                       /* RemoveDeadCallees */ true}));
 
     if (RaiseToAffine)
       OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -418,27 +412,27 @@ static int optimize(mlir::MLIRContext &Ctx,
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Optimize failed. Module: ***\n";
     Module->dump();
-    return 6;
+    return failure();
   }
   if (mlir::failed(mlir::verify(Module.get()))) {
     llvm::errs() << "** Verification after optimization failed. Module: ***\n";
     Module->dump();
-    return 7;
+    return failure();
   }
   LLVM_DEBUG({
     llvm::dbgs() << "*** Module after optimize ***\n";
     Module->dump();
   });
 
-  return 0;
+  return success();
 }
 
 // CUDA specific optimization (add parallel loops around CUDA).
-static int optimizeCUDA(mlir::MLIRContext &Ctx,
-                        mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                        Options &options) {
+static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
+                                  mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                                  Options &options) {
   if (!CudaLower)
-    return 0;
+    return success();
 
   constexpr int UnrollSize = 32;
   GreedyRewriteConfig CanonicalizerConfig;
@@ -446,7 +440,7 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
 
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
-    return 18;
+    return failure();
 
   mlir::OpPassManager &OptPM = PM.nestAny();
   OptPM.addPass(mlir::createLowerAffinePass());
@@ -503,25 +497,25 @@ static int optimizeCUDA(mlir::MLIRContext &Ctx,
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Optimize CUDA failed. Module: ***\n";
     Module->dump();
-    return 8;
+    return failure();
   }
   if (mlir::failed(mlir::verify(Module.get()))) {
     llvm::errs()
         << "*** Verification after CUDA optimization failed. Module: ***\n";
     Module->dump();
-    return 9;
+    return failure();
   }
   LLVM_DEBUG({
     llvm::dbgs() << "*** Module after optimize CUDA ***\n";
     Module->dump();
   });
 
-  return 0;
+  return success();
 }
 
-static void finalizeCUDA(mlir::PassManager &PM, Options &options) {
+static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
   if (!CudaLower)
-    return;
+    return success();
 
   mlir::OpPassManager &OptPM = PM.nestAny();
 
@@ -594,19 +588,23 @@ static void finalizeCUDA(mlir::PassManager &PM, Options &options) {
     if (ScalarReplacement)
       PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   }
+
+  return success();
 }
 
-static int finalize(mlir::MLIRContext &Ctx,
-                    mlir::OwningOpRef<mlir::ModuleOp> &Module, Options &options,
-                    llvm::DataLayout &DL, bool &LinkOMP) {
+static LogicalResult finalize(mlir::MLIRContext &Ctx,
+                              mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                              Options &options, llvm::DataLayout &DL,
+                              bool &LinkOMP) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
-    return 18;
+    return failure();
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  finalizeCUDA(PM, options);
+  if (mlir::failed(finalizeCUDA(PM, options)))
+    return failure();
 
   PM.addPass(mlir::createSymbolDCEPass());
 
@@ -619,13 +617,13 @@ static int finalize(mlir::MLIRContext &Ctx,
     if (mlir::failed(PM.run(Module.get()))) {
       llvm::errs() << "*** Finalize failed (phase 1). Module: ***\n";
       Module->dump();
-      return 10;
+      return failure();
     }
     if (mlir::failed(mlir::verify(Module.get()))) {
       llvm::errs() << "*** Verification after finalization failed (phase 1). "
                       "Module: ***\n";
       Module->dump();
-      return 11;
+      return failure();
     }
     LLVM_DEBUG({
       llvm::dbgs() << "*** Module after finalize (phase 1) ***\n";
@@ -647,13 +645,13 @@ static int finalize(mlir::MLIRContext &Ctx,
     if (mlir::failed(PM2.run(Module.get()))) {
       llvm::errs() << "*** Finalize failed (phase 2). Module: ***\n";
       Module->dump();
-      return 12;
+      return failure();
     }
     if (mlir::failed(mlir::verify(Module.get()))) {
       llvm::errs() << "*** Verification after finalization failed (phase 2). "
                       "Module: ***\n";
       Module->dump();
-      return 13;
+      return failure();
     }
     LLVM_DEBUG({
       llvm::dbgs() << "*** Module after finalize (phase 2) ***\n";
@@ -676,13 +674,13 @@ static int finalize(mlir::MLIRContext &Ctx,
       if (mlir::failed(PM3.run(Module.get()))) {
         llvm::errs() << "*** Finalize failed (phase 3). Module: ***\n";
         Module->dump();
-        return 14;
+        return failure();
       }
       if (mlir::failed(mlir::verify(Module.get()))) {
         llvm::errs() << "Verification after finalization failed (phase 3). "
                         "Module: ***\n";
         Module->dump();
-        return 15;
+        return failure();
       }
       LLVM_DEBUG({
         llvm::dbgs() << "*** Module after finalize (phase 3) ***\n";
@@ -693,13 +691,13 @@ static int finalize(mlir::MLIRContext &Ctx,
     if (mlir::failed(PM.run(Module.get()))) {
       llvm::errs() << "*** Finalize failed. Module: ***\n";
       Module->dump();
-      return 16;
+      return failure();
     }
     if (mlir::failed(mlir::verify(Module.get()))) {
       llvm::errs() << "*** Verification after finalization failed. "
                       "Module: ***\n";
       Module->dump();
-      return 17;
+      return failure();
     }
     LLVM_DEBUG({
       llvm::dbgs() << "*** Module after finalize ***\n";
@@ -707,35 +705,31 @@ static int finalize(mlir::MLIRContext &Ctx,
     });
   }
 
-  return 0;
+  return success();
 }
 
 // Create and execute the MLIR transformations pipeline.
-static int
+static LogicalResult
 createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
                              mlir::OwningOpRef<mlir::ModuleOp> &Module,
                              llvm::DataLayout &DL, llvm::Triple &Triple,
                              Options &options, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
-  int RC = canonicalize(Ctx, Module, options);
-  if (RC != 0)
-    return RC;
+  if (mlir::failed(canonicalize(Ctx, Module, options)))
+    return failure();
 
   // MLIR optimizations.
-  RC = optimize(Ctx, Module, options);
-  if (RC != 0)
-    return RC;
+  if (mlir::failed(optimize(Ctx, Module, options)))
+    return failure();
 
   // CUDA specific MLIR optimizations.
-  RC = optimizeCUDA(Ctx, Module, options);
-  if (RC != 0)
-    return RC;
+  if (mlir::failed(optimizeCUDA(Ctx, Module, options)))
+    return failure();
 
-  RC = finalize(Ctx, Module, options, DL, LinkOMP);
-  if (RC != 0)
-    return RC;
+  if (mlir::failed(finalize(Ctx, Module, options, DL, LinkOMP)))
+    return failure();
 
-  return 0;
+  return success();
 }
 
 /// Run an optimization pipeline on the LLVM module.
@@ -798,17 +792,15 @@ static void runOptimizationPipeline(llvm::Module &Module, Options &options) {
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
-static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                         StringRef ModuleId, mlir::MLIRContext &Ctx,
-                         llvm::DataLayout &DL, llvm::Triple &Triple,
-                         Options &options, const char *Argv0) {
+static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                                   StringRef ModuleId, mlir::MLIRContext &Ctx,
+                                   llvm::DataLayout &DL, llvm::Triple &Triple,
+                                   Options &options, const char *Argv0) {
   bool LinkOMP = FOpenMP;
-  int RC =
-      createAndExecutePassPipeline(Ctx, Module, DL, Triple, options, LinkOMP);
-  if (RC != 0) {
-    llvm::errs() << "Failed to execute pass pipeline correctly, RC = " << RC
-                 << ".\n";
-    return RC;
+  if (mlir::failed(createAndExecutePassPipeline(Ctx, Module, DL, Triple,
+                                                options, LinkOMP))) {
+    llvm::errs() << "Failed to execute pass pipeline correctly\n";
+    return failure();
   }
 
   bool EmitBC = EmitLLVM && !EmitAssembly;
@@ -834,7 +826,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
     if (!LLVMModule) {
       Module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
-      return -1;
+      return failure();
     }
 
     LLVMModule->setDataLayout(DL);
@@ -874,26 +866,26 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
           llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
       if (!TmpFile) {
         llvm::errs() << "Failed to create " << TmpFile->TmpName << "\n";
-        return -1;
+        return failure();
       }
       llvm::raw_fd_ostream Out(TmpFile->FD, /*shouldClose*/ false);
       Out << *LLVMModule << "\n";
       Out.flush();
 
-      int Res = emitBinary(Argv0, TmpFile->TmpName.c_str(),
-                           options.getLinkOpts(), LinkOMP);
-      if (Res != 0)
+      if (mlir::failed(emitBinary(Argv0, TmpFile->TmpName.c_str(),
+                                  options.getLinkOpts(), LinkOMP))) {
         llvm::errs() << "Compilation failed\n";
+        return failure();
+      }
 
       if (TmpFile->discard()) {
         llvm::errs() << "Failed to erase " << TmpFile->TmpName << "\n";
-        return -1;
+        return failure();
       }
-      return Res;
     }
   }
 
-  return 0;
+  return success();
 }
 
 static llvm::OptimizationLevel
@@ -1245,8 +1237,11 @@ int main(int argc, char **argv) {
   });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(Module,
-                       InputFileNames.size() == 1 ? InputFileNames[0]
-                                                  : "LLVMDialectModule",
-                       Ctx, DL, Triple, options, argv[0]);
+  if (mlir::failed(compileModule(
+          Module,
+          InputFileNames.size() == 1 ? InputFileNames[0] : "LLVMDialectModule",
+          Ctx, DL, Triple, options, argv[0])))
+    return -1;
+
+  return 0;
 }
