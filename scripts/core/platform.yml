@@ -188,6 +188,9 @@ params:
     - type: const char**
       name: ppAdapterOption
       desc: "[out] returns the correct adapter specific option based on the frontend option."
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "If `pFrontendOption` is not a valid frontend option."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieve string representation of the underlying adapter specific result

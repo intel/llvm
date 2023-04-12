@@ -273,6 +273,8 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFrontendOption`
 ///         + `NULL == ppAdapterOption`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `pFrontendOption` is not a valid frontend option.
 ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
     const char

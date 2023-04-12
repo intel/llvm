@@ -39,3 +39,10 @@ TEST_F(urPlatfromGetBackendOptionTest, InvalidNullPointerAdapterOption) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urPlatformGetBackendOption(platform, "-O0", nullptr));
 }
+
+TEST_F(urPlatfromGetBackendOptionTest, InvalidValueFrontendOption) {
+    const char *adapterOption = nullptr;
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urPlatformGetBackendOption(platform, "-sycl-sucks", &adapterOption));
+}
