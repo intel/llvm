@@ -52,12 +52,45 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                      ur_kernel_group_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // Here we want to query about a kernel's cuda blocks!
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
+  case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+    size_t global_work_size[3] = {0, 0, 0};
+
+    int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&max_block_dimX,
+                             CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
+                             hDevice->get()) == CUDA_SUCCESS);
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&max_block_dimY,
+                             CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
+                             hDevice->get()) == CUDA_SUCCESS);
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&max_block_dimZ,
+                             CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
+                             hDevice->get()) == CUDA_SUCCESS);
+
+    int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&max_grid_dimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
+                             hDevice->get()) == CUDA_SUCCESS);
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&max_grid_dimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                             hDevice->get()) == CUDA_SUCCESS);
+    sycl::detail::ur::assertion(
+        cuDeviceGetAttribute(&max_grid_dimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                             hDevice->get()) == CUDA_SUCCESS);
+
+    global_work_size[0] = max_block_dimX * max_grid_dimX;
+    global_work_size[1] = max_block_dimY * max_grid_dimY;
+    global_work_size[2] = max_block_dimZ * max_grid_dimZ;
+    return ReturnValue(global_work_size, 3);
+  }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
     int max_threads = 0;
     sycl::detail::ur::assertion(
