@@ -106,15 +106,19 @@ not specify an optimization module, there is no new entry in the property set.
 ### Changes to the SYCL runtime
 
 In the SYCL runtime, the device image properties can be accessed to extract the
-associated optimization level. Once the optimization level is available, a query
-is made to the plugin to identify the correct backend option. This backend
-option is added to the existing list of compiler options and is sent to the
-backend.
+associated optimization level. Once the optimization level is available, it is
+converted to its equivalent frontend option string
+(`-O0`, `-O1`, `-O2`, or `-O3`). This frontend option string is passed into a
+query that is made to the plugin to identify the correct backend option. This
+backend option is added to the existing list of compiler options and is sent to
+the backend.
 
 ### Changes to the plugin
 
 A new plugin API has been added. It takes the frontend option string as input in
-string format and returns `pi_result`. The signature is as follows:
+string format and returns `pi_result`. A string format is used for sending the
+frontend option so that this API can be used for querying other frontend
+options as well. The signature of this API is as follows:
 
 ```C++
 pi_result piPluginGetBackendOption(pi_platform platform,
