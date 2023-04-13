@@ -1492,8 +1492,8 @@ public:
 
   const DataT &operator[](int i) const { return (*m_Vector)[i]; }
 
-  template <typename T = VecT>
-  std::enable_if_t<!std::is_const_v<T>, DataT> &operator[](int i) {
+  template <typename _T = VecT>
+  std::enable_if_t<!std::is_const_v<_T>, DataT> &operator[](int i) {
     return (*m_Vector)[i];
   }
 
