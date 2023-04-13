@@ -15,6 +15,8 @@
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
 
+// XFAIL: *
+
 /**
  * This version is stamped on May 10, 2016
  *

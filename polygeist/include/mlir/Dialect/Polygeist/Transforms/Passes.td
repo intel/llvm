@@ -45,6 +45,11 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
 def DetectReduction : Pass<"detect-reduction"> {
   let summary = "Detect array reduction operations in a loop";
   let constructor = "mlir::polygeist::createDetectReductionPass()";
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+  ];
   let statistics = [
     Statistic<"numReductions", "num-reductions", "Number of reductions detected">
   ];

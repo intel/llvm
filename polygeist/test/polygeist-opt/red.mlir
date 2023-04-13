@@ -140,4 +140,23 @@ module  {
     }  
     return
   }
+
+  // COM: Ensure reduction is not detected (exist other may alias operations).
+  func.func @no_detect_reduction_affine_for_3(%arg0: memref<?xf32>, %arg1: memref<?xf32>) {
+    // CHECK-LABEL: func.func @no_detect_reduction_affine_for_3(%arg0: memref<?xf32>, %arg1: memref<?xf32>) {
+    // CHECK:         affine.for %arg2 = 0 to 8 {
+    // CHECK-NEXT:      %0 = affine.load %arg1[0] : memref<?xf32>
+    // CHECK-NEXT:      %1 = affine.load %arg0[%arg2] : memref<?xf32>
+    // CHECK-NEXT:      %2 = arith.addf %0, %1 : f32
+    // CHECK-NEXT:      affine.store %2, %arg1[0] : memref<?xf32>
+    // CHECK-NEXT:    }
+
+    affine.for %arg2 = 0 to 8 {
+      %0 = affine.load %arg1[0] : memref<?xf32>
+      %1 = affine.load %arg0[%arg2] : memref<?xf32>
+      %2 = arith.addf %0, %1 : f32
+      affine.store %2, %arg1[0] : memref<?xf32>
+    }
+    return
+  }
 }
