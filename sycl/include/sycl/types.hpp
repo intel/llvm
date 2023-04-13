@@ -1490,11 +1490,15 @@ class SwizzleOp {
 public:
   using element_type = DataT;
 
-  const DataT &operator[](int i) const { return (*m_Vector)[i]; }
+  const DataT &operator[](int i) const {
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    return (*m_Vector)[Idxs[i]];
+  }
 
   template <typename _T = VecT>
   std::enable_if_t<!std::is_const_v<_T>, DataT> &operator[](int i) {
-    return (*m_Vector)[i];
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    return (*m_Vector)[Idxs[i]];
   }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
