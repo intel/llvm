@@ -46,8 +46,13 @@ int main() {
 
   kernel Kernel = make_kernel<backend::opencl>(OpenCLKernel, Context);
   // Should not throw an exception
-  auto num_args = Kernel.get_info<info::kernel::num_args>();
-  (void)num_args;
+  try {
+    auto num_args = Kernel.get_info<info::kernel::num_args>();
+    (void)num_args;
+  } catch (exception &e) {
+    assert(false && "Using \"info::kernel::num_args\" query for valid kernel "
+                    "should not throw an exception.")
+  }
 
   // The associated kernel bundle should not contain the dummy-kernel.
   assert(!Kernel.get_kernel_bundle().has_kernel(get_kernel_id<DummyKernel>()));

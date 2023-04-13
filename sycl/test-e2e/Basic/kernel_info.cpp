@@ -38,17 +38,26 @@ int main() {
 
   const std::string krnName = krn.get_info<info::kernel::function_name>();
   assert(!krnName.empty());
+
   std::string ErrMsg = "";
+  std::error_code Errc;
+  bool ExceptionWasThrown = false;
   try {
     const cl_uint krnArgCount = krn.get_info<info::kernel::num_args>();
-  } catch (sycl::exception &e) {
+  } catch (exception &e) {
     ErrMsg = e.what();
+    Errc = e.code();
+    ExceptionWasThrown = true;
   }
+  assert(ExceptionWasThrown && "Invalid using of \"info::kernel::num_args\" "
+                               "query should throw an exception.");
   assert(ErrMsg ==
          "info::kernel::num_args descriptor may only be used to query a kernel "
          "that resides in a kernel bundle that was constructed using a backend "
          "specific interoperability function or to query a device built-in "
          "kernel");
+  assert(Errc == errc::invalid);
+
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
   const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();

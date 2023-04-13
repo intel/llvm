@@ -199,7 +199,7 @@ inline typename Param::return_type kernel_impl::get_info() const {
     assert(0 && "Not implemented");
   }
 
-  if (std::is_same_v<Param, info::kernel::num_args>)
+  if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
   return get_kernel_info<Param>(this->getHandleRef(), getPlugin());

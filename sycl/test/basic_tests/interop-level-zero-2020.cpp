@@ -121,9 +121,6 @@ int main() {
   kernel InteropKernel = make_kernel<backend::ext_oneapi_level_zero>(
       {KernelBundle, ZeKernel, ext::oneapi::level_zero::ownership::keep},
       Context);
-  // Should not throw an exception
-  auto num_args = InteropKernel.get_info<info::kernel::num_args>();
-  (void)num_args;
 
   // Check deprecated
   // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}

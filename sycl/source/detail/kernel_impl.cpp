@@ -94,32 +94,27 @@ bool kernel_impl::isCreatedFromSource() const {
 }
 
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
-  bool isBuiltIn = false;
+  if (MKernelBundleImpl->isInterop())
+    return;
   std::string KernelName = get_info<info::kernel::function_name>();
-  if (KernelName != "") {
-    auto Devices = MKernelBundleImpl->get_devices();
-    for (const auto &Device : Devices) {
-      auto BuiltInKernles =
-          Device.get_info<info::device::built_in_kernel_ids>();
-      if (!BuiltInKernles.empty()) {
-        auto It = std::find_if(BuiltInKernles.begin(), BuiltInKernles.end(),
-                               [&KernelName](kernel_id &Id) {
-                                 return Id.get_name() == KernelName;
-                               });
-        if (It != BuiltInKernles.end()) {
-          isBuiltIn = true;
-          break;
-        }
-      }
+  auto Devices = MKernelBundleImpl->get_devices();
+  for (const auto &Device : Devices) {
+    auto BuiltInKernles = Device.get_info<info::device::built_in_kernel_ids>();
+    if (BuiltInKernles.empty())
+      continue;
+    bool Found = std::any_of(
+        BuiltInKernles.begin(), BuiltInKernles.end(),
+        [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; });
+    if (Found) {
+      return;
     }
   }
-  if (!MKernelBundleImpl->isInterop() && !isBuiltIn)
-    throw sycl::exception(
-        sycl::make_error_code(errc::invalid),
-        "info::kernel::num_args descriptor may only be used to query a kernel "
-        "that resides in a kernel bundle that was constructed using a backend "
-        "specific interoperability function or to query a device built-in "
-        "kernel");
+  throw sycl::exception(
+      sycl::make_error_code(errc::invalid),
+      "info::kernel::num_args descriptor may only be used to query a kernel "
+      "that resides in a kernel bundle that was constructed using a backend "
+      "specific interoperability function or to query a device built-in "
+      "kernel");
 }
 
 } // namespace detail
