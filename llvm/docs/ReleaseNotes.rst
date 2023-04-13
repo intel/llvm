@@ -82,6 +82,9 @@ Changes to Interprocedural Optimizations
 Changes to the AArch64 Backend
 ------------------------------
 
+* Added Assembly Support for the 2022 A-profile extensions FEAT_GCS (Guarded
+  Control Stacks), FEAT_CHK (Check Feature Status), and FEAT_ATS1A.
+
 Changes to the AMDGPU Backend
 -----------------------------
 * More fine-grained synchronization around barriers for newer architectures
@@ -146,6 +149,8 @@ Changes to the RISC-V Backend
   extension disassembler/assembler.
 * Added support for the vendor-defined XTHeadMemIdx (indexed memory operations)
   extension disassembler/assembler.
+* Added support for the vendor-defined Xsfvcp (SiFive VCIX) extension
+  disassembler/assembler.
 * Support for the now-ratified Zawrs extension is no longer experimental.
 * Adds support for the vendor-defined XTHeadCmo (cache management operations) extension.
 * Adds support for the vendor-defined XTHeadSync (multi-core synchronization instructions) extension.
@@ -219,6 +224,11 @@ Changes to the Debug Info
   auto-upgraded to ``@llvm.dbg.value`` with ``DW_OP_deref`` appended to the
   ``DIExpression`` (`D144793 <https://reviews.llvm.org/D144793>`_).
 
+* When a template class annotated with the ``[[clang::preferred_name]]`` attribute
+  were to appear in a ``DW_AT_type``, the type will now be that of the preferred_name
+  instead. This change is only enabled when compiling with `-glldb`.
+  (`D145803 <https://reviews.llvm.org/D145803>`_)
+
 Changes to the LLVM tools
 ---------------------------------
 * llvm-lib now supports the /def option for generating a Windows import library from a definition file.
@@ -242,16 +252,17 @@ Changes to Sanitizers
   only consider symbols in other mach-o modules which themselves contain at
   least one weak symbol. A consequence is that if your program or dylib contains
   an intended override of a weak symbol, then it must contain at least one weak
-  symbol as well for the override to be effective. That weak symbol may be the
-  intended override itself, an otherwise usused weak symbol added solely to meet
-  the requirement, or an existing but unrelated weak symbol.
+  symbol as well for the override to take effect.
 
-    Examples:
-      __attribute__((weak)) const char * __asan_default_options(void) {...}
+  Example:
 
-      __attribute__((weak,unused)) unsigned __enableOverrides;
-      
-      __attribute__((weak)) bool unrelatedWeakFlag;
+  .. code-block:: c
+
+    // Add this to make sure your override takes effect
+    __attribute__((weak,unused)) unsigned __enableOverrides;
+
+    // Example override
+    extern "C" const char *__asan_default_options() { ... }
 
 Other Changes
 -------------
