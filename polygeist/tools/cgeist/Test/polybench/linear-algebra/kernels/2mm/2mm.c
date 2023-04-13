@@ -7,7 +7,8 @@
 // RUN: cgeist %s -O3 %polyexec %stdinclude -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
 // RUN: rm -f %s.exec2 %s.execm %s.mlir.time %s.clang.time
-// RUN: cgeist -O2 -raise-scf-to-affine %s %stdinclude -S | FileCheck %s
+// RUN: cgeist -O2 -raise-scf-to-affine %s %stdinclude -S -D POLYBENCH_USE_RESTRICT -enable-attributes | FileCheck %s --check-prefixes=CHECK,RESTRICT
+// RUN: cgeist -O2 -raise-scf-to-affine %s %stdinclude -S | FileCheck %s --check-prefixes=CHECK,NRESTRICT
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
 // RUN: cgeist %s -O3 %polyverify %stdinclude -detect-reduction -o %s.execm && %s.execm &> %s.out2
@@ -183,31 +184,49 @@ int main(int argc, char** argv)
 // CHECK-NEXT:  affine.for %arg11 = 0 to %3 {
 // CHECK-NEXT:    affine.for %arg12 = 0 to %2 {
 // CHECK-NEXT:      affine.store %cst, %arg6[%arg11, %arg12] : memref<?x900xf64>
-// CHECK-NEXT:      affine.for %arg13 = 0 to %0 {
-// CHECK-NEXT:        %4 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
-// CHECK-NEXT:        %5 = arith.mulf %arg4, %4 : f64
-// CHECK-NEXT:        %6 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
-// CHECK-NEXT:        %7 = arith.mulf %5, %6 : f64
-// CHECK-NEXT:        %8 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
-// CHECK-NEXT:        %9 = arith.addf %8, %7 : f64
-// CHECK-NEXT:        affine.store %9, %arg6[%arg11, %arg12] : memref<?x900xf64> 
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
-// CHECK-NEXT:  affine.for %arg11 = 0 to %3 {
+
+// NRESTRICT-NEXT:  affine.for %arg13 = 0 to %0 {
+// NRESTRICT-NEXT:    %4 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
+// NRESTRICT-NEXT:    %5 = arith.mulf %arg4, %4 : f64
+// NRESTRICT-NEXT:    %6 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
+// NRESTRICT-NEXT:    %7 = arith.mulf %5, %6 : f64
+// NRESTRICT-NEXT:    %8 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
+// NRESTRICT-NEXT:    %9 = arith.addf %8, %7 : f64
+// NRESTRICT-NEXT:    affine.store %9, %arg6[%arg11, %arg12] : memref<?x900xf64> 
+// NRESTRICT-NEXT:  }
+// RESTRICT-NEXT:   %4 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
+// RESTRICT-NEXT:   %5 = affine.for %arg13 = 0 to %0 iter_args(%arg14 = %4) -> (f64) {
+// RESTRICT-NEXT:     %6 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
+// RESTRICT-NEXT:     %7 = arith.mulf %arg4, %6 : f64
+// RESTRICT-NEXT:     %8 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
+// RESTRICT-NEXT:     %9 = arith.mulf %7, %8 : f64
+// RESTRICT-NEXT:     %10 = arith.addf %arg14, %9 : f64
+// RESTRICT-NEXT:     affine.yield %10 : f64
+// RESTRICT-NEXT:   }
+// RESTRICT-NEXT:   affine.store %5, %arg6[%arg11, %arg12] : memref<?x900xf64>
+
+// CHECK:       affine.for %arg11 = 0 to %3 {
 // CHECK-NEXT:    affine.for %arg12 = 0 to %1 {
 // CHECK-NEXT:      %4 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
 // CHECK-NEXT:      %5 = arith.mulf %4, %arg5 : f64
 // CHECK-NEXT:      affine.store %5, %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:      affine.for %arg13 = 0 to %2 {
-// CHECK-NEXT:        %6 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64>
-// CHECK-NEXT:        %7 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:        %8 = arith.mulf %6, %7 : f64
-// CHECK-NEXT:        %9 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:        %10 = arith.addf %9, %8 : f64
-// CHECK-NEXT:        affine.store %10, %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
+
+// NRESTRICT-NEXT:  affine.for %arg13 = 0 to %2 {
+// NRESTRICT-NEXT:    %6 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64>
+// NRESTRICT-NEXT:    %7 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
+// NRESTRICT-NEXT:    %8 = arith.mulf %6, %7 : f64
+// NRESTRICT-NEXT:    %9 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// NRESTRICT-NEXT:    %10 = arith.addf %9, %8 : f64
+// NRESTRICT-NEXT:    affine.store %10, %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// NRESTRICT-NEXT:  }
+// RESTRICT-NEXT:   %6 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// RESTRICT-NEXT:   %7 = affine.for %arg13 = 0 to %2 iter_args(%arg14 = %6) -> (f64) {
+// RESTRICT-NEXT:     %8 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64>
+// RESTRICT-NEXT:     %9 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
+// RESTRICT-NEXT:     %10 = arith.mulf %8, %9 : f64
+// RESTRICT-NEXT:     %11 = arith.addf %arg14, %10 : f64
+// RESTRICT-NEXT:     affine.yield %11 : f64
+// RESTRICT-NEXT:   }
+// RESTRICT-NEXT:   affine.store %7, %arg10[%arg11, %arg12] : memref<?x1200xf64>
 
 // EXEC: {{[0-9]\.[0-9]+}}

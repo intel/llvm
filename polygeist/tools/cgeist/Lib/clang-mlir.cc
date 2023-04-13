@@ -57,6 +57,10 @@ llvm::cl::opt<std::string>
     PrefixABI("prefix-abi", llvm::cl::init(""),
               llvm::cl::desc("Prefix for emitted symbols"));
 
+static llvm::cl::opt<bool>
+    EnableAttributes("enable-attributes", llvm::cl::init(false),
+                     llvm::cl::desc("Enable setting of attributes"));
+
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 
 /******************************************************************************/
@@ -2462,7 +2466,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
   MLIRContext *Ctx = Module->getContext();
 
   bool IsDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
-  if (!IsDeviceContext) {
+  if (!EnableAttributes && !IsDeviceContext) {
     LLVM_DEBUG(llvm::dbgs()
                << "Not in a device context - skipping setting attributes for "
                << FD.getNameAsString() << "\n");
