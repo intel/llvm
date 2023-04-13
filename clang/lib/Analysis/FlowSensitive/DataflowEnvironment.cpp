@@ -203,7 +203,33 @@ static void getFieldsAndGlobalVars(const Stmt &S,
 
 // FIXME: Add support for resetting globals after function calls to enable
 // the implementation of sound analyses.
-void Environment::initVars(llvm::DenseSet<const VarDecl *> Vars) {
+void Environment::initFieldsAndGlobals(const FunctionDecl *FuncDecl) {
+  assert(FuncDecl->getBody() != nullptr);
+
+  llvm::DenseSet<const FieldDecl *> Fields;
+  llvm::DenseSet<const VarDecl *> Vars;
+
+  // Look for global variable and field references in the
+  // constructor-initializers.
+  if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(FuncDecl)) {
+    for (const auto *Init : CtorDecl->inits()) {
+      if (const auto *M = Init->getAnyMember())
+          Fields.insert(M);
+      const Expr *E = Init->getInit();
+      assert(E != nullptr);
+      getFieldsAndGlobalVars(*E, Fields, Vars);
+    }
+    // Add all fields mentioned in default member initializers.
+    for (const FieldDecl *F : CtorDecl->getParent()->fields())
+      if (const auto *I = F->getInClassInitializer())
+          getFieldsAndGlobalVars(*I, Fields, Vars);
+  }
+  getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
+
+  // These have to be added before the lines that follow to ensure that
+  // `create*` work correctly for structs.
+  DACtx->addModeledFields(Fields);
+
   for (const VarDecl *D : Vars) {
     if (getStorageLocation(*D, SkipPast::None) != nullptr)
       continue;
@@ -239,31 +265,7 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
   if (const auto *FuncDecl = dyn_cast<FunctionDecl>(&DeclCtx)) {
     assert(FuncDecl->getBody() != nullptr);
 
-    llvm::DenseSet<const FieldDecl *> Fields;
-    llvm::DenseSet<const VarDecl *> Vars;
-
-    // Look for global variable and field references in the
-    // constructor-initializers.
-    if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(&DeclCtx)) {
-      for (const auto *Init : CtorDecl->inits()) {
-        if (const auto *M = Init->getAnyMember())
-          Fields.insert(M);
-        const Expr *E = Init->getInit();
-        assert(E != nullptr);
-        getFieldsAndGlobalVars(*E, Fields, Vars);
-      }
-      // Add all fields mentioned in default member initializers.
-      for (const FieldDecl *F  : CtorDecl->getParent()->fields())
-        if (const auto *I = F->getInClassInitializer())
-          getFieldsAndGlobalVars(*I, Fields, Vars);
-    }
-    getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
-
-    // These have to be added before the lines that follow to ensure that
-    // `create*` work correctly for structs.
-    DACtx.addModeledFields(Fields);
-
-    initVars(Vars);
+    initFieldsAndGlobals(FuncDecl);
 
     for (const auto *ParamDecl : FuncDecl->parameters()) {
       assert(ParamDecl != nullptr);
@@ -337,26 +339,7 @@ void Environment::pushCallInternal(const FunctionDecl *FuncDecl,
                                    ArrayRef<const Expr *> Args) {
   CallStack.push_back(FuncDecl);
 
-  // FIXME: Share this code with the constructor, rather than duplicating it.
-  llvm::DenseSet<const FieldDecl *> Fields;
-  llvm::DenseSet<const VarDecl *> Vars;
-  // Look for global variable references in the constructor-initializers.
-  if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(FuncDecl)) {
-    for (const auto *Init : CtorDecl->inits()) {
-      if (const auto *M = Init->getAnyMember())
-        Fields.insert(M);
-      const Expr *E = Init->getInit();
-      assert(E != nullptr);
-      getFieldsAndGlobalVars(*E, Fields, Vars);
-    }
-  }
-  getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
-
-  // These have to be added before the lines that follow to ensure that
-  // `create*` work correctly for structs.
-  DACtx->addModeledFields(Fields);
-
-  initVars(Vars);
+  initFieldsAndGlobals(FuncDecl);
 
   const auto *ParamIt = FuncDecl->param_begin();
 
@@ -376,7 +359,7 @@ void Environment::pushCallInternal(const FunctionDecl *FuncDecl,
 
     QualType ParamType = Param->getType();
     if (ParamType->isReferenceType()) {
-      auto &Val = takeOwnership(std::make_unique<ReferenceValue>(*ArgLoc));
+      auto &Val = create<ReferenceValue>(*ArgLoc);
       setValue(Loc, Val);
     } else if (auto *ArgVal = getValue(*ArgLoc)) {
       setValue(Loc, *ArgVal);
@@ -625,7 +608,7 @@ void Environment::setValue(const StorageLocation &Loc, Value &Val) {
     auto &AggregateLoc = *cast<AggregateStorageLocation>(&Loc);
 
     const QualType Type = AggregateLoc.getType();
-    assert(Type->isStructureOrClassType() || Type->isUnionType());
+    assert(Type->isRecordType());
 
     for (const FieldDecl *Field : DACtx->getReferencedFields(Type)) {
       assert(Field != nullptr);
@@ -702,12 +685,12 @@ Value *Environment::createValueUnlessSelfReferential(
     // with integers, and so distinguishing them serves no purpose, but could
     // prevent convergence.
     CreatedValuesCount++;
-    return &takeOwnership(std::make_unique<IntegerValue>());
+    return &create<IntegerValue>();
   }
 
-  if (Type->isReferenceType()) {
+  if (Type->isReferenceType() || Type->isPointerType()) {
     CreatedValuesCount++;
-    QualType PointeeType = Type->castAs<ReferenceType>()->getPointeeType();
+    QualType PointeeType = Type->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
     if (Visited.insert(PointeeType.getCanonicalType()).second) {
@@ -719,27 +702,13 @@ Value *Environment::createValueUnlessSelfReferential(
         setValue(PointeeLoc, *PointeeVal);
     }
 
-    return &takeOwnership(std::make_unique<ReferenceValue>(PointeeLoc));
+    if (Type->isReferenceType())
+      return &create<ReferenceValue>(PointeeLoc);
+    else
+      return &create<PointerValue>(PointeeLoc);
   }
 
-  if (Type->isPointerType()) {
-    CreatedValuesCount++;
-    QualType PointeeType = Type->castAs<PointerType>()->getPointeeType();
-    auto &PointeeLoc = createStorageLocation(PointeeType);
-
-    if (Visited.insert(PointeeType.getCanonicalType()).second) {
-      Value *PointeeVal = createValueUnlessSelfReferential(
-          PointeeType, Visited, Depth, CreatedValuesCount);
-      Visited.erase(PointeeType.getCanonicalType());
-
-      if (PointeeVal != nullptr)
-        setValue(PointeeLoc, *PointeeVal);
-    }
-
-    return &takeOwnership(std::make_unique<PointerValue>(PointeeLoc));
-  }
-
-  if (Type->isStructureOrClassType() || Type->isUnionType()) {
+  if (Type->isRecordType()) {
     CreatedValuesCount++;
     llvm::DenseMap<const ValueDecl *, Value *> FieldValues;
     for (const FieldDecl *Field : DACtx->getReferencedFields(Type)) {
@@ -756,8 +725,7 @@ Value *Environment::createValueUnlessSelfReferential(
       Visited.erase(FieldType.getCanonicalType());
     }
 
-    return &takeOwnership(
-        std::make_unique<StructValue>(std::move(FieldValues)));
+    return &create<StructValue>(std::move(FieldValues));
   }
 
   return nullptr;

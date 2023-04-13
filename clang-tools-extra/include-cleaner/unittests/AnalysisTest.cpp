@@ -64,7 +64,7 @@ protected:
     };
   }
 
-  llvm::DenseMap<size_t, std::vector<Header>>
+  std::multimap<size_t, std::vector<Header>>
   offsetToProviders(TestAST &AST, SourceManager &SM,
                     llvm::ArrayRef<SymbolReference> MacroRefs = {}) {
     llvm::SmallVector<Decl *> TopLevelDecls;
@@ -73,13 +73,13 @@ protected:
         continue;
       TopLevelDecls.emplace_back(D);
     }
-    llvm::DenseMap<size_t, std::vector<Header>> OffsetToProviders;
+    std::multimap<size_t, std::vector<Header>> OffsetToProviders;
     walkUsed(TopLevelDecls, MacroRefs, &PI, SM,
              [&](const SymbolReference &Ref, llvm::ArrayRef<Header> Providers) {
                auto [FID, Offset] = SM.getDecomposedLoc(Ref.RefLocation);
                if (FID != SM.getMainFileID())
                  ADD_FAILURE() << "Reference outside of the main file!";
-               OffsetToProviders.try_emplace(Offset, Providers.vec());
+               OffsetToProviders.emplace(Offset, Providers.vec());
              });
     return OffsetToProviders;
   }
@@ -90,15 +90,17 @@ TEST_F(WalkUsedTest, Basic) {
   #include "header.h"
   #include "private.h"
 
-  void $bar^bar($private^Private) {
+  void $bar^bar($private^Private $p^p) {
     $foo^foo();
-    std::$vector^vector $vconstructor^v;
+    std::$vector^vector $vconstructor^$v^v;
+    $builtin^__builtin_popcount(1);
+    std::$move^move(3);
   }
   )cpp");
   Inputs.Code = Code.code();
   Inputs.ExtraFiles["header.h"] = guard(R"cpp(
   void foo();
-  namespace std { class vector {}; }
+  namespace std { class vector {}; int&& move(int&&); }
   )cpp");
   Inputs.ExtraFiles["private.h"] = guard(R"cpp(
     // IWYU pragma: private, include "path/public.h"
@@ -112,15 +114,20 @@ TEST_F(WalkUsedTest, Basic) {
   auto PublicFile = Header("\"path/public.h\"");
   auto MainFile = Header(SM.getFileEntryForID(SM.getMainFileID()));
   auto VectorSTL = Header(*tooling::stdlib::Header::named("<vector>"));
+  auto UtilitySTL = Header(*tooling::stdlib::Header::named("<utility>"));
   EXPECT_THAT(
       offsetToProviders(AST, SM),
       UnorderedElementsAre(
           Pair(Code.point("bar"), UnorderedElementsAre(MainFile)),
+          Pair(Code.point("p"), UnorderedElementsAre(MainFile)),
           Pair(Code.point("private"),
                UnorderedElementsAre(PublicFile, PrivateFile)),
           Pair(Code.point("foo"), UnorderedElementsAre(HeaderFile)),
           Pair(Code.point("vector"), UnorderedElementsAre(VectorSTL)),
-          Pair(Code.point("vconstructor"), UnorderedElementsAre(VectorSTL))));
+          Pair(Code.point("vconstructor"), UnorderedElementsAre(VectorSTL)),
+          Pair(Code.point("v"), UnorderedElementsAre(MainFile)),
+          Pair(Code.point("builtin"), testing::IsEmpty()),
+          Pair(Code.point("move"), UnorderedElementsAre(UtilitySTL))));
 }
 
 TEST_F(WalkUsedTest, MultipleProviders) {
@@ -155,8 +162,8 @@ TEST_F(WalkUsedTest, MultipleProviders) {
 TEST_F(WalkUsedTest, MacroRefs) {
   llvm::Annotations Code(R"cpp(
     #include "hdr.h"
-    int x = $1^ANSWER;
-    int y = $2^ANSWER;
+    int $3^x = $1^ANSWER;
+    int $4^y = $2^ANSWER;
   )cpp");
   llvm::Annotations Hdr(guard("#define ^ANSWER 42"));
   Inputs.Code = Code.code();
@@ -164,6 +171,8 @@ TEST_F(WalkUsedTest, MacroRefs) {
   TestAST AST(Inputs);
   auto &SM = AST.sourceManager();
   const auto *HdrFile = SM.getFileManager().getFile("hdr.h").get();
+  auto MainFile = Header(SM.getFileEntryForID(SM.getMainFileID()));
+
   auto HdrID = SM.translateFile(HdrFile);
 
   IdentifierTable Idents;
@@ -181,7 +190,10 @@ TEST_F(WalkUsedTest, MacroRefs) {
                                          Answer2, RefType::Explicit}}),
       UnorderedElementsAre(
           Pair(Code.point("1"), UnorderedElementsAre(HdrFile)),
-          Pair(Code.point("2"), UnorderedElementsAre(HdrFile))));
+          Pair(Code.point("2"), UnorderedElementsAre(HdrFile)),
+          Pair(Code.point("3"), UnorderedElementsAre(MainFile)),
+          Pair(Code.point("4"), UnorderedElementsAre(MainFile))
+              ));
 }
 
 class AnalyzeTest : public testing::Test {

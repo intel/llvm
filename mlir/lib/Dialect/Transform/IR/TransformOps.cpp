@@ -133,6 +133,93 @@ LogicalResult PatternApplicatorExtension::findAllMatches(
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// TrackingListener
+//===----------------------------------------------------------------------===//
+
+Operation *transform::TrackingListener::getCommonDefiningOp(ValueRange values) {
+  Operation *defOp = nullptr;
+  for (Value v : values) {
+    // Skip empty values.
+    if (!v)
+      continue;
+    if (!defOp) {
+      defOp = v.getDefiningOp();
+      continue;
+    }
+    if (defOp != v.getDefiningOp())
+      return nullptr;
+  }
+  return defOp;
+}
+
+Operation *
+transform::TrackingListener::findReplacementOp(Operation *op,
+                                               ValueRange newValues) const {
+  assert(op->getNumResults() == newValues.size() &&
+         "invalid number of replacement values");
+
+  // If the replacement values belong to different ops, drop the mapping.
+  Operation *defOp = getCommonDefiningOp(newValues);
+  if (!defOp)
+    return nullptr;
+
+  // If the replacement op has a different type, drop the mapping.
+  if (op->getName() != defOp->getName())
+    return nullptr;
+
+  // If the replacement op is not a new op, drop the mapping.
+  if (!isNewOp(defOp))
+    return nullptr;
+
+  return defOp;
+}
+
+bool transform::TrackingListener::isNewOp(Operation *op) const {
+  auto it = newOps.find(op->getName());
+  if (it == newOps.end())
+    return false;
+  return it->second.contains(op);
+}
+
+void transform::TrackingListener::notifyOperationInserted(Operation *op) {
+  newOps[op->getName()].insert(op);
+}
+
+void transform::TrackingListener::notifyOperationRemoved(Operation *op) {
+  // TODO: Walk can be removed when D144193 has landed.
+  op->walk([&](Operation *op) {
+    // Keep set of new ops up-to-date.
+    auto it = newOps.find(op->getName());
+    if (it != newOps.end())
+      it->second.erase(op);
+    // Remove mappings for result values.
+    for (OpResult value : op->getResults())
+      (void)replacePayloadValue(value, nullptr);
+    // Remove mapping for op.
+    (void)replacePayloadOp(op, nullptr);
+  });
+}
+
+void transform::TrackingListener::notifyOperationReplaced(
+    Operation *op, ValueRange newValues) {
+  assert(op->getNumResults() == newValues.size() &&
+         "invalid number of replacement values");
+
+  // Replace value handles.
+  for (auto [oldValue, newValue] : llvm::zip(op->getResults(), newValues))
+    (void)replacePayloadValue(oldValue, newValue);
+
+  // Replace op handle.
+  Operation *replacement = findReplacementOp(op, newValues);
+  if (succeeded(replacePayloadOp(op, replacement))) {
+    // If the op is tracked but no replacement op was found, send a
+    // notification.
+    if (!replacement)
+      notifyPayloadReplacementNotFound(op, newValues);
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // AlternativesOp
 //===----------------------------------------------------------------------===//
 
@@ -573,6 +660,9 @@ transform::IncludeOp::apply(transform::TransformResults &results,
       getOperation(), getTarget());
   assert(callee && "unverified reference to unknown symbol");
 
+  if (callee.isExternal())
+    return emitDefiniteFailure() << "unresolved external named sequence";
+
   // Map operands to block arguments.
   SmallVector<SmallVector<MappedValue>> mappings;
   detail::prepareValueMappings(mappings, getOperands(), state);
@@ -630,34 +720,95 @@ verifyNamedSequenceOp(transform::NamedSequenceOp op);
 
 void transform::IncludeOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  // Always mark as modifying the payload.
+  // TODO: a mechanism to annotate effects on payload. Even when all handles are
+  // only read, the payload may still be modified, so we currently stay on the
+  // conservative side and always indicate modification. This may prevent some
+  // code reordering.
+  modifiesPayload(effects);
+
+  // Results are always produced.
+  producesHandle(getResults(), effects);
+
+  // Adds default effects to operands and results. This will be added if
+  // preconditions fail so the trait verifier doesn't complain about missing
+  // effects and the real precondition failure is reported later on.
+  auto defaultEffects = [&] { onlyReadsHandle(getOperands(), effects); };
+
   // Bail if the callee is unknown. This may run as part of the verification
   // process before we verified the validity of the callee or of this op.
   auto target =
       getOperation()->getAttrOfType<SymbolRefAttr>(getTargetAttrName());
   if (!target)
-    return;
+    return defaultEffects();
   auto callee = SymbolTable::lookupNearestSymbolFrom<NamedSequenceOp>(
       getOperation(), getTarget());
   if (!callee)
-    return;
+    return defaultEffects();
   DiagnosedSilenceableFailure earlyVerifierResult =
       verifyNamedSequenceOp(callee);
   if (!earlyVerifierResult.succeeded()) {
     (void)earlyVerifierResult.silence();
-    return;
+    return defaultEffects();
   }
 
-  // Carry over effects from the callee.
-  remapArgumentEffects(callee.getBody().front(), getOperands(), effects);
-
-  // Proper effects.
-  onlyReadsHandle(getOperands(), effects);
-  producesHandle(getResults(), effects);
+  for (unsigned i = 0, e = getNumOperands(); i < e; ++i) {
+    if (callee.getArgAttr(i, TransformDialect::kArgConsumedAttrName))
+      consumesHandle(getOperand(i), effects);
+    else
+      onlyReadsHandle(getOperand(i), effects);
+  }
 }
 
 template <typename... Tys>
 static bool implementSameInterface(Type t1, Type t2) {
   return ((isa<Tys>(t1) && isa<Tys>(t2)) || ... || false);
+}
+
+/// Checks that the attributes of the named sequence operation have correct
+/// consumption effect annotations. If `alsoVerifyInternal`, checks for
+/// annotations being present even if they can be inferred from the body.
+static DiagnosedSilenceableFailure
+verifyNamedSequenceConsumeAnnotations(transform::NamedSequenceOp op,
+                                      bool alsoVerifyInternal = false) {
+  llvm::SmallDenseSet<unsigned> consumedArguments;
+  if (!op.isExternal()) {
+    transform::getConsumedBlockArguments(op.getBody().front(),
+                                         consumedArguments);
+  }
+  for (unsigned i = 0, e = op.getFunctionType().getNumInputs(); i < e; ++i) {
+    bool isConsumed =
+        op.getArgAttr(i, transform::TransformDialect::kArgConsumedAttrName) !=
+        nullptr;
+    bool isReadOnly =
+        op.getArgAttr(i, transform::TransformDialect::kArgReadOnlyAttrName) !=
+        nullptr;
+    if (isConsumed && isReadOnly) {
+      return op.emitSilenceableError()
+             << "argument #" << i << " cannot be both readonly and consumed";
+    }
+    if ((op.isExternal() || alsoVerifyInternal) && !isConsumed && !isReadOnly) {
+      return op.emitSilenceableError()
+             << "must provide consumed/readonly status for arguments of "
+                "external or called ops";
+    }
+    if (op.isExternal())
+      continue;
+
+    if (consumedArguments.contains(i) && !isConsumed && isReadOnly) {
+      return op.emitSilenceableError()
+             << "argument #" << i
+             << " is consumed in the body but is not marked as such";
+    }
+    if (!consumedArguments.contains(i) && isConsumed) {
+      Diagnostic warning(op->getLoc(), DiagnosticSeverity::Warning);
+      warning << "argument #" << i
+              << " is not consumed in the body but is marked as consumed";
+      return DiagnosedSilenceableFailure::silenceableFailure(
+          std::move(warning));
+    }
+  }
+  return DiagnosedSilenceableFailure::success();
 }
 
 LogicalResult
@@ -701,7 +852,9 @@ transform::IncludeOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
     }
   }
 
-  return success();
+  return verifyNamedSequenceConsumeAnnotations(target,
+                                               /*alsoVerifyInternal=*/true)
+      .checkAndReport();
 }
 
 //===----------------------------------------------------------------------===//
@@ -784,9 +937,6 @@ void transform::NamedSequenceOp::print(OpAsmPrinter &printer) {
 /// verifier runs, e.g., during trait verification.
 static DiagnosedSilenceableFailure
 verifyNamedSequenceOp(transform::NamedSequenceOp op) {
-  if (op.isExternal())
-    return emitSilenceableFailure(op) << "cannot be empty";
-
   if (Operation *parent = op->getParentWithTrait<OpTrait::SymbolTable>()) {
     if (!parent->getAttr(
             transform::TransformDialect::kWithNamedSequenceAttrName)) {
@@ -807,6 +957,9 @@ verifyNamedSequenceOp(transform::NamedSequenceOp op) {
     diag.attachNote(parent.getLoc()) << "ancestor transform op";
     return diag;
   }
+
+  if (op.isExternal() || op.getBody().empty())
+    return verifyNamedSequenceConsumeAnnotations(op);
 
   if (op.getBody().front().empty())
     return emitSilenceableFailure(op) << "expected a non-empty body block";
@@ -838,7 +991,7 @@ verifyNamedSequenceOp(transform::NamedSequenceOp op) {
            << operandType << " vs " << resultType << ")";
   }
 
-  return DiagnosedSilenceableFailure::success();
+  return verifyNamedSequenceConsumeAnnotations(op);
 }
 
 LogicalResult transform::NamedSequenceOp::verify() {

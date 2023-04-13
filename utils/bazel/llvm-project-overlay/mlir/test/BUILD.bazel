@@ -519,6 +519,8 @@ cc_library(
         "//mlir:FuncTransforms",
         "//mlir:IR",
         "//mlir:Pass",
+        "//mlir:SCFDialect",
+        "//mlir:SCFTransforms",
         "//mlir:TransformUtils",
     ],
 )
@@ -556,7 +558,9 @@ cc_library(
         "//mlir:Pass",
         "//mlir:SCFDialect",
         "//mlir:Support",
+        "//mlir:TensorDialect",
         "//mlir:Transforms",
+        "//mlir:ValueBoundsOpInterface",
         "//mlir:VectorDialect",
         "//mlir:VectorUtils",
     ],

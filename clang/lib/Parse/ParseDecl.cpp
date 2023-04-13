@@ -3449,12 +3449,12 @@ void Parser::ParseDeclarationSpecifiers(
         continue;
       }
 
-      if (TemplateId && TemplateId->Kind == TNK_Concept_template &&
-          GetLookAheadToken(2).isOneOf(tok::kw_auto, tok::kw_decltype)) {
+      if (TemplateId && TemplateId->Kind == TNK_Concept_template) {
         DS.getTypeSpecScope() = SS;
-        // This is a qualified placeholder-specifier, e.g., ::C<int> auto ...
-        // Consume the scope annotation and continue to consume the template-id
-        // as a placeholder-specifier.
+        // This is probably a qualified placeholder-specifier, e.g., ::C<int>
+        // auto ... Consume the scope annotation and continue to consume the
+        // template-id as a placeholder-specifier. Let the next iteration
+        // diagnose a missing auto.
         ConsumeAnnotationToken();
         continue;
       }
@@ -3771,6 +3771,10 @@ void Parser::ParseDeclarationSpecifiers(
         }
         if (!NextToken().isOneOf(tok::kw_auto, tok::kw_decltype))
             goto DoneWithDeclSpec;
+
+        if (TemplateId && !isInvalid && Actions.CheckTypeConstraint(TemplateId))
+            TemplateId = nullptr;
+
         ConsumeAnnotationToken();
         SourceLocation AutoLoc = Tok.getLocation();
         if (TryConsumeToken(tok::kw_decltype)) {

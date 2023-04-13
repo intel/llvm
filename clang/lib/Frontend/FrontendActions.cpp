@@ -759,6 +759,8 @@ static StringRef ModuleKindName(Module::ModuleKind MK) {
     return "Module Map Module";
   case Module::ModuleInterfaceUnit:
     return "Interface Unit";
+  case Module::ModuleImplementationUnit:
+    return "Implementation Unit";
   case Module::ModulePartitionInterface:
     return "Partition Interface";
   case Module::ModulePartitionImplementation:
@@ -778,14 +780,12 @@ static StringRef ModuleKindName(Module::ModuleKind MK) {
 void DumpModuleInfoAction::ExecuteAction() {
   assert(isCurrentFileAST() && "dumping non-AST?");
   // Set up the output file.
-  std::unique_ptr<llvm::raw_fd_ostream> OutFile;
   CompilerInstance &CI = getCompilerInstance();
   StringRef OutputFileName = CI.getFrontendOpts().OutputFile;
   if (!OutputFileName.empty() && OutputFileName != "-") {
     std::error_code EC;
-    OutFile.reset(new llvm::raw_fd_ostream(OutputFileName.str(), EC,
-                                           llvm::sys::fs::OF_TextWithCRLF));
-    OutputStream = OutFile.get();
+    OutputStream.reset(new llvm::raw_fd_ostream(
+        OutputFileName.str(), EC, llvm::sys::fs::OF_TextWithCRLF));
   }
   llvm::raw_ostream &Out = OutputStream ? *OutputStream : llvm::outs();
 
@@ -882,7 +882,7 @@ void DumpModuleInfoAction::ExecuteAction() {
     }
 
     // Now let's print out any modules we did not see as part of the Primary.
-    for (auto SM : SubModMap) {
+    for (const auto &SM : SubModMap) {
       if (!SM.second.Seen && SM.second.Mod) {
         Out << "  " << ModuleKindName(SM.second.Kind) << " '" << SM.first
             << "' at index #" << SM.second.Idx

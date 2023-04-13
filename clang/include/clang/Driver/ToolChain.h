@@ -9,7 +9,6 @@
 #ifndef LLVM_CLANG_DRIVER_TOOLCHAIN_H
 #define LLVM_CLANG_DRIVER_TOOLCHAIN_H
 
-#include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Sanitizers.h"
@@ -21,6 +20,7 @@
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Frontend/Debug/Options.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/VersionTuple.h"
@@ -513,9 +513,9 @@ public:
   // Returns target specific standard library paths.
   path_list getStdlibPaths() const;
 
-  // Returns <ResourceDir>/lib/<OSName>/<arch>.  This is used by runtimes (such
-  // as OpenMP) to find arch-specific libraries.
-  virtual std::string getArchSpecificLibPath() const;
+  // Returns <ResourceDir>/lib/<OSName>/<arch> or <ResourceDir>/lib/<triple>.
+  // This is used by runtimes (such as OpenMP) to find arch-specific libraries.
+  virtual path_list getArchSpecificLibPaths() const;
 
   // Returns <OSname> part of above.
   virtual StringRef getOSLibName() const;
@@ -555,8 +555,8 @@ public:
   virtual void CheckObjCARC() const {}
 
   /// Get the default debug info format. Typically, this is DWARF.
-  virtual codegenoptions::DebugInfoFormat getDefaultDebugFormat() const {
-    return codegenoptions::DIF_DWARF;
+  virtual llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const {
+    return llvm::codegenoptions::DIF_DWARF;
   }
 
   /// UseDwarfDebugFlags - Embed the compile options to clang into the Dwarf
@@ -592,8 +592,9 @@ public:
   }
 
   /// Adjust debug information kind considering all passed options.
-  virtual void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
-                                   const llvm::opt::ArgList &Args) const {}
+  virtual void
+  adjustDebugInfoKind(llvm::codegenoptions::DebugInfoKind &DebugInfoKind,
+                      const llvm::opt::ArgList &Args) const {}
 
   /// GetExceptionModel - Return the tool chain exception model.
   virtual llvm::ExceptionHandling

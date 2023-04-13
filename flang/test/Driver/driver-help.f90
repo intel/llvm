@@ -56,6 +56,8 @@
 ! HELP-NEXT: -fsyntax-only          Run the preprocessor, parser and semantic analysis stages
 ! HELP-NEXT: -funderscoring         Appends one trailing underscore to external names
 ! HELP-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
+! HELP-NEXT: -gline-tables-only     Emit debug line number tables only
+! HELP-NEXT: -g                     Generate source-level debug information
 ! HELP-NEXT: -help                  Display available options
 ! HELP-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! HELP-NEXT: -mllvm=<arg>           Alias for -mllvm
@@ -143,6 +145,7 @@
 ! HELP-FC1-NEXT: -fno-stack-arrays      Allocate array temporaries on the heap (default)
 ! HELP-FC1-NEXT: -fopenacc              Enable OpenACC
 ! HELP-FC1-NEXT: -fopenmp-is-device     Generate code only for an OpenMP target device.
+! HELP-FC1-NEXT: -fopenmp-target-debug  Enable debugging in the OpenMP offloading device RTL
 ! HELP-FC1-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! HELP-FC1-NEXT: -fpass-plugin=<dsopath> Load pass plugin from a dynamic shared object file (only with new pass manager).
 ! HELP-FC1-NEXT: -freciprocal-math      Allow division operations to be reassociated

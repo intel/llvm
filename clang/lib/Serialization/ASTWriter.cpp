@@ -1288,11 +1288,11 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
     // If the home of the module is the current working directory, then we
     // want to pick up the cwd of the build process loading the module, not
     // our cwd, when we load this module.
-    if (!(PP.getHeaderSearchInfo()
+    if (!PP.getHeaderSearchInfo().getHeaderSearchOpts().ModuleFileHomeIsCwd &&
+        (!PP.getHeaderSearchInfo()
               .getHeaderSearchOpts()
               .ModuleMapFileHomeIsCwd ||
-          PP.getHeaderSearchInfo().getHeaderSearchOpts().ModuleFileHomeIsCwd) ||
-        WritingModule->Directory->getName() != StringRef(".")) {
+         WritingModule->Directory->getName() != StringRef("."))) {
       // Module directory.
       auto Abbrev = std::make_shared<BitCodeAbbrev>();
       Abbrev->Add(BitCodeAbbrevOp(MODULE_DIRECTORY));
@@ -2719,7 +2719,7 @@ void ASTWriter::WriteSubmodules(Module *WritingModule) {
   Abbrev->Add(BitCodeAbbrevOp(SUBMODULE_DEFINITION));
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // ID
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Parent
-  Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 3)); // Kind
+  Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 4)); // Kind
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // IsFramework
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // IsExplicit
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // IsSystem
@@ -3849,12 +3849,6 @@ public:
 
 } // namespace
 
-bool ASTWriter::isLookupResultExternal(StoredDeclsList &Result,
-                                       DeclContext *DC) {
-  return Result.hasExternalDecls() &&
-         DC->hasNeedToReconcileExternalVisibleStorage();
-}
-
 bool ASTWriter::isLookupResultEntirelyExternal(StoredDeclsList &Result,
                                                DeclContext *DC) {
   for (auto *D : Result.getLookupResult())
@@ -3885,20 +3879,17 @@ ASTWriter::GenerateNameLookupTable(const DeclContext *ConstDC,
   // order.
   SmallVector<DeclarationName, 16> Names;
 
-  // We also build up small sets of the constructor and conversion function
-  // names which are visible.
-  llvm::SmallPtrSet<DeclarationName, 8> ConstructorNameSet, ConversionNameSet;
+  // We also track whether we're writing out the DeclarationNameKey for
+  // constructors or conversion functions.
+  bool IncludeConstructorNames = false;
+  bool IncludeConversionNames = false;
 
-  for (auto &Lookup : *DC->buildLookup()) {
-    auto &Name = Lookup.first;
-    auto &Result = Lookup.second;
-
+  for (auto &[Name, Result] : *DC->buildLookup()) {
     // If there are no local declarations in our lookup result, we
     // don't need to write an entry for the name at all. If we can't
     // write out a lookup set without performing more deserialization,
     // just skip this entry.
-    if (isLookupResultExternal(Result, DC) &&
-        isLookupResultEntirelyExternal(Result, DC))
+    if (isLookupResultEntirelyExternal(Result, DC))
       continue;
 
     // We also skip empty results. If any of the results could be external and
@@ -3915,24 +3906,20 @@ ASTWriter::GenerateNameLookupTable(const DeclContext *ConstDC,
     // results for them. This in almost certainly a bug in Clang's name lookup,
     // but that is likely to be hard or impossible to fix and so we tolerate it
     // here by omitting lookups with empty results.
-    if (Lookup.second.getLookupResult().empty())
+    if (Result.getLookupResult().empty())
       continue;
 
-    switch (Lookup.first.getNameKind()) {
+    switch (Name.getNameKind()) {
     default:
-      Names.push_back(Lookup.first);
+      Names.push_back(Name);
       break;
 
     case DeclarationName::CXXConstructorName:
-      assert(isa<CXXRecordDecl>(DC) &&
-             "Cannot have a constructor name outside of a class!");
-      ConstructorNameSet.insert(Name);
+      IncludeConstructorNames = true;
       break;
 
     case DeclarationName::CXXConversionFunctionName:
-      assert(isa<CXXRecordDecl>(DC) &&
-             "Cannot have a conversion function name outside of a class!");
-      ConversionNameSet.insert(Name);
+      IncludeConversionNames = true;
       break;
     }
   }
@@ -3940,55 +3927,34 @@ ASTWriter::GenerateNameLookupTable(const DeclContext *ConstDC,
   // Sort the names into a stable order.
   llvm::sort(Names);
 
-  if (auto *D = dyn_cast<CXXRecordDecl>(DC)) {
+  if (IncludeConstructorNames || IncludeConversionNames) {
     // We need to establish an ordering of constructor and conversion function
-    // names, and they don't have an intrinsic ordering.
+    // names, and they don't have an intrinsic ordering. We also need to write
+    // out all constructor and conversion function results if we write out any
+    // of them, because they're all tracked under the same lookup key.
+    llvm::SmallPtrSet<DeclarationName, 8> AddedNames;
+    for (Decl *ChildD : cast<CXXRecordDecl>(DC)->decls()) {
+      if (auto *ChildND = dyn_cast<NamedDecl>(ChildD)) {
+        auto Name = ChildND->getDeclName();
+        switch (Name.getNameKind()) {
+        default:
+          continue;
 
-    // First we try the easy case by forming the current context's constructor
-    // name and adding that name first. This is a very useful optimization to
-    // avoid walking the lexical declarations in many cases, and it also
-    // handles the only case where a constructor name can come from some other
-    // lexical context -- when that name is an implicit constructor merged from
-    // another declaration in the redecl chain. Any non-implicit constructor or
-    // conversion function which doesn't occur in all the lexical contexts
-    // would be an ODR violation.
-    auto ImplicitCtorName = Context->DeclarationNames.getCXXConstructorName(
-        Context->getCanonicalType(Context->getRecordType(D)));
-    if (ConstructorNameSet.erase(ImplicitCtorName))
-      Names.push_back(ImplicitCtorName);
-
-    // If we still have constructors or conversion functions, we walk all the
-    // names in the decl and add the constructors and conversion functions
-    // which are visible in the order they lexically occur within the context.
-    if (!ConstructorNameSet.empty() || !ConversionNameSet.empty())
-      for (Decl *ChildD : cast<CXXRecordDecl>(DC)->decls())
-        if (auto *ChildND = dyn_cast<NamedDecl>(ChildD)) {
-          auto Name = ChildND->getDeclName();
-          switch (Name.getNameKind()) {
-          default:
+        case DeclarationName::CXXConstructorName:
+          if (!IncludeConstructorNames)
             continue;
+          break;
 
-          case DeclarationName::CXXConstructorName:
-            if (ConstructorNameSet.erase(Name))
-              Names.push_back(Name);
-            break;
-
-          case DeclarationName::CXXConversionFunctionName:
-            if (ConversionNameSet.erase(Name))
-              Names.push_back(Name);
-            break;
-          }
-
-          if (ConstructorNameSet.empty() && ConversionNameSet.empty())
-            break;
+        case DeclarationName::CXXConversionFunctionName:
+          if (!IncludeConversionNames)
+            continue;
+          break;
         }
-
-    assert(ConstructorNameSet.empty() && "Failed to find all of the visible "
-                                         "constructors by walking all the "
-                                         "lexical members of the context.");
-    assert(ConversionNameSet.empty() && "Failed to find all of the visible "
-                                        "conversion functions by walking all "
-                                        "the lexical members of the context.");
+        // We should include lookup results for this name.
+        if (AddedNames.insert(Name).second)
+          Names.push_back(Name);
+      }
+    }
   }
 
   // Next we need to do a lookup with each name into this decl context to fully
@@ -5175,6 +5141,7 @@ void ASTWriter::WriteDeclUpdatesBlocks(RecordDataImpl &OffsetsRecord) {
     const Decl *D = DeclUpdate.first;
 
     bool HasUpdatedBody = false;
+    bool HasAddedVarDefinition = false;
     RecordData RecordData;
     ASTRecordWriter Record(*this, RecordData);
     for (auto &Update : DeclUpdate.second) {
@@ -5184,6 +5151,8 @@ void ASTWriter::WriteDeclUpdatesBlocks(RecordDataImpl &OffsetsRecord) {
       // to skip over the lazy body to reach statements for other records.
       if (Kind == UPD_CXX_ADDED_FUNCTION_DEFINITION)
         HasUpdatedBody = true;
+      else if (Kind == UPD_CXX_ADDED_VAR_DEFINITION)
+        HasAddedVarDefinition = true;
       else
         Record.push_back(Kind);
 
@@ -5196,20 +5165,13 @@ void ASTWriter::WriteDeclUpdatesBlocks(RecordDataImpl &OffsetsRecord) {
         break;
 
       case UPD_CXX_ADDED_FUNCTION_DEFINITION:
+      case UPD_CXX_ADDED_VAR_DEFINITION:
         break;
 
       case UPD_CXX_POINT_OF_INSTANTIATION:
         // FIXME: Do we need to also save the template specialization kind here?
         Record.AddSourceLocation(Update.getLoc());
         break;
-
-      case UPD_CXX_ADDED_VAR_DEFINITION: {
-        const VarDecl *VD = cast<VarDecl>(D);
-        Record.push_back(VD->isInline());
-        Record.push_back(VD->isInlineSpecified());
-        Record.AddVarDeclInit(VD);
-        break;
-      }
 
       case UPD_CXX_INSTANTIATED_DEFAULT_ARGUMENT:
         Record.AddStmt(const_cast<Expr *>(
@@ -5322,12 +5284,20 @@ void ASTWriter::WriteDeclUpdatesBlocks(RecordDataImpl &OffsetsRecord) {
       }
     }
 
+    // Add a trailing update record, if any. These must go last because we
+    // lazily load their attached statement.
     if (HasUpdatedBody) {
       const auto *Def = cast<FunctionDecl>(D);
       Record.push_back(UPD_CXX_ADDED_FUNCTION_DEFINITION);
       Record.push_back(Def->isInlined());
       Record.AddSourceLocation(Def->getInnerLocStart());
       Record.AddFunctionDefinition(Def);
+    } else if (HasAddedVarDefinition) {
+      const auto *VD = cast<VarDecl>(D);
+      Record.push_back(UPD_CXX_ADDED_VAR_DEFINITION);
+      Record.push_back(VD->isInline());
+      Record.push_back(VD->isInlineSpecified());
+      Record.AddVarDeclInit(VD);
     }
 
     OffsetsRecord.push_back(GetDeclRef(D));
@@ -5917,6 +5887,7 @@ void ASTRecordWriter::AddCXXDefinitionData(const CXXRecordDecl *D) {
 
   // getODRHash will compute the ODRHash if it has not been previously computed.
   Record->push_back(D->getODRHash());
+
   bool ModulesDebugInfo =
       Writer->Context->getLangOpts().ModulesDebugInfo && !D->isDependentType();
   Record->push_back(ModulesDebugInfo);
@@ -5925,24 +5896,24 @@ void ASTRecordWriter::AddCXXDefinitionData(const CXXRecordDecl *D) {
 
   // IsLambda bit is already saved.
 
-  Record->push_back(Data.NumBases);
-  if (Data.NumBases > 0)
-    AddCXXBaseSpecifiers(Data.bases());
-
-  // FIXME: Make VBases lazily computed when needed to avoid storing them.
-  Record->push_back(Data.NumVBases);
-  if (Data.NumVBases > 0)
-    AddCXXBaseSpecifiers(Data.vbases());
-
   AddUnresolvedSet(Data.Conversions.get(*Writer->Context));
   Record->push_back(Data.ComputedVisibleConversions);
   if (Data.ComputedVisibleConversions)
     AddUnresolvedSet(Data.VisibleConversions.get(*Writer->Context));
   // Data.Definition is the owning decl, no need to write it.
-  AddDeclRef(D->getFirstFriend());
 
-  // Add lambda-specific data.
-  if (Data.IsLambda) {
+  if (!Data.IsLambda) {
+    Record->push_back(Data.NumBases);
+    if (Data.NumBases > 0)
+      AddCXXBaseSpecifiers(Data.bases());
+
+    // FIXME: Make VBases lazily computed when needed to avoid storing them.
+    Record->push_back(Data.NumVBases);
+    if (Data.NumVBases > 0)
+      AddCXXBaseSpecifiers(Data.vbases());
+
+    AddDeclRef(D->getFirstFriend());
+  } else {
     auto &Lambda = D->getLambdaData();
     Record->push_back(Lambda.DependencyKind);
     Record->push_back(Lambda.IsGenericLambda);
@@ -5952,7 +5923,8 @@ void ASTRecordWriter::AddCXXDefinitionData(const CXXRecordDecl *D) {
     Record->push_back(Lambda.HasKnownInternalLinkage);
     Record->push_back(Lambda.ManglingNumber);
     Record->push_back(D->getDeviceLambdaManglingNumber());
-    AddDeclRef(D->getLambdaContextDecl());
+    // The lambda context declaration and index within the context are provided
+    // separately, so that they can be used for merging.
     AddTypeSourceInfo(Lambda.MethodTyInfo);
     for (unsigned I = 0, N = Lambda.NumCaptures; I != N; ++I) {
       const LambdaCapture &Capture = Lambda.Captures.front()[I];
