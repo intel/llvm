@@ -59,14 +59,10 @@ ESIMD_CALLEE(int *A, esimd::simd<int, VL> b, int i,
   return a + b * scalars->x * scalars->y;
 }
 
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+[[intel::device_indirectly_callable]]
     simd<int, VL> __regcall SIMD_CALLEE(int *A, simd<int, VL> b, int i,
                                         multipliers *scalars)
         SYCL_ESIMD_FUNCTION;
-
-int SPMD_CALLEE(int *A, int b, int i, multipliers *scalars) {
-  return A[i] + b * scalars->x * scalars->y;
-}
 
 using namespace sycl;
 
@@ -74,7 +70,7 @@ int main(void) {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 4 * VL;
 
-  auto q = queue{gpu_selector_v};
+  queue q;
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
@@ -88,7 +84,7 @@ int main(void) {
     C[i] = -1;
   }
 
-  // USM shared memory allocation for a struct multipliers.
+  // USM shared memory allocation for struct multipliers.
   auto *scalars = malloc_shared<multipliers>(Size, q);
   scalars->x = 2;
   scalars->y = 3;
@@ -150,7 +146,7 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+[[intel::device_indirectly_callable]]
     simd<int, VL> __regcall SIMD_CALLEE(int *A, simd<int, VL> b, int i,
                                         multipliers *scalars)
         SYCL_ESIMD_FUNCTION {

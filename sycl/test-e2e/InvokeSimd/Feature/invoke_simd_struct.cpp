@@ -62,7 +62,7 @@ ESIMD_CALLEE(float *A, int i, StructTy S) SYCL_ESIMD_FUNCTION {
 }
 
 template <class StructTy>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+[[intel::device_indirectly_callable]]
     simd<float, VL> __regcall SIMD_CALLEE(float *A, int i,
                                           StructTy S) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> res = ESIMD_CALLEE<StructTy>(A, i, S);
@@ -175,7 +175,7 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
 }
 
 int main(void) {
-  auto q = queue{gpu_selector_v};
+  queue q;
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
