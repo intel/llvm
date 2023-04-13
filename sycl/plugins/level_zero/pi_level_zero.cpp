@@ -20,6 +20,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/spinlock.hpp>
 #include <utility>
@@ -2196,6 +2197,36 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 
 pi_result piPluginGetLastError(char **message) {
   return pi2ur::piPluginGetLastError(message);
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
+// Return '-ze-opt-level=2' for frontend_option = -O3.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr) {
+    return PI_ERROR_INVALID_VALUE;
+  }
+  if (frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-O0"sv) {
+    *backend_option = "-ze-opt-disable";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-O1"sv || frontend_option == "-O2"sv) {
+    *backend_option = "-ze-opt-level=1";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-O3"sv) {
+    *backend_option = "-ze-opt-level=2";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
