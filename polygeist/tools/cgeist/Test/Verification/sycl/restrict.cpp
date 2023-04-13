@@ -26,18 +26,20 @@ class B {
   SYCL_EXTERNAL void test_class(class A * __restrict__ a, class B * __restrict__ b) {}
 };
 
-// CHECK-MLIR-DAG: gpu.func @{{.*}}kernel_args_restrict(%arg0: memref<?xi32, 1> {{{.*}}llvm.noalias{{.*}}}, %arg1: memref<?x!sycl_range_1_>{{.*}}, %arg2: memref<?x!sycl_range_1_>{{.*}}, %arg3: memref<?x!sycl_id_1_>{{.*}})
-// CHECK-LLVM-DAG: define weak_odr spir_kernel void @{{.*}}kernel_args_restrict(i32 addrspace(1)* {{.*}}noalias{{.*}} %0, %"class.sycl::_V1::range.1"* {{.*}} %1, %"class.sycl::_V1::range.1"* {{.*}} %2, %"class.sycl::_V1::id.1"* {{.*}} %3)
+// CHECK-MLIR-DAG: gpu.func @{{.*}}kernel_args_restrict(%arg0: memref<?xi32, 1> {{{.*}}llvm.noalias{{.*}}}, %arg1: memref<?x!sycl_range_1_>{{.*}}, %arg2: memref<?x!sycl_range_1_>{{.*}}, %arg3: memref<?x!sycl_id_1_>{{.*}}, %arg4: memref<?xi32, 1> {{{.*}}llvm.noalias{{.*}}}, %arg5: memref<?x!sycl_range_1_>{{.*}}, %arg6: memref<?x!sycl_range_1_>{{.*}}, %arg7: memref<?x!sycl_id_1_>{{.*}})
+// CHECK-LLVM-DAG: define weak_odr spir_kernel void @{{.*}}kernel_args_restrict(i32 addrspace(1)* {{.*}}noalias{{.*}} %0, %"class.sycl::_V1::range.1"* {{.*}} %1, %"class.sycl::_V1::range.1"* {{.*}} %2, %"class.sycl::_V1::id.1"* {{.*}} %3, i32 addrspace(1)* {{.*}}noalias{{.*}} %4, %"class.sycl::_V1::range.1"* {{.*}} %5, %"class.sycl::_V1::range.1"* {{.*}} %6, %"class.sycl::_V1::id.1"* {{.*}} %7)
 using namespace sycl;
-int args_restrict(std::array<int, 1> &A) {
+int args_restrict(std::array<int, 1> &A, std::array<int, 1> &B) {
   queue q;
   {
-    auto buf = buffer<int, 1>{A.data(), 1};
+    auto bufA = buffer<int, 1>{A.data(), 1};
+    auto bufB = buffer<int, 1>{B.data(), 1};
     q.submit([&](handler &cgh) {
-      auto A = buf.get_access<access::mode::write>(cgh);
+      auto A = bufA.get_access<access::mode::write>(cgh);
+      auto B = bufB.get_access<access::mode::write>(cgh);
       cgh.single_task<class kernel_args_restrict>(
           [=]() [[intel::kernel_args_restrict]]{
-            A[0] = 1;
+            A[0] = B[0];
           });
 
     });
