@@ -148,7 +148,7 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
     sycl::free(C, q);
 
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.code().value();
+    return false;
   }
 
   int err_cnt = 0;
