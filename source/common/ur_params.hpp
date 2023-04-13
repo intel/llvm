@@ -5944,9 +5944,9 @@ operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
@@ -5954,9 +5954,9 @@ operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
     ur_params::serializePtr(os, *(params->ppPropValue));
 
     os << ", ";
-    os << ".pPropValueSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppPropValueSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
@@ -5975,9 +5975,9 @@ operator<<(std::ostream &os,
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
@@ -5985,9 +5985,9 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->ppPropValue));
 
     os << ", ";
-    os << ".pPropValueSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppPropValueSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
@@ -6685,19 +6685,19 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->phPlatform));
 
     os << ", ";
-    os << ".PlatformInfoType = ";
+    os << ".propName = ";
 
-    os << *(params->pPlatformInfoType);
-
-    os << ", ";
-    os << ".Size = ";
-
-    os << *(params->pSize);
+    os << *(params->ppropName);
 
     os << ", ";
-    os << ".pPlatformInfo = ";
+    os << ".propSize = ";
 
-    ur_params::serializePtr(os, *(params->ppPlatformInfo));
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+
+    ur_params::serializePtr(os, *(params->ppPropValue));
 
     os << ", ";
     os << ".pSizeRet = ";
@@ -7090,9 +7090,9 @@ operator<<(std::ostream &os, const struct ur_queue_get_info_params_t *params) {
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
@@ -7263,9 +7263,9 @@ operator<<(std::ostream &os,
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
@@ -7453,9 +7453,9 @@ operator<<(std::ostream &os,
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
@@ -7463,9 +7463,9 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->ppPropValue));
 
     os << ", ";
-    os << ".pPropValueSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppPropValueSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }

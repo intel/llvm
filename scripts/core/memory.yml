@@ -58,11 +58,12 @@ type: enum
 desc: "Memory Information type"
 class: $xMem
 name: $x_mem_info_t
+typed_etors: True
 etors:
     - name: SIZE
-      desc: "size_t: actual size of of memory object in bytes"
+      desc: "[size_t] actual size of of memory object in bytes"
     - name: CONTEXT
-      desc: "$x_context_handle_t: context in which the memory object was created"
+      desc: "[$x_context_handle_t] context in which the memory object was created"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Image channel order info: number of channels and the channel layout"
@@ -140,21 +141,22 @@ type: enum
 desc: "Image information types"
 class: $xMem
 name: $x_image_info_t
+typed_etors: True
 etors:
   - name: FORMAT
-    desc: "$x_image_format_t: image format"
+    desc: "[$x_image_format_t] image format"
   - name: ELEMENT_SIZE
-    desc: "size_t: element size"
+    desc: "[size_t] element size"
   - name: ROW_PITCH
-    desc: "size_t: row pitch"
+    desc: "[size_t] row pitch"
   - name: SLICE_PITCH
-    desc: "size_t: slice pitch"
+    desc: "[size_t] slice pitch"
   - name: WIDTH
-    desc: "size_t: image width"
+    desc: "[size_t] image width"
   - name: HEIGHT
-    desc: "size_t: image height"
+    desc: "[size_t] image height"
   - name: DEPTH
-    desc: "size_t: image depth"
+    desc: "[size_t] image depth"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Image format including channel layout and data type"
@@ -478,7 +480,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional] array of bytes holding the info.
+            [out][optional][typename(propName)] array of bytes holding the info.
             If propSize is less than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
@@ -509,7 +511,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional] array of bytes holding the info.
+            [out][optional][typename(propName)] array of bytes holding the info.
             If propSize is less than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
