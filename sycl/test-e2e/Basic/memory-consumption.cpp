@@ -8,7 +8,7 @@
 // Issue #661: The test is failing sporadically on HIP AMD.
 // UNSUPPORTED: windows, opencl, hip_amd
 // Issue #9008: The test is failing sporadically on all hardware
-// UNSUPPORTED: *
+// REQUIRES: TEMPORARY_DISABLED
 //
 //==-----memory-consumption.cpp - SYCL memory consumption basic test ------==//
 //
