@@ -4004,10 +4004,6 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     // RT calls piProgramRelease().
     Program->State = _pi_program::Invalid;
     Result = mapError(ZeResult);
-    if (Program->ZeBuildLog) {
-      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
-      Program->ZeBuildLog = nullptr;
-    }
     if (ZeModule) {
       ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
       ZeModule = nullptr;
@@ -4074,6 +4070,18 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
               (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
       if (ParamValueSizeRet) {
         *ParamValueSizeRet = LogSize;
+      }
+      if (ParamValue) {
+        // When the program build fails in piProgramBuild(), we delayed cleaning
+        // up the build log because RT later calls this routine to get the
+        // failed build log.
+        // To avoid memory leaks, we should clean up the failed build log here
+        // because RT does not create sycl::program when piProgramBuild() fails,
+        // thus it won't call piProgramRelease() to clean up the build log.
+        if (Program->State == _pi_program::Invalid) {
+          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+          Program->ZeBuildLog = nullptr;
+        }
       }
       return PI_SUCCESS;
     }
