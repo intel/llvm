@@ -388,15 +388,15 @@ urPlatformGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported platform info
 typedef enum ur_platform_info_t {
-    UR_PLATFORM_INFO_NAME = 1,        ///< [char*] The string denoting name of the platform. The size of the info
-                                      ///< needs to be dynamically queried.
-    UR_PLATFORM_INFO_VENDOR_NAME = 2, ///< [char*] The string denoting name of the vendor of the platform. The
+    UR_PLATFORM_INFO_NAME = 1,        ///< [char[]] The string denoting name of the platform. The size of the
+                                      ///< info needs to be dynamically queried.
+    UR_PLATFORM_INFO_VENDOR_NAME = 2, ///< [char[]] The string denoting name of the vendor of the platform. The
                                       ///< size of the info needs to be dynamically queried.
-    UR_PLATFORM_INFO_VERSION = 3,     ///< [char*] The string denoting the version of the platform. The size of
+    UR_PLATFORM_INFO_VERSION = 3,     ///< [char[]] The string denoting the version of the platform. The size of
                                       ///< the info needs to be dynamically queried.
-    UR_PLATFORM_INFO_EXTENSIONS = 4,  ///< [char*] The string denoting extensions supported by the platform. The
+    UR_PLATFORM_INFO_EXTENSIONS = 4,  ///< [char[]] The string denoting extensions supported by the platform. The
                                       ///< size of the info needs to be dynamically queried.
-    UR_PLATFORM_INFO_PROFILE = 5,     ///< [char*] The string denoting profile of the platform. The size of the
+    UR_PLATFORM_INFO_PROFILE = 5,     ///< [char[]] The string denoting profile of the platform. The size of the
                                       ///< info needs to be dynamically queried.
     UR_PLATFORM_INFO_BACKEND = 6,     ///< [::ur_platform_backend_t] The backend of the platform. Identifies the
                                       ///< native backend adapter implementing this platform.
@@ -430,7 +430,8 @@ urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform
     ur_platform_info_t propName,    ///< [in] type of the info to retrieve
     size_t propSize,                ///< [in] the number of bytes pointed to by pPlatformInfo.
-    void *pPropValue,               ///< [out][optional][typename(propName)] array of bytes holding the info.
+    void *pPropValue,               ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                    ///< the info.
                                     ///< If Size is not equal to or greater to the real number of bytes needed
                                     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
                                     ///< returned and pPlatformInfo is not used.
@@ -713,7 +714,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_DEVICE_ID = 2,                               ///< [uint32_t] Id of the device
     UR_DEVICE_INFO_MAX_COMPUTE_UNITS = 3,                       ///< [uint32_t] the number of compute units
     UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 4,                ///< [uint32_t] max work item dimensions
-    UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,                     ///< [size_t*] return an array of max work item sizes
+    UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,                     ///< [size_t[]] return an array of max work item sizes
     UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 6,                     ///< [size_t] max work group size
     UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,                        ///< [::ur_device_fp_capability_flags_t] single precision floating point
                                                                 ///< capability
@@ -777,45 +778,45 @@ typedef enum ur_device_info_t {
                                                                 ///< capability bit-field
     UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60,             ///< [::ur_queue_flags_t] device command queue property bit-field
     UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 61,               ///< [::ur_queue_flags_t] host queue property bit-field
-    UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,                       ///< [char*] a semi-colon separated list of built-in kernels
+    UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,                       ///< [char[]] a semi-colon separated list of built-in kernels
     UR_DEVICE_INFO_PLATFORM = 63,                               ///< [::ur_platform_handle_t] the platform associated with the device
     UR_DEVICE_INFO_REFERENCE_COUNT = 64,                        ///< [uint32_t] Reference count of the device object.
                                                                 ///< The reference count returned should be considered immediately stale.
                                                                 ///< It is unsuitable for general use in applications. This feature is
                                                                 ///< provided for identifying memory leaks.
-    UR_DEVICE_INFO_IL_VERSION = 65,                             ///< [char*] IL version
-    UR_DEVICE_INFO_NAME = 66,                                   ///< [char*] Device name
-    UR_DEVICE_INFO_VENDOR = 67,                                 ///< [char*] Device vendor
-    UR_DEVICE_INFO_DRIVER_VERSION = 68,                         ///< [char*] Driver version
-    UR_DEVICE_INFO_PROFILE = 69,                                ///< [char*] Device profile
-    UR_DEVICE_INFO_VERSION = 70,                                ///< [char*] Device version
-    UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,                ///< [char*] Version of backend runtime
-    UR_DEVICE_INFO_EXTENSIONS = 72,                             ///< [char*] Return a space separated list of extension names
+    UR_DEVICE_INFO_IL_VERSION = 65,                             ///< [char[]] IL version
+    UR_DEVICE_INFO_NAME = 66,                                   ///< [char[]] Device name
+    UR_DEVICE_INFO_VENDOR = 67,                                 ///< [char[]] Device vendor
+    UR_DEVICE_INFO_DRIVER_VERSION = 68,                         ///< [char[]] Driver version
+    UR_DEVICE_INFO_PROFILE = 69,                                ///< [char[]] Device profile
+    UR_DEVICE_INFO_VERSION = 70,                                ///< [char[]] Device version
+    UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,                ///< [char[]] Version of backend runtime
+    UR_DEVICE_INFO_EXTENSIONS = 72,                             ///< [char[]] Return a space separated list of extension names
     UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,                     ///< [size_t] Maximum size in bytes of internal printf buffer
     UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,            ///< [::ur_bool_t] prefer user synchronization when sharing object with
                                                                 ///< other API
     UR_DEVICE_INFO_PARENT_DEVICE = 75,                          ///< [::ur_device_handle_t] return parent device handle
-    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,                   ///< [::ur_device_partition_property_t*] Returns the list of partition
+    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,                   ///< [::ur_device_partition_property_t[]] Returns an array of partition
                                                                 ///< types supported by the device
     UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,              ///< [uint32_t] maximum number of sub-devices when the device is
                                                                 ///< partitioned
     UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,              ///< [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
                                                                 ///< supported affinity domains for partitioning.
                                                                 ///< If the device does not support any affinity domains, then 0 will be returned.
-    UR_DEVICE_INFO_PARTITION_TYPE = 79,                         ///< [::ur_device_partition_property_t*] return a list of
+    UR_DEVICE_INFO_PARTITION_TYPE = 79,                         ///< [::ur_device_partition_property_t[]] return an array of
                                                                 ///< ::ur_device_partition_property_t for properties specified in
                                                                 ///< ::urDevicePartition
     UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,                     ///< [uint32_t] max number of sub groups
     UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81, ///< [::ur_bool_t] support sub group independent forward progress
-    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                  ///< [uint32_t*] return an array of sub group sizes supported on Intel
+    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                  ///< [uint32_t[]] return an array of sub group sizes supported on Intel
                                                                 ///< device
     UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                       ///< [::ur_bool_t] support USM host memory access
     UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                     ///< [::ur_bool_t] support USM device memory access
     UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 85,              ///< [::ur_bool_t] support USM single device shared memory access
     UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 86,               ///< [::ur_bool_t] support USM cross device shared memory access
     UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,              ///< [::ur_bool_t] support USM system wide shared memory access
-    UR_DEVICE_INFO_UUID = 88,                                   ///< [char*] return device UUID
-    UR_DEVICE_INFO_PCI_ADDRESS = 89,                            ///< [char*] return device PCI address
+    UR_DEVICE_INFO_UUID = 88,                                   ///< [char[]] return device UUID
+    UR_DEVICE_INFO_PCI_ADDRESS = 89,                            ///< [char[]] return device PCI address
     UR_DEVICE_INFO_GPU_EU_COUNT = 90,                           ///< [uint32_t] return Intel GPU EU count
     UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                      ///< [uint32_t] return Intel GPU EU SIMD width
     UR_DEVICE_INFO_GPU_EU_SLICES = 92,                          ///< [uint32_t] return Intel GPU number of slices
@@ -868,7 +869,8 @@ urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
     ur_device_info_t propName,  ///< [in] type of the info to retrieve
     size_t propSize,            ///< [in] the number of bytes pointed to by pPropValue.
-    void *pPropValue,           ///< [out][optional][typename(propName)] array of bytes holding the info.
+    void *pPropValue,           ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                ///< the info.
                                 ///< If propSize is not equal to or greater than the real number of bytes
                                 ///< needed to return the info
                                 ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
@@ -1314,7 +1316,8 @@ urContextRetain(
 /// @brief Supported context info
 typedef enum ur_context_info_t {
     UR_CONTEXT_INFO_NUM_DEVICES = 0,                      ///< [uint32_t] The number of the devices in the context
-    UR_CONTEXT_INFO_DEVICES = 1,                          ///< [::ur_device_handle_t*] The array of the device handles in the context
+    UR_CONTEXT_INFO_DEVICES = 1,                          ///< [::ur_device_handle_t[]] The array of the device handles in the
+                                                          ///< context
     UR_CONTEXT_INFO_REFERENCE_COUNT = 2,                  ///< [uint32_t] Reference count of the context object.
                                                           ///< The reference count returned should be considered immediately stale.
                                                           ///< It is unsuitable for general use in applications. This feature is
@@ -1386,7 +1389,8 @@ urContextGetInfo(
     ur_context_handle_t hContext, ///< [in] handle of the context
     ur_context_info_t propName,   ///< [in] type of the info to retrieve
     size_t propSize,              ///< [in] the number of bytes of memory pointed to by pPropValue.
-    void *pPropValue,             ///< [out][optional][typename(propName)] array of bytes holding the info.
+    void *pPropValue,             ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                  ///< the info.
                                   ///< if propSize is not equal to or greater than the real number of bytes
                                   ///< needed to return
                                   ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -1922,7 +1926,8 @@ urMemGetInfo(
     ur_mem_handle_t hMemory, ///< [in] handle to the memory object being queried.
     ur_mem_info_t propName,  ///< [in] type of the info to retrieve.
     size_t propSize,         ///< [in] the number of bytes of memory pointed to by pPropValue.
-    void *pPropValue,        ///< [out][optional][typename(propName)] array of bytes holding the info.
+    void *pPropValue,        ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                             ///< the info.
                              ///< If propSize is less than the real number of bytes needed to return
                              ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                              ///< pPropValue is not used.
@@ -1952,7 +1957,8 @@ urMemImageGetInfo(
     ur_mem_handle_t hMemory,  ///< [in] handle to the image object being queried.
     ur_image_info_t propName, ///< [in] type of image info to retrieve.
     size_t propSize,          ///< [in] the number of bytes of memory pointer to by pPropValue.
-    void *pPropValue,         ///< [out][optional][typename(propName)] array of bytes holding the info.
+    void *pPropValue,         ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                              ///< the info.
                               ///< If propSize is less than the real number of bytes needed to return
                               ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                               ///< pPropValue is not used.
@@ -1999,7 +2005,7 @@ typedef enum ur_sampler_info_t {
                                            ///< It is unsuitable for general use in applications. This feature is
                                            ///< provided for identifying memory leaks.
     UR_SAMPLER_INFO_CONTEXT = 1,           ///< [::ur_context_handle_t] Sampler context info
-    UR_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< [bool] Sampler normalized coordinate setting
+    UR_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< [::ur_bool_t] Sampler normalized coordinate setting
     UR_SAMPLER_INFO_ADDRESSING_MODE = 3,   ///< [::ur_sampler_addressing_mode_t] Sampler addressing mode setting
     UR_SAMPLER_INFO_FILTER_MODE = 4,       ///< [::ur_sampler_filter_mode_t] Sampler filter mode setting
     /// @cond
@@ -2127,7 +2133,7 @@ urSamplerGetInfo(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler object
     ur_sampler_info_t propName,   ///< [in] name of the sampler property to query
     size_t propSize,              ///< [in] size in bytes of the sampler property value provided
-    void *pPropValue,             ///< [out][typename(propName)] value of the sampler property
+    void *pPropValue,             ///< [out][typename(propName, propSize)] value of the sampler property
     size_t *pPropSizeRet          ///< [out] size in bytes returned in sampler property value
 );
 
@@ -2520,8 +2526,8 @@ urUSMGetMemAllocInfo(
     const void *pMem,             ///< [in] pointer to USM memory object
     ur_usm_alloc_info_t propName, ///< [in] the name of the USM allocation property to query
     size_t propSize,              ///< [in] size in bytes of the USM allocation property value
-    void *pPropValue,             ///< [out][optional][typename(propName)] value of the USM allocation
-                                  ///< property
+    void *pPropValue,             ///< [out][optional][typename(propName, propSize)] value of the USM
+                                  ///< allocation property
     size_t *pPropSizeRet          ///< [out][optional] bytes returned in USM allocation property
 );
 
@@ -2896,13 +2902,14 @@ typedef enum ur_program_info_t {
                                          ///< provided for identifying memory leaks.
     UR_PROGRAM_INFO_CONTEXT = 1,         ///< [::ur_context_handle_t] Program context info.
     UR_PROGRAM_INFO_NUM_DEVICES = 2,     ///< [uint32_t] Return number of devices associated with Program.
-    UR_PROGRAM_INFO_DEVICES = 3,         ///< [x_device_handle_t*] Return list of devices associated with Program.
-    UR_PROGRAM_INFO_SOURCE = 4,          ///< [char*] Return program source associated with Program.
-    UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< [size_t*] Return program binary sizes for each device.
-    UR_PROGRAM_INFO_BINARIES = 6,        ///< [unsigned char*] Return program binaries for all devices for this
+    UR_PROGRAM_INFO_DEVICES = 3,         ///< [::ur_device_handle_t[]] Return list of devices associated with
+                                         ///< Program.
+    UR_PROGRAM_INFO_SOURCE = 4,          ///< [char[]] Return program source associated with Program.
+    UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< [size_t[]] Return program binary sizes for each device.
+    UR_PROGRAM_INFO_BINARIES = 6,        ///< [unsigned char[]] Return program binaries for all devices for this
                                          ///< Program.
     UR_PROGRAM_INFO_NUM_KERNELS = 7,     ///< [size_t] Number of kernels in Program, return type size_t.
-    UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< [char*] Return a null-terminated, semi-colon separated list of kernel
+    UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< [char[]] Return a null-terminated, semi-colon separated list of kernel
                                          ///< names in Program.
     /// @cond
     UR_PROGRAM_INFO_FORCE_UINT32 = 0x7fffffff
@@ -2930,8 +2937,8 @@ urProgramGetInfo(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
     ur_program_info_t propName,   ///< [in] name of the Program property to query
     size_t propSize,              ///< [in] the size of the Program property.
-    void *pPropValue,             ///< [in,out][optional][typename(propName)] array of bytes of holding the
-                                  ///< program info property.
+    void *pPropValue,             ///< [in,out][optional][typename(propName, propSize)] array of bytes of
+                                  ///< holding the program info property.
                                   ///< If propSize is not equal to or greater than the real number of bytes
                                   ///< needed to return
                                   ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -2969,9 +2976,9 @@ typedef enum ur_program_binary_type_t {
 /// @brief Get Program object build information
 typedef enum ur_program_build_info_t {
     UR_PROGRAM_BUILD_INFO_STATUS = 0,      ///< [::ur_program_build_status_t] Program build status.
-    UR_PROGRAM_BUILD_INFO_OPTIONS = 1,     ///< [char*] Null-terminated options string specified by last build,
+    UR_PROGRAM_BUILD_INFO_OPTIONS = 1,     ///< [char[]] Null-terminated options string specified by last build,
                                            ///< compile or link operation performed on the program.
-    UR_PROGRAM_BUILD_INFO_LOG = 2,         ///< [char*] Null-terminated program build log.
+    UR_PROGRAM_BUILD_INFO_LOG = 2,         ///< [char[]] Null-terminated program build log.
     UR_PROGRAM_BUILD_INFO_BINARY_TYPE = 3, ///< [::ur_program_binary_type_t] Program binary type.
     /// @cond
     UR_PROGRAM_BUILD_INFO_FORCE_UINT32 = 0x7fffffff
@@ -3001,7 +3008,8 @@ urProgramGetBuildInfo(
     ur_device_handle_t hDevice,       ///< [in] handle of the Device object
     ur_program_build_info_t propName, ///< [in] name of the Program build info to query
     size_t propSize,                  ///< [in] size of the Program build info property.
-    void *pPropValue,                 ///< [in,out][optional][typename(propName)] value of the Program build property.
+    void *pPropValue,                 ///< [in,out][optional][typename(propName, propSize)] value of the Program
+                                      ///< build property.
                                       ///< If propSize is not equal to or greater than the real number of bytes
                                       ///< needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
                                       ///< error is returned and pPropValue is not used.
@@ -3183,7 +3191,7 @@ urKernelSetArgLocal(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel object information
 typedef enum ur_kernel_info_t {
-    UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< [char*] Return null-terminated kernel function name.
+    UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< [char[]] Return null-terminated kernel function name.
     UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [size_t] Return Kernel number of arguments.
     UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the kernel object.
                                         ///< The reference count returned should be considered immediately stale.
@@ -3191,7 +3199,7 @@ typedef enum ur_kernel_info_t {
                                         ///< provided for identifying memory leaks.
     UR_KERNEL_INFO_CONTEXT = 3,         ///< [::ur_context_handle_t] Return Context object associated with Kernel.
     UR_KERNEL_INFO_PROGRAM = 4,         ///< [::ur_program_handle_t] Return Program object associated with Kernel.
-    UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< [char*] Return null-terminated kernel attributes string.
+    UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< [char[]] Return null-terminated kernel attributes string.
     UR_KERNEL_INFO_NUM_REGS = 6,        ///< [uint32_t] Return the number of registers used by the compiled kernel
                                         ///< (device specific).
     /// @cond
@@ -3203,12 +3211,10 @@ typedef enum ur_kernel_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel Work Group information
 typedef enum ur_kernel_group_info_t {
-    UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,                   ///< [size_t*] Return Work Group maximum global size, always returns a
-                                                                 ///< three element array
+    UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,                   ///< [size_t[3]] Return Work Group maximum global size
     UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE = 1,                    ///< [size_t] Return maximum Work Group size
-    UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE = 2,            ///< [size_t*] Return Work Group size required by the source code, such as
-                                                                 ///< __attribute__((required_work_group_size(X,Y,Z)), always returns a
-                                                                 ///< three element array
+    UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE = 2,            ///< [size_t[3]] Return Work Group size required by the source code, such
+                                                                 ///< as __attribute__((required_work_group_size(X,Y,Z))
     UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE = 3,                     ///< [size_t] Return local memory required by the Kernel
     UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4, ///< [size_t] Return preferred multiple of Work Group size for launch
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< [size_t] Return minimum amount of private memory in bytes used by each
@@ -3248,7 +3254,7 @@ typedef enum ur_kernel_cache_config_t {
 /// @brief Set additional Kernel execution information
 typedef enum ur_kernel_exec_info_t {
     UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS = 0, ///< [::ur_bool_t] Kernel might access data through USM pointer.
-    UR_KERNEL_EXEC_INFO_USM_PTRS = 1,            ///< [void **] Provide an explicit list of USM pointers that the kernel
+    UR_KERNEL_EXEC_INFO_USM_PTRS = 1,            ///< [void *[]] Provide an explicit array of USM pointers that the kernel
                                                  ///< will access.
     UR_KERNEL_EXEC_INFO_CACHE_CONFIG = 2,        ///< [::ur_kernel_cache_config_t] Provide the preferred cache configuration
     /// @cond
@@ -3277,8 +3283,8 @@ urKernelGetInfo(
     ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
     ur_kernel_info_t propName,  ///< [in] name of the Kernel property to query
     size_t propSize,            ///< [in] the size of the Kernel property value.
-    void *pPropValue,           ///< [in,out][optional][typename(propName)] array of bytes holding the
-                                ///< kernel info property.
+    void *pPropValue,           ///< [in,out][optional][typename(propName, propSize)] array of bytes
+                                ///< holding the kernel info property.
                                 ///< If propSize is not equal to or greater than the real number of bytes
                                 ///< needed to return
                                 ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -3309,8 +3315,8 @@ urKernelGetGroupInfo(
     ur_device_handle_t hDevice,      ///< [in] handle of the Device object
     ur_kernel_group_info_t propName, ///< [in] name of the work Group property to query
     size_t propSize,                 ///< [in] size of the Kernel Work Group property value
-    void *pPropValue,                ///< [in,out][optional][typename(propName)] value of the Kernel Work Group
-                                     ///< property.
+    void *pPropValue,                ///< [in,out][optional][typename(propName, propSize)] value of the Kernel
+                                     ///< Work Group property.
     size_t *pPropSizeRet             ///< [out][optional] pointer to the actual size in bytes of data being
                                      ///< queried by propName.
 );
@@ -3333,8 +3339,8 @@ urKernelGetSubGroupInfo(
     ur_device_handle_t hDevice,          ///< [in] handle of the Device object
     ur_kernel_sub_group_info_t propName, ///< [in] name of the SubGroup property to query
     size_t propSize,                     ///< [in] size of the Kernel SubGroup property value
-    void *pPropValue,                    ///< [in,out][optional][typename(propName)] value of the Kernel SubGroup
-                                         ///< property.
+    void *pPropValue,                    ///< [in,out][optional][typename(propName, propSize)] value of the Kernel
+                                         ///< SubGroup property.
     size_t *pPropSizeRet                 ///< [out][optional] pointer to the actual size in bytes of data being
                                          ///< queried by propName.
 );
@@ -3442,8 +3448,8 @@ urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
-    const void *pPropValue          ///< [in][typename(propName)] pointer to memory location holding the
-                                    ///< property value.
+    const void *pPropValue          ///< [in][typename(propName, propSize)] pointer to memory location holding
+                                    ///< the property value.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3648,7 +3654,8 @@ urQueueGetInfo(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_queue_info_t propName, ///< [in] name of the queue property to query
     size_t propSize,          ///< [in] size in bytes of the queue property value provided
-    void *pPropValue,         ///< [out][optional][typename(propName)] value of the queue property
+    void *pPropValue,         ///< [out][optional][typename(propName, propSize)] value of the queue
+                              ///< property
     size_t *pPropSizeRet      ///< [out][optional] size in bytes returned in queue property value
 );
 
@@ -3981,7 +3988,8 @@ urEventGetInfo(
     ur_event_handle_t hEvent, ///< [in] handle of the event object
     ur_event_info_t propName, ///< [in] the name of the event property to query
     size_t propSize,          ///< [in] size in bytes of the event property value
-    void *pPropValue,         ///< [out][optional][typename(propName)] value of the event property
+    void *pPropValue,         ///< [out][optional][typename(propName, propSize)] value of the event
+                              ///< property
     size_t *pPropSizeRet      ///< [out][optional] bytes returned in event property
 );
 
@@ -4011,7 +4019,8 @@ urEventGetProfilingInfo(
     ur_event_handle_t hEvent,     ///< [in] handle of the event object
     ur_profiling_info_t propName, ///< [in] the name of the profiling property to query
     size_t propSize,              ///< [in] size in bytes of the profiling property value
-    void *pPropValue,             ///< [out][optional][typename(propName)] value of the profiling property
+    void *pPropValue,             ///< [out][optional][typename(propName, propSize)] value of the profiling
+                                  ///< property
     size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes returned in
                                   ///< propValue
 );

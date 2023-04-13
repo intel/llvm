@@ -136,7 +136,7 @@ params:
       desc: "[in] size in bytes of the event property value"
     - type: void*
       name: pPropValue
-      desc: "[out][optional][typename(propName)] value of the event property"
+      desc: "[out][optional][typename(propName, propSize)] value of the event property"
     - type: size_t*
       name: pPropSizeRet
       desc: "[out][optional] bytes returned in event property"
@@ -166,7 +166,7 @@ params:
       desc: "[in] size in bytes of the profiling property value"
     - type: void*
       name: pPropValue
-      desc: "[out][optional][typename(propName)] value of the profiling property"
+      desc: "[out][optional][typename(propName, propSize)] value of the profiling property"
     - type: size_t*
       name: pPropSizeRet
       desc: "[out][optional] pointer to the actual size in bytes returned in propValue"

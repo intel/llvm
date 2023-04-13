@@ -78,7 +78,7 @@ params:
       desc: "[in] size in bytes of the queue property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out][optional][typename(propName)] value of the queue property"
+      desc: "[out][optional][typename(propName, propSize)] value of the queue property"
     - type: "size_t*"
       name: pPropSizeRet
       desc: "[out][optional] size in bytes returned in queue property value"

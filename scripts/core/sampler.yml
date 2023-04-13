@@ -40,6 +40,7 @@ type: enum
 desc: "Get sample object information"
 class: $xSampler
 name: $x_sampler_info_t
+typed_etors: True
 etors:
     - name: REFERENCE_COUNT
       desc: |
@@ -49,7 +50,7 @@ etors:
     - name: CONTEXT
       desc: "[$x_context_handle_t] Sampler context info"
     - name: NORMALIZED_COORDS
-      desc: "[bool] Sampler normalized coordinate setting"
+      desc: "[$x_bool_t] Sampler normalized coordinate setting"
     - name: ADDRESSING_MODE
       desc: "[$x_sampler_addressing_mode_t] Sampler addressing mode setting"
     - name: FILTER_MODE
@@ -149,7 +150,7 @@ params:
       desc: "[in] size in bytes of the sampler property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out][typename(propName)] value of the sampler property"
+      desc: "[out][typename(propName, propSize)] value of the sampler property"
     - type: "size_t*"
       name: pPropSizeRet
       desc: "[out] size in bytes returned in sampler property value"

@@ -156,7 +156,7 @@ etors:
     - name: MAX_WORK_ITEM_DIMENSIONS
       desc: "[uint32_t] max work item dimensions"
     - name: MAX_WORK_ITEM_SIZES
-      desc: "[size_t*] return an array of max work item sizes"
+      desc: "[size_t[]] return an array of max work item sizes"
     - name: MAX_WORK_GROUP_SIZE
       desc: "[size_t] max work group size"
     - name: SINGLE_FP_CONFIG
@@ -270,7 +270,7 @@ etors:
     - name: QUEUE_ON_HOST_PROPERTIES
       desc: "[$x_queue_flags_t] host queue property bit-field"
     - name: BUILT_IN_KERNELS
-      desc: "[char*] a semi-colon separated list of built-in kernels"
+      desc: "[char[]] a semi-colon separated list of built-in kernels"
     - name: PLATFORM
       desc: "[$x_platform_handle_t] the platform associated with the device"
     - name: REFERENCE_COUNT
@@ -279,21 +279,21 @@ etors:
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: IL_VERSION
-      desc: "[char*] IL version"
+      desc: "[char[]] IL version"
     - name: NAME
-      desc: "[char*] Device name"
+      desc: "[char[]] Device name"
     - name: VENDOR
-      desc: "[char*] Device vendor"
+      desc: "[char[]] Device vendor"
     - name: DRIVER_VERSION
-      desc: "[char*] Driver version"
+      desc: "[char[]] Driver version"
     - name: PROFILE
-      desc: "[char*] Device profile"
+      desc: "[char[]] Device profile"
     - name: VERSION
-      desc: "[char*] Device version"
+      desc: "[char[]] Device version"
     - name: BACKEND_RUNTIME_VERSION
-      desc: "[char*] Version of backend runtime"
+      desc: "[char[]] Version of backend runtime"
     - name: EXTENSIONS
-      desc: "[char*] Return a space separated list of extension names"
+      desc: "[char[]] Return a space separated list of extension names"
     - name: PRINTF_BUFFER_SIZE
       desc: "[size_t] Maximum size in bytes of internal printf buffer"
     - name: PREFERRED_INTEROP_USER_SYNC
@@ -301,7 +301,7 @@ etors:
     - name: PARENT_DEVICE
       desc: "[$x_device_handle_t] return parent device handle"
     - name: PARTITION_PROPERTIES
-      desc: "[$x_device_partition_property_t*] Returns the list of partition types supported by the device"
+      desc: "[$x_device_partition_property_t[]] Returns an array of partition types supported by the device"
     - name: PARTITION_MAX_SUB_DEVICES
       desc: "[uint32_t] maximum number of sub-devices when the device is partitioned"
     - name: PARTITION_AFFINITY_DOMAIN
@@ -309,13 +309,13 @@ etors:
             [$x_device_affinity_domain_flags_t] Returns a bit-field of the supported affinity domains for partitioning. 
             If the device does not support any affinity domains, then 0 will be returned.
     - name: PARTITION_TYPE
-      desc: "[$x_device_partition_property_t*] return a list of $x_device_partition_property_t for properties specified in $xDevicePartition"
+      desc: "[$x_device_partition_property_t[]] return an array of $x_device_partition_property_t for properties specified in $xDevicePartition"
     - name: MAX_NUM_SUB_GROUPS
       desc: "[uint32_t] max number of sub groups"
     - name: SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS
       desc: "[$x_bool_t] support sub group independent forward progress"
     - name: SUB_GROUP_SIZES_INTEL
-      desc: "[uint32_t*] return an array of sub group sizes supported on Intel device"
+      desc: "[uint32_t[]] return an array of sub group sizes supported on Intel device"
     - name: USM_HOST_SUPPORT
       desc: "[$x_bool_t] support USM host memory access"
     - name: USM_DEVICE_SUPPORT
@@ -327,9 +327,9 @@ etors:
     - name: USM_SYSTEM_SHARED_SUPPORT
       desc: "[$x_bool_t] support USM system wide shared memory access"
     - name: UUID
-      desc: "[char*] return device UUID"
+      desc: "[char[]] return device UUID"
     - name: PCI_ADDRESS
-      desc: "[char*] return device PCI address"
+      desc: "[char[]] return device PCI address"
     - name: GPU_EU_COUNT
       desc: "[uint32_t] return Intel GPU EU count"
     - name: GPU_EU_SIMD_WIDTH
@@ -387,7 +387,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional][typename(propName)] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If propSize is not equal to or greater than the real number of bytes needed to return the info
             then the $X_RESULT_ERROR_INVALID_VALUE error is returned and pPropValue is not used.
     - type: "size_t*"

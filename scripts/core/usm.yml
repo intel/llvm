@@ -348,7 +348,7 @@ params:
       desc: "[in] size in bytes of the USM allocation property value"
     - type: void*
       name: pPropValue
-      desc: "[out][optional][typename(propName)] value of the USM allocation property"
+      desc: "[out][optional][typename(propName, propSize)] value of the USM allocation property"
     - type: size_t*
       name: pPropSizeRet
       desc: "[out][optional] bytes returned in USM allocation property"

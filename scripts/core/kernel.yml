@@ -83,7 +83,7 @@ name: $x_kernel_info_t
 typed_etors: True
 etors:
     - name: FUNCTION_NAME
-      desc: "[char*] Return null-terminated kernel function name."
+      desc: "[char[]] Return null-terminated kernel function name."
     - name: NUM_ARGS
       desc: "[size_t] Return Kernel number of arguments."
     - name: REFERENCE_COUNT
@@ -96,7 +96,7 @@ etors:
     - name: PROGRAM
       desc: "[$x_program_handle_t] Return Program object associated with Kernel."
     - name: ATTRIBUTES
-      desc: "[char*] Return null-terminated kernel attributes string."
+      desc: "[char[]] Return null-terminated kernel attributes string."
     - name: NUM_REGS
       desc: "[uint32_t] Return the number of registers used by the compiled kernel (device specific)."
 --- #--------------------------------------------------------------------------
@@ -107,11 +107,11 @@ name: $x_kernel_group_info_t
 typed_etors: True
 etors:
     - name: GLOBAL_WORK_SIZE
-      desc: "[size_t*] Return Work Group maximum global size, always returns a three element array"
+      desc: "[size_t[3]] Return Work Group maximum global size"
     - name: WORK_GROUP_SIZE
       desc: "[size_t] Return maximum Work Group size"
     - name: COMPILE_WORK_GROUP_SIZE
-      desc: "[size_t*] Return Work Group size required by the source code, such as __attribute__((required_work_group_size(X,Y,Z)), always returns a three element array"
+      desc: "[size_t[3]] Return Work Group size required by the source code, such as __attribute__((required_work_group_size(X,Y,Z))"
     - name: LOCAL_MEM_SIZE
       desc: "[size_t] Return local memory required by the Kernel"
     - name: PREFERRED_WORK_GROUP_SIZE_MULTIPLE
@@ -155,7 +155,7 @@ etors:
     - name: USM_INDIRECT_ACCESS
       desc: "[$x_bool_t] Kernel might access data through USM pointer."
     - name: USM_PTRS
-      desc: "[void **] Provide an explicit list of USM pointers that the kernel will access."
+      desc: "[void *[]] Provide an explicit array of USM pointers that the kernel will access."
     - name: CACHE_CONFIG
       desc: "[$x_kernel_cache_config_t] Provide the preferred cache configuration"
 --- #--------------------------------------------------------------------------
@@ -180,7 +180,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [in,out][optional][typename(propName)] array of bytes holding the kernel info property.
+            [in,out][optional][typename(propName, propSize)] array of bytes holding the kernel info property.
             If propSize is not equal to or greater than the real number of bytes needed to return 
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
@@ -210,7 +210,7 @@ params:
       desc: "[in] size of the Kernel Work Group property value"
     - type: "void*"
       name: pPropValue
-      desc: "[in,out][optional][typename(propName)] value of the Kernel Work Group property."
+      desc: "[in,out][optional][typename(propName, propSize)] value of the Kernel Work Group property."
     - type: "size_t*"
       name: "pPropSizeRet"
       desc: "[out][optional] pointer to the actual size in bytes of data being queried by propName."
@@ -235,7 +235,7 @@ params:
       desc: "[in] size of the Kernel SubGroup property value"
     - type: "void*"
       name: pPropValue
-      desc: "[in,out][optional][typename(propName)] value of the Kernel SubGroup property."
+      desc: "[in,out][optional][typename(propName, propSize)] value of the Kernel SubGroup property."
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
@@ -319,7 +319,7 @@ params:
       desc: "[in] size in byte the attribute value"
     - type: "const void*"
       name: pPropValue
-      desc: "[in][typename(propName)] pointer to memory location holding the property value."
+      desc: "[in][typename(propName, propSize)] pointer to memory location holding the property value."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Sampler object as the argument value of a Kernel."
