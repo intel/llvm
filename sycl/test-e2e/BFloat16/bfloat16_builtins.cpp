@@ -36,7 +36,8 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
-        if (check(NAME(bfloat16{A[index]}), NAME(A[index]))) {                 \
+        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]}),   \
+                  sycl::NAME(A[index]))) {                                     \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -59,7 +60,7 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<RETTY, SZ> res = NAME(arg);                                     \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], NAME(A[index][i]))) {                              \
+          if (check(res[i], sycl::NAME(A[index][i]))) {                        \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
