@@ -228,6 +228,10 @@ public:
   // host_pipe object from the host_pipe map.
   HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
 
+  // Set compiled program for host_pipe entry
+  void setCompiledProgramForHostPipeEntry(const RTDeviceBinaryImage &BinImage,
+                                          RT::PiProgram program);
+
   device_image_plain
   getDeviceImageFromBinaryImage(RTDeviceBinaryImage *BinImage,
                                 const context &Ctx, const device &Dev);

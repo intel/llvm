@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <detail/device_binary_image.hpp>
+#include <sycl/detail/pi.hpp>
 #include <unordered_map>
 
 namespace sycl {
@@ -24,7 +25,8 @@ struct HostPipeMapEntry {
   std::uint32_t MHostPipeTSize;
   // The device image that pipe is associated with
   const RTDeviceBinaryImage *mDeviceImage;
-
+  // Compiled PiProgram
+  RT::PiProgram mPiProgram;
   // Constructor only initializes with the pointer and ID.
   // Other members will be initialized later
   HostPipeMapEntry(std::string UniqueId, const void *HostPipePtr)
@@ -49,6 +51,12 @@ struct HostPipeMapEntry {
 
   void initialize(const RTDeviceBinaryImage *DeviceImage) {
     mDeviceImage = DeviceImage;
+  }
+
+  void setPiProgram(RT::PiProgram PIProgram) { mPiProgram = PIProgram; }
+
+  RTDeviceBinaryImage *getDevBinImage() {
+    return const_cast<RTDeviceBinaryImage *>(mDeviceImage);
   }
 };
 

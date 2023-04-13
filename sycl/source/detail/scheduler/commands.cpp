@@ -2352,9 +2352,20 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
-  RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
-      *(hostPipeEntry->mDeviceImage), Queue->get_context(),
-      Queue->get_device());
+  if (!hostPipeEntry->mPiProgram) { // PiProgram is not compiled.
+    device_image_plain devImgPlain =
+        ProgramManager::getInstance().getDeviceImageFromBinaryImage(
+            hostPipeEntry->getDevBinImage(), Queue->get_context(),
+            Queue->get_device());
+
+    property_list PropList;
+    std::vector<device> dev;
+    dev.push_back(Queue->get_device());
+    ProgramManager::getInstance().build(devImgPlain, dev, PropList);
+  }
+
+  RT::PiProgram Program = hostPipeEntry->mPiProgram;
+  assert(Program && "Program for this hostpipe is not compiled.");
 
   // Get plugin for calling opencl functions
   const detail::plugin &Plugin = Queue->getPlugin();
