@@ -147,7 +147,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+      MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -265,6 +266,13 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  if (MLimitedProfiling)
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Submit profiling information is temporarily unsupported on this "
+        "device. This is indicated by the lack of queue_profiling aspect, but, "
+        "as a temporary workaround, profiling can still be enabled to use "
+        "command_start and command_end profiling info.");
   return MSubmitTime;
 }
 
@@ -416,7 +424,7 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled)
+  if (!MIsProfilingEnabled || MLimitedProfiling)
     return;
   if (QueueImplPtr Queue = MQueue.lock()) {
     try {
