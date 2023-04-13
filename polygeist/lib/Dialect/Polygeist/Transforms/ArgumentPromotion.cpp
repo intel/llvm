@@ -98,9 +98,12 @@ static bool existsSideEffectAfter(Value val, Operation *startOp,
   assert(startOp && "Expecting a valid pointer");
 
   for (Operation &op : *startOp->getBlock()) {
-    auto MEI = dyn_cast<MemoryEffectOpInterface>(op);
-    if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op) || !MEI)
+    if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
       continue;
+
+    auto MEI = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!MEI)
+      return true;
 
     // Conservatively assume an operation with a nested region has side effects
     // on 'val'.
