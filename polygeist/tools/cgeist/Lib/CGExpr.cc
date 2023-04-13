@@ -139,7 +139,9 @@ ValueCategory MLIRScanner::VisitStringLiteral(clang::StringLiteral *Expr) {
   return ValueCategory(
       Glob.getOrCreateGlobalLLVMString(Loc, Builder, Expr->getString(),
                                        mlirclang::getFuncContext(Function)),
-      /*isReference*/ true, IntegerType::get(Builder.getContext(), 8));
+      /*isReference*/ true,
+      LLVM::LLVMArrayType::get(IntegerType::get(Builder.getContext(), 8),
+                               Expr->getString().size() + 1));
 }
 
 ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {
@@ -166,10 +168,11 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
             Builder.create<mlir::LLVM::NullOp>(
                 Loc, LLVM::LLVMPointerType::get(Builder.getI8Type(),
                                                 MT.getMemorySpaceAsInt()))),
-        false);
+        false, Builder.getI8Type());
 
   if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(MLIRTy))
-    return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false);
+    return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false,
+                         Builder.getI8Type());
 
   for (auto *Child : Decl->children())
     Child->dump();
@@ -760,12 +763,15 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
   mlir::Type Ty = Glob.getTypes().getMLIRType(Expr->getType());
 
   mlir::Value Alloc, ArrayCons;
+  std::optional<mlir::Type> ElemTy =
+      Glob.getTypes().getMLIRType(Expr->getAllocatedType());
   if (!Expr->placement_arguments().empty()) {
     mlir::Value Val = Visit(*Expr->placement_arg_begin()).getValue(Builder);
-    if (auto MT = dyn_cast<mlir::MemRefType>(Ty))
+    if (auto MT = dyn_cast<mlir::MemRefType>(Ty)) {
       ArrayCons = Alloc =
           Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT, Val);
-    else {
+      ElemTy = MT.getElementType();
+    } else {
       ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(Loc, Ty, Val);
       if (Expr->isArray()) {
         auto PT = cast<LLVM::LLVMPointerType>(Ty);
@@ -780,6 +786,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
   } else if (auto MT = dyn_cast<mlir::MemRefType>(Ty)) {
     ArrayCons = Alloc =
         Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange({Count}));
+    ElemTy = MT.getElementType();
     if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
       (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
   } else {
@@ -814,7 +821,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
         const_cast<CXXConstructExpr *>(Expr->getConstructExpr()),
         /*name*/ nullptr, /*memtype*/ 0, ArrayCons, Count);
 
-  return ValueCategory(Alloc, /*isRefererence*/ false);
+  return ValueCategory(Alloc, /*isRefererence*/ false, ElemTy);
 }
 
 ValueCategory
@@ -974,7 +981,7 @@ MLIRScanner::EmitArraySubscriptExpr(clang::ArraySubscriptExpr *E) {
 
   auto LHS = EmitLValue(E->getBase());
   auto Idx = Visit(E->getIdx());
-  return {LHS.val, Idx.val};
+  return {LHS.val, Idx.val, LHS.ElementType};
 }
 
 ValueCategory
@@ -1518,7 +1525,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     mlir::Type LLVMTy = Glob.getTypes().getMLIRType(E->getType());
     if (isa<LLVM::LLVMPointerType>(LLVMTy))
       return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, LLVMTy),
-                           /*isReference*/ false);
+                           /*isReference*/ false, Builder.getI8Type());
     if (auto MT = dyn_cast<MemRefType>(LLVMTy))
       return ValueCategory(
           Builder.create<polygeist::Pointer2MemrefOp>(
@@ -1643,7 +1650,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                                MT.getMemorySpace());
 
               auto Alloc = Builder.create<mlir::memref::AllocOp>(Loc, MT0);
-              return ValueCategory(Alloc, /*isReference*/ false);
+              return ValueCategory(Alloc, /*isReference*/ false,
+                                   MT.getElementType());
             }
           }
         }
@@ -1700,7 +1708,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                     Builder.create<arith::ConstantIntOp>(Loc, false, 1);
                 Builder.create<LLVM::MemsetOp>(Loc, Val, I80, Sizev, Falsev);
               }
-              return ValueCategory(Alloc, /*isReference*/ false);
+              return ValueCategory(Alloc, /*isReference*/ false,
+                                   MT.getElementType());
             }
         }
     auto SE = Visit(E->getSubExpr());
@@ -1720,7 +1729,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       PT = LLVM::LLVMPointerType::get(PT.getElementType(),
                                       SPT.getAddressSpace());
       auto Nval = Builder.create<mlir::LLVM::BitcastOp>(Loc, PT, Scalar);
-      return ValueCategory(Nval, /*isReference*/ false);
+      auto ElemTy = Glob.getTypes().getMLIRType(
+          cast<clang::PointerType>(E->getType())->getPointeeType());
+      return ValueCategory(Nval, /*isReference*/ false, ElemTy);
     }
 
     LLVM_DEBUG({
@@ -1743,7 +1754,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
           "The type of 'Scalar' does not have the same memory space as 'PT'");
       auto Val =
           Builder.create<mlir::polygeist::Memref2PointerOp>(Loc, PT, Scalar);
-      return ValueCategory(Val, /*isReference*/ false);
+      auto ElemTy = Glob.getTypes().getMLIRType(
+          cast<clang::PointerType>(E->getType())->getPointeeType());
+      return ValueCategory(Val, /*isReference*/ false, ElemTy);
     }
 
     if (auto MT = dyn_cast<mlir::MemRefType>(MLIRTy)) {
@@ -1818,7 +1831,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
         llvm::dbgs() << "\n";
       }
     });
-    return ValueCategory(Lres, /*isReference*/ false);
+    return ValueCategory(Lres, /*isReference*/ false, Prev.ElementType);
   }
   case clang::CastKind::CK_IntegralToFloating:
   case clang::CastKind::CK_FloatingToIntegral:
@@ -1875,7 +1888,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
 
     // Now perform the integral to pointer conversion.
     mlir::Type PostTy = Glob.getTypes().getMLIRType(E->getType());
-    return EmitIntegralToPointerConversion(Loc, PostTy, IntResult);
+    auto ElemTy = Glob.getTypes().getMLIRType(
+        cast<clang::PointerType>(E->getType())->getPointeeType());
+    return EmitIntegralToPointerConversion(Loc, PostTy, ElemTy, IntResult);
   }
 
   default:
@@ -1968,7 +1983,8 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   NewIfOp.getElseRegion().takeBody(IfOp.getElseRegion());
   IfOp.erase();
   return NewIfOp.getNumResults()
-             ? ValueCategory(NewIfOp.getResult(0), /*isReference*/ IsReference)
+             ? ValueCategory(NewIfOp.getResult(0), /*isReference*/ IsReference,
+                             TrueExpr.ElementType)
              : nullptr;
 }
 
@@ -2091,7 +2107,7 @@ ValueCategory MLIRScanner::CastToVoidPtr(ValueCategory Ptr) {
   const auto DestType =
       mlirclang::getPtrTyWithNewType(Ptr.val.getType(), Builder.getI8Type());
 
-  return Ptr.BitCast(Builder, Loc, DestType);
+  return Ptr.BitCast(Builder, Loc, DestType, Builder.getI8Type());
 }
 
 ValueCategory MLIRScanner::EmitPromotedValue(Location Loc, ValueCategory Result,
@@ -2297,7 +2313,7 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(Location Loc,
     Src = {
         Builder.create<polygeist::Memref2PointerOp>(
             Loc, LLVM::LLVMPointerType::get(ElementTy, AddressSpace), Src.val),
-        Src.isReference};
+        Src.isReference, ElementTy};
   }
   assert(isa<LLVM::LLVMPointerType>(Src.val.getType()) &&
          "Expecting a pointer");
@@ -2345,6 +2361,7 @@ ValueCategory MLIRScanner::EmitPointerToIntegralConversion(Location Loc,
 
 ValueCategory MLIRScanner::EmitIntegralToPointerConversion(Location Loc,
                                                            mlir::Type DestTy,
+                                                           mlir::Type ElemTy,
                                                            ValueCategory Src) {
   assert(mlirclang::isPointerOrMemRefTy(DestTy) && "Expecting pointer type");
   assert(isa<IntegerType>(Src.val.getType()) &&
@@ -2354,11 +2371,12 @@ ValueCategory MLIRScanner::EmitIntegralToPointerConversion(Location Loc,
 
   return TypeSwitch<mlir::Type, ValueCategory>(DestTy)
       .Case<LLVM::LLVMPointerType>(
-          [=](auto Ty) { return Src.IntToPtr(Builder, Loc, Ty); })
+          [=](auto Ty) { return Src.IntToPtr(Builder, Loc, Ty, ElemTy); })
       .Case<MemRefType>([=](auto Ty) {
         const auto MiddlePtrTy = LLVM::LLVMPointerType::get(
             Ty.getElementType(), Ty.getMemorySpaceAsInt());
-        return Src.IntToPtr(Builder, Loc, MiddlePtrTy).Ptr2MemRef(Builder, Loc);
+        return Src.IntToPtr(Builder, Loc, MiddlePtrTy, Ty.getElementType())
+            .Ptr2MemRef(Builder, Loc);
       });
 }
 
@@ -2458,7 +2476,7 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
           << "Not handling atomics. Should perform RMW operation here.\n";
   });
 
-  ValueCategory LHS{LHSLV.getValue(Builder), false};
+  ValueCategory LHS{LHSLV.getValue(Builder), false, LHSLV.ElementType};
   if (!PromotionTypeLHS.isNull())
     LHS = EmitScalarConversion(LHS, LHSTy, PromotionTypeLHS, E->getExprLoc());
   else
@@ -2676,7 +2694,8 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   //
   if (BinaryOperator::isNullPointerArithmeticExtension(
           CGM.getContext(), Opcode, PointerOperand, IndexOperand)) {
-    return EmitIntegralToPointerConversion(Loc, PtrTy, Index);
+    return EmitIntegralToPointerConversion(Loc, PtrTy, Builder.getI8Type(),
+                                           Index);
   }
 
   const llvm::DataLayout &DL = CGM.getDataLayout();
@@ -2712,7 +2731,8 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
     assert(isa<LLVM::LLVMPointerType>(PtrTy) && "Expecting pointer type");
     auto Result = CastToVoidPtr(Pointer);
     Result = Result.GEP(Builder, Loc, Builder.getI8Type(), Index.val);
-    return Result.BitCast(Builder, Loc, Pointer.val.getType());
+    return Result.BitCast(Builder, Loc, Pointer.val.getType(),
+                          Builder.getI8Type());
   }
 
   auto ElemTy = Glob.getTypes().getMLIRTypeForMem(ElementType);

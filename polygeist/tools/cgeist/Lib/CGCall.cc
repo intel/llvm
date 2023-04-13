@@ -268,6 +268,7 @@ ValueCategory MLIRScanner::callHelper(
 
   // handle lowerto pragma.
   if (LTInfo.SymbolTable.count(ToCall.getName())) {
+    llvm::dbgs() << "Lowerto\n";
     SmallVector<Value> InputOperands;
     SmallVector<Value> OutputOperands;
     for (StringRef Input : LTInfo.InputSymbol)
@@ -418,14 +419,18 @@ ValueCategory MLIRScanner::callHelper(
     return ValueCategory(Alloc, /*isReference*/ true, ElementType);
   }
 
-  if (RetReference) {
-    ElementType = Glob.getTypes().getMLIRType(
-        cast<clang::ReferenceType>(RetType)->getPointeeType());
-  }
-
-  if (Op->getNumResults())
+  if (Op->getNumResults()) {
+    if (RetReference) {
+      ElementType = Glob.getTypes().getMLIRType(RetType);
+    } else if (isa<clang::PointerType>(
+                   RetType->getUnqualifiedDesugaredType())) {
+      ElementType = Glob.getTypes().getMLIRType(
+          cast<clang::PointerType>(RetType->getUnqualifiedDesugaredType())
+              ->getPointeeType());
+    }
     return ValueCategory(Op->getResult(0),
                          /*isReference*/ RetReference, ElementType);
+  }
 
   return nullptr;
 }
@@ -483,6 +488,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
           llvm::Constant *RC = Glob.getCGM().GetAddrOfRTTIDescriptor(RT);
           auto PostTy =
               cast<IntegerType>(Glob.getTypes().getMLIRType(Expr->getType()));
+          PostTy.dump();
           return ValueCategory(
               Builder.create<arith::ConstantIntOp>(Loc, LC == RC, PostTy),
               false);
@@ -1087,8 +1093,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         bool IsReference = Expr->isLValue() || Expr->isXValue();
         std::optional<mlir::Type> ElementType = std::nullopt;
         if (IsReference) {
+          assert(isa<clang::ReferenceType>(Expr->getType()));
           ElementType = Glob.getTypes().getMLIRType(
               cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
+        } else if (isa<clang::PointerType>(Expr->getType())) {
+          ElementType = Glob.getTypes().getMLIRType(
+              cast<clang::PointerType>(Expr->getType())->getPointeeType());
         }
         return ValueCategory(Called, IsReference, ElementType);
       }
@@ -1127,6 +1137,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         Expr->getType()->dump();
         llvm::errs() << " call: " << Called << "\n";
       }
+      assert(isa<clang::ReferenceType>(Expr->getType()) && "Foo");
       ElementType = Glob.getTypes().getMLIRType(
           cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
     }
@@ -1423,6 +1434,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
       Args.push_back(Visit(A).getValue(Builder));
   };
   Optional<Value> V = std::nullopt;
+  std::optional<mlir::Type> ElemTy = std::nullopt;
   switch (Expr->getBuiltinCallee()) {
   case clang::Builtin::BIceil: {
     VisitArgs();
@@ -1569,6 +1581,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
         Loc, Args[0], Args[1], Args[2],
         /*isVolatile*/ Builder.create<arith::ConstantIntOp>(Loc, false, 1));
     V = Args[0];
+    ElemTy = Builder.getI8Type();
   } break;
   case clang::Builtin::BImemset:
   case clang::Builtin::BI__builtin_memset: {
@@ -1579,6 +1592,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
         Args[2],
         /*isVolatile*/ Builder.create<arith::ConstantIntOp>(Loc, false, 1));
     V = Args[0];
+    ElemTy = Builder.getI8Type();
   } break;
   case clang::Builtin::BImemcpy:
   case clang::Builtin::BI__builtin_memcpy: {
@@ -1587,12 +1601,15 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
         Loc, Args[0], Args[1], Args[2],
         /*isVolatile*/ Builder.create<arith::ConstantIntOp>(Loc, false, 1));
     V = Args[0];
+    ElemTy = Builder.getI8Type();
   } break;
   }
-  if (V.has_value())
+
+  if (V.has_value()) {
     return std::make_pair(ValueCategory(V.value(),
-                                        /*isReference*/ false),
+                                        /*isReference*/ false, ElemTy),
                           true);
+  }
 
   return std::make_pair(ValueCategory(), false);
 }

@@ -65,7 +65,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
         assert(Res.isReference);
         InitExpr = Res;
       } else {
-        InitExpr = ValueCategory(Res.getValue(Builder), /*isRef*/ false);
+        InitExpr = ValueCategory(Res.getValue(Builder), /*isRef*/ false,
+                                 Res.ElementType);
         if (!InitExpr.val) {
           Init->dump();
           assert(false);
@@ -103,6 +104,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   Block *Block = nullptr;
   Block::iterator Iter;
   Value Op;
+  std::optional<mlir::Type> ElemTy = std::nullopt;
 
   if (Decl->isStaticLocal() && MemType == 0) {
     OpBuilder ABuilder(Builder.getContext());
@@ -122,8 +124,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
           VarLoc, GV.first.getType(), GV.first.getName());
       Op = reshapeRanklessGlobal(GV2);
     }
+    ElemTy = Glob.getTypes().getMLIRType(Decl->getType());
 
-    Params[Decl] = ValueCategory(Op, /*isReference*/ true);
+    Params[Decl] = ValueCategory(Op, /*isReference*/ true, ElemTy);
     if (Decl->getInit()) {
       auto MR = MemRefType::get({}, Builder.getI1Type());
       auto RTT = RankedTensorType::get({}, Builder.getI1Type());
@@ -154,11 +157,14 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
           VarLoc, Builder.create<arith::ConstantIntOp>(VarLoc, false, 1), V,
           std::vector<Value>({getConstantIndex(0)}));
     }
-  } else
+  } else {
     Op = createAllocOp(SubType, Decl, MemType, IsArray, LLVMABI);
+    ElemTy = SubType;
+  }
 
   if (InitExpr.val)
-    ValueCategory(Op, /*isReference*/ true).store(Builder, InitExpr, IsArray);
+    ValueCategory(Op, /*isReference*/ true, ElemTy)
+        .store(Builder, InitExpr, IsArray);
   else if (auto *Init = Decl->getInit()) {
     if (isa<clang::InitListExpr>(Init))
       InitializeValueByInitListExpr(Op, Init);
@@ -171,5 +177,5 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   if (Block)
     Builder.setInsertionPoint(Block, Iter);
 
-  return ValueCategory(Op, /*isReference*/ true);
+  return ValueCategory(Op, /*isReference*/ true, ElemTy);
 }

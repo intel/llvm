@@ -20,7 +20,8 @@ class ValueCategory {
 private:
   template <typename OpTy>
   ValueCategory Cast(mlir::OpBuilder &Builder, mlir::Location Loc,
-                     mlir::Type PromotionType) const {
+                     mlir::Type PromotionType,
+                     std::optional<mlir::Type> ElemTy = std::nullopt) const {
     if (val.getType() == PromotionType)
       return *this;
     if (const auto C = val.getDefiningOp<mlir::arith::ConstantOp>()) {
@@ -29,7 +30,7 @@ private:
               Folder.fold<OpTy>(Loc, PromotionType, C))
         return {FoldedRes, false};
     }
-    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false};
+    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false, ElemTy};
   }
 
   ValueCategory ICmp(mlir::OpBuilder &builder, mlir::Location Loc,
@@ -106,9 +107,9 @@ public:
   ValueCategory PtrToInt(mlir::OpBuilder &Builder, mlir::Location Loc,
                          mlir::Type DestTy) const;
   ValueCategory IntToPtr(mlir::OpBuilder &Builder, mlir::Location Loc,
-                         mlir::Type DestTy) const;
+                         mlir::Type DestTy, mlir::Type ElemType) const;
   ValueCategory BitCast(mlir::OpBuilder &Builder, mlir::Location Loc,
-                        mlir::Type DestTy) const;
+                        mlir::Type DestTy, mlir::Type ElemTy) const;
   ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
   ValueCategory
   Ptr2MemRef(mlir::OpBuilder &Builder, mlir::Location Loc,
