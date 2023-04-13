@@ -192,12 +192,21 @@ def _validate_doc(f, d, tags, line_num):
                     elif not isinstance(item, str):
                         raise Exception(prefix+"must be a string: '%s'"%type(item))
 
+    def extract_type(s):
+        match = re.match(r'^\[(.+)\]\s', s)
+        if match:
+            return match.group(1)
+        else:
+            return None
+
     def __validate_etors(d, tags):
         if 'etors' not in d:
             raise Exception("'enum' requires the following sequence of mappings: {`etors`}")
 
         if not isinstance(d['etors'], list):
             raise Exception("'etors' must be a sequence: '%s'"%type(d['etors']))
+
+        typed = d.get('typed_etors', False)
 
         value = -1
         d_ver = d.get('version', default_version)
@@ -209,6 +218,14 @@ def _validate_doc(f, d, tags, line_num):
 
             if ('desc' not in item) or ('name' not in item):
                 raise Exception(prefix+"requires the following scalar fields: {`desc`, `name`}")
+
+            if typed:
+                type = extract_type(item['desc'])
+                if type is None:
+                    raise Exception(prefix+"typed etor " + item['name'] + " must begin with a type identifier: [type]")
+                type_name = _subt(type, tags)
+                if not is_iso(type_name):
+                    raise Exception(prefix+"type " + str(type) + " in a typed etor " + item['name'] + " must be a valid ISO C identifer")
 
             __validate_name(item, 'name', tags, case='upper', prefix=prefix)
 

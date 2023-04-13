@@ -306,6 +306,7 @@ class param_traits:
     RE_OPTIONAL = r".*\[optional\].*"
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
     RE_RELEASE  = r".*\[release\].*"
+    RE_TYPENAME    = r".*\[typename\((.+)\)\].*"
 
     @classmethod
     def is_mbz(cls, item):
@@ -362,12 +363,20 @@ class param_traits:
             return re.sub(cls.RE_RANGE, r"\2", item['desc'])
         except:
             return None
+
     @classmethod
     def is_release(cls, item):
         try:
             return True if re.match(cls.RE_RELEASE, item['desc']) else False
         except:
             return False
+
+    @classmethod
+    def get_typename(cls, item):
+        try:
+            return re.sub(cls.RE_TYPENAME, r"\1", item['desc'])
+        except:
+            return None
 
 """
     Extracts traits from a function object

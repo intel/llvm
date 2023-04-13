@@ -145,11 +145,11 @@ params:
       name: propName
       desc: "[in] name of the sampler property to query"
     - type: "size_t"
-      name: propValueSize
+      name: propSize
       desc: "[in] size in bytes of the sampler property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out] value of the sampler property"
+      desc: "[out][typename(propName)] value of the sampler property"
     - type: "size_t*"
       name: pPropSizeRet
       desc: "[out] size in bytes returned in sampler property value"

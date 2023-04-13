@@ -282,7 +282,7 @@ class ur_platform_info_v(IntEnum):
                                                     ## size of the info needs to be dynamically queried.
     PROFILE = 5                                     ## [char*] The string denoting profile of the platform. The size of the
                                                     ## info needs to be dynamically queried.
-    BACKEND = 6                                     ## ::ur_platform_backend_t: The backend of the platform. Identifies the
+    BACKEND = 6                                     ## [::ur_platform_backend_t] The backend of the platform. Identifies the
                                                     ## native backend adapter implementing this platform.
 
 class ur_platform_info_t(c_int):
@@ -393,133 +393,135 @@ class ur_device_type_t(c_int):
 ###############################################################################
 ## @brief Supported device info
 class ur_device_info_v(IntEnum):
-    TYPE = 0                                        ## ::ur_device_type_t: type of the device
-    VENDOR_ID = 1                                   ## uint32_t: vendor Id of the device
-    DEVICE_ID = 2                                   ## uint32_t: Id of the device
-    MAX_COMPUTE_UNITS = 3                           ## uint32_t: the number of compute units
-    MAX_WORK_ITEM_DIMENSIONS = 4                    ## uint32_t: max work item dimensions
-    MAX_WORK_ITEM_SIZES = 5                         ## size_t[]: return an array of max work item sizes
-    MAX_WORK_GROUP_SIZE = 6                         ## size_t: max work group size
-    SINGLE_FP_CONFIG = 7                            ## Return a bit field of ::ur_device_fp_capability_flags_t: single
-                                                    ## precision floating point capability
-    HALF_FP_CONFIG = 8                              ## Return a bit field of ::ur_device_fp_capability_flags_t: half
-                                                    ## precision floating point capability
-    DOUBLE_FP_CONFIG = 9                            ## Return a bit field of ::ur_device_fp_capability_flags_t: double
-                                                    ## precision floating point capability
-    QUEUE_PROPERTIES = 10                           ## Return a bit field of ::ur_queue_flags_t: command queue properties
-                                                    ## supported by the device
-    PREFERRED_VECTOR_WIDTH_CHAR = 11                ## uint32_t: preferred vector width for char
-    PREFERRED_VECTOR_WIDTH_SHORT = 12               ## uint32_t: preferred vector width for short
-    PREFERRED_VECTOR_WIDTH_INT = 13                 ## uint32_t: preferred vector width for int
-    PREFERRED_VECTOR_WIDTH_LONG = 14                ## uint32_t: preferred vector width for long
-    PREFERRED_VECTOR_WIDTH_FLOAT = 15               ## uint32_t: preferred vector width for float
-    PREFERRED_VECTOR_WIDTH_DOUBLE = 16              ## uint32_t: preferred vector width for double
-    PREFERRED_VECTOR_WIDTH_HALF = 17                ## uint32_t: preferred vector width for half float
-    NATIVE_VECTOR_WIDTH_CHAR = 18                   ## uint32_t: native vector width for char
-    NATIVE_VECTOR_WIDTH_SHORT = 19                  ## uint32_t: native vector width for short
-    NATIVE_VECTOR_WIDTH_INT = 20                    ## uint32_t: native vector width for int
-    NATIVE_VECTOR_WIDTH_LONG = 21                   ## uint32_t: native vector width for long
-    NATIVE_VECTOR_WIDTH_FLOAT = 22                  ## uint32_t: native vector width for float
-    NATIVE_VECTOR_WIDTH_DOUBLE = 23                 ## uint32_t: native vector width for double
-    NATIVE_VECTOR_WIDTH_HALF = 24                   ## uint32_t: native vector width for half float
-    MAX_CLOCK_FREQUENCY = 25                        ## uint32_t: max clock frequency in MHz
-    MEMORY_CLOCK_RATE = 26                          ## uint32_t: memory clock frequency in MHz
-    ADDRESS_BITS = 27                               ## uint32_t: address bits
-    MAX_MEM_ALLOC_SIZE = 28                         ## uint64_t: max memory allocation size
-    IMAGE_SUPPORTED = 29                            ## bool: images are supported
-    MAX_READ_IMAGE_ARGS = 30                        ## uint32_t: max number of image objects arguments of a kernel declared
+    TYPE = 0                                        ## [::ur_device_type_t] type of the device
+    VENDOR_ID = 1                                   ## [uint32_t] vendor Id of the device
+    DEVICE_ID = 2                                   ## [uint32_t] Id of the device
+    MAX_COMPUTE_UNITS = 3                           ## [uint32_t] the number of compute units
+    MAX_WORK_ITEM_DIMENSIONS = 4                    ## [uint32_t] max work item dimensions
+    MAX_WORK_ITEM_SIZES = 5                         ## [size_t*] return an array of max work item sizes
+    MAX_WORK_GROUP_SIZE = 6                         ## [size_t] max work group size
+    SINGLE_FP_CONFIG = 7                            ## [::ur_device_fp_capability_flags_t] single precision floating point
+                                                    ## capability
+    HALF_FP_CONFIG = 8                              ## [::ur_device_fp_capability_flags_t] half precision floating point
+                                                    ## capability
+    DOUBLE_FP_CONFIG = 9                            ## [::ur_device_fp_capability_flags_t] double precision floating point
+                                                    ## capability
+    QUEUE_PROPERTIES = 10                           ## [::ur_queue_flags_t] command queue properties supported by the device
+    PREFERRED_VECTOR_WIDTH_CHAR = 11                ## [uint32_t] preferred vector width for char
+    PREFERRED_VECTOR_WIDTH_SHORT = 12               ## [uint32_t] preferred vector width for short
+    PREFERRED_VECTOR_WIDTH_INT = 13                 ## [uint32_t] preferred vector width for int
+    PREFERRED_VECTOR_WIDTH_LONG = 14                ## [uint32_t] preferred vector width for long
+    PREFERRED_VECTOR_WIDTH_FLOAT = 15               ## [uint32_t] preferred vector width for float
+    PREFERRED_VECTOR_WIDTH_DOUBLE = 16              ## [uint32_t] preferred vector width for double
+    PREFERRED_VECTOR_WIDTH_HALF = 17                ## [uint32_t] preferred vector width for half float
+    NATIVE_VECTOR_WIDTH_CHAR = 18                   ## [uint32_t] native vector width for char
+    NATIVE_VECTOR_WIDTH_SHORT = 19                  ## [uint32_t] native vector width for short
+    NATIVE_VECTOR_WIDTH_INT = 20                    ## [uint32_t] native vector width for int
+    NATIVE_VECTOR_WIDTH_LONG = 21                   ## [uint32_t] native vector width for long
+    NATIVE_VECTOR_WIDTH_FLOAT = 22                  ## [uint32_t] native vector width for float
+    NATIVE_VECTOR_WIDTH_DOUBLE = 23                 ## [uint32_t] native vector width for double
+    NATIVE_VECTOR_WIDTH_HALF = 24                   ## [uint32_t] native vector width for half float
+    MAX_CLOCK_FREQUENCY = 25                        ## [uint32_t] max clock frequency in MHz
+    MEMORY_CLOCK_RATE = 26                          ## [uint32_t] memory clock frequency in MHz
+    ADDRESS_BITS = 27                               ## [uint32_t] address bits
+    MAX_MEM_ALLOC_SIZE = 28                         ## [uint64_t] max memory allocation size
+    IMAGE_SUPPORTED = 29                            ## [::ur_bool_t] images are supported
+    MAX_READ_IMAGE_ARGS = 30                        ## [uint32_t] max number of image objects arguments of a kernel declared
                                                     ## with the read_only qualifier
-    MAX_WRITE_IMAGE_ARGS = 31                       ## uint32_t: max number of image objects arguments of a kernel declared
+    MAX_WRITE_IMAGE_ARGS = 31                       ## [uint32_t] max number of image objects arguments of a kernel declared
                                                     ## with the write_only qualifier
-    MAX_READ_WRITE_IMAGE_ARGS = 32                  ## uint32_t: max number of image objects arguments of a kernel declared
+    MAX_READ_WRITE_IMAGE_ARGS = 32                  ## [uint32_t] max number of image objects arguments of a kernel declared
                                                     ## with the read_write qualifier
-    IMAGE2D_MAX_WIDTH = 33                          ## size_t: max width of Image2D object
-    IMAGE2D_MAX_HEIGHT = 34                         ## size_t: max heigh of Image2D object
-    IMAGE3D_MAX_WIDTH = 35                          ## size_t: max width of Image3D object
-    IMAGE3D_MAX_HEIGHT = 36                         ## size_t: max height of Image3D object
-    IMAGE3D_MAX_DEPTH = 37                          ## size_t: max depth of Image3D object
-    IMAGE_MAX_BUFFER_SIZE = 38                      ## size_t: max image buffer size
-    IMAGE_MAX_ARRAY_SIZE = 39                       ## size_t: max image array size
-    MAX_SAMPLERS = 40                               ## uint32_t: max number of samplers that can be used in a kernel
-    MAX_PARAMETER_SIZE = 41                         ## size_t: max size in bytes of all arguments passed to a kernel
-    MEM_BASE_ADDR_ALIGN = 42                        ## uint32_t: memory base address alignment
-    GLOBAL_MEM_CACHE_TYPE = 43                      ## ::ur_device_mem_cache_type_t: global memory cache type
-    GLOBAL_MEM_CACHELINE_SIZE = 44                  ## uint32_t: global memory cache line size in bytes
-    GLOBAL_MEM_CACHE_SIZE = 45                      ## uint64_t: size of global memory cache in bytes
-    GLOBAL_MEM_SIZE = 46                            ## uint64_t: size of global memory in bytes
-    GLOBAL_MEM_FREE = 47                            ## uint64_t: size of global memory which is free in bytes
-    MAX_CONSTANT_BUFFER_SIZE = 48                   ## uint64_t: max constant buffer size in bytes
-    MAX_CONSTANT_ARGS = 49                          ## uint32_t: max number of __const declared arguments in a kernel
-    LOCAL_MEM_TYPE = 50                             ## ::ur_device_local_mem_type_t: local memory type
-    LOCAL_MEM_SIZE = 51                             ## uint64_t: local memory size in bytes
-    ERROR_CORRECTION_SUPPORT = 52                   ## bool: support error correction to global and local memory
-    HOST_UNIFIED_MEMORY = 53                        ## bool: unified host device memory
-    PROFILING_TIMER_RESOLUTION = 54                 ## size_t: profiling timer resolution in nanoseconds
-    ENDIAN_LITTLE = 55                              ## bool: little endian byte order
-    AVAILABLE = 56                                  ## bool: device is available
-    COMPILER_AVAILABLE = 57                         ## bool: device compiler is available
-    LINKER_AVAILABLE = 58                           ## bool: device linker is available
-    EXECUTION_CAPABILITIES = 59                     ## ::ur_device_exec_capability_flags_t: device kernel execution
+    IMAGE2D_MAX_WIDTH = 33                          ## [size_t] max width of Image2D object
+    IMAGE2D_MAX_HEIGHT = 34                         ## [size_t] max heigh of Image2D object
+    IMAGE3D_MAX_WIDTH = 35                          ## [size_t] max width of Image3D object
+    IMAGE3D_MAX_HEIGHT = 36                         ## [size_t] max height of Image3D object
+    IMAGE3D_MAX_DEPTH = 37                          ## [size_t] max depth of Image3D object
+    IMAGE_MAX_BUFFER_SIZE = 38                      ## [size_t] max image buffer size
+    IMAGE_MAX_ARRAY_SIZE = 39                       ## [size_t] max image array size
+    MAX_SAMPLERS = 40                               ## [uint32_t] max number of samplers that can be used in a kernel
+    MAX_PARAMETER_SIZE = 41                         ## [size_t] max size in bytes of all arguments passed to a kernel
+    MEM_BASE_ADDR_ALIGN = 42                        ## [uint32_t] memory base address alignment
+    GLOBAL_MEM_CACHE_TYPE = 43                      ## [::ur_device_mem_cache_type_t] global memory cache type
+    GLOBAL_MEM_CACHELINE_SIZE = 44                  ## [uint32_t] global memory cache line size in bytes
+    GLOBAL_MEM_CACHE_SIZE = 45                      ## [uint64_t] size of global memory cache in bytes
+    GLOBAL_MEM_SIZE = 46                            ## [uint64_t] size of global memory in bytes
+    GLOBAL_MEM_FREE = 47                            ## [uint64_t] size of global memory which is free in bytes
+    MAX_CONSTANT_BUFFER_SIZE = 48                   ## [uint64_t] max constant buffer size in bytes
+    MAX_CONSTANT_ARGS = 49                          ## [uint32_t] max number of __const declared arguments in a kernel
+    LOCAL_MEM_TYPE = 50                             ## [::ur_device_local_mem_type_t] local memory type
+    LOCAL_MEM_SIZE = 51                             ## [uint64_t] local memory size in bytes
+    ERROR_CORRECTION_SUPPORT = 52                   ## [bool] support error correction to global and local memory
+    HOST_UNIFIED_MEMORY = 53                        ## [bool] unified host device memory
+    PROFILING_TIMER_RESOLUTION = 54                 ## [size_t] profiling timer resolution in nanoseconds
+    ENDIAN_LITTLE = 55                              ## [bool] little endian byte order
+    AVAILABLE = 56                                  ## [bool] device is available
+    COMPILER_AVAILABLE = 57                         ## [bool] device compiler is available
+    LINKER_AVAILABLE = 58                           ## [bool] device linker is available
+    EXECUTION_CAPABILITIES = 59                     ## [::ur_device_exec_capability_flags_t] device kernel execution
                                                     ## capability bit-field
-    QUEUE_ON_DEVICE_PROPERTIES = 60                 ## ::ur_queue_flags_t: device command queue property bit-field
-    QUEUE_ON_HOST_PROPERTIES = 61                   ## ::ur_queue_flags_t: host queue property bit-field
-    BUILT_IN_KERNELS = 62                           ## char[]: a semi-colon separated list of built-in kernels
-    PLATFORM = 63                                   ## ::ur_platform_handle_t: the platform associated with the device
+    QUEUE_ON_DEVICE_PROPERTIES = 60                 ## [::ur_queue_flags_t] device command queue property bit-field
+    QUEUE_ON_HOST_PROPERTIES = 61                   ## [::ur_queue_flags_t] host queue property bit-field
+    BUILT_IN_KERNELS = 62                           ## [char*] a semi-colon separated list of built-in kernels
+    PLATFORM = 63                                   ## [::ur_platform_handle_t] the platform associated with the device
     REFERENCE_COUNT = 64                            ## [uint32_t] Reference count of the device object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    IL_VERSION = 65                                 ## char[]: IL version
-    NAME = 66                                       ## char[]: Device name
-    VENDOR = 67                                     ## char[]: Device vendor
-    DRIVER_VERSION = 68                             ## char[]: Driver version
-    PROFILE = 69                                    ## char[]: Device profile
-    VERSION = 70                                    ## char[]: Device version
-    BACKEND_RUNTIME_VERSION = 71                    ## char[]: Version of backend runtime
-    EXTENSIONS = 72                                 ## char[]: Return a space separated list of extension names
-    PRINTF_BUFFER_SIZE = 73                         ## size_t: Maximum size in bytes of internal printf buffer
-    PREFERRED_INTEROP_USER_SYNC = 74                ## bool: prefer user synchronization when sharing object with other API
-    PARENT_DEVICE = 75                              ## ::ur_device_handle_t: return parent device handle
-    PARTITION_PROPERTIES = 76                       ## ::ur_device_partition_property_t[]: Returns the list of partition
+    IL_VERSION = 65                                 ## [char*] IL version
+    NAME = 66                                       ## [char*] Device name
+    VENDOR = 67                                     ## [char*] Device vendor
+    DRIVER_VERSION = 68                             ## [char*] Driver version
+    PROFILE = 69                                    ## [char*] Device profile
+    VERSION = 70                                    ## [char*] Device version
+    BACKEND_RUNTIME_VERSION = 71                    ## [char*] Version of backend runtime
+    EXTENSIONS = 72                                 ## [char*] Return a space separated list of extension names
+    PRINTF_BUFFER_SIZE = 73                         ## [size_t] Maximum size in bytes of internal printf buffer
+    PREFERRED_INTEROP_USER_SYNC = 74                ## [::ur_bool_t] prefer user synchronization when sharing object with
+                                                    ## other API
+    PARENT_DEVICE = 75                              ## [::ur_device_handle_t] return parent device handle
+    PARTITION_PROPERTIES = 76                       ## [::ur_device_partition_property_t*] Returns the list of partition
                                                     ## types supported by the device
-    PARTITION_MAX_SUB_DEVICES = 77                  ## uint32_t: maximum number of sub-devices when the device is partitioned
-    PARTITION_AFFINITY_DOMAIN = 78                  ## [::ur_device_affinity_domain_flags_t]: Returns a bit-field of the
+    PARTITION_MAX_SUB_DEVICES = 77                  ## [uint32_t] maximum number of sub-devices when the device is
+                                                    ## partitioned
+    PARTITION_AFFINITY_DOMAIN = 78                  ## [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
                                                     ## supported affinity domains for partitioning. 
                                                     ## If the device does not support any affinity domains, then 0 will be returned.
-    PARTITION_TYPE = 79                             ## ::ur_device_partition_property_t[]: return a list of
+    PARTITION_TYPE = 79                             ## [::ur_device_partition_property_t*] return a list of
                                                     ## ::ur_device_partition_property_t for properties specified in
                                                     ## ::urDevicePartition
-    MAX_NUM_SUB_GROUPS = 80                         ## uint32_t: max number of sub groups
-    SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81     ## bool: support sub group independent forward progress
-    SUB_GROUP_SIZES_INTEL = 82                      ## uint32_t[]: return an array of sub group sizes supported on Intel
+    MAX_NUM_SUB_GROUPS = 80                         ## [uint32_t] max number of sub groups
+    SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81     ## [::ur_bool_t] support sub group independent forward progress
+    SUB_GROUP_SIZES_INTEL = 82                      ## [uint32_t*] return an array of sub group sizes supported on Intel
                                                     ## device
-    USM_HOST_SUPPORT = 83                           ## bool: support USM host memory access
-    USM_DEVICE_SUPPORT = 84                         ## bool: support USM device memory access
-    USM_SINGLE_SHARED_SUPPORT = 85                  ## bool: support USM single device shared memory access
-    USM_CROSS_SHARED_SUPPORT = 86                   ## bool: support USM cross device shared memory access
-    USM_SYSTEM_SHARED_SUPPORT = 87                  ## bool: support USM system wide shared memory access
-    UUID = 88                                       ## char[]: return device UUID
-    PCI_ADDRESS = 89                                ## char[]: return device PCI address
-    GPU_EU_COUNT = 90                               ## uint32_t: return Intel GPU EU count
-    GPU_EU_SIMD_WIDTH = 91                          ## uint32_t: return Intel GPU EU SIMD width
-    GPU_EU_SLICES = 92                              ## uint32_t: return Intel GPU number of slices
-    GPU_SUBSLICES_PER_SLICE = 93                    ## uint32_t: return Intel GPU number of subslices per slice
-    MAX_MEMORY_BANDWIDTH = 94                       ## uint32_t: return max memory bandwidth in Mb/s
-    IMAGE_SRGB = 95                                 ## bool: image is SRGB
-    ATOMIC_64 = 96                                  ## bool: support 64 bit atomics
-    ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## ::ur_memory_order_capability_flags_t: return a bit-field of atomic
+    USM_HOST_SUPPORT = 83                           ## [::ur_bool_t] support USM host memory access
+    USM_DEVICE_SUPPORT = 84                         ## [::ur_bool_t] support USM device memory access
+    USM_SINGLE_SHARED_SUPPORT = 85                  ## [::ur_bool_t] support USM single device shared memory access
+    USM_CROSS_SHARED_SUPPORT = 86                   ## [::ur_bool_t] support USM cross device shared memory access
+    USM_SYSTEM_SHARED_SUPPORT = 87                  ## [::ur_bool_t] support USM system wide shared memory access
+    UUID = 88                                       ## [char*] return device UUID
+    PCI_ADDRESS = 89                                ## [char*] return device PCI address
+    GPU_EU_COUNT = 90                               ## [uint32_t] return Intel GPU EU count
+    GPU_EU_SIMD_WIDTH = 91                          ## [uint32_t] return Intel GPU EU SIMD width
+    GPU_EU_SLICES = 92                              ## [uint32_t] return Intel GPU number of slices
+    GPU_SUBSLICES_PER_SLICE = 93                    ## [uint32_t] return Intel GPU number of subslices per slice
+    MAX_MEMORY_BANDWIDTH = 94                       ## [uint32_t] return max memory bandwidth in Mb/s
+    IMAGE_SRGB = 95                                 ## [::ur_bool_t] image is SRGB
+    ATOMIC_64 = 96                                  ## [::ur_bool_t] support 64 bit atomics
+    ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                     ## memory order capabilities
-    ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98           ## ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
+    ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98           ## [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                     ## memory scope capabilities
-    ATOMIC_FENCE_ORDER_CAPABILITIES = 99            ## ::ur_memory_order_capability_flags_t: return a bit-field of atomic
+    ATOMIC_FENCE_ORDER_CAPABILITIES = 99            ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                     ## memory fence order capabilities
-    ATOMIC_FENCE_SCOPE_CAPABILITIES = 100           ## ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
+    ATOMIC_FENCE_SCOPE_CAPABILITIES = 100           ## [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                     ## memory fence scope capabilities
-    BFLOAT16 = 101                                  ## bool: support for bfloat16
-    MAX_COMPUTE_QUEUE_INDICES = 102                 ## uint32_t: Returns 1 if the device doesn't have a notion of a 
+    BFLOAT16 = 101                                  ## [::ur_bool_t] support for bfloat16
+    MAX_COMPUTE_QUEUE_INDICES = 102                 ## [uint32_t] Returns 1 if the device doesn't have a notion of a 
                                                     ## queue index. Otherwise, returns the number of queue indices that are
                                                     ## available for this device.
-    KERNEL_SET_SPECIALIZATION_CONSTANTS = 103       ## `bool`: support the ::urKernelSetSpecializationConstants entry point
+    KERNEL_SET_SPECIALIZATION_CONSTANTS = 103       ## [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
+                                                    ## point
 
 class ur_device_info_t(c_int):
     def __str__(self):
@@ -678,15 +680,14 @@ class ur_context_properties_t(Structure):
 ## @brief Supported context info
 class ur_context_info_v(IntEnum):
     NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
-    DEVICES = 1                                     ## [::ur_device_handle_t ...] The array of the device handles in the
-                                                    ## context
+    DEVICES = 1                                     ## [::ur_device_handle_t*] The array of the device handles in the context
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    USM_MEMCPY2D_SUPPORT = 3                        ## [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
+    USM_MEMCPY2D_SUPPORT = 3                        ## [::ur_bool_t] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
                                                     ## supported.
-    USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
+    USM_FILL2D_SUPPORT = 4                          ## [::ur_bool_t] to indicate if the ::urEnqueueUSMFill2D entrypoint is
                                                     ## supported.
     ATOMIC_MEMORY_ORDER_CAPABILITIES = 5            ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                     ## memory order capabilities.
@@ -748,8 +749,8 @@ class ur_mem_type_t(c_int):
 ###############################################################################
 ## @brief Memory Information type
 class ur_mem_info_v(IntEnum):
-    SIZE = 0                                        ## size_t: actual size of of memory object in bytes
-    CONTEXT = 1                                     ## ::ur_context_handle_t: context in which the memory object was created
+    SIZE = 0                                        ## [size_t] actual size of of memory object in bytes
+    CONTEXT = 1                                     ## [::ur_context_handle_t] context in which the memory object was created
 
 class ur_mem_info_t(c_int):
     def __str__(self):
@@ -807,13 +808,13 @@ class ur_image_channel_type_t(c_int):
 ###############################################################################
 ## @brief Image information types
 class ur_image_info_v(IntEnum):
-    FORMAT = 0                                      ## ::ur_image_format_t: image format
-    ELEMENT_SIZE = 1                                ## size_t: element size
-    ROW_PITCH = 2                                   ## size_t: row pitch
-    SLICE_PITCH = 3                                 ## size_t: slice pitch
-    WIDTH = 4                                       ## size_t: image width
-    HEIGHT = 5                                      ## size_t: image height
-    DEPTH = 6                                       ## size_t: image depth
+    FORMAT = 0                                      ## [::ur_image_format_t] image format
+    ELEMENT_SIZE = 1                                ## [size_t] element size
+    ROW_PITCH = 2                                   ## [size_t] row pitch
+    SLICE_PITCH = 3                                 ## [size_t] slice pitch
+    WIDTH = 4                                       ## [size_t] image width
+    HEIGHT = 5                                      ## [size_t] image height
+    DEPTH = 6                                       ## [size_t] image depth
 
 class ur_image_info_t(c_int):
     def __str__(self):
@@ -1170,16 +1171,16 @@ class ur_program_info_v(IntEnum):
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    CONTEXT = 1                                     ## Program context info.
-    NUM_DEVICES = 2                                 ## Return number of devices associated with Program.
-    DEVICES = 3                                     ## Return list of devices associated with Program, return type uint32_t*.
-    SOURCE = 4                                      ## Return program source associated with Program, return type char*.
-    BINARY_SIZES = 5                                ## Return program binary sizes for each device, return type size_t*.
-    BINARIES = 6                                    ## Return program binaries for all devices for this Program, return type
-                                                    ## uchar*.
-    NUM_KERNELS = 7                                 ## Number of kernels in Program, return type size_t.
-    KERNEL_NAMES = 8                                ## Return a null-terminated, semi-colon separated list of kernel names in
-                                                    ## Program, return type char*.
+    CONTEXT = 1                                     ## [::ur_context_handle_t] Program context info.
+    NUM_DEVICES = 2                                 ## [uint32_t] Return number of devices associated with Program.
+    DEVICES = 3                                     ## [x_device_handle_t*] Return list of devices associated with Program.
+    SOURCE = 4                                      ## [char*] Return program source associated with Program.
+    BINARY_SIZES = 5                                ## [size_t*] Return program binary sizes for each device.
+    BINARIES = 6                                    ## [unsigned char*] Return program binaries for all devices for this
+                                                    ## Program.
+    NUM_KERNELS = 7                                 ## [size_t] Number of kernels in Program, return type size_t.
+    KERNEL_NAMES = 8                                ## [char*] Return a null-terminated, semi-colon separated list of kernel
+                                                    ## names in Program.
 
 class ur_program_info_t(c_int):
     def __str__(self):
@@ -1215,11 +1216,11 @@ class ur_program_binary_type_t(c_int):
 ###############################################################################
 ## @brief Get Program object build information
 class ur_program_build_info_v(IntEnum):
-    STATUS = 0                                      ## Program build status, return type ::ur_program_build_status_t.
-    OPTIONS = 1                                     ## Null-terminated options string specified by last build, compile or
-                                                    ## link operation performed on the program. Return type char*.
-    LOG = 2                                         ## Null-terminated program build log, return type char*.
-    BINARY_TYPE = 3                                 ## Program binary type, return type ::ur_program_binary_type_t.
+    STATUS = 0                                      ## [::ur_program_build_status_t] Program build status.
+    OPTIONS = 1                                     ## [char*] Null-terminated options string specified by last build,
+                                                    ## compile or link operation performed on the program.
+    LOG = 2                                         ## [char*] Null-terminated program build log.
+    BINARY_TYPE = 3                                 ## [::ur_program_binary_type_t] Program binary type.
 
 class ur_program_build_info_t(c_int):
     def __str__(self):
@@ -1238,15 +1239,15 @@ class ur_specialization_constant_info_t(Structure):
 ###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
-    FUNCTION_NAME = 0                               ## Return null-terminated kernel function name, return type char*.
-    NUM_ARGS = 1                                    ## Return Kernel number of arguments.
+    FUNCTION_NAME = 0                               ## [char*] Return null-terminated kernel function name.
+    NUM_ARGS = 1                                    ## [size_t] Return Kernel number of arguments.
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the kernel object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    CONTEXT = 3                                     ## Return Context object associated with Kernel.
-    PROGRAM = 4                                     ## Return Program object associated with Kernel.
-    ATTRIBUTES = 5                                  ## Return null-terminated kernel attributes string, return type char*.
+    CONTEXT = 3                                     ## [::ur_context_handle_t] Return Context object associated with Kernel.
+    PROGRAM = 4                                     ## [::ur_program_handle_t] Return Program object associated with Kernel.
+    ATTRIBUTES = 5                                  ## [char*] Return null-terminated kernel attributes string.
     NUM_REGS = 6                                    ## [uint32_t] Return the number of registers used by the compiled kernel
                                                     ## (device specific).
 
@@ -1258,15 +1259,16 @@ class ur_kernel_info_t(c_int):
 ###############################################################################
 ## @brief Get Kernel Work Group information
 class ur_kernel_group_info_v(IntEnum):
-    GLOBAL_WORK_SIZE = 0                            ## Return Work Group maximum global size, return type size_t[3]
-    WORK_GROUP_SIZE = 1                             ## Return maximum Work Group size, return type size_t
-    COMPILE_WORK_GROUP_SIZE = 2                     ## Return Work Group size required by the source code, such as
-                                                    ## __attribute__((required_work_group_size(X,Y,Z)), return type size_t[3]
-    LOCAL_MEM_SIZE = 3                              ## Return local memory required by the Kernel, return type size_t
-    PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4          ## Return preferred multiple of Work Group size for launch, return type
-                                                    ## size_t
-    PRIVATE_MEM_SIZE = 5                            ## Return minimum amount of private memory in bytes used by each work
-                                                    ## item in the Kernel, return type size_t
+    GLOBAL_WORK_SIZE = 0                            ## [size_t*] Return Work Group maximum global size, always returns a
+                                                    ## three element array
+    WORK_GROUP_SIZE = 1                             ## [size_t] Return maximum Work Group size
+    COMPILE_WORK_GROUP_SIZE = 2                     ## [size_t*] Return Work Group size required by the source code, such as
+                                                    ## __attribute__((required_work_group_size(X,Y,Z)), always returns a
+                                                    ## three element array
+    LOCAL_MEM_SIZE = 3                              ## [size_t] Return local memory required by the Kernel
+    PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4          ## [size_t] Return preferred multiple of Work Group size for launch
+    PRIVATE_MEM_SIZE = 5                            ## [size_t] Return minimum amount of private memory in bytes used by each
+                                                    ## work item in the Kernel
 
 class ur_kernel_group_info_t(c_int):
     def __str__(self):
@@ -1276,11 +1278,10 @@ class ur_kernel_group_info_t(c_int):
 ###############################################################################
 ## @brief Get Kernel SubGroup information
 class ur_kernel_sub_group_info_v(IntEnum):
-    MAX_SUB_GROUP_SIZE = 0                          ## Return maximum SubGroup size, return type uint32_t
-    MAX_NUM_SUB_GROUPS = 1                          ## Return maximum number of SubGroup, return type uint32_t
-    COMPILE_NUM_SUB_GROUPS = 2                      ## Return number of SubGroup required by the source code, return type
-                                                    ## uint32_t
-    SUB_GROUP_SIZE_INTEL = 3                        ## Return SubGroup size required by Intel, return type uint32_t
+    MAX_SUB_GROUP_SIZE = 0                          ## [uint32_t] Return maximum SubGroup size
+    MAX_NUM_SUB_GROUPS = 1                          ## [uint32_t] Return maximum number of SubGroup
+    COMPILE_NUM_SUB_GROUPS = 2                      ## [uint32_t] Return number of SubGroup required by the source code
+    SUB_GROUP_SIZE_INTEL = 3                        ## [uint32_t] Return SubGroup size required by Intel
 
 class ur_kernel_sub_group_info_t(c_int):
     def __str__(self):
@@ -1302,11 +1303,10 @@ class ur_kernel_cache_config_t(c_int):
 ###############################################################################
 ## @brief Set additional Kernel execution information
 class ur_kernel_exec_info_v(IntEnum):
-    USM_INDIRECT_ACCESS = 0                         ## Kernel might access data through USM pointer, type bool_t*
-    USM_PTRS = 1                                    ## Provide an explicit list of USM pointers that the kernel will access,
-                                                    ## type void*[].
-    CACHE_CONFIG = 2                                ## Provide the preferred cache configuration, type
-                                                    ## ::ur_kernel_cache_config_t
+    USM_INDIRECT_ACCESS = 0                         ## [::ur_bool_t] Kernel might access data through USM pointer.
+    USM_PTRS = 1                                    ## [void **] Provide an explicit list of USM pointers that the kernel
+                                                    ## will access.
+    CACHE_CONFIG = 2                                ## [::ur_kernel_cache_config_t] Provide the preferred cache configuration
 
 class ur_kernel_exec_info_t(c_int):
     def __str__(self):
@@ -1316,17 +1316,17 @@ class ur_kernel_exec_info_t(c_int):
 ###############################################################################
 ## @brief Query queue info
 class ur_queue_info_v(IntEnum):
-    CONTEXT = 0                                     ## ::ur_queue_handle_t: context associated with this queue.
-    DEVICE = 1                                      ## ::ur_device_handle_t: device associated with this queue.
-    DEVICE_DEFAULT = 2                              ## ::ur_queue_handle_t: the current default queue of the underlying
+    CONTEXT = 0                                     ## [::ur_queue_handle_t] context associated with this queue.
+    DEVICE = 1                                      ## [::ur_device_handle_t] device associated with this queue.
+    DEVICE_DEFAULT = 2                              ## [::ur_queue_handle_t] the current default queue of the underlying
                                                     ## device.
-    FLAGS = 3                                       ## ::ur_queue_flags_t: the properties associated with
+    FLAGS = 3                                       ## [::ur_queue_flags_t] the properties associated with
                                                     ## ::ur_queue_properties_t::flags.
     REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the queue object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    SIZE = 5                                        ## uint32_t: The size of the queue
+    SIZE = 5                                        ## [uint32_t] The size of the queue
 
 class ur_queue_info_t(c_int):
     def __str__(self):
@@ -1439,14 +1439,14 @@ class ur_event_info_t(c_int):
 ###############################################################################
 ## @brief Profiling query information type
 class ur_profiling_info_v(IntEnum):
-    COMMAND_QUEUED = 0                              ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## is enqueued
-    COMMAND_SUBMIT = 1                              ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## is submitted
-    COMMAND_START = 2                               ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## starts execution
-    COMMAND_END = 3                                 ## A 64-bit value of current device counter in nanoseconds when the event
-                                                    ## has finished execution
+    COMMAND_QUEUED = 0                              ## [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                                    ## when the event is enqueued
+    COMMAND_SUBMIT = 1                              ## [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                                    ## when the event is submitted
+    COMMAND_START = 2                               ## [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                                    ## when the event starts execution
+    COMMAND_END = 3                                 ## [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                                    ## when the event has finished execution
 
 class ur_profiling_info_t(c_int):
     def __str__(self):

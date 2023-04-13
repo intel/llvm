@@ -82,10 +82,11 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGetInfo
 __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
-    ur_platform_handle_t hPlatform,      ///< [in] handle of the platform
-    ur_platform_info_t PlatformInfoType, ///< [in] type of the info to retrieve
-    size_t Size, ///< [in] the number of bytes pointed to by pPlatformInfo.
-    void *pPlatformInfo, ///< [out][optional] array of bytes holding the info.
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_platform_info_t propName,    ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPlatformInfo.
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
     ///< If Size is not equal to or greater to the real number of bytes needed
     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
     ///< returned and pPlatformInfo is not used.
@@ -97,8 +98,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetInfo = d_context.urDdiTable.Platform.pfnGetInfo;
     if (nullptr != pfnGetInfo) {
-        result = pfnGetInfo(hPlatform, PlatformInfoType, Size, pPlatformInfo,
-                            pSizeRet);
+        result =
+            pfnGetInfo(hPlatform, propName, propSize, pPropValue, pSizeRet);
     } else {
         // generic implementation
     }
@@ -231,8 +232,9 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
 __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
     ur_device_info_t propName,  ///< [in] type of the info to retrieve
-    size_t propSize,  ///< [in] the number of bytes pointed to by pPropValue.
-    void *pPropValue, ///< [out][optional] array of bytes holding the info.
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info
     ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
@@ -491,7 +493,8 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     ur_context_info_t propName,   ///< [in] type of the info to retrieve
     size_t
         propSize, ///< [in] the number of bytes of memory pointed to by pPropValue.
-    void *pPropValue, ///< [out][optional] array of bytes holding the info.
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
     ///< if propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -747,7 +750,8 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     ur_mem_info_t propName, ///< [in] type of the info to retrieve.
     size_t
         propSize, ///< [in] the number of bytes of memory pointed to by pPropValue.
-    void *pPropValue, ///< [out][optional] array of bytes holding the info.
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
     ///< If propSize is less than the real number of bytes needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
@@ -775,7 +779,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     ur_image_info_t propName, ///< [in] type of image info to retrieve.
     size_t
         propSize, ///< [in] the number of bytes of memory pointer to by pPropValue.
-    void *pPropValue, ///< [out][optional] array of bytes holding the info.
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
     ///< If propSize is less than the real number of bytes needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
@@ -862,8 +867,9 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler object
     ur_sampler_info_t propName, ///< [in] name of the sampler property to query
     size_t
-        propValueSize, ///< [in] size in bytes of the sampler property value provided
-    void *pPropValue, ///< [out] value of the sampler property
+        propSize, ///< [in] size in bytes of the sampler property value provided
+    void *
+        pPropValue, ///< [out][typename(propName)] value of the sampler property
     size_t *
         pPropSizeRet ///< [out] size in bytes returned in sampler property value
 ) {
@@ -872,8 +878,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetInfo = d_context.urDdiTable.Sampler.pfnGetInfo;
     if (nullptr != pfnGetInfo) {
-        result = pfnGetInfo(hSampler, propName, propValueSize, pPropValue,
-                            pPropSizeRet);
+        result =
+            pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -1031,18 +1037,20 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     ur_usm_alloc_info_t
         propName, ///< [in] the name of the USM allocation property to query
     size_t
-        propValueSize, ///< [in] size in bytes of the USM allocation property value
-    void *pPropValue, ///< [out][optional] value of the USM allocation property
+        propSize, ///< [in] size in bytes of the USM allocation property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] value of the USM allocation
+                    ///< property
     size_t *
-        pPropValueSizeRet ///< [out][optional] bytes returned in USM allocation property
+        pPropSizeRet ///< [out][optional] bytes returned in USM allocation property
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetMemAllocInfo = d_context.urDdiTable.USM.pfnGetMemAllocInfo;
     if (nullptr != pfnGetMemAllocInfo) {
-        result = pfnGetMemAllocInfo(hContext, pMem, propName, propValueSize,
-                                    pPropValue, pPropValueSizeRet);
+        result = pfnGetMemAllocInfo(hContext, pMem, propName, propSize,
+                                    pPropValue, pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -1286,7 +1294,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     ur_program_info_t propName, ///< [in] name of the Program property to query
     size_t propSize,            ///< [in] the size of the Program property.
     void *
-        pPropValue, ///< [in,out][optional] array of bytes of holding the program info property.
+        pPropValue, ///< [in,out][optional][typename(propName)] array of bytes of holding the
+                    ///< program info property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -1317,7 +1326,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
         propName,    ///< [in] name of the Program build info to query
     size_t propSize, ///< [in] size of the Program build info property.
     void *
-        pPropValue, ///< [in,out][optional] value of the Program build property.
+        pPropValue, ///< [in,out][optional][typename(propName)] value of the Program build property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
     ///< error is returned and pPropValue is not used.
@@ -1480,7 +1489,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     ur_kernel_info_t propName,  ///< [in] name of the Kernel property to query
     size_t propSize,            ///< [in] the size of the Kernel property value.
     void *
-        pPropValue, ///< [in,out][optional] array of bytes holding the kernel info property.
+        pPropValue, ///< [in,out][optional][typename(propName)] array of bytes holding the
+                    ///< kernel info property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -1512,7 +1522,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
         propName,    ///< [in] name of the work Group property to query
     size_t propSize, ///< [in] size of the Kernel Work Group property value
     void *
-        pPropValue, ///< [in,out][optional][range(0, propSize)] value of the Kernel Work Group
+        pPropValue, ///< [in,out][optional][typename(propName)] value of the Kernel Work Group
                     ///< property.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
@@ -1541,7 +1551,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
         propName,    ///< [in] name of the SubGroup property to query
     size_t propSize, ///< [in] size of the Kernel SubGroup property value
     void *
-        pPropValue, ///< [in,out][range(0, propSize)][optional] value of the Kernel SubGroup
+        pPropValue, ///< [in,out][optional][typename(propName)] value of the Kernel SubGroup
                     ///< property.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
@@ -1626,7 +1636,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
     const void *
-        pPropValue ///< [in][range(0, propSize)] pointer to memory location holding the
+        pPropValue ///< [in][typename(propName)] pointer to memory location holding the
                    ///< property value.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1754,8 +1764,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_queue_info_t propName, ///< [in] name of the queue property to query
     size_t
-        propValueSize, ///< [in] size in bytes of the queue property value provided
-    void *pPropValue, ///< [out][optional] value of the queue property
+        propSize, ///< [in] size in bytes of the queue property value provided
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] value of the queue property
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in queue property value
 ) {
@@ -1764,8 +1775,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetInfo = d_context.urDdiTable.Queue.pfnGetInfo;
     if (nullptr != pfnGetInfo) {
-        result = pfnGetInfo(hQueue, propName, propValueSize, pPropValue,
-                            pPropSizeRet);
+        result =
+            pfnGetInfo(hQueue, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -1918,18 +1929,18 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     ur_event_handle_t hEvent, ///< [in] handle of the event object
     ur_event_info_t propName, ///< [in] the name of the event property to query
-    size_t propValueSize, ///< [in] size in bytes of the event property value
-    void *pPropValue,     ///< [out][optional] value of the event property
-    size_t
-        *pPropValueSizeRet ///< [out][optional] bytes returned in event property
+    size_t propSize, ///< [in] size in bytes of the event property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] value of the event property
+    size_t *pPropSizeRet ///< [out][optional] bytes returned in event property
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetInfo = d_context.urDdiTable.Event.pfnGetInfo;
     if (nullptr != pfnGetInfo) {
-        result = pfnGetInfo(hEvent, propName, propValueSize, pPropValue,
-                            pPropValueSizeRet);
+        result =
+            pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -1942,21 +1953,21 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
 __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ///< [in] handle of the event object
     ur_profiling_info_t
-        propName, ///< [in] the name of the profiling property to query
-    size_t
-        propValueSize, ///< [in] size in bytes of the profiling property value
-    void *pPropValue,  ///< [out][optional] value of the profiling property
+        propName,    ///< [in] the name of the profiling property to query
+    size_t propSize, ///< [in] size in bytes of the profiling property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName)] value of the profiling property
     size_t *
-        pPropValueSizeRet ///< [out][optional] pointer to the actual size in bytes returned in
-                          ///< propValue
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes returned in
+                     ///< propValue
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetProfilingInfo = d_context.urDdiTable.Event.pfnGetProfilingInfo;
     if (nullptr != pfnGetProfilingInfo) {
-        result = pfnGetProfilingInfo(hEvent, propName, propValueSize,
-                                     pPropValue, pPropValueSizeRet);
+        result = pfnGetProfilingInfo(hEvent, propName, propSize, pPropValue,
+                                     pPropSizeRet);
     } else {
         // generic implementation
     }

@@ -318,14 +318,16 @@ class ur_name_handle_t(c_void_p):
   - `desc` will be used as the enum's description comment
   - `name` must be a unique ISO-C standard identifier, start with `$` tag, be snake_case and end with `_t`
   - `name` that endswith `_flags_t` will be used to create bitfields
-* An enum may take the following optional scalar fields: {`class`, `condition`, `ordinal`, `version`}
+* An enum may take the following optional scalar fields: {`class`, `condition`, `ordinal`, `version`, `typed_etors`}
   - `class` will be used to scope the enum declaration within the specified C++ class
   - `condition` will be used as a C/C++ preprocessor `#if` conditional expression
   - `ordinal` will be used to override the default order (in which they appear) the enum appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the enum will appear; `default="1.0"` This will also affect the order in which the enum appears within its section and class.
+  - `typed_etors` boolean value that will be used to determine whether the enum's values have associated types.
 * An enum requires the following sequence of mappings: {`etors`}
   - An etor requires the following scalar fields: {`name`, `desc`}
     + `desc` will be used as the etors's description comment
+    + If the enum has `typed_etors`, `desc` must begin with type identifier: {`"[type]"`}
     + `name` must be a unique ISO-C standard identifier, and be all caps
   - An etor may take the following optional scalar field: {`value`, `version`}
     + `value` must be an ISO-C standard identifier
@@ -462,8 +464,9 @@ class ur_name_flags_v(IntEnum):
       - `in` is used for members that are read-only; if the member is a pointer, then the memory being pointed to is also read-only
       - `out` is used for members that are write-only; if the member is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for members that are both read and write; typically this is used for pointers to other data structures that contain both read and write members
-    + `desc` may include one the following annotations: {`"[optional]"`}
+    + `desc` may include one the following annotations: {`"[optional]"`, `"[typename(typeVarName)]"`}
       - `optional` is used for members that are pointers where it is legal for the value to be `nullptr`
+      - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
     + `type` must be an ISO-C standard identifier; except it may **not** be a `handle_t`
     + `name` must be a unique ISO-C standard identifier
   - A member may take the following optional scalar field: {`init`, `version`}
@@ -600,12 +603,13 @@ class ur_name_t(Structure):
       - `in` is used for params that are read-only; if the param is a pointer, then the memory being pointed to is also read-only
       - `out` is used for params that are write-only; if the param is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for params that are both read and write; typically this is used for pointers to other data structures that contain both read and write params
-    + `desc` may include one the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[release]"`}
+    + `desc` may include one the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[release]"`, `"[typename(typeVarName)]"`}
       - `optional` is used for params that are handles or pointers where it is legal for the value to be `nullptr`
       - `range` is used for params that are array pointers to specify the valid range that the is valid to read
         + `start` and `end` must be an ISO-C standard identifier or literal
         + `start` is inclusive and `end` is exclusive
       - `release` is used for params that are handles or pointers to handles where the function will destroy any backing memory associated with the handle(s)
+      - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
     + `type` must be an ISO-C standard identifier
     + `name` must be a unique ISO-C standard identifier
   - A param may take the following optional scalar field: {`init`, `version`}

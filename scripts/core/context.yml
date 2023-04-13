@@ -84,20 +84,21 @@ type: enum
 desc: "Supported context info"
 class: $xContext
 name: $x_context_info_t
+typed_etors: True
 etors:
     - name: NUM_DEVICES
       desc: "[uint32_t] The number of the devices in the context"
     - name: DEVICES
-      desc: "[$x_device_handle_t ...] The array of the device handles in the context"
+      desc: "[$x_device_handle_t*] The array of the device handles in the context"
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the context object.
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: USM_MEMCPY2D_SUPPORT
-      desc: "[bool] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
+      desc: "[$x_bool_t] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
     - name: USM_FILL2D_SUPPORT
-      desc: "[bool] to indicate if the $xEnqueueUSMFill2D entrypoint is supported."
+      desc: "[$x_bool_t] to indicate if the $xEnqueueUSMFill2D entrypoint is supported."
     - name: ATOMIC_MEMORY_ORDER_CAPABILITIES
       desc: "[$x_memory_order_capability_flags_t] return a bit-field of atomic memory order capabilities."
     - name: ATOMIC_MEMORY_SCOPE_CAPABILITIES
@@ -153,7 +154,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional] array of bytes holding the info.
+            [out][optional][typename(propName)] array of bytes holding the info.
             if propSize is not equal to or greater than the real number of bytes needed to return 
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
