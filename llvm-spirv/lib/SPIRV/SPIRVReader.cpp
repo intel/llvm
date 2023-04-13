@@ -1257,10 +1257,8 @@ static void replaceOperandWithAnnotationIntrinsicCallResult(Function *F,
     for (auto *Use : BV->users()) {
       if (auto *II = dyn_cast<IntrinsicInst>(Use)) {
         if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
-            II->getType() == BV->getType()) {
-          assert(CR == nullptr && "Multiple annotation created for same value");
+            II->getType() == BV->getType())
           CR = II;
-        }
       }
     }
     return CR ? true : false;
