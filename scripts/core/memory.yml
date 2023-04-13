@@ -480,7 +480,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional][typename(propName)] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If propSize is less than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
@@ -511,7 +511,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional][typename(propName)] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If propSize is less than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"

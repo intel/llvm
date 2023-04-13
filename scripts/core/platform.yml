@@ -48,20 +48,20 @@ typed_etors: True
 etors:
     - name: NAME
       value: "1"
-      desc: "[char*] The string denoting name of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting name of the platform. The size of the info needs to be dynamically queried."
     - name: VENDOR_NAME
       value: "2"
-      desc: "[char*] The string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
     - name: VERSION
       value: "3"
-      desc: "[char*] The string denoting the version of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting the version of the platform. The size of the info needs to be dynamically queried."
     - name: EXTENSIONS
       value: "4"
-      desc: "[char*] The string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
       todo: "document extensions names and their meaning"
     - name: PROFILE
       value: "5"
-      desc: "[char*] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
       todo: "currently always return FULL_PROFILE, deprecate?"
     - name: BACKEND
       value: "6"
@@ -93,7 +93,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional][typename(propName)] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If Size is not equal to or greater to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
     - type: "size_t*"
       name: pSizeRet

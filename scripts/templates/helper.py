@@ -82,7 +82,7 @@ class type_traits:
     RE_HANDLE   = r"(.*)handle_t"
     RE_IPC      = r"(.*)ipc(.*)handle_t"
     RE_POINTER  = r"(.*\w+)\*+"
-    RE_PPOINTER  = r"(.*\w+)\*{2,}"
+    RE_PPOINTER = r"(.*\w+)\*{2,}"
     RE_DESC     = r"(.*)desc_t.*"
     RE_PROPS    = r"(.*)properties_t.*"
     RE_FLAGS    = r"(.*)flags_t"
@@ -306,7 +306,7 @@ class param_traits:
     RE_OPTIONAL = r".*\[optional\].*"
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
     RE_RELEASE  = r".*\[release\].*"
-    RE_TYPENAME    = r".*\[typename\((.+)\)\].*"
+    RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
 
     @classmethod
     def is_mbz(cls, item):
@@ -372,10 +372,19 @@ class param_traits:
             return False
 
     @classmethod
-    def get_typename(cls, item):
-        try:
-            return re.sub(cls.RE_TYPENAME, r"\1", item['desc'])
-        except:
+    def typename(cls, item):
+        match = re.match(cls.RE_TYPENAME, item['desc'])
+        if match:
+            return match.group(1)
+        else:
+            return None
+
+    @classmethod
+    def typename_size(cls, item):
+        match = re.match(cls.RE_TYPENAME, item['desc'])
+        if match:
+            return match.group(2)
+        else:
             return None
 
 """
@@ -590,6 +599,18 @@ def make_etor_name(namespace, tags, enum, etor, py=False, meta=None):
     else:
         name = subt(namespace, tags, etor)
     return name
+
+"""
+Private:
+    returns the associated type of an etor from a typed enum
+"""
+def etor_get_associated_type(namespace, tags, item):
+    match = re.match(r'^\[(.+)\]\s', item['desc'])
+    if match:
+        associated_type = match.group(1)
+        return subt(namespace, tags, associated_type)
+    else:
+        return None
 
 """
 Private:

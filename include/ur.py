@@ -272,15 +272,15 @@ class ur_device_init_flags_t(c_int):
 ###############################################################################
 ## @brief Supported platform info
 class ur_platform_info_v(IntEnum):
-    NAME = 1                                        ## [char*] The string denoting name of the platform. The size of the info
-                                                    ## needs to be dynamically queried.
-    VENDOR_NAME = 2                                 ## [char*] The string denoting name of the vendor of the platform. The
+    NAME = 1                                        ## [char[]] The string denoting name of the platform. The size of the
+                                                    ## info needs to be dynamically queried.
+    VENDOR_NAME = 2                                 ## [char[]] The string denoting name of the vendor of the platform. The
                                                     ## size of the info needs to be dynamically queried.
-    VERSION = 3                                     ## [char*] The string denoting the version of the platform. The size of
+    VERSION = 3                                     ## [char[]] The string denoting the version of the platform. The size of
                                                     ## the info needs to be dynamically queried.
-    EXTENSIONS = 4                                  ## [char*] The string denoting extensions supported by the platform. The
+    EXTENSIONS = 4                                  ## [char[]] The string denoting extensions supported by the platform. The
                                                     ## size of the info needs to be dynamically queried.
-    PROFILE = 5                                     ## [char*] The string denoting profile of the platform. The size of the
+    PROFILE = 5                                     ## [char[]] The string denoting profile of the platform. The size of the
                                                     ## info needs to be dynamically queried.
     BACKEND = 6                                     ## [::ur_platform_backend_t] The backend of the platform. Identifies the
                                                     ## native backend adapter implementing this platform.
@@ -398,7 +398,7 @@ class ur_device_info_v(IntEnum):
     DEVICE_ID = 2                                   ## [uint32_t] Id of the device
     MAX_COMPUTE_UNITS = 3                           ## [uint32_t] the number of compute units
     MAX_WORK_ITEM_DIMENSIONS = 4                    ## [uint32_t] max work item dimensions
-    MAX_WORK_ITEM_SIZES = 5                         ## [size_t*] return an array of max work item sizes
+    MAX_WORK_ITEM_SIZES = 5                         ## [size_t[]] return an array of max work item sizes
     MAX_WORK_GROUP_SIZE = 6                         ## [size_t] max work group size
     SINGLE_FP_CONFIG = 7                            ## [::ur_device_fp_capability_flags_t] single precision floating point
                                                     ## capability
@@ -462,45 +462,45 @@ class ur_device_info_v(IntEnum):
                                                     ## capability bit-field
     QUEUE_ON_DEVICE_PROPERTIES = 60                 ## [::ur_queue_flags_t] device command queue property bit-field
     QUEUE_ON_HOST_PROPERTIES = 61                   ## [::ur_queue_flags_t] host queue property bit-field
-    BUILT_IN_KERNELS = 62                           ## [char*] a semi-colon separated list of built-in kernels
+    BUILT_IN_KERNELS = 62                           ## [char[]] a semi-colon separated list of built-in kernels
     PLATFORM = 63                                   ## [::ur_platform_handle_t] the platform associated with the device
     REFERENCE_COUNT = 64                            ## [uint32_t] Reference count of the device object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    IL_VERSION = 65                                 ## [char*] IL version
-    NAME = 66                                       ## [char*] Device name
-    VENDOR = 67                                     ## [char*] Device vendor
-    DRIVER_VERSION = 68                             ## [char*] Driver version
-    PROFILE = 69                                    ## [char*] Device profile
-    VERSION = 70                                    ## [char*] Device version
-    BACKEND_RUNTIME_VERSION = 71                    ## [char*] Version of backend runtime
-    EXTENSIONS = 72                                 ## [char*] Return a space separated list of extension names
+    IL_VERSION = 65                                 ## [char[]] IL version
+    NAME = 66                                       ## [char[]] Device name
+    VENDOR = 67                                     ## [char[]] Device vendor
+    DRIVER_VERSION = 68                             ## [char[]] Driver version
+    PROFILE = 69                                    ## [char[]] Device profile
+    VERSION = 70                                    ## [char[]] Device version
+    BACKEND_RUNTIME_VERSION = 71                    ## [char[]] Version of backend runtime
+    EXTENSIONS = 72                                 ## [char[]] Return a space separated list of extension names
     PRINTF_BUFFER_SIZE = 73                         ## [size_t] Maximum size in bytes of internal printf buffer
     PREFERRED_INTEROP_USER_SYNC = 74                ## [::ur_bool_t] prefer user synchronization when sharing object with
                                                     ## other API
     PARENT_DEVICE = 75                              ## [::ur_device_handle_t] return parent device handle
-    PARTITION_PROPERTIES = 76                       ## [::ur_device_partition_property_t*] Returns the list of partition
+    PARTITION_PROPERTIES = 76                       ## [::ur_device_partition_property_t[]] Returns an array of partition
                                                     ## types supported by the device
     PARTITION_MAX_SUB_DEVICES = 77                  ## [uint32_t] maximum number of sub-devices when the device is
                                                     ## partitioned
     PARTITION_AFFINITY_DOMAIN = 78                  ## [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
                                                     ## supported affinity domains for partitioning. 
                                                     ## If the device does not support any affinity domains, then 0 will be returned.
-    PARTITION_TYPE = 79                             ## [::ur_device_partition_property_t*] return a list of
+    PARTITION_TYPE = 79                             ## [::ur_device_partition_property_t[]] return an array of
                                                     ## ::ur_device_partition_property_t for properties specified in
                                                     ## ::urDevicePartition
     MAX_NUM_SUB_GROUPS = 80                         ## [uint32_t] max number of sub groups
     SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81     ## [::ur_bool_t] support sub group independent forward progress
-    SUB_GROUP_SIZES_INTEL = 82                      ## [uint32_t*] return an array of sub group sizes supported on Intel
+    SUB_GROUP_SIZES_INTEL = 82                      ## [uint32_t[]] return an array of sub group sizes supported on Intel
                                                     ## device
     USM_HOST_SUPPORT = 83                           ## [::ur_bool_t] support USM host memory access
     USM_DEVICE_SUPPORT = 84                         ## [::ur_bool_t] support USM device memory access
     USM_SINGLE_SHARED_SUPPORT = 85                  ## [::ur_bool_t] support USM single device shared memory access
     USM_CROSS_SHARED_SUPPORT = 86                   ## [::ur_bool_t] support USM cross device shared memory access
     USM_SYSTEM_SHARED_SUPPORT = 87                  ## [::ur_bool_t] support USM system wide shared memory access
-    UUID = 88                                       ## [char*] return device UUID
-    PCI_ADDRESS = 89                                ## [char*] return device PCI address
+    UUID = 88                                       ## [char[]] return device UUID
+    PCI_ADDRESS = 89                                ## [char[]] return device PCI address
     GPU_EU_COUNT = 90                               ## [uint32_t] return Intel GPU EU count
     GPU_EU_SIMD_WIDTH = 91                          ## [uint32_t] return Intel GPU EU SIMD width
     GPU_EU_SLICES = 92                              ## [uint32_t] return Intel GPU number of slices
@@ -680,7 +680,8 @@ class ur_context_properties_t(Structure):
 ## @brief Supported context info
 class ur_context_info_v(IntEnum):
     NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
-    DEVICES = 1                                     ## [::ur_device_handle_t*] The array of the device handles in the context
+    DEVICES = 1                                     ## [::ur_device_handle_t[]] The array of the device handles in the
+                                                    ## context
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
@@ -946,7 +947,7 @@ class ur_sampler_info_v(IntEnum):
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
     CONTEXT = 1                                     ## [::ur_context_handle_t] Sampler context info
-    NORMALIZED_COORDS = 2                           ## [bool] Sampler normalized coordinate setting
+    NORMALIZED_COORDS = 2                           ## [::ur_bool_t] Sampler normalized coordinate setting
     ADDRESSING_MODE = 3                             ## [::ur_sampler_addressing_mode_t] Sampler addressing mode setting
     FILTER_MODE = 4                                 ## [::ur_sampler_filter_mode_t] Sampler filter mode setting
 
@@ -1173,13 +1174,14 @@ class ur_program_info_v(IntEnum):
                                                     ## provided for identifying memory leaks.
     CONTEXT = 1                                     ## [::ur_context_handle_t] Program context info.
     NUM_DEVICES = 2                                 ## [uint32_t] Return number of devices associated with Program.
-    DEVICES = 3                                     ## [x_device_handle_t*] Return list of devices associated with Program.
-    SOURCE = 4                                      ## [char*] Return program source associated with Program.
-    BINARY_SIZES = 5                                ## [size_t*] Return program binary sizes for each device.
-    BINARIES = 6                                    ## [unsigned char*] Return program binaries for all devices for this
+    DEVICES = 3                                     ## [::ur_device_handle_t[]] Return list of devices associated with
+                                                    ## Program.
+    SOURCE = 4                                      ## [char[]] Return program source associated with Program.
+    BINARY_SIZES = 5                                ## [size_t[]] Return program binary sizes for each device.
+    BINARIES = 6                                    ## [unsigned char[]] Return program binaries for all devices for this
                                                     ## Program.
     NUM_KERNELS = 7                                 ## [size_t] Number of kernels in Program, return type size_t.
-    KERNEL_NAMES = 8                                ## [char*] Return a null-terminated, semi-colon separated list of kernel
+    KERNEL_NAMES = 8                                ## [char[]] Return a null-terminated, semi-colon separated list of kernel
                                                     ## names in Program.
 
 class ur_program_info_t(c_int):
@@ -1217,9 +1219,9 @@ class ur_program_binary_type_t(c_int):
 ## @brief Get Program object build information
 class ur_program_build_info_v(IntEnum):
     STATUS = 0                                      ## [::ur_program_build_status_t] Program build status.
-    OPTIONS = 1                                     ## [char*] Null-terminated options string specified by last build,
+    OPTIONS = 1                                     ## [char[]] Null-terminated options string specified by last build,
                                                     ## compile or link operation performed on the program.
-    LOG = 2                                         ## [char*] Null-terminated program build log.
+    LOG = 2                                         ## [char[]] Null-terminated program build log.
     BINARY_TYPE = 3                                 ## [::ur_program_binary_type_t] Program binary type.
 
 class ur_program_build_info_t(c_int):
@@ -1239,7 +1241,7 @@ class ur_specialization_constant_info_t(Structure):
 ###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
-    FUNCTION_NAME = 0                               ## [char*] Return null-terminated kernel function name.
+    FUNCTION_NAME = 0                               ## [char[]] Return null-terminated kernel function name.
     NUM_ARGS = 1                                    ## [size_t] Return Kernel number of arguments.
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the kernel object.
                                                     ## The reference count returned should be considered immediately stale. 
@@ -1247,7 +1249,7 @@ class ur_kernel_info_v(IntEnum):
                                                     ## provided for identifying memory leaks.
     CONTEXT = 3                                     ## [::ur_context_handle_t] Return Context object associated with Kernel.
     PROGRAM = 4                                     ## [::ur_program_handle_t] Return Program object associated with Kernel.
-    ATTRIBUTES = 5                                  ## [char*] Return null-terminated kernel attributes string.
+    ATTRIBUTES = 5                                  ## [char[]] Return null-terminated kernel attributes string.
     NUM_REGS = 6                                    ## [uint32_t] Return the number of registers used by the compiled kernel
                                                     ## (device specific).
 
@@ -1259,12 +1261,10 @@ class ur_kernel_info_t(c_int):
 ###############################################################################
 ## @brief Get Kernel Work Group information
 class ur_kernel_group_info_v(IntEnum):
-    GLOBAL_WORK_SIZE = 0                            ## [size_t*] Return Work Group maximum global size, always returns a
-                                                    ## three element array
+    GLOBAL_WORK_SIZE = 0                            ## [size_t[3]] Return Work Group maximum global size
     WORK_GROUP_SIZE = 1                             ## [size_t] Return maximum Work Group size
-    COMPILE_WORK_GROUP_SIZE = 2                     ## [size_t*] Return Work Group size required by the source code, such as
-                                                    ## __attribute__((required_work_group_size(X,Y,Z)), always returns a
-                                                    ## three element array
+    COMPILE_WORK_GROUP_SIZE = 2                     ## [size_t[3]] Return Work Group size required by the source code, such
+                                                    ## as __attribute__((required_work_group_size(X,Y,Z))
     LOCAL_MEM_SIZE = 3                              ## [size_t] Return local memory required by the Kernel
     PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4          ## [size_t] Return preferred multiple of Work Group size for launch
     PRIVATE_MEM_SIZE = 5                            ## [size_t] Return minimum amount of private memory in bytes used by each
@@ -1304,7 +1304,7 @@ class ur_kernel_cache_config_t(c_int):
 ## @brief Set additional Kernel execution information
 class ur_kernel_exec_info_v(IntEnum):
     USM_INDIRECT_ACCESS = 0                         ## [::ur_bool_t] Kernel might access data through USM pointer.
-    USM_PTRS = 1                                    ## [void **] Provide an explicit list of USM pointers that the kernel
+    USM_PTRS = 1                                    ## [void *[]] Provide an explicit array of USM pointers that the kernel
                                                     ## will access.
     CACHE_CONFIG = 2                                ## [::ur_kernel_cache_config_t] Provide the preferred cache configuration
 

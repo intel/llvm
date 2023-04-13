@@ -118,7 +118,8 @@ ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_info_t propName,    ///< [in] type of the info to retrieve
     size_t propSize, ///< [in] the number of bytes pointed to by pPlatformInfo.
     void *
-        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
     ///< If Size is not equal to or greater to the real number of bytes needed
     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
     ///< returned and pPlatformInfo is not used.
@@ -315,7 +316,8 @@ ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_info_t propName,  ///< [in] type of the info to retrieve
     size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
     void *
-        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info
     ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
@@ -672,7 +674,8 @@ ur_result_t UR_APICALL urContextGetInfo(
     size_t
         propSize, ///< [in] the number of bytes of memory pointed to by pPropValue.
     void *
-        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
     ///< if propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -1031,7 +1034,8 @@ ur_result_t UR_APICALL urMemGetInfo(
     size_t
         propSize, ///< [in] the number of bytes of memory pointed to by pPropValue.
     void *
-        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
     ///< If propSize is less than the real number of bytes needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
@@ -1066,7 +1070,8 @@ ur_result_t UR_APICALL urMemImageGetInfo(
     size_t
         propSize, ///< [in] the number of bytes of memory pointer to by pPropValue.
     void *
-        pPropValue, ///< [out][optional][typename(propName)] array of bytes holding the info.
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
     ///< If propSize is less than the real number of bytes needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
@@ -1195,7 +1200,7 @@ ur_result_t UR_APICALL urSamplerGetInfo(
     size_t
         propSize, ///< [in] size in bytes of the sampler property value provided
     void *
-        pPropValue, ///< [out][typename(propName)] value of the sampler property
+        pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
     size_t *
         pPropSizeRet ///< [out] size in bytes returned in sampler property value
 ) {
@@ -1449,8 +1454,8 @@ ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     size_t
         propSize, ///< [in] size in bytes of the USM allocation property value
     void *
-        pPropValue, ///< [out][optional][typename(propName)] value of the USM allocation
-                    ///< property
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the USM
+                    ///< allocation property
     size_t *
         pPropSizeRet ///< [out][optional] bytes returned in USM allocation property
 ) {
@@ -1819,8 +1824,8 @@ ur_result_t UR_APICALL urProgramGetInfo(
     ur_program_info_t propName, ///< [in] name of the Program property to query
     size_t propSize,            ///< [in] the size of the Program property.
     void *
-        pPropValue, ///< [in,out][optional][typename(propName)] array of bytes of holding the
-                    ///< program info property.
+        pPropValue, ///< [in,out][optional][typename(propName, propSize)] array of bytes of
+                    ///< holding the program info property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -1855,7 +1860,8 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
         propName,    ///< [in] name of the Program build info to query
     size_t propSize, ///< [in] size of the Program build info property.
     void *
-        pPropValue, ///< [in,out][optional][typename(propName)] value of the Program build property.
+        pPropValue, ///< [in,out][optional][typename(propName, propSize)] value of the Program
+                    ///< build property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
     ///< error is returned and pPropValue is not used.
@@ -2061,8 +2067,8 @@ ur_result_t UR_APICALL urKernelGetInfo(
     ur_kernel_info_t propName,  ///< [in] name of the Kernel property to query
     size_t propSize,            ///< [in] the size of the Kernel property value.
     void *
-        pPropValue, ///< [in,out][optional][typename(propName)] array of bytes holding the
-                    ///< kernel info property.
+        pPropValue, ///< [in,out][optional][typename(propName, propSize)] array of bytes
+                    ///< holding the kernel info property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
@@ -2098,8 +2104,8 @@ ur_result_t UR_APICALL urKernelGetGroupInfo(
         propName,    ///< [in] name of the work Group property to query
     size_t propSize, ///< [in] size of the Kernel Work Group property value
     void *
-        pPropValue, ///< [in,out][optional][typename(propName)] value of the Kernel Work Group
-                    ///< property.
+        pPropValue, ///< [in,out][optional][typename(propName, propSize)] value of the Kernel
+                    ///< Work Group property.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
@@ -2127,8 +2133,8 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
         propName,    ///< [in] name of the SubGroup property to query
     size_t propSize, ///< [in] size of the Kernel SubGroup property value
     void *
-        pPropValue, ///< [in,out][optional][typename(propName)] value of the Kernel SubGroup
-                    ///< property.
+        pPropValue, ///< [in,out][optional][typename(propName, propSize)] value of the Kernel
+                    ///< SubGroup property.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
@@ -2247,8 +2253,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
     size_t propSize,                ///< [in] size in byte the attribute value
     const void *
-        pPropValue ///< [in][typename(propName)] pointer to memory location holding the
-                   ///< property value.
+        pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
+                   ///< the property value.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -2424,7 +2430,8 @@ ur_result_t UR_APICALL urQueueGetInfo(
     size_t
         propSize, ///< [in] size in bytes of the queue property value provided
     void *
-        pPropValue, ///< [out][optional][typename(propName)] value of the queue property
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the queue
+                    ///< property
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in queue property value
 ) {
@@ -2668,7 +2675,8 @@ ur_result_t UR_APICALL urEventGetInfo(
     ur_event_info_t propName, ///< [in] the name of the event property to query
     size_t propSize, ///< [in] size in bytes of the event property value
     void *
-        pPropValue, ///< [out][optional][typename(propName)] value of the event property
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the event
+                    ///< property
     size_t *pPropSizeRet ///< [out][optional] bytes returned in event property
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -2702,7 +2710,8 @@ ur_result_t UR_APICALL urEventGetProfilingInfo(
         propName,    ///< [in] the name of the profiling property to query
     size_t propSize, ///< [in] size in bytes of the profiling property value
     void *
-        pPropValue, ///< [out][optional][typename(propName)] value of the profiling property
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the profiling
+                    ///< property
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes returned in
                      ///< propValue

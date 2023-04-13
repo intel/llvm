@@ -89,7 +89,7 @@ etors:
     - name: NUM_DEVICES
       desc: "[uint32_t] The number of the devices in the context"
     - name: DEVICES
-      desc: "[$x_device_handle_t*] The array of the device handles in the context"
+      desc: "[$x_device_handle_t[]] The array of the device handles in the context"
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the context object.
@@ -154,7 +154,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional][typename(propName)] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             if propSize is not equal to or greater than the real number of bytes needed to return 
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"

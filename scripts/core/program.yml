@@ -317,17 +317,17 @@ etors:
     - name: NUM_DEVICES
       desc: "[uint32_t] Return number of devices associated with Program."
     - name: DEVICES
-      desc: "[x_device_handle_t*] Return list of devices associated with Program."
+      desc: "[$x_device_handle_t[]] Return list of devices associated with Program."
     - name: SOURCE
-      desc: "[char*] Return program source associated with Program."
+      desc: "[char[]] Return program source associated with Program."
     - name: BINARY_SIZES
-      desc: "[size_t*] Return program binary sizes for each device."
+      desc: "[size_t[]] Return program binary sizes for each device."
     - name: BINARIES
-      desc: "[unsigned char*] Return program binaries for all devices for this Program."
+      desc: "[unsigned char[]] Return program binaries for all devices for this Program."
     - name: NUM_KERNELS
       desc: "[size_t] Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES
-      desc: "[char*] Return a null-terminated, semi-colon separated list of kernel names in Program."
+      desc: "[char[]] Return a null-terminated, semi-colon separated list of kernel names in Program."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a Program object"
@@ -350,7 +350,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [in,out][optional][typename(propName)] array of bytes of holding the program info property.
+            [in,out][optional][typename(propName, propSize)] array of bytes of holding the program info property.
             If propSize is not equal to or greater than the real number of bytes needed to return 
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
@@ -395,9 +395,9 @@ etors:
     - name: STATUS
       desc: "[$x_program_build_status_t] Program build status."
     - name: OPTIONS
-      desc: "[char*] Null-terminated options string specified by last build, compile or link operation performed on the program."
+      desc: "[char[]] Null-terminated options string specified by last build, compile or link operation performed on the program."
     - name: LOG
-      desc: "[char*] Null-terminated program build log."
+      desc: "[char[]] Null-terminated program build log."
     - name: BINARY_TYPE
       desc: "[$x_program_binary_type_t] Program binary type."
 --- #--------------------------------------------------------------------------
@@ -425,7 +425,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [in,out][optional][typename(propName)] value of the Program build property.
+            [in,out][optional][typename(propName, propSize)] value of the Program build property.
             If propSize is not equal to or greater than the real number of bytes
             needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE
             error is returned and pPropValue is not used.

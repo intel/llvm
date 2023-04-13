@@ -464,7 +464,7 @@ class ur_name_flags_v(IntEnum):
       - `in` is used for members that are read-only; if the member is a pointer, then the memory being pointed to is also read-only
       - `out` is used for members that are write-only; if the member is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for members that are both read and write; typically this is used for pointers to other data structures that contain both read and write members
-    + `desc` may include one the following annotations: {`"[optional]"`, `"[typename(typeVarName)]"`}
+    + `desc` may include one the following annotations: {`"[optional]"`, `"[typename(typeVarName, sizeVarName)]"`}
       - `optional` is used for members that are pointers where it is legal for the value to be `nullptr`
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
     + `type` must be an ISO-C standard identifier; except it may **not** be a `handle_t`
