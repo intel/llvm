@@ -99,7 +99,7 @@ int main() {
   unsigned long long ull_val = ull_vec.template swizzle<sycl::elem::s0>();
   assert(ull_val == ull_ref);
 
-  // Check the swizzle vec class interface
+  // Check the swizzle vec class interface.
   using T = decltype(a.template swizzle<sycl::elem::s0>())::element_type;
   const int &b_elem0_const = b.template swizzle<sycl::elem::s0>()[0];
   const int &a_elem0_const = a.template swizzle<sycl::elem::s0>()[0];
