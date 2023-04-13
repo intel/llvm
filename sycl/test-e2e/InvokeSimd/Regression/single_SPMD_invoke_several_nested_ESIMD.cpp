@@ -37,19 +37,18 @@ constexpr int VL = 16;
 
 /* *** */
 
-esimd::simd<float, VL> ESIMD_CALLEE_DEC(esimd::simd<float, VL> a)
-    SYCL_ESIMD_FUNCTION {
+esimd::simd<float, VL>
+ESIMD_CALLEE_DEC(esimd::simd<float, VL> a) SYCL_ESIMD_FUNCTION {
   return a - 1;
 }
 
-esimd::simd<float, VL> ESIMD_CALLEE_INC(esimd::simd<float, VL> a)
-    SYCL_ESIMD_FUNCTION {
+esimd::simd<float, VL>
+ESIMD_CALLEE_INC(esimd::simd<float, VL> a) SYCL_ESIMD_FUNCTION {
   return a + 1;
 }
 
-[[intel::device_indirectly_callable]]
-    simd<float, VL> __regcall SIMD_CALLEE_INC(float *A,
-                                              int i) SYCL_ESIMD_FUNCTION {
+[[intel::device_indirectly_callable]] simd<float, VL> __regcall SIMD_CALLEE_INC(
+    float *A, int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> a;
   a.copy_from(A + i);
   return ESIMD_CALLEE_INC(a);
@@ -62,8 +61,8 @@ esimd::simd<float, VL> ESIMD_CALLEE_ATTUNITE(esimd::simd<float, VL> a,
   return flag ? ESIMD_CALLEE_INC(a) : ESIMD_CALLEE_DEC(a);
 }
 
-[[intel::device_indirectly_callable]]
-    simd<float, VL> __regcall SIMD_CALLEE(float *A, int i) SYCL_ESIMD_FUNCTION {
+[[intel::device_indirectly_callable]] simd<float, VL> __regcall SIMD_CALLEE(
+    float *A, int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> a = SIMD_CALLEE_INC(A, i);
   return ESIMD_CALLEE_ATTUNITE(a, i < 0);
 }

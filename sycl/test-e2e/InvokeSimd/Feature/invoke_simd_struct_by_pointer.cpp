@@ -59,10 +59,8 @@ ESIMD_CALLEE(int *A, esimd::simd<int, VL> b, int i,
   return a + b * scalars->x * scalars->y;
 }
 
-[[intel::device_indirectly_callable]]
-    simd<int, VL> __regcall SIMD_CALLEE(int *A, simd<int, VL> b, int i,
-                                        multipliers *scalars)
-        SYCL_ESIMD_FUNCTION;
+[[intel::device_indirectly_callable]] simd<int, VL> __regcall SIMD_CALLEE(
+    int *A, simd<int, VL> b, int i, multipliers *scalars) SYCL_ESIMD_FUNCTION;
 
 using namespace sycl;
 
@@ -146,10 +144,8 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-[[intel::device_indirectly_callable]]
-    simd<int, VL> __regcall SIMD_CALLEE(int *A, simd<int, VL> b, int i,
-                                        multipliers *scalars)
-        SYCL_ESIMD_FUNCTION {
+[[intel::device_indirectly_callable]] simd<int, VL> __regcall SIMD_CALLEE(
+    int *A, simd<int, VL> b, int i, multipliers *scalars) SYCL_ESIMD_FUNCTION {
   esimd::simd<int, VL> res = ESIMD_CALLEE(A, b, i, scalars);
   return res;
 }

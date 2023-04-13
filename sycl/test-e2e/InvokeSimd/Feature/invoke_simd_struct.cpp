@@ -62,9 +62,8 @@ ESIMD_CALLEE(float *A, int i, StructTy S) SYCL_ESIMD_FUNCTION {
 }
 
 template <class StructTy>
-[[intel::device_indirectly_callable]]
-    simd<float, VL> __regcall SIMD_CALLEE(float *A, int i,
-                                          StructTy S) SYCL_ESIMD_FUNCTION {
+[[intel::device_indirectly_callable]] simd<float, VL> __regcall SIMD_CALLEE(
+    float *A, int i, StructTy S) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> res = ESIMD_CALLEE<StructTy>(A, i, S);
   return res;
 }
