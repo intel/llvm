@@ -13,6 +13,7 @@
 #include "mlir/Dialect/AMDGPU/AMDGPUDialect.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
@@ -48,7 +49,16 @@ void AMDGPUDialect::initialize() {
 template <typename T>
 static LogicalResult verifyRawBufferOp(T &op) {
   MemRefType bufferType = op.getMemref().getType().template cast<MemRefType>();
-  if (bufferType.getMemorySpaceAsInt() != 0)
+  Attribute memorySpace = bufferType.getMemorySpace();
+  bool isGlobal = false;
+  if (!memorySpace)
+    isGlobal = true;
+  else if (auto intMemorySpace = memorySpace.dyn_cast<IntegerAttr>())
+    isGlobal = intMemorySpace.getInt() == 0 || intMemorySpace.getInt() == 1;
+  else if (auto gpuMemorySpace = memorySpace.dyn_cast<gpu::AddressSpaceAttr>())
+    isGlobal = gpuMemorySpace.getValue() == gpu::AddressSpace::Global;
+
+  if (!isGlobal)
     return op.emitOpError(
         "Buffer ops must operate on a memref in global memory");
   if (!bufferType.hasRank())
@@ -65,6 +75,18 @@ LogicalResult RawBufferLoadOp::verify() { return verifyRawBufferOp(*this); }
 LogicalResult RawBufferStoreOp::verify() { return verifyRawBufferOp(*this); }
 
 LogicalResult RawBufferAtomicFaddOp::verify() {
+  return verifyRawBufferOp(*this);
+}
+
+LogicalResult RawBufferAtomicFmaxOp::verify() {
+  return verifyRawBufferOp(*this);
+}
+
+LogicalResult RawBufferAtomicSmaxOp::verify() {
+  return verifyRawBufferOp(*this);
+}
+
+LogicalResult RawBufferAtomicUminOp::verify() {
   return verifyRawBufferOp(*this);
 }
 
@@ -158,6 +180,21 @@ void RawBufferAtomicFaddOp::getCanonicalizationPatterns(
   results.add<RemoveStaticallyOobBufferWrites<RawBufferAtomicFaddOp>>(context);
 }
 
+void RawBufferAtomicFmaxOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<RemoveStaticallyOobBufferWrites<RawBufferAtomicFmaxOp>>(context);
+}
+
+void RawBufferAtomicSmaxOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<RemoveStaticallyOobBufferWrites<RawBufferAtomicSmaxOp>>(context);
+}
+
+void RawBufferAtomicUminOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<RemoveStaticallyOobBufferWrites<RawBufferAtomicUminOp>>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // MFMAOp
 //===----------------------------------------------------------------------===//
@@ -179,6 +216,24 @@ LogicalResult MFMAOp::verify() {
     destElem = destVector.getElementType();
   }
 
+  Type sourceBType = getSourceB().getType();
+  if (sourceElem.isFloat8E5M2FNUZ() || sourceElem.isFloat8E4M3FNUZ()) {
+    int64_t sourceBLen = 1;
+    Type sourceBElem = sourceBType;
+    if (auto sourceBVector = sourceBType.dyn_cast<VectorType>()) {
+      sourceBLen = sourceBVector.getNumElements();
+      sourceBElem = sourceBVector.getElementType();
+    }
+    if (!sourceBElem.isFloat8E5M2FNUZ() && !sourceBElem.isFloat8E4M3FNUZ())
+      return emitOpError("expected both source operands to have f8 elements");
+    if (sourceLen != sourceBLen)
+      return emitOpError(
+          "expected both f8 source vectors to have the same length");
+  } else {
+    if (sourceType != sourceBType)
+      return emitOpError(
+          "expected both non-f8 source operand types to match exactly");
+  }
   // Normalize the wider integer types the compiler expects to i8
   if (sourceElem.isInteger(32)) {
     sourceLen *= 4;

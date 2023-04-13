@@ -16,7 +16,10 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.toascii
     libc.src.ctype.tolower
     libc.src.ctype.toupper
-    
+
+    # errno.h entrypoints
+    libc.src.errno.errno
+
     # string.h entrypoints
     libc.src.string.bcmp
     libc.src.string.bcopy
@@ -32,8 +35,10 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.stpcpy
     libc.src.string.stpncpy
     libc.src.string.strcasecmp
+    libc.src.string.strcasestr
     libc.src.string.strcat
     libc.src.string.strchr
+    libc.src.string.strchrnul
     libc.src.string.strcmp
     libc.src.string.strcpy
     libc.src.string.strcspn
@@ -109,7 +114,9 @@ set(TARGET_LIBM_ENTRYPOINTS
 
     # math.h entrypoints
     libc.src.math.acosf
+    libc.src.math.acoshf
     libc.src.math.asinf
+    libc.src.math.asinhf
     libc.src.math.atanf
     libc.src.math.atanhf
     libc.src.math.copysign
@@ -195,6 +202,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl
+    libc.src.math.scalbn
+    libc.src.math.scalbnf
+    libc.src.math.scalbnl
     libc.src.math.sincosf
     libc.src.math.sinhf
     libc.src.math.sinf

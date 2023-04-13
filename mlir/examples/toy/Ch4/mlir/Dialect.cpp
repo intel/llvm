@@ -199,7 +199,7 @@ mlir::LogicalResult ConstantOp::verify() {
 
   // Check that the rank of the attribute type matches the rank of the constant
   // result type.
-  auto attrType = getValue().getType().cast<mlir::TensorType>();
+  auto attrType = getValue().getType().cast<mlir::RankedTensorType>();
   if (attrType.getRank() != resultType.getRank()) {
     return emitOpError("return type must match the one of the attached value "
                        "attribute: ")
@@ -237,7 +237,7 @@ void AddOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
 
 /// Infer the output shape of the AddOp, this is required by the shape inference
 /// interface.
-void AddOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
+void AddOp::inferShapes() { getResult().setType(getLhs().getType()); }
 
 //===----------------------------------------------------------------------===//
 // CastOp
@@ -245,7 +245,7 @@ void AddOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 
 /// Infer the output shape of the CastOp, this is required by the shape
 /// inference interface.
-void CastOp::inferShapes() { getResult().setType(getOperand().getType()); }
+void CastOp::inferShapes() { getResult().setType(getInput().getType()); }
 
 /// Returns true if the given set of input and result types are compatible with
 /// this cast operation. This is required by the `CastOpInterface` to verify
@@ -307,6 +307,18 @@ llvm::ArrayRef<mlir::Type> FuncOp::getCallableResults() {
   return getFunctionType().getResults();
 }
 
+/// Returns the argument attributes for all callable region arguments or
+/// null if there are none.
+ArrayAttr FuncOp::getCallableArgAttrs() {
+  return getArgAttrs().value_or(nullptr);
+}
+
+/// Returns the result attributes for all callable region results or
+/// null if there are none.
+ArrayAttr FuncOp::getCallableResAttrs() {
+  return getResAttrs().value_or(nullptr);
+}
+
 //===----------------------------------------------------------------------===//
 // GenericCallOp
 //===----------------------------------------------------------------------===//
@@ -349,7 +361,7 @@ void MulOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
 
 /// Infer the output shape of the MulOp, this is required by the shape inference
 /// interface.
-void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
+void MulOp::inferShapes() { getResult().setType(getLhs().getType()); }
 
 //===----------------------------------------------------------------------===//
 // ReturnOp

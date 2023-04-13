@@ -15,7 +15,6 @@
 #include "ExecutionUtils.h"
 #include "ForwardingMemoryManager.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/LinkAllCodegenComponents.h"
@@ -28,7 +27,6 @@
 #include "llvm/ExecutionEngine/ObjectCache.h"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
-#include "llvm/ExecutionEngine/Orc/ELFNixPlatform.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.h"
 #include "llvm/ExecutionEngine/Orc/EPCEHFrameRegistrar.h"
@@ -36,7 +34,6 @@
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
-#include "llvm/ExecutionEngine/Orc/MachOPlatform.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/Orc/SimpleRemoteEPC.h"
 #include "llvm/ExecutionEngine/Orc/SymbolStringPool.h"
@@ -68,6 +65,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include <cerrno>
 #include <optional>
@@ -174,7 +172,7 @@ namespace {
   cl::opt<char> OptLevel("O",
                          cl::desc("Optimization level. [-O0, -O1, -O2, or -O3] "
                                   "(default = '-O2')"),
-                         cl::Prefix, cl::init(' '));
+                         cl::Prefix, cl::init('2'));
 
   cl::opt<std::string>
   TargetTriple("mtriple", cl::desc("Override target triple for module"));
@@ -236,20 +234,22 @@ namespace {
       cl::desc("Do not resolve lli process symbols in JIT'd code"),
       cl::init(false));
 
-  enum class LLJITPlatform { Inactive, DetectHost, ORC, GenericIR };
+  enum class LLJITPlatform { Inactive, Auto, ExecutorNative, GenericIR };
 
-  cl::opt<LLJITPlatform>
-      Platform("lljit-platform", cl::desc("Platform to use with LLJIT"),
-               cl::init(LLJITPlatform::DetectHost),
-               cl::values(clEnumValN(LLJITPlatform::DetectHost, "DetectHost",
-                                     "Select based on JIT target triple"),
-                          clEnumValN(LLJITPlatform::ORC, "ORC",
-                                     "Use ORCPlatform with the ORC runtime"),
-                          clEnumValN(LLJITPlatform::GenericIR, "GenericIR",
-                                     "Use LLJITGenericIRPlatform"),
-                          clEnumValN(LLJITPlatform::Inactive, "Inactive",
-                                     "Disable platform support explicitly")),
-               cl::Hidden);
+  cl::opt<LLJITPlatform> Platform(
+      "lljit-platform", cl::desc("Platform to use with LLJIT"),
+      cl::init(LLJITPlatform::Auto),
+      cl::values(clEnumValN(LLJITPlatform::Auto, "Auto",
+                            "Like 'ExecutorNative' if ORC runtime "
+                            "provided, otherwise like 'GenericIR'"),
+                 clEnumValN(LLJITPlatform::ExecutorNative, "ExecutorNative",
+                            "Use the native platform for the executor."
+                            "Requires -orc-runtime"),
+                 clEnumValN(LLJITPlatform::GenericIR, "GenericIR",
+                            "Use LLJITGenericIRPlatform"),
+                 clEnumValN(LLJITPlatform::Inactive, "Inactive",
+                            "Disable platform support explicitly")),
+      cl::Hidden);
 
   enum class DumpKind {
     NoDump,
@@ -408,17 +408,10 @@ static void addCygMingExtraModule(ExecutionEngine &EE, LLVMContext &Context,
 }
 
 CodeGenOpt::Level getOptLevel() {
-  switch (OptLevel) {
-  default:
-    WithColor::error(errs(), "lli") << "invalid optimization level.\n";
-    exit(1);
-  case '0': return CodeGenOpt::None;
-  case '1': return CodeGenOpt::Less;
-  case ' ':
-  case '2': return CodeGenOpt::Default;
-  case '3': return CodeGenOpt::Aggressive;
-  }
-  llvm_unreachable("Unrecognized opt level.");
+  if (auto Level = CodeGenOpt::parseLevel(OptLevel))
+    return *Level;
+  WithColor::error(errs(), "lli") << "invalid optimization level.\n";
+  exit(1);
 }
 
 [[noreturn]] static void reportError(SMDiagnostic Err, const char *ProgName) {
@@ -670,10 +663,6 @@ int main(int argc, char **argv, char * const *envp) {
 #endif
   }
 
-  std::unique_ptr<orc::ExecutorProcessControl> EPC =
-      RemoteMCJIT ? ExitOnErr(launchRemote())
-                  : ExitOnErr(orc::SelfExecutorProcessControl::Create());
-
   if (!RemoteMCJIT) {
     // If the program doesn't explicitly call exit, we will need the Exit
     // function later on to make an explicit call, so get the function now.
@@ -719,6 +708,7 @@ int main(int argc, char **argv, char * const *envp) {
     abort();
   } else {
     // else == "if (RemoteMCJIT)"
+    std::unique_ptr<orc::ExecutorProcessControl> EPC = ExitOnErr(launchRemote());
 
     // Remote target MCJIT doesn't (yet) support static constructors. No reason
     // it couldn't. This is a limitation of the LLI implementation, not the
@@ -874,6 +864,9 @@ int runOrcJIT(const char *ProgName) {
       .setRelocationModel(codegen::getExplicitRelocModel())
       .setCodeModel(codegen::getExplicitCodeModel());
 
+  // Link process symbols unless NoProcessSymbols is set.
+  Builder.setLinkProcessSymbolsByDefault(!NoProcessSymbols);
+
   // FIXME: Setting a dummy call-through manager in non-lazy mode prevents the
   // JIT builder to instantiate a default (which would fail with an error for
   // unsupported architectures).
@@ -881,7 +874,8 @@ int runOrcJIT(const char *ProgName) {
     auto ES = std::make_unique<orc::ExecutionSession>(
         ExitOnErr(orc::SelfExecutorProcessControl::Create()));
     Builder.setLazyCallthroughManager(
-        std::make_unique<orc::LazyCallThroughManager>(*ES, 0, nullptr));
+        std::make_unique<orc::LazyCallThroughManager>(*ES, orc::ExecutorAddr(),
+                                                      nullptr));
     Builder.setExecutionSession(std::move(ES));
   }
 
@@ -914,17 +908,15 @@ int runOrcJIT(const char *ProgName) {
 
   // Set up LLJIT platform.
   LLJITPlatform P = Platform;
-  if (P == LLJITPlatform::DetectHost) {
-    if (JITLinker == JITLinkerKind::JITLink && !OrcRuntime.empty() &&
-        (TT->isOSBinFormatMachO() || TT->isOSBinFormatELF()))
-      P = LLJITPlatform::ORC;
-    else
-      P = LLJITPlatform::GenericIR;
-  }
+  if (P == LLJITPlatform::Auto)
+    P = OrcRuntime.empty() ? LLJITPlatform::GenericIR
+                           : LLJITPlatform::ExecutorNative;
+
   switch (P) {
-  case LLJITPlatform::ORC:
-    Builder.setPlatformSetUp(orc::setUpOrcPlatform);
+  case LLJITPlatform::ExecutorNative: {
+    Builder.setPlatformSetUp(orc::ExecutorNativePlatform(OrcRuntime));
     break;
+  }
   case LLJITPlatform::GenericIR:
     // Nothing to do: LLJITBuilder will use this by default.
     break;
@@ -943,11 +935,11 @@ int runOrcJIT(const char *ProgName) {
     Builder.setObjectLinkingLayerCreator([&EPC, &P](orc::ExecutionSession &ES,
                                                     const Triple &TT) {
       auto L = std::make_unique<orc::ObjectLinkingLayer>(ES, EPC->getMemMgr());
-      if (P != LLJITPlatform::ORC) {
+      if (P != LLJITPlatform::ExecutorNative) {
         L->addPlugin(std::make_unique<orc::EHFrameRegistrationPlugin>(
             ES, ExitOnErr(orc::EPCEHFrameRegistrar::Create(ES))));
         L->addPlugin(std::make_unique<orc::DebugObjectManagerPlugin>(
-            ES, ExitOnErr(orc::createJITLoaderGDBRegistrar(ES))));
+            ES, ExitOnErr(orc::createJITLoaderGDBRegistrar(ES)), true, true));
       }
       return L;
     });
@@ -956,9 +948,22 @@ int runOrcJIT(const char *ProgName) {
   auto J = ExitOnErr(Builder.create());
 
   auto *ObjLayer = &J->getObjLinkingLayer();
-  if (auto *RTDyldObjLayer = dyn_cast<orc::RTDyldObjectLinkingLayer>(ObjLayer))
+  if (auto *RTDyldObjLayer = dyn_cast<orc::RTDyldObjectLinkingLayer>(ObjLayer)) {
     RTDyldObjLayer->registerJITEventListener(
         *JITEventListener::createGDBRegistrationListener());
+#if LLVM_USE_OPROFILE
+    RTDyldObjLayer->registerJITEventListener(
+        *JITEventListener::createOProfileJITEventListener());
+#endif
+#if LLVM_USE_INTEL_JITEVENTS
+    RTDyldObjLayer->registerJITEventListener(
+        *JITEventListener::createIntelJITEventListener());
+#endif
+#if LLVM_USE_PERF
+    RTDyldObjLayer->registerJITEventListener(
+        *JITEventListener::createPerfJITEventListener());
+#endif
+  }
 
   if (PerModuleLazy)
     J->setPartitionFunction(orc::CompileOnDemandLayer::compileWholeModule);
@@ -978,46 +983,12 @@ int runOrcJIT(const char *ProgName) {
         return TSM;
       });
 
-  orc::MangleAndInterner Mangle(J->getExecutionSession(), J->getDataLayout());
-
-  // Unless they've been explicitly disabled, make process symbols available to
-  // JIT'd code.
-  if (!NoProcessSymbols)
-    J->getMainJITDylib().addGenerator(
-        ExitOnErr(orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
-            J->getDataLayout().getGlobalPrefix(),
-            [MainName = Mangle("main")](const orc::SymbolStringPtr &Name) {
-              return Name != MainName;
-            })));
-
-  if (GenerateBuiltinFunctions.size() > 0)
+  if (GenerateBuiltinFunctions.size() > 0) {
+    // Add LLI builtins.
+    orc::MangleAndInterner Mangle(J->getExecutionSession(), J->getDataLayout());
     J->getMainJITDylib().addGenerator(
         std::make_unique<LLIBuiltinFunctionGenerator>(GenerateBuiltinFunctions,
                                                       Mangle));
-
-  if (P == LLJITPlatform::ORC) {
-    if (auto *OLL = llvm::dyn_cast<llvm::orc::ObjectLinkingLayer>(ObjLayer)) {
-      auto &ES = J->getExecutionSession();
-      if (TT->isOSBinFormatMachO()) {
-        if (auto P = llvm::orc::MachOPlatform::Create(
-                ES, *OLL, J->getMainJITDylib(), OrcRuntime.c_str()))
-          ES.setPlatform(std::move(*P));
-        else
-          ExitOnErr(P.takeError());
-      } else if (TT->isOSBinFormatELF()) {
-        if (auto P = llvm::orc::ELFNixPlatform::Create(
-                ES, *OLL, J->getMainJITDylib(), OrcRuntime.c_str()))
-          ES.setPlatform(std::move(*P));
-        else
-          ExitOnErr(P.takeError());
-      } else {
-        errs() << "No ORC platform support\n";
-        exit(1);
-      }
-    } else {
-      errs() << "ORC platform requires JITLink\n";
-      exit(1);
-    }
   }
 
   // Regular modules are greedy: They materialize as a whole and trigger
@@ -1067,8 +1038,7 @@ int runOrcJIT(const char *ProgName) {
       assert(EAIdx != 0 && "ExtraArchive should have index > 0");
       auto JDItr = std::prev(IdxToDylib.lower_bound(EAIdx));
       auto &JD = *JDItr->second;
-      JD.addGenerator(ExitOnErr(orc::StaticLibraryDefinitionGenerator::Load(
-          J->getObjLinkingLayer(), EAItr->c_str(), *TT)));
+      ExitOnErr(J->linkStaticLibraryInto(JD, EAItr->c_str()));
     }
   }
 

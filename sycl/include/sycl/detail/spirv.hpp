@@ -596,22 +596,16 @@ template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id);
-
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id);
-
-template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id);
 
 template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id);
+EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, uint32_t delta);
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id);
+EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
 
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {

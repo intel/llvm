@@ -72,7 +72,6 @@ declare i32 @llvm.smin.i32(i32, i32)
 ; DBG-NEXT:     EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; DBG-NEXT:     vp<[[DERIVED_IV:%.+]]> = DERIVED-IV ir<false> + vp<[[CAN_IV]]> * ir<true>
 ; DBG-NEXT:     vp<[[STEPS1:%.+]]>    = SCALAR-STEPS vp<[[DERIVED_IV]]>, ir<true>
-; DBG-NEXT:     vp<[[STEPS2:%.+]]>    = SCALAR-STEPS vp<[[CAN_IV]]>, ir<1>
 ; DBG-NEXT:   Successor(s): pred.store
 ; DBG-EMPTY:
 ; DBG-NEXT:   <xVFxUF> pred.store: {
@@ -81,6 +80,7 @@ declare i32 @llvm.smin.i32(i32, i32)
 ; DBG-NEXT:     Successor(s): pred.store.if, pred.store.continue
 ; DBG-EMPTY:
 ; DBG-NEXT:     pred.store.if:
+; DBG-NEXT:       vp<[[STEPS2:%.+]]>    = SCALAR-STEPS vp<[[CAN_IV]]>, ir<1>
 ; DBG-NEXT:       CLONE ir<%gep.src> = getelementptr ir<%src>, vp<[[STEPS2]]>
 ; DBG-NEXT:       CLONE ir<%l> = load ir<%gep.src>
 ; DBG-NEXT:       CLONE ir<%gep.dst> = getelementptr ir<%dst>, vp<[[STEPS2]]>
@@ -167,7 +167,7 @@ exit:
 
 ; DBG-LABEL: 'first_order_recurrence_using_induction'
 ; DBG:      VPlan 'Initial VPlan for VF={1},UF>=1' {
-; DBG-NEXT: Live-in vp<%1> = vector-trip-count
+; DBG-NEXT: Live-in vp<[[VTC:%.+]]> = vector-trip-count
 ; DBG-EMPTY:
 ; DBG-NEXT: vector.ph:
 ; DBG-NEXT: Successor(s): vector loop
@@ -181,7 +181,7 @@ exit:
 ; DBG-NEXT:     EMIT vp<[[SPLICE:%.+]]> = first-order splice ir<%for> vp<[[SCALAR_STEPS]]>
 ; DBG-NEXT:     CLONE store vp<[[SPLICE]]>, ir<%dst>
 ; DBG-NEXT:     EMIT vp<[[IV_INC:%.+]]> = VF * UF +(nuw)  vp<[[CAN_IV]]>
-; DBG-NEXT:     EMIT branch-on-count  vp<[[IV_INC]]> vp<%1>
+; DBG-NEXT:     EMIT branch-on-count  vp<[[IV_INC]]> vp<[[VTC]]>
 ; DBG-NEXT:   No successors
 ; DBG-NEXT: }
 ; DBG-NEXT: Successor(s): middle.block

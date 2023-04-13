@@ -24,6 +24,9 @@ class LowerToLLVMOptions;
 
 namespace LLVM {
 class LLVMDialect;
+class LLVMPointerType;
+class LLVMFunctionType;
+class LLVMStructType;
 } // namespace LLVM
 
 /// Conversion from types to the LLVM IR dialect.
@@ -50,20 +53,23 @@ public:
   /// one and results are packed into a wrapped LLVM IR structure type. `result`
   /// is populated with argument mapping.
   Type convertFunctionSignature(FunctionType funcTy, bool isVariadic,
+                                bool useBarePtrCallConv,
                                 SignatureConversion &result);
 
   /// Convert a non-empty list of types to be returned from a function into a
   /// supported LLVM IR type.  In particular, if more than one value is
   /// returned, create an LLVM IR structure type with elements that correspond
   /// to each of the MLIR types converted with `convertType`.
-  Type packFunctionResults(TypeRange types);
+  Type packFunctionResults(TypeRange types,
+                           bool useBarePointerCallConv = false);
 
   /// Convert a type in the context of the default or bare pointer calling
   /// convention. Calling convention sensitive types, such as MemRefType and
   /// UnrankedMemRefType, are converted following the specific rules for the
   /// calling convention. Calling convention independent types are converted
   /// following the default LLVM type conversions.
-  Type convertCallingConventionType(Type type);
+  Type convertCallingConventionType(Type type,
+                                    bool useBarePointerCallConv = false);
 
   /// Promote the bare pointers in 'values' that resulted from memrefs to
   /// descriptors. 'stdTypes' holds the types of 'values' before the conversion
@@ -92,8 +98,8 @@ public:
   /// of the platform-specific C/C++ ABI lowering related to struct argument
   /// passing.
   SmallVector<Value, 4> promoteOperands(Location loc, ValueRange opOperands,
-                                        ValueRange operands,
-                                        OpBuilder &builder);
+                                        ValueRange operands, OpBuilder &builder,
+                                        bool useBarePtrCallConv = false);
 
   /// Promote the LLVM struct representation of one MemRef descriptor to stack
   /// and use pointer to struct to avoid the complexity of the platform-specific
@@ -105,7 +111,8 @@ public:
   /// pointers to memref descriptors for arguments. Also converts the return
   /// type to a pointer argument if it is a struct. Returns true if this
   /// was the case.
-  std::pair<Type, bool> convertFunctionTypeCWrapper(FunctionType type);
+  std::pair<LLVM::LLVMFunctionType, LLVM::LLVMStructType>
+  convertFunctionTypeCWrapper(FunctionType type);
 
   /// Returns the data layout to use during and after conversion.
   const llvm::DataLayout &getDataLayout() { return options.dataLayout; }
@@ -119,6 +126,17 @@ public:
   /// integer type with the size configured for this type converter.
   Type getIndexType();
 
+  /// Returns true if using opaque pointers was enabled in the lowering options.
+  bool useOpaquePointers() const { return getOptions().useOpaquePointers; }
+
+  /// Creates an LLVM pointer type with the given element type and address
+  /// space.
+  /// This function is meant to be used in code supporting both typed and opaque
+  /// pointers, as it will create an opaque pointer with the given address space
+  /// if opaque pointers are enabled in the lowering options.
+  LLVM::LLVMPointerType getPointerType(Type elementType,
+                                       unsigned addressSpace = 0);
+
   /// Gets the bitwidth of the index type when converted to LLVM.
   unsigned getIndexTypeBitwidth() { return options.getIndexBitwidth(); }
 
@@ -131,6 +149,11 @@ public:
   /// Returns the size of the unranked memref descriptor object in bytes.
   unsigned getUnrankedMemRefDescriptorSize(UnrankedMemRefType type,
                                            const DataLayout &layout);
+
+  /// Return the LLVM address space corresponding to the memory space of the
+  /// memref type `type` or failure if the memory space cannot be converted to
+  /// an integer.
+  FailureOr<unsigned> getMemRefAddressSpace(BaseMemRefType type);
 
   /// Check if a memref type can be converted to a bare pointer.
   static bool canConvertToBarePtr(BaseMemRefType type);

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Runtime/allocatable.h"
-#include "assign.h"
+#include "assign-impl.h"
 #include "derived.h"
 #include "stat.h"
 #include "terminator.h"
@@ -41,17 +41,40 @@ void RTNAME(AllocatableInitDerived)(Descriptor &descriptor,
       derivedType, nullptr, rank, nullptr, CFI_attribute_allocatable);
 }
 
-std::int32_t RTNAME(MoveAlloc)(Descriptor &to, Descriptor &from, bool hasStat,
+void RTNAME(AllocatableInitIntrinsicForAllocate)(Descriptor &descriptor,
+    TypeCategory category, int kind, int rank, int corank) {
+  if (descriptor.IsAllocated()) {
+    return;
+  }
+  RTNAME(AllocatableInitIntrinsic)(descriptor, category, kind, rank, corank);
+}
+
+void RTNAME(AllocatableInitCharacterForAllocate)(Descriptor &descriptor,
+    SubscriptValue length, int kind, int rank, int corank) {
+  if (descriptor.IsAllocated()) {
+    return;
+  }
+  RTNAME(AllocatableInitCharacter)(descriptor, length, kind, rank, corank);
+}
+
+void RTNAME(AllocatableInitDerivedForAllocate)(Descriptor &descriptor,
+    const typeInfo::DerivedType &derivedType, int rank, int corank) {
+  if (descriptor.IsAllocated()) {
+    return;
+  }
+  RTNAME(AllocatableInitDerived)(descriptor, derivedType, rank, corank);
+}
+
+std::int32_t RTNAME(MoveAlloc)(Descriptor &to, Descriptor &from,
+    const typeInfo::DerivedType *derivedType, bool hasStat,
     const Descriptor *errMsg, const char *sourceFile, int sourceLine) {
   Terminator terminator{sourceFile, sourceLine};
-  // Should be handled by semantic analysis
-  RUNTIME_CHECK(terminator, to.type() == from.type());
-  RUNTIME_CHECK(terminator, to.IsAllocatable() && from.IsAllocatable());
 
   // If to and from are the same allocatable they must not be allocated
   // and nothing should be done.
   if (from.raw().base_addr == to.raw().base_addr && from.IsAllocated()) {
-    return ReturnError(terminator, StatInvalidDescriptor, errMsg, hasStat);
+    return ReturnError(
+        terminator, StatMoveAllocSameAllocatable, errMsg, hasStat);
   }
 
   if (to.IsAllocated()) {
@@ -65,7 +88,24 @@ std::int32_t RTNAME(MoveAlloc)(Descriptor &to, Descriptor &from, bool hasStat,
   if (from.IsAllocated()) {
     to = from;
     from.raw().base_addr = nullptr;
+
+    // Carry over the dynamic type.
+    if (auto *toAddendum{to.Addendum()}) {
+      if (const auto *fromAddendum{from.Addendum()}) {
+        if (const auto *derived{fromAddendum->derivedType()}) {
+          toAddendum->set_derivedType(derived);
+        }
+      }
+    }
+
+    // Reset from dynamic type if needed.
+    if (auto *fromAddendum{from.Addendum()}) {
+      if (derivedType) {
+        fromAddendum->set_derivedType(derivedType);
+      }
+    }
   }
+
   return StatOk;
 }
 
@@ -84,7 +124,7 @@ void RTNAME(AllocatableSetDerivedLength)(
 }
 
 void RTNAME(AllocatableApplyMold)(
-    Descriptor &descriptor, const Descriptor &mold) {
+    Descriptor &descriptor, const Descriptor &mold, int rank) {
   if (descriptor.IsAllocated()) {
     // 9.7.1.3 Return so the error can be emitted by AllocatableAllocate.
     return;
@@ -92,6 +132,14 @@ void RTNAME(AllocatableApplyMold)(
   descriptor = mold;
   descriptor.set_base_addr(nullptr);
   descriptor.raw().attribute = CFI_attribute_allocatable;
+  descriptor.raw().rank = rank;
+  if (auto *descAddendum{descriptor.Addendum()}) {
+    if (const auto *moldAddendum{mold.Addendum()}) {
+      if (const auto *derived{moldAddendum->derivedType()}) {
+        descAddendum->set_derivedType(derived);
+      }
+    }
+  }
 }
 
 int RTNAME(AllocatableAllocate)(Descriptor &descriptor, bool hasStat,
@@ -126,8 +174,7 @@ int RTNAME(AllocatableAllocateSource)(Descriptor &alloc,
       alloc, hasStat, errMsg, sourceFile, sourceLine)};
   if (stat == StatOk) {
     Terminator terminator{sourceFile, sourceLine};
-    // 9.7.1.2(7)
-    Assign(alloc, source, terminator, /*skipRealloc=*/true);
+    DoFromSourceAssign(alloc, source, terminator);
   }
   return stat;
 }
@@ -151,8 +198,7 @@ int RTNAME(AllocatableDeallocatePolymorphic)(Descriptor &descriptor,
       descriptor, hasStat, errMsg, sourceFile, sourceLine)};
   if (stat == StatOk) {
     DescriptorAddendum *addendum{descriptor.Addendum()};
-    if (addendum) { // Unlimited polymorphic allocated from intrinsic type spec
-                    // does not have
+    if (addendum) {
       addendum->set_derivedType(derivedType);
     } else {
       // Unlimited polymorphic descriptors initialized with

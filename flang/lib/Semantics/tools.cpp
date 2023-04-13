@@ -278,7 +278,8 @@ bool IsPointerDummy(const Symbol &symbol) {
   return IsPointer(symbol) && IsDummy(symbol);
 }
 
-bool IsBindCProcedure(const Symbol &symbol) {
+bool IsBindCProcedure(const Symbol &original) {
+  const Symbol &symbol{original.GetUltimate()};
   if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
     if (procDetails->procInterface()) {
       // procedure component with a BIND(C) interface
@@ -610,16 +611,19 @@ bool IsOrContainsEventOrLockComponent(const Symbol &original) {
 }
 
 // Check this symbol suitable as a type-bound procedure - C769
-bool CanBeTypeBoundProc(const Symbol *symbol) {
-  if (!symbol || IsDummy(*symbol) || IsProcedurePointer(*symbol)) {
+bool CanBeTypeBoundProc(const Symbol &symbol) {
+  if (IsDummy(symbol) || IsProcedurePointer(symbol)) {
     return false;
-  } else if (symbol->has<SubprogramNameDetails>()) {
-    return symbol->owner().kind() == Scope::Kind::Module;
-  } else if (auto *details{symbol->detailsIf<SubprogramDetails>()}) {
-    return symbol->owner().kind() == Scope::Kind::Module ||
-        details->isInterface();
-  } else if (const auto *proc{symbol->detailsIf<ProcEntityDetails>()}) {
-    return !symbol->attrs().test(Attr::INTRINSIC) &&
+  } else if (symbol.has<SubprogramNameDetails>()) {
+    return symbol.owner().kind() == Scope::Kind::Module;
+  } else if (auto *details{symbol.detailsIf<SubprogramDetails>()}) {
+    if (details->isInterface()) {
+      return !symbol.attrs().test(Attr::ABSTRACT);
+    } else {
+      return symbol.owner().kind() == Scope::Kind::Module;
+    }
+  } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
+    return !symbol.attrs().test(Attr::INTRINSIC) &&
         proc->HasExplicitInterface();
   } else {
     return false;
@@ -701,54 +705,125 @@ bool IsSeparateModuleProcedureInterface(const Symbol *symbol) {
   return false;
 }
 
-bool IsFinalizable(
-    const Symbol &symbol, std::set<const DerivedTypeSpec *> *inProgress) {
-  if (IsPointer(symbol)) {
-    return false;
+SymbolVector FinalsForDerivedTypeInstantiation(const DerivedTypeSpec &spec) {
+  SymbolVector result;
+  const Symbol &typeSymbol{spec.typeSymbol()};
+  if (const auto *derived{typeSymbol.detailsIf<DerivedTypeDetails>()}) {
+    for (const auto &pair : derived->finals()) {
+      const Symbol &subr{*pair.second};
+      // Errors in FINAL subroutines are caught in CheckFinal
+      // in check-declarations.cpp.
+      if (const auto *subprog{subr.detailsIf<SubprogramDetails>()};
+          subprog && subprog->dummyArgs().size() == 1) {
+        if (const Symbol * arg{subprog->dummyArgs()[0]}) {
+          if (const DeclTypeSpec * type{arg->GetType()}) {
+            if (type->category() == DeclTypeSpec::TypeDerived &&
+                evaluate::AreSameDerivedType(spec, type->derivedTypeSpec())) {
+              result.emplace_back(subr);
+            }
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+const Symbol *IsFinalizable(const Symbol &symbol,
+    std::set<const DerivedTypeSpec *> *inProgress, bool withImpureFinalizer) {
+  if (IsPointer(symbol) || evaluate::IsAssumedRank(symbol)) {
+    return nullptr;
   }
   if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
     if (object->isDummy() && !IsIntentOut(symbol)) {
-      return false;
+      return nullptr;
     }
     const DeclTypeSpec *type{object->type()};
-    const DerivedTypeSpec *typeSpec{type ? type->AsDerived() : nullptr};
-    return typeSpec && IsFinalizable(*typeSpec, inProgress);
+    if (const DerivedTypeSpec * typeSpec{type ? type->AsDerived() : nullptr}) {
+      return IsFinalizable(
+          *typeSpec, inProgress, withImpureFinalizer, symbol.Rank());
+    }
   }
-  return false;
+  return nullptr;
 }
 
-bool IsFinalizable(const DerivedTypeSpec &derived,
-    std::set<const DerivedTypeSpec *> *inProgress) {
-  if (!derived.typeSymbol().get<DerivedTypeDetails>().finals().empty()) {
-    return true;
+const Symbol *IsFinalizable(const DerivedTypeSpec &derived,
+    std::set<const DerivedTypeSpec *> *inProgress, bool withImpureFinalizer,
+    std::optional<int> rank) {
+  const Symbol *elemental{nullptr};
+  for (auto ref : FinalsForDerivedTypeInstantiation(derived)) {
+    const Symbol *symbol{&ref->GetUltimate()};
+    if (const auto *binding{symbol->detailsIf<ProcBindingDetails>()}) {
+      symbol = &binding->symbol();
+    }
+    if (const auto *proc{symbol->detailsIf<ProcEntityDetails>()}) {
+      symbol = proc->procInterface();
+    }
+    if (!symbol) {
+    } else if (IsElementalProcedure(*symbol)) {
+      elemental = symbol;
+    } else {
+      if (rank) {
+        if (const SubprogramDetails *
+            subp{symbol->detailsIf<SubprogramDetails>()}) {
+          if (const auto &args{subp->dummyArgs()}; !args.empty() &&
+              args.at(0) && !evaluate::IsAssumedRank(*args.at(0)) &&
+              args.at(0)->Rank() != *rank) {
+            continue; // not a finalizer for this rank
+          }
+        }
+      }
+      if (!withImpureFinalizer || !IsPureProcedure(*symbol)) {
+        return symbol;
+      }
+      // Found non-elemental pure finalizer of matching rank, but still
+      // need to check components for an impure finalizer.
+      elemental = nullptr;
+      break;
+    }
   }
+  if (elemental && (!withImpureFinalizer || !IsPureProcedure(*elemental))) {
+    return elemental;
+  }
+  // Check components (including ancestors)
   std::set<const DerivedTypeSpec *> basis;
   if (inProgress) {
     if (inProgress->find(&derived) != inProgress->end()) {
-      return false; // don't loop on recursive type
+      return nullptr; // don't loop on recursive type
     }
   } else {
     inProgress = &basis;
   }
   auto iterator{inProgress->insert(&derived).first};
-  PotentialComponentIterator components{derived};
-  bool result{bool{std::find_if(
-      components.begin(), components.end(), [=](const Symbol &component) {
-        return IsFinalizable(component, inProgress);
-      })}};
+  const Symbol *result{nullptr};
+  for (const Symbol &component : PotentialComponentIterator{derived}) {
+    result = IsFinalizable(component, inProgress, withImpureFinalizer);
+    if (result) {
+      break;
+    }
+  }
   inProgress->erase(iterator);
   return result;
 }
 
-bool HasImpureFinal(const DerivedTypeSpec &derived) {
-  if (const auto *details{
-          derived.typeSymbol().detailsIf<DerivedTypeDetails>()}) {
-    const auto &finals{details->finals()};
-    return std::any_of(finals.begin(), finals.end(),
-        [](const auto &x) { return !IsPureProcedure(*x.second); });
-  } else {
-    return false;
+static const Symbol *HasImpureFinal(
+    const DerivedTypeSpec &derived, std::optional<int> rank) {
+  return IsFinalizable(derived, nullptr, /*withImpureFinalizer=*/true, rank);
+}
+
+const Symbol *HasImpureFinal(const Symbol &original) {
+  const Symbol &symbol{ResolveAssociations(original)};
+  if (symbol.has<ObjectEntityDetails>()) {
+    if (const DeclTypeSpec * symType{symbol.GetType()}) {
+      if (const DerivedTypeSpec * derived{symType->AsDerived()}) {
+        // finalizable assumed-rank not allowed (C839)
+        return evaluate::IsAssumedRank(symbol)
+            ? nullptr
+            : HasImpureFinal(*derived, symbol.Rank());
+      }
+    }
   }
+  return nullptr;
 }
 
 bool IsAssumedLengthCharacter(const Symbol &symbol) {
@@ -822,6 +897,9 @@ public:
   template <typename T> bool operator()(const common::Indirection<T> &x) {
     return (*this)(x.value());
   }
+  template <typename A> bool operator()(const parser::Statement<A> &x) {
+    return (*this)(x.statement);
+  }
   bool operator()(const parser::AllocateStmt &stmt) {
     const auto &allocationList{std::get<std::list<parser::Allocation>>(stmt.t)};
     for (const auto &allocation : allocationList) {
@@ -868,8 +946,13 @@ public:
     return std::get<parser::StopStmt::Kind>(stmt.t) ==
         parser::StopStmt::Kind::Stop;
   }
-  bool operator()(const parser::Statement<parser::ActionStmt> &stmt) {
-    return common::visit(*this, stmt.statement.u);
+  bool operator()(const parser::IfStmt &stmt) {
+    return (*this)(
+        std::get<parser::UnlabeledStatement<parser::ActionStmt>>(stmt.t)
+            .statement);
+  }
+  bool operator()(const parser::ActionStmt &stmt) {
+    return common::visit(*this, stmt.u);
   }
 
 private:
@@ -961,6 +1044,13 @@ bool IsPolymorphic(const Symbol &symbol) {
   return false;
 }
 
+bool IsUnlimitedPolymorphic(const Symbol &symbol) {
+  if (const DeclTypeSpec * type{symbol.GetType()}) {
+    return type->IsUnlimitedPolymorphic();
+  }
+  return false;
+}
+
 bool IsPolymorphicAllocatable(const Symbol &symbol) {
   return IsAllocatable(symbol) && IsPolymorphic(symbol);
 }
@@ -1035,14 +1125,12 @@ ProcedureDefinitionClass ClassifyProcedure(const Symbol &symbol) { // 15.2.2
     return ProcedureDefinitionClass::None;
   } else if (ultimate.attrs().test(Attr::INTRINSIC)) {
     return ProcedureDefinitionClass::Intrinsic;
+  } else if (IsDummy(ultimate)) {
+    return ProcedureDefinitionClass::Dummy;
+  } else if (IsProcedurePointer(symbol)) {
+    return ProcedureDefinitionClass::Pointer;
   } else if (ultimate.attrs().test(Attr::EXTERNAL)) {
     return ProcedureDefinitionClass::External;
-  } else if (const auto *procDetails{ultimate.detailsIf<ProcEntityDetails>()}) {
-    if (procDetails->isDummy()) {
-      return ProcedureDefinitionClass::Dummy;
-    } else if (IsPointer(ultimate)) {
-      return ProcedureDefinitionClass::Pointer;
-    }
   } else if (const auto *nameDetails{
                  ultimate.detailsIf<SubprogramNameDetails>()}) {
     switch (nameDetails->kind()) {
@@ -1259,15 +1347,6 @@ FindPolymorphicAllocatableUltimateComponent(const DerivedTypeSpec &derived) {
       ultimates.begin(), ultimates.end(), IsPolymorphicAllocatable);
 }
 
-UltimateComponentIterator::const_iterator
-FindPolymorphicAllocatableNonCoarrayUltimateComponent(
-    const DerivedTypeSpec &derived) {
-  UltimateComponentIterator ultimates{derived};
-  return std::find_if(ultimates.begin(), ultimates.end(), [](const Symbol &x) {
-    return IsPolymorphicAllocatable(x) && !evaluate::IsCoarray(x);
-  });
-}
-
 const Symbol *FindUltimateComponent(const DerivedTypeSpec &derived,
     const std::function<bool(const Symbol &)> &predicate) {
   UltimateComponentIterator ultimates{derived};
@@ -1411,9 +1490,12 @@ bool HasAlternateReturns(const Symbol &subprogram) {
   return false;
 }
 
-bool InCommonBlock(const Symbol &symbol) {
-  const auto *details{symbol.detailsIf<ObjectEntityDetails>()};
-  return details && details->commonBlock();
+bool IsAutomaticallyDestroyed(const Symbol &symbol) {
+  return symbol.has<ObjectEntityDetails>() &&
+      (symbol.owner().kind() == Scope::Kind::Subprogram ||
+          symbol.owner().kind() == Scope::Kind::BlockConstruct) &&
+      (!IsDummy(symbol) || IsIntentOut(symbol)) && !IsPointer(symbol) &&
+      !IsSaved(symbol) && !FindCommonBlockContaining(symbol);
 }
 
 const std::optional<parser::Name> &MaybeGetNodeName(
@@ -1449,6 +1531,24 @@ std::optional<ArraySpec> ToArraySpec(evaluate::FoldingContext &context,
   return shape ? ToArraySpec(context, *shape) : std::nullopt;
 }
 
+static const DeclTypeSpec *GetDtvArgTypeSpec(const Symbol &proc) {
+  if (const auto *subp{proc.detailsIf<SubprogramDetails>()};
+      subp && !subp->dummyArgs().empty()) {
+    if (const auto *arg{subp->dummyArgs()[0]}) {
+      return arg->GetType();
+    }
+  }
+  return nullptr;
+}
+
+const DerivedTypeSpec *GetDtvArgDerivedType(const Symbol &proc) {
+  if (const auto *type{GetDtvArgTypeSpec(proc)}) {
+    return type->AsDerived();
+  } else {
+    return nullptr;
+  }
+}
+
 bool HasDefinedIo(GenericKind::DefinedIo which, const DerivedTypeSpec &derived,
     const Scope *scope) {
   if (const Scope * dtScope{derived.scope()}) {
@@ -1473,16 +1573,10 @@ bool HasDefinedIo(GenericKind::DefinedIo which, const DerivedTypeSpec &derived,
         const auto &generic{iter->second->GetUltimate().get<GenericDetails>()};
         for (auto ref : generic.specificProcs()) {
           const Symbol &procSym{ref->GetUltimate()};
-          if (const auto *subp{procSym.detailsIf<SubprogramDetails>()}) {
-            if (!subp->dummyArgs().empty()) {
-              if (const Symbol * first{subp->dummyArgs().at(0)}) {
-                if (const DeclTypeSpec * dtSpec{first->GetType()}) {
-                  if (auto dyDummy{evaluate::DynamicType::From(*dtSpec)}) {
-                    if (dyDummy->IsTkCompatibleWith(dyDerived)) {
-                      return true; // GENERIC or INTERFACE not in type
-                    }
-                  }
-                }
+          if (const DeclTypeSpec * dtSpec{GetDtvArgTypeSpec(procSym)}) {
+            if (auto dyDummy{evaluate::DynamicType::From(*dtSpec)}) {
+              if (dyDummy->IsTkCompatibleWith(dyDerived)) {
+                return true; // GENERIC or INTERFACE not in type
               }
             }
           }
@@ -1491,6 +1585,57 @@ bool HasDefinedIo(GenericKind::DefinedIo which, const DerivedTypeSpec &derived,
     }
   }
   return false;
+}
+
+static std::pair<const Symbol *, bool /*isPolymorphic*/>
+FindNonTypeBoundDefinedIo(const Scope &scope, const evaluate::DynamicType &type,
+    GenericKind::DefinedIo io) {
+  if (const DerivedTypeSpec * derived{evaluate::GetDerivedTypeSpec(type)}) {
+    if (const Symbol * symbol{scope.FindSymbol(GenericKind::AsFortran(io))}) {
+      if (const auto *generic{symbol->detailsIf<GenericDetails>()}) {
+        for (const auto &ref : generic->specificProcs()) {
+          const Symbol &specific{ref->GetUltimate()};
+          if (const DeclTypeSpec * dtvTypeSpec{GetDtvArgTypeSpec(specific)}) {
+            if (const DerivedTypeSpec * dtvDerived{dtvTypeSpec->AsDerived()}) {
+              if (evaluate::AreSameDerivedType(*derived, *dtvDerived)) {
+                return {&specific, dtvTypeSpec->IsPolymorphic()};
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return {nullptr, false};
+}
+
+std::pair<const Symbol *, bool /*isPolymorphic*/> FindNonTypeBoundDefinedIo(
+    const SemanticsContext &context, const parser::OutputItem &item,
+    bool isFormatted) {
+  if (const auto *expr{std::get_if<parser::Expr>(&item.u)};
+      expr && expr->typedExpr && expr->typedExpr->v) {
+    if (auto type{expr->typedExpr->v->GetType()}) {
+      return FindNonTypeBoundDefinedIo(context.FindScope(expr->source), *type,
+          isFormatted ? GenericKind::DefinedIo::WriteFormatted
+                      : GenericKind::DefinedIo::WriteUnformatted);
+    }
+  }
+  return {nullptr, false};
+}
+
+std::pair<const Symbol *, bool /*isPolymorphic*/> FindNonTypeBoundDefinedIo(
+    const SemanticsContext &context, const parser::InputItem &item,
+    bool isFormatted) {
+  if (const auto *var{std::get_if<parser::Variable>(&item.u)};
+      var && var->typedExpr && var->typedExpr->v) {
+    if (auto type{var->typedExpr->v->GetType()}) {
+      return FindNonTypeBoundDefinedIo(context.FindScope(var->GetSource()),
+          *type,
+          isFormatted ? GenericKind::DefinedIo::ReadFormatted
+                      : GenericKind::DefinedIo::ReadUnformatted);
+    }
+  }
+  return {nullptr, false};
 }
 
 } // namespace Fortran::semantics

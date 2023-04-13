@@ -16,11 +16,11 @@ module {
     %1 = llvm.mlir.constant(1 : i32) : i32
     %2 = llvm.getelementptr inbounds %arg1[%0, 1] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<"struct.agg2_t", (i64, i64)>
     // CHECK: load i64, ptr %{{.*}},{{.*}}!tbaa ![[LTAG:[0-9]*]]
-    %3 = llvm.load %2 {llvm.tbaa = [@__tbaa::@tbaa_tag_4]} : !llvm.ptr -> i64
+    %3 = llvm.load %2 {tbaa = [@__tbaa::@tbaa_tag_4]} : !llvm.ptr -> i64
     %4 = llvm.trunc %3 : i64 to i32
     %5 = llvm.getelementptr inbounds %arg0[%0, 0] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<"struct.agg1_t", (i32, i32)>
     // CHECK: store i32 %{{.*}}, ptr %{{.*}},{{.*}}!tbaa ![[STAG:[0-9]*]]
-    llvm.store %4, %5 {llvm.tbaa = [@__tbaa::@tbaa_tag_7]} : i32, !llvm.ptr
+    llvm.store %4, %5 {tbaa = [@__tbaa::@tbaa_tag_7]} : i32, !llvm.ptr
     llvm.return
   }
 }
@@ -60,11 +60,21 @@ module {
     %1 = llvm.mlir.constant(1 : i32) : i32
     %2 = llvm.getelementptr inbounds %arg1[%0, 0] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<"struct.agg2_t", (f32, f32)>
     // CHECK: load float, ptr %{{.*}},{{.*}}!tbaa ![[LTAG:[0-9]*]]
-    %3 = llvm.load %2 {llvm.tbaa = [@__tbaa::@tbaa_tag_4]} : !llvm.ptr -> f32
+    %3 = llvm.load %2 {tbaa = [@__tbaa::@tbaa_tag_4]} : !llvm.ptr -> f32
     %4 = llvm.fptosi %3 : f32 to i32
     %5 = llvm.getelementptr inbounds %arg0[%0, 0] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<"struct.agg1_t", (i32, i32)>
     // CHECK: store i32 %{{.*}}, ptr %{{.*}},{{.*}}!tbaa ![[STAG:[0-9]*]]
-    llvm.store %4, %5 {llvm.tbaa = [@__tbaa::@tbaa_tag_7]} : i32, !llvm.ptr
+    llvm.store %4, %5 {tbaa = [@__tbaa::@tbaa_tag_7]} : i32, !llvm.ptr
+    // CHECK: atomicrmw add ptr %{{.*}}, i32 %{{.*}} !tbaa ![[STAG]]
+    %6 = llvm.atomicrmw add %5, %4 monotonic {tbaa = [@__tbaa::@tbaa_tag_7]} : !llvm.ptr, i32
+    // CHECK: cmpxchg ptr %{{.*}}, i32 %{{.*}}, i32 %{{.*}} !tbaa ![[STAG]]
+    %7 = llvm.cmpxchg %5, %6, %4 acq_rel monotonic {tbaa = [@__tbaa::@tbaa_tag_7]} : !llvm.ptr, i32
+    %8 = llvm.mlir.constant(0 : i1) : i1
+    %9 = llvm.mlir.constant(42 : i8) : i8
+    // CHECK: llvm.memcpy{{.*}} !tbaa ![[STAG]]
+    "llvm.intr.memcpy"(%arg1, %arg1, %0, %8) {tbaa = [@__tbaa::@tbaa_tag_7]} : (!llvm.ptr, !llvm.ptr, i32, i1) -> ()
+    // CHECK: llvm.memset{{.*}} !tbaa ![[STAG]]
+    "llvm.intr.memset"(%arg1, %9, %0, %8) {tbaa = [@__tbaa::@tbaa_tag_7]} : (!llvm.ptr, i8, i32, i1) -> ()
     llvm.return
   }
 }

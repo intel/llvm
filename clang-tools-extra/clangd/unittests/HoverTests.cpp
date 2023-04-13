@@ -10,15 +10,17 @@
 #include "Annotations.h"
 #include "Config.h"
 #include "Hover.h"
+#include "TestFS.h"
 #include "TestIndex.h"
 #include "TestTU.h"
 #include "index/MemIndex.h"
 #include "clang/AST/Attr.h"
+#include "clang/Format/Format.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -27,6 +29,10 @@ namespace clangd {
 namespace {
 
 using PassMode = HoverInfo::PassType::PassMode;
+
+std::string guard(llvm::StringRef Code) {
+  return "#pragma once\n" + Code.str();
+}
 
 TEST(Hover, Structured) {
   struct {
@@ -900,6 +906,27 @@ class Foo final {})cpp";
          HI.CalleeArgInfo->Type = "int &";
          HI.CallPassType = HoverInfo::PassType{PassMode::Ref, false};
        }},
+      {
+          R"cpp(
+          void foobar(const float &arg);
+          int main() {
+            int a = 0;
+            foobar([[^a]]);
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "a";
+            HI.Kind = index::SymbolKind::Variable;
+            HI.NamespaceScope = "";
+            HI.Definition = "int a = 0";
+            HI.LocalScope = "main::";
+            HI.Value = "0";
+            HI.Type = "int";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "arg";
+            HI.CalleeArgInfo->Type = "const float &";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, true};
+          }},
       {// Literal passed to function call
        R"cpp(
           void fun(int arg_a, const int &arg_b) {};
@@ -934,6 +961,38 @@ class Foo final {})cpp";
          HI.CalleeArgInfo->Type = "const int &";
          HI.CallPassType = HoverInfo::PassType{PassMode::ConstRef, false};
        }},
+      {
+          R"cpp(
+        int add(int lhs, int rhs);
+        int main() {
+          add(1 [[^+]] 2, 3);
+        }
+        )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "expression";
+            HI.Kind = index::SymbolKind::Unknown;
+            HI.Type = "int";
+            HI.Value = "3";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "lhs";
+            HI.CalleeArgInfo->Type = "int";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, false};
+          }},
+      {
+          R"cpp(
+        void foobar(const float &arg);
+        int main() {
+          foobar([[^0]]);
+        }
+        )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "literal";
+            HI.Kind = index::SymbolKind::Unknown;
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "arg";
+            HI.CalleeArgInfo->Type = "const float &";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, true};
+          }},
       {// Extra info for method call.
        R"cpp(
           class C {
@@ -960,6 +1019,29 @@ class Foo final {})cpp";
          HI.CalleeArgInfo->Default = "3";
          HI.CallPassType = HoverInfo::PassType{PassMode::Value, false};
        }},
+      {
+          R"cpp(
+          struct Foo {
+            Foo(const int &);
+          };
+          void foo(Foo);
+          void bar() {
+            const int x = 0;
+            foo([[^x]]);
+          }
+       )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "x";
+            HI.Kind = index::SymbolKind::Variable;
+            HI.NamespaceScope = "";
+            HI.Definition = "const int x = 0";
+            HI.LocalScope = "bar::";
+            HI.Value = "0";
+            HI.Type = "const int";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Type = "Foo";
+            HI.CallPassType = HoverInfo::PassType{PassMode::ConstRef, true};
+          }},
       {// Dont crash on invalid decl
        R"cpp(
         // error-ok
@@ -1673,8 +1755,8 @@ TEST(Hover, All) {
           }},
       {
           R"cpp(// Function definition via using declaration
-            namespace ns { 
-              void foo(); 
+            namespace ns {
+              void foo();
             }
             int main() {
               using ns::foo;
@@ -2806,6 +2888,184 @@ TEST(Hover, All) {
   }
 }
 
+TEST(Hover, Providers) {
+  struct {
+    const char *Code;
+    const std::function<void(HoverInfo &)> ExpectedBuilder;
+  } Cases[] = {{R"cpp(
+                  struct Foo {};                     
+                  Foo F = Fo^o{};
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = ""; }},
+               {R"cpp(
+                  #include "foo.h"                   
+                  Foo F = Fo^o{};
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #include "all.h"  
+                  Foo F = Fo^o{};
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #define FOO 5
+                  int F = ^FOO;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = ""; }},
+               {R"cpp(
+                  #include "foo.h"
+                  int F = ^FOO;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #include "all.h"
+                  int F = ^FOO;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #include "foo.h"    
+                  Foo A;
+                  Foo B;
+                  Foo C = A ^+ B;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               // Hover selects the underlying decl of the using decl
+               {R"cpp(
+                  #include "foo.h"
+                  namespace ns {
+                    using ::Foo;
+                  }
+                  ns::F^oo d;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }}};
+
+  for (const auto &Case : Cases) {
+    Annotations Code{Case.Code};
+    SCOPED_TRACE(Code.code());
+
+    TestTU TU;
+    TU.Filename = "foo.cpp";
+    TU.Code = Code.code();
+    TU.AdditionalFiles["foo.h"] = guard(R"cpp(
+                                          #define FOO 1
+                                          class Foo {};
+                                          Foo& operator+(const Foo, const Foo);
+                                        )cpp");
+    TU.AdditionalFiles["all.h"] = guard("#include \"foo.h\"");
+
+    auto AST = TU.build();
+    auto H = getHover(AST, Code.point(), format::getLLVMStyle(), nullptr);
+    ASSERT_TRUE(H);
+    HoverInfo Expected;
+    Case.ExpectedBuilder(Expected);
+    SCOPED_TRACE(H->present().asMarkdown());
+    EXPECT_EQ(H->Provider, Expected.Provider);
+  }
+}
+
+TEST(Hover, ParseProviderInfo) {
+  HoverInfo HIFoo;
+  HIFoo.Name = "foo";
+  HIFoo.Provider = "\"foo.h\"";
+
+  HoverInfo HIFooBar;
+  HIFooBar.Name = "foo";
+  HIFooBar.Provider = "<bar.h>";
+  struct Case {
+    HoverInfo HI;
+    llvm::StringRef ExpectedMarkdown;
+  } Cases[] = {{HIFoo, "### `foo`  \nprovided by `\"foo.h\"`"},
+               {HIFooBar, "### `foo`  \nprovided by `<bar.h>`"}};
+
+  for (const auto &Case : Cases)
+    EXPECT_EQ(Case.HI.present().asMarkdown(), Case.ExpectedMarkdown);
+}
+
+TEST(Hover, UsedSymbols) {
+  struct {
+    const char *Code;
+    const std::function<void(HoverInfo &)> ExpectedBuilder;
+  } Cases[] = {{R"cpp(
+                  #include ^"bar.h"
+                  int fstBar = bar1();
+                  int sndBar = bar2();
+                  Bar bar;
+                  int macroBar = BAR;
+                )cpp",
+                [](HoverInfo &HI) {
+                  HI.UsedSymbolNames = {"BAR", "Bar", "bar1", "bar2"};
+                }},
+               {R"cpp(
+                  #in^clude <vector>
+                  std::vector<int> vec;
+                )cpp",
+                [](HoverInfo &HI) { HI.UsedSymbolNames = {"vector"}; }},
+               {R"cpp(
+                  #in^clude "public.h"
+                  #include "private.h"
+                  int fooVar = foo();
+                )cpp",
+                [](HoverInfo &HI) { HI.UsedSymbolNames = {"foo"}; }},
+               {R"cpp(
+                  #include "bar.h"
+                  #include "for^ward.h"
+                  Bar *x;
+                )cpp",
+                [](HoverInfo &HI) {
+                  HI.UsedSymbolNames = {
+                      // No used symbols, since bar.h is a higher-ranked
+                      // provider for Bar.
+                  };
+                }},
+               {R"cpp(
+                  #include "b^ar.h"
+                  #define DEF(X) const Bar *X
+                  DEF(a);
+                )cpp",
+                [](HoverInfo &HI) { HI.UsedSymbolNames = {"Bar"}; }},
+               {R"cpp(
+                  #in^clude "bar.h"
+                  #define BAZ(X) const X x
+                  BAZ(Bar);
+                )cpp",
+                [](HoverInfo &HI) { HI.UsedSymbolNames = {"Bar"}; }}};
+  for (const auto &Case : Cases) {
+    Annotations Code{Case.Code};
+    SCOPED_TRACE(Code.code());
+
+    TestTU TU;
+    TU.Filename = "foo.cpp";
+    TU.Code = Code.code();
+    TU.AdditionalFiles["bar.h"] = guard(R"cpp(
+                                          #define BAR 5
+                                          int bar1();
+                                          int bar2();
+                                          class Bar {};
+                                        )cpp");
+    TU.AdditionalFiles["private.h"] = guard(R"cpp(
+                                              // IWYU pragma: private, include "public.h"
+                                              int foo(); 
+                                            )cpp");
+    TU.AdditionalFiles["public.h"] = guard("");
+    TU.AdditionalFiles["system/vector"] = guard(R"cpp(
+      namespace std {
+        template<typename>
+        class vector{};
+      }
+    )cpp");
+    TU.AdditionalFiles["forward.h"] = guard("class Bar;");
+    TU.ExtraArgs.push_back("-isystem" + testPath("system"));
+
+    auto AST = TU.build();
+    auto H = getHover(AST, Code.point(), format::getLLVMStyle(), nullptr);
+    ASSERT_TRUE(H);
+    HoverInfo Expected;
+    Case.ExpectedBuilder(Expected);
+    SCOPED_TRACE(H->present().asMarkdown());
+    EXPECT_EQ(H->UsedSymbolNames, Expected.UsedSymbolNames);
+  }
+}
+
 TEST(Hover, DocsFromIndex) {
   Annotations T(R"cpp(
   template <typename T> class X {};
@@ -2869,6 +3129,15 @@ TEST(Hover, NoCrash) {
   auto AST = TU.build();
   for (const auto &P : T.points())
     getHover(AST, P, format::getLLVMStyle(), nullptr);
+}
+
+TEST(Hover, NoCrashAPInt64) {
+  Annotations T(R"cpp(
+    constexpr unsigned long value = -1; // wrap around
+    void foo() { va^lue; }
+  )cpp");
+  auto AST = TestTU::withCode(T.code()).build();
+  getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
 }
 
 TEST(Hover, DocsFromMostSpecial) {
@@ -3186,7 +3455,21 @@ int foo = 3)",
           R"(stdio.h
 
 /usr/include/stdio.h)",
-      }};
+      },
+      {[](HoverInfo &HI) {
+         HI.Name = "foo.h";
+         HI.UsedSymbolNames = {"Foo", "Bar", "Baz"};
+       },
+       R"(foo.h
+
+provides Foo, Bar, Baz)"},
+      {[](HoverInfo &HI) {
+         HI.Name = "foo.h";
+         HI.UsedSymbolNames = {"Foo", "Bar", "Baz", "Foobar", "Qux", "Quux"};
+       },
+       R"(foo.h
+
+provides Foo, Bar, Baz, Foobar, Qux and 1 more)"}};
 
   for (const auto &C : Cases) {
     HoverInfo HI;
@@ -3283,8 +3566,8 @@ TEST(Hover, ParseDocumentation) {
   }
 }
 
-// This is a separate test as headings don't create any differences in plaintext
-// mode.
+// This is a separate test as headings don't create any differences in
+// plaintext mode.
 TEST(Hover, PresentHeadings) {
   HoverInfo HI;
   HI.Kind = index::SymbolKind::Variable;

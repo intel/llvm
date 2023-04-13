@@ -217,6 +217,10 @@ void PDLPatternModule::registerRewriteFunction(StringRef name,
 // RewriterBase
 //===----------------------------------------------------------------------===//
 
+bool RewriterBase::Listener::classof(const OpBuilder::Listener *base) {
+  return base->getKind() == OpBuilder::ListenerBase::Kind::RewriterBaseListener;
+}
+
 RewriterBase::~RewriterBase() {
   // Out of line to provide a vtable anchor for the class.
 }
@@ -231,13 +235,14 @@ void RewriterBase::replaceOpWithIf(
   assert(op->getNumResults() == newValues.size() &&
          "incorrect number of values to replace operation");
 
-  // Notify the rewriter subclass that we're about to replace this root.
-  notifyRootReplaced(op, newValues);
+  // Notify the listener that we're about to replace this op.
+  if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
+    rewriteListener->notifyOperationReplaced(op, newValues);
 
   // Replace each use of the results when the functor is true.
   bool replacedAllUses = true;
   for (auto it : llvm::zip(op->getResults(), newValues)) {
-    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), functor);
+    replaceUsesWithIf(std::get<0>(it), std::get<1>(it), functor);
     replacedAllUses &= std::get<0>(it).use_empty();
   }
   if (allUsesReplaced)
@@ -259,14 +264,19 @@ void RewriterBase::replaceOpWithinBlock(Operation *op, ValueRange newValues,
 /// values. The number of provided values must match the number of results of
 /// the operation.
 void RewriterBase::replaceOp(Operation *op, ValueRange newValues) {
-  // Notify the rewriter subclass that we're about to replace this root.
-  notifyRootReplaced(op, newValues);
-
   assert(op->getNumResults() == newValues.size() &&
          "incorrect # of replacement values");
-  op->replaceAllUsesWith(newValues);
 
-  notifyOperationRemoved(op);
+  // Notify the listener that we're about to remove this op.
+  if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
+    rewriteListener->notifyOperationReplaced(op, newValues);
+
+  // Replace results one-by-one. Also notifies the listener of modifications.
+  for (auto it : llvm::zip(op->getResults(), newValues))
+    replaceAllUsesWith(std::get<0>(it), std::get<1>(it));
+
+  if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
+    rewriteListener->notifyOperationRemoved(op);
   op->erase();
 }
 
@@ -274,7 +284,8 @@ void RewriterBase::replaceOp(Operation *op, ValueRange newValues) {
 /// the given operation *must* be known to be dead.
 void RewriterBase::eraseOp(Operation *op) {
   assert(op->use_empty() && "expected 'op' to have no uses");
-  notifyOperationRemoved(op);
+  if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
+    rewriteListener->notifyOperationRemoved(op);
   op->erase();
 }
 
@@ -286,69 +297,65 @@ void RewriterBase::eraseBlock(Block *block) {
   block->erase();
 }
 
-/// Merge the operations of block 'source' into the end of block 'dest'.
-/// 'source's predecessors must be empty or only contain 'dest`.
-/// 'argValues' is used to replace the block arguments of 'source' after
-/// merging.
-void RewriterBase::mergeBlocks(Block *source, Block *dest,
-                               ValueRange argValues) {
-  assert(llvm::all_of(source->getPredecessors(),
-                      [dest](Block *succ) { return succ == dest; }) &&
-         "expected 'source' to have no predecessors or only 'dest'");
-  assert(argValues.size() == source->getNumArguments() &&
-         "incorrect # of argument replacement values");
-
-  // Replace all of the successor arguments with the provided values.
-  for (auto it : llvm::zip(source->getArguments(), argValues))
-    std::get<0>(it).replaceAllUsesWith(std::get<1>(it));
-
-  // Splice the operations of the 'source' block into the 'dest' block and erase
-  // it.
-  dest->getOperations().splice(dest->end(), source->getOperations());
-  source->dropAllUses();
-  source->erase();
-}
-
-/// Find uses of `from` and replace it with `to`
-void RewriterBase::replaceAllUsesWith(Value from, Value to) {
-  for (OpOperand &operand : llvm::make_early_inc_range(from.getUses())) {
-    Operation *op = operand.getOwner();
-    updateRootInPlace(op, [&]() { operand.set(to); });
-  }
+void RewriterBase::finalizeRootUpdate(Operation *op) {
+  // Notify the listener that the operation was modified.
+  if (auto *rewriteListener = dyn_cast_if_present<Listener>(listener))
+    rewriteListener->notifyOperationModified(op);
 }
 
 /// Find uses of `from` and replace them with `to` if the `functor` returns
 /// true. It also marks every modified uses and notifies the rewriter that an
 /// in-place operation modification is about to happen.
-void RewriterBase::replaceUseIf(
-    Value from, Value to,
-    llvm::unique_function<bool(OpOperand &) const> functor) {
+void RewriterBase::replaceUsesWithIf(Value from, Value to,
+                                     function_ref<bool(OpOperand &)> functor) {
   for (OpOperand &operand : llvm::make_early_inc_range(from.getUses())) {
     if (functor(operand))
       updateRootInPlace(operand.getOwner(), [&]() { operand.set(to); });
   }
 }
 
-// Merge the operations of block 'source' before the operation 'op'. Source
-// block should not have existing predecessors or successors.
-void RewriterBase::mergeBlockBefore(Block *source, Operation *op,
-                                    ValueRange argValues) {
+void RewriterBase::inlineBlockBefore(Block *source, Block *dest,
+                                     Block::iterator before,
+                                     ValueRange argValues) {
+  assert(argValues.size() == source->getNumArguments() &&
+         "incorrect # of argument replacement values");
+
+  // The source block will be deleted, so it should not have any users (i.e.,
+  // there should be no predecessors).
   assert(source->hasNoPredecessors() &&
          "expected 'source' to have no predecessors");
-  assert(source->hasNoSuccessors() &&
-         "expected 'source' to have no successors");
 
-  // Split the block containing 'op' into two, one containing all operations
-  // before 'op' (prologue) and another (epilogue) containing 'op' and all
-  // operations after it.
-  Block *prologue = op->getBlock();
-  Block *epilogue = splitBlock(prologue, op->getIterator());
+  if (dest->end() != before) {
+    // The source block will be inserted in the middle of the dest block, so
+    // the source block should have no successors. Otherwise, the remainder of
+    // the dest block would be unreachable.
+    assert(source->hasNoSuccessors() &&
+           "expected 'source' to have no successors");
+  } else {
+    // The source block will be inserted at the end of the dest block, so the
+    // dest block should have no successors. Otherwise, the inserted operations
+    // will be unreachable.
+    assert(dest->hasNoSuccessors() && "expected 'dest' to have no successors");
+  }
 
-  // Merge the source block at the end of the prologue.
-  mergeBlocks(source, prologue, argValues);
+  // Replace all of the successor arguments with the provided values.
+  for (auto it : llvm::zip(source->getArguments(), argValues))
+    replaceAllUsesWith(std::get<0>(it), std::get<1>(it));
 
-  // Merge the epilogue at the end the prologue.
-  mergeBlocks(epilogue, prologue);
+  // Move operations from the source block to the dest block and erase the
+  // source block.
+  dest->getOperations().splice(before, source->getOperations());
+  source->erase();
+}
+
+void RewriterBase::inlineBlockBefore(Block *source, Operation *op,
+                                     ValueRange argValues) {
+  inlineBlockBefore(source, op->getBlock(), op->getIterator(), argValues);
+}
+
+void RewriterBase::mergeBlocks(Block *source, Block *dest,
+                               ValueRange argValues) {
+  inlineBlockBefore(source, dest, dest->end(), argValues);
 }
 
 /// Split the operations starting at "before" (inclusive) out of the given

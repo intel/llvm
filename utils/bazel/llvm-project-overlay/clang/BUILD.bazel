@@ -6,7 +6,6 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("//llvm:tblgen.bzl", "gentbl")
 load("//llvm:binary_alias.bzl", "binary_alias")
 load("//llvm:cc_plugin_library.bzl", "cc_plugin_library")
-
 load(
     "//:vars.bzl",
     "LLVM_VERSION",
@@ -375,10 +374,10 @@ genrule(
         "echo '#define CLANG_VERSION_PATCHLEVEL {patch}' >> $@\n" +
         "echo '#define CLANG_VERSION_STRING \"{vers}\"' >> $@\n"
     ).format(
-        vers=LLVM_VERSION,
-        major=LLVM_VERSION_MAJOR,
-        minor=LLVM_VERSION_MINOR,
-        patch=LLVM_VERSION_PATCH,
+        major = LLVM_VERSION_MAJOR,
+        minor = LLVM_VERSION_MINOR,
+        patch = LLVM_VERSION_PATCH,
+        vers = LLVM_VERSION,
     ),
 )
 
@@ -484,6 +483,7 @@ cc_library(
         ":diagnostic_defs_gen",
         ":sema_attr_gen",
         "//llvm:Core",
+        "//llvm:FrontendDebug",
         "//llvm:FrontendOpenMP",
         "//llvm:Instrumentation",
         "//llvm:MC",
@@ -508,6 +508,7 @@ cc_library(
         ":basic",
         ":config",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -782,6 +783,7 @@ cc_library(
         "//llvm:Core",
         "//llvm:FrontendOpenMP",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -911,6 +913,7 @@ cc_library(
         "//llvm:MC",
         "//llvm:MCParser",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1024,6 +1027,7 @@ cc_library(
     deps = [
         ":basic",
         ":frontend",
+        "//llvm:MC",
         "//llvm:Support",
         "//third-party/unittest:gtest",
     ],
@@ -1071,6 +1075,7 @@ cc_library(
         ":tooling_core",
         "//llvm:Option",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1078,10 +1083,10 @@ cc_library(
     name = "tooling_inclusions",
     srcs = glob([
         "lib/Tooling/Inclusions/**/*.cpp",
+        "lib/Tooling/Inclusions/**/*.inc",
     ]),
     hdrs = glob([
         "include/clang/Tooling/Inclusions/**/*.h",
-        "include/clang/Tooling/Inclusions/**/*.inc",
     ]),
     deps = [
         ":ast",
@@ -1159,6 +1164,7 @@ cc_library(
         ":serialization",
         ":tooling",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1194,12 +1200,14 @@ cc_library(
     srcs = glob(["lib/CrossTU/*.cpp"]),
     hdrs = glob(["include/clang/CrossTU/*.h"]),
     deps = [
+        ":analysis",
         ":ast",
         ":basic",
         ":frontend",
         ":index",
         "//llvm:Option",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1214,6 +1222,9 @@ cc_library(
     hdrs = [
         "lib/Format/FormatTokenLexer.h",
         "lib/Format/Macros.h",
+        "lib/Format/UnwrappedLineParser.h",
+        "lib/Format/FormatTokenSource.h",
+        "lib/Format/QualifierAlignmentFixer.h",
     ] + glob([
         "include/clang/Format/*.h",
     ]),
@@ -1367,7 +1378,7 @@ cc_library(
         "lib/Driver",
     ],
     linkopts = select({
-        "@bazel_tools//src/conditions:windows": ["version.lib"],
+        "@platforms//os:windows": ["version.lib"],
         "//conditions:default": [],
     }),
     textual_hdrs = glob([
@@ -1381,6 +1392,7 @@ cc_library(
         ":parse",
         ":static_analyzer_checkers_gen",
         "//llvm:BinaryFormat",
+        "//llvm:FrontendDebug",
         "//llvm:Instrumentation",
         "//llvm:MC",
         "//llvm:Object",
@@ -1564,6 +1576,7 @@ cc_library(
         "//llvm:BitstreamReader",
         "//llvm:BitstreamWriter",
         "//llvm:Core",
+        "//llvm:FrontendDebug",
         "//llvm:Linker",
         "//llvm:MC",
         "//llvm:Option",
@@ -1571,6 +1584,7 @@ cc_library(
         "//llvm:Remarks",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:config",
     ],
 )
@@ -1626,6 +1640,7 @@ cc_library(
         "//llvm:OrcJIT",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1776,6 +1791,7 @@ cc_library(
         "//llvm:BitstreamWriter",
         "//llvm:FrontendOpenMP",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1824,6 +1840,7 @@ cc_library(
         ":static_analyzer_checkers",
         ":static_analyzer_core",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -1864,7 +1881,7 @@ cc_plugin_library(
     ]),
     hdrs = glob(["include/clang-c/*.h"]),
     copts = select({
-        "@bazel_tools//src/conditions:windows": ["-D_CINDEX_LIB_"],
+        "@platforms//os:windows": ["-D_CINDEX_LIB_"],
         "//conditions:default": [],
     }),
     strip_include_prefix = "include",
@@ -1953,7 +1970,7 @@ cc_binary(
     testonly = 1,
     srcs = ["tools/c-arcmt-test/c-arcmt-test.c"],
     copts = select({
-        "@bazel_tools//src/conditions:windows": [],
+        "@platforms//os:windows": [],
         "//conditions:default": ["-std=gnu99"],
     }),
     stamp = 0,
@@ -1983,6 +2000,7 @@ cc_binary(
         ":parse",
         "//llvm:Core",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -2033,6 +2051,7 @@ cc_library(
         "//llvm:Option",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TargetParser",
         "//llvm:config",
     ],
 )
@@ -2142,6 +2161,7 @@ cc_binary(
         "//llvm:Core",
         "//llvm:Object",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -2220,6 +2240,7 @@ cc_binary(
         ":tooling",
         ":tooling_dependency_scanning",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
@@ -2239,5 +2260,6 @@ cc_library(
         ":lex",
         "//llvm:Option",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )

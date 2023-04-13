@@ -1,5 +1,8 @@
 add_llvm_library(sycl-fusion-common
   lib/NDRangesHelper.cpp
+
+  LINK_COMPONENTS
+   Support
 )
 
 target_include_directories(sycl-fusion-common

@@ -52,6 +52,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
@@ -81,6 +82,10 @@ extern cl::opt<JumpTableSupportLevel> JumpTables;
 extern cl::list<std::string> ReorderData;
 extern cl::opt<bolt::ReorderFunctions::ReorderType> ReorderFunctions;
 extern cl::opt<bool> TimeBuild;
+
+cl::opt<bool> AllowStripped("allow-stripped",
+                            cl::desc("allow processing of stripped binaries"),
+                            cl::Hidden, cl::cat(BoltCategory));
 
 static cl::opt<bool> ForceToDataRelocations(
     "force-data-relocations",
@@ -311,9 +316,8 @@ bool refersToReorderedSection(ErrorOr<BinarySection &> Section) {
 } // anonymous namespace
 
 Expected<std::unique_ptr<RewriteInstance>>
-RewriteInstance::createRewriteInstance(ELFObjectFileBase *File, const int Argc,
-                                       const char *const *Argv,
-                                       StringRef ToolPath) {
+RewriteInstance::create(ELFObjectFileBase *File, const int Argc,
+                        const char *const *Argv, StringRef ToolPath) {
   Error Err = Error::success();
   auto RI = std::make_unique<RewriteInstance>(File, Argc, Argv, ToolPath, Err);
   if (Err)
@@ -925,6 +929,9 @@ void RewriteInstance::discoverFileObjects() {
   BinaryFunction *PreviousFunction = nullptr;
   unsigned AnonymousId = 0;
 
+  // Regex object for matching cold fragments.
+  Regex ColdFragment(".*\\.cold(\\.[0-9]+)?");
+
   const auto SortedSymbolsEnd = LastSymbol == SortedFileSymbols.end()
                                     ? LastSymbol
                                     : std::next(LastSymbol);
@@ -1042,6 +1049,16 @@ void RewriteInstance::discoverFileObjects() {
 
     LLVM_DEBUG(dbgs() << "BOLT-DEBUG: considering symbol " << UniqueName
                       << " for function\n");
+
+    if (Address == Section->getAddress() + Section->getSize()) {
+      assert(SymbolSize == 0 &&
+             "unexpect non-zero sized symbol at end of section");
+      LLVM_DEBUG(
+          dbgs()
+          << "BOLT-DEBUG: rejecting as symbol points to end of its section\n");
+      registerName(SymbolSize);
+      continue;
+    }
 
     if (!Section->isText()) {
       assert(SymbolType != SymbolRef::ST_Function &&
@@ -1183,6 +1200,21 @@ void RewriteInstance::discoverFileObjects() {
       if (!IsSimple)
         BF->setSimple(false);
     }
+
+    // Check if it's a cold function fragment.
+    if (ColdFragment.match(SymName)) {
+      static bool PrintedWarning = false;
+      if (!PrintedWarning) {
+        PrintedWarning = true;
+        errs() << "BOLT-WARNING: split function detected on input : "
+               << SymName;
+        if (BC->HasRelocations)
+          errs() << ". The support is limited in relocation mode\n";
+      }
+      BC->HasSplitFunctions = true;
+      BF->IsFragment = true;
+    }
+
     if (!AlternativeName.empty())
       BF->addAlternativeName(AlternativeName);
 
@@ -1256,12 +1288,81 @@ void RewriteInstance::discoverFileObjects() {
     llvm_unreachable("Unknown marker");
   }
 
+  if (BC->isAArch64()) {
+    // Check for dynamic relocations that might be contained in
+    // constant islands.
+    for (const BinarySection &Section : BC->allocatableSections()) {
+      const uint64_t SectionAddress = Section.getAddress();
+      for (const Relocation &Rel : Section.dynamicRelocations()) {
+        const uint64_t RelAddress = SectionAddress + Rel.Offset;
+        BinaryFunction *BF =
+            BC->getBinaryFunctionContainingAddress(RelAddress,
+                                                   /*CheckPastEnd*/ false,
+                                                   /*UseMaxSize*/ true);
+        if (BF) {
+          assert(Rel.isRelative() && "Expected relative relocation for island");
+          BF->markIslandDynamicRelocationAtAddress(RelAddress);
+        }
+      }
+    }
+  }
+
   if (opts::LinuxKernelMode) {
     // Read all special linux kernel sections and their relocations
     processLKSections();
   } else {
     // Read all relocations now that we have binary functions mapped.
     processRelocations();
+  }
+  registerFragments();
+}
+
+void RewriteInstance::registerFragments() {
+  if (!BC->HasSplitFunctions)
+    return;
+
+  for (auto &BFI : BC->getBinaryFunctions()) {
+    BinaryFunction &Function = BFI.second;
+    if (!Function.isFragment())
+      continue;
+    unsigned ParentsFound = 0;
+    for (StringRef Name : Function.getNames()) {
+      StringRef BaseName, Suffix;
+      std::tie(BaseName, Suffix) = Name.split('/');
+      const size_t ColdSuffixPos = BaseName.find(".cold");
+      if (ColdSuffixPos == StringRef::npos)
+        continue;
+      // For cold function with local (foo.cold/1) symbol, prefer a parent with
+      // local symbol as well (foo/1) over global symbol (foo).
+      std::string ParentName = BaseName.substr(0, ColdSuffixPos).str();
+      const BinaryData *BD = BC->getBinaryDataByName(ParentName);
+      if (Suffix != "") {
+        ParentName.append(Twine("/", Suffix).str());
+        const BinaryData *BDLocal = BC->getBinaryDataByName(ParentName);
+        if (BDLocal || !BD)
+          BD = BDLocal;
+      }
+      if (!BD) {
+        if (opts::Verbosity >= 1)
+          outs() << "BOLT-INFO: parent function not found for " << Name << "\n";
+        continue;
+      }
+      const uint64_t Address = BD->getAddress();
+      BinaryFunction *BF = BC->getBinaryFunctionAtAddress(Address);
+      if (!BF) {
+        if (opts::Verbosity >= 1)
+          outs() << formatv("BOLT-INFO: parent function not found at {0:x}\n",
+                            Address);
+        continue;
+      }
+      BC->registerFragment(Function, *BF);
+      ++ParentsFound;
+    }
+    if (!ParentsFound) {
+      errs() << "BOLT-ERROR: parent function not found for " << Function
+             << '\n';
+      exit(1);
+    }
   }
 }
 
@@ -1453,26 +1554,6 @@ void RewriteInstance::adjustFunctionBoundaries() {
     if (std::next(BFI) != BFE)
       NextFunction = &std::next(BFI)->second;
 
-    // Check if it's a fragment of a function.
-    std::optional<StringRef> FragName =
-        Function.hasRestoredNameRegex(".*\\.cold(\\.[0-9]+)?");
-    if (FragName) {
-      static bool PrintedWarning = false;
-      if (!PrintedWarning) {
-        PrintedWarning = true;
-        errs() << "BOLT-WARNING: split function detected on input : "
-               << *FragName;
-        if (BC->HasRelocations)
-          errs() << ". The support is limited in relocation mode";
-        if (opts::Lite) {
-          opts::Lite = false;
-          errs() << "\nBOLT-WARNING: disabling lite mode (-lite) when split "
-                 << "functions are present\n";
-        }
-      }
-      Function.IsFragment = true;
-    }
-
     // Check if there's a symbol or a function with a larger address in the
     // same section. If there is - it determines the maximum size for the
     // current function. Otherwise, it is the size of a containing section
@@ -1627,9 +1708,6 @@ Error RewriteInstance::readSpecialSections() {
   HasSymbolTable = (bool)BC->getUniqueSectionByName(".symtab");
   LSDASection = BC->getUniqueSectionByName(".gcc_except_table");
   EHFrameSection = BC->getUniqueSectionByName(".eh_frame");
-  GOTPLTSection = BC->getUniqueSectionByName(".got.plt");
-  RelaPLTSection = BC->getUniqueSectionByName(".rela.plt");
-  RelaDynSection = BC->getUniqueSectionByName(".rela.dyn");
   BuildIDSection = BC->getUniqueSectionByName(".note.gnu.build-id");
   SDTSection = BC->getUniqueSectionByName(".note.stapsdt");
   PseudoProbeDescSection = BC->getUniqueSectionByName(".pseudo_probe_desc");
@@ -1663,6 +1741,12 @@ Error RewriteInstance::readSpecialSections() {
 
   BC->IsStripped = !HasSymbolTable;
 
+  if (BC->IsStripped && !opts::AllowStripped) {
+    errs() << "BOLT-ERROR: stripped binaries are not supported. If you know "
+              "what you're doing, use --allow-stripped to proceed";
+    exit(1);
+  }
+
   // Force non-relocation mode for heatmap generation
   if (opts::HeatmapMode)
     BC->HasRelocations = false;
@@ -1670,10 +1754,6 @@ Error RewriteInstance::readSpecialSections() {
   if (BC->HasRelocations)
     outs() << "BOLT-INFO: enabling " << (opts::StrictMode ? "strict " : "")
            << "relocation mode\n";
-
-  if (BC->IsStripped)
-    outs() << "BOLT-INFO: input binary is stripped. The support is limited and "
-           << "is considered experimental.\n";
 
   // Read EH frame for function boundaries info.
   Expected<const DWARFDebugFrame *> EHFrameOrError = BC->DwCtx->getEHFrame();
@@ -2004,6 +2084,19 @@ bool RewriteInstance::analyzeRelocation(
 }
 
 void RewriteInstance::processDynamicRelocations() {
+  // Read .relr.dyn section containing compressed R_*_RELATIVE relocations.
+  if (DynamicRelrSize > 0) {
+    ErrorOr<BinarySection &> DynamicRelrSectionOrErr =
+        BC->getSectionForAddress(*DynamicRelrAddress);
+    if (!DynamicRelrSectionOrErr)
+      report_error("unable to find section corresponding to DT_RELR",
+                   DynamicRelrSectionOrErr.getError());
+    if (DynamicRelrSectionOrErr->getSize() != DynamicRelrSize)
+      report_error("section size mismatch for DT_RELRSZ",
+                   errc::executable_format_error);
+    readDynamicRelrRelocations(*DynamicRelrSectionOrErr);
+  }
+
   // Read relocations for PLT - DT_JMPREL.
   if (PLTRelocationsSize > 0) {
     ErrorOr<BinarySection &> PLTRelSectionOrErr =
@@ -2302,6 +2395,60 @@ void RewriteInstance::readDynamicRelocations(const SectionRef &Section,
   }
 }
 
+void RewriteInstance::readDynamicRelrRelocations(BinarySection &Section) {
+  assert(Section.isAllocatable() && "allocatable expected");
+
+  LLVM_DEBUG({
+    StringRef SectionName = Section.getName();
+    dbgs() << "BOLT-DEBUG: reading relocations in section " << SectionName
+           << ":\n";
+  });
+
+  const uint64_t RType = Relocation::getRelative();
+  const uint8_t PSize = BC->AsmInfo->getCodePointerSize();
+  const uint64_t MaxDelta = ((CHAR_BIT * DynamicRelrEntrySize) - 1) * PSize;
+
+  auto ExtractAddendValue = [&](uint64_t Address) -> uint64_t {
+    ErrorOr<BinarySection &> Section = BC->getSectionForAddress(Address);
+    assert(Section && "cannot get section for data address from RELR");
+    DataExtractor DE = DataExtractor(Section->getContents(),
+                                     BC->AsmInfo->isLittleEndian(), PSize);
+    uint64_t Offset = Address - Section->getAddress();
+    return DE.getUnsigned(&Offset, PSize);
+  };
+
+  auto AddRelocation = [&](uint64_t Address) {
+    uint64_t Addend = ExtractAddendValue(Address);
+    LLVM_DEBUG(dbgs() << "BOLT-DEBUG: R_*_RELATIVE relocation at 0x"
+                      << Twine::utohexstr(Address) << " to 0x"
+                      << Twine::utohexstr(Addend) << '\n';);
+    BC->addDynamicRelocation(Address, nullptr, RType, Addend);
+  };
+
+  DataExtractor DE = DataExtractor(Section.getContents(),
+                                   BC->AsmInfo->isLittleEndian(), PSize);
+  uint64_t Offset = 0, Address = 0;
+  uint64_t RelrCount = DynamicRelrSize / DynamicRelrEntrySize;
+  while (RelrCount--) {
+    assert(DE.isValidOffset(Offset));
+    uint64_t Entry = DE.getUnsigned(&Offset, DynamicRelrEntrySize);
+    if ((Entry & 1) == 0) {
+      AddRelocation(Entry);
+      Address = Entry + PSize;
+    } else {
+      const uint64_t StartAddress = Address;
+      while (Entry >>= 1) {
+        if (Entry & 1)
+          AddRelocation(Address);
+
+        Address += PSize;
+      }
+
+      Address = StartAddress + MaxDelta;
+    }
+  }
+}
+
 void RewriteInstance::printRelocationInfo(const RelocationRef &Rel,
                                           StringRef SymbolName,
                                           uint64_t SymbolAddress,
@@ -2452,8 +2599,21 @@ void RewriteInstance::handleRelocation(const SectionRef &RelocatedSection,
     if (BinaryData *BD = BC->getBinaryDataByName(SymbolName))
       ReferencedSymbol = BD->getSymbol();
 
-  ErrorOr<BinarySection &> ReferencedSection =
-      BC->getSectionForAddress(SymbolAddress);
+  ErrorOr<BinarySection &> ReferencedSection{std::errc::bad_address};
+  symbol_iterator SymbolIter = Rel.getSymbol();
+  if (SymbolIter != InputFile->symbol_end()) {
+    SymbolRef Symbol = *SymbolIter;
+    section_iterator Section =
+        cantFail(Symbol.getSection(), "cannot get symbol section");
+    if (Section != InputFile->section_end()) {
+      Expected<StringRef> SectionName = Section->getName();
+      if (SectionName && !SectionName->empty())
+        ReferencedSection = BC->getUniqueSectionByName(*SectionName);
+    }
+  }
+
+  if (!ReferencedSection)
+    ReferencedSection = BC->getSectionForAddress(SymbolAddress);
 
   const bool IsToCode = ReferencedSection && ReferencedSection->isText();
 
@@ -2756,15 +2916,29 @@ void RewriteInstance::selectFunctionsToProcess() {
       LiteThresholdExecCount, static_cast<uint64_t>(opts::LiteThresholdCount));
 
   StringSet<> ReorderFunctionsUserSet;
+  StringSet<> ReorderFunctionsLTOCommonSet;
   if (opts::ReorderFunctions == ReorderFunctions::RT_USER) {
     for (const std::string &Function :
-         ReorderFunctions::readFunctionOrderFile())
+         ReorderFunctions::readFunctionOrderFile()) {
       ReorderFunctionsUserSet.insert(Function);
+      if (std::optional<StringRef> LTOCommonName = getLTOCommonName(Function))
+        ReorderFunctionsLTOCommonSet.insert(*LTOCommonName);
+    }
   }
 
   uint64_t NumFunctionsToProcess = 0;
-  auto shouldProcess = [&](const BinaryFunction &Function) {
+  auto mustSkip = [&](const BinaryFunction &Function) {
     if (opts::MaxFunctions && NumFunctionsToProcess > opts::MaxFunctions)
+      return true;
+    for (std::string &Name : opts::SkipFunctionNames)
+      if (Function.hasNameRegex(Name))
+        return true;
+
+    return false;
+  };
+
+  auto shouldProcess = [&](const BinaryFunction &Function) {
+    if (mustSkip(Function))
       return false;
 
     // If the list is not empty, only process functions from the list.
@@ -2782,10 +2956,6 @@ void RewriteInstance::selectFunctionsToProcess() {
       return Match.has_value();
     }
 
-    for (std::string &Name : opts::SkipFunctionNames)
-      if (Function.hasNameRegex(Name))
-        return false;
-
     if (opts::Lite) {
       // Forcibly include functions specified in the -function-order file.
       if (opts::ReorderFunctions == ReorderFunctions::RT_USER) {
@@ -2795,6 +2965,10 @@ void RewriteInstance::selectFunctionsToProcess() {
             });
         if (Match.has_value())
           return true;
+        for (const StringRef Name : Function.getNames())
+          if (std::optional<StringRef> LTOCommonName = getLTOCommonName(Name))
+            if (ReorderFunctionsLTOCommonSet.contains(*LTOCommonName))
+              return true;
       }
 
       if (ProfileReader && !ProfileReader->mayHaveProfileData(Function))
@@ -2817,12 +2991,64 @@ void RewriteInstance::selectFunctionsToProcess() {
       continue;
     }
 
+    // Decide what to do with fragments after parent functions are processed.
+    if (Function.isFragment())
+      continue;
+
     if (!shouldProcess(Function)) {
-      LLVM_DEBUG(dbgs() << "BOLT-INFO: skipping processing of function "
-                        << Function << " per user request\n");
+      if (opts::Verbosity >= 1) {
+        outs() << "BOLT-INFO: skipping processing " << Function
+               << " per user request\n";
+      }
       Function.setIgnored();
     } else {
       ++NumFunctionsToProcess;
+      if (opts::MaxFunctions && NumFunctionsToProcess == opts::MaxFunctions)
+        outs() << "BOLT-INFO: processing ending on " << Function << '\n';
+    }
+  }
+
+  if (!BC->HasSplitFunctions)
+    return;
+
+  // Fragment overrides:
+  // - If the fragment must be skipped, then the parent must be skipped as well.
+  // Otherwise, fragment should follow the parent function:
+  // - if the parent is skipped, skip fragment,
+  // - if the parent is processed, process the fragment(s) as well.
+  for (auto &BFI : BC->getBinaryFunctions()) {
+    BinaryFunction &Function = BFI.second;
+    if (!Function.isFragment())
+      continue;
+    if (mustSkip(Function)) {
+      for (BinaryFunction *Parent : Function.ParentFragments) {
+        if (opts::Verbosity >= 1) {
+          outs() << "BOLT-INFO: skipping processing " << *Parent
+                 << " together with fragment function\n";
+        }
+        Parent->setIgnored();
+        --NumFunctionsToProcess;
+      }
+      Function.setIgnored();
+      continue;
+    }
+
+    bool IgnoredParent =
+        llvm::any_of(Function.ParentFragments, [&](BinaryFunction *Parent) {
+          return Parent->isIgnored();
+        });
+    if (IgnoredParent) {
+      if (opts::Verbosity >= 1) {
+        outs() << "BOLT-INFO: skipping processing " << Function
+               << " together with parent function\n";
+      }
+      Function.setIgnored();
+    } else {
+      ++NumFunctionsToProcess;
+      if (opts::Verbosity >= 1) {
+        outs() << "BOLT-INFO: processing " << Function
+               << " as a sibling of non-ignored function\n";
+      }
       if (opts::MaxFunctions && NumFunctionsToProcess == opts::MaxFunctions)
         outs() << "BOLT-INFO: processing ending on " << Function << '\n';
     }
@@ -3043,6 +3269,12 @@ void RewriteInstance::postProcessFunctions() {
   BC->SumExecutionCount = 0;
   for (auto &BFI : BC->getBinaryFunctions()) {
     BinaryFunction &Function = BFI.second;
+
+    // Set function as non-simple if it has dynamic relocations
+    // in constant island, we don't want this function to be optimized
+    // e.g. function splitting is unsupported.
+    if (Function.hasDynamicRelocationAtIsland())
+      Function.setSimple(false);
 
     if (Function.empty())
       continue;
@@ -3909,6 +4141,13 @@ void RewriteInstance::mapAllocatableSections(RuntimeDyld &RTDyld) {
   // Allocate read-only sections first, then writable sections.
   enum : uint8_t { ST_READONLY, ST_READWRITE };
   for (uint8_t SType = ST_READONLY; SType <= ST_READWRITE; ++SType) {
+    const uint64_t LastNextAvailableAddress = NextAvailableAddress;
+    if (SType == ST_READWRITE) {
+      // Align R+W segment to regular page size
+      NextAvailableAddress = alignTo(NextAvailableAddress, BC->RegularPageSize);
+      NewWritableSegmentAddress = NextAvailableAddress;
+    }
+
     for (BinarySection &Section : BC->allocatableSections()) {
       if (!Section.hasValidSectionID())
         continue;
@@ -3955,6 +4194,21 @@ void RewriteInstance::mapAllocatableSections(RuntimeDyld &RTDyld) {
         NextAvailableAddress += Section.getOutputSize();
       }
     }
+
+    if (SType == ST_READONLY) {
+      if (PHDRTableAddress) {
+        // Segment size includes the size of the PHDR area.
+        NewTextSegmentSize = NextAvailableAddress - PHDRTableAddress;
+      } else {
+        // Existing PHDR table would be updated.
+        NewTextSegmentSize = NextAvailableAddress - NewTextSegmentAddress;
+      }
+    } else if (SType == ST_READWRITE) {
+      NewWritableSegmentSize = NextAvailableAddress - NewWritableSegmentAddress;
+      // Restore NextAvailableAddress if no new writable sections
+      if (!NewWritableSegmentSize)
+        NextAvailableAddress = LastNextAvailableAddress;
+    }
   }
 }
 
@@ -3975,16 +4229,32 @@ void RewriteInstance::patchELFPHDRTable() {
   // Write/re-write program headers.
   Phnum = Obj.getHeader().e_phnum;
   if (PHDRTableOffset) {
-    // Writing new pheader table.
-    Phnum += 1; // only adding one new segment
-    // Segment size includes the size of the PHDR area.
-    NewTextSegmentSize = NextAvailableAddress - PHDRTableAddress;
+    // Writing new pheader table and adding one new entry for R+X segment.
+    Phnum += 1;
+    if (NewWritableSegmentSize) {
+      // Adding one more entry for R+W segment.
+      Phnum += 1;
+    }
   } else {
     assert(!PHDRTableAddress && "unexpected address for program header table");
-    // Update existing table.
     PHDRTableOffset = Obj.getHeader().e_phoff;
-    NewTextSegmentSize = NextAvailableAddress - NewTextSegmentAddress;
+    if (NewWritableSegmentSize) {
+      errs() << "Unable to add writable segment with UseGnuStack option\n";
+      exit(1);
+    }
   }
+
+  // NOTE Currently .eh_frame_hdr appends to the last segment, recalculate
+  // last segments size based on the NextAvailableAddress variable.
+  if (!NewWritableSegmentSize) {
+    if (PHDRTableAddress)
+      NewTextSegmentSize = NextAvailableAddress - PHDRTableAddress;
+    else
+      NewTextSegmentSize = NextAvailableAddress - NewTextSegmentAddress;
+  } else {
+    NewWritableSegmentSize = NextAvailableAddress - NewWritableSegmentAddress;
+  }
+
   OS.seek(PHDRTableOffset);
 
   bool ModdedGnuStack = false;
@@ -4016,6 +4286,19 @@ void RewriteInstance::patchELFPHDRTable() {
     return NewPhdr;
   };
 
+  auto createNewWritableSectionsPhdr = [&]() {
+    ELF64LEPhdrTy NewPhdr;
+    NewPhdr.p_type = ELF::PT_LOAD;
+    NewPhdr.p_offset = getFileOffsetForAddress(NewWritableSegmentAddress);
+    NewPhdr.p_vaddr = NewWritableSegmentAddress;
+    NewPhdr.p_paddr = NewWritableSegmentAddress;
+    NewPhdr.p_filesz = NewWritableSegmentSize;
+    NewPhdr.p_memsz = NewWritableSegmentSize;
+    NewPhdr.p_align = BC->RegularPageSize;
+    NewPhdr.p_flags = ELF::PF_R | ELF::PF_W;
+    return NewPhdr;
+  };
+
   // Copy existing program headers with modifications.
   for (const ELF64LE::Phdr &Phdr : cantFail(Obj.program_headers())) {
     ELF64LE::Phdr NewPhdr = Phdr;
@@ -4044,6 +4327,11 @@ void RewriteInstance::patchELFPHDRTable() {
       ELF64LE::Phdr NewTextPhdr = createNewTextPhdr();
       OS.write(reinterpret_cast<const char *>(&NewTextPhdr),
                sizeof(NewTextPhdr));
+      if (NewWritableSegmentSize) {
+        ELF64LEPhdrTy NewWritablePhdr = createNewWritableSectionsPhdr();
+        OS.write(reinterpret_cast<const char *>(&NewWritablePhdr),
+                 sizeof(NewWritablePhdr));
+      }
       AddedSegment = true;
     }
     OS.write(reinterpret_cast<const char *>(&NewPhdr), sizeof(NewPhdr));
@@ -4053,6 +4341,11 @@ void RewriteInstance::patchELFPHDRTable() {
     // Append the new header to the end of the table.
     ELF64LE::Phdr NewTextPhdr = createNewTextPhdr();
     OS.write(reinterpret_cast<const char *>(&NewTextPhdr), sizeof(NewTextPhdr));
+    if (NewWritableSegmentSize) {
+      ELF64LEPhdrTy NewWritablePhdr = createNewWritableSectionsPhdr();
+      OS.write(reinterpret_cast<const char *>(&NewWritablePhdr),
+               sizeof(NewWritablePhdr));
+    }
   }
 
   assert((!opts::UseGnuStack || ModdedGnuStack) &&
@@ -4442,8 +4735,7 @@ RewriteInstance::getOutputSections(ELFObjectFile<ELFT> *File,
   }
 
   std::vector<ELFShdrTy> SectionsOnly(OutputSections.size());
-  llvm::transform(OutputSections, SectionsOnly.begin(),
-                  [](auto &SectionInfo) { return SectionInfo.second; });
+  llvm::copy(llvm::make_second_range(OutputSections), SectionsOnly.begin());
 
   return SectionsOnly;
 }
@@ -4989,6 +5281,101 @@ void RewriteInstance::patchELFSymTabs(ELFObjectFile<ELFT> *File) {
 }
 
 template <typename ELFT>
+void RewriteInstance::patchELFAllocatableRelrSection(
+    ELFObjectFile<ELFT> *File) {
+  if (!DynamicRelrAddress)
+    return;
+
+  raw_fd_ostream &OS = Out->os();
+  const uint8_t PSize = BC->AsmInfo->getCodePointerSize();
+  const uint64_t MaxDelta = ((CHAR_BIT * DynamicRelrEntrySize) - 1) * PSize;
+
+  auto FixAddend = [&](const BinarySection &Section, const Relocation &Rel) {
+    // Fix relocation symbol value in place if no static relocation found
+    // on the same address
+    if (Section.getRelocationAt(Rel.Offset))
+      return;
+
+    // No fixup needed if symbol address was not changed
+    const uint64_t Addend = getNewFunctionOrDataAddress(Rel.Addend);
+    if (!Addend)
+      return;
+
+    uint64_t FileOffset = Section.getOutputFileOffset();
+    if (!FileOffset)
+      FileOffset = Section.getInputFileOffset();
+
+    FileOffset += Rel.Offset;
+    OS.pwrite(reinterpret_cast<const char *>(&Addend), PSize, FileOffset);
+  };
+
+  // Fill new relative relocation offsets set
+  std::set<uint64_t> RelOffsets;
+  for (const BinarySection &Section : BC->allocatableSections()) {
+    const uint64_t SectionInputAddress = Section.getAddress();
+    uint64_t SectionAddress = Section.getOutputAddress();
+    if (!SectionAddress)
+      SectionAddress = SectionInputAddress;
+
+    for (const Relocation &Rel : Section.dynamicRelocations()) {
+      if (!Rel.isRelative())
+        continue;
+
+      uint64_t RelOffset =
+          getNewFunctionOrDataAddress(SectionInputAddress + Rel.Offset);
+
+      RelOffset = RelOffset == 0 ? SectionAddress + Rel.Offset : RelOffset;
+      assert((RelOffset & 1) == 0 && "Wrong relocation offset");
+      RelOffsets.emplace(RelOffset);
+      FixAddend(Section, Rel);
+    }
+  }
+
+  ErrorOr<BinarySection &> Section =
+      BC->getSectionForAddress(*DynamicRelrAddress);
+  assert(Section && "cannot get .relr.dyn section");
+  assert(Section->isRelr() && "Expected section to be SHT_RELR type");
+  uint64_t RelrDynOffset = Section->getInputFileOffset();
+  const uint64_t RelrDynEndOffset = RelrDynOffset + Section->getSize();
+
+  auto WriteRelr = [&](uint64_t Value) {
+    if (RelrDynOffset + DynamicRelrEntrySize > RelrDynEndOffset) {
+      errs() << "BOLT-ERROR: Offset overflow for relr.dyn section\n";
+      exit(1);
+    }
+
+    OS.pwrite(reinterpret_cast<const char *>(&Value), DynamicRelrEntrySize,
+              RelrDynOffset);
+    RelrDynOffset += DynamicRelrEntrySize;
+  };
+
+  for (auto RelIt = RelOffsets.begin(); RelIt != RelOffsets.end();) {
+    WriteRelr(*RelIt);
+    uint64_t Base = *RelIt++ + PSize;
+    while (1) {
+      uint64_t Bitmap = 0;
+      for (; RelIt != RelOffsets.end(); ++RelIt) {
+        const uint64_t Delta = *RelIt - Base;
+        if (Delta >= MaxDelta || Delta % PSize)
+          break;
+
+        Bitmap |= (1ULL << (Delta / PSize));
+      }
+
+      if (!Bitmap)
+        break;
+
+      WriteRelr((Bitmap << 1) | 1);
+      Base += MaxDelta;
+    }
+  }
+
+  // Fill the rest of the section with empty bitmap value
+  while (RelrDynOffset != RelrDynEndOffset)
+    WriteRelr(1);
+}
+
+template <typename ELFT>
 void
 RewriteInstance::patchELFAllocatableRelaSections(ELFObjectFile<ELFT> *File) {
   using Elf_Rela = typename ELFT::Rela;
@@ -5001,6 +5388,7 @@ RewriteInstance::patchELFAllocatableRelaSections(ELFObjectFile<ELFT> *File) {
   auto setSectionFileOffsets = [&](uint64_t Address, uint64_t &Start,
                                    uint64_t &End) {
     ErrorOr<BinarySection &> Section = BC->getSectionForAddress(Address);
+    assert(Section && "cannot get relocation section");
     Start = Section->getInputFileOffset();
     End = Start + Section->getSize();
   };
@@ -5025,6 +5413,11 @@ RewriteInstance::patchELFAllocatableRelaSections(ELFObjectFile<ELFT> *File) {
 
   auto writeRelocations = [&](bool PatchRelative) {
     for (BinarySection &Section : BC->allocatableSections()) {
+      const uint64_t SectionInputAddress = Section.getAddress();
+      uint64_t SectionAddress = Section.getOutputAddress();
+      if (!SectionAddress)
+        SectionAddress = SectionInputAddress;
+
       for (const Relocation &Rel : Section.dynamicRelocations()) {
         const bool IsRelative = Rel.isRelative();
         if (PatchRelative != IsRelative)
@@ -5034,13 +5427,13 @@ RewriteInstance::patchELFAllocatableRelaSections(ELFObjectFile<ELFT> *File) {
           ++DynamicRelativeRelocationsCount;
 
         Elf_Rela NewRelA;
-        uint64_t SectionAddress = Section.getOutputAddress();
-        SectionAddress =
-            SectionAddress == 0 ? Section.getAddress() : SectionAddress;
         MCSymbol *Symbol = Rel.Symbol;
         uint32_t SymbolIdx = 0;
         uint64_t Addend = Rel.Addend;
+        uint64_t RelOffset =
+            getNewFunctionOrDataAddress(SectionInputAddress + Rel.Offset);
 
+        RelOffset = RelOffset == 0 ? SectionAddress + Rel.Offset : RelOffset;
         if (Rel.Symbol) {
           SymbolIdx = getOutputDynamicSymbolIndex(Symbol);
         } else {
@@ -5051,11 +5444,10 @@ RewriteInstance::patchELFAllocatableRelaSections(ELFObjectFile<ELFT> *File) {
         }
 
         NewRelA.setSymbolAndType(SymbolIdx, Rel.Type, EF.isMips64EL());
-        NewRelA.r_offset = SectionAddress + Rel.Offset;
+        NewRelA.r_offset = RelOffset;
         NewRelA.r_addend = Addend;
 
-        const bool IsJmpRel =
-            !!(IsJmpRelocation.find(Rel.Type) != IsJmpRelocation.end());
+        const bool IsJmpRel = IsJmpRelocation.contains(Rel.Type);
         uint64_t &Offset = IsJmpRel ? RelPltOffset : RelDynOffset;
         const uint64_t &EndOffset =
             IsJmpRel ? RelPltEndOffset : RelDynEndOffset;
@@ -5074,8 +5466,11 @@ RewriteInstance::patchELFAllocatableRelaSections(ELFObjectFile<ELFT> *File) {
     }
   };
 
-  // The dynamic linker expects R_*_RELATIVE relocations to be emitted first
-  writeRelocations(/* PatchRelative */ true);
+  // Place R_*_RELATIVE relocations in RELA section if RELR is not presented.
+  // The dynamic linker expects all R_*_RELATIVE relocations in RELA
+  // to be emitted first.
+  if (!DynamicRelrAddress)
+    writeRelocations(/* PatchRelative */ true);
   writeRelocations(/* PatchRelative */ false);
 
   auto fillNone = [&](uint64_t &Offset, uint64_t EndOffset) {
@@ -5281,6 +5676,15 @@ Error RewriteInstance::readELFDynamic(ELFObjectFile<ELFT> *File) {
     case ELF::DT_RELACOUNT:
       DynamicRelativeRelocationsCount = Dyn.getVal();
       break;
+    case ELF::DT_RELR:
+      DynamicRelrAddress = Dyn.getPtr();
+      break;
+    case ELF::DT_RELRSZ:
+      DynamicRelrSize = Dyn.getVal();
+      break;
+    case ELF::DT_RELRENT:
+      DynamicRelrEntrySize = Dyn.getVal();
+      break;
     }
   }
 
@@ -5293,6 +5697,20 @@ Error RewriteInstance::readELFDynamic(ELFObjectFile<ELFT> *File) {
     PLTRelocationsAddress.reset();
     PLTRelocationsSize = 0;
   }
+
+  if (!DynamicRelrAddress || !DynamicRelrSize) {
+    DynamicRelrAddress.reset();
+    DynamicRelrSize = 0;
+  } else if (!DynamicRelrEntrySize) {
+    errs() << "BOLT-ERROR: expected DT_RELRENT to be presented "
+           << "in DYNAMIC section\n";
+    exit(1);
+  } else if (DynamicRelrSize % DynamicRelrEntrySize) {
+    errs() << "BOLT-ERROR: expected RELR table size to be divisible "
+           << "by RELR entry size\n";
+    exit(1);
+  }
+
   return Error::success();
 }
 
@@ -5504,6 +5922,7 @@ void RewriteInstance::rewriteFile() {
 
   if (BC->HasRelocations) {
     patchELFAllocatableRelaSections();
+    patchELFAllocatableRelrSection();
     patchELFGOT();
   }
 

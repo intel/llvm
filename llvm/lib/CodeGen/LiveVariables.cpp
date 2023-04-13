@@ -208,8 +208,7 @@ LiveVariables::FindLastPartialDef(Register Reg,
     return nullptr;
 
   PartDefRegs.insert(LastDefReg);
-  for (unsigned i = 0, e = LastDef->getNumOperands(); i != e; ++i) {
-    MachineOperand &MO = LastDef->getOperand(i);
+  for (MachineOperand &MO : LastDef->operands()) {
     if (!MO.isReg() || !MO.isDef() || MO.getReg() == 0)
       continue;
     Register DefReg = MO.getReg();
@@ -699,7 +698,7 @@ void LiveVariables::recomputeForSingleDefVirtReg(Register Reg) {
     if (UseMI.isPHI()) {
       // If Reg is used in a phi then it is live-to-end of the corresponding
       // predecessor.
-      unsigned Idx = UseMI.getOperandNo(&UseMO);
+      unsigned Idx = UseMO.getOperandNo();
       LiveToEndBlocks.push_back(UseMI.getOperand(Idx + 1).getMBB());
     } else if (&UseBB == &DefBB) {
       // A non-phi use in the same BB as the single def must come after the def.

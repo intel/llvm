@@ -138,10 +138,62 @@ void check_is_gencomplex() {
   static_assert(is_gencomplex<complex<unsigned int>>::value == false);
 }
 
+// Check that a std::complex can be cast to a sycl::complex using all genfloat
+// types
+void check_std_to_sycl_conversion() {
+  auto complex_f = sycl::ext::oneapi::experimental::complex<float>{42.f, 42.f};
+  auto complex_d = sycl::ext::oneapi::experimental::complex<double>{42.f, 42.f};
+  auto complex_h =
+      sycl::ext::oneapi::experimental::complex<sycl::half>{42.f, 42.f};
+
+  {
+    auto f = static_cast<std::complex<float>>(complex_f);
+    auto d = static_cast<std::complex<double>>(complex_f);
+    auto h = static_cast<std::complex<sycl::half>>(complex_f);
+  }
+  {
+    auto f = static_cast<std::complex<float>>(complex_d);
+    auto d = static_cast<std::complex<double>>(complex_d);
+    auto h = static_cast<std::complex<sycl::half>>(complex_d);
+  }
+  {
+    auto f = static_cast<std::complex<float>>(complex_h);
+    auto d = static_cast<std::complex<double>>(complex_h);
+    auto h = static_cast<std::complex<sycl::half>>(complex_h);
+  }
+}
+
+// Check that a sycl::complex can be constructed from a std::complex
+void check_sycl_constructor_from_std() {
+  auto complex_f = std::complex<float>{42.f, 42.f};
+  auto complex_d = std::complex<double>{42.f, 42.f};
+  auto complex_h = std::complex<sycl::half>{42.f, 42.f};
+
+  {
+    sycl::ext::oneapi::experimental::complex<float> f{complex_f};
+    sycl::ext::oneapi::experimental::complex<double> d{complex_f};
+    sycl::ext::oneapi::experimental::complex<sycl::half> h{complex_f};
+  }
+  {
+    sycl::ext::oneapi::experimental::complex<float> f{complex_d};
+    sycl::ext::oneapi::experimental::complex<double> d{complex_d};
+    sycl::ext::oneapi::experimental::complex<sycl::half> h{complex_d};
+  }
+  {
+    sycl::ext::oneapi::experimental::complex<float> f{complex_h};
+    sycl::ext::oneapi::experimental::complex<double> d{complex_h};
+    sycl::ext::oneapi::experimental::complex<sycl::half> h{complex_h};
+  }
+}
+
 int main() {
   check_math_function_types();
   check_math_operator_types();
+
   check_is_gencomplex();
+
+  check_std_to_sycl_conversion();
+  check_sycl_constructor_from_std();
 
   return 0;
 }

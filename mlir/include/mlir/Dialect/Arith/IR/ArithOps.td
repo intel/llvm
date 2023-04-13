@@ -69,7 +69,8 @@ class Arith_FloatUnaryOp<string mnemonic, list<Trait> traits = []> :
       !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>],
                   traits)>,
     Arguments<(ins FloatLike:$operand,
-      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+      DefaultValuedAttr<
+        Arith_FastMathAttr, "::mlir::arith::FastMathFlags::none">:$fastmath)>,
     Results<(outs FloatLike:$result)> {
   let assemblyFormat = [{ $operand (`fastmath` `` $fastmath^)?
                           attr-dict `:` type($result) }];
@@ -81,7 +82,8 @@ class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
       !listconcat([Pure, DeclareOpInterfaceMethods<ArithFastMathInterface>],
                   traits)>,
     Arguments<(ins FloatLike:$lhs, FloatLike:$rhs,
-      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+      DefaultValuedAttr<
+        Arith_FastMathAttr, "::mlir::arith::FastMathFlags::none">:$fastmath)>,
     Results<(outs FloatLike:$result)> {
   let assemblyFormat = [{ $lhs `,` $rhs (`fastmath` `` $fastmath^)?
                           attr-dict `:` type($result) }];
@@ -102,7 +104,7 @@ class Arith_CastOp<string mnemonic, TypeConstraint From, TypeConstraint To,
 // excluding indices: signless integers, vectors or tensors thereof.
 def SignlessFixedWidthIntegerLike : TypeConstraint<Or<[
         AnySignlessInteger.predicate,
-        VectorOf<[AnySignlessInteger]>.predicate,
+        VectorOfAnyRankOf<[AnySignlessInteger]>.predicate,
         TensorOf<[AnySignlessInteger]>.predicate]>,
     "signless-fixed-width-integer-like">;
 
@@ -1045,6 +1047,7 @@ def Arith_ExtFOp : Arith_FToFCastOp<"extf"> {
     When operating on vectors, casts elementwise.
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//

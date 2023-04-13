@@ -437,6 +437,8 @@ def warn_reserved_extern_symbol: Warning<
   "it starts with '_' followed by a capital letter|"
   "it contains '__'}1">,
   InGroup<ReservedIdentifier>, DefaultIgnore;
+def warn_reserved_module_name : Warning<
+  "%0 is a reserved name for a module">, InGroup<ReservedModuleIdentifier>;
 
 def warn_parameter_size: Warning<
   "%0 is a large (%1 bytes) pass-by-value argument; "
@@ -2224,6 +2226,8 @@ def err_reference_has_multiple_inits : Error<
   "reference cannot be initialized with multiple values">;
 def err_init_non_aggr_init_list : Error<
   "initialization of non-aggregate type %0 with an initializer list">;
+def err_designated_init_for_non_aggregate : Error<
+  "initialization of non-aggregate type %0 with a designated initializer list">;
 def err_init_reference_member_uninitialized : Error<
   "reference member of type %0 uninitialized">;
 def note_uninit_reference_member : Note<
@@ -2684,7 +2688,7 @@ def warn_cxx14_compat_constexpr_not_const : Warning<
   "in C++14; add 'const' to avoid a change in behavior">,
   InGroup<DiagGroup<"constexpr-not-const">>;
 def err_invalid_consteval_take_address : Error<
-  "cannot take address of consteval function %0 outside"
+  "cannot take address of consteval %select{function|call operator of}1 %0 outside"
   " of an immediate invocation">;
 def err_invalid_consteval_call : Error<
   "call to consteval function %q0 is not a constant expression">;
@@ -3207,8 +3211,8 @@ def err_attribute_zero_size : Error<"zero %0 size">;
 def err_attribute_size_too_large : Error<"%0 size too large">;
 def err_typecheck_sve_ambiguous : Error<
   "cannot combine fixed-length and sizeless SVE vectors in expression, result is ambiguous (%0 and %1)">;
-def err_typecheck_sve_gnu_ambiguous : Error<
-  "cannot combine GNU and SVE vectors in expression, result is ambiguous (%0 and %1)">;
+def err_typecheck_sve_rvv_gnu_ambiguous : Error<
+  "cannot combine GNU and %select{SVE|RVV}0 vectors in expression, result is ambiguous (%1 and %2)">;
 def err_typecheck_vector_not_convertable_implict_truncation : Error<
    "cannot convert between %select{scalar|vector}0 type %1 and vector type"
    " %2 as implicit conversion would cause truncation">;
@@ -6018,7 +6022,7 @@ def ext_excess_initializers_in_char_array_initializer : ExtWarn<
   "excess elements in char array initializer">,
   InGroup<ExcessInitializers>;
 def err_initializer_string_for_char_array_too_long : Error<
-  "initializer-string for char array is too long">;
+  "initializer-string for char array is too long, array size is %0 but initializer has size %1 (including the null terminating character)">;
 def ext_initializer_string_for_char_array_too_long : ExtWarn<
   "initializer-string for char array is too long">,
   InGroup<ExcessInitializers>;
@@ -7449,6 +7453,8 @@ def err_attribute_arm_builtin_alias : Error<
   "'__clang_arm_builtin_alias' attribute can only be applied to an ARM builtin">;
 def err_attribute_arm_mve_polymorphism : Error<
   "'__clang_arm_mve_strict_polymorphism' attribute can only be applied to an MVE/NEON vector type">;
+def err_attribute_webassembly_funcref : Error<
+  "'__funcref' attribute can only be applied to a function pointer type">;
 
 def warn_setter_getter_impl_required : Warning<
   "property %0 requires method %1 to be defined - "
@@ -7974,7 +7980,7 @@ let CategoryName = "Lambda Issue" in {
     "is a C++20 extension">, InGroup<CXX20>;
   def warn_deprecated_this_capture : Warning<
     "implicit capture of 'this' with a capture default of '=' is deprecated">,
-    InGroup<DeprecatedThisCapture>, DefaultIgnore;
+    InGroup<DeprecatedThisCapture>;
   def note_deprecated_this_capture : Note<
     "add an explicit capture of 'this' to capture '*this' by reference">;
 
@@ -8698,6 +8704,10 @@ def note_cuda_device_builtin_surftex_should_be_template_class : Note<
 def err_hip_invalid_args_builtin_mangled_name : Error<
     "invalid argument: symbol must be a device-side function or global variable">;
 
+def warn_hip_omp_target_directives : Warning<
+  "HIP does not support OpenMP target directives; directive has been ignored">,
+  InGroup<HIPOpenMPOffloading>, DefaultError;
+
 def warn_non_pod_vararg_with_format_string : Warning<
   "cannot pass %select{non-POD|non-trivial}0 object of type %1 to variadic "
   "%select{function|block|method|constructor}2; expected type from format "
@@ -9206,8 +9216,9 @@ def err_operator_overload_static : Error<
 def err_operator_overload_default_arg : Error<
   "parameter of overloaded %0 cannot have a default argument">;
 
-def ext_subscript_overload : ExtWarn<
-  "overloaded %0 with %select{no|a defaulted|more than one}1 parameter is a C++2b extension">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+def ext_subscript_overload : Warning<
+  "overloaded %0 with %select{no|a defaulted|more than one}1 parameter is a "
+  "C++2b extension">, InGroup<CXXPre2bCompat>, DefaultIgnore;
 def error_subscript_overload : Error<
   "overloaded %0 cannot have %select{no|a defaulted|more than one}1 parameter before C++2b">;
 
@@ -10936,6 +10947,8 @@ def err_omp_depend_sink_source_with_modifier : Error<
   "depend modifier cannot be used with 'sink' or 'source' depend type">;
 def err_omp_depend_modifier_not_iterator : Error<
   "expected iterator specification as depend modifier">;
+def err_omp_map_modifier_not_iterator : Error<
+  "expected iterator specification as map modifier">;
 def err_omp_linear_ordered : Error<
   "'linear' clause cannot be specified along with 'ordered' clause with a parameter">;
 def err_omp_unexpected_schedule_modifier : Error<
@@ -11302,8 +11315,7 @@ def err_export_using_internal : Error<
   "using declaration referring to %1 with %select{internal|module|unknown}0 "
   "linkage cannot be exported">;
 def err_export_not_in_module_interface : Error<
-  "export declaration can only be used within a module interface unit"
-  "%select{ after the module declaration|}0">;
+  "export declaration can only be used within a module purview">;
 def err_export_inline_not_defined : Error<
   "inline function not defined%select{| before the private module fragment}0">;
 def err_export_partition_impl : Error<
@@ -11320,8 +11332,7 @@ def err_private_module_fragment_not_module_interface : Error<
   "private module fragment in module implementation unit">;
 def note_not_module_interface_add_export : Note<
   "add 'export' here if this is intended to be a module interface unit">;
-def err_invalid_module_name : Error<
-  "%0 is %select{an invalid|a reserved}1 name for a module">;
+def err_invalid_module_name : Error<"%0 is an invalid name for a module">;
 def err_extern_def_in_header_unit : Error<
   "non-inline external definitions are not permitted in C++ header units">;
 
@@ -11357,15 +11368,7 @@ def err_coroutine_invalid_func_context : Error<
   "|a consteval function}0">;
 def err_implied_coroutine_type_not_found : Error<
   "%0 type was not found; include <coroutine> before defining "
-  "a coroutine; include <experimental/coroutine> if your version "
-  "of libcxx is less than 14.0">;
-def warn_deprecated_coroutine_namespace : Warning<
-  "support for 'std::experimental::%0' will be removed in Clang 17; "
-  "use 'std::%0' instead">,
-  InGroup<DeprecatedExperimentalCoroutine>;
-def err_mixed_use_std_and_experimental_namespace_for_coroutine : Error<
-  "conflicting mixed use of std and std::experimental namespaces for "
-  "coroutine components">;
+  "a coroutine">;
 def err_implicit_coroutine_std_nothrow_type_not_found : Error<
   "std::nothrow was not found; include <new> before defining a coroutine which "
   "uses get_return_object_on_allocation_failure()">;
@@ -11834,9 +11837,6 @@ def err_sycl_restrict : Error<
 def err_sycl_external_global : Error<
   "invalid reference to 'device_global' variable; external 'device_global'"
   " variable must be marked with SYCL_EXTERNAL macro">;
-def err_sycl_external_no_rdc : Error<
-  "invalid %select{declaration|definition}0 of SYCL_EXTERNAL function in non-relocatable "
-   "device code mode">;
 def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
@@ -11981,6 +11981,9 @@ def err_riscv_builtin_requires_extension : Error<
   "builtin requires%select{| at least one of the following extensions to be enabled}0: %1">;
 def err_riscv_builtin_invalid_lmul : Error<
   "LMUL argument must be in the range [0,3] or [5,7]">;
+def err_riscv_type_requires_extension : Error<
+  "RISC-V type %0 requires the '%1' extension"
+>;
 
 def err_std_source_location_impl_not_found : Error<
   "'std::source_location::__impl' was not found; it must be defined before '__builtin_source_location' is called">;
@@ -11993,6 +11996,8 @@ def err_hlsl_attr_invalid_type : Error<
    "attribute %0 only applies to a field or parameter of type '%1'">;
 def err_hlsl_attr_invalid_ast_node : Error<
    "attribute %0 only applies to %1">;
+def err_hlsl_entry_shader_attr_mismatch : Error<
+   "%0 attribute on entry function does not match the pipeline stage">;
 def err_hlsl_numthreads_argument_oor : Error<"argument '%select{X|Y|Z}0' to numthreads attribute cannot exceed %1">;
 def err_hlsl_numthreads_invalid : Error<"total number of threads cannot exceed %0">;
 def err_hlsl_missing_numthreads : Error<"missing numthreads attribute for %0 shader entry">;
@@ -12029,10 +12034,24 @@ def warn_unsafe_buffer_variable : Warning<
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def warn_unsafe_buffer_operation : Warning<
   "%select{unsafe pointer operation|unsafe pointer arithmetic|"
-  "unsafe buffer access}0">,
+  "unsafe buffer access|function introduces unsafe buffer manipulation}0">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def note_unsafe_buffer_operation : Note<
   "used%select{| in pointer arithmetic| in buffer access}0 here">;
+def note_unsafe_buffer_variable_fixit : Note<
+  "change type of '%0' to '%select{std::span|std::array|std::span::iterator}1' to preserve bounds information">;
 def err_loongarch_builtin_requires_la32 : Error<
   "this builtin requires target: loongarch32">;
+
+def err_builtin_pass_in_regs_non_class : Error<
+  "argument %0 is not an unqualified class type">;
+
+
+// WebAssembly reference type and table diagnostics.
+def err_wasm_reference_pr : Error<
+  "%select{pointer|reference}0 to WebAssembly reference type is not allowed">;
+def err_wasm_ca_reference : Error<
+  "cannot %select{capture|take address of}0 WebAssembly reference">;
+def err_wasm_funcref_not_wasm : Error<
+  "invalid use of '__funcref' keyword outside the WebAssembly triple">;
 } // end of sema component.

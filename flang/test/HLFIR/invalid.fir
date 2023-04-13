@@ -295,3 +295,208 @@ func.func @bad_concat_4(%arg0: !fir.ref<!fir.char<1,30>>) {
   %0 = hlfir.concat %arg0 len %c30 : (!fir.ref<!fir.char<1,30>>, index) -> (!hlfir.expr<!fir.char<1,30>>)
   return
 }
+
+// -----
+func.func @bad_sum1(%arg0: !hlfir.expr<?xi32>, %arg1: i32, %arg2: !fir.box<!fir.logical<4>>) {
+  // expected-error@+1 {{'hlfir.sum' op result must have the same element type as ARRAY argument}}
+  %0 = hlfir.sum %arg0 dim %arg1 mask %arg2 : (!hlfir.expr<?xi32>, i32, !fir.box<!fir.logical<4>>) -> !hlfir.expr<f32>
+}
+
+// -----
+func.func @bad_sum2(%arg0: !hlfir.expr<?xi32>, %arg1: i32, %arg2: !fir.box<!fir.array<?x?x?x?x?x!fir.logical<4>>>) {
+  // expected-warning@+1 {{MASK must be conformable to ARRAY}}
+  %0 = hlfir.sum %arg0 dim %arg1 mask %arg2 : (!hlfir.expr<?xi32>, i32, !fir.box<!fir.array<?x?x?x?x?x!fir.logical<4>>>) -> !hlfir.expr<i32>
+}
+
+// -----
+func.func @bad_sum3(%arg0: !hlfir.expr<?x5x?xi32>, %arg1: i32, %arg2: !fir.box<!fir.array<2x6x?x!fir.logical<4>>>) {
+  // expected-warning@+1 {{MASK must be conformable to ARRAY}}
+  %0 = hlfir.sum %arg0 dim %arg1 mask %arg2 : (!hlfir.expr<?x5x?xi32>, i32, !fir.box<!fir.array<2x6x?x!fir.logical<4>>>) -> !hlfir.expr<i32>
+}
+
+// -----
+func.func @bad_sum4(%arg0: !hlfir.expr<?xi32>, %arg1: i32, %arg2: !fir.box<!fir.logical<4>>) {
+  // expected-error@+1 {{'hlfir.sum' op result rank must be one less than ARRAY}}
+  %0 = hlfir.sum %arg0 dim %arg1 mask %arg2 : (!hlfir.expr<?xi32>, i32, !fir.box<!fir.logical<4>>) -> !hlfir.expr<?x?xi32>
+}
+
+// -----
+func.func @bad_matmul1(%arg0: !hlfir.expr<?x?x?xi32>, %arg1: !hlfir.expr<?x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op array must have either rank 1 or rank 2}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<?x?x?xi32>, !hlfir.expr<?x?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmul2(%arg0: !hlfir.expr<?xi32>, %arg1: !hlfir.expr<?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op at least one array must have rank 2}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<?xi32>, !hlfir.expr<?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmul3(%arg0: !hlfir.expr<?x?x!fir.logical<4>>, %arg1: !hlfir.expr<?x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op if one array is logical, so should the other be}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<?x?x!fir.logical<4>>, !hlfir.expr<?x?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmul4(%arg0: !hlfir.expr<?x2xi32>, %arg1: !hlfir.expr<200x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op the last dimension of LHS should match the first dimension of RHS}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<?x2xi32>, !hlfir.expr<200x?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmul5(%arg0: !hlfir.expr<?x?xi32>, %arg1: !hlfir.expr<?x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op the result type should be a logical only if the argument types are logical}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<?x?xi32>, !hlfir.expr<?x?xi32>) -> !hlfir.expr<?x?x!fir.logical<4>>
+  return
+}
+
+// -----
+func.func @bad_matmul6(%arg0: !hlfir.expr<1x2xi32>, %arg1: !hlfir.expr<2x3xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op incorrect result shape}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<1x2xi32>, !hlfir.expr<2x3xi32>) -> !hlfir.expr<10x30xi32>
+  return
+}
+
+// -----
+func.func @bad_matmul7(%arg0: !hlfir.expr<1x2xi32>, %arg1: !hlfir.expr<2xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op incorrect result shape}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<1x2xi32>, !hlfir.expr<2xi32>) -> !hlfir.expr<1x3xi32>
+  return
+}
+
+// -----
+func.func @bad_matmul8(%arg0: !hlfir.expr<2xi32>, %arg1: !hlfir.expr<2x3xi32>) {
+  // expected-error@+1 {{'hlfir.matmul' op incorrect result shape}}
+  %0 = hlfir.matmul %arg0 %arg1 : (!hlfir.expr<2xi32>, !hlfir.expr<2x3xi32>) -> !hlfir.expr<1x3xi32>
+  return
+}
+
+// -----
+func.func @bad_transpose1(%arg0: !hlfir.expr<2xi32>) {
+  // expected-error@+1 {{'hlfir.transpose' op input and output arrays should have rank 2}}
+  %0 = hlfir.transpose %arg0 : (!hlfir.expr<2xi32>) -> !hlfir.expr<2xi32>
+  return
+}
+
+// -----
+func.func @bad_transpose2(%arg0: !hlfir.expr<2x3xi32>) {
+  // expected-error@+1 {{'hlfir.transpose' op output shape does not match input array}}
+  %0 = hlfir.transpose %arg0 : (!hlfir.expr<2x3xi32>) -> !hlfir.expr<2x2xi32>
+  return
+}
+
+// -----
+func.func @bad_transpose3(%arg0: !hlfir.expr<2x3xi32>) {
+  // expected-error@+1 {{'hlfir.transpose' op input and output arrays should have the same element type}}
+  %0 = hlfir.transpose %arg0 : (!hlfir.expr<2x3xi32>) -> !hlfir.expr<3x2xf64>
+  return
+}
+
+// -----
+func.func @bad_matmultranspose1(%arg0: !hlfir.expr<?x?x?xi32>, %arg1: !hlfir.expr<?x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul_transpose' op array must have either rank 1 or rank 2}}
+  %0 = hlfir.matmul_transpose %arg0 %arg1 : (!hlfir.expr<?x?x?xi32>, !hlfir.expr<?x?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmultranspose2(%arg0: !hlfir.expr<?xi32>, %arg1: !hlfir.expr<?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul_transpose' op array must have either rank 1 or rank 2}}
+  %0 = hlfir.matmul_transpose %arg0 %arg1 : (!hlfir.expr<?xi32>, !hlfir.expr<?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmultranspose3(%arg0: !hlfir.expr<?x?x!fir.logical<4>>, %arg1: !hlfir.expr<?x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul_transpose' op if one array is logical, so should the other be}}
+  %0 = hlfir.matmul_transpose %arg0 %arg1 : (!hlfir.expr<?x?x!fir.logical<4>>, !hlfir.expr<?x?xi32>) -> !hlfir.expr<?x?xi32>
+  return
+}
+
+// -----
+func.func @bad_matmultranspose5(%arg0: !hlfir.expr<?x?xi32>, %arg1: !hlfir.expr<?x?xi32>) {
+  // expected-error@+1 {{'hlfir.matmul_transpose' op the result type should be a logical only if the argument types are logical}}
+  %0 = hlfir.matmul_transpose %arg0 %arg1 : (!hlfir.expr<?x?xi32>, !hlfir.expr<?x?xi32>) -> !hlfir.expr<?x?x!fir.logical<4>>
+  return
+}
+
+// -----
+func.func @bad_matmultranspose6(%arg0: !hlfir.expr<2x1xi32>, %arg1: !hlfir.expr<2x3xi32>) {
+  // expected-error@+1 {{'hlfir.matmul_transpose' op incorrect result shape}}
+  %0 = hlfir.matmul_transpose %arg0 %arg1 : (!hlfir.expr<2x1xi32>, !hlfir.expr<2x3xi32>) -> !hlfir.expr<10x30xi32>
+  return
+}
+
+// -----
+func.func @bad_matmultranspose7(%arg0: !hlfir.expr<2x1xi32>, %arg1: !hlfir.expr<2xi32>) {
+  // expected-error@+1 {{'hlfir.matmul_transpose' op incorrect result shape}}
+  %0 = hlfir.matmul_transpose %arg0 %arg1 : (!hlfir.expr<2x1xi32>, !hlfir.expr<2xi32>) -> !hlfir.expr<1x3xi32>
+  return
+}
+
+// -----
+func.func @bad_assign_1(%arg0: !fir.box<!fir.array<?xi32>>, %arg1: !fir.box<!fir.array<?xi32>>) {
+  // expected-error@+1 {{'hlfir.assign' op lhs must be an allocatable when `realloc` is set}}
+  hlfir.assign %arg1 to %arg0 realloc : !fir.box<!fir.array<?xi32>>, !fir.box<!fir.array<?xi32>>
+  return
+}
+
+// -----
+func.func @bad_assign_2(%arg0: !fir.ref<!fir.box<!fir.heap<!fir.array<?xi32>>>>, %arg1: !fir.box<!fir.array<?xi32>>) {
+  // expected-error@+1 {{'hlfir.assign' op `realloc` must be set and lhs must be a character allocatable when `keep_lhs_length_if_realloc` is set}}
+  hlfir.assign %arg1 to %arg0 realloc keep_lhs_len : !fir.box<!fir.array<?xi32>>, !fir.ref<!fir.box<!fir.heap<!fir.array<?xi32>>>>
+  return
+}
+
+// -----
+func.func @bad_parent_comp1(%arg0: !fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) {
+  // expected-error@+1 {{'hlfir.parent_comp' op must be provided a shape if and only if the base is an array}}
+  %2 = hlfir.parent_comp %arg0 : (!fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) -> !fir.box<!fir.array<10x!fir.type<t1{i:i32}>>>
+  return
+}
+
+// -----
+func.func @bad_parent_comp2(%arg0: !fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) {
+  %c10 = arith.constant 10 : index
+  %1 = fir.shape %c10 : (index) -> !fir.shape<1>
+  // expected-error@+1 {{'hlfir.parent_comp' op result type rank must match input type rank}}
+  %2 = hlfir.parent_comp %arg0 shape %1 : (!fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>, !fir.shape<1>) -> !fir.box<!fir.array<2x5x!fir.type<t1{i:i32}>>>
+  return
+}
+
+// -----
+func.func @bad_parent_comp3(%arg0: !fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) {
+  %c10 = arith.constant 10 : index
+  %1 = fir.shape %c10 : (index) -> !fir.shape<1>
+  // expected-error@+1 {{'hlfir.parent_comp' op result type extents are inconsistent with memref type}}
+  %2 = hlfir.parent_comp %arg0 shape %1 : (!fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>, !fir.shape<1>) -> !fir.box<!fir.array<20x!fir.type<t1{i:i32}>>>
+  return
+}
+
+// -----
+func.func @bad_parent_comp4(%arg0: !fir.ref<!fir.type<t2{i:i32,j:i32}>>) {
+  // expected-error@+1 {{'hlfir.parent_comp' op result type and input type must be derived types}}
+  %1 = hlfir.parent_comp %arg0 : (!fir.ref<!fir.type<t2{i:i32,j:i32}>>) -> !fir.ref<i32>
+  return
+}
+
+// -----
+func.func @bad_parent_comp5(%arg0: !fir.class<!fir.type<t2{i:i32,j:i32}>>) {
+  // expected-error@+1 {{'hlfir.parent_comp' op result type must not be polymorphic}}
+  %2 = hlfir.parent_comp %arg0 : (!fir.class<!fir.type<t2{i:i32,j:i32}>>) -> !fir.class<!fir.type<t1{i:i32}>>
+  return
+}
+
+// -----
+func.func @bad_parent_comp6(%arg0: !fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>) {
+  %c10 = arith.constant 10 : index
+  %1 = fir.shape %c10 : (index) -> !fir.shape<1>
+  // expected-error@+1 {{'hlfir.parent_comp' op result type must be a fir.box if the result is an array or has length parameters}}
+  %2 = hlfir.parent_comp %arg0 shape %1 : (!fir.box<!fir.array<10x!fir.type<t2{i:i32,j:i32}>>>, !fir.shape<1>) -> !fir.ref<!fir.array<10x!fir.type<t1{i:i32}>>>
+  return
+}

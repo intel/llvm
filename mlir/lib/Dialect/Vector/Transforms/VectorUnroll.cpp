@@ -31,7 +31,7 @@ using namespace mlir::vector;
 static SmallVector<int64_t> getVectorOffset(ArrayRef<int64_t> ratioStrides,
                                             int64_t index,
                                             ArrayRef<int64_t> targetShape) {
-  return computeElementwiseMul(delinearize(ratioStrides, index), targetShape);
+  return computeElementwiseMul(delinearize(index, ratioStrides), targetShape);
 }
 
 /// A functor that accomplishes the same thing as `getVectorOffset` but
@@ -351,20 +351,12 @@ struct UnrollContractionPattern
       SmallVector<int64_t> lhsOffets =
           applyPermutationMap(lhsPermutationMap, ArrayRef<int64_t>(offsets));
       extractOperand(0, contractOp.getLhs(), lhsPermutationMap, lhsOffets);
-      // If there is a mask associated to lhs, extract it as well.
-      if (slicesOperands.size() > 3)
-        extractOperand(3, contractOp.getMasks()[0], lhsPermutationMap,
-                       lhsOffets);
 
       // Extract the new rhs operand.
       AffineMap rhsPermutationMap = contractOp.getIndexingMapsArray()[1];
       SmallVector<int64_t> rhsOffets =
           applyPermutationMap(rhsPermutationMap, ArrayRef<int64_t>(offsets));
       extractOperand(1, contractOp.getRhs(), rhsPermutationMap, rhsOffets);
-      // If there is a mask associated to rhs, extract it as well.
-      if (slicesOperands.size() > 4)
-        extractOperand(4, contractOp.getMasks()[1], rhsPermutationMap,
-                       rhsOffets);
 
       AffineMap accPermutationMap = contractOp.getIndexingMapsArray()[2];
       SmallVector<int64_t> accOffets =
@@ -602,12 +594,12 @@ struct UnrollTransposePattern : public OpRewritePattern<vector::TransposeOp> {
 
   LogicalResult matchAndRewrite(vector::TransposeOp transposeOp,
                                 PatternRewriter &rewriter) const override {
-    if (transposeOp.getResultType().getRank() == 0)
+    if (transposeOp.getResultVectorType().getRank() == 0)
       return failure();
     auto targetShape = getTargetShape(options, transposeOp);
     if (!targetShape)
       return failure();
-    auto originalVectorType = transposeOp.getResultType();
+    auto originalVectorType = transposeOp.getResultVectorType();
     SmallVector<int64_t> strides(targetShape->size(), 1);
     Location loc = transposeOp.getLoc();
     ArrayRef<int64_t> originalSize = originalVectorType.getShape();
@@ -628,7 +620,7 @@ struct UnrollTransposePattern : public OpRewritePattern<vector::TransposeOp> {
       SmallVector<int64_t> permutedOffsets(elementOffsets.size());
       SmallVector<int64_t> permutedShape(elementOffsets.size());
       // Compute the source offsets and shape.
-      for (auto &indices : llvm::enumerate(permutation)) {
+      for (auto indices : llvm::enumerate(permutation)) {
         permutedOffsets[indices.value()] = elementOffsets[indices.index()];
         permutedShape[indices.value()] = (*targetShape)[indices.index()];
       }

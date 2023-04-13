@@ -9,8 +9,8 @@
 #include "CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -270,8 +270,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // TODO: temporary workaround for a problem with warnings reported by
     // llvm-link when driver links LLVM modules with empty modules
     CmdArgs.push_back("--suppress-warnings");
-    C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, std::nullopt));
+    C.addCommand(std::make_unique<Command>(JA, *this,
+                                           ResponseFileSupport::AtFileUTF8(),
+                                           Exec, CmdArgs, std::nullopt));
   };
 
   // Add an intermediate output file.
@@ -312,8 +313,9 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   SmallString<128> LlcPath(C.getDriver().Dir);
   llvm::sys::path::append(LlcPath, "llc");
   const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, std::nullopt));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileUTF8(), Llc,
+                                         LlcArgs, std::nullopt));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
@@ -552,10 +554,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
-    // Output directory is based off of the first object name as captured
-    // above.
-    if (!CreatedReportName.empty())
-      ReportOptArg += CreatedReportName;
+    // Default output directory should match default output executable name
+    ReportOptArg += "a.prj";
   }
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(

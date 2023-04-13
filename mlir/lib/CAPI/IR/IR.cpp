@@ -141,9 +141,21 @@ void mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags) {
   unwrap(flags)->useLocalScope();
 }
 
+void mlirOpPrintingFlagsAssumeVerified(MlirOpPrintingFlags flags) {
+  unwrap(flags)->assumeVerified();
+}
+
 //===----------------------------------------------------------------------===//
 // Location API.
 //===----------------------------------------------------------------------===//
+
+MlirAttribute mlirLocationGetAttribute(MlirLocation location) {
+  return wrap(LocationAttr(unwrap(location)));
+}
+
+MlirLocation mlirLocationFromAttribute(MlirAttribute attribute) {
+  return wrap(Location(unwrap(attribute).cast<LocationAttr>()));
+}
 
 MlirLocation mlirLocationFileLineColGet(MlirContext context,
                                         MlirStringRef filename, unsigned line,
@@ -354,6 +366,15 @@ MlirOperation mlirOperationCreate(MlirOperationState *state) {
 
   MlirOperation result = wrap(Operation::create(cppState));
   return result;
+}
+
+MlirOperation mlirOperationCreateParse(MlirContext context,
+                                       MlirStringRef sourceStr,
+                                       MlirStringRef sourceName) {
+
+  return wrap(
+      parseSourceString(unwrap(sourceStr), unwrap(context), unwrap(sourceName))
+          .release());
 }
 
 MlirOperation mlirOperationClone(MlirOperation op) {

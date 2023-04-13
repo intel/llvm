@@ -11,6 +11,7 @@
 #define _LIBCPP___MEMORY_ALLOCATOR_H
 
 #include <__config>
+#include <__memory/addressof.h>
 #include <__memory/allocate_at_least.h>
 #include <__memory/allocator_traits.h>
 #include <__type_traits/is_constant_evaluated.h>
@@ -116,7 +117,7 @@ public:
         }
     }
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr
     allocation_result<_Tp*> allocate_at_least(size_t __n) {
         return {allocate(__n), __n};
@@ -205,7 +206,7 @@ public:
         }
     }
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr
     allocation_result<const _Tp*> allocate_at_least(size_t __n) {
         return {allocate(__n), __n};

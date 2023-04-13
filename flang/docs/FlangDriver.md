@@ -485,7 +485,7 @@ reports an error diagnostic and returns `nullptr`.
 For in-tree plugins, there is the CMake flag `FLANG_PLUGIN_SUPPORT`, enabled by
 default, that controls the exporting of executable symbols from `flang-new`,
 which plugins need access to. Additionally, there is the CMake flag
-`FLANG_BUILD_EXAMPLES`, turned off by default, that is used to control if the
+`LLVM_BUILD_EXAMPLES`, turned off by default, that is used to control if the
 example programs are built. This includes plugins that are in the
 `flang/example` directory and added as a `sub_directory` to the
 `flang/examples/CMakeLists.txt`, for example, the `PrintFlangFunctionNames`
@@ -546,8 +546,7 @@ See the
 documentation for more details.
 
 ## Ofast and Fast Math
-`-Ofast` in Flang means `-O3 -ffast-math`. `-fstack-arrays` will be added to
-`-Ofast` in the future (https://github.com/llvm/llvm-project/issues/59231).
+`-Ofast` in Flang means `-O3 -ffast-math -fstack-arrays`.
 
 `-ffast-math` means the following:
  - `-fno-honor-infinities`
@@ -570,9 +569,8 @@ to zero.
 
 ### Comparison with GCC/GFortran
 GCC/GFortran translate `-Ofast` to
-`-O3 -ffast-math -fstack-arrays -fno-semantic-interposition`. `-fstack-arrays`
-is TODO for Flang.
-`-fno-semantic-interposition` is not used because clang does not enable this as
+`-O3 -ffast-math -fstack-arrays -fno-semantic-interposition`.
+`-fno-semantic-interposition` is not used because Clang does not enable this as
 part of `-Ofast` as the default behaviour is similar.
 
 GCC/GFortran has a wider definition of `-ffast-math`: also including
@@ -582,6 +580,10 @@ floating point and so always acts as though these flags were specified.
 
 GCC/GFortran will also set flush-to-zero mode: linking `crtfastmath.o`, the same
 as Flang.
+
+The only GCC/GFortran warning option currently supported is `-Werror`.  Passing
+any unsupported GCC/GFortran warning flags into Flang's compiler driver will
+result in warnings being emitted.
 
 ### Comparison with nvfortran
 nvfortran defines `-fast` as

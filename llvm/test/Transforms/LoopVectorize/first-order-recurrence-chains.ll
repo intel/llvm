@@ -1,6 +1,6 @@
 ; RUN: opt -passes=loop-vectorize -force-vector-width=4 -force-vector-interleave=1 -S %s | FileCheck %s
 
-define void @test_chained_first_order_recurrences_1(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_1(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_1
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -40,10 +40,11 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res = add i16 %for.1, %for.2
+  ret i16 %res
 }
 
-define void @test_chained_first_order_recurrences_2(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_2(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_2
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -83,10 +84,11 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res = add i16 %for.1, %for.2
+  ret i16 %res
 }
 
-define void @test_chained_first_order_recurrences_3(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_3(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_3
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -133,7 +135,9 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res.1 = add i16 %for.1, %for.2
+  %res.2 = add i16 %res.1, %for.3
+  ret i16 %res.2
 }
 
 define void @test_cyclic_phis(ptr %ptr) {
@@ -197,7 +201,7 @@ exit:
   ret void
 }
 
-define void @test_chained_first_order_recurrences_3_reordered_1(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_3_reordered_1(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_3_reordered_1
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -244,10 +248,12 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res.1 = add i16 %for.1, %for.2
+  %res.2 = add i16 %res.1, %for.3
+  ret i16 %res.2
 }
 
-define void @test_chained_first_order_recurrences_3_reordered_2(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_3_reordered_2(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_3_reordered_2
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -294,10 +300,12 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res.1 = add i16 %for.1, %for.2
+  %res.2 = add i16 %res.1, %for.3
+  ret i16 %res.2
 }
 
-define void @test_chained_first_order_recurrences_3_for2_no_other_uses(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_3_for2_no_other_uses(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_3_for2_no_other_uses
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -344,10 +352,12 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res.1 = add i16 %for.1, %for.2
+  %res.2 = add i16 %res.1, %for.3
+  ret i16 %res.2
 }
 
-define void @test_chained_first_order_recurrences_3_for1_for2_no_other_uses(ptr %ptr) {
+define i16 @test_chained_first_order_recurrences_3_for1_for2_no_other_uses(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrences_3_for1_for2_no_other_uses
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -392,10 +402,12 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res.1 = add i16 %for.1, %for.2
+  %res.2 = add i16 %res.1, %for.3
+  ret i16 %res.2
 }
 
-define void @test_chained_first_order_recurrence_sink_users_1(ptr %ptr) {
+define double @test_chained_first_order_recurrence_sink_users_1(ptr %ptr) {
 ; CHECK-LABEL: @test_chained_first_order_recurrence_sink_users_1
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -438,7 +450,8 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  %res = fadd double %for.1, %for.2
+  ret double %res
 }
 
 define void @test_first_order_recurrences_and_reduction(ptr %ptr) {
@@ -466,7 +479,7 @@ exit:
   ret void
 }
 
-define void @test_first_order_recurrences_and_induction(ptr %ptr) {
+define i64 @test_first_order_recurrences_and_induction(ptr %ptr) {
 ; CHECK-LABEL: @test_first_order_recurrences_and_induction(
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -475,9 +488,8 @@ define void @test_first_order_recurrences_and_induction(ptr %ptr) {
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i64> [[VECTOR_RECUR]], <4 x i64> [[VEC_IND]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i64, ptr [[PTR:%.*]], i64 [[TMP0]]
-; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds i64, ptr [[TMP2]], i32 0
-; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x i64>, ptr [[TMP3]], align 2
 ; CHECK-NEXT:    [[TMP4:%.*]] = add <4 x i64> [[TMP1]], <i64 10, i64 10, i64 10, i64 10>
+; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds i64, ptr [[TMP2]], i32 0
 ; CHECK-NEXT:    store <4 x i64> [[TMP4]], ptr [[TMP3]], align 4
 ; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; CHECK-NEXT:    [[VEC_IND_NEXT]] = add <4 x i64> [[VEC_IND]], <i64 4, i64 4, i64 4, i64 4>
@@ -497,19 +509,18 @@ loop:
   %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop ]
   %iv.next = add nuw nsw i64 %iv, 1
   %gep.ptr = getelementptr inbounds i64, ptr %ptr, i64 %iv
-  %for.1.next = load i64, ptr %gep.ptr, align 2
   %add.1 = add i64 %for.1, 10
   store i64 %add.1, ptr %gep.ptr
   %exitcond.not = icmp eq i64 %iv.next, 1000
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  ret i64 %for.1
 }
 
 ; Same as @test_first_order_recurrences_and_induction but with order of phis
 ; flipped.
-define void @test_first_order_recurrences_and_induction2(ptr %ptr) {
+define i64 @test_first_order_recurrences_and_induction2(ptr %ptr) {
 ; CHECK-LABEL: @test_first_order_recurrences_and_induction2(
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
@@ -518,9 +529,8 @@ define void @test_first_order_recurrences_and_induction2(ptr %ptr) {
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i64> [[VECTOR_RECUR]], <4 x i64> [[VEC_IND]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i64, ptr [[PTR:%.*]], i64 [[TMP0]]
-; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds i64, ptr [[TMP2]], i32 0
-; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x i64>, ptr [[TMP3]], align 2
 ; CHECK-NEXT:    [[TMP4:%.*]] = add <4 x i64> [[TMP1]], <i64 10, i64 10, i64 10, i64 10>
+; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds i64, ptr [[TMP2]], i32 0
 ; CHECK-NEXT:    store <4 x i64> [[TMP4]], ptr [[TMP3]], align 4
 ; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; CHECK-NEXT:    [[VEC_IND_NEXT]] = add <4 x i64> [[VEC_IND]], <i64 4, i64 4, i64 4, i64 4>
@@ -540,17 +550,16 @@ loop:
   %for.1 = phi i64 [ 22, %entry ], [ %iv, %loop ]
   %iv.next = add nuw nsw i64 %iv, 1
   %gep.ptr = getelementptr inbounds i64, ptr %ptr, i64 %iv
-  %for.1.next = load i64, ptr %gep.ptr, align 2
   %add.1 = add i64 %for.1, 10
   store i64 %add.1, ptr %gep.ptr
   %exitcond.not = icmp eq i64 %iv.next, 1000
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  ret i64 %for.1
 }
 
-define void @test_first_order_recurrences_and_pointer_induction1(ptr %ptr) {
+define ptr @test_first_order_recurrences_and_pointer_induction1(ptr %ptr) {
 ; CHECK-LABEL: @test_first_order_recurrences_and_pointer_induction1(
 ; CHECK:       vector.ph:
 ; CHECK-NEXT:    [[IND_END:%.*]] = getelementptr i8, ptr [[PTR:%.*]], i64 4000
@@ -590,12 +599,12 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  ret ptr %for.1
 }
 
 ; same as @test_first_order_recurrences_and_pointer_induction1 but with order
 ; of phis flipped.
-define void @test_first_order_recurrences_and_pointer_induction2(ptr %ptr) {
+define ptr @test_first_order_recurrences_and_pointer_induction2(ptr %ptr) {
 ; CHECK-LABEL: @test_first_order_recurrences_and_pointer_induction2(
 ; CHECK:       vector.ph:
 ; CHECK-NEXT:    [[IND_END:%.*]] = getelementptr i8, ptr [[PTR:%.*]], i64 4000
@@ -635,7 +644,7 @@ loop:
   br i1 %exitcond.not, label %exit, label %loop
 
 exit:
-  ret void
+  ret ptr %for.1
 }
 
 ; Make sure LLVM doesn't generate wrong data in SinkAfter, and causes crash in

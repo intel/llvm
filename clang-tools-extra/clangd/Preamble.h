@@ -27,12 +27,14 @@
 #include "Diagnostics.h"
 #include "FS.h"
 #include "Headers.h"
+#include "clang-include-cleaner/Record.h"
 #include "index/CanonicalIncludes.h"
 #include "support/Path.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/PrecompiledPreamble.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <memory>
@@ -57,6 +59,8 @@ struct PreambleData {
   // Processes like code completions and go-to-definitions will need #include
   // information, and their compile action skips preamble range.
   IncludeStructure Includes;
+  // Captures #include-mapping information in #included headers.
+  include_cleaner::PragmaIncludes Pragmas;
   // Macros defined in the preamble section of the main file.
   // Users care about headers vs main-file, not preamble vs non-preamble.
   // These should be treated as main-file entities e.g. for code completion.
@@ -152,7 +156,15 @@ public:
   llvm::StringRef text() const { return PatchContents; }
 
   /// Whether diagnostics generated using this patch are trustable.
-  bool preserveDiagnostics() const { return PatchContents.empty(); }
+  bool preserveDiagnostics() const;
+
+  /// Returns diag locations for Modified contents.
+  llvm::ArrayRef<Diag> patchedDiags() const { return PatchedDiags; }
+
+  static constexpr llvm::StringLiteral HeaderName = "__preamble_patch__.h";
+
+  llvm::ArrayRef<PragmaMark> marks() const;
+  const MainFileMacros &mainFileMacros() const;
 
 private:
   static PreamblePatch create(llvm::StringRef FileName,
@@ -163,16 +175,16 @@ private:
   PreamblePatch() = default;
   std::string PatchContents;
   std::string PatchFileName;
-  /// Includes that are present in both \p Baseline and \p Modified. Used for
-  /// patching includes of baseline preamble.
+  // Includes that are present in both Baseline and Modified. Used for
+  // patching includes of baseline preamble.
   std::vector<Inclusion> PreambleIncludes;
+  // Diags that were attached to a line preserved in Modified contents.
+  std::vector<Diag> PatchedDiags;
   PreambleBounds ModifiedBounds = {0, false};
+  const PreambleData *Baseline = nullptr;
+  std::vector<PragmaMark> PatchedMarks;
+  MainFileMacros PatchedMacros;
 };
-
-/// Translates locations inside preamble patch to their main-file equivalent
-/// using presumed locations. Returns \p Loc if it isn't inside preamble patch.
-SourceLocation translatePreamblePatchLocation(SourceLocation Loc,
-                                              const SourceManager &SM);
 
 } // namespace clangd
 } // namespace clang

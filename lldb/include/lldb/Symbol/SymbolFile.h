@@ -25,10 +25,12 @@
 #include "lldb/Utility/XcodeSDK.h"
 #include "lldb/lldb-private.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Errc.h"
 
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
 #if defined(LLDB_CONFIGURATION_DEBUG)
 #define ASSERT_MODULE_LOCK(expr) (expr->AssertModuleLock())
@@ -146,6 +148,17 @@ public:
   virtual lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) = 0;
   /// Return the Xcode SDK comp_unit was compiled against.
   virtual XcodeSDK ParseXcodeSDK(CompileUnit &comp_unit) { return {}; }
+
+  /// This function exists because SymbolFileDWARFDebugMap may extra compile
+  /// units which aren't exposed as "real" compile units. In every other
+  /// case this function should behave identically as ParseLanguage.
+  virtual llvm::SmallSet<lldb::LanguageType, 4>
+  ParseAllLanguages(CompileUnit &comp_unit) {
+    llvm::SmallSet<lldb::LanguageType, 4> langs;
+    langs.insert(ParseLanguage(comp_unit));
+    return langs;
+  }
+
   virtual size_t ParseFunctions(CompileUnit &comp_unit) = 0;
   virtual bool ParseLineTable(CompileUnit &comp_unit) = 0;
   virtual bool ParseDebugMacros(CompileUnit &comp_unit) = 0;
@@ -421,8 +434,21 @@ public:
            Type::ResolveState compiler_type_resolve_state,
            uint32_t opaque_payload = 0) = 0;
 
+  virtual lldb::TypeSP CopyType(const lldb::TypeSP &other_type) = 0;
+
+  /// Returns a map of compilation unit to the compile option arguments
+  /// associated with that compilation unit.
+  std::unordered_map<lldb::CompUnitSP, Args> GetCompileOptions() {
+    std::unordered_map<lldb::CompUnitSP, Args> args;
+    GetCompileOptions(args);
+    return args;
+  }
+
 protected:
   void AssertModuleLock();
+
+  virtual void GetCompileOptions(
+      std::unordered_map<lldb::CompUnitSP, lldb_private::Args> &args) {}
 
 private:
   SymbolFile(const SymbolFile &) = delete;
@@ -517,6 +543,15 @@ public:
          uid, this, name, byte_size, context, encoding_uid,
          encoding_uid_type, decl, compiler_qual_type,
          compiler_type_resolve_state, opaque_payload));
+     m_type_list.Insert(type_sp);
+     return type_sp;
+  }
+
+  lldb::TypeSP CopyType(const lldb::TypeSP &other_type) override {
+     // Make sure the real symbol file matches when copying types.
+     if (GetBackingSymbolFile() != other_type->GetSymbolFile())
+      return lldb::TypeSP();
+     lldb::TypeSP type_sp(new Type(*other_type));
      m_type_list.Insert(type_sp);
      return type_sp;
   }

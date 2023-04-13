@@ -10,6 +10,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
@@ -54,6 +55,15 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global graph for the application
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
+
+bool CurrentCodeLocationValid() {
+  detail::tls_code_loc_t Tls;
+  auto CodeLoc = Tls.query();
+  auto FileName = CodeLoc.fileName();
+  auto FunctionName = CodeLoc.functionName();
+  return (FileName && FileName[0] != '\0') ||
+         (FunctionName && FunctionName[0] != '\0');
+}
 #endif
 
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
@@ -338,15 +348,27 @@ public:
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Host task is executed async and in a separate thread that do not allow to
+    // use code location data stored in TLS. So we keep submission code location
+    // as Command field and put it here to TLS so that thrown exception could
+    // query and report it.
+    std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
+    if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
+      AsyncCodeLocationPtr.reset(
+          new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
+    }
+#endif
+
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
           WaitResult));
       HostTask.MQueue->reportAsyncException(EPtr);
-
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
+      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -361,12 +383,43 @@ public:
       } else
         HostTask.MHostTask->call();
     } catch (...) {
-      HostTask.MQueue->reportAsyncException(std::current_exception());
+      auto CurrentException = std::current_exception();
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      // sycl::exception emit tracing of message with code location if
+      // available. For other types of exception we need to explicitly trigger
+      // tracing by calling TraceEventXPTI.
+      if (xptiTraceEnabled()) {
+        try {
+          rethrow_exception(CurrentException);
+        } catch (const sycl::exception &) {
+          // it is already traced, nothing to care about
+        } catch (const std::exception &StdException) {
+          GlobalHandler::instance().TraceEventXPTI(StdException.what());
+        } catch (...) {
+          GlobalHandler::instance().TraceEventXPTI(
+              "Host task lambda thrown non standard exception");
+        }
+      }
+#endif
+      HostTask.MQueue->reportAsyncException(CurrentException);
     }
 
     HostTask.MHostTask.reset();
 
-    Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Host Task is done, clear its submittion location to not interfere with
+    // following dependent kernels submission.
+    AsyncCodeLocationPtr.reset();
+#endif
+
+    try {
+      // If we enqueue blocked users - pi level could throw exception that
+      // should be treated as async now.
+      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+    } catch (...) {
+      auto CurrentException = std::current_exception();
+      HostTask.MQueue->reportAsyncException(CurrentException);
+    }
   }
 };
 
@@ -734,6 +787,16 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // If command is enqueued from host task thread - it will not have valid
+  // submission code location set. So we set it manually to properly trace
+  // failures if pi level report any.
+  std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
+  if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
+    AsyncCodeLocationPtr.reset(
+        new detail::tls_code_loc_t(MSubmissionCodeLocation));
+  }
+#endif
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -797,6 +860,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // PI_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
+        !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MMarkedForCleanup);
       MMarkedForCleanup = true;
@@ -863,6 +927,24 @@ const char *Command::getBlockReason() const {
   }
 
   return "Unknown block reason";
+}
+
+void Command::copySubmissionCodeLocation() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  detail::tls_code_loc_t Tls;
+  auto TData = Tls.query();
+  if (TData.fileName())
+    MSubmissionFileName = TData.fileName();
+  if (TData.functionName())
+    MSubmissionFunctionName = TData.functionName();
+  if (MSubmissionFileName.size() || MSubmissionFunctionName.size())
+    MSubmissionCodeLocation = {
+        MSubmissionFileName.c_str(), MSubmissionFunctionName.c_str(),
+        (int)TData.lineNumber(), (int)TData.columnNumber()};
+#endif
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
@@ -2145,7 +2227,8 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    RT::PiKernelCacheConfig KernelCacheConfig) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2235,6 +2318,17 @@ pi_int32 enqueueImpKernel(
   {
     assert(KernelMutex);
     std::lock_guard<std::mutex> Lock(*KernelMutex);
+
+    // Set SLM/Cache configuration for the kernel if non-default value is
+    // provided.
+    if (KernelCacheConfig == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM ||
+        KernelCacheConfig == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA) {
+      const detail::plugin &Plugin = Queue->getPlugin();
+      Plugin.call<PiApiKind::piKernelSetExecInfo>(
+          Kernel, PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG,
+          sizeof(RT::PiKernelCacheConfig), &KernelCacheConfig);
+    }
+
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
@@ -2248,6 +2342,39 @@ pi_int32 enqueueImpKernel(
   }
 
   return PI_SUCCESS;
+}
+
+pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                  const std::string &PipeName, bool blocking,
+                                  void *ptr, size_t size,
+                                  std::vector<RT::PiEvent> &RawEvents,
+                                  RT::PiEvent *OutEvent, bool read) {
+  detail::HostPipeMapEntry *hostPipeEntry =
+      ProgramManager::getInstance().getHostPipeEntry(PipeName);
+
+  RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
+      *(hostPipeEntry->mDeviceImage), Queue->get_context(),
+      Queue->get_device());
+
+  // Get plugin for calling opencl functions
+  const detail::plugin &Plugin = Queue->getPlugin();
+
+  pi_queue pi_q = Queue->getHandleRef();
+  pi_result Error;
+  if (read) {
+    Error =
+        Plugin.call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
+            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEvent);
+  } else {
+    Error =
+        Plugin.call_nocheck<sycl::detail::PiApiKind::piextEnqueueWriteHostPipe>(
+            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEvent);
+  }
+  return Error;
 }
 
 pi_int32 ExecCGCommand::enqueueImp() {
@@ -2471,7 +2598,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);
+        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc,
+        ExecKernel->MKernelCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -2602,6 +2730,10 @@ pi_int32 ExecCGCommand::enqueueImp() {
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
+    // Host task is executed asynchronously so we should record where it was
+    // submitted to report exception origin properly.
+    copySubmissionCodeLocation();
+
     MQueue->getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem)));
 
@@ -2653,6 +2785,21 @@ pi_int32 ExecCGCommand::enqueueImp() {
         Copy->getOSModuleHandle(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
+  }
+  case CG::CGTYPE::ReadWriteHostPipe: {
+    CGReadWriteHostPipe *ExecReadWriteHostPipe =
+        (CGReadWriteHostPipe *)MCommandGroup.get();
+    std::string pipeName = ExecReadWriteHostPipe->getPipeName();
+    void *hostPtr = ExecReadWriteHostPipe->getHostPtr();
+    size_t typeSize = ExecReadWriteHostPipe->getTypeSize();
+    bool blocking = ExecReadWriteHostPipe->isBlocking();
+    bool read = ExecReadWriteHostPipe->isReadHostPipe();
+
+    if (!Event) {
+      Event = &MEvent->getHandleRef();
+    }
+    return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
+                                    typeSize, RawEvents, Event, read);
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

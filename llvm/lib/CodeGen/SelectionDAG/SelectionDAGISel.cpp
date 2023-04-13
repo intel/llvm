@@ -25,13 +25,12 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/CFG.h"
-#include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/LazyBlockFrequencyInfo.h"
-#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/UniformityAnalysis.h"
 #include "llvm/CodeGen/AssignmentTrackingAnalysis.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/FastISel.h"
@@ -60,6 +59,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/CodeGen/WinEHFuncInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -67,6 +67,7 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/EHPersonalities.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstIterator.h"
@@ -345,10 +346,10 @@ void SelectionDAGISel::getAnalysisUsage(AnalysisUsage &AU) const {
   if (UseMBPI && OptLevel != CodeGenOpt::None)
     AU.addRequired<BranchProbabilityInfoWrapperPass>();
   AU.addRequired<ProfileSummaryInfoWrapperPass>();
-  if (getEnableAssignmentTracking()) {
-    AU.addRequired<AssignmentTrackingAnalysis>();
-    AU.addPreserved<AssignmentTrackingAnalysis>();
-  }
+  // AssignmentTrackingAnalysis only runs if assignment tracking is enabled for
+  // the module.
+  AU.addRequired<AssignmentTrackingAnalysis>();
+  AU.addPreserved<AssignmentTrackingAnalysis>();
   if (OptLevel != CodeGenOpt::None)
     LazyBlockFrequencyInfoPass::getLazyBFIAnalysisUsage(AU);
   MachineFunctionPass::getAnalysisUsage(AU);
@@ -392,8 +393,8 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
 
   // Decide what flavour of variable location debug-info will be used, before
   // we change the optimisation level.
-  UseInstrRefDebugInfo = mf.useDebugInstrRef();
-  CurDAG->useInstrRefDebugInfo(UseInstrRefDebugInfo);
+  bool InstrRef = mf.shouldUseDebugInstrRef();
+  mf.setUseDebugInstrRef(InstrRef);
 
   // Reset the target options before resetting the optimization
   // level below.
@@ -420,14 +421,15 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
     BFI = &getAnalysis<LazyBlockFrequencyInfoPass>().getBFI();
 
   FunctionVarLocs const *FnVarLocs = nullptr;
-  if (getEnableAssignmentTracking())
+  if (isAssignmentTrackingEnabled(*Fn.getParent()))
     FnVarLocs = getAnalysis<AssignmentTrackingAnalysis>().getResults();
 
   LLVM_DEBUG(dbgs() << "\n\n\n=== " << Fn.getName() << "\n");
 
-  CurDAG->init(*MF, *ORE, this, LibInfo,
-               getAnalysisIfAvailable<LegacyDivergenceAnalysis>(), PSI, BFI,
-               FnVarLocs);
+  UniformityInfo *UA = nullptr;
+  if (auto *UAPass = getAnalysisIfAvailable<UniformityInfoWrapperPass>())
+    UA = &UAPass->getUniformityInfo();
+  CurDAG->init(*MF, *ORE, this, LibInfo, UA, PSI, BFI, FnVarLocs);
   FuncInfo->set(Fn, *MF, CurDAG);
   SwiftError->setFunction(*MF);
 
@@ -546,7 +548,6 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
         LiveInMap.insert(LI);
 
   // Insert DBG_VALUE instructions for function arguments to the entry block.
-  bool InstrRef = MF->useDebugInstrRef();
   for (unsigned i = 0, e = FuncInfo->ArgDbgValues.size(); i != e; ++i) {
     MachineInstr *MI = FuncInfo->ArgDbgValues[e - i - 1];
     assert(MI->getOpcode() != TargetOpcode::DBG_VALUE_LIST &&
@@ -624,7 +625,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
 
   // For debug-info, in instruction referencing mode, we need to perform some
   // post-isel maintenence.
-  if (UseInstrRefDebugInfo)
+  if (MF->useDebugInstrRef())
     MF->finalizeDebugInstrRefs();
 
   // Determine if there are any calls in this machine function.
@@ -1292,6 +1293,43 @@ bool SelectionDAGISel::PrepareEHLandingPad() {
   return true;
 }
 
+// Mark and Report IPToState for each Block under IsEHa
+void SelectionDAGISel::reportIPToStateForBlocks(MachineFunction *MF) {
+  MachineModuleInfo &MMI = MF->getMMI();
+  llvm::WinEHFuncInfo *EHInfo = MF->getWinEHFuncInfo();
+  if (!EHInfo)
+    return;
+  for (auto MBBI = MF->begin(), E = MF->end(); MBBI != E; ++MBBI) {
+    MachineBasicBlock *MBB = &*MBBI;
+    const BasicBlock *BB = MBB->getBasicBlock();
+    int State = EHInfo->BlockToStateMap[BB];
+    if (BB->getFirstMayFaultInst()) {
+      // Report IP range only for blocks with Faulty inst
+      auto MBBb = MBB->getFirstNonPHI();
+      MachineInstr *MIb = &*MBBb;
+      if (MIb->isTerminator())
+        continue;
+
+      // Insert EH Labels
+      MCSymbol *BeginLabel = MMI.getContext().createTempSymbol();
+      MCSymbol *EndLabel = MMI.getContext().createTempSymbol();
+      EHInfo->addIPToStateRange(State, BeginLabel, EndLabel);
+      BuildMI(*MBB, MBBb, SDB->getCurDebugLoc(),
+              TII->get(TargetOpcode::EH_LABEL))
+          .addSym(BeginLabel);
+      auto MBBe = MBB->instr_end();
+      MachineInstr *MIe = &*(--MBBe);
+      // insert before (possible multiple) terminators
+      while (MIe->isTerminator())
+        MIe = &*(--MBBe);
+      ++MBBe;
+      BuildMI(*MBB, MBBe, SDB->getCurDebugLoc(),
+              TII->get(TargetOpcode::EH_LABEL))
+          .addSym(EndLabel);
+    }
+  }
+}
+
 /// isFoldedOrDeadInstruction - Return true if the specified instruction is
 /// side-effect free and is either dead or folded into a generated instruction.
 /// Return false if it needs to be emitted.
@@ -1368,9 +1406,11 @@ static void processSingleLocVars(FunctionLoweringInfo &FuncInfo,
                                  FunctionVarLocs const *FnVarLocs) {
   for (auto It = FnVarLocs->single_locs_begin(),
             End = FnVarLocs->single_locs_end();
-       It != End; ++It)
-    processDbgDeclare(FuncInfo, It->V, It->Expr,
+       It != End; ++It) {
+    assert(!It->Values.hasArgList() && "Single loc variadic ops not supported");
+    processDbgDeclare(FuncInfo, It->Values.getVariableLocationOp(0), It->Expr,
                       FnVarLocs->getDILocalVariable(It->VariableID), It->DL);
+  }
 }
 
 void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
@@ -1380,8 +1420,6 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
   if (TM.Options.EnableFastISel) {
     LLVM_DEBUG(dbgs() << "Enabling fast-isel\n");
     FastIS = TLI->createFastISel(*FuncInfo, LibInfo);
-    if (FastIS)
-      FastIS->useInstrRefDebugInfo(UseInstrRefDebugInfo);
   }
 
   ReversePostOrderTraversal<const Function*> RPOT(&Fn);
@@ -1435,7 +1473,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
   if (FastIS && Inserted)
     FastIS->setLastLocalValue(&*std::prev(FuncInfo->InsertPt));
 
-  if (getEnableAssignmentTracking()) {
+  if (isAssignmentTrackingEnabled(*Fn.getParent())) {
     assert(CurDAG->getFunctionVarLocs() &&
            "expected AssignmentTrackingAnalysis pass results");
     processSingleLocVars(*FuncInfo, CurDAG->getFunctionVarLocs());
@@ -1648,6 +1686,10 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
     FuncInfo->PHINodesToUpdate.clear();
     ElidedArgCopyInstrs.clear();
   }
+
+  // AsynchEH: Report Block State under -AsynchEH
+  if (Fn.getParent()->getModuleFlag("eh-asynch"))
+    reportIPToStateForBlocks(MF);
 
   SP.copyToMachineFrameInfo(MF->getFrameInfo());
 
@@ -2276,7 +2318,7 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
 
   // Stash the chain and glue operands so we can move them to the end.
   SDValue Chain = *It++;
-  SDValue InFlag = *It++;
+  SDValue InGlue = *It++;
 
   // <id> operand.
   SDValue ID = *It++;
@@ -2293,7 +2335,7 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
     pushStackMapLiveVariable(Ops, *It, DL);
 
   Ops.push_back(Chain);
-  Ops.push_back(InFlag);
+  Ops.push_back(InGlue);
 
   SDVTList NodeTys = CurDAG->getVTList(MVT::Other, MVT::Glue);
   CurDAG->SelectNodeTo(N, TargetOpcode::STACKMAP, NodeTys, Ops);
@@ -3243,7 +3285,7 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
       if (CaseSize == 0) break;
 
       // Otherwise, execute the case we found.
-      LLVM_DEBUG(dbgs() << "  TypeSwitch[" << EVT(CurNodeVT).getEVTString()
+      LLVM_DEBUG(dbgs() << "  TypeSwitch[" << CurNodeVT
                         << "] from " << SwitchStart << " to " << MatcherIndex
                         << '\n');
       continue;

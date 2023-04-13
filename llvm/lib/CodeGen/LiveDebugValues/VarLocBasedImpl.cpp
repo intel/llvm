@@ -1347,7 +1347,7 @@ void VarLocBasedLDV::removeEntryValue(const MachineInstr &MI,
   // Try to get non-debug instruction responsible for the DBG_VALUE.
   const MachineInstr *TransferInst = nullptr;
   Register Reg = MI.getDebugOperand(0).getReg();
-  if (Reg.isValid() && RegSetInstrs.find(Reg) != RegSetInstrs.end())
+  if (Reg.isValid() && RegSetInstrs.contains(Reg))
     TransferInst = RegSetInstrs.find(Reg)->second;
 
   // Case of the parameter's DBG_VALUE at the start of entry MBB.
@@ -2151,7 +2151,9 @@ bool VarLocBasedLDV::isEntryValueCandidate(
 
   // TODO: Add support for parameters that have a pre-existing debug expressions
   // (e.g. fragments).
-  if (MI.getDebugExpression()->getNumElements() > 0)
+  // A simple deref expression is equivalent to an indirect debug value.
+  const DIExpression *Expr = MI.getDebugExpression();
+  if (Expr->getNumElements() > 0 && !Expr->isDeref())
     return false;
 
   return true;

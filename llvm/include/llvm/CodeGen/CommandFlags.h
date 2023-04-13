@@ -94,8 +94,6 @@ std::string getTrapFuncName();
 
 bool getUseCtors();
 
-bool getLowerGlobalDtorsViaCxaAtExit();
-
 bool getRelaxELFRelocations();
 
 bool getDataSections();
@@ -144,6 +142,8 @@ bool getDebugStrictDwarf();
 unsigned getAlignLoops();
 
 bool getJMCInstrument();
+
+bool getXCOFFReadOnlyPointers();
 
 /// Create this object with static storage to register codegen-related command
 /// line options.

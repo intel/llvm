@@ -266,8 +266,8 @@ struct __member_pointer_class_type<_Ret _ClassType::*> {
 };
 
 template <class _Fp, class _A0,
-         class _DecayFp = typename decay<_Fp>::type,
-         class _DecayA0 = typename decay<_A0>::type,
+         class _DecayFp = __decay_t<_Fp>,
+         class _DecayA0 = __decay_t<_A0>,
          class _ClassT = typename __member_pointer_class_type<_DecayFp>::type>
 using __enable_if_bullet1 = typename enable_if
     <
@@ -276,8 +276,8 @@ using __enable_if_bullet1 = typename enable_if
     >::type;
 
 template <class _Fp, class _A0,
-         class _DecayFp = typename decay<_Fp>::type,
-         class _DecayA0 = typename decay<_A0>::type>
+         class _DecayFp = __decay_t<_Fp>,
+         class _DecayA0 = __decay_t<_A0> >
 using __enable_if_bullet2 = typename enable_if
     <
         is_member_function_pointer<_DecayFp>::value
@@ -285,8 +285,8 @@ using __enable_if_bullet2 = typename enable_if
     >::type;
 
 template <class _Fp, class _A0,
-         class _DecayFp = typename decay<_Fp>::type,
-         class _DecayA0 = typename decay<_A0>::type,
+         class _DecayFp = __decay_t<_Fp>,
+         class _DecayA0 = __decay_t<_A0>,
          class _ClassT = typename __member_pointer_class_type<_DecayFp>::type>
 using __enable_if_bullet3 = typename enable_if
     <
@@ -296,8 +296,8 @@ using __enable_if_bullet3 = typename enable_if
     >::type;
 
 template <class _Fp, class _A0,
-         class _DecayFp = typename decay<_Fp>::type,
-         class _DecayA0 = typename decay<_A0>::type,
+         class _DecayFp = __decay_t<_Fp>,
+         class _DecayA0 = __decay_t<_A0>,
          class _ClassT = typename __member_pointer_class_type<_DecayFp>::type>
 using __enable_if_bullet4 = typename enable_if
     <
@@ -306,8 +306,8 @@ using __enable_if_bullet4 = typename enable_if
     >::type;
 
 template <class _Fp, class _A0,
-         class _DecayFp = typename decay<_Fp>::type,
-         class _DecayA0 = typename decay<_A0>::type>
+         class _DecayFp = __decay_t<_Fp>,
+         class _DecayA0 = __decay_t<_A0> >
 using __enable_if_bullet5 = typename enable_if
     <
         is_member_object_pointer<_DecayFp>::value
@@ -315,8 +315,8 @@ using __enable_if_bullet5 = typename enable_if
     >::type;
 
 template <class _Fp, class _A0,
-         class _DecayFp = typename decay<_Fp>::type,
-         class _DecayA0 = typename decay<_A0>::type,
+         class _DecayFp = __decay_t<_Fp>,
+         class _DecayA0 = __decay_t<_A0>,
          class _ClassT = typename __member_pointer_class_type<_DecayFp>::type>
 using __enable_if_bullet6 = typename enable_if
     <
@@ -488,7 +488,7 @@ struct __invoke_void_return_wrapper<_Ret, true>
     }
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 // is_invocable
 
@@ -539,7 +539,26 @@ invoke(_Fn&& __f, _Args&&... __args)
     return _VSTD::__invoke(_VSTD::forward<_Fn>(__f), _VSTD::forward<_Args>(__args)...);
 }
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
+
+#if _LIBCPP_STD_VER >= 23
+template <class _Result, class _Fn, class... _Args>
+  requires is_invocable_r_v<_Result, _Fn, _Args...>
+_LIBCPP_HIDE_FROM_ABI constexpr _Result
+invoke_r(_Fn&& __f, _Args&&... __args) noexcept(is_nothrow_invocable_r_v<_Result, _Fn, _Args...>) {
+    if constexpr (is_void_v<_Result>) {
+        static_cast<void>(std::invoke(std::forward<_Fn>(__f), std::forward<_Args>(__args)...));
+    } else {
+        // TODO: Use reference_converts_from_temporary_v once implemented
+        // using _ImplicitInvokeResult = invoke_result_t<_Fn, _Args...>;
+        // static_assert(!reference_converts_from_temporary_v<_Result, _ImplicitInvokeResult>,
+        static_assert(true,
+            "Returning from invoke_r would bind a temporary object to the reference return type, "
+            "which would result in a dangling reference.");
+        return std::invoke(std::forward<_Fn>(__f), std::forward<_Args>(__args)...);
+    }
+}
+#endif
 
 _LIBCPP_END_NAMESPACE_STD
 

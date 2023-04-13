@@ -156,6 +156,89 @@ TEST(TransferTest, IntVarDecl) {
       });
 }
 
+TEST(TransferTest, StructIncomplete) {
+  std::string Code = R"(
+    struct A;
+
+    void target() {
+      A* Foo;
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+        ASSERT_THAT(FooDecl, NotNull());
+        auto *FooValue = dyn_cast_or_null<PointerValue>(
+            Env.getValue(*FooDecl, SkipPast::None));
+        ASSERT_THAT(FooValue, NotNull());
+
+        EXPECT_TRUE(isa<AggregateStorageLocation>(FooValue->getPointeeLoc()));
+        auto *FooPointeeValue = Env.getValue(FooValue->getPointeeLoc());
+        ASSERT_THAT(FooPointeeValue, NotNull());
+        EXPECT_TRUE(isa<StructValue>(FooPointeeValue));
+      });
+}
+
+// As a memory optimization, we prevent modeling fields nested below a certain
+// level (currently, depth 3). This test verifies this lack of modeling. We also
+// include a regression test for the case that the unmodeled field is a
+// reference to a struct; previously, we crashed when accessing such a field.
+TEST(TransferTest, StructFieldUnmodeled) {
+  std::string Code = R"(
+    struct S { int X; };
+    S GlobalS;
+    struct A { S &Unmodeled = GlobalS; };
+    struct B { A F3; };
+    struct C { B F2; };
+    struct D { C F1; };
+
+    void target() {
+      D Bar;
+      A Foo = Bar.F1.F2.F3;
+      int Zab = Foo.Unmodeled.X;
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+        ASSERT_THAT(FooDecl, NotNull());
+        ASSERT_TRUE(FooDecl->getType()->isStructureType());
+        auto FooFields = FooDecl->getType()->getAsRecordDecl()->fields();
+
+        FieldDecl *UnmodeledDecl = nullptr;
+        for (FieldDecl *Field : FooFields) {
+          if (Field->getNameAsString() == "Unmodeled") {
+            UnmodeledDecl = Field;
+          } else {
+            FAIL() << "Unexpected field: " << Field->getNameAsString();
+          }
+        }
+        ASSERT_THAT(UnmodeledDecl, NotNull());
+
+        const auto *FooLoc = cast<AggregateStorageLocation>(
+            Env.getStorageLocation(*FooDecl, SkipPast::None));
+        const auto *UnmodeledLoc = &FooLoc->getChild(*UnmodeledDecl);
+        ASSERT_TRUE(isa<ScalarStorageLocation>(UnmodeledLoc));
+        ASSERT_THAT(Env.getValue(*UnmodeledLoc), IsNull());
+
+        const ValueDecl *ZabDecl = findValueDecl(ASTCtx, "Zab");
+        ASSERT_THAT(ZabDecl, NotNull());
+        EXPECT_THAT(Env.getValue(*ZabDecl, SkipPast::None), NotNull());
+      });
+}
+
 TEST(TransferTest, StructVarDecl) {
   std::string Code = R"(
     struct A {
@@ -2019,6 +2102,54 @@ TEST(TransferTest, CopyConstructor) {
       });
 }
 
+TEST(TransferTest, CopyConstructorWithDefaultArgument) {
+  std::string Code = R"(
+    struct A {
+      int Baz;
+      A() = default;
+      A(const A& a, bool def = true) { Baz = a.Baz; }
+    };
+
+    void target() {
+      A Foo;
+      (void)Foo.Baz;
+      A Bar = Foo;
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+        ASSERT_THAT(FooDecl, NotNull());
+
+        const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
+        ASSERT_THAT(BarDecl, NotNull());
+
+        const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
+        ASSERT_THAT(BazDecl, NotNull());
+
+        const auto *FooLoc = cast<AggregateStorageLocation>(
+            Env.getStorageLocation(*FooDecl, SkipPast::None));
+        const auto *BarLoc = cast<AggregateStorageLocation>(
+            Env.getStorageLocation(*BarDecl, SkipPast::None));
+
+        const auto *FooVal = cast<StructValue>(Env.getValue(*FooLoc));
+        const auto *BarVal = cast<StructValue>(Env.getValue(*BarLoc));
+        EXPECT_EQ(FooVal, BarVal);
+
+        const auto *FooBazVal =
+            cast<IntegerValue>(Env.getValue(FooLoc->getChild(*BazDecl)));
+        const auto *BarBazVal =
+            cast<IntegerValue>(Env.getValue(BarLoc->getChild(*BazDecl)));
+        EXPECT_EQ(FooBazVal, BarBazVal);
+      });
+}
+
 TEST(TransferTest, CopyConstructorWithParens) {
   std::string Code = R"(
     struct A {
@@ -3810,6 +3941,8 @@ TEST(TransferTest, StructuredBindingAssignFromTupleLikeType) {
         const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
         ASSERT_THAT(BazDecl, NotNull());
 
+        // BindingDecls always map to references -- either lvalue or rvalue, so
+        // we still need to skip here.
         const Value *BoundFooValue =
             Env1.getValue(*BoundFooDecl, SkipPast::Reference);
         ASSERT_THAT(BoundFooValue, NotNull());
@@ -3821,13 +3954,13 @@ TEST(TransferTest, StructuredBindingAssignFromTupleLikeType) {
         EXPECT_TRUE(isa<IntegerValue>(BoundBarValue));
 
         // Test that a `DeclRefExpr` to a `BindingDecl` works as expected.
-        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::None), BoundFooValue);
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
 
         // Test that `BoundFooDecl` retains the value we expect, after the join.
         BoundFooValue = Env2.getValue(*BoundFooDecl, SkipPast::Reference);
-        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::None), BoundFooValue);
       });
 }
 
@@ -3905,16 +4038,15 @@ TEST(TransferTest, StructuredBindingAssignRefFromTupleLikeType) {
         // works as expected. We don't test aliasing properties of the
         // reference, because we don't model `std::get` and so have no way to
         // equate separate references into the tuple.
-        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env1.getValue(*BazDecl, SkipPast::None), BoundFooValue);
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
 
         // Test that `BoundFooDecl` retains the value we expect, after the join.
         BoundFooValue = Env2.getValue(*BoundFooDecl, SkipPast::Reference);
-        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::Reference), BoundFooValue);
+        EXPECT_EQ(Env2.getValue(*BazDecl, SkipPast::None), BoundFooValue);
       });
 }
-// TODO: ref binding
 
 TEST(TransferTest, BinaryOperatorComma) {
   std::string Code = R"(
@@ -4946,6 +5078,96 @@ TEST(TransferTest, ContextSensitiveConstructorDefault) {
         EXPECT_TRUE(Env.flowConditionImplies(FooVal));
       },
       {BuiltinOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, UnnamedBitfieldInitializer) {
+  std::string Code = R"(
+    struct B {};
+    struct A {
+      unsigned a;
+      unsigned : 4;
+      unsigned c;
+      B b;
+    };
+    void target() {
+      A a = {};
+      A test = a;
+      (void)test.c;
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        // This doesn't need a body because this test was crashing the framework
+        // before handling correctly Unnamed bitfields in `InitListExpr`.
+      });
+}
+
+// Repro for a crash that used to occur when we call a `noreturn` function
+// within one of the operands of a `&&` or `||` operator.
+TEST(TransferTest, NoReturnFunctionInsideShortCircuitedBooleanOp) {
+  std::string Code = R"(
+    __attribute__((noreturn)) int doesnt_return();
+    bool some_condition();
+    void target(bool b1, bool b2) {
+      // Neither of these should crash. In addition, if we don't terminate the
+      // program, we know that the operators need to trigger the short-circuit
+      // logic, so `NoreturnOnRhsOfAnd` will be false and `NoreturnOnRhsOfOr`
+      // will be true.
+      bool NoreturnOnRhsOfAnd = b1 && doesnt_return() > 0;
+      bool NoreturnOnRhsOfOr = b2 || doesnt_return() > 0;
+
+      // Calling a `noreturn` function on the LHS of an `&&` or `||` makes the
+      // entire expression unreachable. So we know that in both of the following
+      // cases, if `target()` terminates, the `else` branch was taken.
+      bool NoreturnOnLhsMakesAndUnreachable = false;
+      if (some_condition())
+         doesnt_return() > 0 && some_condition();
+      else
+         NoreturnOnLhsMakesAndUnreachable = true;
+
+      bool NoreturnOnLhsMakesOrUnreachable = false;
+      if (some_condition())
+         doesnt_return() > 0 || some_condition();
+      else
+         NoreturnOnLhsMakesOrUnreachable = true;
+
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        // Check that [[p]] is reachable with a non-false flow condition.
+        EXPECT_FALSE(Env.flowConditionImplies(Env.getBoolLiteralValue(false)));
+
+        auto &B1 = getValueForDecl<BoolValue>(ASTCtx, Env, "b1");
+        EXPECT_TRUE(Env.flowConditionImplies(Env.makeNot(B1)));
+
+        auto &NoreturnOnRhsOfAnd =
+            getValueForDecl<BoolValue>(ASTCtx, Env, "NoreturnOnRhsOfAnd");
+        EXPECT_TRUE(Env.flowConditionImplies(Env.makeNot(NoreturnOnRhsOfAnd)));
+
+        auto &B2 = getValueForDecl<BoolValue>(ASTCtx, Env, "b2");
+        EXPECT_TRUE(Env.flowConditionImplies(B2));
+
+        auto &NoreturnOnRhsOfOr =
+            getValueForDecl<BoolValue>(ASTCtx, Env, "NoreturnOnRhsOfOr");
+        EXPECT_TRUE(Env.flowConditionImplies(NoreturnOnRhsOfOr));
+
+        auto &NoreturnOnLhsMakesAndUnreachable = getValueForDecl<BoolValue>(
+            ASTCtx, Env, "NoreturnOnLhsMakesAndUnreachable");
+        EXPECT_TRUE(Env.flowConditionImplies(NoreturnOnLhsMakesAndUnreachable));
+
+        auto &NoreturnOnLhsMakesOrUnreachable = getValueForDecl<BoolValue>(
+            ASTCtx, Env, "NoreturnOnLhsMakesOrUnreachable");
+        EXPECT_TRUE(Env.flowConditionImplies(NoreturnOnLhsMakesOrUnreachable));
+      });
 }
 
 } // namespace

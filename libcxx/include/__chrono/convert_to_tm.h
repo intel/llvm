@@ -10,6 +10,7 @@
 #ifndef _LIBCPP___CHRONO_CONVERT_TO_TM_H
 #define _LIBCPP___CHRONO_CONVERT_TO_TM_H
 
+#include <__chrono/concepts.h>
 #include <__chrono/day.h>
 #include <__chrono/duration.h>
 #include <__chrono/hh_mm_ss.h>
@@ -26,17 +27,22 @@
 #include <__chrono/year_month_weekday.h>
 #include <__concepts/same_as.h>
 #include <__config>
+#include <__format/format_error.h>
 #include <__memory/addressof.h>
 #include <cstdint>
 #include <ctime>
+#include <limits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // Conerts a chrono date and weekday to a given _Tm type.
 //
@@ -76,7 +82,25 @@ _LIBCPP_HIDE_FROM_ABI _Tm __convert_to_tm(const _ChronoT& __value) {
   __result.tm_zone = "UTC";
 #  endif
 
-  if constexpr (chrono::__is_duration<_ChronoT>::value) {
+  if constexpr (__is_time_point<_ChronoT>) {
+    if constexpr (same_as<typename _ChronoT::clock, chrono::system_clock>) {
+      chrono::sys_days __days = chrono::time_point_cast<chrono::days>(__value);
+      chrono::year_month_day __ymd{__days};
+
+      __result = std::__convert_to_tm<_Tm>(chrono::year_month_day{__ymd}, chrono::weekday{__days});
+
+      // TODO FMT D138826 has improvements for this part.
+      // TODO FMT Since this is identical for duration and system time it would be good to avoid code duplication.
+      uint64_t __sec =
+          chrono::duration_cast<chrono::seconds>(__value - chrono::time_point_cast<chrono::seconds>(__days)).count();
+      __sec %= 24 * 3600;
+      __result.tm_hour = __sec / 3600;
+      __sec %= 3600;
+      __result.tm_min = __sec / 60;
+      __result.tm_sec = __sec % 60;
+    } else
+      static_assert(sizeof(_ChronoT) == 0, "TODO: Add the missing clock specialization");
+  } else if constexpr (chrono::__is_duration<_ChronoT>::value) {
     // [time.format]/6
     //   ...  However, if a flag refers to a "time of day" (e.g. %H, %I, %p,
     //   etc.), then a specialization of duration is interpreted as the time of
@@ -114,14 +138,26 @@ _LIBCPP_HIDE_FROM_ABI _Tm __convert_to_tm(const _ChronoT& __value) {
   } else if constexpr (same_as<_ChronoT, chrono::year_month_weekday> ||
                        same_as<_ChronoT, chrono::year_month_weekday_last>) {
     return std::__convert_to_tm<_Tm>(chrono::year_month_day{static_cast<chrono::sys_days>(__value)}, __value.weekday());
+  } else if constexpr (__is_hh_mm_ss<_ChronoT>) {
+    __result.tm_sec = __value.seconds().count();
+    __result.tm_min = __value.minutes().count();
+    // In libc++ hours is stored as a long. The type in std::tm is an int. So
+    // the overflow can only occur when hour uses more bits than an int
+    // provides.
+    if constexpr (sizeof(std::chrono::hours::rep) > sizeof(__result.tm_hour))
+      if (__value.hours().count() > std::numeric_limits<decltype(__result.tm_hour)>::max())
+        std::__throw_format_error("Formatting hh_mm_ss, encountered an hour overflow");
+    __result.tm_hour = __value.hours().count();
   } else
     static_assert(sizeof(_ChronoT) == 0, "Add the missing type specialization");
 
   return __result;
 }
 
-#endif //if _LIBCPP_STD_VER > 17
+#endif // if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___CHRONO_CONVERT_TO_TM_H

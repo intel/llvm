@@ -29,6 +29,7 @@
 #include <format>
 #include <cassert>
 #include <concepts>
+#include <iterator>
 #include <type_traits>
 
 #include "test_format_context.h"
@@ -87,8 +88,8 @@ void test_signed_integral_type() {
     test_termination_condition(STR("2147483647"), STR("}"), A(2147483647));
   }
   if (sizeof(A) > 4) {
-    test_termination_condition(STR("-9223372036854775808"), STR("}"), A(std::numeric_limits<int64_t>::min()));
-    test_termination_condition(STR("9223372036854775807"), STR("}"), A(std::numeric_limits<int64_t>::max()));
+    test_termination_condition(STR("-9223372036854775808"), STR("}"), A(std::numeric_limits<std::int64_t>::min()));
+    test_termination_condition(STR("9223372036854775807"), STR("}"), A(std::numeric_limits<std::int64_t>::max()));
   }
 #ifndef TEST_HAS_NO_INT128
   if (sizeof(A) > 8) {

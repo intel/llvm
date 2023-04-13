@@ -105,5 +105,7 @@ void SimplifyAffineStructures::runOnOperation() {
     if (isa<AffineForOp, AffineIfOp, AffineApplyOp>(op))
       opsToSimplify.push_back(op);
   });
-  (void)applyOpPatternsAndFold(opsToSimplify, frozenPatterns, /*strict=*/true);
+  GreedyRewriteConfig config;
+  config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
+  (void)applyOpPatternsAndFold(opsToSimplify, frozenPatterns, config);
 }

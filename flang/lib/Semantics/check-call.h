@@ -37,12 +37,12 @@ bool CheckArguments(const evaluate::characteristics::Procedure &,
     bool treatingExternalAsImplicit,
     const evaluate::SpecificIntrinsic *intrinsic);
 
-// Checks actual arguments against a procedure with an explicit interface.
-// Reports a buffer of errors when not compatible.
-parser::Messages CheckExplicitInterface(
-    const evaluate::characteristics::Procedure &, evaluate::ActualArguments &,
-    const evaluate::FoldingContext &, const Scope &,
-    const evaluate::SpecificIntrinsic *intrinsic);
+bool CheckPPCIntrinsic(const Symbol &generic, const Symbol &specific,
+    const evaluate::ActualArguments &actuals,
+    evaluate::FoldingContext &context);
+bool CheckArgumentIsConstantExprInRange(
+    const evaluate::ActualArguments &actuals, int index, int lowerBound,
+    int upperBound, parser::ContextualMessages &messages);
 
 // Checks actual arguments for the purpose of resolving a generic interface.
 bool CheckInterfaceForGeneric(const evaluate::characteristics::Procedure &,

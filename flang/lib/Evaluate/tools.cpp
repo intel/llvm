@@ -78,8 +78,11 @@ std::optional<DataRef> ExtractSubstringBase(const Substring &substring) {
 // IsVariable()
 
 auto IsVariableHelper::operator()(const Symbol &symbol) const -> Result {
-  const Symbol &root{GetAssociationRoot(symbol)};
-  return !IsNamedConstant(root) && root.has<semantics::ObjectEntityDetails>();
+  // ASSOCIATE(x => expr) -- x counts as a variable, but undefinable
+  const Symbol &ultimate{symbol.GetUltimate()};
+  return !IsNamedConstant(ultimate) &&
+      (ultimate.has<semantics::ObjectEntityDetails>() ||
+          ultimate.has<semantics::AssocEntityDetails>());
 }
 auto IsVariableHelper::operator()(const Component &x) const -> Result {
   const Symbol &comp{x.GetLastSymbol()};
@@ -737,6 +740,18 @@ bool IsFunction(const Expr<SomeType> &expr) {
   return designator && designator->GetType().has_value();
 }
 
+bool IsProcedurePointer(const Expr<SomeType> &expr) {
+  return common::visit(common::visitors{
+                           [](const NullPointer &) { return true; },
+                           [](const ProcedureRef &) { return false; },
+                           [&](const auto &) {
+                             const Symbol *last{GetLastSymbol(expr)};
+                             return last && IsProcedurePointer(*last);
+                           },
+                       },
+      expr.u);
+}
+
 bool IsProcedurePointerTarget(const Expr<SomeType> &expr) {
   return common::visit(common::visitors{
                            [](const NullPointer &) { return true; },
@@ -1151,7 +1166,7 @@ bool IsAllocatableDesignator(const Expr<SomeType> &expr) {
   // Allocatable sub-objects are not themselves allocatable (9.5.3.1 NOTE 2).
   if (const semantics::Symbol *
       sym{UnwrapWholeSymbolOrComponentOrCoarrayRef(expr)}) {
-    return semantics::IsAllocatable(*sym);
+    return semantics::IsAllocatable(sym->GetUltimate());
   }
   return false;
 }
@@ -1200,6 +1215,18 @@ const Symbol &ResolveAssociations(const Symbol &original) {
   return symbol;
 }
 
+const Symbol &ResolveAssociationsExceptSelectRank(const Symbol &original) {
+  const Symbol &symbol{original.GetUltimate()};
+  if (const auto *details{symbol.detailsIf<AssocEntityDetails>()}) {
+    if (!details->rank()) {
+      if (const Symbol * nested{UnwrapWholeSymbolDataRef(details->expr())}) {
+        return ResolveAssociations(*nested);
+      }
+    }
+  }
+  return symbol;
+}
+
 // When a construct association maps to a variable, and that variable
 // is not an array with a vector-valued subscript, return the base
 // Symbol of that variable, else nullptr.  Descends into other construct
@@ -1239,15 +1266,10 @@ const Symbol *GetMainEntry(const Symbol *symbol) {
 }
 
 bool IsVariableName(const Symbol &original) {
-  const Symbol &symbol{ResolveAssociations(original)};
-  if (symbol.has<ObjectEntityDetails>()) {
-    return !IsNamedConstant(symbol);
-  } else if (const auto *assoc{symbol.detailsIf<AssocEntityDetails>()}) {
-    const auto &expr{assoc->expr()};
-    return expr && IsVariable(*expr) && !HasVectorSubscript(*expr);
-  } else {
-    return false;
-  }
+  const Symbol &ultimate{original.GetUltimate()};
+  return !IsNamedConstant(ultimate) &&
+      (ultimate.has<ObjectEntityDetails>() ||
+          ultimate.has<AssocEntityDetails>());
 }
 
 bool IsPureProcedure(const Symbol &original) {
@@ -1432,8 +1454,6 @@ bool IsSaved(const Symbol &original) {
     // 8.5.16p4
     // In main programs, implied SAVE matters only for pointer
     // initialization targets and coarrays.
-    // BLOCK DATA entities must all be in COMMON,
-    // which was checked above.
     return true;
   } else if (scopeKind == Scope::Kind::MainProgram &&
       (features.IsEnabled(common::LanguageFeature::SaveMainProgram) ||
@@ -1574,31 +1594,6 @@ int CountNonConstantLenParameters(const DerivedTypeSpec &type) {
       return true;
     }
   });
-}
-
-// Are the type parameters of type1 compile-time compatible with the
-// corresponding kind type parameters of type2?  Return true if all constant
-// valued parameters are equal.
-// Used to check assignment statements and argument passing.  See 15.5.2.4(4)
-bool AreTypeParamCompatible(const semantics::DerivedTypeSpec &type1,
-    const semantics::DerivedTypeSpec &type2) {
-  for (const auto &[name, param1] : type1.parameters()) {
-    if (semantics::MaybeIntExpr paramExpr1{param1.GetExplicit()}) {
-      if (IsConstantExpr(*paramExpr1)) {
-        const semantics::ParamValue *param2{type2.FindParameter(name)};
-        if (param2) {
-          if (semantics::MaybeIntExpr paramExpr2{param2->GetExplicit()}) {
-            if (IsConstantExpr(*paramExpr2)) {
-              if (ToInt64(*paramExpr1) != ToInt64(*paramExpr2)) {
-                return false;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return true;
 }
 
 const Symbol &GetUsedModule(const UseDetails &details) {

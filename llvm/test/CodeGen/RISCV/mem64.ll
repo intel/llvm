@@ -8,7 +8,7 @@ define dso_local i64 @lb(ptr %a) nounwind {
 ; RV64I-LABEL: lb:
 ; RV64I:       # %bb.0:
 ; RV64I-NEXT:    lb a1, 1(a0)
-; RV64I-NEXT:    lb a0, 0(a0)
+; RV64I-NEXT:    lbu a0, 0(a0)
 ; RV64I-NEXT:    mv a0, a1
 ; RV64I-NEXT:    ret
   %1 = getelementptr i8, ptr %a, i32 1
@@ -168,7 +168,7 @@ define dso_local i64 @load_sext_zext_anyext_i1(ptr %a) nounwind {
 ; RV64I:       # %bb.0:
 ; RV64I-NEXT:    lbu a1, 1(a0)
 ; RV64I-NEXT:    lbu a2, 2(a0)
-; RV64I-NEXT:    lb a0, 0(a0)
+; RV64I-NEXT:    lbu a0, 0(a0)
 ; RV64I-NEXT:    sub a0, a2, a1
 ; RV64I-NEXT:    ret
   ; sextload i1
@@ -190,7 +190,7 @@ define dso_local i16 @load_sext_zext_anyext_i1_i16(ptr %a) nounwind {
 ; RV64I:       # %bb.0:
 ; RV64I-NEXT:    lbu a1, 1(a0)
 ; RV64I-NEXT:    lbu a2, 2(a0)
-; RV64I-NEXT:    lb a0, 0(a0)
+; RV64I-NEXT:    lbu a0, 0(a0)
 ; RV64I-NEXT:    sub a0, a2, a1
 ; RV64I-NEXT:    ret
   ; sextload i1
@@ -368,7 +368,7 @@ define void @addi_fold_crash(i64 %arg) nounwind {
 ; RV64I-NEXT:    addi sp, sp, 16
 ; RV64I-NEXT:    ret
 bb:
-  %tmp = alloca %struct.quux, align 4
+  %tmp = alloca %struct.quux, align 8
   %tmp1 = getelementptr inbounds %struct.quux, ptr %tmp, i64 0, i32 1
   %tmp2 = getelementptr inbounds %struct.quux, ptr %tmp, i64 0, i32 1, i64 %arg
   store i8 0, ptr %tmp2, align 1

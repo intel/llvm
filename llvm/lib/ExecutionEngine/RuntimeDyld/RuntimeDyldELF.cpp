@@ -15,12 +15,12 @@
 #include "Targets/RuntimeDyldELFMips.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -426,13 +426,15 @@ void RuntimeDyldELF::resolveAArch64Relocation(const SectionEntry &Section,
     break;
   case ELF::R_AARCH64_ABS16: {
     uint64_t Result = Value + Addend;
-    assert(static_cast<int64_t>(Result) >= INT16_MIN && Result < UINT16_MAX);
+    assert(Result == static_cast<uint64_t>(llvm::SignExtend64(Result, 16)) ||
+           (Result >> 16) == 0);
     write(isBE, TargetPtr, static_cast<uint16_t>(Result & 0xffffU));
     break;
   }
   case ELF::R_AARCH64_ABS32: {
     uint64_t Result = Value + Addend;
-    assert(static_cast<int64_t>(Result) >= INT32_MIN && Result < UINT32_MAX);
+    assert(Result == static_cast<uint64_t>(llvm::SignExtend64(Result, 32)) ||
+           (Result >> 32) == 0);
     write(isBE, TargetPtr, static_cast<uint32_t>(Result & 0xffffffffU));
     break;
   }
@@ -1282,6 +1284,7 @@ RuntimeDyldELF::processRelocationRef(
     }
     case SymbolRef::ST_Data:
     case SymbolRef::ST_Function:
+    case SymbolRef::ST_Other:
     case SymbolRef::ST_Unknown: {
       Value.SymbolName = TargetName.data();
       Value.Addend = Addend;
@@ -2405,6 +2408,7 @@ Error RuntimeDyldELF::finalizeLoad(const ObjectFile &Obj,
     }
   }
 
+  GOTOffsetMap.clear();
   GOTSectionID = 0;
   CurrentGOTIndex = 0;
 

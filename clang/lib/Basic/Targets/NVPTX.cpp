@@ -22,11 +22,11 @@ using namespace clang::targets;
 
 static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsNVPTX.def"
 };
 
@@ -95,6 +95,8 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
     default:
       llvm_unreachable("TargetPointerWidth must be 32 or 64");
     }
+
+    MaxAtomicInlineWidth = TargetPointerWidth;
     return;
   }
 
@@ -168,7 +170,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
-  if (Opts.CUDAIsDevice || Opts.OpenMPIsDevice || Opts.SYCLIsDevice) {
+  if (Opts.CUDAIsDevice || Opts.OpenMPIsDevice || Opts.SYCLIsDevice ||
+      !HostTarget) {
     // Set __CUDA_ARCH__ or __SYCL_CUDA_ARCH__ for the GPU specified.
     // The SYCL-specific macro is used to distinguish the SYCL and CUDA APIs.
     std::string CUDAArchCode = [this] {

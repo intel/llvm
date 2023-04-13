@@ -23,11 +23,11 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Host.h"
 #include <cstdio>
 
 #ifdef _WIN32
@@ -395,6 +395,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Linker.equals_insensitive("lld"))
     Linker = "lld-link";
 
+  if (Linker == "lld-link")
+    for (Arg *A : Args.filtered(options::OPT_vfsoverlay))
+      CmdArgs.push_back(
+          Args.MakeArgString(std::string("/vfsoverlay:") + A->getValue()));
+
   if (Linker.equals_insensitive("link")) {
     // If we're using the MSVC linker, it's not sufficient to just use link
     // from the program PATH, because other environments like GnuWin32 install
@@ -413,6 +418,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         C.getDriver().Diag(clang::diag::warn_drv_msvc_not_found);
       }
     }
+
+    // Clang handles passing the proper asan libs to the linker, which goes
+    // against link.exe's /INFERASANLIBS which automatically finds asan libs.
+    if (TC.getSanitizerArgs(Args).needsAsanRt())
+      CmdArgs.push_back("/INFERASANLIBS:NO");
 
 #ifdef _WIN32
     // When cross-compiling with VS2017 or newer, link.exe expects to have
@@ -513,8 +523,8 @@ MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                                       WinSysRoot, VCToolChainPath, VSLayout) ||
       llvm::findVCToolChainViaEnvironment(getVFS(), VCToolChainPath,
                                           VSLayout) ||
-      llvm::findVCToolChainViaSetupConfig(getVFS(), VCToolChainPath,
-                                          VSLayout) ||
+      llvm::findVCToolChainViaSetupConfig(getVFS(), VCToolsVersion,
+                                          VCToolChainPath, VSLayout) ||
       llvm::findVCToolChainViaRegistry(VCToolChainPath, VSLayout);
 }
 
@@ -619,6 +629,10 @@ bool MSVCToolChain::getWindowsSDKLibraryPath(const ArgList &Args,
 
   llvm::SmallString<128> libPath(sdkPath);
   llvm::sys::path::append(libPath, "Lib");
+  if (sdkMajor >= 10)
+    if (!(WinSdkDir.has_value() || WinSysRoot.has_value()) &&
+        WinSdkVersion.has_value())
+      windowsSDKLibVersion = *WinSdkVersion;
   if (sdkMajor >= 8)
     llvm::sys::path::append(libPath, windowsSDKLibVersion, "um");
   return llvm::appendArchToWindowsSDKLibPath(sdkMajor, libPath, getArch(),
@@ -639,6 +653,10 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(const ArgList &Args,
                                    WinSysRoot, UniversalCRTSdkPath,
                                    UCRTVersion))
     return false;
+
+  if (!(WinSdkDir.has_value() || WinSysRoot.has_value()) &&
+      WinSdkVersion.has_value())
+    UCRTVersion = *WinSdkVersion;
 
   StringRef ArchName = llvm::archToWindowsSDKArch(getArch());
   if (ArchName.empty())
@@ -769,6 +787,9 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
       if (llvm::getUniversalCRTSdkDir(getVFS(), WinSdkDir, WinSdkVersion,
                                       WinSysRoot, UniversalCRTSdkPath,
                                       UCRTVersion)) {
+        if (!(WinSdkDir.has_value() || WinSysRoot.has_value()) &&
+            WinSdkVersion.has_value())
+          UCRTVersion = *WinSdkVersion;
         AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, UniversalCRTSdkPath,
                                       "Include", UCRTVersion, "ucrt");
       }
@@ -781,6 +802,10 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     if (llvm::getWindowsSDKDir(getVFS(), WinSdkDir, WinSdkVersion, WinSysRoot,
                                WindowsSDKDir, major, windowsSDKIncludeVersion,
                                windowsSDKLibVersion)) {
+      if (major >= 10)
+        if (!(WinSdkDir.has_value() || WinSysRoot.has_value()) &&
+            WinSdkVersion.has_value())
+          windowsSDKIncludeVersion = windowsSDKLibVersion = *WinSdkVersion;
       if (major >= 8) {
         // Note: windowsSDKIncludeVersion is empty for SDKs prior to v10.
         // Anyway, llvm::sys::path::append is able to manage it.

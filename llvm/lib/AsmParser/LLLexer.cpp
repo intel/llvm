@@ -653,6 +653,24 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(inaccessiblememonly);
   KEYWORD(inaccessiblemem_or_argmemonly);
 
+  // nofpclass attribute
+  KEYWORD(all);
+  KEYWORD(nan);
+  KEYWORD(snan);
+  KEYWORD(qnan);
+  KEYWORD(inf);
+  // ninf already a keyword
+  KEYWORD(pinf);
+  KEYWORD(norm);
+  KEYWORD(nnorm);
+  KEYWORD(pnorm);
+  // sub already a keyword
+  KEYWORD(nsub);
+  KEYWORD(psub);
+  KEYWORD(zero);
+  KEYWORD(nzero);
+  KEYWORD(pzero);
+
   KEYWORD(type);
   KEYWORD(opaque);
 
@@ -672,6 +690,8 @@ lltok::Kind LLLexer::LexIdentifier() {
 
   KEYWORD(xchg); KEYWORD(nand); KEYWORD(max); KEYWORD(min); KEYWORD(umax);
   KEYWORD(umin); KEYWORD(fmax); KEYWORD(fmin);
+  KEYWORD(uinc_wrap);
+  KEYWORD(udec_wrap);
 
   KEYWORD(vscale);
   KEYWORD(x);

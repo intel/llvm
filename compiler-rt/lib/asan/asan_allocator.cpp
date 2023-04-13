@@ -1100,6 +1100,10 @@ uptr GetUserBegin(uptr chunk) {
   return m ? m->Beg() : 0;
 }
 
+uptr GetUserAddr(uptr chunk) {
+  return chunk;
+}
+
 LsanMetadata::LsanMetadata(uptr chunk) {
   metadata_ = chunk ? reinterpret_cast<void *>(chunk - __asan::kChunkHeaderSize)
                     : nullptr;
@@ -1140,7 +1144,7 @@ void ForEachChunk(ForEachChunkCallback callback, void *arg) {
   __asan::get_allocator().ForEachChunk(callback, arg);
 }
 
-IgnoreObjectResult IgnoreObjectLocked(const void *p) {
+IgnoreObjectResult IgnoreObject(const void *p) {
   uptr addr = reinterpret_cast<uptr>(p);
   __asan::AsanChunk *m = __asan::instance.GetAsanChunkByAddr(addr);
   if (!m ||
@@ -1159,6 +1163,17 @@ IgnoreObjectResult IgnoreObjectLocked(const void *p) {
 
 // ---------------------- Interface ---------------- {{{1
 using namespace __asan;
+
+const void *AllocationBegin(const void *p) {
+  AsanChunk *m = __asan::instance.GetAsanChunkByAddr((uptr)p);
+  if (!m)
+    return nullptr;
+  if (atomic_load(&m->chunk_state, memory_order_acquire) != CHUNK_ALLOCATED)
+    return nullptr;
+  if (m->UsedSize() == 0)
+    return nullptr;
+  return (const void *)(m->Beg());
+}
 
 // ASan allocator doesn't reserve extra bytes, so normally we would
 // just return "size". We don't want to expose our redzone sizes, etc here.
@@ -1181,6 +1196,10 @@ uptr __sanitizer_get_allocated_size(const void *p) {
     ReportSanitizerGetAllocatedSizeNotOwned(ptr, &stack);
   }
   return allocated_size;
+}
+
+const void *__sanitizer_get_allocated_begin(const void *p) {
+  return AllocationBegin(p);
 }
 
 void __sanitizer_purge_allocator() {

@@ -1,17 +1,17 @@
 ; The test is intended to check that sycl-post-link correctly groups kernels
 ; by unique reqd_work_group_size values used in them
 
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ;
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M0-SYMS \
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M0-SYMS \
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel1 \
 ; RUN:     --implicit-check-not kernel2
 ;
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M2-SYMS \
+; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M2-SYMS \
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel3
 ;
-; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M1-SYMS \
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M1-SYMS \
 ; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel2 \
 ; RUN:     --implicit-check-not kernel3
 

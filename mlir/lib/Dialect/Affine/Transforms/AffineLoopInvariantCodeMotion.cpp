@@ -99,14 +99,14 @@ bool isOpLoopInvariant(Operation &op, Value indVar, ValueRange iterArgs,
   } else if (!matchPattern(&op, m_Constant())) {
     // Register op in the set of ops that have users.
     opsWithUsers.insert(&op);
-    if (isa<AffineMapAccessInterface>(op)) {
+    if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op)) {
       auto read = dyn_cast<AffineReadOpInterface>(op);
       Value memref = read ? read.getMemRef()
                           : cast<AffineWriteOpInterface>(op).getMemRef();
       for (auto *user : memref.getUsers()) {
         // If this memref has a user that is a DMA, give up because these
         // operations write to this memref.
-        if (isa<AffineDmaStartOp, AffineDmaWaitOp>(op))
+        if (isa<AffineDmaStartOp, AffineDmaWaitOp>(user))
           return false;
         // If the memref used by the load/store is used in a store elsewhere in
         // the loop nest, we do not hoist. Similarly, if the memref used in a

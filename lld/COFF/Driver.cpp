@@ -25,7 +25,6 @@
 #include "lld/Common/Version.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
@@ -48,11 +47,13 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/ToolDrivers/llvm-lib/LibDriver.h"
 #include <algorithm>
 #include <future>
 #include <memory>
 #include <optional>
+#include <tuple>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -88,6 +89,14 @@ static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
   if (ret.second.empty())
     error(arg->getSpelling() + " expects 'old;new' format, but got " + s);
   return ret;
+}
+
+// Parse options of the form "old;new[;extra]".
+static std::tuple<StringRef, StringRef, StringRef>
+getOldNewOptionsExtra(opt::InputArgList &args, unsigned id) {
+  auto [oldDir, second] = getOldNewOptions(args, id);
+  auto [newDir, extraDir] = second.split(';');
+  return {oldDir, newDir, extraDir};
 }
 
 // Drop directory components and replace extension with
@@ -559,7 +568,7 @@ void LinkerDriver::detectWinSysRoot(const opt::InputArgList &Args) {
                                      WinSysRoot, vcToolChainPath, vsLayout) &&
       (Args.hasArg(OPT_lldignoreenv) ||
        !findVCToolChainViaEnvironment(*VFS, vcToolChainPath, vsLayout)) &&
-      !findVCToolChainViaSetupConfig(*VFS, vcToolChainPath, vsLayout) &&
+      !findVCToolChainViaSetupConfig(*VFS, {}, vcToolChainPath, vsLayout) &&
       !findVCToolChainViaRegistry(vcToolChainPath, vsLayout))
     return;
 
@@ -1506,7 +1515,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   }
 
   // Construct search path list.
-  searchPaths.push_back("");
+  searchPaths.emplace_back("");
   for (auto *arg : args.filtered(OPT_libpath))
     searchPaths.push_back(arg->getValue());
   detectWinSysRoot(args);
@@ -1761,26 +1770,25 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
         tailMerge = 2;
       } else if (s == "nolldtailmerge") {
         tailMerge = 0;
-      } else if (s == "ltonewpassmanager") {
-        /* We always use the new PM. */
       } else if (s == "ltodebugpassmanager") {
         ltoDebugPM = true;
       } else if (s == "noltodebugpassmanager") {
         ltoDebugPM = false;
-      } else if (s.startswith("lldlto=")) {
-        StringRef optLevel = s.substr(7);
-        if (optLevel.getAsInteger(10, config->ltoo) || config->ltoo > 3)
-          error("/opt:lldlto: invalid optimization level: " + optLevel);
-      } else if (s.startswith("lldltojobs=")) {
-        StringRef jobs = s.substr(11);
-        if (!get_threadpool_strategy(jobs))
-          error("/opt:lldltojobs: invalid job count: " + jobs);
-        config->thinLTOJobs = jobs.str();
-      } else if (s.startswith("lldltopartitions=")) {
-        StringRef n = s.substr(17);
-        if (n.getAsInteger(10, config->ltoPartitions) ||
+      } else if (s.consume_front("lldlto=")) {
+        if (s.getAsInteger(10, config->ltoo) || config->ltoo > 3)
+          error("/opt:lldlto: invalid optimization level: " + s);
+      } else if (s.consume_front("lldltocgo=")) {
+        config->ltoCgo.emplace();
+        if (s.getAsInteger(10, *config->ltoCgo) || *config->ltoCgo > 3)
+          error("/opt:lldltocgo: invalid codegen optimization level: " + s);
+      } else if (s.consume_front("lldltojobs=")) {
+        if (!get_threadpool_strategy(s))
+          error("/opt:lldltojobs: invalid job count: " + s);
+        config->thinLTOJobs = s.str();
+      } else if (s.consume_front("lldltopartitions=")) {
+        if (s.getAsInteger(10, config->ltoPartitions) ||
             config->ltoPartitions == 0)
-          error("/opt:lldltopartitions: invalid partition count: " + n);
+          error("/opt:lldltopartitions: invalid partition count: " + s);
       } else if (s != "lbr" && s != "nolbr")
         error("/opt: unknown option: " + s);
     }
@@ -1885,8 +1893,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
                              args.hasArg(OPT_thinlto_index_only_arg);
   config->thinLTOIndexOnlyArg =
       args.getLastArgValue(OPT_thinlto_index_only_arg);
-  config->thinLTOPrefixReplace =
-      getOldNewOptions(args, OPT_thinlto_prefix_replace);
+  std::tie(config->thinLTOPrefixReplaceOld, config->thinLTOPrefixReplaceNew,
+           config->thinLTOPrefixReplaceNativeObject) =
+      getOldNewOptionsExtra(args, OPT_thinlto_prefix_replace);
   config->thinLTOObjectSuffixReplace =
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path);

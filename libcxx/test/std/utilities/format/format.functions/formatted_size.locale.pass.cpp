@@ -11,6 +11,8 @@
 // TODO FMT Evaluate gcc-12 status
 // UNSUPPORTED: gcc-12
 
+// XFAIL: availability-fp_to_chars-missing
+
 // <format>
 
 // template<class... Args>
@@ -32,7 +34,7 @@
 auto test =
     []<class CharT, class... Args>(
         std::basic_string_view<CharT> expected, test_format_string<CharT, Args...> fmt, Args&&... args) constexpr {
-      size_t size = std::formatted_size(std::locale(), fmt, std::forward<Args>(args)...);
+      std::size_t size = std::formatted_size(std::locale(), fmt, std::forward<Args>(args)...);
       assert(size == expected.size());
     };
 

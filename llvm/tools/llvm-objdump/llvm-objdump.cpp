@@ -30,7 +30,6 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
@@ -74,7 +73,6 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/GraphWriter.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
@@ -82,6 +80,8 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -1285,10 +1285,10 @@ static void createFakeELFSections(ObjectFile &Obj) {
 // Build ID. Returns std::nullopt if nothing was found.
 static std::optional<OwningBinary<Binary>>
 fetchBinaryByBuildID(const ObjectFile &Obj) {
-  std::optional<object::BuildIDRef> BuildID = getBuildID(&Obj);
-  if (!BuildID)
+  object::BuildIDRef BuildID = getBuildID(&Obj);
+  if (BuildID.empty())
     return std::nullopt;
-  std::optional<std::string> Path = BIDFetcher->fetch(*BuildID);
+  std::optional<std::string> Path = BIDFetcher->fetch(BuildID);
   if (!Path)
     return std::nullopt;
   Expected<OwningBinary<Binary>> DebugBinary = createBinary(*Path);
@@ -1439,8 +1439,10 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
     AddrToBBAddrMap.clear();
     if (const auto *Elf = dyn_cast<ELFObjectFileBase>(&Obj)) {
       auto BBAddrMapsOrErr = Elf->readBBAddrMap(SectionIndex);
-      if (!BBAddrMapsOrErr)
+      if (!BBAddrMapsOrErr) {
         reportWarning(toString(BBAddrMapsOrErr.takeError()), Obj.getFileName());
+        return;
+      }
       for (auto &FunctionBBAddrMap : *BBAddrMapsOrErr)
         AddrToBBAddrMap.emplace(FunctionBBAddrMap.Addr,
                                 std::move(FunctionBBAddrMap));
@@ -2941,13 +2943,11 @@ static void parseIntArg(const llvm::opt::InputArgList &InputArgs, int ID,
 
 static object::BuildID parseBuildIDArg(const opt::Arg *A) {
   StringRef V(A->getValue());
-  std::string Bytes;
-  if (!tryGetFromHex(V, Bytes))
+  object::BuildID BID = parseBuildID(V);
+  if (BID.empty())
     reportCmdLineError(A->getSpelling() + ": expected a build ID, but got '" +
                        V + "'");
-  ArrayRef<uint8_t> BuildID(reinterpret_cast<const uint8_t *>(Bytes.data()),
-                            Bytes.size());
-  return object::BuildID(BuildID.begin(), BuildID.end());
+  return BID;
 }
 
 void objdump::invalidArgValue(const opt::Arg *A) {
@@ -3198,9 +3198,7 @@ int main(int argc, char **argv) {
 
   // Initialize debuginfod.
   const bool ShouldUseDebuginfodByDefault =
-      InputArgs.hasArg(OBJDUMP_build_id) ||
-      (HTTPClient::isAvailable() &&
-       !ExitOnErr(getDefaultDebuginfodUrls()).empty());
+      InputArgs.hasArg(OBJDUMP_build_id) || canUseDebuginfod();
   std::vector<std::string> DebugFileDirectories =
       InputArgs.getAllArgValues(OBJDUMP_debug_file_directory);
   if (InputArgs.hasFlag(OBJDUMP_debuginfod, OBJDUMP_no_debuginfod,

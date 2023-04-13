@@ -87,9 +87,10 @@ public:
     SpirvToIrWrapperJobClass,
     LinkerWrapperJobClass,
     StaticLibJobClass,
+    BinaryAnalyzeJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = StaticLibJobClass
+    JobClassLast = BinaryAnalyzeJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -824,7 +825,7 @@ public:
 
     Tform() = default;
     Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
-      for (auto A : Args)
+      for (auto &A : Args)
         TheArgs.emplace_back(A.str());
     }
 
@@ -951,6 +952,17 @@ public:
 
 private:
   llvm::SmallSetVector<const Action *, 2> SerialActions;
+};
+
+class BinaryAnalyzeJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  BinaryAnalyzeJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == BinaryAnalyzeJobClass;
+  }
 };
 
 } // namespace driver

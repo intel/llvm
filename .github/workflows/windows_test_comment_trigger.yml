@@ -42,19 +42,27 @@ jobs:
     outputs:
       PR_SHA: ${{ steps.sha.outputs.result }}
 
+  test_matrix:
+    name: Generate Test Matrix
+    needs: [windows_test_preparation]
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      lts_config: "win_l0_gen12"
 
   windows_default:
     name: Windows
-    needs: [windows_test_preparation]
+    needs: [windows_test_preparation, test_matrix]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       build_ref: ${{ needs.windows_test_preparation.outputs.PR_SHA }}
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
 
   windows_test_completion:
     runs-on: ubuntu-20.04
     needs: [windows_test_preparation, windows_default]
-    if: always()
+    if: ${{ always() && needs.windows_test_preparation.result != 'skipped' }}
     steps:
     - name: update_pr_status_success
       if: needs.windows_default.result == 'success'

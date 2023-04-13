@@ -512,7 +512,7 @@ public:
   template <int KIND>
   static bool isEqual(const Fortran::evaluate::LogicalOperation<KIND> &x,
                       const Fortran::evaluate::LogicalOperation<KIND> &y) {
-    return isEqual(x.left(), y.left()) && isEqual(x.right(), x.right());
+    return isEqual(x.left(), y.left()) && isEqual(x.right(), y.right());
   }
   template <typename A>
   static bool isEqual(const Fortran::evaluate::Relational<A> &x,
@@ -847,7 +847,7 @@ void Fortran::lower::ExplicitIterSpace::conditionalCleanup() {
   if (forallContextOpen == 0) {
     // Exiting the outermost FORALL context.
     // Cleanup any residual mask buffers.
-    outermostContext().finalize();
+    outermostContext().finalizeAndReset();
     // Clear and reset all the cached information.
     symbolStack.clear();
     lhsBases.clear();

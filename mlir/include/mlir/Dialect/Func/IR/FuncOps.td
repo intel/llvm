@@ -23,7 +23,6 @@ def Func_Dialect : Dialect {
   let cppNamespace = "::mlir::func";
   let dependentDialects = ["cf::ControlFlowDialect"];
   let hasConstantMaterializer = 1;
-  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 // Base class for Func dialect ops.
@@ -209,7 +208,7 @@ def ConstantOp : Func_Op<"constant",
 
 def FuncOp : Func_Op<"func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
-  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
+  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface
 ]> {
   let summary = "An operation with a name containing a single `SSACFG` region";
   let description = [{
@@ -299,6 +298,18 @@ def FuncOp : Func_Op<"func", [
     /// Returns the results types that the callable region produces when
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods

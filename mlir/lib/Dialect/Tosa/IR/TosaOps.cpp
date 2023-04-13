@@ -387,6 +387,41 @@ LogicalResult tosa::ArgMaxOp::inferReturnTypeComponents(
   return success();
 }
 
+LogicalResult tosa::RFFT2dOp::inferReturnTypeComponents(
+    MLIRContext *context, ::std::optional<Location> location,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
+  ShapeAdaptor inputShape = operands.getShape(0);
+
+  if (!inputShape.hasRank())
+    return failure();
+
+  llvm::SmallVector<int64_t> outputShape;
+  outputShape.resize(3, ShapedType::kDynamic);
+  outputShape[0] = inputShape.getDimSize(0);
+  outputShape[1] = inputShape.getDimSize(1);
+  int64_t inWidth = inputShape.getDimSize(2);
+
+  // Note that we can support this calculation symbolically
+  // in the future e.g. [x, y, z] -> [x, y, z / 2 - 1]
+  if (inWidth != ShapedType::kDynamic)
+    outputShape[2] = inWidth / 2 + 1;
+
+  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape));
+  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape));
+
+  return success();
+}
+
+LogicalResult tosa::FFT2dOp::inferReturnTypeComponents(
+    MLIRContext *context, ::std::optional<Location> location,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
+  inferredReturnShapes.push_back(ShapedTypeComponents(operands.getShape(0)));
+  inferredReturnShapes.push_back(ShapedTypeComponents(operands.getShape(1)));
+  return success();
+}
+
 LogicalResult tosa::ConcatOp::inferReturnTypeComponents(
     MLIRContext *context, ::std::optional<Location> location,
     ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
@@ -412,14 +447,17 @@ LogicalResult tosa::ConcatOp::inferReturnTypeComponents(
       if (outputShape[i] == ShapedType::kDynamic)
         outputShape[i] = operandShape.getDimSize(i);
       if (outputShape[i] != operandShape.getDimSize(i))
-        return failure();
+        return emitOptionalError(location,
+                                 "Cannot concat tensors with different sizes"
+                                 " on the non-axis dimension ",
+                                 i);
     }
 
     hasRankedInput = true;
   }
-
+  Type inputType = operands.getType()[0].cast<TensorType>().getElementType();
   if (!hasRankedInput) {
-    inferredReturnShapes.push_back(ShapedTypeComponents());
+    inferredReturnShapes.push_back(ShapedTypeComponents(inputType));
     return success();
   }
 
@@ -440,7 +478,7 @@ LogicalResult tosa::ConcatOp::inferReturnTypeComponents(
 
   outputShape[axis] = concatDimSize;
 
-  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape));
+  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape, inputType));
   return success();
 }
 
@@ -867,10 +905,10 @@ LogicalResult tosa::ScatterOp::inferReturnTypeComponents(
 }
 
 static LogicalResult ReduceInferReturnTypes(
-    ShapeAdaptor operandShape, IntegerAttr axis,
+    ShapeAdaptor operandShape, Type inputType, IntegerAttr axis,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   if (!operandShape.hasRank()) {
-    inferredReturnShapes.push_back(ShapedTypeComponents());
+    inferredReturnShapes.push_back(ShapedTypeComponents(inputType));
     return success();
   }
 
@@ -878,9 +916,18 @@ static LogicalResult ReduceInferReturnTypes(
   operandShape.getDims(outputShape);
   int64_t axisVal = axis.getValue().getSExtValue();
   outputShape[axisVal] = 1;
-  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape));
+  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape, inputType));
   return success();
 }
+
+#define COMPATIBLE_RETURN_TYPES(OP)                                            \
+  bool OP::isCompatibleReturnTypes(TypeRange l, TypeRange r) {                 \
+    if (l.size() != r.size() || l.size() != 1)                                 \
+      return false;                                                            \
+    if (getElementTypeOrSelf(l[0]) != getElementTypeOrSelf(r[0]))              \
+      return false;                                                            \
+    return succeeded(verifyCompatibleShape(l[0], r[0]));                       \
+  }
 
 #define REDUCE_SHAPE_INFER(OP)                                                 \
   LogicalResult OP::inferReturnTypeComponents(                                 \
@@ -888,10 +935,13 @@ static LogicalResult ReduceInferReturnTypes(
       ValueShapeRange operands, DictionaryAttr attributes,                     \
       RegionRange regions,                                                     \
       SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {           \
-    return ReduceInferReturnTypes(operands.getShape(0),                        \
+    Type inputType =                                                           \
+        operands.getType()[0].cast<TensorType>().getElementType();             \
+    return ReduceInferReturnTypes(operands.getShape(0), inputType,             \
                                   attributes.get("axis").cast<IntegerAttr>(),  \
                                   inferredReturnShapes);                       \
-  }
+  }                                                                            \
+  COMPATIBLE_RETURN_TYPES(OP)
 
 REDUCE_SHAPE_INFER(tosa::ReduceAllOp)
 REDUCE_SHAPE_INFER(tosa::ReduceAnyOp)
@@ -900,6 +950,8 @@ REDUCE_SHAPE_INFER(tosa::ReduceMinOp)
 REDUCE_SHAPE_INFER(tosa::ReduceProdOp)
 REDUCE_SHAPE_INFER(tosa::ReduceSumOp)
 #undef REDUCE_SHAPE_INFER
+COMPATIBLE_RETURN_TYPES(tosa::ConcatOp)
+#undef COMPATIBLE_RETURN_TYPES
 
 static LogicalResult NAryInferReturnTypes(
     const ValueShapeRange &operands,
@@ -1375,6 +1427,12 @@ LogicalResult WhileOp::inferReturnTypeComponents(
   }
 
   return success();
+}
+
+std::optional<SmallVector<int64_t, 4>> ApplyScaleOp::getShapeForUnroll() {
+  if (auto vt = getType().dyn_cast<VectorType>())
+    return llvm::to_vector<4>(vt.getShape());
+  return std::nullopt;
 }
 
 //===----------------------------------------------------------------------===//

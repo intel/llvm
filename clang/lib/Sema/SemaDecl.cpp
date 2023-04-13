@@ -46,7 +46,7 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -1593,7 +1593,7 @@ void Sema::PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext) {
 }
 
 bool Sema::isDeclInScope(NamedDecl *D, DeclContext *Ctx, Scope *S,
-                         bool AllowInlineNamespace) {
+                         bool AllowInlineNamespace) const {
   return IdResolver.isDeclInScope(D, Ctx, S, AllowInlineNamespace);
 }
 
@@ -1661,13 +1661,19 @@ bool Sema::CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old) {
   if (NewM == OldM)
     return false;
 
-  // Partitions are part of the module, but a partition could import another
-  // module, so verify that the PMIs agree.
-  if (NewM && OldM &&
-      (NewM->isModulePartition() || OldM->isModulePartition()) &&
-      NewM->getPrimaryModuleInterfaceName() ==
-          OldM->getPrimaryModuleInterfaceName())
-    return false;
+  if (NewM && OldM) {
+    // A module implementation unit has visibility of the decls in its
+    // implicitly imported interface.
+    if (NewM->isModuleImplementation() && OldM == ThePrimaryInterface)
+      return false;
+
+    // Partitions are part of the module, but a partition could import another
+    // module, so verify that the PMIs agree.
+    if ((NewM->isModulePartition() || OldM->isModulePartition()) &&
+        NewM->getPrimaryModuleInterfaceName() ==
+            OldM->getPrimaryModuleInterfaceName())
+      return false;
+  }
 
   bool NewIsModuleInterface = NewM && NewM->isModulePurview();
   bool OldIsModuleInterface = OldM && OldM->isModulePurview();
@@ -7726,7 +7732,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     // If we have any template parameter lists that don't directly belong to
     // the variable (matching the scope specifier), store them.
-    unsigned VDTemplateParamLists = TemplateParams ? 1 : 0;
+    // An explicit variable template specialization does not own any template
+    // parameter lists.
+    bool IsExplicitSpecialization =
+        IsVariableTemplateSpecialization && !IsPartialSpecialization;
+    unsigned VDTemplateParamLists =
+        (TemplateParams && !IsExplicitSpecialization) ? 1 : 0;
     if (TemplateParamLists.size() > VDTemplateParamLists)
       NewVD->setTemplateParameterListsInfo(
           Context, TemplateParamLists.drop_back(VDTemplateParamLists));
@@ -8755,7 +8766,8 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
     return;
   }
 
-  if (!NewVD->hasLocalStorage() && T->isSizelessType()) {
+  if (!NewVD->hasLocalStorage() && T->isSizelessType() &&
+      !T->isWebAssemblyReferenceType()) {
     Diag(NewVD->getLocation(), diag::err_sizeless_nonlocal) << T;
     NewVD->setInvalidDecl();
     return;
@@ -9362,6 +9374,12 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
           ParamKind == InvalidKernelParam)
         return ParamKind;
 
+      // OpenCL v3.0 s6.11.a:
+      // A restriction to pass pointers to pointers only applies to OpenCL C
+      // v1.2 or below.
+      if (S.getLangOpts().getOpenCLCompatibleVersion() > 120)
+        return ValidKernelParam;
+
       return PtrPtrKernelParam;
     }
 
@@ -9388,6 +9406,11 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
         !IsStandardLayoutType)
       return InvalidKernelParam;
     }
+
+    // OpenCL v1.2 s6.9.p:
+    // A restriction to pass pointers only applies to OpenCL C v1.2 or below.
+    if (S.getLangOpts().getOpenCLCompatibleVersion() > 120)
+      return ValidKernelParam;
 
     return PtrKernelParam;
   }
@@ -9455,13 +9478,8 @@ static void checkIsValidOpenCLKernelParameter(
     // OpenCL v3.0 s6.11.a:
     // A kernel function argument cannot be declared as a pointer to a pointer
     // type. [...] This restriction only applies to OpenCL C 1.2 or below.
-    if (S.getLangOpts().getOpenCLCompatibleVersion() <= 120) {
-      S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
-      D.setInvalidType();
-      return;
-    }
-
-    ValidTypes.insert(PT.getTypePtr());
+    S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
+    D.setInvalidType();
     return;
 
   case InvalidAddrSpacePtrKernelParam:
@@ -9579,7 +9597,8 @@ static void checkIsValidOpenCLKernelParameter(
       // OpenCL v1.2 s6.9.p:
       // Arguments to kernel functions that are declared to be a struct or union
       // do not allow OpenCL objects to be passed as elements of the struct or
-      // union.
+      // union. This restriction was lifted in OpenCL v2.0 with the introduction
+      // of SVM.
       if (ParamType == PtrKernelParam || ParamType == PtrPtrKernelParam ||
           ParamType == InvalidAddrSpacePtrKernelParam) {
         S.Diag(Param->getLocation(),
@@ -9646,6 +9665,7 @@ static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
   case Builtin::BIaddressof:
   case Builtin::BI__addressof:
   case Builtin::BIforward:
+  case Builtin::BIforward_like:
   case Builtin::BImove:
   case Builtin::BImove_if_noexcept:
   case Builtin::BIas_const: {
@@ -10275,14 +10295,19 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       CheckHLSLEntryPoint(NewFD);
       if (!NewFD->isInvalidDecl()) {
         auto Env = TargetInfo.getTriple().getEnvironment();
-        AttributeCommonInfo AL(NewFD->getBeginLoc());
         HLSLShaderAttr::ShaderType ShaderType =
             static_cast<HLSLShaderAttr::ShaderType>(
                 hlsl::getStageFromEnvironment(Env));
         // To share code with HLSLShaderAttr, add HLSLShaderAttr to entry
         // function.
-        if (HLSLShaderAttr *Attr = mergeHLSLShaderAttr(NewFD, AL, ShaderType))
-          NewFD->addAttr(Attr);
+        if (HLSLShaderAttr *NT = NewFD->getAttr<HLSLShaderAttr>()) {
+          if (NT->getType() != ShaderType)
+            Diag(NT->getLocation(), diag::err_hlsl_entry_shader_attr_mismatch)
+                << NT;
+        } else {
+          NewFD->addAttr(HLSLShaderAttr::Create(Context, ShaderType,
+                                                NewFD->getBeginLoc()));
+        }
       }
     }
     // HLSL does not support specifying an address space on a function return
@@ -10292,15 +10317,6 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Diag(NewFD->getLocation(), diag::err_return_value_with_address_space);
       NewFD->setInvalidDecl();
     }
-  }
-
-  if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
-      NewFD->hasAttr<SYCLDeviceAttr>() &&
-      !getSourceManager().isInSystemHeader(NewFD->getLocation())) {
-    Diag(NewFD->getLocation(), diag::err_sycl_external_no_rdc)
-        << (D.getFunctionDefinitionKind() ==
-            clang::FunctionDefinitionKind::Definition);
-    NewFD->setInvalidDecl();
   }
 
   if (!getLangOpts().CPlusPlus) {
@@ -11957,8 +11973,33 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
     // member-declarator shall be present only if the declarator declares a
     // templated function ([dcl.fct]).
     if (Expr *TRC = NewFD->getTrailingRequiresClause()) {
-      if (!NewFD->isTemplated() && !NewFD->isTemplateInstantiation())
+      // [temp.pre]/8:
+      // An entity is templated if it is
+      // - a template,
+      // - an entity defined ([basic.def]) or created ([class.temporary]) in a
+      // templated entity,
+      // - a member of a templated entity,
+      // - an enumerator for an enumeration that is a templated entity, or
+      // - the closure type of a lambda-expression ([expr.prim.lambda.closure])
+      // appearing in the declaration of a templated entity. [Note 6: A local
+      // class, a local or block variable, or a friend function defined in a
+      // templated entity is a templated entity.  — end note]
+      //
+      // A templated function is a function template or a function that is
+      // templated. A templated class is a class template or a class that is
+      // templated. A templated variable is a variable template or a variable
+      // that is templated.
+
+      if (!NewFD->getDescribedFunctionTemplate() && // -a template
+          // defined... in a templated entity
+          !(DeclIsDefn && NewFD->isTemplated()) &&
+          // a member of a templated entity
+          !(isa<CXXMethodDecl>(NewFD) && NewFD->isTemplated()) &&
+          // Don't complain about instantiations, they've already had these
+          // rules + others enforced.
+          !NewFD->isTemplateInstantiation()) {
         Diag(TRC->getBeginLoc(), diag::err_constrained_non_templated_function);
+      }
     }
 
     if (CXXConversionDecl *Conversion = dyn_cast<CXXConversionDecl>(NewFD))
@@ -13183,9 +13224,10 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
   // C++ [module.import/6] external definitions are not permitted in header
   // units.
   if (getLangOpts().CPlusPlusModules && currentModuleIsHeaderUnit() &&
-      VDecl->isThisDeclarationADefinition() &&
+      !VDecl->isInvalidDecl() && VDecl->isThisDeclarationADefinition() &&
       VDecl->getFormalLinkage() == Linkage::ExternalLinkage &&
-      !VDecl->isInline()) {
+      !VDecl->isInline() && !VDecl->isTemplated() &&
+      !isa<VarTemplateSpecializationDecl>(VDecl)) {
     Diag(VDecl->getLocation(), diag::err_extern_def_in_header_unit);
     VDecl->setInvalidDecl();
   }
@@ -14940,7 +14982,11 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
       // OpenCL allows function arguments declared to be an array of a type
       // to be qualified with an address space.
       !(getLangOpts().OpenCL &&
-        (T->isArrayType() || T.getAddressSpace() == LangAS::opencl_private))) {
+        (T->isArrayType() || T.getAddressSpace() == LangAS::opencl_private)) &&
+      // WebAssembly allows reference types as parameters. Funcref in particular
+      // lives in a different address space.
+      !(T->isFunctionPointerType() &&
+        T.getAddressSpace() == LangAS::wasm_funcref)) {
     Diag(NameLoc, diag::err_arg_with_address_space);
     New->setInvalidDecl();
   }
@@ -15235,6 +15281,15 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         FD->isConsteval() ? ExpressionEvaluationContext::ImmediateFunctionContext
                           : ExprEvalContexts.back().Context);
 
+  // Each ExpressionEvaluationContextRecord also keeps track of whether the
+  // context is nested in an immediate function context, so smaller contexts
+  // that appear inside immediate functions (like variable initializers) are
+  // considered to be inside an immediate function context even though by
+  // themselves they are not immediate function contexts. But when a new
+  // function is entered, we need to reset this tracking, since the entered
+  // function might be not an immediate function.
+  ExprEvalContexts.back().InImmediateFunctionContext = FD->isConsteval();
+
   // Check for defining attributes before the check for redefinition.
   if (const auto *Attr = FD->getAttr<AliasAttr>()) {
     Diag(Attr->getLocation(), diag::err_alias_is_definition) << FD << 0;
@@ -15364,9 +15419,16 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
   }
 
   // C++ [module.import/6] external definitions are not permitted in header
-  // units.
+  // units.  Deleted and Defaulted functions are implicitly inline (but the
+  // inline state is not set at this point, so check the BodyKind explicitly).
+  // FIXME: Consider an alternate location for the test where the inlined()
+  // state is complete.
   if (getLangOpts().CPlusPlusModules && currentModuleIsHeaderUnit() &&
-      FD->getFormalLinkage() == Linkage::ExternalLinkage && !FD->isInlined()) {
+      !FD->isInvalidDecl() && !FD->isInlined() &&
+      BodyKind != FnBodyKind::Delete && BodyKind != FnBodyKind::Default &&
+      FD->getFormalLinkage() == Linkage::ExternalLinkage &&
+      !FD->isTemplated() && !FD->isTemplateInstantiation()) {
+    assert(FD->isThisDeclarationADefinition());
     Diag(FD->getLocation(), diag::err_extern_def_in_header_unit);
     FD->setInvalidDecl();
   }
@@ -16290,6 +16352,25 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
     case Builtin::BImalloc:
       FD->addAttr(AllocSizeAttr::CreateImplicit(Context, ParamIdx(1, FD),
                                                 ParamIdx(), FD->getLocation()));
+      break;
+    default:
+      break;
+    }
+
+    // Add lifetime attribute to std::move, std::fowrard et al.
+    switch (BuiltinID) {
+    case Builtin::BIaddressof:
+    case Builtin::BI__addressof:
+    case Builtin::BI__builtin_addressof:
+    case Builtin::BIas_const:
+    case Builtin::BIforward:
+    case Builtin::BIforward_like:
+    case Builtin::BImove:
+    case Builtin::BImove_if_noexcept:
+      if (ParmVarDecl *P = FD->getParamDecl(0u);
+          !P->hasAttr<LifetimeBoundAttr>())
+        P->addAttr(
+            LifetimeBoundAttr::CreateImplicit(Context, FD->getLocation()));
       break;
     default:
       break;
@@ -18957,10 +19038,24 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     ProcessDeclAttributeList(S, Record, Attrs);
 
     // Check to see if a FieldDecl is a pointer to a function.
-    auto IsFunctionPointer = [&](const Decl *D) {
+    auto IsFunctionPointerOrForwardDecl = [&](const Decl *D) {
       const FieldDecl *FD = dyn_cast<FieldDecl>(D);
-      if (!FD)
+      if (!FD) {
+        // Check whether this is a forward declaration that was inserted by
+        // Clang. This happens when a non-forward declared / defined type is
+        // used, e.g.:
+        //
+        //   struct foo {
+        //     struct bar *(*f)();
+        //     struct bar *(*g)();
+        //   };
+        //
+        // "struct bar" shows up in the decl AST as a "RecordDecl" with an
+        // incomplete definition.
+        if (const auto *TD = dyn_cast<TagDecl>(D))
+          return !TD->isCompleteDefinition();
         return false;
+      }
       QualType FieldType = FD->getType().getDesugaredType(Context);
       if (isa<PointerType>(FieldType)) {
         QualType PointeeType = cast<PointerType>(FieldType)->getPointeeType();
@@ -18974,7 +19069,7 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     if (!getLangOpts().CPlusPlus &&
         (Record->hasAttr<RandomizeLayoutAttr>() ||
          (!Record->hasAttr<NoRandomizeLayoutAttr>() &&
-          llvm::all_of(Record->decls(), IsFunctionPointer))) &&
+          llvm::all_of(Record->decls(), IsFunctionPointerOrForwardDecl))) &&
         !Record->isUnion() && !getLangOpts().RandstructSeed.empty() &&
         !Record->isRandomized()) {
       SmallVector<Decl *, 32> NewDeclOrdering;
@@ -19129,7 +19224,7 @@ static bool isRepresentableIntegerValue(ASTContext &Context,
       --BitWidth;
     return Value.getActiveBits() <= BitWidth;
   }
-  return Value.getMinSignedBits() <= BitWidth;
+  return Value.getSignificantBits() <= BitWidth;
 }
 
 // Given an integral type, return the next larger integral type
@@ -19664,8 +19759,8 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
       unsigned ActiveBits = InitVal.getActiveBits();
       NumPositiveBits = std::max({NumPositiveBits, ActiveBits, 1u});
     } else {
-      NumNegativeBits = std::max(NumNegativeBits,
-                                 (unsigned)InitVal.getMinSignedBits());
+      NumNegativeBits =
+          std::max(NumNegativeBits, (unsigned)InitVal.getSignificantBits());
     }
   }
 

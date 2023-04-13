@@ -70,14 +70,14 @@ adiw r24, b   ; R_AVR_6_ADIW
 in    r20, b  ; R_AVR_PORT6
 sbic  b, 1    ; R_AVR_PORT5
 
-;; The disassembler is not yet able to decode those opcodes
-;; 0f c0    rjmp   .+30
-;; ee cf    rjmp   .-36
-;; 69 f0    breq   .+26
-;; 61 f3    breq   .-40
 .section .PCREL,"ax",@progbits
-; HEX-LABEL: section .PCREL:
-; HEX-NEXT:  0fc0eecf 69f061f3
+; CHECK-LABEL: section .PCREL
+; CHECK:       rjmp .+30
+; CHECK-NEXT:  rjmp .-36
+; CHECK-NEXT:  breq .+26
+; CHECK-NEXT:  breq .-40
+; HEX-LABEL:   section .PCREL:
+; HEX-NEXT:    0fc0eecf 69f061f3
 foo:
 rjmp foo + 32  ; R_AVR_13_PCREL
 rjmp foo - 32  ; R_AVR_13_PCREL
@@ -96,8 +96,11 @@ sts b, r21
 
 .section .DATA,"ax",@progbits
 ; HEX-LABEL: section .DATA:
-; HEX-NEXT:  {{.*}} 1e1e000f 00785634 12
+; HEX-NEXT:  {{.*}} 1e1e000f 00785634 12785634
 .byte b        ; R_AVR_8
 .short b       ; R_AVR_16
 .short gs(b)   ; R_AVR_16_PM
 .long a        ; R_AVR_32
+.byte lo8(a)   ; R_AVR_8_LO8
+.byte hi8(a)   ; R_AVR_8_HI8
+.byte hlo8(a)  ; R_AVR_8_HLO8

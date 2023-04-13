@@ -466,6 +466,58 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   return NewObj;
 }
 
+// Helper function for concatenating two std::array.
+template <typename T, std::size_t... Is1, std::size_t... Is2>
+constexpr std::array<T, sizeof...(Is1) + sizeof...(Is2)>
+ConcatArrays(const std::array<T, sizeof...(Is1)> &A1,
+             const std::array<T, sizeof...(Is2)> &A2,
+             std::index_sequence<Is1...>, std::index_sequence<Is2...>) {
+  return {A1[Is1]..., A2[Is2]...};
+}
+template <typename T, std::size_t N1, std::size_t N2>
+constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
+                                              const std::array<T, N2> &A2) {
+  return ConcatArrays(A1, A2, std::make_index_sequence<N1>(),
+                      std::make_index_sequence<N2>());
+}
+
+// Utility for creating an std::array from the results of flattening the
+// arguments using a flattening functor.
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename... ArgTN>
+struct ArrayCreator;
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename ArgT, typename... ArgTN>
+struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
+  static constexpr auto Create(const ArgT &Arg, const ArgTN &...Args) {
+    auto ImmArray = FlattenF<DataT, ArgT>()(Arg);
+    // Due to a bug in MSVC narrowing size_t to a bool in an if constexpr causes
+    // warnings. To avoid this we add the comparison to 0.
+    if constexpr (sizeof...(Args) > 0)
+      return ConcatArrays(
+          ImmArray, ArrayCreator<DataT, FlattenF, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
+  }
+};
+template <typename DataT, template <typename, typename> typename FlattenF>
+struct ArrayCreator<DataT, FlattenF> {
+  static constexpr auto Create() { return std::array<DataT, 0>{}; }
+};
+
+// Helper function for creating an arbitrary sized array with the same value
+// repeating.
+template <typename T, size_t... Is>
+static constexpr std::array<T, sizeof...(Is)>
+RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
+  auto ReturnArg = [&](size_t) { return Arg; };
+  return {ReturnArg(Is)...};
+}
+template <size_t N, typename T>
+static constexpr std::array<T, N> RepeatValue(const T &Arg) {
+  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

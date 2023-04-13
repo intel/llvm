@@ -169,6 +169,18 @@ Region *FuncOp::getCallableRegion() { return &getBody(); }
 /// executed.
 ArrayRef<Type> FuncOp::getCallableResults() { return getType().getResults(); }
 
+/// Returns the argument attributes for all callable region arguments or
+/// null if there are none.
+ArrayAttr FuncOp::getCallableArgAttrs() {
+  return getArgAttrs().value_or(nullptr);
+}
+
+/// Returns the result attributes for all callable region results or
+/// null if there are none.
+ArrayAttr FuncOp::getCallableResAttrs() {
+  return getResAttrs().value_or(nullptr);
+}
+
 // ....
 
 /// Return the callee of the generic call operation, this is required by the
@@ -222,7 +234,7 @@ casts between two different shapes.
 ```tablegen
 def CastOp : Toy_Op<"cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
-    NoMemoryEffect,
+    Pure,
     SameOperandsAndResultShape]
   > {
   let summary = "shape cast operation";
@@ -375,7 +387,7 @@ inferred as the shape of the inputs.
 ```c++
 /// Infer the output shape of the MulOp, this is required by the shape inference
 /// interface.
-void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
+void MulOp::inferShapes() { getResult().setType(getLhs().getType()); }
 ```
 
 At this point, each of the necessary Toy operations provide a mechanism by which

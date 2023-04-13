@@ -172,7 +172,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         RecordDecl *RD = SourceTy->getAsRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -275,7 +275,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -662,7 +662,7 @@ public:
   }
 
   bool TraverseIfStmt(IfStmt *S) {
-    if (llvm::Optional<Stmt *> ActiveStmt =
+    if (std::optional<Stmt *> ActiveStmt =
             S->getNondiscardedCase(SemaRef.Context)) {
       if (*ActiveStmt)
         return TraverseStmt(*ActiveStmt);
@@ -5494,7 +5494,8 @@ static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,
 
 // Emit the list of shims required for a DeclContext, calls itself recursively.
 static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
-                      const DeclContext *DC, std::string &NameForLastShim) {
+                      const DeclContext *DC, std::string &NameForLastShim,
+                      PrintingPolicy &Policy) {
   if (DC->isTranslationUnit()) {
     NameForLastShim = "::" + NameForLastShim;
     return;
@@ -5503,7 +5504,13 @@ static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
   const auto *CurDecl = cast<Decl>(DC)->getCanonicalDecl();
 
   // We skip linkage decls, since they don't modify the Qualified name.
-  if (const auto *RD = dyn_cast<RecordDecl>(CurDecl)) {
+  if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(CurDecl)) {
+    std::string TemplatedName;
+    llvm::raw_string_ostream Stream(TemplatedName);
+    CTSD->getNameForDiagnostic(Stream, Policy, false);
+    Stream.flush();
+    NameForLastShim = TemplatedName + "::" + NameForLastShim;
+  } else if (const auto *RD = dyn_cast<RecordDecl>(CurDecl)) {
     NameForLastShim = RD->getNameAsString() + "::" + NameForLastShim;
   } else if (const auto *ND = dyn_cast<NamespaceDecl>(CurDecl)) {
     if (ND->isAnonymousNamespace()) {
@@ -5522,7 +5529,8 @@ static void EmitShims(raw_ostream &OS, unsigned &ShimCounter,
            "Unhandled decl type");
   }
 
-  EmitShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim);
+  EmitShims(OS, ShimCounter, CurDecl->getDeclContext(), NameForLastShim,
+            Policy);
 }
 
 // Emit the list of shims required for a variable declaration.
@@ -5537,7 +5545,7 @@ static std::string EmitShims(raw_ostream &OS, unsigned &ShimCounter,
   VD->getNameForDiagnostic(stream, Policy, false);
   stream.flush();
 
-  EmitShims(OS, ShimCounter, VD->getDeclContext(), RelativeName);
+  EmitShims(OS, ShimCounter, VD->getDeclContext(), RelativeName, Policy);
   return RelativeName;
 }
 

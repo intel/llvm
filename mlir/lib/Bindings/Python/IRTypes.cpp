@@ -139,6 +139,60 @@ public:
   }
 };
 
+/// Floating Point Type subclass - Float8E4M3FNUZ.
+class PyFloat8E4M3FNUZType : public PyConcreteType<PyFloat8E4M3FNUZType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAFloat8E4M3FNUZ;
+  static constexpr const char *pyClassName = "Float8E4M3FNUZType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](DefaultingPyMlirContext context) {
+          MlirType t = mlirFloat8E4M3FNUZTypeGet(context->get());
+          return PyFloat8E4M3FNUZType(context->getRef(), t);
+        },
+        py::arg("context") = py::none(), "Create a float8_e4m3fnuz type.");
+  }
+};
+
+/// Floating Point Type subclass - Float8E4M3B11FNUZ.
+class PyFloat8E4M3B11FNUZType : public PyConcreteType<PyFloat8E4M3B11FNUZType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAFloat8E4M3B11FNUZ;
+  static constexpr const char *pyClassName = "Float8E4M3B11FNUZType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](DefaultingPyMlirContext context) {
+          MlirType t = mlirFloat8E4M3B11FNUZTypeGet(context->get());
+          return PyFloat8E4M3B11FNUZType(context->getRef(), t);
+        },
+        py::arg("context") = py::none(), "Create a float8_e4m3b11fnuz type.");
+  }
+};
+
+/// Floating Point Type subclass - Float8E5M2FNUZ.
+class PyFloat8E5M2FNUZType : public PyConcreteType<PyFloat8E5M2FNUZType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAFloat8E5M2FNUZ;
+  static constexpr const char *pyClassName = "Float8E5M2FNUZType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](DefaultingPyMlirContext context) {
+          MlirType t = mlirFloat8E5M2FNUZTypeGet(context->get());
+          return PyFloat8E5M2FNUZType(context->getRef(), t);
+        },
+        py::arg("context") = py::none(), "Create a float8_e5m2fnuz type.");
+  }
+};
+
 /// Floating Point Type subclass - BF16Type.
 class PyBF16Type : public PyConcreteType<PyBF16Type> {
 public:
@@ -371,17 +425,11 @@ public:
         "get",
         [](std::vector<int64_t> shape, PyType &elementType,
            DefaultingPyLocation loc) {
+          PyMlirContext::ErrorCapture errors(loc->getContext());
           MlirType t = mlirVectorTypeGetChecked(loc, shape.size(), shape.data(),
                                                 elementType);
-          // TODO: Rework error reporting once diagnostic engine is exposed
-          // in C API.
-          if (mlirTypeIsNull(t)) {
-            throw SetPyError(
-                PyExc_ValueError,
-                Twine("invalid '") +
-                    py::repr(py::cast(elementType)).cast<std::string>() +
-                    "' and expected floating point or integer type.");
-          }
+          if (mlirTypeIsNull(t))
+            throw MLIRError("Invalid type", errors.take());
           return PyVectorType(elementType.getContext(), t);
         },
         py::arg("shape"), py::arg("elementType"), py::arg("loc") = py::none(),
@@ -402,20 +450,12 @@ public:
         "get",
         [](std::vector<int64_t> shape, PyType &elementType,
            std::optional<PyAttribute> &encodingAttr, DefaultingPyLocation loc) {
+          PyMlirContext::ErrorCapture errors(loc->getContext());
           MlirType t = mlirRankedTensorTypeGetChecked(
               loc, shape.size(), shape.data(), elementType,
               encodingAttr ? encodingAttr->get() : mlirAttributeGetNull());
-          // TODO: Rework error reporting once diagnostic engine is exposed
-          // in C API.
-          if (mlirTypeIsNull(t)) {
-            throw SetPyError(
-                PyExc_ValueError,
-                Twine("invalid '") +
-                    py::repr(py::cast(elementType)).cast<std::string>() +
-                    "' and expected floating point, integer, vector or "
-                    "complex "
-                    "type.");
-          }
+          if (mlirTypeIsNull(t))
+            throw MLIRError("Invalid type", errors.take());
           return PyRankedTensorType(elementType.getContext(), t);
         },
         py::arg("shape"), py::arg("element_type"),
@@ -443,18 +483,10 @@ public:
     c.def_static(
         "get",
         [](PyType &elementType, DefaultingPyLocation loc) {
+          PyMlirContext::ErrorCapture errors(loc->getContext());
           MlirType t = mlirUnrankedTensorTypeGetChecked(loc, elementType);
-          // TODO: Rework error reporting once diagnostic engine is exposed
-          // in C API.
-          if (mlirTypeIsNull(t)) {
-            throw SetPyError(
-                PyExc_ValueError,
-                Twine("invalid '") +
-                    py::repr(py::cast(elementType)).cast<std::string>() +
-                    "' and expected floating point, integer, vector or "
-                    "complex "
-                    "type.");
-          }
+          if (mlirTypeIsNull(t))
+            throw MLIRError("Invalid type", errors.take());
           return PyUnrankedTensorType(elementType.getContext(), t);
         },
         py::arg("element_type"), py::arg("loc") = py::none(),
@@ -475,23 +507,15 @@ public:
          [](std::vector<int64_t> shape, PyType &elementType,
             PyAttribute *layout, PyAttribute *memorySpace,
             DefaultingPyLocation loc) {
+           PyMlirContext::ErrorCapture errors(loc->getContext());
            MlirAttribute layoutAttr = layout ? *layout : mlirAttributeGetNull();
            MlirAttribute memSpaceAttr =
                memorySpace ? *memorySpace : mlirAttributeGetNull();
            MlirType t =
                mlirMemRefTypeGetChecked(loc, elementType, shape.size(),
                                         shape.data(), layoutAttr, memSpaceAttr);
-           // TODO: Rework error reporting once diagnostic engine is exposed
-           // in C API.
-           if (mlirTypeIsNull(t)) {
-             throw SetPyError(
-                 PyExc_ValueError,
-                 Twine("invalid '") +
-                     py::repr(py::cast(elementType)).cast<std::string>() +
-                     "' and expected floating point, integer, vector or "
-                     "complex "
-                     "type.");
-           }
+           if (mlirTypeIsNull(t))
+             throw MLIRError("Invalid type", errors.take());
            return PyMemRefType(elementType.getContext(), t);
          },
          py::arg("shape"), py::arg("element_type"),
@@ -534,23 +558,15 @@ public:
          "get",
          [](PyType &elementType, PyAttribute *memorySpace,
             DefaultingPyLocation loc) {
+           PyMlirContext::ErrorCapture errors(loc->getContext());
            MlirAttribute memSpaceAttr = {};
            if (memorySpace)
              memSpaceAttr = *memorySpace;
 
            MlirType t =
                mlirUnrankedMemRefTypeGetChecked(loc, elementType, memSpaceAttr);
-           // TODO: Rework error reporting once diagnostic engine is exposed
-           // in C API.
-           if (mlirTypeIsNull(t)) {
-             throw SetPyError(
-                 PyExc_ValueError,
-                 Twine("invalid '") +
-                     py::repr(py::cast(elementType)).cast<std::string>() +
-                     "' and expected floating point, integer, vector or "
-                     "complex "
-                     "type.");
-           }
+           if (mlirTypeIsNull(t))
+             throw MLIRError("Invalid type", errors.take());
            return PyUnrankedMemRefType(elementType.getContext(), t);
          },
          py::arg("element_type"), py::arg("memory_space"),
@@ -700,6 +716,9 @@ void mlir::python::populateIRTypes(py::module &m) {
   PyIndexType::bind(m);
   PyFloat8E4M3FNType::bind(m);
   PyFloat8E5M2Type::bind(m);
+  PyFloat8E4M3FNUZType::bind(m);
+  PyFloat8E4M3B11FNUZType::bind(m);
+  PyFloat8E5M2FNUZType::bind(m);
   PyBF16Type::bind(m);
   PyF16Type::bind(m);
   PyF32Type::bind(m);

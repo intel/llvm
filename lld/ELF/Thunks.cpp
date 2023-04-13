@@ -384,34 +384,23 @@ private:
 };
 
 // PPC64 R12 Setup Stub
-// When a caller that does not maintain a toc-pointer performs a local call to
-// a callee which requires a toc-pointer then we need this stub to place the
-// callee's global entry point into r12 without a save of R2.
+// When a caller that does not maintain TOC calls a target which may possibly
+// use TOC (either non-preemptible with localentry>1 or preemptible), we need to
+// set r12 to satisfy the requirement of the global entry point.
 class PPC64R12SetupStub final : public Thunk {
 public:
-  PPC64R12SetupStub(Symbol &dest) : Thunk(dest, 0) { alignment = 16; }
+  PPC64R12SetupStub(Symbol &dest, bool gotPlt)
+      : Thunk(dest, 0), gotPlt(gotPlt) {
+    alignment = 16;
+  }
   uint32_t size() override { return 32; }
   void writeTo(uint8_t *buf) override;
   void addSymbols(ThunkSection &isec) override;
   bool isCompatibleWith(const InputSection &isec,
                         const Relocation &rel) const override;
-};
 
-// PPC64 PC-relative PLT Stub
-// When a caller that does not maintain a toc-pointer performs an extern call
-// then this stub is needed for:
-// 1) Loading the target functions address from the procedure linkage table into
-//    r12 for use by the target functions global entry point, and into the count
-//    register with pc-relative instructions.
-// 2) Transferring control to the target function through an indirect branch.
-class PPC64PCRelPLTStub final : public Thunk {
-public:
-  PPC64PCRelPLTStub(Symbol &dest) : Thunk(dest, 0) { alignment = 16; }
-  uint32_t size() override { return 32; }
-  void writeTo(uint8_t *buf) override;
-  void addSymbols(ThunkSection &isec) override;
-  bool isCompatibleWith(const InputSection &isec,
-                        const Relocation &rel) const override;
+private:
+  bool gotPlt;
 };
 
 // A bl instruction uses a signed 24 bit offset, with an implicit 4 byte
@@ -554,10 +543,7 @@ void ARMThunk::writeTo(uint8_t *buf) {
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA();
   int64_t offset = s - p - 8;
-  const uint8_t data[] = {
-    0x00, 0x00, 0x00, 0xea, // b S
-  };
-  memcpy(buf, data, sizeof(data));
+  write32(buf, 0xea000000); // b S
   target->relocateNoSym(buf, R_ARM_JUMP24, offset);
 }
 
@@ -600,10 +586,8 @@ void ThumbThunk::writeTo(uint8_t *buf) {
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA();
   int64_t offset = s - p - 4;
-  const uint8_t data[] = {
-      0x00, 0xf0, 0x00, 0xb0, // b.w S
-  };
-  memcpy(buf, data, sizeof(data));
+  write16(buf + 0, 0xf000); // b.w S
+  write16(buf + 2, 0xb000);
   target->relocateNoSym(buf, R_ARM_THM_JUMP24, offset);
 }
 
@@ -618,13 +602,10 @@ bool ThumbThunk::isCompatibleWith(const InputSection &isec,
 }
 
 void ARMV7ABSLongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x00, 0xc0, 0x00, 0xe3, // movw         ip,:lower16:S
-      0x00, 0xc0, 0x40, 0xe3, // movt         ip,:upper16:S
-      0x1c, 0xff, 0x2f, 0xe1, // bx   ip
-  };
+  write32(buf + 0, 0xe300c000); // movw ip,:lower16:S
+  write32(buf + 4, 0xe340c000); // movt ip,:upper16:S
+  write32(buf + 8, 0xe12fff1c); // bx   ip
   uint64_t s = getARMThunkDestVA(destination);
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf, R_ARM_MOVW_ABS_NC, s);
   target->relocateNoSym(buf + 4, R_ARM_MOVT_ABS, s);
 }
@@ -636,13 +617,12 @@ void ARMV7ABSLongThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ThumbV7ABSLongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x40, 0xf2, 0x00, 0x0c, // movw         ip, :lower16:S
-      0xc0, 0xf2, 0x00, 0x0c, // movt         ip, :upper16:S
-      0x60, 0x47,             // bx   ip
-  };
+  write16(buf + 0, 0xf240); // movw ip, :lower16:S
+  write16(buf + 2, 0x0c00);
+  write16(buf + 4, 0xf2c0); // movt ip, :upper16:S
+  write16(buf + 6, 0x0c00);
+  write16(buf + 8, 0x4760); // bx   ip
   uint64_t s = getARMThunkDestVA(destination);
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf, R_ARM_THM_MOVW_ABS_NC, s);
   target->relocateNoSym(buf + 4, R_ARM_THM_MOVT_ABS, s);
 }
@@ -654,16 +634,13 @@ void ThumbV7ABSLongThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ARMV7PILongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0xf0, 0xcf, 0x0f, 0xe3, // P:  movw ip,:lower16:S - (P + (L1-P) + 8)
-      0x00, 0xc0, 0x40, 0xe3, //     movt ip,:upper16:S - (P + (L1-P) + 8)
-      0x0f, 0xc0, 0x8c, 0xe0, // L1: add  ip, ip, pc
-      0x1c, 0xff, 0x2f, 0xe1, //     bx   ip
-  };
+  write32(buf + 0, 0xe30fcff0);   // P:  movw ip,:lower16:S - (P + (L1-P) + 8)
+  write32(buf + 4, 0xe340c000);   //     movt ip,:upper16:S - (P + (L1-P) + 8)
+  write32(buf + 8, 0xe08cc00f);   // L1: add  ip, ip, pc
+  write32(buf + 12, 0xe12fff1c);  //     bx   ip
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA();
   int64_t offset = s - p - 16;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf, R_ARM_MOVW_PREL_NC, offset);
   target->relocateNoSym(buf + 4, R_ARM_MOVT_PREL, offset);
 }
@@ -675,16 +652,15 @@ void ARMV7PILongThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ThumbV7PILongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x4f, 0xf6, 0xf4, 0x7c, // P:  movw ip,:lower16:S - (P + (L1-P) + 4)
-      0xc0, 0xf2, 0x00, 0x0c, //     movt ip,:upper16:S - (P + (L1-P) + 4)
-      0xfc, 0x44,             // L1: add  ip, pc
-      0x60, 0x47,             //     bx   ip
-  };
+  write16(buf + 0, 0xf64f);   // P:  movw ip,:lower16:S - (P + (L1-P) + 4)
+  write16(buf + 2, 0x7cf4);
+  write16(buf + 4, 0xf2c0);   //     movt ip,:upper16:S - (P + (L1-P) + 4)
+  write16(buf + 6, 0x0c00);
+  write16(buf + 8, 0x44fc);   // L1: add  ip, pc
+  write16(buf + 10, 0x4760);  //     bx   ip
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA() & ~0x1;
   int64_t offset = s - p - 12;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf, R_ARM_THM_MOVW_PREL_NC, offset);
   target->relocateNoSym(buf + 4, R_ARM_THM_MOVT_PREL, offset);
 }
@@ -700,15 +676,12 @@ void ThumbV6MABSLongThunk::writeLong(uint8_t *buf) {
   // only register we can corrupt is r12 we must instead spill a low register
   // to the stack to use as a scratch register. We push r1 even though we
   // don't need to get some space to use for the return address.
-  const uint8_t data[] = {
-      0x03, 0xb4,            // push {r0, r1} ; Obtain scratch registers
-      0x01, 0x48,            // ldr r0, [pc, #4] ; L1
-      0x01, 0x90,            // str r0, [sp, #4] ; SP + 4 = S
-      0x01, 0xbd,            // pop {r0, pc} ; restore r0 and branch to dest
-      0x00, 0x00, 0x00, 0x00 // L1: .word S
-  };
+  write16(buf + 0, 0xb403);   // push {r0, r1} ; Obtain scratch registers
+  write16(buf + 2, 0x4801);   // ldr r0, [pc, #4] ; L1
+  write16(buf + 4, 0x9001);   // str r0, [sp, #4] ; SP + 4 = S
+  write16(buf + 6, 0xbd01);   // pop {r0, pc} ; restore r0 and branch to dest
+  write32(buf + 8, 0x00000000);   // L1: .word S
   uint64_t s = getARMThunkDestVA(destination);
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf + 8, R_ARM_ABS32, s);
 }
 
@@ -723,18 +696,15 @@ void ThumbV6MPILongThunk::writeLong(uint8_t *buf) {
   // Most Thumb instructions cannot access the high registers r8 - r15. As the
   // only register we can corrupt is ip (r12) we must instead spill a low
   // register to the stack to use as a scratch register.
-  const uint8_t data[] = {
-      0x01, 0xb4,             // P:  push {r0}        ; Obtain scratch register
-      0x02, 0x48,             //     ldr r0, [pc, #8] ; L2
-      0x84, 0x46,             //     mov ip, r0       ; high to low register
-      0x01, 0xbc,             //     pop {r0}         ; restore scratch register
-      0xe7, 0x44,             // L1: add pc, ip       ; transfer control
-      0xc0, 0x46,             //     nop              ; pad to 4-byte boundary
-      0x00, 0x00, 0x00, 0x00, // L2: .word S - (P + (L1 - P) + 4)
-  };
+  write16(buf + 0, 0xb401);   // P:  push {r0}        ; Obtain scratch register
+  write16(buf + 2, 0x4802);   //     ldr r0, [pc, #8] ; L2
+  write16(buf + 4, 0x4684);   //     mov ip, r0       ; high to low register
+  write16(buf + 6, 0xbc01);   //     pop {r0}         ; restore scratch register
+  write16(buf + 8, 0x44e7);   // L1: add pc, ip       ; transfer control
+  write16(buf + 10, 0x46c0);  //     nop              ; pad to 4-byte boundary
+  write32(buf + 12, 0x00000000);  // L2: .word S - (P + (L1 - P) + 4)
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA() & ~0x1;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf + 12, R_ARM_REL32, s - p - 12);
 }
 
@@ -746,11 +716,8 @@ void ThumbV6MPILongThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ARMV5LongLdrPcThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x04, 0xf0, 0x1f, 0xe5, // ldr pc, [pc,#-4] ; L1
-      0x00, 0x00, 0x00, 0x00, // L1: .word S
-  };
-  memcpy(buf, data, sizeof(data));
+  write32(buf + 0, 0xe51ff004); // ldr pc, [pc,#-4] ; L1
+  write32(buf + 4, 0x00000000); // L1: .word S
   target->relocateNoSym(buf + 4, R_ARM_ABS32, getARMThunkDestVA(destination));
 }
 
@@ -762,12 +729,9 @@ void ARMV5LongLdrPcThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ARMV4ABSLongBXThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x00, 0xc0, 0x9f, 0xe5, // ldr r12, [pc] ; L1
-      0x1c, 0xff, 0x2f, 0xe1, // bx r12
-      0x00, 0x00, 0x00, 0x00, // L1: .word S
-  };
-  memcpy(buf, data, sizeof(data));
+  write32(buf + 0, 0xe59fc000); // ldr r12, [pc] ; L1
+  write32(buf + 4, 0xe12fff1c); // bx r12
+  write32(buf + 8, 0x00000000); // L1: .word S
   target->relocateNoSym(buf + 8, R_ARM_ABS32, getARMThunkDestVA(destination));
 }
 
@@ -779,13 +743,10 @@ void ARMV4ABSLongBXThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ThumbV4ABSLongBXThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x78, 0x47,             // bx pc
-      0xfd, 0xe7,             // b #-6 ; Arm recommended sequence to follow bx pc
-      0x04, 0xf0, 0x1f, 0xe5, // ldr pc, [pc, #-4] ; L1
-      0x00, 0x00, 0x00, 0x00, // L1: .word S
-  };
-  memcpy(buf, data, sizeof(data));
+  write16(buf + 0, 0x4778); // bx pc
+  write16(buf + 2, 0xe7fd); // b #-6 ; Arm recommended sequence to follow bx pc
+  write32(buf + 4, 0xe51ff004); // ldr pc, [pc, #-4] ; L1
+  write32(buf + 8, 0x00000000); // L1: .word S
   target->relocateNoSym(buf + 8, R_ARM_ABS32, getARMThunkDestVA(destination));
 }
 
@@ -798,14 +759,11 @@ void ThumbV4ABSLongBXThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ThumbV4ABSLongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x78, 0x47,             // bx pc
-      0xfd, 0xe7,             // b #-6 ; Arm recommended sequence to follow bx pc
-      0x00, 0xc0, 0x9f, 0xe5, // ldr r12, [pc] ; L1
-      0x1c, 0xff, 0x2f, 0xe1, // bx r12
-      0x00, 0x00, 0x00, 0x00, // L1: .word S
-  };
-  memcpy(buf, data, sizeof(data));
+  write16(buf + 0, 0x4778); // bx pc
+  write16(buf + 2, 0xe7fd); // b #-6 ; Arm recommended sequence to follow bx pc
+  write32(buf + 4, 0xe59fc000); // ldr r12, [pc] ; L1
+  write32(buf + 8, 0xe12fff1c); // bx r12
+  write32(buf + 12, 0x00000000); // L1: .word S
   target->relocateNoSym(buf + 12, R_ARM_ABS32, getARMThunkDestVA(destination));
 }
 
@@ -818,15 +776,12 @@ void ThumbV4ABSLongThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ARMV4PILongBXThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x04, 0xc0, 0x9f, 0xe5, // P:  ldr ip, [pc,#4] ; L2
-      0x0c, 0xc0, 0x8f, 0xe0, // L1: add ip, pc, ip
-      0x1c, 0xff, 0x2f, 0xe1, //     bx ip
-      0x00, 0x00, 0x00, 0x00, // L2: .word S - (P + (L1 - P) + 8)
-  };
+  write32(buf + 0, 0xe59fc004); // P:  ldr ip, [pc,#4] ; L2
+  write32(buf + 4, 0xe08fc00c);	// L1: add ip, pc, ip
+  write32(buf + 8, 0xe12fff1c);	//     bx ip
+  write32(buf + 12, 0x00000000); // L2: .word S - (P + (L1 - P) + 8)
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA() & ~0x1;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf + 12, R_ARM_REL32, s - p - 12);
 }
 
@@ -838,14 +793,11 @@ void ARMV4PILongBXThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ARMV4PILongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x00, 0xc0, 0x9f, 0xe5, // P:  ldr ip, [pc] ; L2
-      0x0c, 0xf0, 0x8f, 0xe0, // L1: add pc, pc, r12
-      0x00, 0x00, 0x00, 0x00, // L2: .word S - (P + (L1 - P) + 8)
-  };
+  write32(buf + 0, 0xe59fc000); // P:  ldr ip, [pc] ; L2
+  write32(buf + 4, 0xe08ff00c); // L1: add pc, pc, r12
+  write32(buf + 8, 0x00000000); // L2: .word S - (P + (L1 - P) + 8)
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA() & ~0x1;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf + 8, R_ARM_REL32, s - p - 12);
 }
 
@@ -857,16 +809,13 @@ void ARMV4PILongThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ThumbV4PILongBXThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x78, 0x47,             // P:  bx pc
-      0xfd, 0xe7,             //     b #-6 ; Arm recommended sequence to follow bx pc
-      0x00, 0xc0, 0x9f, 0xe5, //     ldr r12, [pc] ; L2
-      0x0f, 0xf0, 0x8c, 0xe0, // L1: add pc, r12, pc
-      0x00, 0x00, 0x00, 0x00, // L2: .word S - (P + (L1 - P) + 8)
-  };
+  write16(buf + 0, 0x4778); // P:  bx pc
+  write16(buf + 2, 0xe7fd); //     b #-6 ; Arm recommended sequence to follow bx pc
+  write32(buf + 4, 0xe59fc000); //     ldr r12, [pc] ; L2
+  write32(buf + 8, 0xe08cf00f); // L1: add pc, r12, pc
+  write32(buf + 12, 0x00000000); // L2: .word S - (P + (L1 - P) + 8)
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA() & ~0x1;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf + 12, R_ARM_REL32, s - p - 16);
 }
 
@@ -879,17 +828,14 @@ void ThumbV4PILongBXThunk::addSymbols(ThunkSection &isec) {
 }
 
 void ThumbV4PILongThunk::writeLong(uint8_t *buf) {
-  const uint8_t data[] = {
-      0x78, 0x47,             // P:  bx pc
-      0xfd, 0xe7,             //     b #-6 ; Arm recommended sequence to follow bx pc
-      0x04, 0xc0, 0x9f, 0xe5, //     ldr ip, [pc,#4] ; L2
-      0x0c, 0xc0, 0x8f, 0xe0, // L1: add ip, pc, ip
-      0x1c, 0xff, 0x2f, 0xe1, //     bx ip
-      0x00, 0x00, 0x00, 0x00, // L2: .word S - (P + (L1 - P) + 8)
-  };
+  write16(buf + 0, 0x4778); // P:  bx pc
+  write16(buf + 2, 0xe7fd); //     b #-6 ; Arm recommended sequence to follow bx pc
+  write32(buf + 4, 0xe59fc004); //     ldr ip, [pc,#4] ; L2
+  write32(buf + 8, 0xe08fc00c); // L1: add ip, pc, ip
+  write32(buf + 12, 0xe12fff1c); //     bx ip
+  write32(buf + 16, 0x00000000); // L2: .word S - (P + (L1 - P) + 8)
   uint64_t s = getARMThunkDestVA(destination);
   uint64_t p = getThunkTargetSym()->getVA() & ~0x1;
-  memcpy(buf, data, sizeof(data));
   target->relocateNoSym(buf + 16, R_ARM_REL32, s - p - 16);
 }
 
@@ -1131,72 +1077,43 @@ bool PPC64R2SaveStub::isCompatibleWith(const InputSection &isec,
 }
 
 void PPC64R12SetupStub::writeTo(uint8_t *buf) {
-  int64_t offset = destination.getVA() - getThunkTargetSym()->getVA();
+  int64_t offset = (gotPlt ? destination.getGotPltVA() : destination.getVA()) -
+                   getThunkTargetSym()->getVA();
   if (!isInt<34>(offset))
     reportRangeError(buf, offset, 34, destination, "R12 setup stub offset");
 
   int nextInstOffset;
-  if (!config->power10Stubs) {
-    uint32_t off = destination.getVA(addend) - getThunkTargetSym()->getVA() - 8;
-    write32(buf + 0, 0x7c0802a6);                      // mflr r12
-    write32(buf + 4, 0x429f0005);                      // bcl 20,31,.+4
-    write32(buf + 8, 0x7d6802a6);                      // mflr r11
-    write32(buf + 12, 0x7d8803a6);                     // mtlr r12
-    write32(buf + 16, 0x3d8b0000 | computeHiBits(off));// addis r12,r11,off@ha
-    write32(buf + 20, 0x398c0000 | (off & 0xffff));    // addi r12,r12,off@l
-    nextInstOffset = 24;
-  } else {
-    uint64_t paddi = PADDI_R12_NO_DISP | (((offset >> 16) & 0x3ffff) << 32) |
-                     (offset & 0xffff);
-    writePrefixedInstruction(buf + 0, paddi); // paddi r12, 0, func@pcrel, 1
+  if (config->power10Stubs) {
+    const uint64_t imm = (((offset >> 16) & 0x3ffff) << 32) | (offset & 0xffff);
+    // pld 12, func@plt@pcrel or  paddi r12, 0, func@pcrel
+    writePrefixedInstruction(
+        buf, (gotPlt ? PLD_R12_NO_DISP : PADDI_R12_NO_DISP) | imm);
     nextInstOffset = 8;
+  } else {
+    uint32_t off = offset - 8;
+    write32(buf + 0, 0x7d8802a6);                     // mflr 12
+    write32(buf + 4, 0x429f0005);                     // bcl 20,31,.+4
+    write32(buf + 8, 0x7d6802a6);                     // mflr 11
+    write32(buf + 12, 0x7d8803a6);                    // mtlr 12
+    write32(buf + 16,
+            0x3d8b0000 | ((off + 0x8000) >> 16));     // addis 12,11,off@ha
+    if (gotPlt)
+      write32(buf + 20, 0xe98c0000 | (off & 0xffff)); // ld 12, off@l(12)
+    else
+      write32(buf + 20, 0x398c0000 | (off & 0xffff)); // addi 12,12,off@l
+    nextInstOffset = 24;
   }
   write32(buf + nextInstOffset, MTCTR_R12); // mtctr r12
   write32(buf + nextInstOffset + 4, BCTR);  // bctr
 }
 
 void PPC64R12SetupStub::addSymbols(ThunkSection &isec) {
-  addSymbol(saver().save("__gep_setup_" + destination.getName()), STT_FUNC, 0,
-            isec);
+  addSymbol(saver().save((gotPlt ? "__plt_pcrel_" : "__gep_setup_") +
+                         destination.getName()),
+            STT_FUNC, 0, isec);
 }
 
 bool PPC64R12SetupStub::isCompatibleWith(const InputSection &isec,
-                                         const Relocation &rel) const {
-  return rel.type == R_PPC64_REL24_NOTOC;
-}
-
-void PPC64PCRelPLTStub::writeTo(uint8_t *buf) {
-  int nextInstOffset = 0;
-  int64_t offset = destination.getGotPltVA() - getThunkTargetSym()->getVA();
-
-  if (config->power10Stubs) {
-    if (!isInt<34>(offset))
-      reportRangeError(buf, offset, 34, destination,
-                       "PC-relative PLT stub offset");
-    const uint64_t pld = PLD_R12_NO_DISP | (((offset >> 16) & 0x3ffff) << 32) |
-                   (offset & 0xffff);
-    writePrefixedInstruction(buf + 0, pld); // pld r12, func@plt@pcrel
-    nextInstOffset = 8;
-  } else {
-    uint32_t off = destination.getVA(addend) - getThunkTargetSym()->getVA() - 8;
-    write32(buf + 0, 0x7c0802a6);            // mflr r12
-    write32(buf + 4, 0x429f0005);            // bcl 20,31,.+4
-    write32(buf + 8, 0x7d6802a6);            // mflr r11
-    write32(buf + 12, 0x7d8803a6);           // mtlr r12
-    write32(buf + 16, 0x3d8b0000 | computeHiBits(off)); // addis r12,r11,off@ha
-    write32(buf + 20, 0x398c0000 | (off & 0xffff)); // addi r12,r12,off@l
-    nextInstOffset = 24;
-  }
-  write32(buf + nextInstOffset, MTCTR_R12); // mtctr r12
-  write32(buf + nextInstOffset + 4, BCTR);  // bctr
-}
-
-void PPC64PCRelPLTStub::addSymbols(ThunkSection &isec) {
-  addSymbol(saver().save("__plt_pcrel_" + destination.getName()), STT_FUNC, 0,
-            isec);
-}
-
-bool PPC64PCRelPLTStub::isCompatibleWith(const InputSection &isec,
                                          const Relocation &rel) const {
   return rel.type == R_PPC64_REL24_NOTOC;
 }
@@ -1373,8 +1290,9 @@ static Thunk *addThunkPPC64(RelType type, Symbol &s, int64_t a) {
           type == R_PPC64_REL24_NOTOC) &&
          "unexpected relocation type for thunk");
   if (s.isInPlt())
-    return type == R_PPC64_REL24_NOTOC ? (Thunk *)make<PPC64PCRelPLTStub>(s)
-                                       : (Thunk *)make<PPC64PltCallStub>(s);
+    return type == R_PPC64_REL24_NOTOC
+               ? (Thunk *)make<PPC64R12SetupStub>(s, /*gotPlt=*/true)
+               : (Thunk *)make<PPC64PltCallStub>(s);
 
   // This check looks at the st_other bits of the callee. If the value is 1
   // then the callee clobbers the TOC and we need an R2 save stub when RelType
@@ -1383,7 +1301,7 @@ static Thunk *addThunkPPC64(RelType type, Symbol &s, int64_t a) {
     return make<PPC64R2SaveStub>(s, a);
 
   if (type == R_PPC64_REL24_NOTOC)
-    return make<PPC64R12SetupStub>(s);
+    return make<PPC64R12SetupStub>(s, /*gotPlt=*/false);
 
   if (config->picThunk)
     return make<PPC64PILongBranchThunk>(s, a);
@@ -1395,20 +1313,18 @@ Thunk *elf::addThunk(const InputSection &isec, Relocation &rel) {
   Symbol &s = *rel.sym;
   int64_t a = rel.addend;
 
-  if (config->emachine == EM_AARCH64)
+  switch (config->emachine) {
+  case EM_AARCH64:
     return addThunkAArch64(rel.type, s, a);
-
-  if (config->emachine == EM_ARM)
+  case EM_ARM:
     return addThunkArm(rel.type, s, a);
-
-  if (config->emachine == EM_MIPS)
+  case EM_MIPS:
     return addThunkMips(rel.type, s);
-
-  if (config->emachine == EM_PPC)
+  case EM_PPC:
     return addThunkPPC32(isec, rel, s);
-
-  if (config->emachine == EM_PPC64)
+  case EM_PPC64:
     return addThunkPPC64(rel.type, s, a);
-
-  llvm_unreachable("add Thunk only supported for ARM, Mips and PowerPC");
+  default:
+    llvm_unreachable("add Thunk only supported for ARM, Mips and PowerPC");
+  }
 }

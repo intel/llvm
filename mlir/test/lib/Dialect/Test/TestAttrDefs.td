@@ -21,7 +21,6 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
-include "mlir/IR/SubElementInterfaces.td"
 
 // All of the attributes will extend this class.
 class Test_Attr<string name, list<Trait> traits = []>
@@ -120,9 +119,7 @@ def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
   let hasCustomAssemblyFormat = 1;
 }
 
-def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
-    SubElementAttrInterface
-  ]> {
+def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess"> {
   let mnemonic = "sub_elements_access";
 
   let parameters = (ins
@@ -176,6 +173,11 @@ def TestParamFour : ArrayRefParameter<"int", ""> {
   let printer = "::printIntArray($_printer, $_self)";
 }
 
+
+def TestParamVector : ArrayRefParameter<"int", ""> {
+  let cppStorageType = "std::vector<int>";
+}
+
 def TestParamUnsigned : AttrParameter<"uint64_t", ""> {}
 
 def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
@@ -186,6 +188,7 @@ def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
     "::mlir::IntegerAttr":$three,
     TestParamFour:$four,
     TestParamUnsigned:$five,
+    TestParamVector:$six,
     // Array of another attribute.
     ArrayRefParameter<
       "AttrWithTypeBuilderAttr", // The parameter C++ type.
@@ -195,7 +198,7 @@ def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
 
   let mnemonic = "attr_with_format";
   let assemblyFormat = [{
-    `<` $one `:` struct($two, $four) `:` $three `:` $five `,`
+    `<` $one `:` struct($two, $four) `:` $three `:` $five `:` `[` $six `]` `,`
     `[` `` $arrayOfAttrWithTypeBuilderAttr `]` `>`
   }];
   let genVerifyDecl = 1;

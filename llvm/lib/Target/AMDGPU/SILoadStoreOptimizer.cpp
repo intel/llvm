@@ -323,7 +323,7 @@ static unsigned getOpcodeWidth(const MachineInstr &MI, const SIInstrInfo &TII) {
   if (TII.isMIMG(MI)) {
     uint64_t DMaskImm =
         TII.getNamedOperand(MI, AMDGPU::OpName::dmask)->getImm();
-    return countPopulation(DMaskImm);
+    return llvm::popcount(DMaskImm);
   }
   if (TII.isMTBUF(Opc)) {
     return AMDGPU::getMTBUFElements(Opc);
@@ -432,6 +432,10 @@ static InstClassEnum getInstClass(unsigned Opc, const SIInstrInfo &TII) {
       case AMDGPU::TBUFFER_LOAD_FORMAT_X_OFFEN_exact:
       case AMDGPU::TBUFFER_LOAD_FORMAT_X_OFFSET:
       case AMDGPU::TBUFFER_LOAD_FORMAT_X_OFFSET_exact:
+      case AMDGPU::TBUFFER_LOAD_FORMAT_X_IDXEN:
+      case AMDGPU::TBUFFER_LOAD_FORMAT_X_IDXEN_exact:
+      case AMDGPU::TBUFFER_LOAD_FORMAT_X_BOTHEN:
+      case AMDGPU::TBUFFER_LOAD_FORMAT_X_BOTHEN_exact:
         return TBUFFER_LOAD;
       case AMDGPU::TBUFFER_STORE_FORMAT_X_OFFEN:
       case AMDGPU::TBUFFER_STORE_FORMAT_X_OFFEN_exact:
@@ -887,7 +891,7 @@ bool SILoadStoreOptimizer::dmasksCanBeCombined(const CombineInfo &CI,
   unsigned MaxMask = std::max(CI.DMask, Paired.DMask);
   unsigned MinMask = std::min(CI.DMask, Paired.DMask);
 
-  unsigned AllowedBitsForMin = llvm::countTrailingZeros(MaxMask);
+  unsigned AllowedBitsForMin = llvm::countr_zero(MaxMask);
   if ((1u << AllowedBitsForMin) <= MinMask)
     return false;
 
@@ -926,7 +930,7 @@ static unsigned getBufferFormatWithCompCount(unsigned OldFormat,
 // - if Lo == 0, return 0 (even though the "- 1" below underflows
 // - if Lo > Hi, return 0 (as if the range wrapped around)
 static uint32_t mostAlignedValueInRange(uint32_t Lo, uint32_t Hi) {
-  return Hi & maskLeadingOnes<uint32_t>(countLeadingZeros((Lo - 1) ^ Hi) + 1);
+  return Hi & maskLeadingOnes<uint32_t>(llvm::countl_zero((Lo - 1) ^ Hi) + 1);
 }
 
 bool SILoadStoreOptimizer::offsetsCanBeCombined(CombineInfo &CI,
@@ -1784,7 +1788,7 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
       return AMDGPU::FLAT_STORE_DWORDX4;
     }
   case MIMG:
-    assert((countPopulation(CI.DMask | Paired.DMask) == Width) &&
+    assert(((unsigned)llvm::popcount(CI.DMask | Paired.DMask) == Width) &&
            "No overlaps");
     return AMDGPU::getMaskedMIMGOp(CI.I->getOpcode(), Width);
   }
@@ -1793,8 +1797,9 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
 std::pair<unsigned, unsigned>
 SILoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI,
                                     const CombineInfo &Paired) {
-  assert((CI.InstClass != MIMG || (countPopulation(CI.DMask | Paired.DMask) ==
-                                   CI.Width + Paired.Width)) &&
+  assert((CI.InstClass != MIMG ||
+          ((unsigned)llvm::popcount(CI.DMask | Paired.DMask) ==
+           CI.Width + Paired.Width)) &&
          "No overlaps");
 
   unsigned Idx0;
@@ -2091,7 +2096,7 @@ bool SILoadStoreOptimizer::promoteConstantOffsetToImm(
   // Step1: Find the base-registers and a 64bit constant offset.
   MachineOperand &Base = *TII->getNamedOperand(MI, AMDGPU::OpName::vaddr);
   MemAddress MAddr;
-  if (Visited.find(&MI) == Visited.end()) {
+  if (!Visited.contains(&MI)) {
     processBaseWithConstOffset(Base, MAddr);
     Visited[&MI] = MAddr;
   } else
@@ -2154,7 +2159,7 @@ bool SILoadStoreOptimizer::promoteConstantOffsetToImm(
     const MachineOperand &BaseNext =
       *TII->getNamedOperand(MINext, AMDGPU::OpName::vaddr);
     MemAddress MAddrNext;
-    if (Visited.find(&MINext) == Visited.end()) {
+    if (!Visited.contains(&MINext)) {
       processBaseWithConstOffset(BaseNext, MAddrNext);
       Visited[&MINext] = MAddrNext;
     } else

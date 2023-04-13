@@ -214,7 +214,7 @@ void ScheduleDAGInstrs::addSchedBarrierDeps() {
       if (Reg.isPhysical()) {
         Uses.insert(PhysRegSUOper(&ExitSU, -1, Reg));
       } else if (Reg.isVirtual() && MO.readsReg()) {
-        addVRegUseDeps(&ExitSU, ExitMI->getOperandNo(&MO));
+        addVRegUseDeps(&ExitSU, MO.getOperandNo());
       }
     }
   }
@@ -1522,7 +1522,7 @@ LLVM_DUMP_METHOD void ILPValue::dump() const {
 
 namespace llvm {
 
-LLVM_DUMP_METHOD
+LLVM_ATTRIBUTE_UNUSED
 raw_ostream &operator<<(raw_ostream &OS, const ILPValue &Val) {
   Val.print(OS);
   return OS;

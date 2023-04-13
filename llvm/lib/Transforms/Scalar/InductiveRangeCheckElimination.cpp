@@ -622,7 +622,7 @@ class LoopConstrainer {
   // Information about the original loop we started out with.
   Loop &OriginalLoop;
 
-  const SCEV *LatchTakenCount = nullptr;
+  const IntegerType *ExitCountTy = nullptr;
   BasicBlock *OriginalPreheader = nullptr;
 
   // The preheader of the main loop.  This may or may not be different from
@@ -671,8 +671,7 @@ static bool isSafeDecreasingBound(const SCEV *Start,
   LLVM_DEBUG(dbgs() << "irce: Start: " << *Start << "\n");
   LLVM_DEBUG(dbgs() << "irce: Step: " << *Step << "\n");
   LLVM_DEBUG(dbgs() << "irce: BoundSCEV: " << *BoundSCEV << "\n");
-  LLVM_DEBUG(dbgs() << "irce: Pred: " << ICmpInst::getPredicateName(Pred)
-                    << "\n");
+  LLVM_DEBUG(dbgs() << "irce: Pred: " << Pred << "\n");
   LLVM_DEBUG(dbgs() << "irce: LatchExitBrIdx: " << LatchBrExitIdx << "\n");
 
   bool IsSigned = ICmpInst::isSigned(Pred);
@@ -719,8 +718,7 @@ static bool isSafeIncreasingBound(const SCEV *Start,
   LLVM_DEBUG(dbgs() << "irce: Start: " << *Start << "\n");
   LLVM_DEBUG(dbgs() << "irce: Step: " << *Step << "\n");
   LLVM_DEBUG(dbgs() << "irce: BoundSCEV: " << *BoundSCEV << "\n");
-  LLVM_DEBUG(dbgs() << "irce: Pred: " << ICmpInst::getPredicateName(Pred)
-                    << "\n");
+  LLVM_DEBUG(dbgs() << "irce: Pred: " << Pred << "\n");
   LLVM_DEBUG(dbgs() << "irce: LatchExitBrIdx: " << LatchBrExitIdx << "\n");
 
   bool IsSigned = ICmpInst::isSigned(Pred);
@@ -793,6 +791,9 @@ LoopStructure::parseLoopStructure(ScalarEvolution &SE, Loop &L,
     FailureReason = "could not compute latch count";
     return std::nullopt;
   }
+  assert(SE.getLoopDisposition(LatchCount, &L) ==
+             ScalarEvolution::LoopInvariant &&
+         "loop variant exit count doesn't make sense!");
 
   ICmpInst::Predicate Pred = ICI->getPredicate();
   Value *LeftValue = ICI->getOperand(0);
@@ -1017,10 +1018,6 @@ LoopStructure::parseLoopStructure(ScalarEvolution &SE, Loop &L,
   }
   BasicBlock *LatchExit = LatchBr->getSuccessor(LatchBrExitIdx);
 
-  assert(SE.getLoopDisposition(LatchCount, &L) ==
-             ScalarEvolution::LoopInvariant &&
-         "loop variant exit count doesn't make sense!");
-
   assert(!L.contains(LatchExit) && "expected an exit block!");
   const DataLayout &DL = Preheader->getModule()->getDataLayout();
   SCEVExpander Expander(SE, DL, "irce");
@@ -1062,7 +1059,7 @@ static const SCEV *NoopOrExtend(const SCEV *S, Type *Ty, ScalarEvolution &SE,
 
 std::optional<LoopConstrainer::SubRanges>
 LoopConstrainer::calculateSubRanges(bool IsSignedPredicate) const {
-  IntegerType *Ty = cast<IntegerType>(LatchTakenCount->getType());
+  const IntegerType *Ty = ExitCountTy;
 
   auto *RTy = cast<IntegerType>(Range.getType());
 
@@ -1403,10 +1400,12 @@ Loop *LoopConstrainer::createClonedLoopStructure(Loop *Original, Loop *Parent,
 
 bool LoopConstrainer::run() {
   BasicBlock *Preheader = nullptr;
-  LatchTakenCount = SE.getExitCount(&OriginalLoop, MainLoopStructure.Latch);
+  const SCEV *LatchTakenCount =
+      SE.getExitCount(&OriginalLoop, MainLoopStructure.Latch);
   Preheader = OriginalLoop.getLoopPreheader();
   assert(!isa<SCEVCouldNotCompute>(LatchTakenCount) && Preheader != nullptr &&
          "preconditions!");
+  ExitCountTy = cast<IntegerType>(LatchTakenCount->getType());
 
   OriginalPreheader = Preheader;
   MainLoopPreheader = Preheader;

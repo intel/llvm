@@ -62,11 +62,11 @@
 ; CHECK-NEXT:      Lazy Block Frequency Analysis
 ; CHECK-NEXT:      Optimization Remark Emitter
 ; CHECK-NEXT:      Hardware Loop Insertion
-; CHECK-NEXT:      Scalar Evolution Analysis
 ; CHECK-NEXT:      Loop Pass Manager
 ; CHECK-NEXT:        Transform predicated vector loops to use MVE tail predication
 ; CHECK-NEXT:      A No-Op Barrier Pass
 ; CHECK-NEXT:      FunctionPass Manager
+; CHECK-NEXT:      Prepare callbr
 ; CHECK-NEXT:      Safe Stack instrumentation pass
 ; CHECK-NEXT:      Insert stack protectors
 ; CHECK-NEXT:      Module Verifier
@@ -76,6 +76,7 @@
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Post-Dominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Analysis
+; CHECK-NEXT:      Assignment Tracking Analysis
 ; CHECK-NEXT:      Lazy Branch Probability Analysis
 ; CHECK-NEXT:      Lazy Block Frequency Analysis
 ; CHECK-NEXT:      ARM Instruction Selection
@@ -195,6 +196,9 @@
 ; CHECK-NEXT:      Machine Sanitizer Binary Metadata
 ; CHECK-NEXT:    Machine Outliner
 ; CHECK-NEXT:    FunctionPass Manager
+; CHECK-NEXT:      Lazy Machine Block Frequency Analysis
+; CHECK-NEXT:      Machine Optimization Remark Emitter
+; CHECK-NEXT:      Stack Frame Layout Analysis
 ; CHECK-NEXT:      ReachingDefAnalysis
 ; CHECK-NEXT:      ARM fix for Cortex-A57 AES Erratum 1742098
 ; CHECK-NEXT:      ARM Branch Targets

@@ -443,6 +443,9 @@ void MIRParserImpl::setupDebugValueTracking(
     MF.makeDebugValueSubstitution({Sub.SrcInst, Sub.SrcOp},
                                   {Sub.DstInst, Sub.DstOp}, Sub.Subreg);
   }
+
+  // Flag for whether we're supposed to be using DBG_INSTR_REF.
+  MF.setUseDebugInstrRef(YamlMF.UseDebugInstrRef);
 }
 
 bool
@@ -465,6 +468,7 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
   MF.setHasEHCatchret(YamlMF.HasEHCatchret);
   MF.setHasEHScopes(YamlMF.HasEHScopes);
   MF.setHasEHFunclets(YamlMF.HasEHFunclets);
+  MF.setIsOutlined(YamlMF.IsOutlined);
 
   if (YamlMF.Legalized)
     MF.getProperties().set(MachineFunctionProperties::Property::Legalized);

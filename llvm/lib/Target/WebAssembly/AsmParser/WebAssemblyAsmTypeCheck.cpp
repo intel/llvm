@@ -15,10 +15,9 @@
 
 #include "AsmParser/WebAssemblyAsmTypeCheck.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "MCTargetDesc/WebAssemblyMCTypeUtilities.h"
 #include "MCTargetDesc/WebAssemblyTargetStreamer.h"
 #include "TargetInfo/WebAssemblyTargetInfo.h"
-#include "Utils/WebAssemblyTypeUtilities.h"
-#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -54,7 +53,8 @@ void WebAssemblyAsmTypeCheck::funcDecl(const wasm::WasmSignature &Sig) {
   ReturnTypes.assign(Sig.Returns.begin(), Sig.Returns.end());
 }
 
-void WebAssemblyAsmTypeCheck::localDecl(const SmallVector<wasm::ValType, 4> &Locals) {
+void WebAssemblyAsmTypeCheck::localDecl(
+    const SmallVectorImpl<wasm::ValType> &Locals) {
   LocalTypes.insert(LocalTypes.end(), Locals.begin(), Locals.end());
 }
 
@@ -125,15 +125,15 @@ bool WebAssemblyAsmTypeCheck::getLocal(SMLoc ErrorLoc, const MCInst &Inst,
 bool WebAssemblyAsmTypeCheck::checkEnd(SMLoc ErrorLoc, bool PopVals) {
   if (LastSig.Returns.size() > Stack.size())
     return typeError(ErrorLoc, "end: insufficient values on the type stack");
-  
+
   if (PopVals) {
     for (auto VT : llvm::reverse(LastSig.Returns)) {
-      if (popType(ErrorLoc, VT)) 
+      if (popType(ErrorLoc, VT))
         return true;
     }
     return false;
   }
-  
+
   for (size_t i = 0; i < LastSig.Returns.size(); i++) {
     auto EVT = LastSig.Returns[i];
     auto PVT = Stack[Stack.size() - LastSig.Returns.size() + i];
@@ -272,6 +272,30 @@ bool WebAssemblyAsmTypeCheck::typeCheck(SMLoc ErrorLoc, const MCInst &Inst,
       return true;
     if (popType(ErrorLoc, wasm::ValType::I32))
       return true;
+  } else if (Name == "memory.fill") {
+    Type = is64 ? wasm::ValType::I64 : wasm::ValType::I32;
+    if (popType(ErrorLoc, Type))
+      return true;
+    if (popType(ErrorLoc, wasm::ValType::I32))
+      return true;
+    if (popType(ErrorLoc, Type))
+      return true;
+  } else if (Name == "memory.copy") {
+    Type = is64 ? wasm::ValType::I64 : wasm::ValType::I32;
+    if (popType(ErrorLoc, Type))
+      return true;
+    if (popType(ErrorLoc, Type))
+      return true;
+    if (popType(ErrorLoc, Type))
+      return true;
+  } else if (Name == "memory.init") {
+    Type = is64 ? wasm::ValType::I64 : wasm::ValType::I32;
+    if (popType(ErrorLoc, wasm::ValType::I32))
+      return true;
+    if (popType(ErrorLoc, wasm::ValType::I32))
+      return true;
+    if (popType(ErrorLoc, Type))
+      return true;
   } else if (Name == "drop") {
     if (popType(ErrorLoc, {}))
       return true;
@@ -331,7 +355,7 @@ bool WebAssemblyAsmTypeCheck::typeCheck(SMLoc ErrorLoc, const MCInst &Inst,
     const auto &II = MII.get(RegOpc);
     // First pop all the uses off the stack and check them.
     for (unsigned I = II.getNumOperands(); I > II.getNumDefs(); I--) {
-      const auto &Op = II.OpInfo[I - 1];
+      const auto &Op = II.operands()[I - 1];
       if (Op.OperandType == MCOI::OPERAND_REGISTER) {
         auto VT = WebAssembly::regClassToValType(Op.RegClass);
         if (popType(ErrorLoc, VT))
@@ -340,7 +364,7 @@ bool WebAssemblyAsmTypeCheck::typeCheck(SMLoc ErrorLoc, const MCInst &Inst,
     }
     // Now push all the defs onto the stack.
     for (unsigned I = 0; I < II.getNumDefs(); I++) {
-      const auto &Op = II.OpInfo[I];
+      const auto &Op = II.operands()[I];
       assert(Op.OperandType == MCOI::OPERAND_REGISTER && "Register expected");
       auto VT = WebAssembly::regClassToValType(Op.RegClass);
       Stack.push_back(VT);

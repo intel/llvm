@@ -200,6 +200,8 @@ void MIRPrinter::print(const MachineFunction &MF) {
   YamlMF.HasEHCatchret = MF.hasEHCatchret();
   YamlMF.HasEHScopes = MF.hasEHScopes();
   YamlMF.HasEHFunclets = MF.hasEHFunclets();
+  YamlMF.IsOutlined = MF.isOutlined();
+  YamlMF.UseDebugInstrRef = MF.useDebugInstrRef();
 
   YamlMF.Legalized = MF.getProperties().hasProperty(
       MachineFunctionProperties::Property::Legalized);

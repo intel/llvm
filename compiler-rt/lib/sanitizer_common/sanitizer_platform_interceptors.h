@@ -591,6 +591,8 @@
 #define SANITIZER_INTERCEPT___XUNAME SI_FREEBSD
 #define SANITIZER_INTERCEPT_FLOPEN SI_FREEBSD
 #define SANITIZER_INTERCEPT_PROCCTL SI_FREEBSD
+#define SANITIZER_INTERCEPT_HEXDUMP SI_FREEBSD
+#define SANITIZER_INTERCEPT_ARGP_PARSE SI_GLIBC
 
 // This macro gives a way for downstream users to override the above
 // interceptor macros irrespective of the platform they are on. They have

@@ -1630,7 +1630,8 @@ bool Sema::isUsableModule(const Module *M) {
   // [module.global.frag]p1:
   //   The global module fragment can be used to provide declarations that are
   //   attached to the global module and usable within the module unit.
-  if (M == GlobalModuleFragment ||
+  if (M == TheGlobalModuleFragment || M == TheImplicitGlobalModuleFragment ||
+      M == TheExportedImplicitGlobalModuleFragment ||
       // If M is the module we're parsing, it should be usable. This covers the
       // private module fragment. The private module fragment is usable only if
       // it is within the current module unit. And it must be the current
@@ -1909,19 +1910,6 @@ bool LookupResult::isAcceptableSlow(Sema &SemaRef, NamedDecl *D,
 }
 
 bool Sema::isModuleVisible(const Module *M, bool ModulePrivate) {
-  // [module.global.frag]p2:
-  // A global-module-fragment specifies the contents of the global module
-  // fragment for a module unit. The global module fragment can be used to
-  // provide declarations that are attached to the global module and usable
-  // within the module unit.
-  //
-  // Global module fragment is special. Global Module fragment is only usable
-  // within the module unit it got defined [module.global.frag]p2. So here we
-  // check if the Module is the global module fragment in current translation
-  // unit.
-  if (M->isGlobalModule() && M != this->GlobalModuleFragment)
-    return false;
-
   // The module might be ordinarily visible. For a module-private query, that
   // means it is part of the current module.
   if (ModulePrivate && isUsableModule(M))
@@ -1939,6 +1927,12 @@ bool Sema::isModuleVisible(const Module *M, bool ModulePrivate) {
   const auto &LookupModules = getLookupModules();
   if (LookupModules.empty())
     return false;
+
+  // The global module fragments are visible to its corresponding module unit.
+  // So the global module fragment should be visible if the its corresponding
+  // module unit is visible.
+  if (M->isGlobalModule())
+    M = M->getTopLevelModule();
 
   // If our lookup set contains the module, it's visible.
   if (LookupModules.count(M))
@@ -3934,10 +3928,14 @@ void Sema::ArgumentDependentLookup(DeclarationName Name, SourceLocation Loc,
           if (isVisible(D)) {
             Visible = true;
             break;
-          } else if (getLangOpts().CPlusPlusModules &&
-                     D->isInExportDeclContext()) {
-            // C++20 [basic.lookup.argdep] p4.3 .. are exported ...
+          }
+
+          if (!getLangOpts().CPlusPlusModules)
+            continue;
+
+          if (D->isInExportDeclContext()) {
             Module *FM = D->getOwningModule();
+            // C++20 [basic.lookup.argdep] p4.3 .. are exported ...
             // exports are only valid in module purview and outside of any
             // PMF (although a PMF should not even be present in a module
             // with an import).
@@ -5893,4 +5891,8 @@ void Sema::ActOnPragmaDump(Scope *S, SourceLocation IILoc, IdentifierInfo *II) {
   R.setHideTags(false);
   LookupName(R, S);
   R.dump();
+}
+
+void Sema::ActOnPragmaDump(Expr *E) {
+  E->dump();
 }

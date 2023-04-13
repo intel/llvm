@@ -109,6 +109,18 @@ template <typename T, lsc_data_size DS> constexpr void check_lsc_data_size() {
   static_assert(DS != lsc_data_size::default_size || sizeof(T) == 1 ||
                     sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
                 "Unsupported data type");
+  static_assert(
+      DS == lsc_data_size::default_size ||
+          (sizeof(T) == 1 &&
+           (DS == lsc_data_size::u8 || DS == lsc_data_size::u8u32)) ||
+          (sizeof(T) == 2 &&
+           (DS == lsc_data_size::u16 || DS == lsc_data_size::u16u32 ||
+            DS == lsc_data_size::u16u32h)) ||
+          (sizeof(T) == 4 &&
+           (DS == lsc_data_size::u32 || DS == lsc_data_size::u8u32 ||
+            DS == lsc_data_size::u16u32 || DS == lsc_data_size::u16u32h)) ||
+          (sizeof(T) == 8 && DS == lsc_data_size::u64),
+      "Data type does not match data size");
 }
 
 template <lsc_vector_size VS> constexpr uint8_t to_int() {

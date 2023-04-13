@@ -166,6 +166,8 @@ void setMemoryPermission(UNUSED uptr Addr, UNUSED uptr Size, UNUSED uptr Flags,
 
 void releasePagesToOS(UNUSED uptr BaseAddress, uptr Offset, uptr Size,
                       MapPlatformData *Data) {
+  // TODO: DCHECK the BaseAddress is consistent with the data in
+  // MapPlatformData.
   DCHECK(Data);
   DCHECK_NE(Data->Vmar, ZX_HANDLE_INVALID);
   DCHECK_NE(Data->Vmo, ZX_HANDLE_INVALID);
@@ -195,7 +197,10 @@ void HybridMutex::unlock() __TA_NO_THREAD_SAFETY_ANALYSIS {
   sync_mutex_unlock(&M);
 }
 
+void HybridMutex::assertHeldImpl() __TA_NO_THREAD_SAFETY_ANALYSIS {}
+
 u64 getMonotonicTime() { return _zx_clock_get_monotonic(); }
+u64 getMonotonicTimeFast() { return _zx_clock_get_monotonic(); }
 
 u32 getNumberOfCPUs() { return _zx_system_get_num_cpus(); }
 

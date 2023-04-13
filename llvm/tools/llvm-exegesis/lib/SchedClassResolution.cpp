@@ -69,8 +69,8 @@ getNonRedundantWriteProcRes(const MCSchedClassDesc &SCDesc,
   }
   sort(ResourceMaskAndEntries,
        [](const ResourceMaskAndEntry &A, const ResourceMaskAndEntry &B) {
-         unsigned popcntA = countPopulation(A.first);
-         unsigned popcntB = countPopulation(B.first);
+         unsigned popcntA = llvm::popcount(A.first);
+         unsigned popcntB = llvm::popcount(B.first);
          if (popcntA < popcntB)
            return true;
          if (popcntA > popcntB)
@@ -280,13 +280,13 @@ static unsigned findProcResIdx(const MCSubtargetInfo &STI,
 }
 
 std::vector<BenchmarkMeasure> ResolvedSchedClass::getAsPoint(
-    InstructionBenchmark::ModeE Mode, const MCSubtargetInfo &STI,
+    Benchmark::ModeE Mode, const MCSubtargetInfo &STI,
     ArrayRef<PerInstructionStats> Representative) const {
   const size_t NumMeasurements = Representative.size();
 
   std::vector<BenchmarkMeasure> SchedClassPoint(NumMeasurements);
 
-  if (Mode == InstructionBenchmark::Latency) {
+  if (Mode == Benchmark::Latency) {
     assert(NumMeasurements == 1 && "Latency is a single measure.");
     BenchmarkMeasure &LatencyMeasure = SchedClassPoint[0];
 
@@ -299,7 +299,7 @@ std::vector<BenchmarkMeasure> ResolvedSchedClass::getAsPoint(
       LatencyMeasure.PerInstructionValue =
           std::max<double>(LatencyMeasure.PerInstructionValue, WLE->Cycles);
     }
-  } else if (Mode == InstructionBenchmark::Uops) {
+  } else if (Mode == Benchmark::Uops) {
     for (auto I : zip(SchedClassPoint, Representative)) {
       BenchmarkMeasure &Measure = std::get<0>(I);
       const PerInstructionStats &Stats = std::get<1>(I);
@@ -326,7 +326,7 @@ std::vector<BenchmarkMeasure> ResolvedSchedClass::getAsPoint(
         return {};
       }
     }
-  } else if (Mode == InstructionBenchmark::InverseThroughput) {
+  } else if (Mode == Benchmark::InverseThroughput) {
     assert(NumMeasurements == 1 && "Inverse Throughput is a single measure.");
     BenchmarkMeasure &RThroughputMeasure = SchedClassPoint[0];
 

@@ -1,5 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl %s -o %t_default.out
+// RUN: %t_default.out
+// RUN: %clangxx -fsycl -D__NO_EXT_VECTOR_TYPE_ON_HOST__ %s -o %t_noext.out
+// RUN: %t_noext.out
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -127,6 +129,7 @@ int main() {
   check_convert_from<sycl::half>();
   check_convert_from<float>();
   check_convert_from<double>();
+  check_convert_from<bool>();
 
   return 0;
 }

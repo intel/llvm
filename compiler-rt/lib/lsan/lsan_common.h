@@ -131,6 +131,9 @@ void GetAllocatorGlobalRange(uptr *begin, uptr *end);
 uptr PointsIntoChunk(void *p);
 // Returns address of user-visible chunk contained in this allocator chunk.
 uptr GetUserBegin(uptr chunk);
+// Returns user-visible address for chunk. If memory tagging is used this
+// function will return the tagged address.
+uptr GetUserAddr(uptr chunk);
 
 // Wrapper for chunk metadata operations.
 class LsanMetadata {
@@ -151,7 +154,7 @@ class LsanMetadata {
 void ForEachChunk(ForEachChunkCallback callback, void *arg);
 
 // Helper for __lsan_ignore_object().
-IgnoreObjectResult IgnoreObjectLocked(const void *p);
+IgnoreObjectResult IgnoreObject(const void *p);
 
 // The rest of the LSan interface which is implemented by library.
 

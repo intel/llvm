@@ -32,32 +32,13 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/ErrorHandling.h"
+
+#define DEBUG_TYPE "clang-dataflow"
 
 namespace clang {
 namespace dataflow {
-
-class StmtToEnvMapImpl : public StmtToEnvMap {
-public:
-  StmtToEnvMapImpl(
-      const ControlFlowContext &CFCtx,
-      llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>>
-          BlockToState)
-      : CFCtx(CFCtx), BlockToState(BlockToState) {}
-
-  const Environment *getEnvironment(const Stmt &S) const override {
-    auto BlockIt = CFCtx.getStmtToBlock().find(&ignoreCFGOmittedNodes(S));
-    assert(BlockIt != CFCtx.getStmtToBlock().end());
-    const auto &State = BlockToState[BlockIt->getSecond()->getBlockID()];
-    assert(State);
-    return &State->Env;
-  }
-
-private:
-  const ControlFlowContext &CFCtx;
-  llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockToState;
-};
 
 /// Returns the index of `Block` in the successors of `Pred`.
 static int blockIndexInPredecessor(const CFGBlock &Pred,
@@ -187,7 +168,10 @@ struct AnalysisContext {
                   llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>>
                       BlockStates)
       : CFCtx(CFCtx), Analysis(Analysis), InitEnv(InitEnv),
-        BlockStates(BlockStates) {}
+        Log(InitEnv.logger()), BlockStates(BlockStates) {
+    Log.beginAnalysis(CFCtx, Analysis);
+  }
+  ~AnalysisContext() { Log.endAnalysis(); }
 
   /// Contains the CFG being analyzed.
   const ControlFlowContext &CFCtx;
@@ -195,6 +179,7 @@ struct AnalysisContext {
   TypeErasedDataflowAnalysis &Analysis;
   /// Initial state to start the analysis.
   const Environment &InitEnv;
+  Logger &Log;
   /// Stores the state of a CFG block if it has been evaluated by the analysis.
   /// The indices correspond to the block IDs.
   llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockStates;
@@ -261,7 +246,7 @@ computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
     TypeErasedDataflowAnalysisState PredState = *MaybePredState;
     if (Analysis.builtinOptions()) {
       if (const Stmt *PredTerminatorStmt = Pred->getTerminatorStmt()) {
-        const StmtToEnvMapImpl StmtToEnv(AC.CFCtx, AC.BlockStates);
+        const StmtToEnvMap StmtToEnv(AC.CFCtx, AC.BlockStates);
         auto [Cond, CondValue] =
             TerminatorVisitor(StmtToEnv, PredState.Env,
                               blockIndexInPredecessor(*Pred, Block))
@@ -296,7 +281,7 @@ void builtinTransferStatement(const CFGStmt &Elt,
                               AnalysisContext &AC) {
   const Stmt *S = Elt.getStmt();
   assert(S != nullptr);
-  transfer(StmtToEnvMapImpl(AC.CFCtx, AC.BlockStates), *S, InputState.Env);
+  transfer(StmtToEnvMap(AC.CFCtx, AC.BlockStates), *S, InputState.Env);
 }
 
 /// Built-in transfer function for `CFGInitializer`.
@@ -327,8 +312,7 @@ void builtinTransferInitializer(const CFGInitializer &Elt,
 
   if (Member->getType()->isReferenceType()) {
     auto &MemberLoc = ThisLoc.getChild(*Member);
-    Env.setValue(MemberLoc, Env.takeOwnership(std::make_unique<ReferenceValue>(
-                                *InitStmtLoc)));
+    Env.setValue(MemberLoc, Env.create<ReferenceValue>(*InitStmtLoc));
   } else {
     auto &MemberLoc = ThisLoc.getChild(*Member);
     Env.setValue(MemberLoc, *InitStmtVal);
@@ -364,20 +348,24 @@ transferCFGBlock(const CFGBlock &Block, AnalysisContext &AC,
                  std::function<void(const CFGElement &,
                                     const TypeErasedDataflowAnalysisState &)>
                      PostVisitCFG = nullptr) {
+  AC.Log.enterBlock(Block);
   auto State = computeBlockInputState(Block, AC);
+  AC.Log.recordState(State);
   for (const auto &Element : Block) {
+    AC.Log.enterElement(Element);
     // Built-in analysis
     if (AC.Analysis.builtinOptions()) {
       builtinTransfer(Element, State, AC);
     }
 
     // User-provided analysis
-    AC.Analysis.transferTypeErased(&Element, State.Lattice, State.Env);
+    AC.Analysis.transferTypeErased(Element, State.Lattice, State.Env);
 
     // Post processing
     if (PostVisitCFG) {
       PostVisitCFG(Element, State);
     }
+    AC.Log.recordState(State);
   }
   return State;
 }
@@ -431,6 +419,8 @@ runTypeErasedDataflowAnalysis(
       std::min(RelativeMaxIterations, AbsoluteMaxIterations);
   uint32_t Iterations = 0;
   while (const CFGBlock *Block = Worklist.dequeue()) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Processing Block " << Block->getBlockID() << "\n");
     if (++Iterations > MaxIterations) {
       return llvm::createStringError(std::errc::timed_out,
                                      "maximum number of iterations reached");
@@ -440,23 +430,34 @@ runTypeErasedDataflowAnalysis(
         BlockStates[Block->getBlockID()];
     TypeErasedDataflowAnalysisState NewBlockState =
         transferCFGBlock(*Block, AC);
+    LLVM_DEBUG({
+      llvm::errs() << "New Env:\n";
+      NewBlockState.Env.dump();
+    });
 
     if (OldBlockState) {
+      LLVM_DEBUG({
+        llvm::errs() << "Old Env:\n";
+        OldBlockState->Env.dump();
+      });
       if (isLoopHead(*Block)) {
         LatticeJoinEffect Effect1 = Analysis.widenTypeErased(
             NewBlockState.Lattice, OldBlockState->Lattice);
         LatticeJoinEffect Effect2 =
             NewBlockState.Env.widen(OldBlockState->Env, Analysis);
         if (Effect1 == LatticeJoinEffect::Unchanged &&
-            Effect2 == LatticeJoinEffect::Unchanged)
+            Effect2 == LatticeJoinEffect::Unchanged) {
           // The state of `Block` didn't change from widening so there's no need
           // to revisit its successors.
+          AC.Log.blockConverged();
           continue;
+        }
       } else if (Analysis.isEqualTypeErased(OldBlockState->Lattice,
                                             NewBlockState.Lattice) &&
                  OldBlockState->Env.equivalentTo(NewBlockState.Env, Analysis)) {
         // The state of `Block` didn't change after transfer so there's no need
         // to revisit its successors.
+        AC.Log.blockConverged();
         continue;
       }
     }

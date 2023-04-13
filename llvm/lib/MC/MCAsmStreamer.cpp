@@ -194,7 +194,7 @@ public:
   void emitXCOFFRenameDirective(const MCSymbol *Name,
                                 StringRef Rename) override;
 
-  void emitXCOFFRefDirective(StringRef Name) override;
+  void emitXCOFFRefDirective(const MCSymbol *Symbol) override;
 
   void emitXCOFFExceptDirective(const MCSymbol *Symbol, 
                                 const MCSymbol *Trap,
@@ -772,6 +772,9 @@ bool MCAsmStreamer::emitSymbolAttribute(MCSymbol *Symbol,
   case MCSA_Memtag:
     OS << "\t.memtag\t";
     break;
+  case MCSA_WeakAntiDep:
+    OS << "\t.weak_anti_dep\t";
+    break;
   }
 
   Symbol->print(OS, MAI);
@@ -943,8 +946,9 @@ void MCAsmStreamer::emitXCOFFRenameDirective(const MCSymbol *Name,
   EmitEOL();
 }
 
-void MCAsmStreamer::emitXCOFFRefDirective(StringRef Name) {
-  OS << "\t.ref " << Name;
+void MCAsmStreamer::emitXCOFFRefDirective(const MCSymbol *Symbol) {
+  OS << "\t.ref ";
+  Symbol->print(OS, MAI);
   EmitEOL();
 }
 
@@ -1277,7 +1281,7 @@ void MCAsmStreamer::emitValueImpl(const MCExpr *Value, unsigned Size,
       unsigned Remaining = Size - Emitted;
       // The size of our partial emission must be a power of two less than
       // Size.
-      unsigned EmissionSize = PowerOf2Floor(std::min(Remaining, Size - 1));
+      unsigned EmissionSize = llvm::bit_floor(std::min(Remaining, Size - 1));
       // Calculate the byte offset of our partial emission taking into account
       // the endianness of the target.
       unsigned ByteOffset =
@@ -2217,13 +2221,12 @@ void MCAsmStreamer::AddEncodingComment(const MCInst &Inst,
   raw_ostream &OS = getCommentOS();
   SmallString<256> Code;
   SmallVector<MCFixup, 4> Fixups;
-  raw_svector_ostream VecOS(Code);
 
   // If we have no code emitter, don't emit code.
   if (!getAssembler().getEmitterPtr())
     return;
 
-  getAssembler().getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
+  getAssembler().getEmitter().encodeInstruction(Inst, Code, Fixups, STI);
 
   // If we are showing fixups, create symbolic markers in the encoded
   // representation. We do this by making a per-bit map to the fixup item index,

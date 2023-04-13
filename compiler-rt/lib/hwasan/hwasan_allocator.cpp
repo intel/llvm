@@ -45,6 +45,7 @@ enum {
 
 // Initialized in HwasanAllocatorInit, an never changed.
 static ALIGNED(16) u8 tail_magic[kShadowAlignment - 1];
+static uptr max_malloc_size;
 
 bool HwasanChunkView::IsAllocated() const {
   return metadata_ && metadata_->IsAllocated();
@@ -61,6 +62,10 @@ uptr HwasanChunkView::UsedSize() const {
 }
 u32 HwasanChunkView::GetAllocStackId() const {
   return metadata_->GetAllocStackId();
+}
+
+u32 HwasanChunkView::GetAllocThreadId() const {
+  return metadata_->GetAllocThreadId();
 }
 
 uptr HwasanChunkView::ActualSize() const {
@@ -94,8 +99,7 @@ inline void Metadata::SetUnallocated() {
 }
 
 inline bool Metadata::IsAllocated() const {
-  return atomic_load(&chunk_state, memory_order_relaxed) == CHUNK_ALLOCATED &&
-         GetRequestedSize();
+  return atomic_load(&chunk_state, memory_order_relaxed) == CHUNK_ALLOCATED;
 }
 
 inline u64 Metadata::GetRequestedSize() const {
@@ -106,6 +110,11 @@ inline u32 Metadata::GetAllocStackId() const {
   return atomic_load(&alloc_context_id, memory_order_relaxed);
 }
 
+inline u32 Metadata::GetAllocThreadId() const {
+  u64 context = atomic_load(&alloc_context_id, memory_order_relaxed);
+  u32 tid = context >> 32;
+  return tid;
+}
 
 void GetAllocatorStats(AllocatorStatCounters s) {
   allocator.GetStats(s);
@@ -144,6 +153,12 @@ void HwasanAllocatorInit() {
                  GetAliasRegionStart());
   for (uptr i = 0; i < sizeof(tail_magic); i++)
     tail_magic[i] = GetCurrentThread()->GenerateRandomTag();
+  if (common_flags()->max_allocation_size_mb) {
+    max_malloc_size = common_flags()->max_allocation_size_mb << 20;
+    max_malloc_size = Min(max_malloc_size, kMaxAllowedMallocSize);
+  } else {
+    max_malloc_size = kMaxAllowedMallocSize;
+  }
 }
 
 void HwasanAllocatorLock() { allocator.ForceLock(); }
@@ -163,13 +178,16 @@ static uptr TaggedSize(uptr size) {
 
 static void *HwasanAllocate(StackTrace *stack, uptr orig_size, uptr alignment,
                             bool zeroise) {
-  if (orig_size > kMaxAllowedMallocSize) {
+  // Keep this consistent with LSAN and ASAN behavior.
+  if (UNLIKELY(orig_size == 0))
+    orig_size = 1;
+  if (UNLIKELY(orig_size > max_malloc_size)) {
     if (AllocatorMayReturnNull()) {
       Report("WARNING: HWAddressSanitizer failed to allocate 0x%zx bytes\n",
              orig_size);
       return nullptr;
     }
-    ReportAllocationSizeTooBig(orig_size, kMaxAllowedMallocSize, stack);
+    ReportAllocationSizeTooBig(orig_size, max_malloc_size, stack);
   }
   if (UNLIKELY(IsRssLimitExceeded())) {
     if (AllocatorMayReturnNull())
@@ -288,6 +306,7 @@ static void HwasanDeallocate(StackTrace *stack, void *tagged_ptr) {
   uptr orig_size = meta->GetRequestedSize();
   u32 free_context_id = StackDepotPut(*stack);
   u32 alloc_context_id = meta->GetAllocStackId();
+  u32 alloc_thread_id = meta->GetAllocThreadId();
 
   // Check tail magic.
   uptr tagged_size = TaggedSize(orig_size);
@@ -339,8 +358,9 @@ static void HwasanDeallocate(StackTrace *stack, void *tagged_ptr) {
   if (t) {
     allocator.Deallocate(t->allocator_cache(), aligned_ptr);
     if (auto *ha = t->heap_allocations())
-      ha->push({reinterpret_cast<uptr>(tagged_ptr), alloc_context_id,
-                free_context_id, static_cast<u32>(orig_size)});
+      ha->push({reinterpret_cast<uptr>(tagged_ptr), alloc_thread_id,
+                alloc_context_id, free_context_id,
+                static_cast<u32>(orig_size)});
   } else {
     SpinMutexLock l(&fallback_mutex);
     AllocatorCache *cache = &fallback_allocator_cache;
@@ -389,14 +409,21 @@ HwasanChunkView FindHeapChunkByAddress(uptr address) {
   return HwasanChunkView(reinterpret_cast<uptr>(block), metadata);
 }
 
-static inline HwasanChunkView FindHeapChunkByAddressFastLocked(uptr address) {
-  void *block =
-      allocator.GetBlockBeginFastLocked(reinterpret_cast<void *>(address));
-  if (!block)
-    return HwasanChunkView();
-  Metadata *metadata =
-      reinterpret_cast<Metadata *>(allocator.GetMetaData(block));
-  return HwasanChunkView(reinterpret_cast<uptr>(block), metadata);
+const void *AllocationBegin(const void *p) {
+  const void *untagged_ptr = UntagPtr(p);
+  if (!untagged_ptr)
+    return nullptr;
+
+  const void *beg = allocator.GetBlockBegin(untagged_ptr);
+  if (!beg)
+    return nullptr;
+
+  Metadata *b = (Metadata *)allocator.GetMetaData(beg);
+  if (b->GetRequestedSize() == 0)
+    return nullptr;
+
+  tag_t tag = GetTagFromPointer((uptr)p);
+  return (const void *)AddTagToPointer((uptr)beg, tag);
 }
 
 static uptr AllocationSize(const void *tagged_ptr) {
@@ -513,26 +540,48 @@ void GetAllocatorGlobalRange(uptr *begin, uptr *end) {
 }
 
 uptr PointsIntoChunk(void *p) {
+  p = __hwasan::InTaggableRegion(reinterpret_cast<uptr>(p)) ? UntagPtr(p) : p;
   uptr addr = reinterpret_cast<uptr>(p);
-  __hwasan::HwasanChunkView view =
-      __hwasan::FindHeapChunkByAddressFastLocked(addr);
-  if (!view.IsAllocated())
+  uptr chunk =
+      reinterpret_cast<uptr>(__hwasan::allocator.GetBlockBeginFastLocked(p));
+  if (!chunk)
     return 0;
-  uptr chunk = view.Beg();
-  if (view.AddrIsInside(addr))
+  __hwasan::Metadata *metadata = reinterpret_cast<__hwasan::Metadata *>(
+      __hwasan::allocator.GetMetaData(reinterpret_cast<void *>(chunk)));
+  if (!metadata || !metadata->IsAllocated())
+    return 0;
+  if (addr < chunk + metadata->GetRequestedSize())
     return chunk;
-  if (IsSpecialCaseOfOperatorNew0(chunk, view.UsedSize(), addr))
+  if (IsSpecialCaseOfOperatorNew0(chunk, metadata->GetRequestedSize(), addr))
     return chunk;
   return 0;
 }
 
 uptr GetUserBegin(uptr chunk) {
-  // FIXME: All usecases provide chunk address, FindHeapChunkByAddressFastLocked
-  // is not needed.
-  return __hwasan::FindHeapChunkByAddressFastLocked(chunk).Beg();
+  if (__hwasan::InTaggableRegion(chunk))
+    CHECK_EQ(UntagAddr(chunk), chunk);
+  void *block = __hwasan::allocator.GetBlockBeginFastLocked(
+      reinterpret_cast<void *>(chunk));
+  if (!block)
+    return 0;
+  __hwasan::Metadata *metadata = reinterpret_cast<__hwasan::Metadata *>(
+      __hwasan::allocator.GetMetaData(block));
+  if (!metadata || !metadata->IsAllocated())
+    return 0;
+
+  return reinterpret_cast<uptr>(block);
+}
+
+uptr GetUserAddr(uptr chunk) {
+  tag_t mem_tag = *(tag_t *)__hwasan::MemToShadow(chunk);
+  if (!__hwasan::InTaggableRegion(chunk))
+    return chunk;
+  return AddTagToPointer(chunk, mem_tag);
 }
 
 LsanMetadata::LsanMetadata(uptr chunk) {
+  if (__hwasan::InTaggableRegion(chunk))
+    CHECK_EQ(UntagAddr(chunk), chunk);
   metadata_ =
       chunk ? __hwasan::allocator.GetMetaData(reinterpret_cast<void *>(chunk))
             : nullptr;
@@ -569,20 +618,21 @@ void ForEachChunk(ForEachChunkCallback callback, void *arg) {
   __hwasan::allocator.ForEachChunk(callback, arg);
 }
 
-IgnoreObjectResult IgnoreObjectLocked(const void *p) {
-  void *block =
-      __hwasan::allocator.GetBlockBeginFastLocked(const_cast<void *>(p));
-  if (!block)
+IgnoreObjectResult IgnoreObject(const void *p) {
+  p = __hwasan::InTaggableRegion(reinterpret_cast<uptr>(p)) ? UntagPtr(p) : p;
+  uptr addr = reinterpret_cast<uptr>(p);
+  uptr chunk = reinterpret_cast<uptr>(__hwasan::allocator.GetBlockBegin(p));
+  if (!chunk)
     return kIgnoreObjectInvalid;
   __hwasan::Metadata *metadata = reinterpret_cast<__hwasan::Metadata *>(
-      __hwasan::allocator.GetMetaData(block));
-  uptr addr = reinterpret_cast<uptr>(p);
-  __hwasan::HwasanChunkView view(reinterpret_cast<uptr>(block), metadata);
-  if (!view.IsAllocated() || !view.AddrIsInside(addr)) {
+      __hwasan::allocator.GetMetaData(reinterpret_cast<void *>(chunk)));
+  if (!metadata || !metadata->IsAllocated())
     return kIgnoreObjectInvalid;
-  }
+  if (addr >= chunk + metadata->GetRequestedSize())
+    return kIgnoreObjectInvalid;
   if (metadata->GetLsanTag() == kIgnored)
     return kIgnoreObjectAlreadyIgnored;
+
   metadata->SetLsanTag(kIgnored);
   return kIgnoreObjectSuccess;
 }
@@ -618,5 +668,9 @@ uptr __sanitizer_get_unmapped_bytes() { return 1; }
 uptr __sanitizer_get_estimated_allocated_size(uptr size) { return size; }
 
 int __sanitizer_get_ownership(const void *p) { return AllocationSize(p) != 0; }
+
+const void *__sanitizer_get_allocated_begin(const void *p) {
+  return AllocationBegin(p);
+}
 
 uptr __sanitizer_get_allocated_size(const void *p) { return AllocationSize(p); }

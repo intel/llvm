@@ -300,6 +300,11 @@
 // RUN: %clang -### -target %itanium_abi_triple -gmodules -gline-directives-only %s 2>&1 \
 // RUN:        | FileCheck -check-prefix=GLIO_ONLY %s
 //
+// RUN: %clang -### -gmodules -gno-modules %s 2>&1 \
+// RUN:        | FileCheck -check-prefix=NOGEXTREFS %s
+//
+// RUN: %clang -### -gno-modules %s 2>&1 | FileCheck -check-prefix=GNOMOD %s
+//
 // NOG_PS: "-cc1"
 // NOG_PS-NOT: "-dwarf-version=
 // NOG_PS: "-generate-arange-section"
@@ -385,8 +390,8 @@
 // LDGARANGE: {{".*ld.*"}} {{.*}}
 // LDGARANGE-NOT: "-plugin-opt=-generate-arange-section"
 // LLDGARANGE: {{".*lld.*"}} {{.*}} "-plugin-opt=-generate-arange-section"
-// SNLDTLTOGARANGE: {{".*orbis-ld.*"}} {{.*}} "-lto-thin-debug-options=-generate-arange-section"
-// SNLDFLTOGARANGE: {{".*orbis-ld.*"}} {{.*}} "-lto-debug-options=-generate-arange-section"
+// SNLDTLTOGARANGE: {{".*orbis-ld.*"}} {{.*}} "-lto-thin-debug-options= -generate-arange-section"
+// SNLDFLTOGARANGE: {{".*orbis-ld.*"}} {{.*}} "-lto-debug-options= -generate-arange-section"
 
 // PUB: -gpubnames
 //
@@ -407,6 +412,9 @@
 //
 // GEXTREFS: "-dwarf-ext-refs" "-fmodule-format=obj"
 // GEXTREFS: "-debug-info-kind={{standalone|constructor}}"
+// NOGEXTREFS-NOT: -dwarf-ext-refs
+//
+// GNOMOD-NOT: -debug-info-kind=
 
 // RUN: not %clang -cc1 -debug-info-kind=watkind 2>&1 | FileCheck -check-prefix=BADSTRING1 %s
 // BADSTRING1: error: invalid value 'watkind' in '-debug-info-kind=watkind'

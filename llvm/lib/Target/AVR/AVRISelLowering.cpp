@@ -245,8 +245,8 @@ const char *AVRTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (Opcode) {
   default:
     return nullptr;
-    NODE(RET_FLAG);
-    NODE(RETI_FLAG);
+    NODE(RET_GLUE);
+    NODE(RETI_GLUE);
     NODE(CALL);
     NODE(WRAPPER);
     NODE(LSL);
@@ -282,7 +282,7 @@ SDValue AVRTargetLowering::LowerShifts(SDValue Op, SelectionDAG &DAG) const {
   const SDNode *N = Op.getNode();
   EVT VT = Op.getValueType();
   SDLoc dl(N);
-  assert(isPowerOf2_32(VT.getSizeInBits()) &&
+  assert(llvm::has_single_bit<uint32_t>(VT.getSizeInBits()) &&
          "Expected power-of-2 shift amount");
 
   if (VT.getSizeInBits() == 32) {
@@ -634,11 +634,35 @@ SDValue AVRTargetLowering::getAVRCmp(SDValue LHS, SDValue RHS,
   SDValue Cmp;
 
   if (LHS.getSimpleValueType() == MVT::i16 && isa<ConstantSDNode>(RHS)) {
-    // Generate a CPI/CPC pair if RHS is a 16-bit constant.
+    uint64_t Imm = cast<ConstantSDNode>(RHS)->getZExtValue();
+    // Generate a CPI/CPC pair if RHS is a 16-bit constant. Use the zero
+    // register for the constant RHS if its lower or higher byte is zero.
     SDValue LHSlo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
                                 DAG.getIntPtrConstant(0, DL));
     SDValue LHShi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
                                 DAG.getIntPtrConstant(1, DL));
+    SDValue RHSlo = (Imm & 0xff) == 0
+                        ? DAG.getRegister(Subtarget.getZeroRegister(), MVT::i8)
+                        : DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, RHS,
+                                      DAG.getIntPtrConstant(0, DL));
+    SDValue RHShi = (Imm & 0xff00) == 0
+                        ? DAG.getRegister(Subtarget.getZeroRegister(), MVT::i8)
+                        : DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, RHS,
+                                      DAG.getIntPtrConstant(1, DL));
+    Cmp = DAG.getNode(AVRISD::CMP, DL, MVT::Glue, LHSlo, RHSlo);
+    Cmp = DAG.getNode(AVRISD::CMPC, DL, MVT::Glue, LHShi, RHShi, Cmp);
+  } else if (RHS.getSimpleValueType() == MVT::i16 && isa<ConstantSDNode>(LHS)) {
+    // Generate a CPI/CPC pair if LHS is a 16-bit constant. Use the zero
+    // register for the constant LHS if its lower or higher byte is zero.
+    uint64_t Imm = cast<ConstantSDNode>(LHS)->getZExtValue();
+    SDValue LHSlo = (Imm & 0xff) == 0
+                        ? DAG.getRegister(Subtarget.getZeroRegister(), MVT::i8)
+                        : DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
+                                      DAG.getIntPtrConstant(0, DL));
+    SDValue LHShi = (Imm & 0xff00) == 0
+                        ? DAG.getRegister(Subtarget.getZeroRegister(), MVT::i8)
+                        : DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
+                                      DAG.getIntPtrConstant(1, DL));
     SDValue RHSlo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, RHS,
                                 DAG.getIntPtrConstant(0, DL));
     SDValue RHShi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, RHS,
@@ -1542,12 +1566,12 @@ SDValue AVRTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   // Build a sequence of copy-to-reg nodes chained together with token chain and
-  // flag operands which copy the outgoing args into registers.  The InFlag in
+  // flag operands which copy the outgoing args into registers.  The InGlue in
   // necessary since all emited instructions must be stuck together.
-  SDValue InFlag;
+  SDValue InGlue;
   for (auto Reg : RegsToPass) {
-    Chain = DAG.getCopyToReg(Chain, DL, Reg.first, Reg.second, InFlag);
-    InFlag = Chain.getValue(1);
+    Chain = DAG.getCopyToReg(Chain, DL, Reg.first, Reg.second, InGlue);
+    InGlue = Chain.getValue(1);
   }
 
   // Returns a chain & a flag for retval copy to use.
@@ -1573,23 +1597,23 @@ SDValue AVRTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   assert(Mask && "Missing call preserved mask for calling convention");
   Ops.push_back(DAG.getRegisterMask(Mask));
 
-  if (InFlag.getNode()) {
-    Ops.push_back(InFlag);
+  if (InGlue.getNode()) {
+    Ops.push_back(InGlue);
   }
 
   Chain = DAG.getNode(AVRISD::CALL, DL, NodeTys, Ops);
-  InFlag = Chain.getValue(1);
+  InGlue = Chain.getValue(1);
 
   // Create the CALLSEQ_END node.
-  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InFlag, DL);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InGlue, DL);
 
   if (!Ins.empty()) {
-    InFlag = Chain.getValue(1);
+    InGlue = Chain.getValue(1);
   }
 
   // Handle result values, copying them out of physregs into vregs that we
   // return.
-  return LowerCallResult(Chain, InFlag, CallConv, isVarArg, Ins, DL, DAG,
+  return LowerCallResult(Chain, InGlue, CallConv, isVarArg, Ins, DL, DAG,
                          InVals);
 }
 
@@ -1597,7 +1621,7 @@ SDValue AVRTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 /// appropriate copies out of appropriate physical registers.
 ///
 SDValue AVRTargetLowering::LowerCallResult(
-    SDValue Chain, SDValue InFlag, CallingConv::ID CallConv, bool isVarArg,
+    SDValue Chain, SDValue InGlue, CallingConv::ID CallConv, bool isVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
 
@@ -1616,9 +1640,9 @@ SDValue AVRTargetLowering::LowerCallResult(
   // Copy all of the result registers out of their specified physreg.
   for (CCValAssign const &RVLoc : RVLocs) {
     Chain = DAG.getCopyFromReg(Chain, dl, RVLoc.getLocReg(), RVLoc.getValVT(),
-                               InFlag)
+                               InGlue)
                 .getValue(1);
-    InFlag = Chain.getValue(2);
+    InGlue = Chain.getValue(2);
     InVals.push_back(Chain.getValue(0));
   }
 
@@ -1664,17 +1688,17 @@ AVRTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
     analyzeReturnValues(Outs, CCInfo, Subtarget.hasTinyEncoding());
   }
 
-  SDValue Flag;
+  SDValue Glue;
   SmallVector<SDValue, 4> RetOps(1, Chain);
   // Copy the result values into the output registers.
   for (unsigned i = 0, e = RVLocs.size(); i != e; ++i) {
     CCValAssign &VA = RVLocs[i];
     assert(VA.isRegLoc() && "Can only return in registers!");
 
-    Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), OutVals[i], Flag);
+    Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(), OutVals[i], Glue);
 
     // Guarantee that all emitted copies are stuck together with flags.
-    Flag = Chain.getValue(1);
+    Glue = Chain.getValue(1);
     RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
   }
 
@@ -1695,12 +1719,12 @@ AVRTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   }
 
   unsigned RetOpc =
-      AFI->isInterruptOrSignalHandler() ? AVRISD::RETI_FLAG : AVRISD::RET_FLAG;
+      AFI->isInterruptOrSignalHandler() ? AVRISD::RETI_GLUE : AVRISD::RET_GLUE;
 
   RetOps[0] = Chain; // Update chain.
 
-  if (Flag.getNode()) {
-    RetOps.push_back(Flag);
+  if (Glue.getNode()) {
+    RetOps.push_back(Glue);
   }
 
   return DAG.getNode(RetOpc, dl, MVT::Other, RetOps);

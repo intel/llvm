@@ -1,15 +1,26 @@
 // DEFINE: %{option} = enable-runtime-library=false
-// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
-// DEFINE: mlir-cpu-runner \
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
 // DEFINE: FileCheck %s
 //
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with vectorization.
 // REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
-// RUN: %{command}
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 #TensorCSR = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "dense", "compressed" ]
@@ -33,10 +44,10 @@ module {
   func.func @dump(%arg0: tensor<5x4x3xf64, #TensorCSR>) {
     %c0 = arith.constant 0 : index
     %fu = arith.constant 99.0 : f64
-    %p0 = sparse_tensor.pointers %arg0 { dimension = 0 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
-    %i0 = sparse_tensor.indices  %arg0 { dimension = 0 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
-    %p2 = sparse_tensor.pointers %arg0 { dimension = 2 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
-    %i2 = sparse_tensor.indices  %arg0 { dimension = 2 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
+    %p0 = sparse_tensor.positions %arg0 { level = 0 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
+    %i0 = sparse_tensor.coordinates  %arg0 { level = 0 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
+    %p2 = sparse_tensor.positions %arg0 { level = 2 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
+    %i2 = sparse_tensor.coordinates  %arg0 { level = 2 : index } : tensor<5x4x3xf64, #TensorCSR> to memref<?xindex>
     %v = sparse_tensor.values %arg0 : tensor<5x4x3xf64, #TensorCSR> to memref<?xf64>
     %vp0 = vector.transfer_read %p0[%c0], %c0: memref<?xindex>, vector<2xindex>
     vector.print %vp0 : vector<2xindex>
@@ -54,10 +65,10 @@ module {
   func.func @dump_row(%arg0: tensor<5x4x3xf64, #TensorRow>) {
     %c0 = arith.constant 0 : index
     %fu = arith.constant 99.0 : f64
-    %p0 = sparse_tensor.pointers %arg0 { dimension = 0 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
-    %i0 = sparse_tensor.indices  %arg0 { dimension = 0 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
-    %p1 = sparse_tensor.pointers %arg0 { dimension = 1 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
-    %i1 = sparse_tensor.indices  %arg0 { dimension = 1 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
+    %p0 = sparse_tensor.positions %arg0 { level = 0 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
+    %i0 = sparse_tensor.coordinates  %arg0 { level = 0 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
+    %p1 = sparse_tensor.positions %arg0 { level = 1 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
+    %i1 = sparse_tensor.coordinates  %arg0 { level = 1 : index } : tensor<5x4x3xf64, #TensorRow> to memref<?xindex>
     %v = sparse_tensor.values %arg0 : tensor<5x4x3xf64, #TensorRow> to memref<?xf64>
     %vp0 = vector.transfer_read %p0[%c0], %c0: memref<?xindex>, vector<2xindex>
     vector.print %vp0 : vector<2xindex>
@@ -75,11 +86,11 @@ module {
 func.func @dump_ccoo(%arg0: tensor<5x4x3xf64, #CCoo>) {
     %c0 = arith.constant 0 : index
     %fu = arith.constant 99.0 : f64
-    %p0 = sparse_tensor.pointers %arg0 { dimension = 0 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
-    %i0 = sparse_tensor.indices  %arg0 { dimension = 0 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
-    %p1 = sparse_tensor.pointers %arg0 { dimension = 1 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
-    %i1 = sparse_tensor.indices  %arg0 { dimension = 1 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
-    %i2 = sparse_tensor.indices  %arg0 { dimension = 2 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
+    %p0 = sparse_tensor.positions %arg0 { level = 0 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
+    %i0 = sparse_tensor.coordinates  %arg0 { level = 0 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
+    %p1 = sparse_tensor.positions %arg0 { level = 1 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
+    %i1 = sparse_tensor.coordinates  %arg0 { level = 1 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
+    %i2 = sparse_tensor.coordinates  %arg0 { level = 2 : index } : tensor<5x4x3xf64, #CCoo> to memref<?xindex>
     %v = sparse_tensor.values %arg0 : tensor<5x4x3xf64, #CCoo> to memref<?xf64>
     %vp0 = vector.transfer_read %p0[%c0], %c0: memref<?xindex>, vector<2xindex>
     vector.print %vp0 : vector<2xindex>
@@ -99,9 +110,9 @@ func.func @dump_ccoo(%arg0: tensor<5x4x3xf64, #CCoo>) {
 func.func @dump_dcoo(%arg0: tensor<5x4x3xf64, #DCoo>) {
     %c0 = arith.constant 0 : index
     %fu = arith.constant 99.0 : f64
-    %p1 = sparse_tensor.pointers %arg0 { dimension = 1 : index } : tensor<5x4x3xf64, #DCoo> to memref<?xindex>
-    %i1 = sparse_tensor.indices  %arg0 { dimension = 1 : index } : tensor<5x4x3xf64, #DCoo> to memref<?xindex>
-    %i2 = sparse_tensor.indices  %arg0 { dimension = 2 : index } : tensor<5x4x3xf64, #DCoo> to memref<?xindex>
+    %p1 = sparse_tensor.positions %arg0 { level = 1 : index } : tensor<5x4x3xf64, #DCoo> to memref<?xindex>
+    %i1 = sparse_tensor.coordinates  %arg0 { level = 1 : index } : tensor<5x4x3xf64, #DCoo> to memref<?xindex>
+    %i2 = sparse_tensor.coordinates  %arg0 { level = 2 : index } : tensor<5x4x3xf64, #DCoo> to memref<?xindex>
     %v = sparse_tensor.values %arg0 : tensor<5x4x3xf64, #DCoo> to memref<?xf64>
     %vp1 = vector.transfer_read %p1[%c0], %c0: memref<?xindex>, vector<6xindex>
     vector.print %vp1 : vector<6xindex>

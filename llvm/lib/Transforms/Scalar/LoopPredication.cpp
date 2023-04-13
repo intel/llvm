@@ -191,6 +191,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -622,7 +623,8 @@ std::optional<Value *> LoopPredication::widenICmpRangeCheckIncrementingLoop(
   auto *FirstIterationCheck = expandCheck(Expander, Guard, RangeCheck.Pred,
                                           GuardStart, GuardLimit);
   IRBuilder<> Builder(findInsertPt(Guard, {FirstIterationCheck, LimitCheck}));
-  return Builder.CreateAnd(FirstIterationCheck, LimitCheck);
+  return Builder.CreateFreeze(
+      Builder.CreateAnd(FirstIterationCheck, LimitCheck));
 }
 
 std::optional<Value *> LoopPredication::widenICmpRangeCheckDecrementingLoop(
@@ -670,7 +672,8 @@ std::optional<Value *> LoopPredication::widenICmpRangeCheckDecrementingLoop(
   auto *LimitCheck = expandCheck(Expander, Guard, LimitCheckPred, LatchLimit,
                                  SE->getOne(Ty));
   IRBuilder<> Builder(findInsertPt(Guard, {FirstIterationCheck, LimitCheck}));
-  return Builder.CreateAnd(FirstIterationCheck, LimitCheck);
+  return Builder.CreateFreeze(
+      Builder.CreateAnd(FirstIterationCheck, LimitCheck));
 }
 
 static void normalizePredicate(ScalarEvolution *SE, Loop *L,
@@ -862,7 +865,19 @@ bool LoopPredication::widenWidenableBranchGuardConditions(
   BI->setCondition(AllChecks);
   if (InsertAssumesOfPredicatedGuardsConditions) {
     Builder.SetInsertPoint(IfTrueBB, IfTrueBB->getFirstInsertionPt());
-    Builder.CreateAssumption(Cond);
+    // If this block has other predecessors, we might not be able to use Cond.
+    // In this case, create a Phi where every other input is `true` and input
+    // from guard block is Cond.
+    Value *AssumeCond = Cond;
+    if (!IfTrueBB->getUniquePredecessor()) {
+      auto *GuardBB = BI->getParent();
+      auto *PN = Builder.CreatePHI(Cond->getType(), pred_size(IfTrueBB),
+                                   "assume.cond");
+      for (auto *Pred : predecessors(IfTrueBB))
+        PN->addIncoming(Pred == GuardBB ? Cond : Builder.getTrue(), Pred);
+      AssumeCond = PN;
+    }
+    Builder.CreateAssumption(AssumeCond);
   }
   RecursivelyDeleteTriviallyDeadInstructions(OldCond, nullptr /* TLI */, MSSAU);
   assert(isGuardAsWidenableBranch(BI) &&
@@ -974,37 +989,24 @@ bool LoopPredication::isLoopProfitableToPredicate() {
       LatchExitBlock->getTerminatingDeoptimizeCall())
     return false;
 
-  auto IsValidProfileData = [](MDNode *ProfileData, const Instruction *Term) {
-    if (!ProfileData || !ProfileData->getOperand(0))
-      return false;
-    if (MDString *MDS = dyn_cast<MDString>(ProfileData->getOperand(0)))
-      if (!MDS->getString().equals("branch_weights"))
-        return false;
-    if (ProfileData->getNumOperands() != 1 + Term->getNumSuccessors())
-      return false;
-    return true;
-  };
-  MDNode *LatchProfileData = LatchTerm->getMetadata(LLVMContext::MD_prof);
   // Latch terminator has no valid profile data, so nothing to check
   // profitability on.
-  if (!IsValidProfileData(LatchProfileData, LatchTerm))
+  if (!hasValidBranchWeightMD(*LatchTerm))
     return true;
 
   auto ComputeBranchProbability =
       [&](const BasicBlock *ExitingBlock,
           const BasicBlock *ExitBlock) -> BranchProbability {
     auto *Term = ExitingBlock->getTerminator();
-    MDNode *ProfileData = Term->getMetadata(LLVMContext::MD_prof);
     unsigned NumSucc = Term->getNumSuccessors();
-    if (IsValidProfileData(ProfileData, Term)) {
-      uint64_t Numerator = 0, Denominator = 0, ProfVal = 0;
-      for (unsigned i = 0; i < NumSucc; i++) {
-        ConstantInt *CI =
-            mdconst::extract<ConstantInt>(ProfileData->getOperand(i + 1));
-        ProfVal = CI->getValue().getZExtValue();
+    if (MDNode *ProfileData = getValidBranchWeightMDNode(*Term)) {
+      SmallVector<uint32_t> Weights;
+      extractBranchWeights(ProfileData, Weights);
+      uint64_t Numerator = 0, Denominator = 0;
+      for (auto [i, Weight] : llvm::enumerate(Weights)) {
         if (Term->getSuccessor(i) == ExitBlock)
-          Numerator += ProfVal;
-        Denominator += ProfVal;
+          Numerator += Weight;
+        Denominator += Weight;
       }
       return BranchProbability::getBranchProbability(Numerator, Denominator);
     } else {
@@ -1173,6 +1175,11 @@ bool LoopPredication::predicateLoopExits(Loop *L, SCEVExpander &Rewriter) {
   if (ChangedLoop)
     SE->forgetLoop(L);
 
+  // The insertion point for the widening should be at the widenably call, not
+  // at the WidenableBR. If we do this at the widenableBR, we can incorrectly
+  // change a loop-invariant condition to a loop-varying one.
+  auto *IP = cast<Instruction>(WidenableBR->getCondition());
+
   // The use of umin(all analyzeable exits) instead of latch is subtle, but
   // important for profitability.  We may have a loop which hasn't been fully
   // canonicalized just yet.  If the exit we chose to widen is provably never
@@ -1182,21 +1189,9 @@ bool LoopPredication::predicateLoopExits(Loop *L, SCEVExpander &Rewriter) {
   const SCEV *MinEC = getMinAnalyzeableBackedgeTakenCount(*SE, *DT, L);
   if (isa<SCEVCouldNotCompute>(MinEC) || MinEC->getType()->isPointerTy() ||
       !SE->isLoopInvariant(MinEC, L) ||
-      !Rewriter.isSafeToExpandAt(MinEC, WidenableBR))
+      !Rewriter.isSafeToExpandAt(MinEC, IP))
     return ChangedLoop;
 
-  // Subtlety: We need to avoid inserting additional uses of the WC.  We know
-  // that it can only have one transitive use at the moment, and thus moving
-  // that use to just before the branch and inserting code before it and then
-  // modifying the operand is legal.
-  auto *IP = cast<Instruction>(WidenableBR->getCondition());
-  // Here we unconditionally modify the IR, so after this point we should return
-  // only `true`!
-  IP->moveBefore(WidenableBR);
-  if (MSSAU)
-    if (auto *MUD = MSSAU->getMemorySSA()->getMemoryAccess(IP))
-       MSSAU->moveToPlace(MUD, WidenableBR->getParent(),
-                          MemorySSA::BeforeTerminator);
   Rewriter.setInsertPoint(IP);
   IRBuilder<> B(IP);
 

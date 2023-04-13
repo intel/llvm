@@ -910,7 +910,7 @@ func.func @test_alloc_memref_map_rank_mismatch() {
 // -----
 
 func.func @rank(%0: f32) {
-  // expected-error@+1 {{'memref.rank' op operand #0 must be unranked.memref of any type values or memref of any type values}}
+  // expected-error@+1 {{'memref.rank' op operand #0 must be ranked or unranked memref of any type values}}
   "memref.rank"(%0): (f32)->index
   return
 }
@@ -1039,4 +1039,12 @@ func.func @memref_realloc_type(%src : memref<256xf32>) -> memref<?xi32>{
   // expected-error@+1 {{different element types}}
   %0 = memref.realloc %src : memref<256xf32> to memref<?xi32>
   return %0 : memref<?xi32>
+}
+
+// -----
+
+// Asking the dimension of a 0-D shape doesn't make sense.
+func.func @dim_0_ranked(%arg : memref<f32>, %arg1 : index) {
+  memref.dim %arg, %arg1 : memref<f32> // expected-error {{'memref.dim' op operand #0 must be unranked.memref of any type values or non-0-ranked.memref of any type values, but got 'memref<f32>'}}
+  return
 }

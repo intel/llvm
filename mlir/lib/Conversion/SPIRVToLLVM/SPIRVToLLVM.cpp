@@ -263,9 +263,9 @@ static std::optional<Type> convertArrayType(spirv::ArrayType type,
 /// Converts SPIR-V pointer type to LLVM pointer. Pointer's storage class is not
 /// modelled at the moment.
 static Type convertPointerType(spirv::PointerType type,
-                               TypeConverter &converter) {
+                               LLVMTypeConverter &converter) {
   auto pointeeType = converter.convertType(type.getPointeeType());
-  return LLVM::LLVMPointerType::get(pointeeType);
+  return converter.getPointerType(pointeeType);
 }
 
 /// Converts SPIR-V runtime array to LLVM array. Since LLVM allows indexing over
@@ -317,8 +317,13 @@ public:
     Value zero = rewriter.create<LLVM::ConstantOp>(
         op.getLoc(), llvmIndexType, rewriter.getIntegerAttr(indexType, 0));
     indices.insert(indices.begin(), zero);
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, dstType, adaptor.getBasePtr(),
-                                             indices);
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, dstType,
+        typeConverter.convertType(op.getBasePtr()
+                                      .getType()
+                                      .cast<spirv::PointerType>()
+                                      .getPointeeType()),
+        adaptor.getBasePtr(), indices);
     return success();
   }
 };
@@ -333,7 +338,8 @@ public:
     auto dstType = typeConverter.convertType(op.getPointer().getType());
     if (!dstType)
       return failure();
-    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op, dstType, op.getVariable());
+    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op, dstType,
+                                                   op.getVariable());
     return success();
   }
 };
@@ -577,7 +583,8 @@ public:
     }
 
     rewriter.replaceOpWithNewOp<LLVM::ExtractValueOp>(
-        op, adaptor.getComposite(), LLVM::convertArrayToIndices(op.getIndices()));
+        op, adaptor.getComposite(),
+        LLVM::convertArrayToIndices(op.getIndices()));
     return success();
   }
 };
@@ -1141,7 +1148,8 @@ public:
     Block *falseBlock = condBrOp.getFalseBlock();
     rewriter.setInsertionPointToEnd(currentBlock);
     rewriter.create<LLVM::CondBrOp>(loc, condBrOp.getCondition(), trueBlock,
-                                    condBrOp.getTrueTargetOperands(), falseBlock,
+                                    condBrOp.getTrueTargetOperands(),
+                                    falseBlock,
                                     condBrOp.getFalseTargetOperands());
 
     rewriter.inlineRegionBefore(op.getBody(), continueBlock);
@@ -1266,12 +1274,42 @@ public:
     Location loc = varOp.getLoc();
     Value size = createI32ConstantOf(loc, rewriter, 1);
     if (!init) {
-      rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(varOp, dstType, size);
+      rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
+          varOp, dstType, typeConverter.convertType(pointerTo), size);
       return success();
     }
-    Value allocated = rewriter.create<LLVM::AllocaOp>(loc, dstType, size);
+    Value allocated = rewriter.create<LLVM::AllocaOp>(
+        loc, dstType, typeConverter.convertType(pointerTo), size);
     rewriter.create<LLVM::StoreOp>(loc, adaptor.getInitializer(), allocated);
     rewriter.replaceOp(varOp, allocated);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// BitcastOp conversion
+//===----------------------------------------------------------------------===//
+
+class BitcastConversionPattern
+    : public SPIRVToLLVMConversion<spirv::BitcastOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::BitcastOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::BitcastOp bitcastOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto dstType = typeConverter.convertType(bitcastOp.getType());
+    if (!dstType)
+      return failure();
+
+    if (typeConverter.useOpaquePointers() &&
+        dstType.isa<LLVM::LLVMPointerType>()) {
+      rewriter.replaceOp(bitcastOp, adaptor.getOperand());
+      return success();
+    }
+
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(
+        bitcastOp, dstType, adaptor.getOperands(), bitcastOp->getAttrs());
     return success();
   }
 };
@@ -1294,7 +1332,8 @@ public:
     TypeConverter::SignatureConversion signatureConverter(
         funcType.getNumInputs());
     auto llvmType = typeConverter.convertFunctionSignature(
-        funcType, /*isVariadic=*/false, signatureConverter);
+        funcType, /*isVariadic=*/false, /*useBarePtrCallConv=*/false,
+        signatureConverter);
     if (!llvmType)
       return failure();
 
@@ -1471,7 +1510,7 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       NotPattern<spirv::NotOp>,
 
       // Cast ops
-      DirectConversionPattern<spirv::BitcastOp, LLVM::BitcastOp>,
+      BitcastConversionPattern,
       DirectConversionPattern<spirv::ConvertFToSOp, LLVM::FPToSIOp>,
       DirectConversionPattern<spirv::ConvertFToUOp, LLVM::FPToUIOp>,
       DirectConversionPattern<spirv::ConvertSToFOp, LLVM::SIToFPOp>,

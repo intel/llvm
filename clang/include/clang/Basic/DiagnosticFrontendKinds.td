@@ -11,7 +11,7 @@ class BackendInfo : CatBackend, ShowInSystemHeader;
 let Component = "Frontend" in {
 
 def err_fe_error_opening : Error<"error opening '%0': %1">;
-def err_fe_error_reading : Error<"error reading '%0'">;
+def err_fe_error_reading : Error<"error reading '%0': %1">;
 def err_fe_error_reading_stdin : Error<"error reading stdin: %0">;
 def err_fe_error_backend : Error<"error in backend: %0">, DefaultFatal;
 
@@ -209,7 +209,7 @@ def note_incompatible_analyzer_plugin_api : Note<
 def err_module_build_requires_fmodules : Error<
   "module compilation requires '-fmodules'">;
 def err_module_interface_requires_cpp_modules : Error<
-  "module interface compilation requires '-std=c++20' or '-fmodules-ts'">;
+  "module interface compilation requires '-std=c++20'">;
 def warn_module_config_mismatch : Warning<
   "module file %0 cannot be loaded due to a configuration mismatch with the current "
   "compilation">, InGroup<DiagGroup<"module-file-config-mismatch">>, DefaultError;
@@ -241,8 +241,10 @@ def warn_module_config_macro_undef : Warning<
 def note_module_def_undef_here : Note<
   "macro was %select{defined|#undef'd}0 here">;
 def remark_module_build : Remark<"building module '%0' as '%1'">,
+  ShowInSystemHeader,
   InGroup<ModuleBuild>;
 def remark_module_build_done : Remark<"finished building module '%0'">,
+  ShowInSystemHeader,
   InGroup<ModuleBuild>;
 def remark_module_lock : Remark<"locking '%0' to build module '%1'">,
   InGroup<ModuleLock>;
@@ -255,11 +257,6 @@ def err_module_header_file_not_found :
 def err_test_module_file_extension_version : Error<
   "test module file extension '%0' has different version (%1.%2) than expected "
   "(%3.%4)">;
-
-def err_missing_vfs_stat_cache_file : Error<
-  "stat cache file '%0' not found">, DefaultFatal;
-def err_invalid_vfs_stat_cache : Error<
-  "invalid stat cache file '%0'">, DefaultFatal;
 
 def err_missing_vfs_overlay_file : Error<
   "virtual filesystem overlay file '%0' not found">, DefaultFatal;
@@ -290,6 +287,10 @@ def note_sycl_aspect_propagated_from_call
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;
+def note_alias_requires_mangled_name : Note<
+  "the %select{function or variable|function}0 specified in an %select{alias|ifunc}1 must refer to its mangled name">;
+def note_alias_mangled_name_alternative: Note<
+  "function by that name is mangled as \"%0\"">;
 def warn_alias_to_weak_alias : Warning<
   "%select{alias|ifunc}2 will always resolve to %0 even if weak definition of "
   "%1 is overridden">,
@@ -316,6 +317,10 @@ def warn_atomic_op_oversized : Warning<
   "significant performance penalty"
   "; the access size (%0 bytes) exceeds the max lock-free size (%1  bytes)">,
 InGroup<AtomicAlignment>;
+
+def warn_sync_op_misaligned : Warning<
+  "__sync builtin operation MUST have natural alignment (consider using __atomic).">,
+  InGroup<SyncAlignment>;
 
 def warn_alias_with_section : Warning<
   "%select{alias|ifunc}1 will not be in section '%0' but in the same section "

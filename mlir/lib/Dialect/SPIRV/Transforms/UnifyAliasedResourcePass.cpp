@@ -366,7 +366,6 @@ struct ConvertAccessChain : public ConvertAliasResource<spirv::AccessChainOp> {
     }
 
     Location loc = acOp.getLoc();
-    auto i32Type = rewriter.getI32Type();
 
     if (srcElemType.isIntOrFloat() && dstElemType.isa<VectorType>()) {
       // The source indices are for a buffer with scalar element types. Rewrite
@@ -376,16 +375,19 @@ struct ConvertAccessChain : public ConvertAliasResource<spirv::AccessChainOp> {
       int srcNumBytes = *srcElemType.getSizeInBytes();
       int dstNumBytes = *dstElemType.getSizeInBytes();
       assert(dstNumBytes >= srcNumBytes && dstNumBytes % srcNumBytes == 0);
-      int ratio = dstNumBytes / srcNumBytes;
-      auto ratioValue = rewriter.create<spirv::ConstantOp>(
-          loc, i32Type, rewriter.getI32IntegerAttr(ratio));
 
       auto indices = llvm::to_vector<4>(acOp.getIndices());
       Value oldIndex = indices.back();
+      Type indexType = oldIndex.getType();
+
+      int ratio = dstNumBytes / srcNumBytes;
+      auto ratioValue = rewriter.create<spirv::ConstantOp>(
+          loc, indexType, rewriter.getIntegerAttr(indexType, ratio));
+
       indices.back() =
-          rewriter.create<spirv::SDivOp>(loc, i32Type, oldIndex, ratioValue);
+          rewriter.create<spirv::SDivOp>(loc, indexType, oldIndex, ratioValue);
       indices.push_back(
-          rewriter.create<spirv::SModOp>(loc, i32Type, oldIndex, ratioValue));
+          rewriter.create<spirv::SModOp>(loc, indexType, oldIndex, ratioValue));
 
       rewriter.replaceOpWithNewOp<spirv::AccessChainOp>(
           acOp, adaptor.getBasePtr(), indices);
@@ -400,14 +402,17 @@ struct ConvertAccessChain : public ConvertAliasResource<spirv::AccessChainOp> {
       int srcNumBytes = *srcElemType.getSizeInBytes();
       int dstNumBytes = *dstElemType.getSizeInBytes();
       assert(srcNumBytes >= dstNumBytes && srcNumBytes % dstNumBytes == 0);
-      int ratio = srcNumBytes / dstNumBytes;
-      auto ratioValue = rewriter.create<spirv::ConstantOp>(
-          loc, i32Type, rewriter.getI32IntegerAttr(ratio));
 
       auto indices = llvm::to_vector<4>(acOp.getIndices());
       Value oldIndex = indices.back();
+      Type indexType = oldIndex.getType();
+
+      int ratio = srcNumBytes / dstNumBytes;
+      auto ratioValue = rewriter.create<spirv::ConstantOp>(
+          loc, indexType, rewriter.getIntegerAttr(indexType, ratio));
+
       indices.back() =
-          rewriter.create<spirv::IMulOp>(loc, i32Type, oldIndex, ratioValue);
+          rewriter.create<spirv::IMulOp>(loc, indexType, oldIndex, ratioValue);
 
       rewriter.replaceOpWithNewOp<spirv::AccessChainOp>(
           acOp, adaptor.getBasePtr(), indices);
@@ -485,11 +490,28 @@ struct ConvertLoad : public ConvertAliasResource<spirv::LoadOp> {
       // bitwidth element type. For spirv.bitcast, the lower-numbered components
       // of the vector map to lower-ordered bits of the larger bitwidth element
       // type.
+
       Type vectorType = srcElemType;
       if (!srcElemType.isa<VectorType>())
         vectorType = VectorType::get({ratio}, dstElemType);
+
+      // If both the source and destination are vector types, we need to make
+      // sure the scalar type is the same for composite construction later.
+      if (auto srcElemVecType = srcElemType.dyn_cast<VectorType>())
+        if (auto dstElemVecType = dstElemType.dyn_cast<VectorType>()) {
+          if (srcElemVecType.getElementType() !=
+              dstElemVecType.getElementType()) {
+            int64_t count =
+                dstNumBytes / (srcElemVecType.getElementTypeBitWidth() / 8);
+            auto castType =
+                VectorType::get({count}, srcElemVecType.getElementType());
+            for (auto &c : components)
+              c = rewriter.create<spirv::BitcastOp>(loc, castType, c);
+          }
+        }
       Value vectorValue = rewriter.create<spirv::CompositeConstructOp>(
           loc, vectorType, components);
+
       if (!srcElemType.isa<VectorType>())
         vectorValue =
             rewriter.create<spirv::BitcastOp>(loc, srcElemType, vectorValue);
