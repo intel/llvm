@@ -15,8 +15,6 @@
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
 
-// XFAIL: *
-
 /**
  * This version is stamped on May 10, 2016
  *
@@ -185,16 +183,15 @@ int main(int argc, char** argv)
 // CHECK-NEXT:  affine.for %arg11 = 0 to %3 {
 // CHECK-NEXT:    affine.for %arg12 = 0 to %2 {
 // CHECK-NEXT:      affine.store %cst, %arg6[%arg11, %arg12] : memref<?x900xf64>
-// CHECK-NEXT:      %4 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
-// CHECK-NEXT:      %5 = affine.for %arg13 = 0 to %0 iter_args(%arg14 = %4) -> (f64) {
-// CHECK-NEXT:        %6 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
-// CHECK-NEXT:        %7 = arith.mulf %arg4, %6 : f64
-// CHECK-NEXT:        %8 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
-// CHECK-NEXT:        %9 = arith.mulf %7, %8 : f64
-// CHECK-NEXT:        %10 = arith.addf %arg14, %9 : f64
-// CHECK-NEXT:        affine.yield %10 : f64
+// CHECK-NEXT:      affine.for %arg13 = 0 to %0 {
+// CHECK-NEXT:        %4 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
+// CHECK-NEXT:        %5 = arith.mulf %arg4, %4 : f64
+// CHECK-NEXT:        %6 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
+// CHECK-NEXT:        %7 = arith.mulf %5, %6 : f64
+// CHECK-NEXT:        %8 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
+// CHECK-NEXT:        %9 = arith.addf %8, %7 : f64
+// CHECK-NEXT:        affine.store %9, %arg6[%arg11, %arg12] : memref<?x900xf64> 
 // CHECK-NEXT:      }
-// CHECK-NEXT:      affine.store %5, %arg6[%arg11, %arg12] : memref<?x900xf64>
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 // CHECK-NEXT:  affine.for %arg11 = 0 to %3 {
@@ -202,15 +199,14 @@ int main(int argc, char** argv)
 // CHECK-NEXT:      %4 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
 // CHECK-NEXT:      %5 = arith.mulf %4, %arg5 : f64
 // CHECK-NEXT:      affine.store %5, %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:      %6 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:      %7 = affine.for %arg13 = 0 to %2 iter_args(%arg14 = %6) -> (f64) {
-// CHECK-NEXT:        %8 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64>
-// CHECK-NEXT:        %9 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
-// CHECK-NEXT:        %10 = arith.mulf %8, %9 : f64
-// CHECK-NEXT:        %11 = arith.addf %arg14, %10 : f64
-// CHECK-NEXT:        affine.yield %11 : f64
+// CHECK-NEXT:      affine.for %arg13 = 0 to %2 {
+// CHECK-NEXT:        %6 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64>
+// CHECK-NEXT:        %7 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
+// CHECK-NEXT:        %8 = arith.mulf %6, %7 : f64
+// CHECK-NEXT:        %9 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// CHECK-NEXT:        %10 = arith.addf %9, %8 : f64
+// CHECK-NEXT:        affine.store %10, %arg10[%arg11, %arg12] : memref<?x1200xf64>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      affine.store %7, %arg10[%arg11, %arg12] : memref<?x1200xf64>
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 

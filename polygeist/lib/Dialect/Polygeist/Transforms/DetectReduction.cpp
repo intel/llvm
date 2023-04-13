@@ -377,24 +377,12 @@ private:
       Operation *MayAliasOp = nullptr;
       if (Loop.getLoopBody()
               .walk([&](Operation *Op) {
-                if (isMemoryEffectFree(Op) || Op == Load ||
-                    Op == CandidateStores[0] ||
+                if (Op == Load || Op == CandidateStores[0] ||
                     llvm::find(OtherLoads, Op) != OtherLoads.end())
                   return WalkResult::advance();
-
-                auto MEI = dyn_cast<MemoryEffectOpInterface>(Op);
-                if (!MEI || Op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+                if (hasMayAliasEffects(Load, *Op, aliasAnalysis)) {
+                  MayAliasOp = Op;
                   return WalkResult::interrupt();
-
-                SmallVector<MemoryEffects::EffectInstance> effects;
-                MEI.getEffects(effects);
-                for (MemoryEffects::EffectInstance &effect : effects) {
-                  Value EffectVal = effect.getValue();
-                  if (!aliasAnalysis.alias(Load.getMemRef(), EffectVal)
-                           .isNo()) {
-                    MayAliasOp = Op;
-                    return WalkResult::interrupt();
-                  }
                 }
                 return WalkResult::advance();
               })
@@ -422,6 +410,27 @@ private:
     });
 
     return Result;
+  }
+
+  /// Return true if \p Op has memory effects that may alias with the memory
+  /// loaded from \p Load, return false otherwise.
+  static bool hasMayAliasEffects(AffineLoadOp &Load, Operation &Op,
+                                 AliasAnalysis &aliasAnalysis) {
+    if (isMemoryEffectFree(&Op))
+      return false;
+
+    auto MEI = dyn_cast<MemoryEffectOpInterface>(Op);
+    if (!MEI || Op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return true;
+
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    MEI.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value EffectVal = effect.getValue();
+      if (!aliasAnalysis.alias(Load.getMemRef(), EffectVal).isNo())
+        return true;
+    }
+    return false;
   }
 
   AliasAnalysis &aliasAnalysis;
