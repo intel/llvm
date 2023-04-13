@@ -1241,7 +1241,9 @@ void CodeGenTypes::constructAttributeList(
       auto DeclArgTy = getDeclArgTy(*FD, ArgNo, ParamType);
 
       // Set 'noalias' if an argument type has the `restrict` qualifier.
-      if (DeclArgTy.isRestrictQualified())
+      if (DeclArgTy.isRestrictQualified() ||
+          (FD->hasAttr<SYCLIntelKernelArgsRestrictAttr>() &&
+           DeclArgTy->isPointerType()))
         ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
     }
 
