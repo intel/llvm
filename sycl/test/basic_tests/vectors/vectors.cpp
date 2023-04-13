@@ -99,6 +99,15 @@ int main() {
   unsigned long long ull_val = ull_vec.template swizzle<sycl::elem::s0>();
   assert(ull_val == ull_ref);
 
+  // Check the swizzle vec class interface
+  using T = decltype(a.template swizzle<sycl::elem::s0>())::element_type;
+  const int &b_elem0_const = b.template swizzle<sycl::elem::s0>()[0];
+  const int &a_elem0_const = a.template swizzle<sycl::elem::s0>()[0];
+  int &a_elem0 = a.template swizzle<sycl::elem::s0>()[0];
+  assert(b_elem0_const == 10);
+  assert(a_elem0_const == 1);
+  assert(a_elem0 == 1);
+
   // Check that the function as() in swizzle vec class is working correctly
   sycl::vec<int8_t, 2> inputVec = sycl::vec<int8_t, 2>(0, 1);
   auto asVec = inputVec.template swizzle<sycl::elem::s0, sycl::elem::s1>()
