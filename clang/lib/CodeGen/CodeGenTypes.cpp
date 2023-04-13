@@ -460,12 +460,12 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
       return getJointMatrixINTELExtType(CompTy, TemplateArgs);
     } else if (LlvmTyName == "tf32") {
       CompTy = llvm::Type::getFloatTy(getLLVMContext());
-      // 'tf32' interpretation is mapped to '0'
-      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 0);
+      // 'tf32' interpretation is mapped to '1'
+      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 1);
     } else if (LlvmTyName == "bfloat16") {
       CompTy = llvm::Type::getInt16Ty(getLLVMContext());
-      // 'bfloat16' interpretation is mapped to '1'
-      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 1);
+      // 'bfloat16' interpretation is mapped to '2'
+      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 2);
     } else {
       llvm_unreachable("Wrong matrix base type!");
     }
