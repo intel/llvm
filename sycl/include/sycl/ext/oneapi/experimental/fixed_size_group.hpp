@@ -1,4 +1,4 @@
-//==------ cluster_group.hpp --- SYCL extension for non-uniform groups -----==//
+//==--- fixed_size_group.hpp --- SYCL extension for non-uniform groups -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,15 +14,15 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 
-template <size_t ClusterSize, typename ParentGroup> class cluster_group;
+template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
 
-template <size_t ClusterSize, typename Group>
+template <size_t PartitionSize, typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        cluster_group<ClusterSize, Group>>
-get_cluster_group(Group group);
+                        fixed_size_group<PartitionSize, Group>>
+get_fixed_size_group(Group group);
 
-template <size_t ClusterSize, typename ParentGroup> class cluster_group {
+template <size_t PartitionSize, typename ParentGroup> class fixed_size_group {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
@@ -32,7 +32,7 @@ public:
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() / ClusterSize;
+    return __spirv_SubgroupLocalInvocationId() / PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -41,7 +41,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() % ClusterSize;
+    return __spirv_SubgroupLocalInvocationId() % PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -50,7 +50,7 @@ public:
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupMaxSize() / ClusterSize;
+    return __spirv_SubgroupMaxSize() / PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -59,7 +59,7 @@ public:
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return ClusterSize;
+    return PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -112,28 +112,28 @@ public:
   }
 
 protected:
-  cluster_group() {}
+  fixed_size_group() {}
 
-  friend cluster_group<ClusterSize, ParentGroup>
-  get_cluster_group<ClusterSize, ParentGroup>(ParentGroup g);
+  friend fixed_size_group<PartitionSize, ParentGroup>
+  get_fixed_size_group<PartitionSize, ParentGroup>(ParentGroup g);
 };
 
-template <size_t ClusterSize, typename Group>
+template <size_t PartitionSize, typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        cluster_group<ClusterSize, Group>>
-get_cluster_group(Group group) {
+                        fixed_size_group<PartitionSize, Group>>
+get_fixed_size_group(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
-  return cluster_group<ClusterSize, sycl::sub_group>();
+  return fixed_size_group<PartitionSize, sycl::sub_group>();
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
-template <size_t ClusterSize, typename ParentGroup>
-struct is_user_constructed_group<cluster_group<ClusterSize, ParentGroup>>
+template <size_t PartitionSize, typename ParentGroup>
+struct is_user_constructed_group<fixed_size_group<PartitionSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace ext::oneapi::experimental

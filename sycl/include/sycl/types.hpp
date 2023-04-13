@@ -739,7 +739,7 @@ template <typename Type, int NumElements> class vec {
   template <size_t... Is>
   constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
                 std::index_sequence<Is...>)
-      : m_Data{Arr[Is]...} {}
+      : m_Data{vec_data_t<DataT>(static_cast<DataT>(Arr[Is]))...} {}
 
 public:
   using element_type = DataT;
