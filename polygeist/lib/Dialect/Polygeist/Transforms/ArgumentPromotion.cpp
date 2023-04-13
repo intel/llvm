@@ -101,6 +101,8 @@ static bool existsSideEffectAfter(Value val, Operation *startOp,
     if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
       continue;
 
+    // An operation with unknown side effects is conservatively assumed to have
+    // a side effect on `val`.
     auto MEI = dyn_cast<MemoryEffectOpInterface>(op);
     if (!MEI)
       return true;
