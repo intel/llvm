@@ -100,7 +100,9 @@ int main() {
   assert(ull_val == ull_ref);
 
   // Check the swizzle vec class interface.
-  using T = decltype(a.template swizzle<sycl::elem::s0>())::element_type;
+  static_assert(
+      std::is_same_v<
+          decltype(a.template swizzle<sycl::elem::s0>())::element_type, int>);
   const int &b_elem0_const = b.template swizzle<sycl::elem::s0>()[0];
   const int &a_elem0_const = a.template swizzle<sycl::elem::s0>()[0];
   int &a_elem0 = a.template swizzle<sycl::elem::s0>()[0];
