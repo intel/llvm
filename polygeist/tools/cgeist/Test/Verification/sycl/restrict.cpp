@@ -36,7 +36,7 @@ int args_restrict(std::array<int, 1> &A, std::array<int, 1> &B) {
     auto bufB = buffer<int, 1>{B.data(), 1};
     q.submit([&](handler &cgh) {
       auto A = bufA.get_access<access::mode::write>(cgh);
-      auto B = bufB.get_access<access::mode::write>(cgh);
+      auto B = bufB.get_access<access::mode::read>(cgh);
       cgh.single_task<class kernel_args_restrict>(
           [=]() [[intel::kernel_args_restrict]]{
             A[0] = B[0];
