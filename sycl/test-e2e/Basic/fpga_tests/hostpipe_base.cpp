@@ -68,16 +68,6 @@ int main(int argc, char *argv[]) {
     // create the device queue
     default_selector selector;
     queue q(selector);
-    // make sure the device supports USM device allocations
-    // TODO: This is currently failing for the simulator device.
-    //       I tried commenting it out, but malloc_host returned nullptr.
-    //       Are we sure we have sim support for USM host allocations ...?
-    device d = q.get_device();
-    if (!d.get_info<sycl::info::device::usm_host_allocations>()) {
-      std::cerr << "ERROR: The selected device does not support USM host"
-                << " allocations\n";
-      return 1;
-    }
 
     // create input and output data
     std::vector<ValueT> in(count), out(count);
@@ -99,11 +89,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Running Basic Test" << std::endl;
     std::fill(out.begin(), out.end(), 0);
     BasicTest(q, in.data(), out.data(), count, 3);
-// std::cout << "Checking Basic\n";
-// for (int i = 0; i < count; i++) 
-  // std::cout << "in[" << i << "] = " << in[i] << "\n";
-// for (int i = 0; i < count; i++) 
-  // std::cout << "out[" << i << "] = " << out[i] << "\n";
+
     passed &= validate(in, out, count);
     std::cout << std::endl;
 
@@ -111,11 +97,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Running Launch and Collect Test" << std::endl;
     std::fill(out.begin(), out.end(), 0);
     LaunchCollectTest(q, in.data(), out.data(), kPipeMinCapacity, 3);
-// std::cout << "Checking Launch/Collect\n";
-// for (int i = 0; i < count; i++) 
-  // std::cout << "in[" << i << "] = " << in[i] << "\n";
-// for (int i = 0; i < count; i++) 
-  // std::cout << "out[" << i << "] = " << out[i] << "\n";
+
     passed &= validate(in, out, kPipeMinCapacity);
     std::cout << std::endl;
 
