@@ -1128,7 +1128,7 @@ void LLVMToSPIRVBase::transFunctionMetadataAsUserSemanticDecoration(
     // SMALL - 1
     // LARGE - 2
     // DEFAULT - 3
-    // Currently we only support SMALL and LARGE
+    // Currently we only support AUTO, SMALL and LARGE
     if (RegisterAllocNodeMDOp == 0 || RegisterAllocNodeMDOp == 1 ||
         RegisterAllocNodeMDOp == 2) {
       // 4 threads per eu means large grf mode, and 8 threads per eu
