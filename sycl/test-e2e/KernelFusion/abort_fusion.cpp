@@ -19,8 +19,8 @@ constexpr size_t dataSize = 512;
 enum class Internalization { None, Local, Private };
 
 template <typename Kernel1Name, typename Kernel2Name, int Kernel1Dim>
-void performFusion(queue &q, range<Kernel1Dim> k1Global,
-                   range<Kernel1Dim> k1Local) {
+int performFusion(queue &q, range<Kernel1Dim> k1Global,
+                  range<Kernel1Dim> k1Local) {
   int in[dataSize], tmp[dataSize], out[dataSize];
 
   for (size_t i = 0; i < dataSize; ++i) {
@@ -74,6 +74,8 @@ void performFusion(queue &q, range<Kernel1Dim> k1Global,
   } else {
     std::cout << "COMPUTATION OK\n";
   }
+
+  return numErrors;
 }
 
 int main() {
@@ -82,11 +84,11 @@ int main() {
 
   // Scenario: Fusing two kernels with different local size should lead to
   // fusion being aborted.
-  performFusion<class Kernel1_3, class Kernel2_3>(q, range<1>{dataSize},
-                                                  range<1>{16});
-  // CHECK:      ERROR: JIT compilation for kernel fusion failed with message:
+  int num_errors = performFusion<class Kernel1_3, class Kernel2_3>(
+      q, range<1>{dataSize}, range<1>{16});
+  // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
   // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
-  // CHECK-NEXT: COMPUTATION OK
+  // CHECK: COMPUTATION OK
 
-  return 0;
+  return num_errors == 0 ? 0 : 1;
 }
