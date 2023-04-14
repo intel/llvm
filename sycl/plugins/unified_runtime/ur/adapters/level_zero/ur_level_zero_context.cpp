@@ -518,7 +518,7 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 static const size_t ImmCmdListsEventCleanupThreshold = [] {
   const char *ImmCmdListsEventCleanupThresholdStr = std::getenv(
       "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  static constexpr int Default = 20;
+  static constexpr int Default = 1000;
   if (!ImmCmdListsEventCleanupThresholdStr)
     return Default;
 

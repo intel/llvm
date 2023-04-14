@@ -1467,25 +1467,48 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
               std::back_inserter(EventListToCleanup));
     EventList.clear();
   } else if (!isDiscardEvents()) {
-    // For immediate commandlist reset only those events that have signalled.
     // If events in the queue are discarded then we can't check their status.
-    for (auto it = EventList.begin(); it != EventList.end();) {
-      std::scoped_lock<ur_shared_mutex> EventLock((*it)->Mutex);
+    // Helper for checking of event completion
+    auto EventCompleted = [](ur_event_handle_t Event) -> bool {
+      std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
       ze_result_t ZeResult =
-          (*it)->Completed
+          Event->Completed
               ? ZE_RESULT_SUCCESS
-              : ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+              : ZE_CALL_NOCHECK(zeEventQueryStatus, (Event->ZeEvent));
+      return ZeResult == ZE_RESULT_SUCCESS;
+    };
+    // Handle in-order specially as we can just in few checks (with binary
+    // search) a completed event and then all events before it are also
+    // done.
+    if (isInOrderQueue()) {
+      size_t Bisect = EventList.size();
+      size_t Iter = 0;
+      for (auto it = EventList.rbegin(); it != EventList.rend(); ++Iter) {
+        if (!EventCompleted(*it)) {
+          if (Bisect > 1 && Iter < 3) { // Heuristically limit by 3 checks
+            Bisect >>= 1;
+            it += Bisect;
+            continue;
+          }
+          break;
+        }
+        // Bulk move of event up to "it" to the list ready for cleanup
+        std::move(it, EventList.rend(), std::back_inserter(EventListToCleanup));
+        EventList.erase(EventList.begin(), it.base());
+        break;
+      }
+      return UR_RESULT_SUCCESS;
+    }
+    // For immediate commandlist reset only those events that have signalled.
+    for (auto it = EventList.begin(); it != EventList.end();) {
       // Break early as soon as we found first incomplete event because next
       // events are submitted even later. We are not trying to find all
       // completed events here because it may be costly. I.e. we are checking
       // only elements which are most likely completed because they were
       // submitted earlier. It is guaranteed that all events will be eventually
       // cleaned up at queue sync/release.
-      if (ZeResult == ZE_RESULT_NOT_READY)
+      if (!EventCompleted(*it))
         break;
-
-      if (ZeResult != ZE_RESULT_SUCCESS)
-        return ze2urResult(ZeResult);
 
       EventListToCleanup.push_back(std::move((*it)));
       it = EventList.erase(it);
