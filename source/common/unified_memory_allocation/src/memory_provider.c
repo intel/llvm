@@ -6,6 +6,7 @@
  *
  */
 
+#include "memory_provider_internal.h"
 #include <uma/memory_provider.h>
 
 #include <assert.h>
@@ -63,4 +64,8 @@ enum uma_result_t
 umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
                                const char **ppMessage) {
     return hProvider->ops.get_last_result(hProvider->provider_priv, ppMessage);
+}
+
+void *umaMemoryProviderGetPriv(uma_memory_provider_handle_t hProvider) {
+    return hProvider->provider_priv;
 }
