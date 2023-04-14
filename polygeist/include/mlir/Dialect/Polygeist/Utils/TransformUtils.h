@@ -66,6 +66,7 @@ public:
   bool hasSCFCondition() const {
     return std::holds_alternative<SCFCondition>(versionCondition);
   }
+
   SCFCondition getSCFCondition() const {
     assert(hasSCFCondition() && "expecting valid SCF condition");
     return std::get<SCFCondition>(versionCondition);
@@ -74,6 +75,7 @@ public:
   bool hasAffineCondition() const {
     return std::holds_alternative<AffineCondition>(versionCondition);
   }
+
   AffineCondition getAffineCondition() const {
     assert(hasAffineCondition() && "expecting valid affine condition");
     return std::get<AffineCondition>(versionCondition);
