@@ -113,6 +113,15 @@ public:
       : m_Pointer(ptr) {}
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
 
+  template <
+      typename _ElementType,
+      typename = typename detail::enable_if_t<
+          std::is_const_v<ElementType> && !std::is_const_v<_ElementType> &&
+          std::is_same_v<std::remove_const_t<ElementType>, _ElementType>>>
+  explicit multi_ptr(typename multi_ptr<_ElementType, Space,
+                                        access::decorated::yes>::pointer ptr)
+      : multi_ptr<ElementType, Space, access::decorated::yes>(ptr) {}
+
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
   template <

@@ -37,4 +37,10 @@ int main() {
   static_assert(std::is_same<constCTAD, constMPtr>::value);
   static_assert(std::is_same<localCTAD, localMPtr>::value);
   static_assert(std::is_same<localCTADDep, localMPtr>::value);
+
+  globlMPtr non_const_multi_ptr;
+  sycl::multi_ptr<const int, address_space::global_space,
+                  sycl::access::decorated::no>
+      const_multi_ptr;
+  const_multi_ptr = non_const_multi_ptr;
 }
