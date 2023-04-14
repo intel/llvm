@@ -13,10 +13,20 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 using namespace sycl;
 
 int main() {
   queue Q;
+
+  if (Q.get_device().has(aspect::atomic64)) {
+    std::cout << "Device supports aspect::atomic64 so we do not need to run "
+                 "the test."
+              << std::endl;
+    return 0;
+  }
+
   long long *Out = malloc_shared<long long>(1, Q);
 
   // Case 1: nd_range reduction with 64-bit integer and either sycl::plus,
@@ -25,10 +35,10 @@ int main() {
   // strategy is invalid.
   Q.submit([&](handler &CGH) {
      auto Redu = reduction(Out, 0ll, sycl::plus<long long>{});
-     CGH.parallel_for(
-         nd_range<1>{range<1>{32}, range<1>{32}}, Redu, [=](nd_item<1> It, auto &Sum) {
-           Sum.combine(It.get_global_linear_id());
-         });
+     CGH.parallel_for(nd_range<1>{range<1>{32}, range<1>{32}}, Redu,
+                      [=](nd_item<1> It, auto &Sum) {
+                        Sum.combine(It.get_global_linear_id());
+                      });
    }).wait();
 
   // Case 2: nd_range reduction with 64-bit integer and either sycl::bit_or,
@@ -37,10 +47,10 @@ int main() {
   // strategy is invalid.
   Q.submit([&](handler &CGH) {
      auto Redu = reduction(Out, 0ll, sycl::bit_and<long long>{});
-     CGH.parallel_for(
-         nd_range<1>{range<1>{32}, range<1>{32}}, Redu, [=](nd_item<1> It, auto &Sum) {
-           Sum.combine(It.get_global_linear_id());
-         });
+     CGH.parallel_for(nd_range<1>{range<1>{32}, range<1>{32}}, Redu,
+                      [=](nd_item<1> It, auto &Sum) {
+                        Sum.combine(It.get_global_linear_id());
+                      });
    }).wait();
 
   // Case 3: range reduction with 64-bit integer and either sycl::bit_or,
@@ -49,10 +59,8 @@ int main() {
   // strategy is invalid.
   Q.submit([&](handler &CGH) {
      auto Redu = reduction(Out, 0ll, sycl::bit_and<long long>{});
-     CGH.parallel_for(
-         range<1>{32}, Redu, [=](item<1> It, auto &Sum) {
-           Sum.combine(It);
-         });
+     CGH.parallel_for(range<1>{32}, Redu,
+                      [=](item<1> It, auto &Sum) { Sum.combine(It); });
    }).wait();
   sycl::free(Out, Q);
   return 0;
