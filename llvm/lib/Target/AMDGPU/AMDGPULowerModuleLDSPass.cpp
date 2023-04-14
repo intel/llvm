@@ -468,6 +468,42 @@ public:
         AMDGPUAS::CONSTANT_ADDRESS);
   }
 
+  void replaceUseWithTableLookup(Module &M, IRBuilder<> &Builder,
+                                 GlobalVariable *LookupTable,
+                                 GlobalVariable *GV, Use &U,
+                                 Value *OptionalIndex) {
+    // Table is a constant array of the same length as OrderedKernels
+    LLVMContext &Ctx = M.getContext();
+    Type *I32 = Type::getInt32Ty(Ctx);
+    auto *I = cast<Instruction>(U.getUser());
+
+    Value *tableKernelIndex = getTableLookupKernelIndex(M, I->getFunction());
+
+    if (auto *Phi = dyn_cast<PHINode>(I)) {
+      BasicBlock *BB = Phi->getIncomingBlock(U);
+      Builder.SetInsertPoint(&(*(BB->getFirstInsertionPt())));
+    } else {
+      Builder.SetInsertPoint(I);
+    }
+
+    SmallVector<Value *, 3> GEPIdx = {
+        ConstantInt::get(I32, 0),
+        tableKernelIndex,
+    };
+    if (OptionalIndex)
+      GEPIdx.push_back(OptionalIndex);
+
+    Value *Address = Builder.CreateInBoundsGEP(
+        LookupTable->getValueType(), LookupTable, GEPIdx, GV->getName());
+
+    Value *loaded = Builder.CreateLoad(I32, Address);
+
+    Value *replacement =
+        Builder.CreateIntToPtr(loaded, GV->getType(), GV->getName());
+
+    U.set(replacement);
+  }
+
   void replaceUsesInInstructionsWithTableLookup(
       Module &M, ArrayRef<GlobalVariable *> ModuleScopeVariables,
       GlobalVariable *LookupTable) {
@@ -484,33 +520,8 @@ public:
         if (!I)
           continue;
 
-        Value *tableKernelIndex =
-            getTableLookupKernelIndex(M, I->getFunction());
-
-        // So if the phi uses this value multiple times, what does this look
-        // like?
-        if (auto *Phi = dyn_cast<PHINode>(I)) {
-          BasicBlock *BB = Phi->getIncomingBlock(U);
-          Builder.SetInsertPoint(&(*(BB->getFirstInsertionPt())));
-        } else {
-          Builder.SetInsertPoint(I);
-        }
-
-        Value *GEPIdx[3] = {
-            ConstantInt::get(I32, 0),
-            tableKernelIndex,
-            ConstantInt::get(I32, Index),
-        };
-
-        Value *Address = Builder.CreateInBoundsGEP(
-            LookupTable->getValueType(), LookupTable, GEPIdx, GV->getName());
-
-        Value *loaded = Builder.CreateLoad(I32, Address);
-
-        Value *replacement =
-            Builder.CreateIntToPtr(loaded, GV->getType(), GV->getName());
-
-        U.set(replacement);
+        replaceUseWithTableLookup(M, Builder, LookupTable, GV, U,
+                                  ConstantInt::get(I32, Index));
       }
     }
   }
@@ -632,49 +643,53 @@ public:
   }
 
   static std::vector<Function *> assignLDSKernelIDToEachKernel(
-      Module *M, DenseSet<Function *> const &KernelsThatAllocateTableLDS) {
+      Module *M, DenseSet<Function *> const &KernelsThatAllocateTableLDS,
+      DenseSet<Function *> const &KernelsThatIndirectlyAllocateDynamicLDS) {
     // Associate kernels in the set with an arbirary but reproducible order and
     // annotate them with that order in metadata. This metadata is recognised by
     // the backend and lowered to a SGPR which can be read from using
     // amdgcn_lds_kernel_id.
 
     std::vector<Function *> OrderedKernels;
+    if (!KernelsThatAllocateTableLDS.empty() ||
+        !KernelsThatIndirectlyAllocateDynamicLDS.empty()) {
 
-    for (Function &Func : M->functions()) {
-      if (Func.isDeclaration())
-        continue;
-      if (!isKernelLDS(&Func))
-        continue;
+      for (Function &Func : M->functions()) {
+        if (Func.isDeclaration())
+          continue;
+        if (!isKernelLDS(&Func))
+          continue;
 
-      if (KernelsThatAllocateTableLDS.contains(&Func)) {
-        assert(Func.hasName()); // else fatal error earlier
-        OrderedKernels.push_back(&Func);
+        if (KernelsThatAllocateTableLDS.contains(&Func) ||
+            KernelsThatIndirectlyAllocateDynamicLDS.contains(&Func)) {
+          assert(Func.hasName()); // else fatal error earlier
+          OrderedKernels.push_back(&Func);
+        }
+      }
+
+      // Put them in an arbitrary but reproducible order
+      llvm::sort(OrderedKernels.begin(), OrderedKernels.end(),
+                 [](const Function *lhs, const Function *rhs) -> bool {
+                   return lhs->getName() < rhs->getName();
+                 });
+
+      // Annotate the kernels with their order in this vector
+      LLVMContext &Ctx = M->getContext();
+      IRBuilder<> Builder(Ctx);
+
+      if (OrderedKernels.size() > UINT32_MAX) {
+        // 32 bit keeps it in one SGPR. > 2**32 kernels won't fit on the GPU
+        report_fatal_error("Unimplemented LDS lowering for > 2**32 kernels");
+      }
+
+      for (size_t i = 0; i < OrderedKernels.size(); i++) {
+        Metadata *AttrMDArgs[1] = {
+            ConstantAsMetadata::get(Builder.getInt32(i)),
+        };
+        OrderedKernels[i]->setMetadata("llvm.amdgcn.lds.kernel.id",
+                                       MDNode::get(Ctx, AttrMDArgs));
       }
     }
-
-    // Put them in an arbitrary but reproducible order
-    llvm::sort(OrderedKernels.begin(), OrderedKernels.end(),
-               [](const Function *lhs, const Function *rhs) -> bool {
-                 return lhs->getName() < rhs->getName();
-               });
-
-    // Annotate the kernels with their order in this vector
-    LLVMContext &Ctx = M->getContext();
-    IRBuilder<> Builder(Ctx);
-
-    if (OrderedKernels.size() > UINT32_MAX) {
-      // 32 bit keeps it in one SGPR. > 2**32 kernels won't fit on the GPU
-      report_fatal_error("Unimplemented LDS lowering for > 2**32 kernels");
-    }
-
-    for (size_t i = 0; i < OrderedKernels.size(); i++) {
-      Metadata *AttrMDArgs[1] = {
-          ConstantAsMetadata::get(Builder.getInt32(i)),
-      };
-      OrderedKernels[i]->setMetadata("llvm.amdgcn.lds.kernel.id",
-                                     MDNode::get(Ctx, AttrMDArgs));
-    }
-
     return OrderedKernels;
   }
 
@@ -683,7 +698,8 @@ public:
       VariableFunctionMap &LDSToKernelsThatNeedToAccessItIndirectly,
       DenseSet<GlobalVariable *> &ModuleScopeVariables,
       DenseSet<GlobalVariable *> &TableLookupVariables,
-      DenseSet<GlobalVariable *> &KernelAccessVariables) {
+      DenseSet<GlobalVariable *> &KernelAccessVariables,
+      DenseSet<GlobalVariable *> &DynamicVariables) {
 
     GlobalVariable *HybridModuleRoot =
         LoweringKindLoc != LoweringKind::hybrid
@@ -704,6 +720,11 @@ public:
       GlobalVariable *GV = K.first;
       assert(AMDGPU::isLDSVariableToLower(*GV));
       assert(K.second.size() != 0);
+
+      if (AMDGPU::isDynamicLDS(*GV)) {
+        DynamicVariables.insert(GV);
+        continue;
+      }
 
       switch (LoweringKindLoc) {
       case LoweringKind::module:
@@ -743,7 +764,7 @@ public:
     // All LDS variables accessed indirectly have now been partitioned into
     // the distinct lowering strategies.
     assert(ModuleScopeVariables.size() + TableLookupVariables.size() +
-               KernelAccessVariables.size() ==
+               KernelAccessVariables.size() + DynamicVariables.size() ==
            LDSToKernelsThatNeedToAccessItIndirectly.size());
   }
 
@@ -813,7 +834,7 @@ public:
         markUsedByKernel(Builder, &Func, ModuleScopeReplacement.SGV);
 
       } else {
-        Func.addFnAttr("amdgpu-elide-module-lds");
+        markElideModuleLDS(Func);
       }
     }
 
@@ -838,13 +859,17 @@ public:
       // Allocating variables that are used directly in this struct to get
       // alignment aware allocation and predictable frame size.
       for (auto &v : LDSUsesInfo.direct_access[&Func]) {
-        KernelUsedVariables.insert(v);
+        if (!AMDGPU::isDynamicLDS(*v)) {
+          KernelUsedVariables.insert(v);
+        }
       }
 
       // Allocating variables that are accessed indirectly so that a lookup of
       // this struct instance can find them from nested functions.
       for (auto &v : LDSUsesInfo.indirect_access[&Func]) {
-        KernelUsedVariables.insert(v);
+        if (!AMDGPU::isDynamicLDS(*v)) {
+          KernelUsedVariables.insert(v);
+        }
       }
 
       // Variables allocated in module lds must all resolve to that struct,
@@ -857,6 +882,7 @@ public:
 
       if (KernelUsedVariables.empty()) {
         // Either used no LDS, or the LDS it used was all in the module struct
+        // or dynamically sized
         continue;
       }
 
@@ -876,33 +902,6 @@ public:
       auto Replacement =
           createLDSVariableReplacement(M, VarName, KernelUsedVariables);
 
-      // This struct is allocated at a predictable address that can be
-      // calculated now, recorded in metadata then used to lower references to
-      // it during codegen.
-      {
-        // frame layout, starting from 0
-        //{
-        //  module.lds
-        //  alignment padding
-        //  kernel instance
-        //}
-
-        if (!MaybeModuleScopeStruct ||
-            Func.hasFnAttribute("amdgpu-elide-module-lds")) {
-          // There's no module.lds for this kernel so this replacement struct
-          // goes first
-          recordLDSAbsoluteAddress(&M, Replacement.SGV, 0);
-        } else {
-          const DataLayout &DL = M.getDataLayout();
-          TypeSize ModuleSize =
-              DL.getTypeAllocSize(MaybeModuleScopeStruct->getValueType());
-          GlobalVariable *KernelStruct = Replacement.SGV;
-          Align KernelAlign = AMDGPU::getAlign(DL, KernelStruct);
-          recordLDSAbsoluteAddress(&M, Replacement.SGV,
-                                   alignTo(ModuleSize, KernelAlign));
-        }
-      }
-
       // remove preserves existing codegen
       removeLocalVarsFromUsedLists(M, KernelUsedVariables);
       KernelToReplacement[&Func] = Replacement;
@@ -915,6 +914,121 @@ public:
           });
     }
     return KernelToReplacement;
+  }
+
+  static GlobalVariable *
+  buildRepresentativeDynamicLDSInstance(Module &M, LDSUsesInfoTy &LDSUsesInfo,
+                                        Function *func) {
+    // Create a dynamic lds variable with a name associated with the passed
+    // function that has the maximum alignment of any dynamic lds variable
+    // reachable from this kernel. Dynamic LDS is allocated after the static LDS
+    // allocation, possibly after alignment padding. The representative variable
+    // created here has the maximum alignment of any other dynamic variable
+    // reachable by that kernel. All dynamic LDS variables are allocated at the
+    // same address in each kernel in order to provide the documented aliasing
+    // semantics. Setting the alignment here allows this IR pass to accurately
+    // predict the exact constant at which it will be allocated.
+
+    assert(isKernelLDS(func));
+
+    LLVMContext &Ctx = M.getContext();
+    const DataLayout &DL = M.getDataLayout();
+    Align MaxDynamicAlignment(1);
+
+    auto UpdateMaxAlignment = [&MaxDynamicAlignment, &DL](GlobalVariable *GV) {
+      if (AMDGPU::isDynamicLDS(*GV)) {
+        MaxDynamicAlignment =
+            std::max(MaxDynamicAlignment, AMDGPU::getAlign(DL, GV));
+      }
+    };
+
+    for (GlobalVariable *GV : LDSUsesInfo.indirect_access[func]) {
+      UpdateMaxAlignment(GV);
+    }
+
+    for (GlobalVariable *GV : LDSUsesInfo.direct_access[func]) {
+      UpdateMaxAlignment(GV);
+    }
+
+    assert(func->hasName()); // Checked by caller
+    auto emptyCharArray = ArrayType::get(Type::getInt8Ty(Ctx), 0);
+    GlobalVariable *N = new GlobalVariable(
+        M, emptyCharArray, false, GlobalValue::ExternalLinkage, nullptr,
+        Twine("llvm.amdgcn." + func->getName() + ".dynlds"), nullptr, GlobalValue::NotThreadLocal, AMDGPUAS::LOCAL_ADDRESS,
+        false);
+    N->setAlignment(MaxDynamicAlignment);
+
+    assert(AMDGPU::isDynamicLDS(*N));
+    return N;
+  }
+
+  DenseMap<Function *, GlobalVariable *> lowerDynamicLDSVariables(
+      Module &M, LDSUsesInfoTy &LDSUsesInfo,
+      DenseSet<Function *> const &KernelsThatIndirectlyAllocateDynamicLDS,
+      DenseSet<GlobalVariable *> const &DynamicVariables,
+      std::vector<Function *> const &OrderedKernels) {
+    DenseMap<Function *, GlobalVariable *> KernelToCreatedDynamicLDS;
+    if (!KernelsThatIndirectlyAllocateDynamicLDS.empty()) {
+      LLVMContext &Ctx = M.getContext();
+      IRBuilder<> Builder(Ctx);
+      Type *I32 = Type::getInt32Ty(Ctx);
+
+      std::vector<Constant *> newDynamicLDS;
+
+      // Table is built in the same order as OrderedKernels
+      for (auto &func : OrderedKernels) {
+
+        if (KernelsThatIndirectlyAllocateDynamicLDS.contains(func)) {
+          assert(isKernelLDS(func));
+          if (!func->hasName()) {
+            report_fatal_error("Anonymous kernels cannot use LDS variables");
+          }
+
+          GlobalVariable *N =
+              buildRepresentativeDynamicLDSInstance(M, LDSUsesInfo, func);
+
+          KernelToCreatedDynamicLDS[func] = N;
+
+          markUsedByKernel(Builder, func, N);
+
+          auto emptyCharArray = ArrayType::get(Type::getInt8Ty(Ctx), 0);
+          auto GEP = ConstantExpr::getGetElementPtr(
+              emptyCharArray, N, ConstantInt::get(I32, 0), true);
+          newDynamicLDS.push_back(ConstantExpr::getPtrToInt(GEP, I32));
+        } else {
+          newDynamicLDS.push_back(PoisonValue::get(I32));
+        }
+      }
+      assert(OrderedKernels.size() == newDynamicLDS.size());
+
+      ArrayType *t = ArrayType::get(I32, newDynamicLDS.size());
+      Constant *init = ConstantArray::get(t, newDynamicLDS);
+      GlobalVariable *table = new GlobalVariable(
+          M, t, true, GlobalValue::InternalLinkage, init,
+          "llvm.amdgcn.dynlds.offset.table", nullptr,
+          GlobalValue::NotThreadLocal, AMDGPUAS::CONSTANT_ADDRESS);
+
+      for (GlobalVariable *GV : DynamicVariables) {
+        for (Use &U : make_early_inc_range(GV->uses())) {
+          auto *I = dyn_cast<Instruction>(U.getUser());
+          if (!I)
+            continue;
+          if (isKernelLDS(I->getFunction()))
+            continue;
+
+          replaceUseWithTableLookup(M, Builder, table, GV, U, nullptr);
+        }
+      }
+    }
+    return KernelToCreatedDynamicLDS;
+  }
+
+  static bool canElideModuleLDS(const Function &F) {
+    return F.hasFnAttribute("amdgpu-elide-module-lds");
+  }
+
+  static void markElideModuleLDS(Function &F) {
+    F.addFnAttr("amdgpu-elide-module-lds");
   }
 
   bool runOnModule(Module &M) override {
@@ -939,12 +1053,15 @@ public:
       }
     }
 
+    // Partition variables accessed indirectly into the different strategies
     DenseSet<GlobalVariable *> ModuleScopeVariables;
     DenseSet<GlobalVariable *> TableLookupVariables;
     DenseSet<GlobalVariable *> KernelAccessVariables;
+    DenseSet<GlobalVariable *> DynamicVariables;
     partitionVariablesIntoIndirectStrategies(
         M, LDSUsesInfo, LDSToKernelsThatNeedToAccessItIndirectly,
-        ModuleScopeVariables, TableLookupVariables, KernelAccessVariables);
+        ModuleScopeVariables, TableLookupVariables, KernelAccessVariables,
+        DynamicVariables);
 
     // If the kernel accesses a variable that is going to be stored in the
     // module instance through a call then that kernel needs to allocate the
@@ -955,6 +1072,10 @@ public:
     DenseSet<Function *> KernelsThatAllocateTableLDS =
         kernelsThatIndirectlyAccessAnyOfPassedVariables(M, LDSUsesInfo,
                                                         TableLookupVariables);
+
+    DenseSet<Function *> KernelsThatIndirectlyAllocateDynamicLDS =
+        kernelsThatIndirectlyAccessAnyOfPassedVariables(M, LDSUsesInfo,
+                                                        DynamicVariables);
 
     GlobalVariable *MaybeModuleScopeStruct = lowerModuleScopeStructVariables(
         M, ModuleScopeVariables, KernelsThatAllocateModuleLDS);
@@ -981,13 +1102,14 @@ public:
       });
     }
 
+    // The ith element of this vector is kernel id i
+    std::vector<Function *> OrderedKernels =
+        assignLDSKernelIDToEachKernel(&M, KernelsThatAllocateTableLDS,
+                                      KernelsThatIndirectlyAllocateDynamicLDS);
+
     if (!KernelsThatAllocateTableLDS.empty()) {
       LLVMContext &Ctx = M.getContext();
       IRBuilder<> Builder(Ctx);
-
-      // The ith element of this vector is kernel id i
-      std::vector<Function *> OrderedKernels =
-          assignLDSKernelIDToEachKernel(&M, KernelsThatAllocateTableLDS);
 
       for (size_t i = 0; i < OrderedKernels.size(); i++) {
         markUsedByKernel(Builder, OrderedKernels[i],
@@ -1008,6 +1130,70 @@ public:
           M, TableLookupVariablesOrdered, OrderedKernels, KernelToReplacement);
       replaceUsesInInstructionsWithTableLookup(M, TableLookupVariablesOrdered,
                                                LookupTable);
+    }
+
+    DenseMap<Function *, GlobalVariable *> KernelToCreatedDynamicLDS =
+        lowerDynamicLDSVariables(M, LDSUsesInfo,
+                                 KernelsThatIndirectlyAllocateDynamicLDS,
+                                 DynamicVariables, OrderedKernels);
+
+    // All kernel frames have been allocated. Calculate and record the
+    // addresses.
+
+    {
+      const DataLayout &DL = M.getDataLayout();
+
+      for (Function &Func : M.functions()) {
+        if (Func.isDeclaration() || !isKernelLDS(&Func))
+          continue;
+
+        // All three of these are optional. The first variable is allocated at
+        // zero. They are allocated by allocateKnownAddressLDSGlobal in the
+        // following order:
+        //{
+        //  module.lds
+        //  alignment padding
+        //  kernel instance
+        //  alignment padding
+        //  dynamic lds variables
+        //}
+
+        const bool AllocateModuleScopeStruct =
+            MaybeModuleScopeStruct && !canElideModuleLDS(Func);
+
+        const bool AllocateKernelScopeStruct =
+            KernelToReplacement.contains(&Func);
+
+        const bool AllocateDynamicVariable =
+            KernelToCreatedDynamicLDS.contains(&Func);
+
+        uint32_t Offset = 0;
+
+        if (AllocateModuleScopeStruct) {
+          // Allocated at zero, recorded once on construction, not once per
+          // kernel
+          Offset += DL.getTypeAllocSize(MaybeModuleScopeStruct->getValueType());
+        }
+
+        if (AllocateKernelScopeStruct) {
+          GlobalVariable *KernelStruct = KernelToReplacement[&Func].SGV;
+
+          Offset = alignTo(Offset, AMDGPU::getAlign(DL, KernelStruct));
+
+          recordLDSAbsoluteAddress(&M, KernelStruct, Offset);
+
+          Offset += DL.getTypeAllocSize(KernelStruct->getValueType());
+
+        }
+
+        if (AllocateDynamicVariable) {
+          GlobalVariable *DynamicVariable = KernelToCreatedDynamicLDS[&Func];
+
+          Offset = alignTo(Offset, AMDGPU::getAlign(DL, DynamicVariable));
+
+          recordLDSAbsoluteAddress(&M, DynamicVariable, Offset);
+        }
+      }
     }
 
     for (auto &GV : make_early_inc_range(M.globals()))

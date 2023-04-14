@@ -25,6 +25,7 @@
 #include <mutex>
 #include <regex>
 #include <string.h>
+#include <string_view>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
@@ -130,6 +131,24 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result hip_piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for hip.
+// TODO: Determine correct string to be passed.
+pi_result hip_piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                       const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -3603,6 +3622,37 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   if (kernel != nullptr) {
 
     switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+      size_t global_work_size[3] = {0, 0, 0};
+
+      int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_block_dimX, hipDeviceAttributeMaxBlockDimX,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_block_dimY, hipDeviceAttributeMaxBlockDimY,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_block_dimZ, hipDeviceAttributeMaxBlockDimZ,
+                                device->get()) == hipSuccess);
+
+      int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_grid_dimX, hipDeviceAttributeMaxGridDimX,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_grid_dimY, hipDeviceAttributeMaxGridDimY,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_grid_dimZ, hipDeviceAttributeMaxGridDimZ,
+                                device->get()) == hipSuccess);
+
+      global_work_size[0] = max_block_dimX * max_grid_dimX;
+      global_work_size[1] = max_block_dimY * max_grid_dimY;
+      global_work_size[2] = max_block_dimZ * max_grid_dimZ;
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, global_work_size);
+    }
     case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
       sycl::detail::pi::assertion(
@@ -5448,7 +5498,7 @@ pi_result hip_piextEnqueueWriteHostPipe(
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result hip_piTearDown(void *PluginParameter) {
@@ -5643,6 +5693,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
 
 #undef _PI_CL
 
