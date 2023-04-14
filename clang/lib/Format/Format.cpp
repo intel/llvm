@@ -1038,6 +1038,8 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("TabWidth", Style.TabWidth);
     IO.mapOptional("TypenameMacros", Style.TypenameMacros);
     IO.mapOptional("UseTab", Style.UseTab);
+    IO.mapOptional("VerilogBreakBetweenInstancePorts",
+                   Style.VerilogBreakBetweenInstancePorts);
     IO.mapOptional("WhitespaceSensitiveMacros",
                    Style.WhitespaceSensitiveMacros);
     IO.mapOptional("Macros", Style.Macros);
@@ -1462,6 +1464,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.StatementMacros.push_back("QT_REQUIRE_VERSION");
   LLVMStyle.TabWidth = 8;
   LLVMStyle.UseTab = FormatStyle::UT_Never;
+  LLVMStyle.VerilogBreakBetweenInstancePorts = true;
   LLVMStyle.WhitespaceSensitiveMacros.push_back("BOOST_PP_STRINGIZE");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("CF_SWIFT_NAME");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("NS_SWIFT_NAME");
@@ -2696,6 +2699,8 @@ private:
         "NSDecimalNumber",
         "NSDictionary",
         "NSEdgeInsets",
+        "NSError",
+        "NSErrorDomain",
         "NSHashTable",
         "NSIndexPath",
         "NSIndexSet",
@@ -2757,6 +2762,7 @@ private:
                                 FormatTok->TokenText)) ||
             FormatTok->is(TT_ObjCStringLiteral) ||
             FormatTok->isOneOf(Keywords.kw_NS_CLOSED_ENUM, Keywords.kw_NS_ENUM,
+                               Keywords.kw_NS_ERROR_ENUM,
                                Keywords.kw_NS_OPTIONS, TT_ObjCBlockLBrace,
                                TT_ObjCBlockLParen, TT_ObjCDecl, TT_ObjCForIn,
                                TT_ObjCMethodExpr, TT_ObjCMethodSpecifier,

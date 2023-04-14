@@ -59,6 +59,7 @@ piMemRelease
 piMemRetain
 piPlatformGetInfo
 piPlatformsGet
+piPluginGetBackendOption
 piPluginGetLastError
 piPluginInit
 piProgramBuild

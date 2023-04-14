@@ -271,7 +271,6 @@ libcxx/include/__compare/compare_weak_order_fallback.h
 libcxx/include/__compare/ordering.h
 libcxx/include/__compare/partial_order.h
 libcxx/include/__compare/strong_order.h
-libcxx/include/__compare/synth_three_way.h
 libcxx/include/__compare/three_way_comparable.h
 libcxx/include/__compare/weak_order.h
 libcxx/include/complex
@@ -309,7 +308,6 @@ libcxx/include/cuchar
 libcxx/include/__debug
 libcxx/include/__debug_utils/randomize_range.h
 libcxx/include/deque
-libcxx/include/__errc
 libcxx/include/errno.h
 libcxx/include/execution
 libcxx/include/expected
@@ -612,7 +610,11 @@ libcxx/include/__support/newlib/xlocale.h
 libcxx/include/__support/solaris/xlocale.h
 libcxx/include/__support/win32/locale_win32.h
 libcxx/include/__support/xlocale/__nop_locale_mgmt.h
-libcxx/include/system_error
+libcxx/include/__system_error/errc.h
+libcxx/include/__system_error/error_category.h
+libcxx/include/__system_error/error_code.h
+libcxx/include/__system_error/error_condition.h
+libcxx/include/__system_error/system_error.h
 libcxx/include/thread
 libcxx/include/__threading_support
 libcxx/include/__thread/poll_with_backoff.h

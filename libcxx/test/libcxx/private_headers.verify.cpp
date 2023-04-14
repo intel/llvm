@@ -334,7 +334,6 @@ END-SCRIPT
 #include <__coroutine/noop_coroutine_handle.h> // expected-error@*:* {{use of private header from outside its module: '__coroutine/noop_coroutine_handle.h'}}
 #include <__coroutine/trivial_awaitables.h> // expected-error@*:* {{use of private header from outside its module: '__coroutine/trivial_awaitables.h'}}
 #include <__debug_utils/randomize_range.h> // expected-error@*:* {{use of private header from outside its module: '__debug_utils/randomize_range.h'}}
-#include <__errc> // expected-error@*:* {{use of private header from outside its module: '__errc'}}
 #include <__exception/exception.h> // expected-error@*:* {{use of private header from outside its module: '__exception/exception.h'}}
 #include <__exception/exception_ptr.h> // expected-error@*:* {{use of private header from outside its module: '__exception/exception_ptr.h'}}
 #include <__exception/nested_exception.h> // expected-error@*:* {{use of private header from outside its module: '__exception/nested_exception.h'}}
@@ -604,6 +603,11 @@ END-SCRIPT
 #include <__string/char_traits.h> // expected-error@*:* {{use of private header from outside its module: '__string/char_traits.h'}}
 #include <__string/constexpr_c_functions.h> // expected-error@*:* {{use of private header from outside its module: '__string/constexpr_c_functions.h'}}
 #include <__string/extern_template_lists.h> // expected-error@*:* {{use of private header from outside its module: '__string/extern_template_lists.h'}}
+#include <__system_error/errc.h> // expected-error@*:* {{use of private header from outside its module: '__system_error/errc.h'}}
+#include <__system_error/error_category.h> // expected-error@*:* {{use of private header from outside its module: '__system_error/error_category.h'}}
+#include <__system_error/error_code.h> // expected-error@*:* {{use of private header from outside its module: '__system_error/error_code.h'}}
+#include <__system_error/error_condition.h> // expected-error@*:* {{use of private header from outside its module: '__system_error/error_condition.h'}}
+#include <__system_error/system_error.h> // expected-error@*:* {{use of private header from outside its module: '__system_error/system_error.h'}}
 #include <__thread/poll_with_backoff.h> // expected-error@*:* {{use of private header from outside its module: '__thread/poll_with_backoff.h'}}
 #include <__thread/timed_backoff_policy.h> // expected-error@*:* {{use of private header from outside its module: '__thread/timed_backoff_policy.h'}}
 #include <__tuple_dir/apply_cv.h> // expected-error@*:* {{use of private header from outside its module: '__tuple_dir/apply_cv.h'}}
