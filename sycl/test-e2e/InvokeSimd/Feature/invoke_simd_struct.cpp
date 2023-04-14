@@ -152,18 +152,15 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
 
   int err_cnt = 0;
 
-  for (unsigned i = 0; i < Size; ++i) {
-    if (A[i] * (-1.0) != C[i]) {
-      if (++err_cnt < 10) {
-        std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
-                  << " * (-1)\n";
-      }
-    }
-  }
+  for (unsigned i = 0; i < Size; ++i)
+    if (A[i] * (-1.0) != C[i]) err_cnt++;
+
   if (err_cnt > 0) {
     std::cout << "  pass rate: "
               << ((float)(Size - err_cnt) / (float)Size) * 100.0f << "% ("
               << (Size - err_cnt) << "/" << Size << ")\n";
+    for (unsigned i = 0; i < Size; ++i)
+      std::cout << "  data: " << C[i] << ", reference: " << A[i] * (-1) << "\n";
   }
 
   sycl::free(A, q);
