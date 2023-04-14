@@ -11,7 +11,7 @@
 
 include "mlir/IR/EnumAttr.td"
 
-include "SYCLOps.td"
+include "SYCLBase.td"
 
 class SYCL_I32EnumAttr<string name, string summary, list<I32EnumAttrCase> cases>
     : I32EnumAttr<name, summary, cases> {
