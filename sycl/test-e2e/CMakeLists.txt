@@ -17,6 +17,7 @@ if(SYCL_TEST_E2E_STANDALONE)
   set(SYCL_CXX_COMPILER ${CMAKE_CXX_COMPILER})
 else()
   set(SYCL_CXX_COMPILER "${LLVM_BINARY_DIR}/bin/clang++")
+  unset(CMAKE_CXX_FLAGS)
 endif() # Standalone.
 
 find_package(Threads REQUIRED)
