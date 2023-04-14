@@ -114,7 +114,7 @@ std::unique_ptr<MipsAbiFlagsSection<ELFT>> MipsAbiFlagsSection<ELFT>::create() {
     create = true;
 
     std::string filename = toString(sec->file);
-    const size_t size = sec->rawData.size();
+    const size_t size = sec->content().size();
     // Older version of BFD (such as the default FreeBSD linker) concatenate
     // .MIPS.abiflags instead of merging. To allow for this case (or potential
     // zero padding) we ignore everything after the first Elf_Mips_ABIFlags
@@ -123,7 +123,8 @@ std::unique_ptr<MipsAbiFlagsSection<ELFT>> MipsAbiFlagsSection<ELFT>::create() {
             Twine(size) + " instead of " + Twine(sizeof(Elf_Mips_ABIFlags)));
       return nullptr;
     }
-    auto *s = reinterpret_cast<const Elf_Mips_ABIFlags *>(sec->rawData.data());
+    auto *s =
+        reinterpret_cast<const Elf_Mips_ABIFlags *>(sec->content().data());
     if (s->version != 0) {
       error(filename + ": unexpected .MIPS.abiflags version " +
             Twine(s->version));
@@ -186,7 +187,7 @@ std::unique_ptr<MipsOptionsSection<ELFT>> MipsOptionsSection<ELFT>::create() {
     sec->markDead();
 
     std::string filename = toString(sec->file);
-    ArrayRef<uint8_t> d = sec->rawData;
+    ArrayRef<uint8_t> d = sec->content();
 
     while (!d.empty()) {
       if (d.size() < sizeof(Elf_Mips_Options)) {
@@ -242,12 +243,12 @@ std::unique_ptr<MipsReginfoSection<ELFT>> MipsReginfoSection<ELFT>::create() {
   for (InputSectionBase *sec : sections) {
     sec->markDead();
 
-    if (sec->rawData.size() != sizeof(Elf_Mips_RegInfo)) {
+    if (sec->content().size() != sizeof(Elf_Mips_RegInfo)) {
       error(toString(sec->file) + ": invalid size of .reginfo section");
       return nullptr;
     }
 
-    auto *r = reinterpret_cast<const Elf_Mips_RegInfo *>(sec->rawData.data());
+    auto *r = reinterpret_cast<const Elf_Mips_RegInfo *>(sec->content().data());
     reginfo.ri_gprmask |= r->ri_gprmask;
     sec->getFile<ELFT>()->mipsGp0 = r->ri_gp_value;
   };
@@ -617,6 +618,7 @@ GotSection::GotSection()
   numEntries = target->gotHeaderEntriesNum;
 }
 
+void GotSection::addConstant(const Relocation &r) { relocations.push_back(r); }
 void GotSection::addEntry(Symbol &sym) {
   assert(sym.auxIdx == symAux.size() - 1);
   symAux.back().gotIdx = numEntries++;
@@ -888,7 +890,7 @@ void MipsGotSection::build() {
       for (SectionCommand *cmd : os->commands) {
         if (auto *isd = dyn_cast<InputSectionDescription>(cmd))
           for (InputSection *isec : isd->sections) {
-            uint64_t off = alignToPowerOf2(secSize, isec->alignment);
+            uint64_t off = alignToPowerOf2(secSize, isec->addralign);
             secSize = off + isec->getSize();
           }
       }
@@ -1418,6 +1420,14 @@ DynamicSection<ELFT>::computeContents() {
                   r.sym->stOther & STO_AARCH64_VARIANT_PCS;
           }) != in.relaPlt->relocs.end())
         addInt(DT_AARCH64_VARIANT_PCS, 0);
+      addInSec(DT_PLTGOT, *in.gotPlt);
+      break;
+    case EM_RISCV:
+      if (llvm::any_of(in.relaPlt->relocs, [](const DynamicReloc &r) {
+            return r.type == target->pltRel &&
+                   (r.sym->stOther & STO_RISCV_VARIANT_CC);
+          }))
+        addInt(DT_RISCV_VARIANT_CC, 0);
       [[fallthrough]];
     default:
       addInSec(DT_PLTGOT, *in.gotPlt);
@@ -1431,6 +1441,12 @@ DynamicSection<ELFT>::computeContents() {
       addInt(DT_AARCH64_BTI_PLT, 0);
     if (config->zPacPlt)
       addInt(DT_AARCH64_PAC_PLT, 0);
+
+    if (config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+      addInt(DT_AARCH64_MEMTAG_MODE, config->androidMemtagMode == NT_MEMTAG_LEVEL_ASYNC);
+      addInt(DT_AARCH64_MEMTAG_HEAP, config->androidMemtagHeap);
+      addInt(DT_AARCH64_MEMTAG_STACK, config->androidMemtagStack);
+    }
   }
 
   addInSec(DT_SYMTAB, *part.dynSymTab);
@@ -1578,24 +1594,22 @@ RelocationBaseSection::RelocationBaseSection(StringRef name, uint32_t type,
       dynamicTag(dynamicTag), sizeDynamicTag(sizeDynamicTag),
       relocsVec(concurrency), combreloc(combreloc) {}
 
-void RelocationBaseSection::addSymbolReloc(RelType dynType,
-                                           InputSectionBase &isec,
-                                           uint64_t offsetInSec, Symbol &sym,
-                                           int64_t addend,
-                                           Optional<RelType> addendRelType) {
+void RelocationBaseSection::addSymbolReloc(
+    RelType dynType, InputSectionBase &isec, uint64_t offsetInSec, Symbol &sym,
+    int64_t addend, std::optional<RelType> addendRelType) {
   addReloc(DynamicReloc::AgainstSymbol, dynType, isec, offsetInSec, sym, addend,
            R_ADDEND, addendRelType ? *addendRelType : target->noneRel);
 }
 
 void RelocationBaseSection::addAddendOnlyRelocIfNonPreemptible(
-    RelType dynType, InputSectionBase &isec, uint64_t offsetInSec, Symbol &sym,
+    RelType dynType, GotSection &sec, uint64_t offsetInSec, Symbol &sym,
     RelType addendRelType) {
   // No need to write an addend to the section for preemptible symbols.
   if (sym.isPreemptible)
-    addReloc({dynType, &isec, offsetInSec, DynamicReloc::AgainstSymbol, sym, 0,
+    addReloc({dynType, &sec, offsetInSec, DynamicReloc::AgainstSymbol, sym, 0,
               R_ABS});
   else
-    addReloc(DynamicReloc::AddendOnlyWithTargetVA, dynType, isec, offsetInSec,
+    addReloc(DynamicReloc::AddendOnlyWithTargetVA, dynType, sec, offsetInSec,
              sym, 0, R_ABS, addendRelType);
 }
 
@@ -2203,7 +2217,7 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
       // When -r is specified, a COMMON symbol is not allocated. Its st_shndx
       // holds SHN_COMMON and st_value holds the alignment.
       eSym->st_shndx = SHN_COMMON;
-      eSym->st_value = commonSec->alignment;
+      eSym->st_value = commonSec->addralign;
       eSym->st_size = cast<Defined>(sym)->size;
     } else {
       const uint32_t shndx = getSymSectionIndex(sym);
@@ -2484,7 +2498,7 @@ PltSection::PltSection()
   // On PowerPC, this section contains lazy symbol resolvers.
   if (config->emachine == EM_PPC64) {
     name = ".glink";
-    alignment = 4;
+    addralign = 4;
   }
 
   // On x86 when IBT is enabled, this section contains the second PLT (lazy
@@ -2542,7 +2556,7 @@ IpltSection::IpltSection()
     : SyntheticSection(SHF_ALLOC | SHF_EXECINSTR, SHT_PROGBITS, 16, ".iplt") {
   if (config->emachine == EM_PPC || config->emachine == EM_PPC64) {
     name = ".glink";
-    alignment = 4;
+    addralign = 4;
   }
 }
 
@@ -2575,7 +2589,7 @@ void IpltSection::addSymbols() {
 
 PPC32GlinkSection::PPC32GlinkSection() {
   name = ".glink";
-  alignment = 4;
+  addralign = 4;
 }
 
 void PPC32GlinkSection::writeTo(uint8_t *buf) {
@@ -2769,12 +2783,12 @@ createSymbols(
   // speed it up.
   constexpr size_t numShards = 32;
   const size_t concurrency =
-      PowerOf2Floor(std::min<size_t>(config->threadCount, numShards));
+      llvm::bit_floor(std::min<size_t>(config->threadCount, numShards));
 
   // A sharded map to uniquify symbols by name.
   auto map =
       std::make_unique<DenseMap<CachedHashStringRef, size_t>[]>(numShards);
-  size_t shift = 32 - countTrailingZeros(numShards);
+  size_t shift = 32 - llvm::countr_zero(numShards);
 
   // Instantiate GdbSymbols while uniqufying them by name.
   auto symbols = std::make_unique<SmallVector<GdbSymbol, 0>[]>(numShards);
@@ -2802,7 +2816,7 @@ createSymbols(
   });
 
   size_t numSymbols = 0;
-  for (ArrayRef<GdbSymbol> v : makeArrayRef(symbols.get(), numShards))
+  for (ArrayRef<GdbSymbol> v : ArrayRef(symbols.get(), numShards))
     numSymbols += v.size();
 
   // The return type is a flattened vector, so we'll copy each vector
@@ -2810,7 +2824,7 @@ createSymbols(
   SmallVector<GdbSymbol, 0> ret;
   ret.reserve(numSymbols);
   for (SmallVector<GdbSymbol, 0> &vec :
-       makeMutableArrayRef(symbols.get(), numShards))
+       MutableArrayRef(symbols.get(), numShards))
     for (GdbSymbol &sym : vec)
       ret.push_back(std::move(sym));
 
@@ -3203,14 +3217,14 @@ template <class ELFT> bool VersionNeedSection<ELFT>::isNeeded() const {
 void MergeSyntheticSection::addSection(MergeInputSection *ms) {
   ms->parent = this;
   sections.push_back(ms);
-  assert(alignment == ms->alignment || !(ms->flags & SHF_STRINGS));
-  alignment = std::max(alignment, ms->alignment);
+  assert(addralign == ms->addralign || !(ms->flags & SHF_STRINGS));
+  addralign = std::max(addralign, ms->addralign);
 }
 
 MergeTailSection::MergeTailSection(StringRef name, uint32_t type,
                                    uint64_t flags, uint32_t alignment)
     : MergeSyntheticSection(name, type, flags, alignment),
-      builder(StringTableBuilder::RAW, alignment) {}
+      builder(StringTableBuilder::RAW, llvm::Align(alignment)) {}
 
 size_t MergeTailSection::getSize() const { return builder.getSize(); }
 
@@ -3252,12 +3266,12 @@ void MergeNoTailSection::writeTo(uint8_t *buf) {
 void MergeNoTailSection::finalizeContents() {
   // Initializes string table builders.
   for (size_t i = 0; i < numShards; ++i)
-    shards.emplace_back(StringTableBuilder::RAW, alignment);
+    shards.emplace_back(StringTableBuilder::RAW, llvm::Align(addralign));
 
   // Concurrency level. Must be a power of 2 to avoid expensive modulo
   // operations in the following tight loop.
   const size_t concurrency =
-      PowerOf2Floor(std::min<size_t>(config->threadCount, numShards));
+      llvm::bit_floor(std::min<size_t>(config->threadCount, numShards));
 
   // Add section pieces to the builders.
   parallelFor(0, concurrency, [&](size_t threadId) {
@@ -3277,7 +3291,7 @@ void MergeNoTailSection::finalizeContents() {
   for (size_t i = 0; i < numShards; ++i) {
     shards[i].finalizeInOrder();
     if (shards[i].getSize() > 0)
-      off = alignToPowerOf2(off, alignment);
+      off = alignToPowerOf2(off, addralign);
     shardOffsets[i] = off;
     off += shards[i].getSize();
   }
@@ -3314,7 +3328,7 @@ void elf::combineEhSections() {
   for (EhInputSection *sec : ctx.ehInputSections) {
     EhFrameSection &eh = *sec->getPartition().ehFrame;
     sec->parent = &eh;
-    eh.alignment = std::max(eh.alignment, sec->alignment);
+    eh.addralign = std::max(eh.addralign, sec->addralign);
     eh.sections.push_back(sec);
     llvm::append_range(eh.dependentSections, sec->dependentSections);
   }
@@ -3395,17 +3409,12 @@ static bool isExtabRef(uint32_t unwind) {
 // EXIDX_CANTUNWIND entries are represented by nullptr as they do not have an
 // InputSection.
 static bool isDuplicateArmExidxSec(InputSection *prev, InputSection *cur) {
-
-  struct ExidxEntry {
-    ulittle32_t fn;
-    ulittle32_t unwind;
-  };
   // Get the last table Entry from the previous .ARM.exidx section. If Prev is
   // nullptr then it will be a synthesized EXIDX_CANTUNWIND entry.
-  ExidxEntry prevEntry = {ulittle32_t(0), ulittle32_t(1)};
+  uint32_t prevUnwind = 1;
   if (prev)
-    prevEntry = prev->getDataAs<ExidxEntry>().back();
-  if (isExtabRef(prevEntry.unwind))
+    prevUnwind = read32(prev->content().data() + prev->content().size() - 4);
+  if (isExtabRef(prevUnwind))
     return false;
 
   // We consider the unwind instructions of an .ARM.exidx table entry
@@ -3418,23 +3427,24 @@ static bool isDuplicateArmExidxSec(InputSection *prev, InputSection *cur) {
 
   // If Cur is nullptr then this is synthesized EXIDX_CANTUNWIND entry.
   if (cur == nullptr)
-    return prevEntry.unwind == 1;
+    return prevUnwind == 1;
 
-  for (const ExidxEntry entry : cur->getDataAs<ExidxEntry>())
-    if (isExtabRef(entry.unwind) || entry.unwind != prevEntry.unwind)
+  for (uint32_t offset = 4; offset < (uint32_t)cur->content().size(); offset +=8) {
+    uint32_t curUnwind = read32(cur->content().data() + offset);
+    if (isExtabRef(curUnwind) || curUnwind != prevUnwind)
       return false;
-
+  }
   // All table entries in this .ARM.exidx Section can be merged into the
   // previous Section.
   return true;
 }
 
 // The .ARM.exidx table must be sorted in ascending order of the address of the
-// functions the table describes. Optionally duplicate adjacent table entries
-// can be removed. At the end of the function the executableSections must be
-// sorted in ascending order of address, Sentinel is set to the InputSection
-// with the highest address and any InputSections that have mergeable
-// .ARM.exidx table entries are removed from it.
+// functions the table describes. std::optionally duplicate adjacent table
+// entries can be removed. At the end of the function the executableSections
+// must be sorted in ascending order of address, Sentinel is set to the
+// InputSection with the highest address and any InputSections that have
+// mergeable .ARM.exidx table entries are removed from it.
 void ARMExidxSyntheticSection::finalizeContents() {
   // The executableSections and exidxSections that we use to derive the final
   // contents of this SyntheticSection are populated before
@@ -3470,7 +3480,7 @@ void ARMExidxSyntheticSection::finalizeContents() {
   };
   llvm::stable_sort(executableSections, compareByFilePosition);
   sentinel = executableSections.back();
-  // Optionally merge adjacent duplicate entries.
+  // std::optionally merge adjacent duplicate entries.
   if (config->mergeArmExidx) {
     SmallVector<InputSection *, 0> selectedSections;
     selectedSections.reserve(executableSections.size());
@@ -3517,27 +3527,32 @@ InputSection *ARMExidxSyntheticSection::getLinkOrderDep() const {
 //     the table to terminate the address range of the final entry.
 void ARMExidxSyntheticSection::writeTo(uint8_t *buf) {
 
-  const uint8_t cantUnwindData[8] = {0, 0, 0, 0,  // PREL31 to target
-                                     1, 0, 0, 0}; // EXIDX_CANTUNWIND
-
+  // A linker generated CANTUNWIND entry is made up of two words:
+  // 0x0 with R_ARM_PREL31 relocation to target.
+  // 0x1 with EXIDX_CANTUNWIND.
   uint64_t offset = 0;
   for (InputSection *isec : executableSections) {
     assert(isec->getParent() != nullptr);
     if (InputSection *d = findExidxSection(isec)) {
-      memcpy(buf + offset, d->rawData.data(), d->rawData.size());
+      for (int dataOffset = 0; dataOffset != (int)d->content().size();
+           dataOffset += 4)
+        write32(buf + offset + dataOffset,
+                read32(d->content().data() + dataOffset));
       target->relocateAlloc(*d, buf + d->outSecOff);
       offset += d->getSize();
     } else {
       // A Linker generated CANTUNWIND section.
-      memcpy(buf + offset, cantUnwindData, sizeof(cantUnwindData));
+      write32(buf + offset + 0, 0x0);
+      write32(buf + offset + 4, 0x1);
       uint64_t s = isec->getVA();
       uint64_t p = getVA() + offset;
       target->relocateNoSym(buf + offset, R_ARM_PREL31, s - p);
       offset += 8;
     }
   }
-  // Write Sentinel.
-  memcpy(buf + offset, cantUnwindData, sizeof(cantUnwindData));
+  // Write Sentinel CANTUNWIND entry.
+  write32(buf + offset + 0, 0x0);
+  write32(buf + offset + 4, 0x1);
   uint64_t s = sentinel->getVA(sentinel->getSize());
   uint64_t p = getVA() + offset;
   target->relocateNoSym(buf + offset, R_ARM_PREL31, s - p);
@@ -3636,12 +3651,12 @@ uint64_t PPC64LongBranchTargetSection::getEntryVA(const Symbol *sym,
   return getVA() + entry_index.find({sym, addend})->second * 8;
 }
 
-Optional<uint32_t> PPC64LongBranchTargetSection::addEntry(const Symbol *sym,
-                                                          int64_t addend) {
+std::optional<uint32_t>
+PPC64LongBranchTargetSection::addEntry(const Symbol *sym, int64_t addend) {
   auto res =
       entry_index.try_emplace(std::make_pair(sym, addend), entries.size());
   if (!res.second)
-    return None;
+    return std::nullopt;
   entries.emplace_back(sym, addend);
   return res.first->second;
 }
@@ -3690,7 +3705,7 @@ static uint8_t getAbiVersion() {
 
   if (config->emachine == EM_AMDGPU && !ctx.objectFiles.empty()) {
     uint8_t ver = ctx.objectFiles[0]->abiVersion;
-    for (InputFile *file : makeArrayRef(ctx.objectFiles).slice(1))
+    for (InputFile *file : ArrayRef(ctx.objectFiles).slice(1))
       if (file->abiVersion != ver)
         error("incompatible ABI version: " + toString(file));
     return ver;
@@ -3799,6 +3814,7 @@ void PartitionIndexSection::writeTo(uint8_t *buf) {
 
 void InStruct::reset() {
   attributes.reset();
+  riscvAttributes.reset();
   bss.reset();
   bssRelRo.reset();
   got.reset();
@@ -3826,16 +3842,16 @@ void InStruct::reset() {
 
 constexpr char kMemtagAndroidNoteName[] = "Android";
 void MemtagAndroidNote::writeTo(uint8_t *buf) {
-  static_assert(sizeof(kMemtagAndroidNoteName) == 8,
-                "ABI check for Android 11 & 12.");
-  assert((config->androidMemtagStack || config->androidMemtagHeap) &&
-         "Should only be synthesizing a note if heap || stack is enabled.");
+  static_assert(
+      sizeof(kMemtagAndroidNoteName) == 8,
+      "Android 11 & 12 have an ABI that the note name is 8 bytes long. Keep it "
+      "that way for backwards compatibility.");
 
   write32(buf, sizeof(kMemtagAndroidNoteName));
   write32(buf + 4, sizeof(uint32_t));
   write32(buf + 8, ELF::NT_ANDROID_TYPE_MEMTAG);
   memcpy(buf + 12, kMemtagAndroidNoteName, sizeof(kMemtagAndroidNoteName));
-  buf += 12 + sizeof(kMemtagAndroidNoteName);
+  buf += 12 + alignTo(sizeof(kMemtagAndroidNoteName), 4);
 
   uint32_t value = 0;
   value |= config->androidMemtagMode;
@@ -3850,7 +3866,7 @@ void MemtagAndroidNote::writeTo(uint8_t *buf) {
 
 size_t MemtagAndroidNote::getSize() const {
   return sizeof(llvm::ELF::Elf64_Nhdr) +
-         /*namesz=*/sizeof(kMemtagAndroidNoteName) +
+         /*namesz=*/alignTo(sizeof(kMemtagAndroidNoteName), 4) +
          /*descsz=*/sizeof(uint32_t);
 }
 

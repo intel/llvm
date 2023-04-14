@@ -12,8 +12,10 @@
 
 #include <__config>
 #include <__memory/uses_allocator.h>
+#include <__type_traits/integral_constant.h>
+#include <__type_traits/is_constructible.h>
+#include <__type_traits/remove_cvref.h>
 #include <__utility/forward.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -23,9 +25,9 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 struct _LIBCPP_TEMPLATE_VIS allocator_arg_t { explicit allocator_arg_t() = default; };
 
-#if defined(_LIBCPP_CXX03_LANG) || defined(_LIBCPP_BUILDING_LIBRARY)
+#if defined(_LIBCPP_BUILDING_LIBRARY)
 extern _LIBCPP_EXPORTED_FROM_ABI const allocator_arg_t allocator_arg;
-#else
+#elif !defined(_LIBCPP_CXX03_LANG)
 /* inline */ constexpr allocator_arg_t allocator_arg = allocator_arg_t();
 #endif
 

@@ -14,7 +14,7 @@
 #ifndef BOLT_CORE_RELOCATION_H
 #define BOLT_CORE_RELOCATION_H
 
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
 class MCStreamer;
@@ -58,8 +58,10 @@ struct Relocation {
   /// Skip relocations that we don't want to handle in BOLT
   static bool skipRelocationType(uint64_t Type);
 
-  /// Handle special cases when relocation should not be processed by BOLT
-  static bool skipRelocationProcess(uint64_t Type, uint64_t Contents);
+  /// Handle special cases when relocation should not be processed by BOLT or
+  /// change relocation \p Type to proper one before continuing if \p Contents
+  /// and \P Type mismatch occured.
+  static bool skipRelocationProcess(uint64_t &Type, uint64_t Contents);
 
   // Adjust value depending on relocation type (make it PC relative or not)
   static uint64_t adjustValue(uint64_t Type, uint64_t Value,
@@ -103,6 +105,12 @@ struct Relocation {
 
   /// Return code for a PC-relative 8-byte relocation
   static uint64_t getPC64();
+
+  /// Return code for a ABS 8-byte relocation
+  static uint64_t getAbs64();
+
+  /// Return code for a RELATIVE relocation
+  static uint64_t getRelative();
 
   /// Return true if this relocation is PC-relative. Return false otherwise.
   bool isPCRelative() const { return isPCRelative(Type); }

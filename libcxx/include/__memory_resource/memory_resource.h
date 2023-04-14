@@ -16,7 +16,7 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -30,6 +30,7 @@ class _LIBCPP_TYPE_VIS memory_resource {
 public:
   virtual ~memory_resource();
 
+  _LIBCPP_NODISCARD_AFTER_CXX17
   [[using __gnu__: __returns_nonnull__, __alloc_size__(2), __alloc_align__(3)]] _LIBCPP_HIDE_FROM_ABI void*
   allocate(size_t __bytes, size_t __align = __max_align) {
     return do_allocate(__bytes, __align);
@@ -69,6 +70,6 @@ inline _LIBCPP_HIDE_FROM_ABI bool operator!=(const memory_resource& __lhs, const
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___MEMORY_RESOURCE_MEMORY_RESOURCE_H

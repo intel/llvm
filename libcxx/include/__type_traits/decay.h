@@ -27,9 +27,13 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if __has_builtin(__decay)
 template <class _Tp>
+using __decay_t _LIBCPP_NODEBUG = __decay(_Tp);
+
+template <class _Tp>
 struct decay {
-  using type _LIBCPP_NODEBUG = __decay(_Tp);
+  using type _LIBCPP_NODEBUG = __decay_t<_Tp>;
 };
+
 #else
 template <class _Up, bool>
 struct __decay {
@@ -42,7 +46,7 @@ public:
     typedef _LIBCPP_NODEBUG typename conditional
                      <
                          is_array<_Up>::value,
-                         __remove_extent_t<_Up>*,
+                         __add_pointer_t<__remove_extent_t<_Up> >,
                          typename conditional
                          <
                               is_function<_Up>::value,
@@ -60,10 +64,13 @@ private:
 public:
   typedef _LIBCPP_NODEBUG typename __decay<_Up, __libcpp_is_referenceable<_Up>::value>::type type;
 };
+
+template <class _Tp>
+using __decay_t = typename decay<_Tp>::type;
 #endif // __has_builtin(__decay)
 
-#if _LIBCPP_STD_VER > 11
-template <class _Tp> using decay_t = typename decay<_Tp>::type;
+#if _LIBCPP_STD_VER >= 14
+template <class _Tp> using decay_t = __decay_t<_Tp>;
 #endif
 
 _LIBCPP_END_NAMESPACE_STD

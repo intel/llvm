@@ -12,6 +12,7 @@
 #include "clang/AST/DeclGroup.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/Sarif.h"
 #include "clang/Frontend/ASTUnit.h"
@@ -335,7 +336,7 @@ static std::error_code collectModuleHeaderIncludes(
     return std::error_code();
 
   // Resolve all lazy header directives to header files.
-  ModMap.resolveHeaderDirectives(Module, /*File=*/llvm::None);
+  ModMap.resolveHeaderDirectives(Module, /*File=*/std::nullopt);
 
   // If any headers are missing, we can't build this module. In most cases,
   // diagnostics for this should have already been produced; we only get here
@@ -376,7 +377,9 @@ static std::error_code collectModuleHeaderIncludes(
     llvm::sys::path::native(UmbrellaDir.Entry->getName(), DirNative);
 
     llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
-    SmallVector<std::pair<std::string, const FileEntry *>, 8> Headers;
+    SmallVector<
+        std::pair<std::string, OptionalFileEntryRefDegradesToFileEntryPtr>, 8>
+        Headers;
     for (llvm::vfs::recursive_directory_iterator Dir(FS, DirNative, EC), End;
          Dir != End && !EC; Dir.increment(EC)) {
       // Check whether this entry has an extension typically associated with
@@ -386,7 +389,7 @@ static std::error_code collectModuleHeaderIncludes(
                .Default(false))
         continue;
 
-      auto Header = FileMgr.getFile(Dir->path());
+      auto Header = FileMgr.getOptionalFileRef(Dir->path());
       // FIXME: This shouldn't happen unless there is a file system race. Is
       // that worth diagnosing?
       if (!Header)
@@ -638,11 +641,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
         if (&MF != &PrimaryModule)
           CI.getFrontendOpts().ModuleFiles.push_back(MF.FileName);
 
-      ASTReader->visitTopLevelModuleMaps(
-          PrimaryModule, [&](const FileEntry *FE) {
-            CI.getFrontendOpts().ModuleMapFiles.push_back(
-                std::string(FE->getName()));
-          });
+      ASTReader->visitTopLevelModuleMaps(PrimaryModule, [&](FileEntryRef FE) {
+        CI.getFrontendOpts().ModuleMapFiles.push_back(
+            std::string(FE.getName()));
+      });
     }
 
     // Set up the input file for replay purposes.
@@ -779,8 +781,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
            Dir != DirEnd && !EC; Dir.increment(EC)) {
         // Check whether this is an acceptable AST file.
         if (ASTReader::isAcceptableASTFile(
-                Dir->path(), FileMgr, CI.getPCHContainerReader(),
-                CI.getLangOpts(), CI.getTargetOpts(), CI.getPreprocessorOpts(),
+                Dir->path(), FileMgr, CI.getModuleCache(),
+                CI.getPCHContainerReader(), CI.getLangOpts(),
+                CI.getTargetOpts(), CI.getPreprocessorOpts(),
                 SpecificModuleCachePath, /*RequireStrictOptionMatches=*/true)) {
           PPOpts.ImplicitPCHInclude = std::string(Dir->path());
           Found = true;
@@ -823,7 +826,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
         Dir = *DirOrErr;
       SmallVector<std::pair<const FileEntry *, const DirectoryEntry *>, 1> CWD;
       CWD.push_back({nullptr, Dir});
-      Optional<FileEntryRef> FE =
+      OptionalFileEntryRef FE =
           HS.LookupFile(FileName, SourceLocation(),
                         /*Angled*/ Input.getKind().getHeaderUnitKind() ==
                             InputKind::HeaderUnit_System,
@@ -1114,6 +1117,9 @@ void FrontendAction::EndSourceFile() {
   // FrontendAction.
   CI.clearOutputFiles(/*EraseFiles=*/shouldEraseOutputFiles());
 
+  // The resources are owned by AST when the current file is AST.
+  // So we reset the resources here to avoid users accessing it
+  // accidently.
   if (isCurrentFileAST()) {
     if (DisableFree) {
       CI.resetAndLeakPreprocessor();

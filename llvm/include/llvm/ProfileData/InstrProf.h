@@ -20,7 +20,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProfData.inc"
@@ -29,10 +28,11 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -862,13 +862,13 @@ private:
     // cast away the constness from the result.
     auto AR = const_cast<const InstrProfRecord *>(this)->getValueSitesForKind(
         ValueKind);
-    return makeMutableArrayRef(
+    return MutableArrayRef(
         const_cast<InstrProfValueSiteRecord *>(AR.data()), AR.size());
   }
   ArrayRef<InstrProfValueSiteRecord>
   getValueSitesForKind(uint32_t ValueKind) const {
     if (!ValueData)
-      return None;
+      return std::nullopt;
     switch (ValueKind) {
     case IPVK_IndirectCallTarget:
       return ValueData->IndirectCallSites;
@@ -1050,7 +1050,9 @@ enum ProfVersion {
   Version7 = 7,
   // An additional (optional) memory profile type is added.
   Version8 = 8,
-  // The current version is 8.
+  // Binary ids are added.
+  Version9 = 9,
+  // The current version is 9.
   CurrentVersion = INSTR_PROF_INDEX_VERSION
 };
 const uint64_t Version = ProfVersion::CurrentVersion;
@@ -1068,6 +1070,7 @@ struct Header {
   uint64_t HashType;
   uint64_t HashOffset;
   uint64_t MemProfOffset;
+  uint64_t BinaryIdOffset;
   // New fields should only be added at the end to ensure that the size
   // computation is correct. The methods below need to be updated to ensure that
   // the new field is read correctly.

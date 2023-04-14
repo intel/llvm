@@ -51,6 +51,24 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  gettimeofday
+  SUITE
+    libc_time_unittests
+  SRCS
+    gettimeofday_test.cpp
+  HDRS
+    TmHelper.h
+    TmMatcher.h
+  CXX_STANDARD
+    20
+  DEPENDS
+    libc.include.time
+    libc.src.time.gettimeofday
+    libc.src.time.nanosleep
+    libc.src.errno.errno
+)
+
+add_libc_unittest(
   gmtime
   SUITE
     libc_time_unittests
@@ -101,9 +119,9 @@ add_libc_unittest(
   CXX_STANDARD
     20
   DEPENDS
-    libc.include.errno
     libc.include.time
     libc.src.time.nanosleep
+    libc.src.errno.errno
 )
 
 add_libc_unittest(
@@ -113,9 +131,9 @@ add_libc_unittest(
   SRCS
     time_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.time
     libc.src.time.time
+    libc.src.errno.errno
 )
 
 add_libc_unittest(
@@ -125,7 +143,7 @@ add_libc_unittest(
   SRCS
     clock_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.time
     libc.src.time.clock
+    libc.src.errno.errno
 )

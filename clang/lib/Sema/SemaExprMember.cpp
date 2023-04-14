@@ -161,10 +161,13 @@ static IMAKind ClassifyImplicitMemberAccess(Sema &SemaRef,
   }
 
   CXXRecordDecl *contextClass;
-  if (CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(DC))
+  if (auto *MD = dyn_cast<CXXMethodDecl>(DC))
     contextClass = MD->getParent()->getCanonicalDecl();
+  else if (auto *RD = dyn_cast<CXXRecordDecl>(DC))
+    contextClass = RD;
   else
-    contextClass = cast<CXXRecordDecl>(DC);
+    return AbstractInstanceResult ? AbstractInstanceResult
+                                  : IMA_Error_StaticContext;
 
   // [class.mfct.non-static]p3:
   // ...is used in the body of a non-static member function of class X,
@@ -1621,16 +1624,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
   if (BaseType->isExtVectorType()) {
     // FIXME: this expr should store IsArrow.
     IdentifierInfo *Member = MemberName.getAsIdentifierInfo();
-    ExprValueKind VK;
-    if (IsArrow)
-      VK = VK_LValue;
-    else {
-      if (PseudoObjectExpr *POE = dyn_cast<PseudoObjectExpr>(BaseExpr.get()))
-        VK = POE->getSyntacticForm()->getValueKind();
-      else
-        VK = BaseExpr.get()->getValueKind();
-    }
-
+    ExprValueKind VK = (IsArrow ? VK_LValue : BaseExpr.get()->getValueKind());
     QualType ret = CheckExtVectorComponent(S, BaseType, VK, OpLoc,
                                            Member, MemberLoc);
     if (ret.isNull())

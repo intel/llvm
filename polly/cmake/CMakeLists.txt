@@ -12,7 +12,8 @@ set(polly_cmake_builddir "${POLLY_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/pol
 set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
   "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
 # CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
-set(llvm_cmake_builddir "${LLVM_LIBRARY_DIR}/cmake/llvm")
+string(REPLACE "${CMAKE_CFG_INTDIR}" "." llvm_cmake_builddir "${LLVM_LIBRARY_DIR}")
+set(llvm_cmake_builddir "${llvm_cmake_builddir}/cmake/llvm")
 
 if (CMAKE_CONFIGURATION_TYPES)
   set(POLLY_EXPORTS_FILE_NAME "PollyExports-$<LOWER_CASE:$<CONFIG>>.cmake")
@@ -25,9 +26,6 @@ set(POLLY_CONFIG_EXPORTED_TARGETS Polly ${ISL_TARGET})
 if (NOT WIN32 AND LLVM_ENABLE_PIC)
   # LLVMPolly is a dummy target on Win or if PIC code is disabled.
   list(APPEND POLLY_CONFIG_EXPORTED_TARGETS LLVMPolly)
-endif()
-if (POLLY_ENABLE_GPGPU_CODEGEN)
-  list(APPEND POLLY_CONFIG_EXPORTED_TARGETS PollyPPCG)
 endif()
 
 # Get the target type for every exported target
@@ -81,6 +79,10 @@ endforeach(tgt)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/PollyConfig.cmake.in
   ${polly_cmake_builddir}/PollyConfig.cmake
+  @ONLY)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/PollyConfigVersion.cmake.in
+  ${polly_cmake_builddir}/PollyConfigVersion.cmake
   @ONLY)
 
 file(GENERATE
@@ -138,6 +140,10 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/PollyConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/PollyConfig.cmake
   @ONLY)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/PollyConfigVersion.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/PollyConfigVersion.cmake
+  @ONLY)
 file(GENERATE OUTPUT
   ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${POLLY_EXPORTS_FILE_NAME}
   CONTENT "${POLLY_EXPORTS}")
@@ -146,6 +152,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   install(
     FILES
     "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/PollyConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/PollyConfigVersion.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${POLLY_EXPORTS_FILE_NAME}"
     DESTINATION "${POLLY_INSTALL_PACKAGE_DIR}")
 endif ()

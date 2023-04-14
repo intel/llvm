@@ -107,7 +107,7 @@ endif()
 add_library(           cxx-benchmarks-flags-libcxx INTERFACE)
 target_link_libraries( cxx-benchmarks-flags-libcxx INTERFACE cxx-benchmarks-flags)
 target_compile_options(cxx-benchmarks-flags-libcxx INTERFACE ${SANITIZER_FLAGS} -Wno-user-defined-literals -Wno-suggest-override)
-target_link_options(   cxx-benchmarks-flags-libcxx INTERFACE -nodefaultlibs "-L${BENCHMARK_LIBCXX_INSTALL}/lib" ${SANITIZER_FLAGS})
+target_link_options(   cxx-benchmarks-flags-libcxx INTERFACE -nodefaultlibs "-L${BENCHMARK_LIBCXX_INSTALL}/lib" "-L${BENCHMARK_LIBCXX_INSTALL}/lib64" ${SANITIZER_FLAGS})
 
 set(libcxx_benchmark_targets)
 
@@ -158,9 +158,11 @@ endfunction()
 #==============================================================================
 set(BENCHMARK_TESTS
     algorithms.partition_point.bench.cpp
+    algorithms/equal.bench.cpp
     algorithms/lower_bound.bench.cpp
     algorithms/make_heap.bench.cpp
     algorithms/make_heap_then_sort_heap.bench.cpp
+    algorithms/min.bench.cpp
     algorithms/min_max_element.bench.cpp
     algorithms/pop_heap.bench.cpp
     algorithms/push_heap.bench.cpp
@@ -174,8 +176,10 @@ set(BENCHMARK_TESTS
     algorithms/sort.bench.cpp
     algorithms/sort_heap.bench.cpp
     algorithms/stable_sort.bench.cpp
+    libcxxabi/dynamic_cast.bench.cpp
     allocation.bench.cpp
     deque.bench.cpp
+    deque_iterator.bench.cpp
     filesystem.bench.cpp
     format_to_n.bench.cpp
     format_to.bench.cpp
@@ -184,7 +188,10 @@ set(BENCHMARK_TESTS
     formatter_float.bench.cpp
     formatter_int.bench.cpp
     function.bench.cpp
+    join_view.bench.cpp
+    lexicographical_compare_three_way.bench.cpp
     map.bench.cpp
+    monotonic_buffer.bench.cpp
     ordered_set.bench.cpp
     std_format_spec_string_unicode.bench.cpp
     string.bench.cpp

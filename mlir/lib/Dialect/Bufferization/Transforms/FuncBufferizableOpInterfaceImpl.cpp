@@ -14,6 +14,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
+#include <optional>
 
 namespace mlir {
 namespace bufferization {
@@ -22,20 +23,16 @@ namespace func_ext {
 void FuncAnalysisState::startFunctionAnalysis(FuncOp funcOp) {
   analyzedFuncOps[funcOp] = FuncOpAnalysisState::InProgress;
   auto createdEquiv = equivalentFuncArgs.try_emplace(funcOp, IndexMapping());
-  auto createdAliasingOperands =
-      aliasingFuncArgs.try_emplace(funcOp, IndexToIndexListMapping());
   auto createdAliasingResults =
       aliasingReturnVals.try_emplace(funcOp, IndexToIndexListMapping());
   auto createdRead = readBbArgs.try_emplace(funcOp, BbArgIndexSet());
   auto createdWritten = writtenBbArgs.try_emplace(funcOp, BbArgIndexSet());
   (void)createdEquiv;
-  (void)createdAliasingOperands;
   (void)createdAliasingResults;
   (void)createdRead;
   (void)createdWritten;
 #ifndef NDEBUG
   assert(createdEquiv.second && "equivalence info exists already");
-  assert(createdAliasingOperands.second && "aliasing info exists already");
   assert(createdAliasingResults.second && "aliasing info exists already");
   assert(createdRead.second && "bbarg access info exists already");
   assert(createdWritten.second && "bbarg access info exists already");
@@ -69,12 +66,14 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
 
   BaseMemRefType memrefType;
   if (options.functionBoundaryTypeConversion ==
-      BufferizationOptions::LayoutMapOption::IdentityLayoutMap) {
-    memrefType = getMemRefTypeWithStaticIdentityLayout(tensorType);
+      LayoutMapOption::IdentityLayoutMap) {
+    memrefType = getMemRefTypeWithStaticIdentityLayout(
+        tensorType, *options.defaultMemorySpace);
   } else {
     // Note: Layout maps on function parameters cannot be inferred. The best we
     // can do at the moment is "fully dynamic".
-    memrefType = getMemRefTypeWithFullyDynamicLayout(tensorType);
+    memrefType = getMemRefTypeWithFullyDynamicLayout(
+        tensorType, *options.defaultMemorySpace);
   }
 
   auto layoutAttr = funcOp.getArgAttrOfType<AffineMapAttr>(
@@ -86,7 +85,7 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
   assert(rankedMemrefType && "buffer layout not supported on unranked tensors");
   return MemRefType::get(
       rankedMemrefType.getShape(), rankedMemrefType.getElementType(),
-      layoutAttr.getValue(), rankedMemrefType.getMemorySpaceAsInt());
+      layoutAttr.getValue(), rankedMemrefType.getMemorySpace());
 }
 
 /// Return the FuncOp called by `callOp`.
@@ -101,22 +100,23 @@ static FuncOp getCalledFunction(CallOpInterface callOp) {
 /// Get FuncAnalysisState.
 static const FuncAnalysisState &
 getFuncAnalysisState(const AnalysisState &state) {
-  Optional<const FuncAnalysisState *> maybeState =
-      state.getDialectState<FuncAnalysisState>(
-          func::FuncDialect::getDialectNamespace());
-  assert(maybeState && "FuncAnalysisState does not exist");
-  return **maybeState;
+  assert(isa<OneShotAnalysisState>(state) && "expected OneShotAnalysisState");
+  auto *result = static_cast<const OneShotAnalysisState &>(state)
+                     .getExtension<FuncAnalysisState>();
+  assert(result && "FuncAnalysisState does not exist");
+  return *result;
 }
 
 /// Return the state (phase) of analysis of the FuncOp.
 static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
                                                   FuncOp funcOp) {
-  Optional<const FuncAnalysisState *> maybeState =
-      state.getDialectState<FuncAnalysisState>(
-          func::FuncDialect::getDialectNamespace());
-  if (!maybeState.has_value())
+  if (!isa<OneShotAnalysisState>(state))
     return FuncOpAnalysisState::NotAnalyzed;
-  const auto &analyzedFuncOps = maybeState.value()->analyzedFuncOps;
+  auto *funcState = static_cast<const OneShotAnalysisState &>(state)
+                        .getExtension<FuncAnalysisState>();
+  if (!funcState)
+    return FuncOpAnalysisState::NotAnalyzed;
+  const auto &analyzedFuncOps = funcState->analyzedFuncOps;
   auto it = analyzedFuncOps.find(funcOp);
   if (it == analyzedFuncOps.end())
     return FuncOpAnalysisState::NotAnalyzed;
@@ -125,18 +125,18 @@ static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
 
 /// Return the index of the bbArg in the given FuncOp that is equivalent to the
 /// specified return value (if any).
-static Optional<int64_t> getEquivalentFuncArgIdx(FuncOp funcOp,
-                                                 const FuncAnalysisState &state,
-                                                 int64_t returnValIdx) {
+static std::optional<int64_t>
+getEquivalentFuncArgIdx(FuncOp funcOp, const FuncAnalysisState &state,
+                        int64_t returnValIdx) {
   auto funcOpIt = state.equivalentFuncArgs.find(funcOp);
   if (funcOpIt == state.equivalentFuncArgs.end())
     // No equivalence info stores for funcOp.
-    return None;
+    return std::nullopt;
 
   auto retValIt = funcOpIt->getSecond().find(returnValIdx);
   if (retValIt == funcOpIt->getSecond().end())
     // Return value has no equivalent bbArg.
-    return None;
+    return std::nullopt;
 
   return retValIt->getSecond();
 }
@@ -174,84 +174,37 @@ struct CallOpInterface
         opOperand.getOperandNumber());
   }
 
-  SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
+  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
     func::CallOp callOp = cast<func::CallOp>(op);
     FuncOp funcOp = getCalledFunction(callOp);
     assert(funcOp && "expected CallOp to a FuncOp");
-    if (getFuncOpAnalysisState(state, funcOp) !=
-        FuncOpAnalysisState::Analyzed) {
+    if (getFuncOpAnalysisState(state, funcOp) != FuncOpAnalysisState::Analyzed)
       // FuncOp not analyzed yet. Any OpResult may be aliasing.
-      SmallVector<OpResult> result;
-      for (OpResult opResult : op->getOpResults())
-        if (opResult.getType().isa<TensorType>())
-          result.push_back(opResult);
-      return result;
-    }
+      return detail::unknownGetAliasingOpResults(opOperand);
 
     // Get aliasing results from state.
     const FuncAnalysisState &funcState = getFuncAnalysisState(state);
     auto aliasingReturnVals =
         funcState.aliasingReturnVals.lookup(funcOp).lookup(
             opOperand.getOperandNumber());
-    SmallVector<OpResult> result;
-    for (int64_t resultIdx : aliasingReturnVals)
-      result.push_back(callOp->getOpResult(resultIdx));
-    return result;
-  }
 
-  SmallVector<OpOperand *>
-  getAliasingOpOperand(Operation *op, OpResult opResult,
-                       const AnalysisState &state) const {
-    func::CallOp callOp = cast<func::CallOp>(op);
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
-    if (getFuncOpAnalysisState(state, funcOp) !=
-        FuncOpAnalysisState::Analyzed) {
-      // FuncOp not analyzed yet. Any OpOperand may be aliasing.
-      SmallVector<OpOperand *> result;
-      for (OpOperand &opOperand : op->getOpOperands())
-        if (opOperand.get().getType().isa<TensorType>())
-          result.push_back(&opOperand);
-      return result;
-    }
-
-    // Get aliasing bbArgs from state.
-    const FuncAnalysisState &funcState = getFuncAnalysisState(state);
-    auto aliasingFuncArgs = funcState.aliasingFuncArgs.lookup(funcOp).lookup(
-        opResult.getResultNumber());
-    SmallVector<OpOperand *> result;
-    for (int64_t bbArgIdx : aliasingFuncArgs)
-      result.push_back(&callOp->getOpOperand(bbArgIdx));
-    return result;
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    func::CallOp callOp = cast<func::CallOp>(op);
-    FuncOp funcOp = getCalledFunction(callOp);
-    assert(funcOp && "expected CallOp to a FuncOp");
-    if (getFuncOpAnalysisState(state, funcOp) !=
-        FuncOpAnalysisState::Analyzed) {
-      // Function not analyzed yet. The conservative answer is "None".
-      return BufferRelation::None;
-    }
-
-    const FuncAnalysisState &funcState = getFuncAnalysisState(state);
-    Optional<int64_t> maybeEquiv =
-        getEquivalentFuncArgIdx(funcOp, funcState, opResult.getResultNumber());
-    if (maybeEquiv) {
-#ifndef NDEBUG
-      SmallVector<OpOperand *> aliasingOpOperands =
-          getAliasingOpOperand(op, opResult, state);
-      assert(aliasingOpOperands.size() == 1 &&
-             "expected exactly 1 aliasing OpOperand");
-      assert(aliasingOpOperands.front()->getOperandNumber() == *maybeEquiv &&
+    // Check if the aliasing OpResult is equivalent to the OpOperand.
+    std::optional<int64_t> equivalent = {};
+    if (aliasingReturnVals.size() == 1) {
+      equivalent = getEquivalentFuncArgIdx(funcOp, funcState,
+                                           aliasingReturnVals.front());
+      assert((!equivalent.has_value() ||
+              *equivalent == opOperand.getOperandNumber()) &&
              "inconsistent analysis state");
-#endif
-      return BufferRelation::Equivalent;
     }
-    return BufferRelation::None;
+    AliasingOpResultList result;
+    for (int64_t resultIdx : aliasingReturnVals)
+      result.addAlias({callOp->getOpResult(resultIdx),
+                       equivalent.has_value() ? BufferRelation::Equivalent
+                                              : BufferRelation::Unknown,
+                       /*isDefinite=*/equivalent.has_value()});
+    return result;
   }
 
   /// All function arguments are writable. It is the responsibility of the
@@ -272,7 +225,8 @@ struct CallOpInterface
     SmallVector<Value> replacementValues(numResults, Value());
     // For non-tensor results: A mapping from return val indices of the old
     // CallOp to return val indices of the bufferized CallOp.
-    SmallVector<Optional<unsigned>> retValMapping(numResults, None);
+    SmallVector<std::optional<unsigned>> retValMapping(numResults,
+                                                       std::nullopt);
     // Operands of the bufferized CallOp.
     SmallVector<Value> newOperands(numOperands, Value());
 
@@ -362,7 +316,7 @@ struct ReturnOpInterface
     return false;
   }
 
-  SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
+  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
     return {};
   }
@@ -471,11 +425,13 @@ struct FuncOpInterface
 
       BaseMemRefType resultType;
       if (options.functionBoundaryTypeConversion ==
-          BufferizationOptions::LayoutMapOption::IdentityLayoutMap) {
-        resultType = getMemRefTypeWithStaticIdentityLayout(tensorType);
+          LayoutMapOption::IdentityLayoutMap) {
+        resultType = getMemRefTypeWithStaticIdentityLayout(
+            tensorType, *options.defaultMemorySpace);
       } else {
         // Note: If `InferLayoutMap`, cast are later folded away.
-        resultType = getMemRefTypeWithFullyDynamicLayout(tensorType);
+        resultType = getMemRefTypeWithFullyDynamicLayout(
+            tensorType, *options.defaultMemorySpace);
       }
       Value toMemrefOp = rewriter.create<bufferization::ToMemrefOp>(
           loc, resultType, returnVal);
@@ -483,7 +439,7 @@ struct FuncOpInterface
     }
 
     // 3. Rewrite the terminator without the in-place bufferizable values.
-    returnOp.operandsMutable().assign(returnValues);
+    returnOp.getOperandsMutable().assign(returnValues);
 
     // 4. Rewrite the FuncOp type to buffer form.
     funcOp.setType(FunctionType::get(op->getContext(), argTypes,

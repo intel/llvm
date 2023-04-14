@@ -18,6 +18,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 3     | HW threads per EU device query is supported |
 | 4     | Free device memory query is supported |
 | 5     | Device ID is supported |
+| 6     | Memory clock rate and bus width queries are supported |
 
 
 
@@ -73,7 +74,7 @@ The extension supports this query in version 2 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| ext\:\:intel\:\:info\:\:device\:\:uuid | unsigned char | Returns the device UUID|
+| ext\:\:intel\:\:info\:\:device\:\:uuid | std::array<unsigned char, 16> | Returns the device UUID|
 
 
 ## Aspects ##
@@ -423,6 +424,80 @@ Then the free device memory  can be obtained using the standard get\_info() inte
 
     if (dev.has(aspect::ext_intel_free_memory)) {
       auto FreeMemory = dev.get_info<ext::intel::info::device::free_memory>();
+    }
+
+
+# Memory Clock Rate #
+
+A new device descriptor is added which provides the maximum clock rate of device's global memory.
+
+This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+## Version ##
+
+The extension supports this query in version 6 and later.
+
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| ext\:\:intel\:\:info\:\:device\:\:memory\_clock\_rate | uint32\_t| Returns the maximum clock rate of device's global memory in MHz. If device doesn't have memory then returns 0. If there are several memories on the device then the minimum of the clock rate values is returned. |
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_memory\_clock\_rate, is added.
+
+
+## Error Condition ##
+
+An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
+
+
+## Example Usage ##
+
+Then the memory clock rate can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_memory_clock_rate)) {
+      auto MemoryClockRate = dev.get_info<ext::intel::info::device::memory_clock_rate>();
+    }
+
+
+# Memory Bus Width #
+
+A new device descriptor is added which provides the maximum bus width between device and memory.
+
+This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+## Version ##
+
+The extension supports this query in version 6 and later.
+
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| ext\:\:intel\:\:info\:\:device\:\:memory\_bus\_width | uint32\_t| Returns the maximum bus width between device and memory in bits. If device doesn't have memory then returns 0. If there are several memories on the device then the minimum of the bus width values is returned. |
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_memory\_bus\_width, is added.
+
+
+## Error Condition ##
+
+An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
+
+
+## Example Usage ##
+
+Then the memory bus width can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_memory_bus_width)) {
+      auto MemoryBusWidth = dev.get_info<ext::intel::info::device::memory_bus_width>();
     }
 
 # Deprecated queries #

@@ -12,9 +12,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace level_zero {
+namespace ext::oneapi::level_zero {
 
 // Since Level-Zero is not doing any reference counting itself, we have to
 // be explicit about the ownership of the native handles used in the
@@ -22,8 +20,6 @@ namespace level_zero {
 //
 enum class ownership { transfer, keep };
 
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::level_zero
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

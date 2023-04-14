@@ -28,6 +28,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/SourceMgr.h"
 #include <algorithm>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -250,7 +251,7 @@ OptionalParseResult Parser::parseOptionalInteger(APInt &result) {
 
   Token curToken = getToken();
   if (curToken.isNot(Token::integer, Token::minus))
-    return llvm::None;
+    return std::nullopt;
 
   bool negative = consumeIf(Token::minus);
   Token curTok = getToken();
@@ -275,7 +276,7 @@ OptionalParseResult Parser::parseOptionalInteger(APInt &result) {
 
 /// Parse a floating point value from an integer literal token.
 ParseResult Parser::parseFloatFromIntegerLiteral(
-    Optional<APFloat> &result, const Token &tok, bool isNegative,
+    std::optional<APFloat> &result, const Token &tok, bool isNegative,
     const llvm::fltSemantics &semantics, size_t typeSizeInBits) {
   SMLoc loc = tok.getLoc();
   StringRef spelling = tok.getSpelling();
@@ -291,7 +292,7 @@ ParseResult Parser::parseFloatFromIntegerLiteral(
                           "leading minus");
   }
 
-  Optional<uint64_t> value = tok.getUInt64IntegerValue();
+  std::optional<uint64_t> value = tok.getUInt64IntegerValue();
   if (!value)
     return emitError(loc, "hexadecimal float constant out of range for type");
 
@@ -388,7 +389,7 @@ ParseResult Parser::codeCompleteDialectOrElidedOpName(SMLoc loc) {
     const char *bufBegin = state.lex.getBufferBegin();
     const char *it = loc.getPointer() - 1;
     for (; it > bufBegin && *it != '\n'; --it)
-      if (!llvm::is_contained(StringRef(" \t\r"), *it))
+      if (!StringRef(" \t\r").contains(*it))
         return true;
     return false;
   };
@@ -501,7 +502,7 @@ public:
 
   /// Return the location of the value identified by its name and number if it
   /// has been already reference.
-  Optional<SMLoc> getReferenceLoc(StringRef name, unsigned number) {
+  std::optional<SMLoc> getReferenceLoc(StringRef name, unsigned number) {
     auto &values = isolatedNameScopes.back().values;
     if (!values.count(name) || number >= values[name].size())
       return {};
@@ -533,12 +534,13 @@ public:
   /// skip parsing that component.
   ParseResult parseGenericOperationAfterOpName(
       OperationState &result,
-      Optional<ArrayRef<UnresolvedOperand>> parsedOperandUseInfo = llvm::None,
-      Optional<ArrayRef<Block *>> parsedSuccessors = llvm::None,
-      Optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions =
-          llvm::None,
-      Optional<ArrayRef<NamedAttribute>> parsedAttributes = llvm::None,
-      Optional<FunctionType> parsedFnType = llvm::None);
+      std::optional<ArrayRef<UnresolvedOperand>> parsedOperandUseInfo =
+          std::nullopt,
+      std::optional<ArrayRef<Block *>> parsedSuccessors = std::nullopt,
+      std::optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions =
+          std::nullopt,
+      std::optional<ArrayRef<NamedAttribute>> parsedAttributes = std::nullopt,
+      std::optional<FunctionType> parsedFnType = std::nullopt);
 
   /// Parse an operation instance that is in the generic form and insert it at
   /// the provided insertion point.
@@ -1073,7 +1075,7 @@ Value OperationParser::createForwardRefPlaceholder(SMLoc loc, Type type) {
   auto name = OperationName("builtin.unrealized_conversion_cast", getContext());
   auto *op = Operation::create(
       getEncodedSourceLocation(loc), name, type, /*operands=*/{},
-      /*attributes=*/llvm::None, /*successors=*/{}, /*numRegions=*/0);
+      /*attributes=*/std::nullopt, /*successors=*/{}, /*numRegions=*/0);
   forwardRefPlaceholders[op->getResult(0)] = loc;
   return op->getResult(0);
 }
@@ -1249,11 +1251,11 @@ struct CleanupOpStateRegions {
 
 ParseResult OperationParser::parseGenericOperationAfterOpName(
     OperationState &result,
-    Optional<ArrayRef<UnresolvedOperand>> parsedOperandUseInfo,
-    Optional<ArrayRef<Block *>> parsedSuccessors,
-    Optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions,
-    Optional<ArrayRef<NamedAttribute>> parsedAttributes,
-    Optional<FunctionType> parsedFnType) {
+    std::optional<ArrayRef<UnresolvedOperand>> parsedOperandUseInfo,
+    std::optional<ArrayRef<Block *>> parsedSuccessors,
+    std::optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions,
+    std::optional<ArrayRef<NamedAttribute>> parsedAttributes,
+    std::optional<FunctionType> parsedFnType) {
 
   // Parse the operand list, if not explicitly provided.
   SmallVector<UnresolvedOperand, 8> opInfo;
@@ -1366,14 +1368,18 @@ Operation *OperationParser::parseGenericOperation() {
   if (!result.name.isRegistered()) {
     StringRef dialectName = StringRef(name).split('.').first;
     if (!getContext()->getLoadedDialect(dialectName) &&
-        !getContext()->getOrLoadDialect(dialectName) &&
-        !getContext()->allowsUnregisteredDialects()) {
-      // Emit an error if the dialect couldn't be loaded (i.e., it was not
-      // registered) and unregistered dialects aren't allowed.
-      emitError("operation being parsed with an unregistered dialect. If "
-                "this is intended, please use -allow-unregistered-dialect "
-                "with the MLIR tool used");
-      return nullptr;
+        !getContext()->getOrLoadDialect(dialectName)) {
+      if (!getContext()->allowsUnregisteredDialects()) {
+        // Emit an error if the dialect couldn't be loaded (i.e., it was not
+        // registered) and unregistered dialects aren't allowed.
+        emitError("operation being parsed with an unregistered dialect. If "
+                  "this is intended, please use -allow-unregistered-dialect "
+                  "with the MLIR tool used");
+        return nullptr;
+      }
+    } else {
+      // Reload the OperationName now that the dialect is loaded.
+      result.name = OperationName(name, getContext());
     }
   }
 
@@ -1431,7 +1437,8 @@ public:
     // This can happen if an attribute set during parsing is also specified in
     // the attribute dictionary in the assembly, or the attribute is set
     // multiple during parsing.
-    Optional<NamedAttribute> duplicate = opState.attributes.findDuplicate();
+    std::optional<NamedAttribute> duplicate =
+        opState.attributes.findDuplicate();
     if (duplicate)
       return emitError(getNameLoc(), "attribute '")
              << duplicate->getName().getValue()
@@ -1450,11 +1457,11 @@ public:
 
   ParseResult parseGenericOperationAfterOpName(
       OperationState &result,
-      Optional<ArrayRef<UnresolvedOperand>> parsedUnresolvedOperands,
-      Optional<ArrayRef<Block *>> parsedSuccessors,
-      Optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions,
-      Optional<ArrayRef<NamedAttribute>> parsedAttributes,
-      Optional<FunctionType> parsedFnType) final {
+      std::optional<ArrayRef<UnresolvedOperand>> parsedUnresolvedOperands,
+      std::optional<ArrayRef<Block *>> parsedSuccessors,
+      std::optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions,
+      std::optional<ArrayRef<NamedAttribute>> parsedAttributes,
+      std::optional<FunctionType> parsedFnType) final {
     return parser.parseGenericOperationAfterOpName(
         result, parsedUnresolvedOperands, parsedSuccessors, parsedRegions,
         parsedAttributes, parsedFnType);
@@ -1524,7 +1531,7 @@ public:
                        bool allowResultNumber = true) override {
     if (parser.getToken().isOrIsCodeCompletionFor(Token::percent_identifier))
       return parseOperand(result, allowResultNumber);
-    return llvm::None;
+    return std::nullopt;
   }
 
   /// Parse zero or more SSA comma-separated operand references with a specified
@@ -1657,7 +1664,7 @@ public:
                                             bool allowAttrs) override {
     if (parser.getToken().is(Token::percent_identifier))
       return parseArgument(result, allowType, allowAttrs);
-    return llvm::None;
+    return std::nullopt;
   }
 
   ParseResult parseArgumentList(SmallVectorImpl<Argument> &result,
@@ -1697,7 +1704,7 @@ public:
                                           ArrayRef<Argument> arguments,
                                           bool enableNameShadowing) override {
     if (parser.getToken().isNot(Token::l_brace))
-      return llvm::None;
+      return std::nullopt;
     return parseRegion(region, arguments, enableNameShadowing);
   }
 
@@ -1709,7 +1716,7 @@ public:
                       ArrayRef<Argument> arguments,
                       bool enableNameShadowing = false) override {
     if (parser.getToken().isNot(Token::l_brace))
-      return llvm::None;
+      return std::nullopt;
     std::unique_ptr<Region> newRegion = std::make_unique<Region>();
     if (parseRegion(*newRegion, arguments, enableNameShadowing))
       return failure();
@@ -1730,7 +1737,7 @@ public:
   /// Parse an optional operation successor and its operand list.
   OptionalParseResult parseOptionalSuccessor(Block *&dest) override {
     if (!parser.getToken().isOrIsCodeCompletionFor(Token::caret_identifier))
-      return llvm::None;
+      return std::nullopt;
     return parseSuccessor(dest);
   }
 
@@ -1759,7 +1766,7 @@ public:
       SmallVectorImpl<Argument> &lhs,
       SmallVectorImpl<UnresolvedOperand> &rhs) override {
     if (failed(parseOptionalLParen()))
-      return llvm::None;
+      return std::nullopt;
 
     auto parseElt = [&]() -> ParseResult {
       if (parseArgument(lhs.emplace_back()) || parseEqual() ||
@@ -1772,7 +1779,7 @@ public:
 
   /// Parse a loc(...) specifier if present, filling in result if so.
   ParseResult
-  parseOptionalLocationSpecifier(Optional<Location> &result) override {
+  parseOptionalLocationSpecifier(std::optional<Location> &result) override {
     // If there is a 'loc' we parse a trailing location.
     if (!parser.consumeIf(Token::kw_loc))
       return success();
@@ -1820,7 +1827,7 @@ FailureOr<OperationName> OperationParser::parseCustomOperationName() {
   consumeToken();
 
   // Check to see if this operation name is already registered.
-  Optional<RegisteredOperationName> opInfo =
+  std::optional<RegisteredOperationName> opInfo =
       RegisteredOperationName::lookup(opName, getContext());
   if (opInfo)
     return *opInfo;
@@ -1859,7 +1866,7 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
   // This is the actual hook for the custom op parsing, usually implemented by
   // the op itself (`Op::parse()`). We retrieve it either from the
   // RegisteredOperationName or from the Dialect.
-  function_ref<ParseResult(OpAsmParser &, OperationState &)> parseAssemblyFn;
+  OperationName::ParseAssemblyFn parseAssemblyFn;
   bool isIsolatedFromAbove = false;
 
   StringRef defaultDialect = "";
@@ -1870,9 +1877,25 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
     if (iface && !iface->getDefaultDialect().empty())
       defaultDialect = iface->getDefaultDialect();
   } else {
-    Optional<Dialect::ParseOpHook> dialectHook;
-    if (Dialect *dialect = opNameInfo->getDialect())
-      dialectHook = dialect->getParseOperationHook(opName);
+    std::optional<Dialect::ParseOpHook> dialectHook;
+    Dialect *dialect = opNameInfo->getDialect();
+    if (!dialect) {
+      InFlightDiagnostic diag =
+          emitError(opLoc) << "Dialect `" << opNameInfo->getDialectNamespace()
+                           << "' not found for custom op '" << originalOpName
+                           << "' ";
+      if (originalOpName != opName)
+        diag << " (tried '" << opName << "' as well)";
+      auto &note = diag.attachNote();
+      note << "Registered dialects: ";
+      llvm::interleaveComma(getContext()->getAvailableDialects(), note,
+                            [&](StringRef dialect) { note << dialect; });
+      note << " ; for more info on dialect registration see "
+              "https://mlir.llvm.org/getting_started/Faq/"
+              "#registered-loaded-dependent-whats-up-with-dialects-management";
+      return nullptr;
+    }
+    dialectHook = dialect->getParseOperationHook(opName);
     if (!dialectHook) {
       InFlightDiagnostic diag =
           emitError(opLoc) << "custom op '" << originalOpName << "' is unknown";
@@ -2040,7 +2063,7 @@ ParseResult OperationParser::parseRegionBody(Region &region, SMLoc startLoc,
                << "previously referenced here";
       }
       Location loc = entryArg.sourceLoc.has_value()
-                         ? entryArg.sourceLoc.value()
+                         ? *entryArg.sourceLoc
                          : getEncodedSourceLocation(argInfo.location);
       BlockArgument arg = block->addArgument(entryArg.type, loc);
 
@@ -2374,8 +2397,8 @@ public:
     // Blob data within then textual format is represented as a hex string.
     // TODO: We could avoid an additional alloc+copy here if we pre-allocated
     // the buffer to use during hex processing.
-    Optional<std::string> blobData =
-        value.is(Token::string) ? value.getHexStringValue() : llvm::None;
+    std::optional<std::string> blobData =
+        value.is(Token::string) ? value.getHexStringValue() : std::nullopt;
     if (!blobData)
       return p.emitError(value.getLoc(),
                          "expected hex string blob for key '" + key + "'");

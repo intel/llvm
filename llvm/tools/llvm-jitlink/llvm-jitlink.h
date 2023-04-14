@@ -13,9 +13,7 @@
 #ifndef LLVM_TOOLS_LLVM_JITLINK_LLVM_JITLINK_H
 #define LLVM_TOOLS_LLVM_JITLINK_LLVM_JITLINK_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
@@ -24,6 +22,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <vector>
 
@@ -83,6 +82,8 @@ struct Session {
   StringSet<> HarnessExternals;
   StringSet<> HarnessDefinitions;
   DenseMap<StringRef, StringRef> CanonicalWeakDefs;
+
+  std::optional<Regex> ShowGraphsRegex;
 
 private:
   Session(std::unique_ptr<orc::ExecutorProcessControl> EPC, Error &Err);

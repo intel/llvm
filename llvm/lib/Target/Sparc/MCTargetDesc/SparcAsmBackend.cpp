@@ -141,7 +141,7 @@ namespace {
       return Sparc::NumTargetFixupKinds;
     }
 
-    Optional<MCFixupKind> getFixupKind(StringRef Name) const override {
+    std::optional<MCFixupKind> getFixupKind(StringRef Name) const override {
       unsigned Type;
       Type = llvm::StringSwitch<unsigned>(Name)
 #define ELF_RELOC(X, Y) .Case(#X, Y)
@@ -154,7 +154,7 @@ namespace {
                  .Case("BFD_RELOC_64", ELF::R_SPARC_64)
                  .Default(-1u);
       if (Type == -1u)
-        return None;
+        return std::nullopt;
       return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
     }
 

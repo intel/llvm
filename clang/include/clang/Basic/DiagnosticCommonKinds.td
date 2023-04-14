@@ -55,7 +55,7 @@ def err_expected_colon_after_setter_name : Error<
 def err_expected_string_literal : Error<"expected string literal "
   "%select{in %1|for diagnostic message in static_assert|"
           "for optional message in 'availability' attribute|"
-          "for %select{language|source container}1 name in "
+          "for %select{language name|source container name|USR}1 in "
           "'external_source_symbol' attribute}0">;
 def err_invalid_string_udl : Error<
   "string literal with user-defined suffix cannot be used here">;
@@ -63,6 +63,10 @@ def err_invalid_character_udl : Error<
   "character literal with user-defined suffix cannot be used here">;
 def err_invalid_numeric_udl : Error<
   "numeric literal with user-defined suffix cannot be used here">;
+def warn_pragma_debug_missing_argument : Warning<
+  "missing argument to debug command '%0'">, InGroup<IgnoredPragmas>;
+def warn_pragma_debug_unexpected_argument : Warning<
+  "unexpected argument to debug command">, InGroup<IgnoredPragmas>;
 
 }
 
@@ -126,6 +130,12 @@ def warn_cxx20_compat_consteval : Warning<
 def warn_missing_type_specifier : Warning<
   "type specifier missing, defaults to 'int'">,
   InGroup<ImplicitInt>, DefaultIgnore;
+
+def ext_c_empty_initializer : Extension<
+  "use of an empty initializer is a C2x extension">, InGroup<C2x>;
+def warn_c2x_compat_empty_initializer : Warning<
+  "use of an empty initializer is incompatible with C standards before C2x">,
+  InGroup<CPre2xCompat>, DefaultIgnore;
 }
 
 let CategoryName = "Nullability Issue" in {
@@ -269,7 +279,7 @@ def note_constexpr_invalid_template_arg : Note<
   "%select{type_info object|string literal|temporary object|"
   "predefined '%3' variable}2 is not allowed in a template argument">;
 def err_constexpr_invalid_template_arg : Error<
-  note_constexpr_invalid_template_arg.Text>;
+  note_constexpr_invalid_template_arg.Summary>;
 
 // Sema && Frontend
 let CategoryName = "Inline Assembly Issue" in {
@@ -345,6 +355,17 @@ def err_unable_to_rename_temp : Error<
   "unable to rename temporary '%0' to output file '%1': '%2'">;
 def err_unable_to_make_temp : Error<
   "unable to make temporary file: %0">;
+def remark_sloc_usage : Remark<
+  "source manager location address space usage:">,
+  InGroup<DiagGroup<"sloc-usage">>, DefaultRemark, ShowInSystemHeader;
+def note_total_sloc_usage : Note<
+  "%0B in local locations, %1B in locations loaded from AST files, for a total "
+  "of %2B (%3%% of available space)">;
+def note_file_sloc_usage : Note<
+  "file entered %0 time%s0 using %1B of space"
+  "%plural{0:|: plus %2B for macro expansions}2">;
+def note_file_misc_sloc_usage : Note<
+  "%0 additional files entered using a total of %1B of space">;
 
 // Modules
 def err_module_format_unhandled : Error<

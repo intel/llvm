@@ -149,7 +149,11 @@ public:
                           MachineBasicBlock &RestoreMBB, Register SGPR,
                           RegScavenger *RS) const;
 
-  void eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
+  bool supportsBackwardScavenger() const override {
+    return true;
+  }
+
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS) const override;
 
@@ -177,10 +181,6 @@ public:
 
   LLVM_READONLY
   static const TargetRegisterClass *getSGPRClassForBitWidth(unsigned BitWidth);
-
-  /// Return the 'base' register class for this register.
-  /// e.g. SGPR0 => SReg_32, VGPR => VGPR_32 SGPR0_SGPR1 -> SReg_32, etc.
-  const TargetRegisterClass *getPhysRegClass(MCRegister Reg) const;
 
   /// \returns true if this class contains only SGPR registers
   static bool isSGPRClass(const TargetRegisterClass *RC) {
@@ -362,7 +362,7 @@ public:
     uint64_t Even = Mask & 0xAAAAAAAAAAAAAAAAULL;
     Mask = (Even >> 1) | Mask;
     uint64_t Odd = Mask & 0x5555555555555555ULL;
-    return countPopulation(Odd);
+    return llvm::popcount(Odd);
   }
 
   // \returns a DWORD offset of a \p SubReg

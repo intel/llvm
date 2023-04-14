@@ -38,7 +38,7 @@ class WebAssemblyAsmTypeCheck final {
 
   void dumpTypeStack(Twine Msg);
   bool typeError(SMLoc ErrorLoc, const Twine &Msg);
-  bool popType(SMLoc ErrorLoc, Optional<wasm::ValType> EVT);
+  bool popType(SMLoc ErrorLoc, std::optional<wasm::ValType> EVT);
   bool popRefType(SMLoc ErrorLoc);
   bool getLocal(SMLoc ErrorLoc, const MCInst &Inst, wasm::ValType &Type);
   bool checkEnd(SMLoc ErrorLoc, bool PopVals = false);
@@ -52,7 +52,7 @@ public:
   WebAssemblyAsmTypeCheck(MCAsmParser &Parser, const MCInstrInfo &MII, bool is64);
 
   void funcDecl(const wasm::WasmSignature &Sig);
-  void localDecl(const SmallVector<wasm::ValType, 4> &Locals);
+  void localDecl(const SmallVectorImpl<wasm::ValType> &Locals);
   void setLastSig(const wasm::WasmSignature &Sig) { LastSig = Sig; }
   bool endOfFunction(SMLoc ErrorLoc);
   bool typeCheck(SMLoc ErrorLoc, const MCInst &Inst, OperandVector &Operands);

@@ -319,7 +319,7 @@ bool VirtualUnwinder::unwind(const PerfSample *Sample, uint64_t Repeat) {
 
 std::unique_ptr<PerfReaderBase>
 PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput,
-                       Optional<uint32_t> PIDFilter) {
+                       std::optional<uint32_t> PIDFilter) {
   std::unique_ptr<PerfReaderBase> PerfReader;
 
   if (PerfInput.Format == PerfFormat::UnsymbolizedProfile) {
@@ -350,8 +350,10 @@ PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput,
   return PerfReader;
 }
 
-PerfInputFile PerfScriptReader::convertPerfDataToTrace(
-    ProfiledBinary *Binary, PerfInputFile &File, Optional<uint32_t> PIDFilter) {
+PerfInputFile
+PerfScriptReader::convertPerfDataToTrace(ProfiledBinary *Binary,
+                                         PerfInputFile &File,
+                                         std::optional<uint32_t> PIDFilter) {
   StringRef PerfData = File.InputFile;
   // Run perf script to retrieve PIDs matching binary we're interested in.
   auto PerfExecutable = sys::Process::FindInEnvPath("PATH", "perf");
@@ -364,10 +366,10 @@ PerfInputFile PerfScriptReader::convertPerfDataToTrace(
   StringRef ScriptMMapArgs[] = {PerfPath, "script",   "--show-mmap-events",
                                 "-F",     "comm,pid", "-i",
                                 PerfData};
-  Optional<StringRef> Redirects[] = {llvm::None,               // Stdin
-                                     StringRef(PerfTraceFile), // Stdout
-                                     StringRef(ErrorFile)};    // Stderr
-  sys::ExecuteAndWait(PerfPath, ScriptMMapArgs, llvm::None, Redirects);
+  std::optional<StringRef> Redirects[] = {std::nullopt,             // Stdin
+                                          StringRef(PerfTraceFile), // Stdout
+                                          StringRef(ErrorFile)};    // Stderr
+  sys::ExecuteAndWait(PerfPath, ScriptMMapArgs, std::nullopt, Redirects);
 
   // Collect the PIDs
   TraceStream TraceIt(PerfTraceFile);
@@ -396,7 +398,7 @@ PerfInputFile PerfScriptReader::convertPerfDataToTrace(
   StringRef ScriptSampleArgs[] = {PerfPath, "script",     "--show-mmap-events",
                                   "-F",     "ip,brstack", "--pid",
                                   PIDs,     "-i",         PerfData};
-  sys::ExecuteAndWait(PerfPath, ScriptSampleArgs, llvm::None, Redirects);
+  sys::ExecuteAndWait(PerfPath, ScriptSampleArgs, std::nullopt, Redirects);
 
   return {PerfTraceFile, PerfFormat::PerfScript, PerfContent::UnknownContent};
 }

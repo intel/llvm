@@ -28,7 +28,6 @@
 namespace llvm {
 
 class Triple;
-class ModulePass;
 class OptimizationRemarkEmitter;
 class Comdat;
 class CallBase;
@@ -149,13 +148,6 @@ struct SanitizerCoverageOptions {
   bool CollectControlFlow = false;
 
   SanitizerCoverageOptions() = default;
-};
-
-/// Options for SanitizerBinaryMetadata.
-struct SanitizerBinaryMetadataOptions {
-  bool Covered = false;
-  bool Atomics = false;
-  SanitizerBinaryMetadataOptions() = default;
 };
 
 /// Calculate what to divide by to scale counts.

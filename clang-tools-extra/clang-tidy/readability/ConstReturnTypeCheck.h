@@ -11,9 +11,7 @@
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 /// For any function whose return type is const-qualified, suggests removal of
 /// the `const` qualifier from that return type.
@@ -22,13 +20,17 @@ namespace readability {
 /// http://clang.llvm.org/extra/clang-tidy/checks/readability/const-return-type.html
 class ConstReturnTypeCheck : public ClangTidyCheck {
  public:
-  using ClangTidyCheck::ClangTidyCheck;
-  void registerMatchers(ast_matchers::MatchFinder *Finder) override;
-  void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+   ConstReturnTypeCheck(StringRef Name, ClangTidyContext *Context)
+       : ClangTidyCheck(Name, Context),
+         IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
+   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
+   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
+   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+
+ private:
+   const bool IgnoreMacros;
 };
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_CONSTRETURNTYPECHECK_H

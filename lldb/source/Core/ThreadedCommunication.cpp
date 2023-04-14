@@ -17,7 +17,6 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 
-#include "llvm/ADT/None.h"
 #include "llvm/Support/Compiler.h"
 
 #include <algorithm>
@@ -362,7 +361,7 @@ void ThreadedCommunication::SynchronizeWithReadThread() {
 
   // Wait for the synchronization event.
   EventSP event_sp;
-  listener_sp->GetEvent(event_sp, llvm::None);
+  listener_sp->GetEvent(event_sp, std::nullopt);
 }
 
 void ThreadedCommunication::SetConnection(

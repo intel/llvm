@@ -10,6 +10,7 @@
 #define __LIBDEVICE_HALF_EMUL_H__
 
 #include "device.h"
+#include "imf_impl_utils.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -21,19 +22,6 @@ typedef _Float16 _iml_half_internal;
 #else
 typedef uint16_t _iml_half_internal;
 #endif
-
-template <typename Ty> struct __iml_get_unsigned {};
-template <> struct __iml_get_unsigned<short> {
-  using utype = uint16_t;
-};
-
-template <> struct __iml_get_unsigned<int> {
-  using utype = uint32_t;
-};
-
-template <> struct __iml_get_unsigned<long long> {
-  using utype = uint64_t;
-};
 
 static uint16_t __iml_half_exp_mask = 0x7C00;
 
@@ -311,19 +299,6 @@ static Ty __iml_half2integral_s(uint16_t h, __iml_rounding_mode rounding_mode) {
   return !h_sign ? x_val : (~x_val + 1);
 }
 
-// pre assumes input value is not 0.
-template <typename Ty> static size_t get_msb_pos(Ty x) {
-  size_t idx = 0;
-  Ty mask = ((Ty)1 << (sizeof(Ty) * 8 - 1));
-  for (idx = 0; idx < (sizeof(Ty) * 8); ++idx) {
-    if ((x & mask) == mask)
-      break;
-    mask >>= 1;
-  }
-
-  return (sizeof(Ty) * 8 - 1 - idx);
-}
-
 template <typename Ty>
 static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
   static_assert(std::is_unsigned<Ty>::value && std::is_integral<Ty>::value,
@@ -367,13 +342,12 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
         break;
       }
     }
-  }
-
-  if (h_mant == 0x400) {
-    h_exp++;
-    h_mant = 0;
-    if (h_exp > 15)
-      is_overflow = true;
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
   }
 
   if (is_overflow) {
@@ -437,13 +411,12 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
         break;
       }
     }
-  }
-
-  if (h_mant == 0x400) {
-    h_exp++;
-    h_mant = 0;
-    if (h_exp > 15)
-      is_overflow = true;
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
   }
 
   if (is_overflow) {

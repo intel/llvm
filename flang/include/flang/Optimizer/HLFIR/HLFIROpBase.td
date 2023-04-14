@@ -16,6 +16,7 @@
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
+include "flang/Optimizer/Dialect/FIRTypes.td"
 
 def hlfir_Dialect : Dialect {
   let name = "hlfir";
@@ -38,6 +39,7 @@ def hlfir_Dialect : Dialect {
 
   let useDefaultTypePrinterParser = 1;
   let cppNamespace = "hlfir";
+  let dependentDialects = ["fir::FIROpsDialect"];
 }
 
 
@@ -62,12 +64,73 @@ def hlfir_ExprType : TypeDef<hlfir_Dialect, "Expr"> {
   let extraClassDeclaration = [{
     using Shape = llvm::SmallVector<int64_t>;
     mlir::Type getEleTy() const {return getElementType();}
-    bool isArray() const { return !getShape().empty(); }
+    bool isScalar() const { return getShape().empty(); }
+    bool isArray() const { return !isScalar(); }
     bool isPolymorphic() const { return getPolymorphic(); }
+    unsigned getRank() const {return getShape().size();}
+    mlir::Type getElementExprType() const {
+      mlir::Type eleTy = getElementType();
+      if (fir::isa_trivial(eleTy))
+        return eleTy;
+      return hlfir::ExprType::get(eleTy.getContext(), Shape{}, eleTy,
+                isPolymorphic());
+    }
+    static constexpr int64_t getUnknownExtent() {
+      return mlir::ShapedType::kDynamic;
+    }
   }];
 
   let hasCustomAssemblyFormat = 1;
 
 }
+
+def IsFortranVariablePred
+        : CPred<"::hlfir::isFortranVariableType($_self)">;
+def AnyFortranVariable : Type<IsFortranVariablePred, "any HLFIR variable type">;
+
+
+def AnyFortranValue : TypeConstraint<Or<[AnyLogicalLike.predicate,
+    AnyIntegerLike.predicate, AnyRealLike.predicate,
+    fir_ComplexType.predicate, AnyComplex.predicate,
+    hlfir_ExprType.predicate]>, "any Fortran value type">;
+
+
+def AnyFortranEntity : TypeConstraint<Or<[AnyFortranVariable.predicate,
+    AnyFortranValue.predicate]>, "any Fortran value or variable type">;
+
+def IsFortranScalarCharacterPred
+        : CPred<"::hlfir::isFortranScalarCharacterType($_self)">;
+def AnyScalarCharacterEntity : Type<IsFortranScalarCharacterPred,
+    "any character scalar type">;
+
+def IsFortranScalarCharacterExprPred
+        : CPred<"::hlfir::isFortranScalarCharacterExprType($_self)">;
+def AnyScalarCharacterExpr : Type<IsFortranScalarCharacterExprPred,
+    "any character scalar expression type">;
+
+def IsFortranNumericalArrayObjectPred
+        : CPred<"::hlfir::isFortranNumericalArrayObject($_self)">;
+def AnyFortranNumericalArrayObject : Type<IsFortranNumericalArrayObjectPred,
+    "any array-like object containing a numerical type">;
+
+def IsFortranNumericalOrLogicalArrayObjectPred
+        : CPred<"::hlfir::isFortranNumericalOrLogicalArrayObject($_self)">;
+def AnyFortranNumericalOrLogicalArrayObject : Type<IsFortranNumericalOrLogicalArrayObjectPred,
+    "any array-like object containing a numerical or logical type">;
+
+def IsFortranArrayObjectPred
+        : CPred<"::hlfir::isFortranArrayObject($_self)">;
+def AnyFortranArrayObject : Type<IsFortranArrayObjectPred,
+    "any array-like object">;
+
+def IsPassByRefOrIntegerTypePred
+        : CPred<"::hlfir::isPassByRefOrIntegerType($_self)">;
+def AnyPassByRefOrIntegerType : Type<IsPassByRefOrIntegerTypePred,
+    "an integer type either by value or by reference">;
+
+def IsMaskArgumentPred
+        : CPred<"::hlfir::isMaskArgument($_self)">;
+def AnyFortranLogicalOrI1ArrayObject : Type<IsMaskArgumentPred,
+    "A scalar i1 or logical or an array-like object containing logicals">;
 
 #endif // FORTRAN_DIALECT_HLFIR_OP_BASE

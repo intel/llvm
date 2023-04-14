@@ -90,7 +90,7 @@ void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   };
   auto ExecScope = static_cast<Scope>(GetArg(0));
   Value *MemScope =
-      getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
+      SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(CI->getArgOperand(1), CI);
   Value *MemFenceFlags = SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
       CI->getArgOperand(2), CI);
   mutateCallInst(CI, ExecScope == ScopeWorkgroup
@@ -100,11 +100,8 @@ void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
 }
 
 void SPIRVToOCL20Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {
-  auto GetArg = [=](unsigned I) {
-    return cast<ConstantInt>(CI->getArgOperand(I))->getZExtValue();
-  };
   Value *MemScope =
-      getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
+      SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(CI->getArgOperand(1), CI);
   Value *MemFenceFlags = SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
       CI->getArgOperand(2), CI);
   mutateCallInst(CI, OCLSPIRVBuiltinMap::rmap(OC))

@@ -71,7 +71,8 @@ class image_impl;
 // validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename T>
 using is_validImageDataT = typename detail::is_contained<
-    T, type_list<cl_int4, cl_uint4, cl_float4, cl_half4>>::type;
+    T, type_list<vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
+                 vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>>::type;
 
 template <typename DataT>
 using EnableIfImgAccDataT =

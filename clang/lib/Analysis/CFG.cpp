@@ -40,7 +40,6 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -56,6 +55,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -436,8 +436,8 @@ reverse_children::reverse_children(Stmt *S) {
     // Note: Fill in this switch with more cases we want to optimize.
     case Stmt::InitListExprClass: {
       InitListExpr *IE = cast<InitListExpr>(S);
-      children = llvm::makeArrayRef(reinterpret_cast<Stmt**>(IE->getInits()),
-                                    IE->getNumInits());
+      children = llvm::ArrayRef(reinterpret_cast<Stmt **>(IE->getInits()),
+                                IE->getNumInits());
       return;
     }
     default:
@@ -968,7 +968,7 @@ private:
     const Expr *LHSExpr = B->getLHS()->IgnoreParens();
     const Expr *RHSExpr = B->getRHS()->IgnoreParens();
 
-    Optional<llvm::APInt> IntLiteral1 =
+    std::optional<llvm::APInt> IntLiteral1 =
         getIntegerLiteralSubexpressionValue(LHSExpr);
     const Expr *BoolExpr = RHSExpr;
 
@@ -986,7 +986,7 @@ private:
       const Expr *LHSExpr2 = BitOp->getLHS()->IgnoreParens();
       const Expr *RHSExpr2 = BitOp->getRHS()->IgnoreParens();
 
-      Optional<llvm::APInt> IntLiteral2 =
+      std::optional<llvm::APInt> IntLiteral2 =
           getIntegerLiteralSubexpressionValue(LHSExpr2);
 
       if (!IntLiteral2)
@@ -1020,7 +1020,8 @@ private:
   // FIXME: it would be good to unify this function with
   // IsIntegerLiteralConstantExpr at some point given the similarity between the
   // functions.
-  Optional<llvm::APInt> getIntegerLiteralSubexpressionValue(const Expr *E) {
+  std::optional<llvm::APInt>
+  getIntegerLiteralSubexpressionValue(const Expr *E) {
 
     // If unary.
     if (const auto *UnOp = dyn_cast<UnaryOperator>(E->IgnoreParens())) {
@@ -1044,14 +1045,14 @@ private:
           return llvm::APInt(Context->getTypeSize(Context->IntTy), !Value);
         default:
           assert(false && "Unexpected unary operator!");
-          return llvm::None;
+          return std::nullopt;
         }
       }
     } else if (const auto *IntLiteral =
                    dyn_cast<IntegerLiteral>(E->IgnoreParens()))
       return IntLiteral->getValue();
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   TryResult analyzeLogicOperatorCondition(BinaryOperatorKind Relation,
@@ -3073,7 +3074,7 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
 
   // Save local scope position because in case of condition variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   // Create local scope for C++17 if init-stmt if one exists.
   if (Stmt *Init = I->getInit())
@@ -3098,7 +3099,7 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
   CFGBlock *ElseBlock = Succ;
 
   if (Stmt *Else = I->getElse()) {
-    SaveAndRestore<CFGBlock*> sv(Succ);
+    SaveAndRestore sv(Succ);
 
     // NULL out Block so that the recursive call to Visit will
     // create a new basic block.
@@ -3124,7 +3125,7 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
   {
     Stmt *Then = I->getThen();
     assert(Then);
-    SaveAndRestore<CFGBlock*> sv(Succ);
+    SaveAndRestore sv(Succ);
     Block = nullptr;
 
     // If branch is not a compound statement create implicit scope
@@ -3274,7 +3275,7 @@ CFGBlock *CFGBuilder::VisitSEHExceptStmt(SEHExceptStmt *ES) {
 
   // Save local scope position because in case of exception variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   addStmt(ES->getBlock());
   CFGBlock *SEHExceptBlock = Block;
@@ -3364,13 +3365,13 @@ CFGBlock *CFGBuilder::VisitSEHTryStmt(SEHTryStmt *Terminator) {
   Succ = SEHTrySuccessor;
 
   // Save the current "__try" context.
-  SaveAndRestore<CFGBlock *> SaveTry(TryTerminatedBlock, NewTryTerminatedBlock);
+  SaveAndRestore SaveTry(TryTerminatedBlock, NewTryTerminatedBlock);
   cfg->addTryDispatchBlock(TryTerminatedBlock);
 
   // Save the current value for the __leave target.
   // All __leaves should go to the code following the __try
   // (FIXME: or if the __try has a __finally, to the __finally.)
-  SaveAndRestore<JumpTarget> save_break(SEHLeaveJumpTarget);
+  SaveAndRestore save_break(SEHLeaveJumpTarget);
   SEHLeaveJumpTarget = JumpTarget(SEHTrySuccessor, ScopePos);
 
   assert(Terminator->getTryBlock() && "__try must contain a non-NULL body");
@@ -3386,8 +3387,7 @@ CFGBlock *CFGBuilder::VisitLabelStmt(LabelStmt *L) {
   if (!LabelBlock)              // This can happen when the body is empty, i.e.
     LabelBlock = createBlock(); // scopes that only contains NullStmts.
 
-  assert(LabelMap.find(L->getDecl()) == LabelMap.end() &&
-         "label already in map");
+  assert(!LabelMap.contains(L->getDecl()) && "label already in map");
   LabelMap[L->getDecl()] = JumpTarget(LabelBlock, ScopePos);
 
   // Labels partition blocks, so this is the end of the basic block we were
@@ -3493,7 +3493,7 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
 
   // Save local scope position because in case of condition variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   // Create local scope for init statement and possible condition variable.
   // Add destructor for init statement and condition variable.
@@ -3521,7 +3521,7 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
 
   // Save the current value for the break targets.
   // All breaks should go to the code following the loop.
-  SaveAndRestore<JumpTarget> save_break(BreakJumpTarget);
+  SaveAndRestore save_break(BreakJumpTarget);
   BreakJumpTarget = JumpTarget(LoopSuccessor, ScopePos);
 
   CFGBlock *BodyBlock = nullptr, *TransitionBlock = nullptr;
@@ -3531,8 +3531,8 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
     assert(F->getBody());
 
     // Save the current values for Block, Succ, continue and break targets.
-    SaveAndRestore<CFGBlock*> save_Block(Block), save_Succ(Succ);
-    SaveAndRestore<JumpTarget> save_continue(ContinueJumpTarget);
+    SaveAndRestore save_Block(Block), save_Succ(Succ);
+    SaveAndRestore save_continue(ContinueJumpTarget);
 
     // Create an empty block to represent the transition block for looping back
     // to the head of the loop.  If we have increment code, it will
@@ -3587,7 +3587,7 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
 
   do {
     Expr *C = F->getCond();
-    SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+    SaveAndRestore save_scope_pos(ScopePos);
 
     // Specially handle logical operators, which have a slightly
     // more optimal CFG representation.
@@ -3653,7 +3653,7 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
   // If the loop contains initialization, create a new block for those
   // statements.  This block can also contain statements that precede the loop.
   if (Stmt *I = F->getInit()) {
-    SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+    SaveAndRestore save_scope_pos(ScopePos);
     ScopePos = LoopBeginScopePos;
     Block = createBlock();
     return addStmt(I);
@@ -3756,9 +3756,9 @@ CFGBlock *CFGBuilder::VisitObjCForCollectionStmt(ObjCForCollectionStmt *S) {
   // Now create the true branch.
   {
     // Save the current values for Succ, continue and break targets.
-    SaveAndRestore<CFGBlock*> save_Block(Block), save_Succ(Succ);
-    SaveAndRestore<JumpTarget> save_continue(ContinueJumpTarget),
-                               save_break(BreakJumpTarget);
+    SaveAndRestore save_Block(Block), save_Succ(Succ);
+    SaveAndRestore save_continue(ContinueJumpTarget),
+        save_break(BreakJumpTarget);
 
     // Add an intermediate block between the BodyBlock and the
     // EntryConditionBlock to represent the "loop back" transition, for looping
@@ -3852,7 +3852,7 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
 
   // Save local scope position because in case of condition variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   // Create local scope for possible condition variable.
   // Store scope position for continue statement.
@@ -3881,9 +3881,9 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
     assert(W->getBody());
 
     // Save the current values for Block, Succ, continue and break targets.
-    SaveAndRestore<CFGBlock*> save_Block(Block), save_Succ(Succ);
-    SaveAndRestore<JumpTarget> save_continue(ContinueJumpTarget),
-                               save_break(BreakJumpTarget);
+    SaveAndRestore save_Block(Block), save_Succ(Succ);
+    SaveAndRestore save_continue(ContinueJumpTarget),
+        save_break(BreakJumpTarget);
 
     // Create an empty block to represent the transition block for looping back
     // to the head of the loop.
@@ -4009,7 +4009,7 @@ CFGBlock *CFGBuilder::VisitObjCAtCatchStmt(ObjCAtCatchStmt *CS) {
 
   // Save local scope position because in case of exception variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   if (CS->getCatchBody())
     addStmt(CS->getCatchBody());
@@ -4104,7 +4104,7 @@ CFGBlock *CFGBuilder::VisitObjCAtTryStmt(ObjCAtTryStmt *Terminator) {
   Succ = TrySuccessor;
 
   // Save the current "try" context.
-  SaveAndRestore<CFGBlock *> SaveTry(TryTerminatedBlock, NewTryTerminatedBlock);
+  SaveAndRestore SaveTry(TryTerminatedBlock, NewTryTerminatedBlock);
   cfg->addTryDispatchBlock(TryTerminatedBlock);
 
   assert(Terminator->getTryBody() && "try must contain a non-NULL body");
@@ -4207,8 +4207,8 @@ CFGBlock *CFGBuilder::VisitDoStmt(DoStmt *D) {
     assert(D->getBody());
 
     // Save the current values for Block, Succ, and continue and break targets
-    SaveAndRestore<CFGBlock*> save_Block(Block), save_Succ(Succ);
-    SaveAndRestore<JumpTarget> save_continue(ContinueJumpTarget),
+    SaveAndRestore save_Block(Block), save_Succ(Succ);
+    SaveAndRestore save_continue(ContinueJumpTarget),
         save_break(BreakJumpTarget);
 
     // All continues within this loop should go to the condition block
@@ -4326,7 +4326,7 @@ CFGBlock *CFGBuilder::VisitSwitchStmt(SwitchStmt *Terminator) {
 
   // Save local scope position because in case of condition variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   // Create local scope for C++17 switch init-stmt if one exists.
   if (Stmt *Init = Terminator->getInit())
@@ -4346,9 +4346,9 @@ CFGBlock *CFGBuilder::VisitSwitchStmt(SwitchStmt *Terminator) {
   } else SwitchSuccessor = Succ;
 
   // Save the current "switch" context.
-  SaveAndRestore<CFGBlock*> save_switch(SwitchTerminatedBlock),
-                            save_default(DefaultCaseBlock);
-  SaveAndRestore<JumpTarget> save_break(BreakJumpTarget);
+  SaveAndRestore save_switch(SwitchTerminatedBlock),
+      save_default(DefaultCaseBlock);
+  SaveAndRestore save_break(BreakJumpTarget);
 
   // Set the "default" case to be the block after the switch statement.  If the
   // switch statement contains a "default:", this value will be overwritten with
@@ -4371,15 +4371,13 @@ CFGBlock *CFGBuilder::VisitSwitchStmt(SwitchStmt *Terminator) {
 
   // For pruning unreachable case statements, save the current state
   // for tracking the condition value.
-  SaveAndRestore<bool> save_switchExclusivelyCovered(switchExclusivelyCovered,
-                                                     false);
+  SaveAndRestore save_switchExclusivelyCovered(switchExclusivelyCovered, false);
 
   // Determine if the switch condition can be explicitly evaluated.
   assert(Terminator->getCond() && "switch condition must be non-NULL");
   Expr::EvalResult result;
   bool b = tryEvaluate(Terminator->getCond(), result);
-  SaveAndRestore<Expr::EvalResult*> save_switchCond(switchCond,
-                                                    b ? &result : nullptr);
+  SaveAndRestore save_switchCond(switchCond, b ? &result : nullptr);
 
   // If body is not a compound statement create implicit scope
   // and add destructors.
@@ -4606,7 +4604,7 @@ CFGBlock *CFGBuilder::VisitCXXTryStmt(CXXTryStmt *Terminator) {
   Succ = TrySuccessor;
 
   // Save the current "try" context.
-  SaveAndRestore<CFGBlock *> SaveTry(TryTerminatedBlock, NewTryTerminatedBlock);
+  SaveAndRestore SaveTry(TryTerminatedBlock, NewTryTerminatedBlock);
   cfg->addTryDispatchBlock(TryTerminatedBlock);
 
   assert(Terminator->getTryBlock() && "try must contain a non-NULL body");
@@ -4620,7 +4618,7 @@ CFGBlock *CFGBuilder::VisitCXXCatchStmt(CXXCatchStmt *CS) {
 
   // Save local scope position because in case of exception variable ScopePos
   // won't be restored when traversing AST.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   // Create local scope for possible exception variable.
   // Store scope position. Add implicit destructor.
@@ -4672,7 +4670,7 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
   // }
 
   // Save local scope position before the addition of the implicit variables.
-  SaveAndRestore<LocalScope::const_iterator> save_scope_pos(ScopePos);
+  SaveAndRestore save_scope_pos(ScopePos);
 
   // Create local scopes and destructors for range, begin and end variables.
   if (Stmt *Range = S->getRangeStmt())
@@ -4697,7 +4695,7 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
 
   // Save the current value for the break targets.
   // All breaks should go to the code following the loop.
-  SaveAndRestore<JumpTarget> save_break(BreakJumpTarget);
+  SaveAndRestore save_break(BreakJumpTarget);
   BreakJumpTarget = JumpTarget(LoopSuccessor, ScopePos);
 
   // The block for the __begin != __end expression.
@@ -4730,8 +4728,8 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
     assert(S->getBody());
 
     // Save the current values for Block, Succ, and continue targets.
-    SaveAndRestore<CFGBlock*> save_Block(Block), save_Succ(Succ);
-    SaveAndRestore<JumpTarget> save_continue(ContinueJumpTarget);
+    SaveAndRestore save_Block(Block), save_Succ(Succ);
+    SaveAndRestore save_continue(ContinueJumpTarget);
 
     // Generate increment code in its own basic block.  This is the target of
     // continue statements.
@@ -5424,7 +5422,7 @@ public:
       unsigned j = 1;
       for (CFGBlock::const_iterator BI = (*I)->begin(), BEnd = (*I)->end() ;
            BI != BEnd; ++BI, ++j ) {
-        if (Optional<CFGStmt> SE = BI->getAs<CFGStmt>()) {
+        if (std::optional<CFGStmt> SE = BI->getAs<CFGStmt>()) {
           const Stmt *stmt= SE->getStmt();
           std::pair<unsigned, unsigned> P((*I)->getBlockID(), j);
           StmtMap[stmt] = P;
@@ -5749,7 +5747,8 @@ static void print_elem(raw_ostream &OS, StmtPrinterHelper &Helper,
                        const CFGElement &E);
 
 void CFGElement::dumpToStream(llvm::raw_ostream &OS) const {
-  StmtPrinterHelper Helper(nullptr, {});
+  LangOptions LangOpts;
+  StmtPrinterHelper Helper(nullptr, LangOpts);
   print_elem(OS, Helper, *this);
 }
 
@@ -5798,7 +5797,7 @@ static void print_elem(raw_ostream &OS, StmtPrinterHelper &Helper,
       OS << " (BindTemporary)";
     } else if (const CXXConstructExpr *CCE = dyn_cast<CXXConstructExpr>(S)) {
       OS << " (CXXConstructExpr";
-      if (Optional<CFGConstructor> CE = E.getAs<CFGConstructor>()) {
+      if (std::optional<CFGConstructor> CE = E.getAs<CFGConstructor>()) {
         print_construction_context(OS, Helper, CE->getConstructionContext());
       }
       OS << ", " << CCE->getType() << ")";
@@ -6173,7 +6172,7 @@ static bool isImmediateSinkBlock(const CFGBlock *Blk) {
   // we'd need to carefully handle the case when the throw is being
   // immediately caught.
   if (llvm::any_of(*Blk, [](const CFGElement &Elm) {
-        if (Optional<CFGStmt> StmtElm = Elm.getAs<CFGStmt>())
+        if (std::optional<CFGStmt> StmtElm = Elm.getAs<CFGStmt>())
           if (isa<CXXThrowExpr>(StmtElm->getStmt()))
             return true;
         return false;

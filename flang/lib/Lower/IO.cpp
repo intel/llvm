@@ -17,6 +17,7 @@
 #include "flang/Lower/Bridge.h"
 #include "flang/Lower/ConvertExpr.h"
 #include "flang/Lower/ConvertVariable.h"
+#include "flang/Lower/Mangler.h"
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
@@ -27,12 +28,14 @@
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
 #include "flang/Optimizer/Builder/Todo.h"
-#include "flang/Optimizer/Support/FIRContext.h"
+#include "flang/Optimizer/Dialect/FIRDialect.h"
+#include "flang/Optimizer/Dialect/Support/FIRContext.h"
 #include "flang/Parser/parse-tree.h"
 #include "flang/Runtime/io-api.h"
 #include "flang/Semantics/tools.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "flang-lower-io"
 
@@ -105,14 +108,14 @@ static constexpr std::tuple<
 } // namespace Fortran::lower
 
 namespace {
-/// IO statements may require exceptional condition handling.  A statement that
+/// IO statements may require exceptional condition handling. A statement that
 /// encounters an exceptional condition may branch to a label given on an ERR
-/// (error), END (end-of-file), or EOR (end-of-record) specifier.  An IOSTAT
+/// (error), END (end-of-file), or EOR (end-of-record) specifier. An IOSTAT
 /// specifier variable may be set to a value that indicates some condition,
 /// and an IOMSG specifier variable may be set to a description of a condition.
 struct ConditionSpecInfo {
   const Fortran::lower::SomeExpr *ioStatExpr{};
-  llvm::Optional<fir::ExtendedValue> ioMsg;
+  std::optional<fir::ExtendedValue> ioMsg;
   bool hasErr{};
   bool hasEnd{};
   bool hasEor{};
@@ -122,7 +125,7 @@ struct ConditionSpecInfo {
   bool hasErrorConditionSpec() const { return ioStatExpr != nullptr || hasErr; }
 
   /// Check for any condition specifier that applies to data transfer items
-  /// in a PRINT, READ, WRITE, or WAIT statement.  (WAIT may be irrelevant.)
+  /// in a PRINT, READ, WRITE, or WAIT statement. (WAIT may be irrelevant.)
   bool hasTransferConditionSpec() const {
     return hasErrorConditionSpec() || hasEnd || hasEor;
   }
@@ -167,12 +170,13 @@ static mlir::func::FuncOp getIORuntimeFunc(mlir::Location loc,
     return func;
   auto funTy = getTypeModel<E>()(builder.getContext());
   func = builder.createFunction(loc, name, funTy);
-  func->setAttr("fir.runtime", builder.getUnitAttr());
+  func->setAttr(fir::FIROpsDialect::getFirRuntimeAttrName(),
+                builder.getUnitAttr());
   func->setAttr("fir.io", builder.getUnitAttr());
   return func;
 }
 
-/// Generate calls to end an IO statement.  Return the IOSTAT value, if any.
+/// Generate calls to end an IO statement. Return the IOSTAT value, if any.
 /// It is the caller's responsibility to generate branches on that value.
 static mlir::Value genEndIO(Fortran::lower::AbstractConverter &converter,
                             mlir::Location loc, mlir::Value cookie,
@@ -214,7 +218,7 @@ static mlir::Value genEndIO(Fortran::lower::AbstractConverter &converter,
 
 /// Make the next call in the IO statement conditional on runtime result `ok`.
 /// If a call returns `ok==false`, further suboperation calls for an IO
-/// statement will be skipped.  This may generate branch heavy, deeply nested
+/// statement will be skipped. This may generate branch heavy, deeply nested
 /// conditionals for IO statements with a large number of suboperations.
 static void makeNextConditionalOn(fir::FirOpBuilder &builder,
                                   mlir::Location loc, bool checkResult,
@@ -223,7 +227,7 @@ static void makeNextConditionalOn(fir::FirOpBuilder &builder,
     // Either no IO calls need to be checked, or this will be the first call.
     return;
 
-  // A previous IO call for a statement returned the bool `ok`.  If this call
+  // A previous IO call for a statement returned the bool `ok`. If this call
   // is in a fir.iterate_while loop, the result must be propagated up to the
   // loop scope as an extra ifOp result. (The propagation is done in genIoLoop.)
   mlir::TypeRange resTy;
@@ -237,7 +241,7 @@ static void makeNextConditionalOn(fir::FirOpBuilder &builder,
 /// Retrieve or generate a runtime description of NAMELIST group `symbol`.
 /// The form of the description is defined in runtime header file namelist.h.
 /// Static descriptors are generated for global objects; local descriptors for
-/// local objects.  If all descriptors are static, the NamelistGroup is static.
+/// local objects. If all descriptors are static, the NamelistGroup is static.
 static mlir::Value
 getNamelistGroup(Fortran::lower::AbstractConverter &converter,
                  const Fortran::semantics::Symbol &symbol,
@@ -269,7 +273,7 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
                                              symbol.name().ToString() + '\0');
   };
 
-  // Define object names, and static descriptors for global objects.
+  // Define variable names, and static descriptors for global variables.
   bool groupIsLocal = false;
   stringAddress(symbol);
   for (const Fortran::semantics::Symbol &s : details.objects()) {
@@ -278,18 +282,20 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
       groupIsLocal = true;
       continue;
     }
-    // We know we have a global item.  It it's not a pointer or allocatable,
-    // create a static pointer to it.
+    // A global pointer or allocatable variable has a descriptor for typical
+    // accesses. Variables in multiple namelist groups may already have one.
+    // Create descriptors for other cases.
     if (!IsAllocatableOrPointer(s)) {
-      std::string mangleName = converter.mangleName(s) + ".desc";
+      std::string mangleName =
+          Fortran::lower::mangle::globalNamelistDescriptorName(s);
       if (builder.getNamedGlobal(mangleName))
         continue;
       const auto expr = Fortran::evaluate::AsGenericExpr(s);
       fir::BoxType boxTy =
           fir::BoxType::get(fir::PointerType::get(converter.genType(s)));
       auto descFunc = [&](fir::FirOpBuilder &b) {
-        auto box =
-            Fortran::lower::genInitialDataTarget(converter, loc, boxTy, *expr);
+        auto box = Fortran::lower::genInitialDataTarget(
+            converter, loc, boxTy, *expr, /*couldBeInEquivalence=*/true);
         b.create<fir::HasValueOp>(loc, box);
       };
       builder.createGlobalConstant(loc, boxTy, mangleName, descFunc, linkOnce);
@@ -316,10 +322,8 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
                                                 builder.getArrayAttr(idx));
       idx[1] = one;
       mlir::Value descAddr;
-      // Items that we created end in ".desc".
-      std::string suffix = IsAllocatableOrPointer(s) ? "" : ".desc";
-      if (auto desc =
-              builder.getNamedGlobal(converter.mangleName(s) + suffix)) {
+      if (auto desc = builder.getNamedGlobal(
+              Fortran::lower::mangle::globalNamelistDescriptorName(s))) {
         descAddr = builder.create<fir::AddrOfOp>(loc, desc.resultType(),
                                                  desc.getSymbol());
       } else if (Fortran::semantics::FindCommonBlockContaining(s) &&
@@ -352,7 +356,7 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
         descAddr = builder.createTemporary(loc, boxType);
         fir::MutableBoxValue box = fir::MutableBoxValue(descAddr, {}, {});
         fir::factory::associateMutableBox(builder, loc, box, exv,
-                                          /*lbounds=*/llvm::None);
+                                          /*lbounds=*/std::nullopt);
       }
       descAddr = builder.createConvert(loc, descRefTy, descAddr);
       list = builder.create<fir::InsertValueOp>(loc, listTy, list, descAddr,
@@ -599,9 +603,10 @@ static mlir::Value createIoRuntimeCallForItem(mlir::Location loc,
                                               const fir::ExtendedValue &item) {
   mlir::Type argType = inputFunc.getFunctionType().getInput(1);
   llvm::SmallVector<mlir::Value> inputFuncArgs = {cookie};
-  if (argType.isa<fir::BoxType>()) {
+  if (argType.isa<fir::BaseBoxType>()) {
     mlir::Value box = fir::getBase(item);
-    assert(box.getType().isa<fir::BoxType>() && "must be previously emboxed");
+    assert(box.getType().isa<fir::BaseBoxType>() &&
+           "must be previously emboxed");
     inputFuncArgs.push_back(builder.createConvert(loc, argType, box));
   } else {
     mlir::Value itemAddr = fir::getBase(item);
@@ -1335,7 +1340,7 @@ constexpr bool isDataTransferInternal<Fortran::parser::PrintStmt>(
 /// If the variable `var` is an array or of a KIND other than the default
 /// (normally 1), then a descriptor is required by the runtime IO API. This
 /// condition holds even in F77 sources.
-static llvm::Optional<fir::ExtendedValue> getVariableBufferRequiredDescriptor(
+static std::optional<fir::ExtendedValue> getVariableBufferRequiredDescriptor(
     Fortran::lower::AbstractConverter &converter, mlir::Location loc,
     const Fortran::parser::Variable &var,
     Fortran::lower::StatementContext &stmtCtx) {
@@ -1348,11 +1353,11 @@ static llvm::Optional<fir::ExtendedValue> getVariableBufferRequiredDescriptor(
     return varBox;
   if (fir::factory::CharacterExprHelper::isArray(varAddr.getType()))
     return varBox;
-  return llvm::None;
+  return std::nullopt;
 }
 
 template <typename A>
-static llvm::Optional<fir::ExtendedValue>
+static std::optional<fir::ExtendedValue>
 maybeGetInternalIODescriptor(Fortran::lower::AbstractConverter &converter,
                              mlir::Location loc, const A &stmt,
                              Fortran::lower::StatementContext &stmtCtx) {
@@ -1362,14 +1367,14 @@ maybeGetInternalIODescriptor(Fortran::lower::AbstractConverter &converter,
   if (auto *unit = getIOControl<Fortran::parser::IoUnit>(stmt))
     if (auto *var = std::get_if<Fortran::parser::Variable>(&unit->u))
       return getVariableBufferRequiredDescriptor(converter, loc, *var, stmtCtx);
-  return llvm::None;
+  return std::nullopt;
 }
 template <>
-inline llvm::Optional<fir::ExtendedValue>
+inline std::optional<fir::ExtendedValue>
 maybeGetInternalIODescriptor<Fortran::parser::PrintStmt>(
     Fortran::lower::AbstractConverter &, mlir::Location loc,
     const Fortran::parser::PrintStmt &, Fortran::lower::StatementContext &) {
-  return llvm::None;
+  return std::nullopt;
 }
 
 template <typename A>
@@ -1489,9 +1494,9 @@ lowerReferenceAsStringSelect(Fortran::lower::AbstractConverter &converter,
   return {buff, len, mlir::Value{}};
 }
 
-/// Generate a reference to a format string.  There are four cases - a format
+/// Generate a reference to a format string. There are four cases - a format
 /// statement label, a character format expression, an integer that holds the
-/// label of a format statement, and the * case.  The first three are done here.
+/// label of a format statement, and the * case. The first three are done here.
 /// The * case is done elsewhere.
 static std::tuple<mlir::Value, mlir::Value, mlir::Value>
 genFormat(Fortran::lower::AbstractConverter &converter, mlir::Location loc,
@@ -1876,7 +1881,7 @@ void genBeginDataTransferCallArgs(
     const A &stmt, mlir::FunctionType ioFuncTy, bool isFormatted,
     bool isListOrNml, [[maybe_unused]] bool isInternal,
     [[maybe_unused]] bool isAsync,
-    const llvm::Optional<fir::ExtendedValue> &descRef, ConditionSpecInfo &csi,
+    const std::optional<fir::ExtendedValue> &descRef, ConditionSpecInfo &csi,
     Fortran::lower::StatementContext &stmtCtx) {
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   auto maybeGetFormatArgs = [&]() {
@@ -1953,9 +1958,9 @@ genDataTransferStmt(Fortran::lower::AbstractConverter &converter,
   const bool isFormatted = isDataTransferFormatted(stmt);
   const bool isList = isFormatted ? isDataTransferList(stmt) : false;
   const bool isInternal = isDataTransferInternal(stmt);
-  llvm::Optional<fir::ExtendedValue> descRef =
+  std::optional<fir::ExtendedValue> descRef =
       isInternal ? maybeGetInternalIODescriptor(converter, loc, stmt, stmtCtx)
-                 : llvm::None;
+                 : std::nullopt;
   const bool isInternalWithDesc = descRef.has_value();
   const bool isAsync = isDataTransferAsynchronous(loc, stmt);
   const bool isNml = isDataTransferNamelist(stmt);
@@ -2018,7 +2023,7 @@ genDataTransferStmt(Fortran::lower::AbstractConverter &converter,
   }
   // Generate end statement call/s.
   mlir::Value result = genEndIO(converter, loc, cookie, csi, stmtCtx);
-  stmtCtx.finalize();
+  stmtCtx.finalizeAndReset();
   return result;
 }
 
@@ -2091,10 +2096,10 @@ mlir::Value genInquireSpec<Fortran::parser::InquireSpec::CharVar>(
       builder.createConvert(loc, specFuncTy.getInput(0), cookie),
       builder.createIntegerConstant(
           loc, specFuncTy.getInput(1),
-          Fortran::runtime::io::HashInquiryKeyword(
+          Fortran::runtime::io::HashInquiryKeyword(std::string{
               Fortran::parser::InquireSpec::CharVar::EnumToString(
-                  std::get<Fortran::parser::InquireSpec::CharVar::Kind>(var.t))
-                  .c_str())),
+                  std::get<Fortran::parser::InquireSpec::CharVar::Kind>(var.t))}
+                                                       .c_str())),
       builder.createConvert(loc, specFuncTy.getInput(2), fir::getBase(str)),
       builder.createConvert(loc, specFuncTy.getInput(3), fir::getLen(str))};
   return builder.create<fir::CallOp>(loc, specFunc, args).getResult(0);
@@ -2128,10 +2133,10 @@ mlir::Value genInquireSpec<Fortran::parser::InquireSpec::IntVar>(
       builder.createConvert(loc, specFuncTy.getInput(0), cookie),
       builder.createIntegerConstant(
           loc, specFuncTy.getInput(1),
-          Fortran::runtime::io::HashInquiryKeyword(
+          Fortran::runtime::io::HashInquiryKeyword(std::string{
               Fortran::parser::InquireSpec::IntVar::EnumToString(
-                  std::get<Fortran::parser::InquireSpec::IntVar::Kind>(var.t))
-                  .c_str())),
+                  std::get<Fortran::parser::InquireSpec::IntVar::Kind>(var.t))}
+                                                       .c_str())),
       builder.createConvert(loc, specFuncTy.getInput(2), addr),
       builder.createConvert(loc, specFuncTy.getInput(3), kind)};
   return builder.create<fir::CallOp>(loc, specFunc, args).getResult(0);
@@ -2165,9 +2170,9 @@ mlir::Value genInquireSpec<Fortran::parser::InquireSpec::LogVar>(
   else
     args.push_back(builder.createIntegerConstant(
         loc, specFuncTy.getInput(1),
-        Fortran::runtime::io::HashInquiryKeyword(
-            Fortran::parser::InquireSpec::LogVar::EnumToString(logVarKind)
-                .c_str())));
+        Fortran::runtime::io::HashInquiryKeyword(std::string{
+            Fortran::parser::InquireSpec::LogVar::EnumToString(logVarKind)}
+                                                     .c_str())));
   args.push_back(builder.createConvert(loc, specFuncTy.getInput(2), addr));
   auto call = builder.create<fir::CallOp>(loc, specFunc, args);
   boolRefToLogical(loc, builder, addr);

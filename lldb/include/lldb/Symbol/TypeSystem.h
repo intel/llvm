@@ -10,12 +10,13 @@
 #define LLDB_SYMBOL_TYPESYSTEM_H
 
 #include <functional>
-#include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
@@ -46,7 +47,7 @@ struct LanguageSet {
   LanguageSet();
 
   /// If the set contains a single language only, return it.
-  llvm::Optional<lldb::LanguageType> GetSingularLanguage();
+  std::optional<lldb::LanguageType> GetSingularLanguage();
   void Insert(lldb::LanguageType language);
   bool Empty() const;
   size_t Size() const;
@@ -72,9 +73,11 @@ struct LanguageSet {
 /// \see lldb_private::CompilerType
 /// \see lldb_private::CompilerDecl
 /// \see lldb_private::CompilerDeclContext
-class TypeSystem : public PluginInterface {
+class TypeSystem : public PluginInterface,
+                   public std::enable_shared_from_this<TypeSystem> {
 public:
   // Constructors and Destructors
+  TypeSystem();
   ~TypeSystem() override;
 
   // LLVM RTTI support
@@ -86,8 +89,8 @@ public:
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
                                            Target *target);
 
-  // Free up any resources associated with this TypeSystem.  Done before
-  // removing all the TypeSystems from the TypeSystemMap.
+  /// Free up any resources associated with this TypeSystem.  Done before
+  /// removing all the TypeSystems from the TypeSystemMap.
   virtual void Finalize() {}
 
   virtual DWARFASTParser *GetDWARFParser() { return nullptr; }
@@ -125,12 +128,12 @@ public:
   virtual ConstString
   DeclContextGetScopeQualifiedName(void *opaque_decl_ctx) = 0;
 
-  virtual bool DeclContextIsClassMethod(
-      void *opaque_decl_ctx, lldb::LanguageType *language_ptr,
-      bool *is_instance_method_ptr, ConstString *language_object_name_ptr) = 0;
+  virtual bool DeclContextIsClassMethod(void *opaque_decl_ctx) = 0;
 
   virtual bool DeclContextIsContainedInLookup(void *opaque_decl_ctx,
                                               void *other_opaque_decl_ctx) = 0;
+
+  virtual lldb::LanguageType DeclContextGetLanguage(void *opaque_decl_ctx) = 0;
 
   // Tests
 #ifndef NDEBUG
@@ -167,6 +170,9 @@ public:
 
   virtual bool IsFunctionPointerType(lldb::opaque_compiler_type_t type) = 0;
 
+  virtual bool
+  IsMemberFunctionPointerType(lldb::opaque_compiler_type_t type) = 0;
+
   virtual bool IsBlockPointerType(lldb::opaque_compiler_type_t type,
                                   CompilerType *function_pointer_type_ptr) = 0;
 
@@ -200,6 +206,10 @@ public:
   // Type Completion
 
   virtual bool GetCompleteType(lldb::opaque_compiler_type_t type) = 0;
+
+  virtual bool IsForcefullyCompleted(lldb::opaque_compiler_type_t type) {
+    return false;
+  }
 
   // AST related queries
 
@@ -280,7 +290,7 @@ public:
 
   virtual const llvm::fltSemantics &GetFloatTypeSemantics(size_t byte_size) = 0;
 
-  virtual llvm::Optional<uint64_t>
+  virtual std::optional<uint64_t>
   GetBitSize(lldb::opaque_compiler_type_t type,
              ExecutionContextScope *exe_scope) = 0;
 
@@ -352,6 +362,8 @@ public:
                                 const char *name, bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) = 0;
 
+  virtual bool IsTemplateType(lldb::opaque_compiler_type_t type);
+
   virtual size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type,
                                          bool expand_pack);
 
@@ -361,7 +373,7 @@ public:
   virtual CompilerType
   GetTypeTemplateArgument(lldb::opaque_compiler_type_t type, size_t idx,
                           bool expand_pack);
-  virtual llvm::Optional<CompilerType::IntegralTemplateArgument>
+  virtual std::optional<CompilerType::IntegralTemplateArgument>
   GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type, size_t idx,
                               bool expand_pack);
 
@@ -427,7 +439,7 @@ public:
   virtual bool IsCStringType(lldb::opaque_compiler_type_t type,
                              uint32_t &length) = 0;
 
-  virtual llvm::Optional<size_t>
+  virtual std::optional<size_t>
   GetTypeBitAlign(lldb::opaque_compiler_type_t type,
                   ExecutionContextScope *exe_scope) = 0;
 
@@ -509,10 +521,15 @@ public:
   // meaningless type itself, instead preferring to use the dynamic type
   virtual bool IsMeaninglessWithoutDynamicResolution(void *type);
 
-  virtual llvm::Optional<llvm::json::Value> ReportStatistics();
+  virtual std::optional<llvm::json::Value> ReportStatistics();
 
+  bool GetHasForcefullyCompletedTypes() const {
+    return m_has_forcefully_completed_types;
+  }
 protected:
   SymbolFile *m_sym_file = nullptr;
+  /// Used for reporting statistics.
+  bool m_has_forcefully_completed_types = false;
 };
 
 class TypeSystemMap {
@@ -526,39 +543,44 @@ public:
 
   // Iterate through all of the type systems that are created. Return true from
   // callback to keep iterating, false to stop iterating.
-  void ForEach(std::function<bool(TypeSystem *)> const &callback);
+  void ForEach(std::function<bool(lldb::TypeSystemSP)> const &callback);
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language, Module *module,
                            bool can_create);
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language, Target *target,
                            bool can_create);
 
+  /// Check all type systems in the map to see if any have forcefully completed
+  /// types;
+  bool GetHasForcefullyCompletedTypes() const;
 protected:
-  typedef std::map<lldb::LanguageType, lldb::TypeSystemSP> collection;
+  typedef llvm::DenseMap<uint16_t, lldb::TypeSystemSP> collection;
   mutable std::mutex m_mutex; ///< A mutex to keep this object happy in
-                              ///multi-threaded environments.
+                              /// multi-threaded environments.
   collection m_map;
   bool m_clear_in_progress = false;
 
 private:
   typedef llvm::function_ref<lldb::TypeSystemSP()> CreateCallback;
   /// Finds the type system for the given language. If no type system could be
-  /// found for a language and a CreateCallback was provided, the value returned
-  /// by the callback will be treated as the TypeSystem for the language.
+  /// found for a language and a CreateCallback was provided, the value
+  /// returned by the callback will be treated as the TypeSystem for the
+  /// language.
   ///
   /// \param language The language for which the type system should be found.
   /// \param create_callback A callback that will be called if no previously
   ///                        created TypeSystem that fits the given language
   ///                        could found. Can be omitted if a non-existent
-  ///                        type system should be treated as an error instead.
+  ///                        type system should be treated as an error
+  ///                        instead.
   /// \return The found type system or an error.
-  llvm::Expected<TypeSystem &> GetTypeSystemForLanguage(
+  llvm::Expected<lldb::TypeSystemSP> GetTypeSystemForLanguage(
       lldb::LanguageType language,
-      llvm::Optional<CreateCallback> create_callback = llvm::None);
-};
+      std::optional<CreateCallback> create_callback = std::nullopt);
+  };
 
 } // namespace lldb_private
 

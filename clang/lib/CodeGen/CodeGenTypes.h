@@ -109,6 +109,7 @@ public:
   const llvm::DataLayout &getDataLayout() const {
     return TheModule.getDataLayout();
   }
+  CodeGenModule &getCGM() const { return CGM; }
   ASTContext &getContext() const { return Context; }
   const ABIInfo &getABIInfo() const { return TheABIInfo; }
   const TargetInfo &getTarget() const { return Target; }
@@ -131,6 +132,14 @@ public:
   /// a type.  For example, the scalar representation for _Bool is i1, but the
   /// memory representation is usually i8 or i32, depending on the target.
   llvm::Type *ConvertTypeForMem(QualType T, bool ForBitField = false);
+
+  /// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
+  /// which is represented as a pointer to a structure to LLVM extension type
+  /// with the parameters that follow SPIR-V JointMatrixINTEL type.
+  /// The expected representation is:
+  /// target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%, %scope%,
+  ///        %use%, (optional) %element_type_interpretation%)
+  llvm::Type *ConvertSYCLJointMatrixINTELType(RecordDecl *RD);
 
   /// GetFunctionType - Get the LLVM function type for \arg Info.
   llvm::FunctionType *GetFunctionType(const CGFunctionInfo &Info);
@@ -305,7 +314,7 @@ public:  // These are internal details of CGT that shouldn't be used externally.
   bool isRecordBeingLaidOut(const Type *Ty) const {
     return RecordsBeingLaidOut.count(Ty);
   }
-
+  unsigned getTargetAddressSpace(QualType T) const;
 };
 
 }  // end namespace CodeGen

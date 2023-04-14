@@ -67,6 +67,26 @@ subroutine test_array_with_lbs(p, x)
   p => x
 end subroutine
 
+! Test that the lhs takes the bounds from rhs.
+! CHECK-LABEL: func @_QPtest_pointer_component(
+! CHECK-SAME: %[[temp:.*]]: !fir.ref<!fir.type<_QFtest_pointer_componentTmytype{ptr:!fir.box<!fir.ptr<!fir.array<?xf32>>>}>> {fir.bindc_name = "temp"}, %[[temp_ptr:.*]]: !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>> {fir.bindc_name = "temp_ptr"}) {
+subroutine test_pointer_component(temp, temp_ptr)
+  type mytype
+    real, pointer :: ptr(:)
+  end type mytype
+  type(mytype) :: temp
+  real, pointer :: temp_ptr(:)
+  ! CHECK: %[[ptr_addr:.*]] = fir.coordinate_of %[[temp]], %{{.*}} : (!fir.ref<!fir.type<_QFtest_pointer_componentTmytype{ptr:!fir.box<!fir.ptr<!fir.array<?xf32>>>}>>, !fir.field) -> !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>>
+  ! CHECK: %[[ptr:.*]] = fir.load %[[ptr_addr]] : !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>>
+  ! CHECK: %[[dims:.*]]:3 = fir.box_dims %[[ptr]], %{{.*}} : (!fir.box<!fir.ptr<!fir.array<?xf32>>>, index) -> (index, index, index)
+  ! CHECK: %[[shift:.*]] = fir.shift %[[dims]]#0 : (index) -> !fir.shift<1>
+  ! CHECK: %[[arr_box:.*]] = fir.rebox %[[ptr]](%[[shift]]) : (!fir.box<!fir.ptr<!fir.array<?xf32>>>, !fir.shift<1>) -> !fir.box<!fir.array<?xf32>>
+  ! CHECK: %[[shift2:.*]] = fir.shift %[[dims]]#0 : (index) -> !fir.shift<1>
+  ! CHECK: %[[final_box:.*]] = fir.rebox %[[arr_box]](%[[shift2]]) : (!fir.box<!fir.array<?xf32>>, !fir.shift<1>) -> !fir.box<!fir.ptr<!fir.array<?xf32>>>
+  ! CHECK: fir.store %[[final_box]] to %[[temp_ptr]] : !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>>
+  temp_ptr => temp%ptr
+end subroutine
+
 ! -----------------------------------------------------------------------------
 !    Test pointer assignments with bound specs to contiguous right-hand side
 ! -----------------------------------------------------------------------------
@@ -344,7 +364,7 @@ subroutine issue1180(x)
   integer, target :: x
   integer, pointer :: p
   common /some_common/ p
-  ! CHECK: %[[VAL_1:.*]] = fir.address_of(@_QBsome_common) : !fir.ref<!fir.array<24xi8>>
+  ! CHECK: %[[VAL_1:.*]] = fir.address_of(@_QCsome_common) : !fir.ref<!fir.array<24xi8>>
   ! CHECK: %[[VAL_2:.*]] = fir.convert %[[VAL_1]] : (!fir.ref<!fir.array<24xi8>>) -> !fir.ref<!fir.array<?xi8>>
   ! CHECK: %[[VAL_3:.*]] = arith.constant 0 : index
   ! CHECK: %[[VAL_4:.*]] = fir.coordinate_of %[[VAL_2]], %[[VAL_3]] : (!fir.ref<!fir.array<?xi8>>, index) -> !fir.ref<i8>

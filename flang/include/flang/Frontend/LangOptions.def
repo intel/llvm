@@ -19,13 +19,14 @@
 LANGOPT(Name, Bits, Default)
 #endif
 
-ENUM_LANGOPT(FPContractMode, FPModeKind, 2, FPM_Off) ///< FP Contract Mode (off/fast)
+ENUM_LANGOPT(FPContractMode, FPModeKind, 2, FPM_Fast) ///< FP Contract Mode (off/fast)
 
 /// Permit floating point optimization without regard to infinities
 LANGOPT(NoHonorInfs, 1, false)
 /// Permit floating point optimization without regard to NaN
 LANGOPT(NoHonorNaNs, 1, false)
-/// Allow math functions to be replaced with an approximately equivalent calculation
+/// Allow math functions to be replaced with an approximately equivalent
+/// calculation
 LANGOPT(ApproxFunc, 1, false)
 /// Allow optimizations that ignore the sign of floating point zeros
 LANGOPT(NoSignedZeros, 1, false)
@@ -33,6 +34,20 @@ LANGOPT(NoSignedZeros, 1, false)
 LANGOPT(AssociativeMath, 1, false)
 /// Allow division operations to be reassociated
 LANGOPT(ReciprocalMath, 1, false)
+/// Generate code only for OpenMP target device
+LANGOPT(OpenMPIsDevice, 1, false)
+/// Enable debugging in the OpenMP offloading device RTL
+LANGOPT(OpenMPTargetDebug, 32, 0)
+/// Assume work-shared loops do not have more iterations than participating
+/// threads.
+LANGOPT(OpenMPThreadSubscription, 1, 0)
+/// Assume distributed loops do not have more iterations than participating
+/// teams.
+LANGOPT(OpenMPTeamSubscription, 1, 0)
+/// Assume that no thread in a parallel region will modify an ICV.
+LANGOPT(OpenMPNoThreadState, 1, 0)
+/// Assume that no thread in a parallel region will encounter a parallel region
+LANGOPT(OpenMPNoNestedParallelism, 1, 0)
 
 #undef LANGOPT
 #undef ENUM_LANGOPT

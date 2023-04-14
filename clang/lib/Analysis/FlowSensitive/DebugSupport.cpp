@@ -106,6 +106,10 @@ public:
       S = getAtomName(&cast<AtomicBoolValue>(B));
       break;
     }
+    case Value::Kind::TopBool: {
+      S = "top";
+      break;
+    }
     case Value::Kind::Conjunction: {
       auto &C = cast<ConjunctionValue>(B);
       auto L = debugString(C.getLeftSubValue(), Depth + 1);
@@ -185,7 +189,7 @@ Constraints
 
     auto StatusString = clang::dataflow::debugString(Result.getStatus());
     auto Solution = Result.getSolution();
-    auto SolutionString = Solution ? "\n" + debugString(Solution.value()) : "";
+    auto SolutionString = Solution ? "\n" + debugString(*Solution) : "";
 
     return formatv(
         Template,

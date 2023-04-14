@@ -170,7 +170,7 @@ static AffineMap getRegisterIndexToTileOffsetMap(int64_t lineSize,
 }
 
 FailureOr<AffineMap>
-nvgpu::getLaneIdAndValueIdToOperandCoord(Location loc, OpBuilder &builder,
+nvgpu::getLaneIdAndValueIdToOperandCoord(OpBuilder &builder, Location loc,
                                          const WarpMatrixInfo &fragmentType) {
   Type elementType = fragmentType.vectorType.getElementType();
   ArrayRef<int64_t> operandShape = fragmentType.vectorType.getShape();
@@ -235,10 +235,9 @@ nvgpu::getLdMatrixParams(const WarpMatrixInfo &type, bool transpose) {
 }
 
 FailureOr<AffineMap>
-nvgpu::getLaneIdToLdMatrixMatrixCoord(Location loc, OpBuilder &builder,
+nvgpu::getLaneIdToLdMatrixMatrixCoord(OpBuilder &builder, Location loc,
                                       const LdMatrixParams &params) {
   // One thread per 128b row.
-  const int64_t kNumThreadsPerTile = kNumRowsPerTile;
   const int bitsPerElement = static_cast<int>(
       params.fragmentType.getElementType().getIntOrFloatBitWidth());
   const int kElementsPer128b = (128 / bitsPerElement);
@@ -249,83 +248,27 @@ nvgpu::getLaneIdToLdMatrixMatrixCoord(Location loc, OpBuilder &builder,
     return AffineMap::get(1, 0, dimExprs, builder.getContext());
   };
 
-  // This case corresponds to row-major A|C or col-major B operands.
-  if (params.contiguousDimType == vector::IteratorType::reduction) {
-    AffineExpr row = d0 % (operandShape[0]);
-    AffineExpr col = d0.floorDiv(operandShape[0]) * (kElementsPer128b);
-    return makeMap({row, col});
-  }
+  // Index `idx` in vectorType `operandShape` maps to the strided dimension of
+  // the `srcMemref` memory of the LdMatrixOp.
+  int idx =
+      (params.contiguousDimType == vector::IteratorType::reduction) ? 0 : 1;
 
-  // This case Corresponds to col-major A|C or row-major B operands. The
-  // operandShape given is already pre-transposed (e.g. 8x16 = KxN).
-  if (params.contiguousDimType == vector::IteratorType::parallel) {
-    const int64_t num8x128bCols = (operandShape[0] * bitsPerElement) / 128;
-    // Threads are assigned in groups of 8 first across columns, then to
-    // rows. This is transpose of what `ldmatrix` expects, but when
-    // `ldmatrix` gets the `.trans` qualifier, final the effect will be to
-    // transpose just the blocks.
-    auto groupIdx = d0.floorDiv(kNumThreadsPerTile);
-    auto tileCol = (groupIdx % num8x128bCols);
-    auto tileRow = groupIdx.floorDiv(num8x128bCols);
-    return makeMap({tileCol * kElementsPer128b,
-                    tileRow * kNumRowsPerTile + (d0 % kNumRowsPerTile)});
-  }
+  // Affine expr in strided and contiguous dimension encodes the coordinate
+  // mapping for the element a thread points to for warp-wide LdMatrixOp.
+  AffineExpr strided = d0 % (operandShape[idx]);
+  AffineExpr contiguous = d0.floorDiv(operandShape[idx]) * (kElementsPer128b);
+
+  // This case corresponds to row-major matrixA or col-major matrixB or
+  // row-major matrixC. This is when the memory layout in `srcMemref`
+  // match mma.sync hardware vector register operand layout.
+  if (params.contiguousDimType == vector::IteratorType::reduction)
+    return makeMap({strided, contiguous});
+
+  // This case corresponds to col-major matrixA or row-major matrixB or
+  // col-major matrixC. This is when the memory layout in `srcMemref` does not
+  // match mma.sync hardware vector register operand layout.
+  if (params.contiguousDimType == vector::IteratorType::parallel)
+    return makeMap({contiguous, strided});
+
   return failure();
-}
-
-LogicalResult nvgpu::PrepareContractToGPUMMASync::matchAndRewrite(
-    vector::ContractionOp op, PatternRewriter &rewriter) const {
-  Location loc = op.getLoc();
-  Value lhs = op.getLhs();
-  Value rhs = op.getRhs();
-  Value res = op.getAcc();
-
-  // Set up the parallel/reduction structure in right form.
-  using MapList = ArrayRef<ArrayRef<AffineExpr>>;
-  auto infer = [](MapList m) { return AffineMap::inferFromExprList(m); };
-  AffineExpr m;
-  AffineExpr n;
-  AffineExpr k;
-  bindDims(rewriter.getContext(), m, n, k);
-  static constexpr std::array<int64_t, 2> perm = {1, 0};
-  auto iteratorTypes = op.getIteratorTypes().getValue();
-  SmallVector<AffineMap, 4> maps = op.getIndexingMapsArray();
-  if (iteratorTypes.size() != 3)
-    return failure();
-  if (!(vector::isParallelIterator(iteratorTypes[0]) &&
-        vector::isParallelIterator(iteratorTypes[1]) &&
-        vector::isReductionIterator(iteratorTypes[2])))
-    return failure();
-
-  // The canonical form is "TNT" = A row-major, B col-major, C row-major.
-  const auto canonicalForm = infer({{m, k}, {n, k}, {m, n}});
-  if (maps == canonicalForm) {
-    return failure();
-  }
-  if (maps == infer({{m, k}, {k, n}, {m, n}})) {
-    rhs = rewriter.create<vector::TransposeOp>(loc, rhs, perm);
-  } else if (maps == infer({{k, m}, {k, n}, {m, n}})) {
-    lhs = rewriter.create<vector::TransposeOp>(loc, lhs, perm);
-  } else if (maps == infer({{k, m}, {k, n}, {m, n}})) {
-    rhs = rewriter.create<vector::TransposeOp>(loc, rhs, perm);
-    lhs = rewriter.create<vector::TransposeOp>(loc, lhs, perm);
-  } else if (maps == infer({{k, m}, {k, n}, {n, m}})) {
-    std::swap(rhs, lhs);
-    rhs = rewriter.create<vector::TransposeOp>(loc, rhs, perm);
-    lhs = rewriter.create<vector::TransposeOp>(loc, lhs, perm);
-  } else if (maps == infer({{k, m}, {n, k}, {n, m}})) {
-    std::swap(rhs, lhs);
-    rhs = rewriter.create<vector::TransposeOp>(loc, rhs, perm);
-  } else if (maps == infer({{m, k}, {k, n}, {n, m}})) {
-    std::swap(lhs, rhs);
-    lhs = rewriter.create<vector::TransposeOp>(loc, lhs, perm);
-  } else if (maps == infer({{m, k}, {n, k}, {n, m}})) {
-    std::swap(lhs, rhs);
-  } else {
-    return failure();
-  }
-  rewriter.replaceOpWithNewOp<vector::ContractionOp>(
-      op, lhs, rhs, res, rewriter.getAffineMapArrayAttr(canonicalForm),
-      op.getIteratorTypes());
-  return success();
 }

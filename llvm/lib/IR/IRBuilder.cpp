@@ -13,7 +13,6 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -32,6 +31,7 @@
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 using namespace llvm;
@@ -102,9 +102,17 @@ Value *IRBuilderBase::CreateVScale(Constant *Scaling, const Twine &Name) {
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::vscale, {Scaling->getType()});
   CallInst *CI = CreateCall(TheFn, {}, {}, Name);
-  return cast<ConstantInt>(Scaling)->getSExtValue() == 1
-             ? CI
-             : CreateMul(CI, Scaling);
+  return cast<ConstantInt>(Scaling)->isOne() ? CI : CreateMul(CI, Scaling);
+}
+
+Value *IRBuilderBase::CreateElementCount(Type *DstType, ElementCount EC) {
+  Constant *MinEC = ConstantInt::get(DstType, EC.getKnownMinValue());
+  return EC.isScalable() ? CreateVScale(MinEC) : MinEC;
+}
+
+Value *IRBuilderBase::CreateTypeSize(Type *DstType, TypeSize Size) {
+  Constant *MinSize = ConstantInt::get(DstType, Size.getKnownMinValue());
+  return Size.isScalable() ? CreateVScale(MinSize) : MinSize;
 }
 
 Value *IRBuilderBase::CreateStepVector(Type *DstType, const Twine &Name) {
@@ -768,8 +776,8 @@ getStatepointArgs(IRBuilderBase &B, uint64_t ID, uint32_t NumPatchBytes,
 
 template<typename T1, typename T2, typename T3>
 static std::vector<OperandBundleDef>
-getStatepointBundles(Optional<ArrayRef<T1>> TransitionArgs,
-                     Optional<ArrayRef<T2>> DeoptArgs,
+getStatepointBundles(std::optional<ArrayRef<T1>> TransitionArgs,
+                     std::optional<ArrayRef<T2>> DeoptArgs,
                      ArrayRef<T3> GCArgs) {
   std::vector<OperandBundleDef> Rval;
   if (DeoptArgs) {
@@ -794,8 +802,9 @@ template <typename T0, typename T1, typename T2, typename T3>
 static CallInst *CreateGCStatepointCallCommon(
     IRBuilderBase *Builder, uint64_t ID, uint32_t NumPatchBytes,
     FunctionCallee ActualCallee, uint32_t Flags, ArrayRef<T0> CallArgs,
-    Optional<ArrayRef<T1>> TransitionArgs, Optional<ArrayRef<T2>> DeoptArgs,
-    ArrayRef<T3> GCArgs, const Twine &Name) {
+    std::optional<ArrayRef<T1>> TransitionArgs,
+    std::optional<ArrayRef<T2>> DeoptArgs, ArrayRef<T3> GCArgs,
+    const Twine &Name) {
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   // Fill in the one generic type'd argument (the function is also vararg)
   Function *FnStatepoint =
@@ -816,18 +825,19 @@ static CallInst *CreateGCStatepointCallCommon(
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
-    ArrayRef<Value *> CallArgs, Optional<ArrayRef<Value *>> DeoptArgs,
+    ArrayRef<Value *> CallArgs, std::optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Value *, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualCallee, uint32_t(StatepointFlags::None),
-      CallArgs, None /* No Transition Args */, DeoptArgs, GCArgs, Name);
+      CallArgs, std::nullopt /* No Transition Args */, DeoptArgs, GCArgs, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
     uint32_t Flags, ArrayRef<Value *> CallArgs,
-    Optional<ArrayRef<Use>> TransitionArgs, Optional<ArrayRef<Use>> DeoptArgs,
-    ArrayRef<Value *> GCArgs, const Twine &Name) {
+    std::optional<ArrayRef<Use>> TransitionArgs,
+    std::optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    const Twine &Name) {
   return CreateGCStatepointCallCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualCallee, Flags, CallArgs, TransitionArgs,
       DeoptArgs, GCArgs, Name);
@@ -835,11 +845,11 @@ CallInst *IRBuilderBase::CreateGCStatepointCall(
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
-    ArrayRef<Use> CallArgs, Optional<ArrayRef<Value *>> DeoptArgs,
+    ArrayRef<Use> CallArgs, std::optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Use, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualCallee, uint32_t(StatepointFlags::None),
-      CallArgs, None, DeoptArgs, GCArgs, Name);
+      CallArgs, std::nullopt, DeoptArgs, GCArgs, Name);
 }
 
 template <typename T0, typename T1, typename T2, typename T3>
@@ -847,8 +857,9 @@ static InvokeInst *CreateGCStatepointInvokeCommon(
     IRBuilderBase *Builder, uint64_t ID, uint32_t NumPatchBytes,
     FunctionCallee ActualInvokee, BasicBlock *NormalDest,
     BasicBlock *UnwindDest, uint32_t Flags, ArrayRef<T0> InvokeArgs,
-    Optional<ArrayRef<T1>> TransitionArgs, Optional<ArrayRef<T2>> DeoptArgs,
-    ArrayRef<T3> GCArgs, const Twine &Name) {
+    std::optional<ArrayRef<T1>> TransitionArgs,
+    std::optional<ArrayRef<T2>> DeoptArgs, ArrayRef<T3> GCArgs,
+    const Twine &Name) {
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   // Fill in the one generic type'd argument (the function is also vararg)
   Function *FnStatepoint =
@@ -871,19 +882,19 @@ static InvokeInst *CreateGCStatepointInvokeCommon(
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest,
-    ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Value *>> DeoptArgs,
+    ArrayRef<Value *> InvokeArgs, std::optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Value *, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest,
-      uint32_t(StatepointFlags::None), InvokeArgs, None /* No Transition Args*/,
-      DeoptArgs, GCArgs, Name);
+      uint32_t(StatepointFlags::None), InvokeArgs,
+      std::nullopt /* No Transition Args*/, DeoptArgs, GCArgs, Name);
 }
 
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
-    ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Use>> TransitionArgs,
-    Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    ArrayRef<Value *> InvokeArgs, std::optional<ArrayRef<Use>> TransitionArgs,
+    std::optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
     const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest, Flags,
@@ -893,12 +904,12 @@ InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, ArrayRef<Use> InvokeArgs,
-    Optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    std::optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs,
     const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Use, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest,
-      uint32_t(StatepointFlags::None), InvokeArgs, None, DeoptArgs, GCArgs,
-      Name);
+      uint32_t(StatepointFlags::None), InvokeArgs, std::nullopt, DeoptArgs,
+      GCArgs, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCResult(Instruction *Statepoint,
@@ -999,8 +1010,8 @@ CallInst *IRBuilderBase::CreateIntrinsic(Type *RetTy, Intrinsic::ID ID,
 CallInst *IRBuilderBase::CreateConstrainedFPBinOp(
     Intrinsic::ID ID, Value *L, Value *R, Instruction *FMFSource,
     const Twine &Name, MDNode *FPMathTag,
-    Optional<RoundingMode> Rounding,
-    Optional<fp::ExceptionBehavior> Except) {
+    std::optional<RoundingMode> Rounding,
+    std::optional<fp::ExceptionBehavior> Except) {
   Value *RoundingV = getConstrainedFPRounding(Rounding);
   Value *ExceptV = getConstrainedFPExcept(Except);
 
@@ -1033,8 +1044,8 @@ Value *IRBuilderBase::CreateNAryOp(unsigned Opc, ArrayRef<Value *> Ops,
 CallInst *IRBuilderBase::CreateConstrainedFPCast(
     Intrinsic::ID ID, Value *V, Type *DestTy,
     Instruction *FMFSource, const Twine &Name, MDNode *FPMathTag,
-    Optional<RoundingMode> Rounding,
-    Optional<fp::ExceptionBehavior> Except) {
+    std::optional<RoundingMode> Rounding,
+    std::optional<fp::ExceptionBehavior> Except) {
   Value *ExceptV = getConstrainedFPExcept(Except);
 
   FastMathFlags UseFMF = FMF;
@@ -1084,7 +1095,7 @@ Value *IRBuilderBase::CreateFCmpHelper(
 
 CallInst *IRBuilderBase::CreateConstrainedFPCmp(
     Intrinsic::ID ID, CmpInst::Predicate P, Value *L, Value *R,
-    const Twine &Name, Optional<fp::ExceptionBehavior> Except) {
+    const Twine &Name, std::optional<fp::ExceptionBehavior> Except) {
   Value *PredicateV = getConstrainedFPPredicate(P);
   Value *ExceptV = getConstrainedFPExcept(Except);
 
@@ -1096,8 +1107,8 @@ CallInst *IRBuilderBase::CreateConstrainedFPCmp(
 
 CallInst *IRBuilderBase::CreateConstrainedFPCall(
     Function *Callee, ArrayRef<Value *> Args, const Twine &Name,
-    Optional<RoundingMode> Rounding,
-    Optional<fp::ExceptionBehavior> Except) {
+    std::optional<RoundingMode> Rounding,
+    std::optional<fp::ExceptionBehavior> Except) {
   llvm::SmallVector<Value *, 6> UseArgs;
 
   append_range(UseArgs, Args);
@@ -1254,10 +1265,8 @@ Value *IRBuilderBase::CreateVectorSplat(ElementCount EC, Value *V,
   assert(EC.isNonZero() && "Cannot splat to an empty vector!");
 
   // First insert it into a poison vector so we can shuffle it.
-  Type *I32Ty = getInt32Ty();
   Value *Poison = PoisonValue::get(VectorType::get(V->getType(), EC));
-  V = CreateInsertElement(Poison, V, ConstantInt::get(I32Ty, 0),
-                          Name + ".splatinsert");
+  V = CreateInsertElement(Poison, V, getInt64(0), Name + ".splatinsert");
 
   // Shuffle the value across the desired number of elements.
   SmallVector<int, 16> Zeros;

@@ -13,11 +13,11 @@
 #ifndef LLVM_ADT_STRINGSWITCH_H
 #define LLVM_ADT_STRINGSWITCH_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 #include <cassert>
 #include <cstring>
+#include <optional>
 
 namespace llvm {
 
@@ -47,7 +47,7 @@ class StringSwitch {
 
   /// The pointer to the result of this switch statement, once known,
   /// null before that.
-  Optional<T> Result;
+  std::optional<T> Result;
 
 public:
   explicit StringSwitch(StringRef S)

@@ -227,7 +227,7 @@ break; \
           desugarForDiagnostic(Context, Ty->getBaseType(), ShouldAKA);
       QT = Context.getObjCObjectType(
           BaseType, Ty->getTypeArgsAsWritten(),
-          llvm::makeArrayRef(Ty->qual_begin(), Ty->getNumProtocols()),
+          llvm::ArrayRef(Ty->qual_begin(), Ty->getNumProtocols()),
           Ty->isKindOfTypeAsWritten());
     }
   }
@@ -538,7 +538,7 @@ class TemplateDiff {
   bool ShowColor;
 
   /// FromTemplateType - When single type printing is selected, this is the
-  /// type to be be printed.  When tree printing is selected, this type will
+  /// type to be printed.  When tree printing is selected, this type will
   /// show up first in the tree.
   QualType FromTemplateType;
 

@@ -240,15 +240,12 @@ private:
 /// induction variable and the different reduction variables.
 class LoopVectorizationLegality {
 public:
-  LoopVectorizationLegality(Loop *L, PredicatedScalarEvolution &PSE,
-                            DominatorTree *DT, TargetTransformInfo *TTI,
-                            TargetLibraryInfo *TLI, AAResults *AA, Function *F,
-                            LoopAccessInfoManager &LAIs, LoopInfo *LI,
-                            OptimizationRemarkEmitter *ORE,
-                            LoopVectorizationRequirements *R,
-                            LoopVectorizeHints *H, DemandedBits *DB,
-                            AssumptionCache *AC, BlockFrequencyInfo *BFI,
-                            ProfileSummaryInfo *PSI)
+  LoopVectorizationLegality(
+      Loop *L, PredicatedScalarEvolution &PSE, DominatorTree *DT,
+      TargetTransformInfo *TTI, TargetLibraryInfo *TLI, Function *F,
+      LoopAccessInfoManager &LAIs, LoopInfo *LI, OptimizationRemarkEmitter *ORE,
+      LoopVectorizationRequirements *R, LoopVectorizeHints *H, DemandedBits *DB,
+      AssumptionCache *AC, BlockFrequencyInfo *BFI, ProfileSummaryInfo *PSI)
       : TheLoop(L), LI(LI), PSE(PSE), TTI(TTI), TLI(TLI), DT(DT), LAIs(LAIs),
         ORE(ORE), Requirements(R), Hints(H), DB(DB), AC(AC), BFI(BFI),
         PSI(PSI) {}
@@ -295,9 +292,6 @@ public:
 
   /// Return the fixed-order recurrences found in the loop.
   RecurrenceSet &getFixedOrderRecurrences() { return FixedOrderRecurrences; }
-
-  /// Return the set of instructions to sink to handle fixed-order recurrences.
-  MapVector<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
 
   /// Returns the widest induction type.
   Type *getWidestInductionType() { return WidestIndTy; }
@@ -394,6 +388,20 @@ public:
     return ConditionalAssumes;
   }
 
+  PredicatedScalarEvolution *getPredicatedScalarEvolution() const {
+    return &PSE;
+  }
+
+  Loop *getLoop() const { return TheLoop; }
+
+  LoopInfo *getLoopInfo() const { return LI; }
+
+  AssumptionCache *getAssumptionCache() const { return AC; }
+
+  ScalarEvolution *getScalarEvolution() const { return PSE.getSE(); }
+
+  DominatorTree *getDominatorTree() const { return DT; }
+
 private:
   /// Return true if the pre-header, exiting and latch blocks of \p Lp and all
   /// its nested loops are considered legal for vectorization. These legal
@@ -454,16 +462,6 @@ private:
   /// better choice for the main induction than the existing one.
   void addInductionPhi(PHINode *Phi, const InductionDescriptor &ID,
                        SmallPtrSetImpl<Value *> &AllowedExit);
-
-  /// If an access has a symbolic strides, this maps the pointer value to
-  /// the stride symbol.
-  const ValueToValueMap *getSymbolicStrides() const {
-    // FIXME: Currently, the set of symbolic strides is sometimes queried before
-    // it's collected.  This happens from canVectorizeWithIfConvert, when the
-    // pointer is checked to reference consecutive elements suitable for a
-    // masked access.
-    return LAI ? &LAI->getSymbolicStrides() : nullptr;
-  }
 
   /// The loop that we evaluate.
   Loop *TheLoop;

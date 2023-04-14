@@ -40,7 +40,6 @@
 
 #include "LLVMSPIRVOpts.h"
 
-#include <llvm/ADT/Optional.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/IntrinsicInst.h>
@@ -54,7 +53,7 @@ bool TranslatorOpts::isUnknownIntrinsicAllowed(IntrinsicInst *II) const
     return false;
   const auto &IntrinsicPrefixList = SPIRVAllowUnknownIntrinsics.value();
   StringRef IntrinsicName = II->getCalledOperand()->getName();
-  for (const auto Prefix : IntrinsicPrefixList) {
+  for (const auto &Prefix : IntrinsicPrefixList) {
     if (IntrinsicName.startswith(Prefix)) // Also true if `Prefix` is empty
       return true;
   }

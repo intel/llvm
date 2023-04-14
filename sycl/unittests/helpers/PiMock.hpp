@@ -192,17 +192,19 @@ public:
   /// within the given context. A separate platform instance will be
   /// held by the PiMock instance.
   ///
-  PiMock() {
+  /// \param Backend is the backend type to mock, intended for testing backend
+  /// specific runtime logic.
+  PiMock(backend Backend = backend::opencl) {
     // Create new mock plugin platform and plugin handles
     // Note: Mock plugin will be generated if it has not been yet.
-    MPlatformImpl = GetMockPlatformImpl();
+    MPlatformImpl = GetMockPlatformImpl(Backend);
     std::shared_ptr<detail::plugin> NewPluginPtr;
     {
       const detail::plugin &OriginalPiPlugin = MPlatformImpl->getPlugin();
       // Copy the PiPlugin, thus untying our to-be mock platform from other
       // platforms within the context. Reset our platform to use the new plugin.
       NewPluginPtr = std::make_shared<detail::plugin>(
-          OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
+          OriginalPiPlugin.getPiPluginPtr(), Backend,
           OriginalPiPlugin.getLibraryHandle());
       // Save a copy of the platform resource
       OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
@@ -218,10 +220,15 @@ public:
     OrigFuncTable = std::move(Other.OrigFuncTable);
     Other.OrigFuncTable = {}; // Move above doesn't reset the optional.
     MPiPluginMockPtr = std::move(Other.MPiPluginMockPtr);
+    Other.MIsMoved = true;
   }
   PiMock(const PiMock &) = delete;
   PiMock &operator=(const PiMock &) = delete;
   ~PiMock() {
+    // Do nothing if mock was moved.
+    if (MIsMoved)
+      return;
+
     // Since the plugin relies on the global vars to store function pointers we
     // need to reset them for the new PiMock plugin instance
     // TODO: Make function pointers array for each PiMock instance?
@@ -230,6 +237,7 @@ public:
       return;
 
     MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
+    detail::GlobalHandler::instance().releaseDefaultContexts();
   }
 
   /// Returns a handle to the SYCL platform instance.
@@ -328,7 +336,9 @@ public:
   /// in the global handler. Additionally, all existing plugins will be removed
   /// and unloaded to avoid them being accidentally picked up by tests using
   /// selectors.
-  static void EnsureMockPluginInitialized() {
+  /// \param Backend is the backend type to mock, intended for testing backend
+  /// specific runtime logic.
+  static void EnsureMockPluginInitialized(backend Backend = backend::opencl) {
     // Only initialize the plugin once.
     if (MMockPluginPtr)
       return;
@@ -346,8 +356,7 @@ public:
         RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
                      getProxyMockedFunctionPointers()});
 
-    // FIXME: which backend to pass here? does it affect anything?
-    MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,
+    MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, Backend,
                                                       /*Library=*/nullptr);
     Plugins.push_back(*MMockPluginPtr);
   }
@@ -357,8 +366,9 @@ private:
   /// platform_impl from it.
   ///
   /// \return a shared_ptr to a platform_impl created from the mock PI plugin.
-  static std::shared_ptr<sycl::detail::platform_impl> GetMockPlatformImpl() {
-    EnsureMockPluginInitialized();
+  static std::shared_ptr<sycl::detail::platform_impl>
+  GetMockPlatformImpl(backend Backend) {
+    EnsureMockPluginInitialized(Backend);
 
     pi_uint32 NumPlatforms = 0;
     MMockPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(
@@ -376,6 +386,9 @@ private:
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
   RT::PiPlugin *MPiPluginMockPtr;
+
+  // Marker to indicate if the mock was moved.
+  bool MIsMoved = false;
 
   // Pointer to the mock plugin pointer. This is static to avoid
   // reinitialization and re-registration of the same plugin.

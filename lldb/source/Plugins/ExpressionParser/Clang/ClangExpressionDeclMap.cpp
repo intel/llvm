@@ -205,8 +205,9 @@ ClangExpressionDeclMap::TargetInfo ClangExpressionDeclMap::GetTargetInfo() {
 TypeFromUser ClangExpressionDeclMap::DeportType(TypeSystemClang &target,
                                                 TypeSystemClang &source,
                                                 TypeFromParser parser_type) {
-  assert(&target == GetScratchContext(*m_target));
-  assert((TypeSystem *)&source == parser_type.GetTypeSystem());
+  assert(&target == GetScratchContext(*m_target).get());
+  assert((TypeSystem *)&source ==
+         parser_type.GetTypeSystem().GetSharedPointer().get());
   assert(&source.getASTContext() == m_ast_context);
 
   return TypeFromUser(m_ast_importer_sp->DeportType(target, parser_type));
@@ -218,9 +219,7 @@ bool ClangExpressionDeclMap::AddPersistentVariable(const NamedDecl *decl,
                                                    bool is_result,
                                                    bool is_lvalue) {
   assert(m_parser_vars.get());
-
-  TypeSystemClang *ast =
-      llvm::dyn_cast_or_null<TypeSystemClang>(parser_type.GetTypeSystem());
+  auto ast = parser_type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
   if (ast == nullptr)
     return false;
 
@@ -243,7 +242,7 @@ bool ClangExpressionDeclMap::AddPersistentVariable(const NamedDecl *decl,
     if (target == nullptr)
       return false;
 
-    auto *clang_ast_context = GetScratchContext(*target);
+    auto clang_ast_context = GetScratchContext(*target);
     if (!clang_ast_context)
       return false;
 
@@ -281,7 +280,7 @@ bool ClangExpressionDeclMap::AddPersistentVariable(const NamedDecl *decl,
   if (target == nullptr)
     return false;
 
-  TypeSystemClang *context = GetScratchContext(*target);
+  auto context = GetScratchContext(*target);
   if (!context)
     return false;
 
@@ -847,8 +846,9 @@ void ClangExpressionDeclMap::LookUpLldbClass(NameSearchContext &context) {
 
     QualType class_qual_type(class_decl->getTypeForDecl(), 0);
 
-    TypeFromUser class_user_type(class_qual_type.getAsOpaquePtr(),
-                                 function_decl_ctx.GetTypeSystem());
+    TypeFromUser class_user_type(
+        class_qual_type.getAsOpaquePtr(),
+        function_decl_ctx.GetTypeSystem()->weak_from_this());
 
     LLDB_LOG(log, "  CEDM::FEVD Adding type for $__lldb_class: {0}",
              class_qual_type.getAsString());
@@ -936,8 +936,9 @@ void ClangExpressionDeclMap::LookUpLldbObjCClass(NameSearchContext &context) {
       return; // This is unlikely, but we have seen crashes where this
               // occurred
 
-    TypeFromUser class_user_type(QualType(interface_type, 0).getAsOpaquePtr(),
-                                 function_decl_ctx.GetTypeSystem());
+    TypeFromUser class_user_type(
+        QualType(interface_type, 0).getAsOpaquePtr(),
+        function_decl_ctx.GetTypeSystem()->weak_from_this());
 
     LLDB_LOG(log, "  FEVD[{0}] Adding type for $__lldb_objc_class: {1}",
              ClangUtil::ToString(interface_type));
@@ -1171,8 +1172,7 @@ SymbolContextList ClangExpressionDeclMap::SearchFunctionsInSymbolContexts(
     // class/instance methods, since they'll be skipped in the code that
     // follows anyway.
     CompilerDeclContext func_decl_context = function->GetDeclContext();
-    if (!func_decl_context ||
-        func_decl_context.IsClassMethod(nullptr, nullptr, nullptr))
+    if (!func_decl_context || func_decl_context.IsClassMethod())
       continue;
     // We can only prune functions for which we can copy the type.
     CompilerType func_clang_type = function->GetType()->GetFullCompilerType();
@@ -1306,7 +1306,7 @@ void ClangExpressionDeclMap::LookupFunction(
           continue;
 
         // Filter out class/instance methods.
-        if (decl_ctx.IsClassMethod(nullptr, nullptr, nullptr))
+        if (decl_ctx.IsClassMethod())
           continue;
 
         AddOneFunction(context, sym_ctx.function, nullptr);
@@ -1501,8 +1501,8 @@ bool ClangExpressionDeclMap::GetVariableValue(VariableSP &var,
     return false;
   }
 
-  TypeSystemClang *clang_ast = llvm::dyn_cast_or_null<TypeSystemClang>(
-      var_type->GetForwardCompilerType().GetTypeSystem());
+  auto ts = var_type->GetForwardCompilerType().GetTypeSystem();
+  auto clang_ast = ts.dyn_cast_or_null<TypeSystemClang>();
 
   if (!clang_ast) {
     LLDB_LOG(log, "Skipped a definition because it has no Clang AST");
@@ -1621,8 +1621,8 @@ void ClangExpressionDeclMap::AddOneVariable(
 
   TypeFromUser user_type = valobj->GetCompilerType();
 
-  TypeSystemClang *clang_ast =
-      llvm::dyn_cast_or_null<TypeSystemClang>(user_type.GetTypeSystem());
+  auto clang_ast =
+      user_type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
 
   if (!clang_ast) {
     LLDB_LOG(log, "Skipped a definition because it has no Clang AST");
@@ -1727,7 +1727,7 @@ void ClangExpressionDeclMap::AddOneGenericVariable(NameSearchContext &context,
   if (target == nullptr)
     return;
 
-  TypeSystemClang *scratch_ast_context = GetScratchContext(*target);
+  auto scratch_ast_context = GetScratchContext(*target);
   if (!scratch_ast_context)
     return;
 

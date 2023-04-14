@@ -16,8 +16,8 @@ define signext i8 @caller_9(ptr nocapture readonly byval([9 x i8]) %data) #0 {
 ; P8LE-LABEL: caller_9:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -80(r1)
+; P8LE-NEXT:    std r0, 96(r1)
 ; P8LE-NEXT:    stb r4, 56(r1)
 ; P8LE-NEXT:    addi r5, r1, 71
 ; P8LE-NEXT:    std r3, 48(r1)
@@ -36,12 +36,12 @@ define signext i8 @caller_9(ptr nocapture readonly byval([9 x i8]) %data) #0 {
 ; P9LE-LABEL: caller_9:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -80(r1)
+; P9LE-NEXT:    std r0, 96(r1)
 ; P9LE-NEXT:    stb r4, 56(r1)
 ; P9LE-NEXT:    addi r4, r1, 71
-; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    lbz r5, 56(r1)
+; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    stdx r3, 0, r4
 ; P9LE-NEXT:    mr r3, r4
 ; P9LE-NEXT:    stb r5, 79(r1)
@@ -75,8 +75,8 @@ define signext i8 @caller_9(ptr nocapture readonly byval([9 x i8]) %data) #0 {
 ; P8BE-LABEL: caller_9:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    stb r4, 200(r1)
 ; P8BE-NEXT:    addi r5, r1, 135
 ; P8BE-NEXT:    std r3, 192(r1)
@@ -95,12 +95,12 @@ define signext i8 @caller_9(ptr nocapture readonly byval([9 x i8]) %data) #0 {
 ; P9BE-LABEL: caller_9:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    stb r4, 200(r1)
 ; P9BE-NEXT:    addi r4, r1, 135
-; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    lbz r5, 200(r1)
+; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    stdx r3, 0, r4
 ; P9BE-NEXT:    mr r3, r4
 ; P9BE-NEXT:    stb r5, 143(r1)
@@ -175,14 +175,13 @@ define signext i8 @caller_9_callee_9(ptr nocapture readonly byval([9 x i8]) %dat
 ; P8LE-LABEL: caller_9_callee_9:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -80(r1)
+; P8LE-NEXT:    std r0, 96(r1)
 ; P8LE-NEXT:    stb r4, 56(r1)
 ; P8LE-NEXT:    addi r5, r1, 71
 ; P8LE-NEXT:    std r3, 48(r1)
 ; P8LE-NEXT:    lbz r4, 56(r1)
 ; P8LE-NEXT:    stdx r3, 0, r5
-; P8LE-NEXT:    ld r3, 48(r1)
 ; P8LE-NEXT:    stb r4, 79(r1)
 ; P8LE-NEXT:    lbz r4, 56(r1)
 ; P8LE-NEXT:    bl callee_9
@@ -196,15 +195,14 @@ define signext i8 @caller_9_callee_9(ptr nocapture readonly byval([9 x i8]) %dat
 ; P9LE-LABEL: caller_9_callee_9:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -80(r1)
+; P9LE-NEXT:    std r0, 96(r1)
 ; P9LE-NEXT:    stb r4, 56(r1)
 ; P9LE-NEXT:    addi r4, r1, 71
-; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    lbz r5, 56(r1)
+; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    stdx r3, 0, r4
 ; P9LE-NEXT:    lbz r4, 56(r1)
-; P9LE-NEXT:    ld r3, 48(r1)
 ; P9LE-NEXT:    stb r5, 79(r1)
 ; P9LE-NEXT:    bl callee_9
 ; P9LE-NEXT:    nop
@@ -225,7 +223,6 @@ define signext i8 @caller_9_callee_9(ptr nocapture readonly byval([9 x i8]) %dat
 ; P10LE-NEXT:    lbz r5, 56(r1)
 ; P10LE-NEXT:    stdx r3, 0, r4
 ; P10LE-NEXT:    lbz r4, 56(r1)
-; P10LE-NEXT:    ld r3, 48(r1)
 ; P10LE-NEXT:    stb r5, 79(r1)
 ; P10LE-NEXT:    bl callee_9@notoc
 ; P10LE-NEXT:    li r3, 0
@@ -237,14 +234,13 @@ define signext i8 @caller_9_callee_9(ptr nocapture readonly byval([9 x i8]) %dat
 ; P8BE-LABEL: caller_9_callee_9:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    stb r4, 200(r1)
 ; P8BE-NEXT:    addi r5, r1, 135
 ; P8BE-NEXT:    std r3, 192(r1)
 ; P8BE-NEXT:    lbz r4, 200(r1)
 ; P8BE-NEXT:    stdx r3, 0, r5
-; P8BE-NEXT:    ld r3, 192(r1)
 ; P8BE-NEXT:    stb r4, 143(r1)
 ; P8BE-NEXT:    lbz r4, 200(r1)
 ; P8BE-NEXT:    bl callee_9
@@ -258,15 +254,14 @@ define signext i8 @caller_9_callee_9(ptr nocapture readonly byval([9 x i8]) %dat
 ; P9BE-LABEL: caller_9_callee_9:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    stb r4, 200(r1)
 ; P9BE-NEXT:    addi r4, r1, 135
-; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    lbz r5, 200(r1)
+; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    stdx r3, 0, r4
 ; P9BE-NEXT:    lbz r4, 200(r1)
-; P9BE-NEXT:    ld r3, 192(r1)
 ; P9BE-NEXT:    stb r5, 143(r1)
 ; P9BE-NEXT:    bl callee_9
 ; P9BE-NEXT:    nop
@@ -287,7 +282,6 @@ define signext i8 @caller_9_callee_9(ptr nocapture readonly byval([9 x i8]) %dat
 ; P10BE-NEXT:    lbz r5, 200(r1)
 ; P10BE-NEXT:    stdx r3, 0, r4
 ; P10BE-NEXT:    lbz r4, 200(r1)
-; P10BE-NEXT:    ld r3, 192(r1)
 ; P10BE-NEXT:    stb r5, 143(r1)
 ; P10BE-NEXT:    bl callee_9
 ; P10BE-NEXT:    nop
@@ -340,8 +334,8 @@ define signext i8 @caller_10(ptr nocapture readonly byval([10 x i8]) %data) #0 {
 ; P8LE-LABEL: caller_10:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -80(r1)
+; P8LE-NEXT:    std r0, 96(r1)
 ; P8LE-NEXT:    sth r4, 56(r1)
 ; P8LE-NEXT:    addi r5, r1, 70
 ; P8LE-NEXT:    std r3, 48(r1)
@@ -360,12 +354,12 @@ define signext i8 @caller_10(ptr nocapture readonly byval([10 x i8]) %data) #0 {
 ; P9LE-LABEL: caller_10:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -80(r1)
+; P9LE-NEXT:    std r0, 96(r1)
 ; P9LE-NEXT:    sth r4, 56(r1)
 ; P9LE-NEXT:    addi r4, r1, 70
-; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    lhz r5, 56(r1)
+; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    stdx r3, 0, r4
 ; P9LE-NEXT:    mr r3, r4
 ; P9LE-NEXT:    sth r5, 78(r1)
@@ -399,8 +393,8 @@ define signext i8 @caller_10(ptr nocapture readonly byval([10 x i8]) %data) #0 {
 ; P8BE-LABEL: caller_10:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    sth r4, 200(r1)
 ; P8BE-NEXT:    addi r5, r1, 134
 ; P8BE-NEXT:    std r3, 192(r1)
@@ -419,12 +413,12 @@ define signext i8 @caller_10(ptr nocapture readonly byval([10 x i8]) %data) #0 {
 ; P9BE-LABEL: caller_10:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    sth r4, 200(r1)
 ; P9BE-NEXT:    addi r4, r1, 134
-; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    lhz r5, 200(r1)
+; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    stdx r3, 0, r4
 ; P9BE-NEXT:    mr r3, r4
 ; P9BE-NEXT:    sth r5, 142(r1)
@@ -503,8 +497,8 @@ define signext i8 @caller_12(ptr nocapture readonly byval([12 x i8]) %data) #0 {
 ; P8LE-LABEL: caller_12:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -80(r1)
+; P8LE-NEXT:    std r0, 96(r1)
 ; P8LE-NEXT:    stw r4, 56(r1)
 ; P8LE-NEXT:    addi r5, r1, 68
 ; P8LE-NEXT:    std r3, 48(r1)
@@ -523,12 +517,12 @@ define signext i8 @caller_12(ptr nocapture readonly byval([12 x i8]) %data) #0 {
 ; P9LE-LABEL: caller_12:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -80(r1)
+; P9LE-NEXT:    std r0, 96(r1)
 ; P9LE-NEXT:    stw r4, 56(r1)
 ; P9LE-NEXT:    addi r4, r1, 68
-; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    lwz r5, 56(r1)
+; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    std r3, 68(r1)
 ; P9LE-NEXT:    mr r3, r4
 ; P9LE-NEXT:    stw r5, 76(r1)
@@ -562,8 +556,8 @@ define signext i8 @caller_12(ptr nocapture readonly byval([12 x i8]) %data) #0 {
 ; P8BE-LABEL: caller_12:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    stw r4, 200(r1)
 ; P8BE-NEXT:    addi r5, r1, 132
 ; P8BE-NEXT:    std r3, 192(r1)
@@ -582,12 +576,12 @@ define signext i8 @caller_12(ptr nocapture readonly byval([12 x i8]) %data) #0 {
 ; P9BE-LABEL: caller_12:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    stw r4, 200(r1)
 ; P9BE-NEXT:    addi r4, r1, 132
-; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    lwz r5, 200(r1)
+; P9BE-NEXT:    std r3, 192(r1)
 ; P9BE-NEXT:    std r3, 132(r1)
 ; P9BE-NEXT:    mr r3, r4
 ; P9BE-NEXT:    stw r5, 140(r1)
@@ -674,8 +668,8 @@ define signext i8 @caller_14(ptr nocapture readonly byval([14 x i8]) %data) #0 {
 ; P8LE-LABEL: caller_14:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -80(r1)
+; P8LE-NEXT:    std r0, 96(r1)
 ; P8LE-NEXT:    stw r4, 56(r1)
 ; P8LE-NEXT:    addi r5, r1, 66
 ; P8LE-NEXT:    rldicl r4, r4, 32, 32
@@ -696,11 +690,11 @@ define signext i8 @caller_14(ptr nocapture readonly byval([14 x i8]) %data) #0 {
 ; P9LE-LABEL: caller_14:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -80(r1)
+; P9LE-NEXT:    std r0, 96(r1)
 ; P9LE-NEXT:    stw r4, 56(r1)
-; P9LE-NEXT:    rldicl r4, r4, 32, 32
 ; P9LE-NEXT:    lwz r5, 56(r1)
+; P9LE-NEXT:    rldicl r4, r4, 32, 32
 ; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    sth r4, 60(r1)
 ; P9LE-NEXT:    addi r4, r1, 66
@@ -739,16 +733,16 @@ define signext i8 @caller_14(ptr nocapture readonly byval([14 x i8]) %data) #0 {
 ; P8BE-LABEL: caller_14:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
 ; P8BE-NEXT:    rldicl r6, r4, 48, 16
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    addi r5, r1, 130
 ; P8BE-NEXT:    std r3, 192(r1)
-; P8BE-NEXT:    sth r4, 204(r1)
-; P8BE-NEXT:    stw r6, 200(r1)
 ; P8BE-NEXT:    stdx r3, 0, r5
 ; P8BE-NEXT:    mr r3, r5
+; P8BE-NEXT:    stw r6, 200(r1)
 ; P8BE-NEXT:    lwz r6, 200(r1)
+; P8BE-NEXT:    sth r4, 204(r1)
 ; P8BE-NEXT:    stw r6, 138(r1)
 ; P8BE-NEXT:    bl callee
 ; P8BE-NEXT:    nop
@@ -761,9 +755,9 @@ define signext i8 @caller_14(ptr nocapture readonly byval([14 x i8]) %data) #0 {
 ; P9BE-LABEL: caller_14:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
 ; P9BE-NEXT:    rldicl r5, r4, 48, 16
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    sth r4, 204(r1)
 ; P9BE-NEXT:    addi r4, r1, 130
 ; P9BE-NEXT:    std r3, 192(r1)
@@ -857,9 +851,9 @@ define signext i8 @caller_16(ptr nocapture readonly byval([16 x i8]) %data) #0 {
 ; P8LE-LABEL: caller_16:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -80(r1)
 ; P8LE-NEXT:    addi r5, r1, 64
+; P8LE-NEXT:    std r0, 96(r1)
 ; P8LE-NEXT:    std r3, 48(r1)
 ; P8LE-NEXT:    std r4, 56(r1)
 ; P8LE-NEXT:    std r3, 64(r1)
@@ -876,9 +870,9 @@ define signext i8 @caller_16(ptr nocapture readonly byval([16 x i8]) %data) #0 {
 ; P9LE-LABEL: caller_16:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -80(r1)
 ; P9LE-NEXT:    addi r5, r1, 64
+; P9LE-NEXT:    std r0, 96(r1)
 ; P9LE-NEXT:    std r3, 48(r1)
 ; P9LE-NEXT:    std r4, 56(r1)
 ; P9LE-NEXT:    stw r4, 72(r1)
@@ -913,9 +907,9 @@ define signext i8 @caller_16(ptr nocapture readonly byval([16 x i8]) %data) #0 {
 ; P8BE-LABEL: caller_16:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
 ; P8BE-NEXT:    addi r5, r1, 128
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    rldicl r6, r4, 32, 32
 ; P8BE-NEXT:    std r3, 192(r1)
 ; P8BE-NEXT:    std r4, 200(r1)
@@ -933,8 +927,8 @@ define signext i8 @caller_16(ptr nocapture readonly byval([16 x i8]) %data) #0 {
 ; P9BE-LABEL: caller_16:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    std r4, 200(r1)
 ; P9BE-NEXT:    rldicl r5, r4, 32, 32
 ; P9BE-NEXT:    addi r4, r1, 128
@@ -1025,14 +1019,14 @@ define signext i8 @caller_18(ptr nocapture readonly byval([18 x i8]) %data) #0 {
 ; P8LE-LABEL: caller_18:
 ; P8LE:       # %bb.0: # %entry
 ; P8LE-NEXT:    mflr r0
-; P8LE-NEXT:    std r0, 16(r1)
 ; P8LE-NEXT:    stdu r1, -96(r1)
 ; P8LE-NEXT:    addi r6, r1, 78
+; P8LE-NEXT:    std r0, 112(r1)
 ; P8LE-NEXT:    std r3, 48(r1)
-; P8LE-NEXT:    sth r5, 64(r1)
 ; P8LE-NEXT:    std r4, 56(r1)
 ; P8LE-NEXT:    stdx r3, 0, r6
 ; P8LE-NEXT:    mr r3, r6
+; P8LE-NEXT:    sth r5, 64(r1)
 ; P8LE-NEXT:    stw r4, 86(r1)
 ; P8LE-NEXT:    bl callee
 ; P8LE-NEXT:    nop
@@ -1045,8 +1039,8 @@ define signext i8 @caller_18(ptr nocapture readonly byval([18 x i8]) %data) #0 {
 ; P9LE-LABEL: caller_18:
 ; P9LE:       # %bb.0: # %entry
 ; P9LE-NEXT:    mflr r0
-; P9LE-NEXT:    std r0, 16(r1)
 ; P9LE-NEXT:    stdu r1, -96(r1)
+; P9LE-NEXT:    std r0, 112(r1)
 ; P9LE-NEXT:    sth r5, 64(r1)
 ; P9LE-NEXT:    addi r5, r1, 78
 ; P9LE-NEXT:    std r3, 48(r1)
@@ -1084,9 +1078,9 @@ define signext i8 @caller_18(ptr nocapture readonly byval([18 x i8]) %data) #0 {
 ; P8BE-LABEL: caller_18:
 ; P8BE:       # %bb.0: # %entry
 ; P8BE-NEXT:    mflr r0
-; P8BE-NEXT:    std r0, 16(r1)
 ; P8BE-NEXT:    stdu r1, -144(r1)
 ; P8BE-NEXT:    addi r6, r1, 126
+; P8BE-NEXT:    std r0, 160(r1)
 ; P8BE-NEXT:    sth r5, 208(r1)
 ; P8BE-NEXT:    rldicl r5, r4, 32, 32
 ; P8BE-NEXT:    std r3, 192(r1)
@@ -1105,8 +1099,8 @@ define signext i8 @caller_18(ptr nocapture readonly byval([18 x i8]) %data) #0 {
 ; P9BE-LABEL: caller_18:
 ; P9BE:       # %bb.0: # %entry
 ; P9BE-NEXT:    mflr r0
-; P9BE-NEXT:    std r0, 16(r1)
 ; P9BE-NEXT:    stdu r1, -144(r1)
+; P9BE-NEXT:    std r0, 160(r1)
 ; P9BE-NEXT:    std r4, 200(r1)
 ; P9BE-NEXT:    sth r5, 208(r1)
 ; P9BE-NEXT:    rldicl r5, r4, 32, 32

@@ -157,7 +157,7 @@ public:
   BinarySection(BinaryContext &BC, SectionRef Section)
       : BC(BC), Name(getName(Section)), Section(Section),
         Contents(getContents(Section)), Address(Section.getAddress()),
-        Size(Section.getSize()), Alignment(Section.getAlignment()),
+        Size(Section.getSize()), Alignment(Section.getAlignment().value()),
         OutputName(Name), SectionNumber(++Count) {
     if (isELF()) {
       ELFType = ELFSectionRef(Section).getType();
@@ -232,8 +232,8 @@ public:
       return isText() > Other.isText();
 
     // Read-only before writable.
-    if (isReadOnly() != Other.isReadOnly())
-      return isReadOnly() > Other.isReadOnly();
+    if (isWritable() != Other.isWritable())
+      return isWritable() < Other.isWritable();
 
     // BSS at the end.
     if (isBSS() != Other.isBSS())
@@ -254,6 +254,7 @@ public:
   uint64_t getEndAddress() const { return Address + Size; }
   uint64_t getSize() const { return Size; }
   uint64_t getInputFileOffset() const { return InputFileOffset; }
+  Align getAlign() const { return Align(Alignment); }
   uint64_t getAlignment() const { return Alignment; }
   bool isText() const {
     if (isELF())
@@ -274,10 +275,8 @@ public:
   bool isTBSS() const { return isBSS() && isTLS(); }
   bool isVirtual() const { return ELFType == ELF::SHT_NOBITS; }
   bool isRela() const { return ELFType == ELF::SHT_RELA; }
-  bool isReadOnly() const {
-    return ((ELFFlags & ELF::SHF_ALLOC) && !(ELFFlags & ELF::SHF_WRITE) &&
-            ELFType == ELF::SHT_PROGBITS);
-  }
+  bool isRelr() const { return ELFType == ELF::SHT_RELR; }
+  bool isWritable() const { return (ELFFlags & ELF::SHF_WRITE); }
   bool isAllocatable() const {
     if (isELF()) {
       return (ELFFlags & ELF::SHF_ALLOC) && !isTBSS();

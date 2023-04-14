@@ -6,6 +6,7 @@ add_clang_unittest(FormatTests
   BracesInserterTest.cpp
   BracesRemoverTest.cpp
   CleanupTest.cpp
+  ConfigParseTest.cpp
   DefinitionBlockSeparatorTest.cpp
   FormatTest.cpp
   FormatTestComments.cpp
@@ -13,6 +14,7 @@ add_clang_unittest(FormatTests
   FormatTestJS.cpp
   FormatTestJava.cpp
   FormatTestJson.cpp
+  FormatTestMacroExpansion.cpp
   FormatTestObjC.cpp
   FormatTestProto.cpp
   FormatTestRawStrings.cpp
@@ -20,6 +22,9 @@ add_clang_unittest(FormatTests
   FormatTestTableGen.cpp
   FormatTestTextProto.cpp
   FormatTestVerilog.cpp
+  FormatTokenSourceTest.cpp
+  FormatReplacementTest.cpp
+  IntegerLiteralSeparatorTest.cpp
   MacroCallReconstructorTest.cpp
   MacroExpanderTest.cpp
   NamespaceEndCommentsFixerTest.cpp

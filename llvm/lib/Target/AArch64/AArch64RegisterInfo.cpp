@@ -19,7 +19,6 @@
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "MCTargetDesc/AArch64InstPrinter.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -31,6 +30,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -354,7 +354,7 @@ const uint32_t *AArch64RegisterInfo::getWindowsStackProbePreservedMask() const {
   return CSR_AArch64_StackProbe_Windows_RegMask;
 }
 
-llvm::Optional<std::string>
+std::optional<std::string>
 AArch64RegisterInfo::explainReservedReg(const MachineFunction &MF,
                                         MCRegister PhysReg) const {
   if (hasBasePointer(MF) && MCRegisterInfo::regsOverlap(PhysReg, AArch64::X19))
@@ -423,6 +423,8 @@ AArch64RegisterInfo::getStrictlyReservedRegs(const MachineFunction &MF) const {
          SubReg.isValid(); ++SubReg)
       Reserved.set(*SubReg);
   }
+
+  markSuperRegs(Reserved, AArch64::FPCR);
 
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
@@ -815,7 +817,7 @@ void AArch64RegisterInfo::getOffsetOpcodes(
   }
 }
 
-void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                               int SPAdj, unsigned FIOperandNum,
                                               RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected");
@@ -843,7 +845,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     Offset += StackOffset::getFixed(MI.getOperand(FIOperandNum + 1).getImm());
     MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false /*isDef*/);
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset.getFixed());
-    return;
+    return false;
   }
 
   if (MI.getOpcode() == TargetOpcode::LOCAL_ESCAPE) {
@@ -852,7 +854,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     assert(!Offset.getScalable() &&
            "Frame offsets with a scalable component are not supported");
     FI.ChangeToImmediate(Offset.getFixed());
-    return;
+    return false;
   }
 
   StackOffset Offset;
@@ -882,7 +884,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
           .addImm(0);
       MI.getOperand(FIOperandNum)
           .ChangeToRegister(ScratchReg, false, false, true);
-      return;
+      return false;
     }
     FrameReg = AArch64::SP;
     Offset = StackOffset::getFixed(MFI.getObjectOffset(FrameIndex) +
@@ -894,7 +896,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   // Modify MI as necessary to handle as much of 'Offset' as possible
   if (rewriteAArch64FrameIndex(MI, FIOperandNum, FrameReg, Offset, TII))
-    return;
+    return true;
 
   assert((!RS || !RS->isScavengingFrameIndex(FrameIndex)) &&
          "Emergency spill slot is out of reach");
@@ -905,6 +907,7 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Register ScratchReg =
       createScratchRegisterForInstruction(MI, FIOperandNum, TII);
   emitFrameOffset(MBB, II, MI.getDebugLoc(), ScratchReg, FrameReg, Offset, TII);
+  return false;
 }
 
 unsigned AArch64RegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,

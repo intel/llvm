@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
@@ -200,7 +199,7 @@ private:
   SmallPtrSet<const Instruction *, 2> getSIset(const SelectGroups &SIGroups);
 
   // Returns the latency cost of a given instruction.
-  Optional<uint64_t> computeInstCost(const Instruction *I);
+  std::optional<uint64_t> computeInstCost(const Instruction *I);
 
   // Returns the misprediction cost of a given select when converted to branch.
   Scaled64 getMispredictionCost(const SelectInst *SI, const Scaled64 CondCost);
@@ -243,6 +242,10 @@ bool SelectOptimize::runOnFunction(Function &F) {
     return false;
 
   TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
+
+  if (!TTI->enableSelectOptimize())
+    return false;
+
   DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
   BPI.reset(new BranchProbabilityInfo(F, *LI));
@@ -515,12 +518,27 @@ void SelectOptimize::convertProfitableSIGroups(SelectGroups &ProfSIGroups) {
   }
 }
 
+static bool isSpecialSelect(SelectInst *SI) {
+  using namespace llvm::PatternMatch;
+
+  // If the select is a logical-and/logical-or then it is better treated as a
+  // and/or by the backend.
+  if (match(SI, m_CombineOr(m_LogicalAnd(m_Value(), m_Value()),
+                            m_LogicalOr(m_Value(), m_Value()))))
+    return true;
+
+  return false;
+}
+
 void SelectOptimize::collectSelectGroups(BasicBlock &BB,
                                          SelectGroups &SIGroups) {
   BasicBlock::iterator BBIt = BB.begin();
   while (BBIt != BB.end()) {
     Instruction *I = &*BBIt++;
     if (SelectInst *SI = dyn_cast<SelectInst>(I)) {
+      if (isSpecialSelect(SI))
+        continue;
+
       SelectGroup SIGroup;
       SIGroup.push_back(SI);
       while (BBIt != BB.end()) {
@@ -553,6 +571,12 @@ void SelectOptimize::findProfitableSIGroupsBase(SelectGroups &SIGroups,
     if (isConvertToBranchProfitableBase(ASI))
       ProfSIGroups.push_back(ASI);
   }
+}
+
+static void EmitAndPrintRemark(OptimizationRemarkEmitter *ORE,
+                               DiagnosticInfoOptimizationBase &Rem) {
+  LLVM_DEBUG(dbgs() << Rem.getMsg() << "\n");
+  ORE->emit(Rem);
 }
 
 void SelectOptimize::findProfitableSIGroupsInnerLoops(
@@ -589,7 +613,7 @@ void SelectOptimize::findProfitableSIGroupsInnerLoops(
       OR << "Profitable to convert to branch (loop analysis). BranchCost="
          << BranchCost.toString() << ", SelectCost=" << SelectCost.toString()
          << ". ";
-      ORE->emit(OR);
+      EmitAndPrintRemark(ORE, OR);
       ++NumSelectConvertedLoop;
       ProfSIGroups.push_back(ASI);
     } else {
@@ -597,7 +621,7 @@ void SelectOptimize::findProfitableSIGroupsInnerLoops(
       ORmiss << "Select is more profitable (loop analysis). BranchCost="
              << BranchCost.toString()
              << ", SelectCost=" << SelectCost.toString() << ". ";
-      ORE->emit(ORmiss);
+      EmitAndPrintRemark(ORE, ORmiss);
     }
   }
 }
@@ -605,6 +629,7 @@ void SelectOptimize::findProfitableSIGroupsInnerLoops(
 bool SelectOptimize::isConvertToBranchProfitableBase(
     const SmallVector<SelectInst *, 2> &ASI) {
   SelectInst *SI = ASI.front();
+  LLVM_DEBUG(dbgs() << "Analyzing select group containing " << *SI << "\n");
   OptimizationRemark OR(DEBUG_TYPE, "SelectOpti", SI);
   OptimizationRemarkMissed ORmiss(DEBUG_TYPE, "SelectOpti", SI);
 
@@ -612,7 +637,7 @@ bool SelectOptimize::isConvertToBranchProfitableBase(
   if (PSI->isColdBlock(SI->getParent(), BFI.get())) {
     ++NumSelectColdBB;
     ORmiss << "Not converted to branch because of cold basic block. ";
-    ORE->emit(ORmiss);
+    EmitAndPrintRemark(ORE, ORmiss);
     return false;
   }
 
@@ -620,7 +645,7 @@ bool SelectOptimize::isConvertToBranchProfitableBase(
   if (SI->getMetadata(LLVMContext::MD_unpredictable)) {
     ++NumSelectUnPred;
     ORmiss << "Not converted to branch because of unpredictable branch. ";
-    ORE->emit(ORmiss);
+    EmitAndPrintRemark(ORE, ORmiss);
     return false;
   }
 
@@ -629,7 +654,7 @@ bool SelectOptimize::isConvertToBranchProfitableBase(
   if (isSelectHighlyPredictable(SI) && TLI->isPredictableSelectExpensive()) {
     ++NumSelectConvertedHighPred;
     OR << "Converted to branch because of highly predictable branch. ";
-    ORE->emit(OR);
+    EmitAndPrintRemark(ORE, OR);
     return true;
   }
 
@@ -638,12 +663,12 @@ bool SelectOptimize::isConvertToBranchProfitableBase(
   if (hasExpensiveColdOperand(ASI)) {
     ++NumSelectConvertedExpColdOperand;
     OR << "Converted to branch because of expensive cold operand.";
-    ORE->emit(OR);
+    EmitAndPrintRemark(ORE, OR);
     return true;
   }
 
   ORmiss << "Not profitable to convert to branch (base heuristic).";
-  ORE->emit(ORmiss);
+  EmitAndPrintRemark(ORE, ORmiss);
   return false;
 }
 
@@ -665,7 +690,7 @@ bool SelectOptimize::hasExpensiveColdOperand(
     OptimizationRemarkMissed ORmiss(DEBUG_TYPE, "SelectOpti", ASI.front());
     ORmiss << "Profile data available but missing branch-weights metadata for "
               "select instruction. ";
-    ORE->emit(ORmiss);
+    EmitAndPrintRemark(ORE, ORmiss);
   }
   if (!ColdOperand)
     return false;
@@ -801,7 +826,7 @@ bool SelectOptimize::checkLoopHeuristics(const Loop *L,
       LoopCost[1].NonPredCost >= LoopCost[1].PredCost) {
     ORmissL << "No select conversion in the loop due to no reduction of loop's "
                "critical path. ";
-    ORE->emit(ORmissL);
+    EmitAndPrintRemark(ORE, ORmissL);
     return false;
   }
 
@@ -818,7 +843,7 @@ bool SelectOptimize::checkLoopHeuristics(const Loop *L,
                "loop's critical path. Gain="
             << Gain[1].toString()
             << ", RelativeGain=" << RelativeGain.toString() << "%. ";
-    ORE->emit(ORmissL);
+    EmitAndPrintRemark(ORE, ORmissL);
     return false;
   }
 
@@ -834,7 +859,7 @@ bool SelectOptimize::checkLoopHeuristics(const Loop *L,
       ORmissL << "No select conversion in the loop due to small gradient gain. "
                  "GradientGain="
               << GradientGain.toString() << "%. ";
-      ORE->emit(ORmissL);
+      EmitAndPrintRemark(ORE, ORmissL);
       return false;
     }
   }
@@ -842,7 +867,7 @@ bool SelectOptimize::checkLoopHeuristics(const Loop *L,
   else if (Gain[1] < Gain[0]) {
     ORmissL
         << "No select conversion in the loop due to negative gradient gain. ";
-    ORE->emit(ORmissL);
+    EmitAndPrintRemark(ORE, ORmissL);
     return false;
   }
 
@@ -858,6 +883,8 @@ bool SelectOptimize::checkLoopHeuristics(const Loop *L,
 bool SelectOptimize::computeLoopCosts(
     const Loop *L, const SelectGroups &SIGroups,
     DenseMap<const Instruction *, CostInfo> &InstCostMap, CostInfo *LoopCost) {
+  LLVM_DEBUG(dbgs() << "Calculating Latency / IPredCost / INonPredCost of loop "
+                    << L->getHeader()->getName() << "\n");
   const auto &SIset = getSIset(SIGroups);
   // Compute instruction and loop-critical-path costs across two iterations for
   // both predicated and non-predicated version.
@@ -891,11 +918,11 @@ bool SelectOptimize::computeLoopCosts(
           ORmissL << "Invalid instruction cost preventing analysis and "
                      "optimization of the inner-most loop containing this "
                      "instruction. ";
-          ORE->emit(ORmissL);
+          EmitAndPrintRemark(ORE, ORmissL);
           return false;
         }
-        IPredCost += Scaled64::get(ILatency.value());
-        INonPredCost += Scaled64::get(ILatency.value());
+        IPredCost += Scaled64::get(*ILatency);
+        INonPredCost += Scaled64::get(*ILatency);
 
         // For a select that can be converted to branch,
         // compute its cost as a branch (non-predicated cost).
@@ -904,7 +931,7 @@ bool SelectOptimize::computeLoopCosts(
         // PredictedPathCost = TrueOpCost * TrueProb + FalseOpCost * FalseProb
         // MispredictCost = max(MispredictPenalty, CondCost) * MispredictRate
         if (SIset.contains(&I)) {
-          auto SI = dyn_cast<SelectInst>(&I);
+          auto SI = cast<SelectInst>(&I);
 
           Scaled64 TrueOpCost = Scaled64::getZero(),
                    FalseOpCost = Scaled64::getZero();
@@ -925,12 +952,17 @@ bool SelectOptimize::computeLoopCosts(
 
           INonPredCost = PredictedPathCost + MispredictCost;
         }
+        LLVM_DEBUG(dbgs() << " " << ILatency << "/" << IPredCost << "/"
+                          << INonPredCost << " for " << I << "\n");
 
         InstCostMap[&I] = {IPredCost, INonPredCost};
         MaxCost.PredCost = std::max(MaxCost.PredCost, IPredCost);
         MaxCost.NonPredCost = std::max(MaxCost.NonPredCost, INonPredCost);
       }
     }
+    LLVM_DEBUG(dbgs() << "Iteration " << Iter + 1
+                      << " MaxCost = " << MaxCost.PredCost << " "
+                      << MaxCost.NonPredCost << "\n");
   }
   return true;
 }
@@ -944,12 +976,12 @@ SelectOptimize::getSIset(const SelectGroups &SIGroups) {
   return SIset;
 }
 
-Optional<uint64_t> SelectOptimize::computeInstCost(const Instruction *I) {
+std::optional<uint64_t> SelectOptimize::computeInstCost(const Instruction *I) {
   InstructionCost ICost =
       TTI->getInstructionCost(I, TargetTransformInfo::TCK_Latency);
   if (auto OC = ICost.getValue())
-    return Optional<uint64_t>(*OC);
-  return Optional<uint64_t>();
+    return std::optional<uint64_t>(*OC);
+  return std::nullopt;
 }
 
 ScaledNumber<uint64_t>

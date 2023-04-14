@@ -86,7 +86,7 @@ def : ReadAdvance<ReadInt2Fpu, 0>;
 multiclass SBWriteResPair<X86FoldableSchedWrite SchedRW,
                           list<ProcResourceKind> ExePorts,
                           int Lat, list<int> Res = [1], int UOps = 1,
-                          int LoadLat = 5> {
+                          int LoadLat = 5, int LoadUOps = 1> {
   // Register variant is using a single cycle on ExePort.
   def : WriteRes<SchedRW, ExePorts> {
     let Latency = Lat;
@@ -99,7 +99,7 @@ multiclass SBWriteResPair<X86FoldableSchedWrite SchedRW,
   def : WriteRes<SchedRW.Folded, !listconcat([SBPort23], ExePorts)> {
     let Latency = !add(Lat, LoadLat);
     let ResourceCycles = !listconcat([1], Res);
-    let NumMicroOps = !add(UOps, 1);
+    let NumMicroOps = !add(UOps, LoadUOps);
   }
 }
 
@@ -615,7 +615,6 @@ def SBWriteResGroup2 : SchedWriteRes<[SBPort5]> {
 }
 def: InstRW<[SBWriteResGroup2], (instrs FDECSTP, FINCSTP, FFREE, FFREEP, FNOP,
                                         LD_Frr, ST_Frr, ST_FPrr)>;
-def: InstRW<[SBWriteResGroup2], (instrs LOOP, LOOPE, LOOPNE)>; // FIXME: This seems wrong compared to other Intel CPUs.
 def: InstRW<[SBWriteResGroup2], (instrs RET64)>;
 
 def SBWriteResGroup4 : SchedWriteRes<[SBPort05]> {
@@ -735,6 +734,20 @@ def SBWriteResGroup29_2 : SchedWriteRes<[SBPort5,SBPort015]> {
   let ResourceCycles = [1,3];
 }
 def: InstRW<[SBWriteResGroup29_2], (instrs PAUSE)>;
+
+def SBWriteResGroup30 : SchedWriteRes<[SBPort1,SBPort5,SBPort015]> {
+  let Latency = 3;
+  let NumMicroOps = 8;
+  let ResourceCycles = [1,3,4];
+}
+def: InstRW<[SBWriteResGroup30], (instrs LOOP)>;
+
+def SBWriteResGroup31 : SchedWriteRes<[SBPort1,SBPort5,SBPort015,SBPort05]> {
+  let Latency = 4;
+  let NumMicroOps = 12;
+  let ResourceCycles = [1,3,6,2];
+}
+def: InstRW<[SBWriteResGroup31], (instrs LOOPE, LOOPNE)>;
 
 def SBWriteResGroup76 : SchedWriteRes<[SBPort05]> {
   let Latency = 5;
@@ -1022,14 +1035,14 @@ def: InstRW<[SBWriteResGroup97_2], (instregex "ROL(8|16|32|64)mCL",
 
 def SBWriteResGroup98 : SchedWriteRes<[SBPort4,SBPort23,SBPort015]> {
   let Latency = 9;
-  let NumMicroOps = 6;
+  let NumMicroOps = 4;
   let ResourceCycles = [1,2,3];
 }
 def: SchedAlias<WriteADCRMW, SBWriteResGroup98>;
 
 def SBWriteResGroup99 : SchedWriteRes<[SBPort4,SBPort23,SBPort05,SBPort015]> {
   let Latency = 9;
-  let NumMicroOps = 6;
+  let NumMicroOps = 4;
   let ResourceCycles = [1,2,2,1];
 }
 def: InstRW<[SBWriteResGroup99, ReadAfterLd], (instrs ADC8mr, ADC16mr, ADC32mr, ADC64mr,

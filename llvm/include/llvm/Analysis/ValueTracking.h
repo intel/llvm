@@ -15,7 +15,6 @@
 #define LLVM_ANALYSIS_VALUETRACKING_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -98,6 +97,13 @@ KnownBits computeKnownBits(const Value *V, const APInt &DemandedElts,
 /// \p KnownZero the set of bits that are known to be zero
 /// \p KnownOne the set of bits that are known to be one
 void computeKnownBitsFromRangeMetadata(const MDNode &Ranges, KnownBits &Known);
+
+/// Using KnownBits LHS/RHS produce the known bits for logic op (and/xor/or).
+KnownBits analyzeKnownBitsFromAndXorOr(
+    const Operator *I, const KnownBits &KnownLHS, const KnownBits &KnownRHS,
+    unsigned Depth, const DataLayout &DL, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
 
 /// Return true if LHS and RHS have no common bits set.
 bool haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
@@ -210,6 +216,106 @@ unsigned ComputeMaxSignificantBits(const Value *Op, const DataLayout &DL,
 /// intrinsics are treated as-if they were intrinsics.
 Intrinsic::ID getIntrinsicForCallSite(const CallBase &CB,
                                       const TargetLibraryInfo *TLI);
+
+/// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
+/// same result as an fcmp with the given operands.
+///
+/// If \p LookThroughSrc is true, consider the input value when computing the
+/// mask.
+///
+/// If \p LookThroughSrc is false, ignore the source value (i.e. the first pair
+/// element will always be LHS.
+std::pair<Value *, FPClassTest> fcmpToClassTest(CmpInst::Predicate Pred,
+                                                const Function &F, Value *LHS,
+                                                Value *RHS,
+                                                bool LookThroughSrc = true);
+
+struct KnownFPClass {
+  /// Floating-point classes the value could be one of.
+  FPClassTest KnownFPClasses = fcAllFlags;
+
+  /// std::nullopt if the sign bit is unknown, true if the sign bit is
+  /// definitely set or false if the sign bit is definitely unset.
+  std::optional<bool> SignBit;
+
+  KnownFPClass &operator|=(const KnownFPClass &RHS) {
+    KnownFPClasses = KnownFPClasses | RHS.KnownFPClasses;
+
+    if (SignBit != RHS.SignBit)
+      SignBit = std::nullopt;
+    return *this;
+  }
+
+  void knownNot(FPClassTest RuleOut) {
+    KnownFPClasses = KnownFPClasses & ~RuleOut;
+  }
+
+  void fneg() {
+    KnownFPClasses = llvm::fneg(KnownFPClasses);
+    if (SignBit)
+      SignBit = !*SignBit;
+  }
+
+  void fabs() {
+    KnownFPClasses = llvm::fabs(KnownFPClasses);
+    SignBit = false;
+  }
+
+  /// Assume the sign bit is zero.
+  void signBitIsZero() {
+    KnownFPClasses = (KnownFPClasses & fcPositive) |
+                     (KnownFPClasses & fcNan);
+    SignBit = false;
+  }
+
+  void copysign(const KnownFPClass &Sign) {
+    // Start assuming nothing about the sign.
+    SignBit = Sign.SignBit;
+    if (!SignBit)
+      return;
+
+    if (*SignBit)
+      KnownFPClasses = KnownFPClasses & fcNegative;
+    else
+      KnownFPClasses = KnownFPClasses & fcPositive;
+  }
+
+  void resetAll() { *this = KnownFPClass(); }
+};
+
+inline KnownFPClass operator|(KnownFPClass LHS, const KnownFPClass &RHS) {
+  LHS |= RHS;
+  return LHS;
+}
+
+inline KnownFPClass operator|(const KnownFPClass &LHS, KnownFPClass &&RHS) {
+  RHS |= LHS;
+  return std::move(RHS);
+}
+
+/// Determine which floating-point classes are valid for \p V, and return them
+/// in KnownFPClass bit sets.
+///
+/// This function is defined on values with floating-point type, values vectors
+/// of floating-point type, and arrays of floating-point type.
+
+/// \p InterestedClasses is a compile time optimization hint for which floating
+/// point classes should be queried. Queries not specified in \p
+/// InterestedClasses should be reliable if they are determined during the
+/// query.
+KnownFPClass computeKnownFPClass(
+    const Value *V, const APInt &DemandedElts, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+
+KnownFPClass computeKnownFPClass(
+    const Value *V, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
 
 /// Return true if we can prove that the specified FP value is never equal to
 /// -0.0.
@@ -555,6 +661,10 @@ OverflowResult computeOverflowForSignedSub(const Value *LHS, const Value *RHS,
 bool isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
                                const DominatorTree &DT);
 
+/// Determine the possible constant range of vscale with the given bit width,
+/// based on the vscale_range function attribute.
+ConstantRange getVScaleRange(const Function *F, unsigned BitWidth);
+
 /// Determine the possible constant range of an integer or vector of integer
 /// value. This is intended as a cheap, non-recursive check.
 ConstantRange computeConstantRange(const Value *V, bool ForSigned,
@@ -604,25 +714,27 @@ bool isGuaranteedToTransferExecutionToSuccessor(
 bool isGuaranteedToExecuteForEveryIteration(const Instruction *I,
                                             const Loop *L);
 
-/// Return true if I yields poison or raises UB if any of its operands is
-/// poison.
-/// Formally, given I = `r = op v1 v2 .. vN`, propagatesPoison returns true
-/// if, for all i, r is evaluated to poison or op raises UB if vi = poison.
-/// If vi is a vector or an aggregate and r is a single value, any poison
-/// element in vi should make r poison or raise UB.
+/// Return true if \p PoisonOp's user yields poison or raises UB if its
+/// operand \p PoisonOp is poison.
+///
+/// If \p PoisonOp is a vector or an aggregate and the operation's result is a
+/// single value, any poison element in /p PoisonOp should make the result
+/// poison or raise UB.
+///
 /// To filter out operands that raise UB on poison, you can use
 /// getGuaranteedNonPoisonOp.
-bool propagatesPoison(const Operator *I);
+bool propagatesPoison(const Use &PoisonOp);
 
 /// Insert operands of I into Ops such that I will trigger undefined behavior
 /// if I is executed and that operand has a poison value.
 void getGuaranteedNonPoisonOps(const Instruction *I,
-                               SmallPtrSetImpl<const Value *> &Ops);
+                               SmallVectorImpl<const Value *> &Ops);
+
 /// Insert operands of I into Ops such that I will trigger undefined behavior
 /// if I is executed and that operand is not a well-defined value
 /// (i.e. has undef bits or poison).
 void getGuaranteedWellDefinedOps(const Instruction *I,
-                                 SmallPtrSetImpl<const Value *> &Ops);
+                                 SmallVectorImpl<const Value *> &Ops);
 
 /// Return true if the given instruction must trigger undefined behavior
 /// when I is executed with any operands which appear in KnownPoison holding
@@ -648,16 +760,18 @@ bool programUndefinedIfPoison(const Instruction *Inst);
 /// true. If Op raises immediate UB but never creates poison or undef
 /// (e.g. sdiv I, 0), canCreatePoison returns false.
 ///
-/// \p ConsiderFlags controls whether poison producing flags on the
-/// instruction are considered.  This can be used to see if the instruction
-/// could still introduce undef or poison even without poison generating flags
-/// which might be on the instruction.  (i.e. could the result of
-/// Op->dropPoisonGeneratingFlags() still create poison or undef)
+/// \p ConsiderFlagsAndMetadata controls whether poison producing flags and
+/// metadata on the instruction are considered.  This can be used to see if the
+/// instruction could still introduce undef or poison even without poison
+/// generating flags and metadata which might be on the instruction.
+/// (i.e. could the result of Op->dropPoisonGeneratingFlags() still create
+/// poison or undef)
 ///
 /// canCreatePoison returns true if Op can create poison from non-poison
 /// operands.
-bool canCreateUndefOrPoison(const Operator *Op, bool ConsiderFlags = true);
-bool canCreatePoison(const Operator *Op, bool ConsiderFlags = true);
+bool canCreateUndefOrPoison(const Operator *Op,
+                            bool ConsiderFlagsAndMetadata = true);
+bool canCreatePoison(const Operator *Op, bool ConsiderFlagsAndMetadata = true);
 
 /// Return true if V is poison given that ValAssumedPoison is already poison.
 /// For example, if ValAssumedPoison is `icmp X, 10` and V is `icmp X, 5`,
@@ -682,6 +796,17 @@ bool isGuaranteedNotToBePoison(const Value *V, AssumptionCache *AC = nullptr,
                                const Instruction *CtxI = nullptr,
                                const DominatorTree *DT = nullptr,
                                unsigned Depth = 0);
+
+/// Return true if undefined behavior would provable be executed on the path to
+/// OnPathTo if Root produced a posion result.  Note that this doesn't say
+/// anything about whether OnPathTo is actually executed or whether Root is
+/// actually poison.  This can be used to assess whether a new use of Root can
+/// be added at a location which is control equivalent with OnPathTo (such as
+/// immediately before it) without introducing UB which didn't previously
+/// exist.  Note that a false result conveys no information.
+bool mustExecuteUBIfPoisonOnPathTo(Instruction *Root,
+                                   Instruction *OnPathTo,
+                                   DominatorTree *DT);
 
 /// Specific patterns of select instructions we can match.
 enum SelectPatternFlavor {
@@ -769,10 +894,6 @@ SelectPatternFlavor getInverseMinMaxFlavor(SelectPatternFlavor SPF);
 
 Intrinsic::ID getInverseMinMaxIntrinsic(Intrinsic::ID MinMaxID);
 
-/// Return the canonical inverse comparison predicate for the specified
-/// minimum/maximum flavor.
-CmpInst::Predicate getInverseMinMaxPred(SelectPatternFlavor SPF);
-
 /// Return the minimum or maximum constant value for the specified integer
 /// min/max flavor and type.
 APInt getMinMaxLimit(SelectPatternFlavor SPF, unsigned BitWidth);
@@ -817,38 +938,41 @@ bool matchSimpleRecurrence(const BinaryOperator *I, PHINode *&P, Value *&Start,
                            Value *&Step);
 
 /// Return true if RHS is known to be implied true by LHS.  Return false if
-/// RHS is known to be implied false by LHS.  Otherwise, return None if no
-/// implication can be made.
-/// A & B must be i1 (boolean) values or a vector of such values. Note that
-/// the truth table for implication is the same as <=u on i1 values (but not
+/// RHS is known to be implied false by LHS.  Otherwise, return std::nullopt if
+/// no implication can be made. A & B must be i1 (boolean) values or a vector of
+/// such values. Note that the truth table for implication is the same as <=u on
+/// i1 values (but not
 /// <=s!).  The truth table for both is:
 ///    | T | F (B)
 ///  T | T | F
 ///  F | T | T
 /// (A)
-Optional<bool> isImpliedCondition(const Value *LHS, const Value *RHS,
-                                  const DataLayout &DL, bool LHSIsTrue = true,
-                                  unsigned Depth = 0);
-Optional<bool> isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
-                                  const Value *RHSOp0, const Value *RHSOp1,
-                                  const DataLayout &DL, bool LHSIsTrue = true,
-                                  unsigned Depth = 0);
+std::optional<bool> isImpliedCondition(const Value *LHS, const Value *RHS,
+                                       const DataLayout &DL,
+                                       bool LHSIsTrue = true,
+                                       unsigned Depth = 0);
+std::optional<bool> isImpliedCondition(const Value *LHS,
+                                       CmpInst::Predicate RHSPred,
+                                       const Value *RHSOp0, const Value *RHSOp1,
+                                       const DataLayout &DL,
+                                       bool LHSIsTrue = true,
+                                       unsigned Depth = 0);
 
 /// Return the boolean condition value in the context of the given instruction
 /// if it is known based on dominating conditions.
-Optional<bool> isImpliedByDomCondition(const Value *Cond,
-                                       const Instruction *ContextI,
-                                       const DataLayout &DL);
-Optional<bool> isImpliedByDomCondition(CmpInst::Predicate Pred,
-                                       const Value *LHS, const Value *RHS,
-                                       const Instruction *ContextI,
-                                       const DataLayout &DL);
+std::optional<bool> isImpliedByDomCondition(const Value *Cond,
+                                            const Instruction *ContextI,
+                                            const DataLayout &DL);
+std::optional<bool> isImpliedByDomCondition(CmpInst::Predicate Pred,
+                                            const Value *LHS, const Value *RHS,
+                                            const Instruction *ContextI,
+                                            const DataLayout &DL);
 
 /// If Ptr1 is provably equal to Ptr2 plus a constant offset, return that
 /// offset. For example, Ptr1 might be &A[42], and Ptr2 might be &A[40]. In
 /// this case offset would be -8.
-Optional<int64_t> isPointerOffset(const Value *Ptr1, const Value *Ptr2,
-                                  const DataLayout &DL);
+std::optional<int64_t> isPointerOffset(const Value *Ptr1, const Value *Ptr2,
+                                       const DataLayout &DL);
 } // end namespace llvm
 
 #endif // LLVM_ANALYSIS_VALUETRACKING_H

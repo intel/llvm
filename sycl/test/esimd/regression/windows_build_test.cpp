@@ -31,8 +31,8 @@ int main() {
     using namespace sycl::ext::intel::experimental::esimd;
 
     simd<int, 32> blk;
-    simd<sycl::ext::oneapi::experimental::bfloat16, 16> A;
-    simd<sycl::ext::oneapi::experimental::bfloat16, 256> B;
+    simd<sycl::ext::oneapi::bfloat16, 16> A;
+    simd<sycl::ext::oneapi::bfloat16, 256> B;
     simd<float, 16> C;
     lzd<uint>(blk);
     lzd<uint>(35);

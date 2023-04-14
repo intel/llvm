@@ -143,6 +143,22 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
        Args.hasArg(options::OPT_coverage))
     CmdArgs.push_back("-bdbg:namedsects:ss");
 
+  if (Arg *A =
+          Args.getLastArg(clang::driver::options::OPT_mxcoff_build_id_EQ)) {
+    StringRef BuildId = A->getValue();
+    if (BuildId[0] != '0' || BuildId[1] != 'x' ||
+        BuildId.find_if_not(llvm::isHexDigit, 2) != StringRef::npos)
+      ToolChain.getDriver().Diag(diag::err_drv_unsupported_option_argument)
+          << A->getSpelling() << BuildId;
+    else {
+      std::string LinkerFlag = "-bdbg:ldrinfo:xcoff_binary_id:0x";
+      if (BuildId.size() % 2) // Prepend a 0 if odd number of digits.
+        LinkerFlag += "0";
+      LinkerFlag += BuildId.drop_front(2).lower();
+      CmdArgs.push_back(Args.MakeArgString(LinkerFlag));
+    }
+  }
+
   // Specify linker output file.
   assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
   if (Output.isFilename()) {
@@ -163,19 +179,19 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-bpD:0x110000000");
   }
 
-  auto getCrt0Basename = [&Args, IsArch32Bit] {
-    // Enable gprofiling when "-pg" is specified.
-    if (Args.hasArg(options::OPT_pg))
-      return IsArch32Bit ? "gcrt0.o" : "gcrt0_64.o";
-    // Enable profiling when "-p" is specified.
-    else if (Args.hasArg(options::OPT_p))
-      return IsArch32Bit ? "mcrt0.o" : "mcrt0_64.o";
-    else
-      return IsArch32Bit ? "crt0.o" : "crt0_64.o";
-  };
-
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
-                   options::OPT_shared)) {
+                   options::OPT_shared, options::OPT_r)) {
+    auto getCrt0Basename = [&Args, IsArch32Bit] {
+      if (Arg *A = Args.getLastArgNoClaim(options::OPT_p, options::OPT_pg)) {
+        // Enable gprofiling when "-pg" is specified.
+        if (A->getOption().matches(options::OPT_pg))
+          return IsArch32Bit ? "gcrt0.o" : "gcrt0_64.o";
+        // Enable profiling when "-p" is specified.
+        return IsArch32Bit ? "mcrt0.o" : "mcrt0_64.o";
+      }
+      return IsArch32Bit ? "crt0.o" : "crt0_64.o";
+    };
+
     CmdArgs.push_back(
         Args.MakeArgString(ToolChain.GetFilePath(getCrt0Basename())));
 
@@ -226,30 +242,59 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     auto ExpCommand = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(), CreateExportListExec,
         CreateExportCmdArgs, Inputs, Output);
-    ExpCommand->setRedirectFiles({None, std::string(ExportList), None});
+    ExpCommand->setRedirectFiles(
+        {std::nullopt, std::string(ExportList), std::nullopt});
     C.addCommand(std::move(ExpCommand));
     CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-bE:") + ExportList));
   }
 
   // Add directory to library search path.
   Args.AddAllArgs(CmdArgs, options::OPT_L);
-  ToolChain.AddFilePathLibArgs(Args, CmdArgs);
-  ToolChain.addProfileRTLibs(Args, CmdArgs);
+  if (!Args.hasArg(options::OPT_r)) {
+    ToolChain.AddFilePathLibArgs(Args, CmdArgs);
+    ToolChain.addProfileRTLibs(Args, CmdArgs);
 
-  if (getToolChain().ShouldLinkCXXStdlib(Args))
-    getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+    if (getToolChain().ShouldLinkCXXStdlib(Args))
+      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
-    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
+    if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+      AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
 
-    // Support POSIX threads if "-pthreads" or "-pthread" is present.
-    if (Args.hasArg(options::OPT_pthreads, options::OPT_pthread))
-      CmdArgs.push_back("-lpthreads");
+      // Add OpenMP runtime if -fopenmp is specified.
+      if (Args.hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
+                       options::OPT_fno_openmp, false)) {
+        switch (ToolChain.getDriver().getOpenMPRuntime(Args)) {
+        case Driver::OMPRT_OMP:
+          CmdArgs.push_back("-lomp");
+          break;
+        case Driver::OMPRT_IOMP5:
+          CmdArgs.push_back("-liomp5");
+          break;
+        case Driver::OMPRT_GOMP:
+          CmdArgs.push_back("-lgomp");
+          break;
+        case Driver::OMPRT_Unknown:
+          // Already diagnosed.
+          break;
+        }
+      }
 
-    if (D.CCCIsCXX())
-      CmdArgs.push_back("-lm");
+      // Support POSIX threads if "-pthreads" or "-pthread" is present.
+      if (Args.hasArg(options::OPT_pthreads, options::OPT_pthread))
+        CmdArgs.push_back("-lpthreads");
 
-    CmdArgs.push_back("-lc");
+      if (D.CCCIsCXX())
+        CmdArgs.push_back("-lm");
+
+      CmdArgs.push_back("-lc");
+
+      if (Args.hasArgNoClaim(options::OPT_p, options::OPT_pg)) {
+        CmdArgs.push_back(Args.MakeArgString((llvm::Twine("-L") + D.SysRoot) +
+                                             "/lib/profiled"));
+        CmdArgs.push_back(Args.MakeArgString((llvm::Twine("-L") + D.SysRoot) +
+                                             "/usr/lib/profiled"));
+      }
+    }
   }
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
@@ -260,6 +305,10 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 /// AIX - AIX tool chain which can call as(1) and ld(1) directly.
 AIX::AIX(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     : ToolChain(D, Triple, Args) {
+  getProgramPaths().push_back(getDriver().getInstalledDir());
+  if (getDriver().getInstalledDir() != getDriver().Dir)
+    getProgramPaths().push_back(getDriver().Dir);
+
   ParseInlineAsmUsingAsmParser = Args.hasFlag(
       options::OPT_fintegrated_as, options::OPT_fno_integrated_as, true);
   getLibraryPaths().push_back(getDriver().SysRoot + "/usr/lib");

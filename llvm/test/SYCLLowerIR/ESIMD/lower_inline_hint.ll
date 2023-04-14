@@ -1,4 +1,4 @@
-; RUN: opt -LowerESIMD -S < %s | FileCheck %s
+; RUN: opt -passes=LowerESIMD -S < %s | FileCheck %s
 
 ; This test checks that LowerESIMD pass sets the 'alwaysinline'
 ; attribute for all non-kernel functions.

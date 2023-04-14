@@ -357,6 +357,34 @@ static MachineBasicBlock::iterator insertSEH(MachineBasicBlock::iterator MBBI,
               .setMIFlags(Flags);
     break;
 
+  case ARM::t2STR_PRE:
+    if (MBBI->getOperand(0).getReg() == ARM::SP &&
+        MBBI->getOperand(2).getReg() == ARM::SP &&
+        MBBI->getOperand(3).getImm() == -4) {
+      unsigned Reg = RegInfo->getSEHRegNum(MBBI->getOperand(1).getReg());
+      MIB = BuildMI(MF, DL, TII.get(ARM::SEH_SaveRegs))
+                .addImm(1ULL << Reg)
+                .addImm(/*Wide=*/1)
+                .setMIFlags(Flags);
+    } else {
+      report_fatal_error("No matching SEH Opcode for t2STR_PRE");
+    }
+    break;
+
+  case ARM::t2LDR_POST:
+    if (MBBI->getOperand(1).getReg() == ARM::SP &&
+        MBBI->getOperand(2).getReg() == ARM::SP &&
+        MBBI->getOperand(3).getImm() == 4) {
+      unsigned Reg = RegInfo->getSEHRegNum(MBBI->getOperand(0).getReg());
+      MIB = BuildMI(MF, DL, TII.get(ARM::SEH_SaveRegs))
+                .addImm(1ULL << Reg)
+                .addImm(/*Wide=*/1)
+                .setMIFlags(Flags);
+    } else {
+      report_fatal_error("No matching SEH Opcode for t2LDR_POST");
+    }
+    break;
+
   case ARM::t2LDMIA_RET:
   case ARM::t2LDMIA_UPD:
   case ARM::t2STMDB_UPD: {
@@ -557,10 +585,9 @@ static bool WindowsRequiresStackProbe(const MachineFunction &MF,
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const Function &F = MF.getFunction();
   unsigned StackProbeSize = (MFI.getStackProtectorIndex() > 0) ? 4080 : 4096;
-  if (F.hasFnAttribute("stack-probe-size"))
-    F.getFnAttribute("stack-probe-size")
-        .getValueAsString()
-        .getAsInteger(0, StackProbeSize);
+
+  StackProbeSize =
+      F.getFnAttributeAsParsedInteger("stack-probe-size", StackProbeSize);
   return (StackSizeInBytes >= StackProbeSize) &&
          !F.hasFnAttribute("no-stack-arg-probe");
 }

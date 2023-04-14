@@ -11,10 +11,12 @@
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 #include <string>
 
 using namespace llvm;
@@ -307,7 +309,7 @@ static std::unique_ptr<TagNode> genLink(const Twine &Text, const Twine &Link) {
 
 static std::unique_ptr<HTMLNode>
 genReference(const Reference &Type, StringRef CurrentDirectory,
-             llvm::Optional<StringRef> JumpToSection = None) {
+             std::optional<StringRef> JumpToSection = std::nullopt) {
   if (Type.Path.empty()) {
     if (!JumpToSection)
       return std::make_unique<TextNode>(Type.Name);
@@ -436,7 +438,7 @@ genReferencesBlock(const std::vector<Reference> &References,
 
 static std::unique_ptr<TagNode>
 writeFileDefinition(const Location &L,
-                    llvm::Optional<StringRef> RepositoryUrl = None) {
+                    std::optional<StringRef> RepositoryUrl = std::nullopt) {
   if (!L.IsFileInRootDir || !RepositoryUrl)
     return std::make_unique<TagNode>(
         HTMLTag::TAG_P, "Defined at line " + std::to_string(L.LineNumber) +
@@ -654,10 +656,10 @@ genHTML(const EnumInfo &I, const ClangDocContext &CDCtx) {
 
   if (I.DefLoc) {
     if (!CDCtx.RepositoryUrl)
-      Out.emplace_back(writeFileDefinition(I.DefLoc.value()));
+      Out.emplace_back(writeFileDefinition(*I.DefLoc));
     else
       Out.emplace_back(writeFileDefinition(
-          I.DefLoc.value(), StringRef{CDCtx.RepositoryUrl.value()}));
+          *I.DefLoc, StringRef{*CDCtx.RepositoryUrl}));
   }
 
   std::string Description;
@@ -703,10 +705,10 @@ genHTML(const FunctionInfo &I, const ClangDocContext &CDCtx,
 
   if (I.DefLoc) {
     if (!CDCtx.RepositoryUrl)
-      Out.emplace_back(writeFileDefinition(I.DefLoc.value()));
+      Out.emplace_back(writeFileDefinition(*I.DefLoc));
     else
       Out.emplace_back(writeFileDefinition(
-          I.DefLoc.value(), StringRef{CDCtx.RepositoryUrl.value()}));
+          *I.DefLoc, StringRef{*CDCtx.RepositoryUrl}));
   }
 
   std::string Description;
@@ -770,10 +772,10 @@ genHTML(const RecordInfo &I, Index &InfoIndex, const ClangDocContext &CDCtx,
 
   if (I.DefLoc) {
     if (!CDCtx.RepositoryUrl)
-      Out.emplace_back(writeFileDefinition(I.DefLoc.value()));
+      Out.emplace_back(writeFileDefinition(*I.DefLoc));
     else
       Out.emplace_back(writeFileDefinition(
-          I.DefLoc.value(), StringRef{CDCtx.RepositoryUrl.value()}));
+          *I.DefLoc, StringRef{*CDCtx.RepositoryUrl}));
   }
 
   std::string Description;
@@ -839,12 +841,68 @@ class HTMLGenerator : public Generator {
 public:
   static const char *Format;
 
+  llvm::Error generateDocs(StringRef RootDir,
+                           llvm::StringMap<std::unique_ptr<doc::Info>> Infos,
+                           const ClangDocContext &CDCtx) override;
+  llvm::Error createResources(ClangDocContext &CDCtx) override;
   llvm::Error generateDocForInfo(Info *I, llvm::raw_ostream &OS,
                                  const ClangDocContext &CDCtx) override;
-  llvm::Error createResources(ClangDocContext &CDCtx) override;
 };
 
 const char *HTMLGenerator::Format = "html";
+
+llvm::Error
+HTMLGenerator::generateDocs(StringRef RootDir,
+                            llvm::StringMap<std::unique_ptr<doc::Info>> Infos,
+                            const ClangDocContext &CDCtx) {
+  // Track which directories we already tried to create.
+  llvm::StringSet<> CreatedDirs;
+
+  // Collect all output by file name and create the nexessary directories.
+  llvm::StringMap<std::vector<doc::Info *>> FileToInfos;
+  for (const auto &Group : Infos) {
+    doc::Info *Info = Group.getValue().get();
+
+    llvm::SmallString<128> Path;
+    llvm::sys::path::native(RootDir, Path);
+    llvm::sys::path::append(Path, Info->getRelativeFilePath(""));
+    if (!CreatedDirs.contains(Path)) {
+      if (std::error_code Err = llvm::sys::fs::create_directories(Path);
+          Err != std::error_code()) {
+        return llvm::createStringError(Err, "Failed to create directory '%s'.",
+                                       Path.c_str());
+      }
+      CreatedDirs.insert(Path);
+    }
+
+    llvm::sys::path::append(Path, Info->getFileBaseName() + ".html");
+    FileToInfos[Path].push_back(Info);
+  }
+
+  for (const auto &Group : FileToInfos) {
+    std::error_code FileErr;
+    llvm::raw_fd_ostream InfoOS(Group.getKey(), FileErr,
+                                llvm::sys::fs::OF_None);
+    if (FileErr) {
+      return llvm::createStringError(FileErr, "Error opening file '%s'",
+                                     Group.getKey().str().c_str());
+    }
+
+    // TODO: https://github.com/llvm/llvm-project/issues/59073
+    // If there are multiple Infos for this file name (for example, template
+    // specializations), this will generate multiple complete web pages (with
+    // <DOCTYPE> and <title>, etc.) concatenated together. This generator needs
+    // some refactoring to be able to output the headers separately from the
+    // contents.
+    for (const auto &Info : Group.getValue()) {
+      if (llvm::Error Err = generateDocForInfo(Info, InfoOS, CDCtx)) {
+        return Err;
+      }
+    }
+  }
+
+  return llvm::Error::success();
+}
 
 llvm::Error HTMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS,
                                               const ClangDocContext &CDCtx) {

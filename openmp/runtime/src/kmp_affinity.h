@@ -256,6 +256,28 @@ public:
 #elif __NR_sched_getaffinity != 5196
 #error Wrong code for getaffinity system call.
 #endif /* __NR_sched_getaffinity */
+#elif KMP_ARCH_LOONGARCH64
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity 122
+#elif __NR_sched_setaffinity != 122
+#error Wrong code for setaffinity system call.
+#endif /* __NR_sched_setaffinity */
+#ifndef __NR_sched_getaffinity
+#define __NR_sched_getaffinity 123
+#elif __NR_sched_getaffinity != 123
+#error Wrong code for getaffinity system call.
+#endif /* __NR_sched_getaffinity */
+#elif KMP_ARCH_RISCV64
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity 122
+#elif __NR_sched_setaffinity != 122
+#error Wrong code for setaffinity system call.
+#endif /* __NR_sched_setaffinity */
+#ifndef __NR_sched_getaffinity
+#define __NR_sched_getaffinity 123
+#elif __NR_sched_getaffinity != 123
+#error Wrong code for getaffinity system call.
+#endif /* __NR_sched_getaffinity */
 #else
 #error Unknown or unsupported architecture
 #endif /* KMP_ARCH_* */
@@ -659,9 +681,14 @@ struct kmp_hw_attr_t {
   bool operator!=(const kmp_hw_attr_t &rhs) const { return !operator==(rhs); }
 };
 
+#if KMP_AFFINITY_SUPPORTED
+KMP_BUILD_ASSERT(sizeof(kmp_hw_attr_t) == sizeof(kmp_affinity_attrs_t));
+#endif
+
 class kmp_hw_thread_t {
 public:
   static const int UNKNOWN_ID = -1;
+  static const int MULTIPLE_ID = -2;
   static int compare_ids(const void *a, const void *b);
   static int compare_compact(const void *a, const void *b);
   int ids[KMP_HW_LAST];

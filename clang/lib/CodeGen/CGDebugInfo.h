@@ -25,11 +25,11 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Allocator.h"
+#include <optional>
 
 namespace llvm {
 class MDNode;
@@ -56,7 +56,7 @@ class CGDebugInfo {
   friend class ApplyDebugLocation;
   friend class SaveAndRestoreLocation;
   CodeGenModule &CGM;
-  const codegenoptions::DebugInfoKind DebugKind;
+  const llvm::codegenoptions::DebugInfoKind DebugKind;
   bool DebugTypeExtRefs;
   llvm::DIBuilder DBuilder;
   llvm::DICompileUnit *TheCU = nullptr;
@@ -85,6 +85,8 @@ class CGDebugInfo {
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   llvm::DIType *Id##Ty = nullptr;
 #include "clang/Basic/OpenCLExtensionTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId) llvm::DIType *SingletonId = nullptr;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
 
   /// Cache of previously constructed Types.
   llvm::DenseMap<const void *, llvm::TrackingMDRef> TypeCache;
@@ -195,7 +197,15 @@ class CGDebugInfo {
   llvm::DIType *CreateType(const FunctionType *Ty, llvm::DIFile *F);
   /// Get structure or union type.
   llvm::DIType *CreateType(const RecordType *Tyg);
-  llvm::DIType *CreateTypeDefinition(const RecordType *Ty);
+
+  /// Create definition for the specified 'Ty'.
+  ///
+  /// \returns A pair of 'llvm::DIType's. The first is the definition
+  /// of the 'Ty'. The second is the type specified by the preferred_name
+  /// attribute on 'Ty', which can be a nullptr if no such attribute
+  /// exists.
+  std::pair<llvm::DIType *, llvm::DIType *>
+  CreateTypeDefinition(const RecordType *Ty);
   llvm::DICompositeType *CreateLimitedType(const RecordType *Ty);
   void CollectContainingType(const CXXRecordDecl *RD,
                              llvm::DICompositeType *CT);
@@ -279,12 +289,18 @@ class CGDebugInfo {
       llvm::DenseSet<CanonicalDeclPtr<const CXXRecordDecl>> &SeenTypes,
       llvm::DINode::DIFlags StartingFlags);
 
+  /// Helper function that returns the llvm::DIType that the
+  /// PreferredNameAttr attribute on \ref RD refers to. If no such
+  /// attribute exists, returns nullptr.
+  llvm::DIType *GetPreferredNameType(const CXXRecordDecl *RD,
+                                     llvm::DIFile *Unit);
+
   struct TemplateArgs {
     const TemplateParameterList *TList;
     llvm::ArrayRef<TemplateArgument> Args;
   };
   /// A helper function to collect template parameters.
-  llvm::DINodeArray CollectTemplateParams(Optional<TemplateArgs> Args,
+  llvm::DINodeArray CollectTemplateParams(std::optional<TemplateArgs> Args,
                                           llvm::DIFile *Unit);
   /// A helper function to collect debug info for function template
   /// parameters.
@@ -296,9 +312,9 @@ class CGDebugInfo {
   llvm::DINodeArray CollectVarTemplateParams(const VarDecl *VD,
                                              llvm::DIFile *Unit);
 
-  Optional<TemplateArgs> GetTemplateArgs(const VarDecl *) const;
-  Optional<TemplateArgs> GetTemplateArgs(const RecordDecl *) const;
-  Optional<TemplateArgs> GetTemplateArgs(const FunctionDecl *) const;
+  std::optional<TemplateArgs> GetTemplateArgs(const VarDecl *) const;
+  std::optional<TemplateArgs> GetTemplateArgs(const RecordDecl *) const;
+  std::optional<TemplateArgs> GetTemplateArgs(const FunctionDecl *) const;
 
   /// A helper function to collect debug info for template
   /// parameters.
@@ -325,9 +341,15 @@ class CGDebugInfo {
   }
 
   /// Create new bit field member.
-  llvm::DIType *createBitFieldType(const FieldDecl *BitFieldDecl,
-                                   llvm::DIScope *RecordTy,
-                                   const RecordDecl *RD);
+  llvm::DIDerivedType *createBitFieldType(const FieldDecl *BitFieldDecl,
+                                          llvm::DIScope *RecordTy,
+                                          const RecordDecl *RD);
+
+  /// Create an anonnymous zero-size separator for bit-field-decl if needed on
+  /// the target.
+  llvm::DIDerivedType *createBitFieldSeparatorIfNeeded(
+      const FieldDecl *BitFieldDecl, const llvm::DIDerivedType *BitFieldDI,
+      llvm::ArrayRef<llvm::Metadata *> PreviousFieldsDI, const RecordDecl *RD);
 
   /// Helpers for collecting fields of a record.
   /// @{
@@ -492,10 +514,9 @@ public:
 
   /// Emit call to \c llvm.dbg.declare for an argument variable
   /// declaration.
-  llvm::DILocalVariable *EmitDeclareOfArgVariable(const VarDecl *Decl,
-                                                  llvm::Value *AI,
-                                                  unsigned ArgNo,
-                                                  CGBuilderTy &Builder);
+  llvm::DILocalVariable *
+  EmitDeclareOfArgVariable(const VarDecl *Decl, llvm::Value *AI, unsigned ArgNo,
+                           CGBuilderTy &Builder, bool UsePointerValue = false);
 
   /// Emit call to \c llvm.dbg.declare for the block-literal argument
   /// to a block invocation function.
@@ -591,7 +612,7 @@ private:
   /// Returns a pointer to the DILocalVariable associated with the
   /// llvm.dbg.declare, or nullptr otherwise.
   llvm::DILocalVariable *EmitDeclare(const VarDecl *decl, llvm::Value *AI,
-                                     llvm::Optional<unsigned> ArgNo,
+                                     std::optional<unsigned> ArgNo,
                                      CGBuilderTy &Builder,
                                      const bool UsePointerValue = false);
 
@@ -599,7 +620,7 @@ private:
   /// Returns a pointer to the DILocalVariable associated with the
   /// llvm.dbg.declare, or nullptr otherwise.
   llvm::DILocalVariable *EmitDeclare(const BindingDecl *decl, llvm::Value *AI,
-                                     llvm::Optional<unsigned> ArgNo,
+                                     std::optional<unsigned> ArgNo,
                                      CGBuilderTy &Builder,
                                      const bool UsePointerValue = false);
 
@@ -635,11 +656,11 @@ private:
   void CreateCompileUnit();
 
   /// Compute the file checksum debug info for input file ID.
-  Optional<llvm::DIFile::ChecksumKind>
+  std::optional<llvm::DIFile::ChecksumKind>
   computeChecksum(FileID FID, SmallString<64> &Checksum) const;
 
   /// Get the source of the given file ID.
-  Optional<StringRef> getSource(const SourceManager &SM, FileID FID);
+  std::optional<StringRef> getSource(const SourceManager &SM, FileID FID);
 
   /// Convenience function to get the file debug info descriptor for the input
   /// location.
@@ -648,8 +669,8 @@ private:
   /// Create a file debug info descriptor for a source file.
   llvm::DIFile *
   createFile(StringRef FileName,
-             Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo,
-             Optional<StringRef> Source);
+             std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo,
+             std::optional<StringRef> Source);
 
   /// Get the type from the cache or create a new type if necessary.
   llvm::DIType *getOrCreateType(QualType Ty, llvm::DIFile *Fg);

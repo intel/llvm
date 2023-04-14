@@ -20,7 +20,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -33,6 +32,7 @@
 #include <cstdint>
 #include <ctime>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -103,16 +103,22 @@ public:
   /// The location of the module definition.
   SourceLocation DefinitionLoc;
 
+  // FIXME: Consider if reducing the size of this enum (having Partition and
+  // Named modules only) then representing interface/implementation separately
+  // is more efficient.
   enum ModuleKind {
     /// This is a module that was defined by a module map and built out
     /// of header files.
     ModuleMapModule,
 
+    /// This is a C++ 20 header unit.
+    ModuleHeaderUnit,
+
     /// This is a C++20 module interface unit.
     ModuleInterfaceUnit,
 
-    /// This is a C++ 20 header unit.
-    ModuleHeaderUnit,
+    /// This is a C++20 module implementation unit.
+    ModuleImplementationUnit,
 
     /// This is a C++ 20 module partition interface.
     ModulePartitionInterface,
@@ -120,11 +126,17 @@ public:
     /// This is a C++ 20 module partition implementation.
     ModulePartitionImplementation,
 
-    /// This is a fragment of the global module within some C++ module.
-    GlobalModuleFragment,
+    /// This is the explicit Global Module Fragment of a modular TU.
+    /// As per C++ [module.global.frag].
+    ExplicitGlobalModuleFragment,
 
     /// This is the private module fragment within some C++ module.
     PrivateModuleFragment,
+
+    /// This is an implicit fragment of the global module which contains
+    /// only language linkage declarations (made in the purview of the
+    /// named module).
+    ImplicitGlobalModuleFragment,
   };
 
   /// The kind of this module.
@@ -144,7 +156,8 @@ public:
   std::string PresumedModuleMapFile;
 
   /// The umbrella header or directory.
-  llvm::PointerUnion<const FileEntry *, const DirectoryEntry *> Umbrella;
+  llvm::PointerUnion<const FileEntryRef::MapEntry *, const DirectoryEntry *>
+      Umbrella;
 
   /// The module signature.
   ASTFileSignature Signature;
@@ -162,14 +175,29 @@ public:
   /// Does this Module scope describe part of the purview of a standard named
   /// C++ module?
   bool isModulePurview() const {
-    return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface ||
-           Kind == ModulePartitionImplementation ||
-           Kind == PrivateModuleFragment;
+    switch (Kind) {
+    case ModuleInterfaceUnit:
+    case ModuleImplementationUnit:
+    case ModulePartitionInterface:
+    case ModulePartitionImplementation:
+    case PrivateModuleFragment:
+      return true;
+    default:
+      return false;
+    }
   }
 
   /// Does this Module scope describe a fragment of the global module within
   /// some C++ module.
-  bool isGlobalModule() const { return Kind == GlobalModuleFragment; }
+  bool isGlobalModule() const {
+    return isExplicitGlobalModule() || isImplicitGlobalModule();
+  }
+  bool isExplicitGlobalModule() const {
+    return Kind == ExplicitGlobalModuleFragment;
+  }
+  bool isImplicitGlobalModule() const {
+    return Kind == ImplicitGlobalModuleFragment;
+  }
 
   bool isPrivateModule() const { return Kind == PrivateModuleFragment; }
 
@@ -185,7 +213,7 @@ private:
 
   /// The AST file if this is a top-level module which has a
   /// corresponding serialized AST file, or null otherwise.
-  Optional<FileEntryRef> ASTFile;
+  OptionalFileEntryRef ASTFile;
 
   /// The top-level headers associated with this module.
   llvm::SmallSetVector<const FileEntry *, 2> TopHeaders;
@@ -214,9 +242,9 @@ public:
   struct Header {
     std::string NameAsWritten;
     std::string PathRelativeToRootModuleDirectory;
-    const FileEntry *Entry;
+    OptionalFileEntryRefDegradesToFileEntryPtr Entry;
 
-    explicit operator bool() { return Entry; }
+    explicit operator bool() { return Entry.has_value(); }
   };
 
   /// Information about a directory name as found in the module map
@@ -240,8 +268,8 @@ public:
     std::string FileName;
     bool IsUmbrella = false;
     bool HasBuiltinHeader = false;
-    Optional<off_t> Size;
-    Optional<time_t> ModTime;
+    std::optional<off_t> Size;
+    std::optional<time_t> ModTime;
   };
 
   /// Headers that are mentioned in the module map file but that we have not
@@ -468,6 +496,9 @@ public:
   bool isUnimportable(const LangOptions &LangOpts, const TargetInfo &Target,
                       Requirement &Req, Module *&ShadowingModule) const;
 
+  /// Determine whether this module can be built in this compilation.
+  bool isForBuilding(const LangOptions &LangOpts) const;
+
   /// Determine whether this module is available for use within the
   /// current translation unit.
   bool isAvailable() const { return IsAvailable; }
@@ -543,6 +574,11 @@ public:
            Kind == ModulePartitionImplementation;
   }
 
+  /// Is this a module implementation.
+  bool isModuleImplementation() const {
+    return Kind == ModuleImplementationUnit;
+  }
+
   /// Is this module a header unit.
   bool isHeaderUnit() const { return Kind == ModuleHeaderUnit; }
   // Is this a C++20 module interface or a partition.
@@ -610,7 +646,7 @@ public:
   }
 
   /// Set the serialized AST file for the top-level module of this module.
-  void setASTFile(Optional<FileEntryRef> File) {
+  void setASTFile(OptionalFileEntryRef File) {
     assert((!getASTFile() || getASTFile() == File) && "file path changed");
     getTopLevelModule()->ASTFile = File;
   }
@@ -622,9 +658,9 @@ public:
   /// Retrieve the header that serves as the umbrella header for this
   /// module.
   Header getUmbrellaHeader() const {
-    if (auto *FE = Umbrella.dyn_cast<const FileEntry *>())
+    if (auto *ME = Umbrella.dyn_cast<const FileEntryRef::MapEntry *>())
       return Header{UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
-                    FE};
+                    FileEntryRef(*ME)};
     return Header{};
   }
 

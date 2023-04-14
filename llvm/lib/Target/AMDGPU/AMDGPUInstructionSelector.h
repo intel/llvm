@@ -13,6 +13,7 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUINSTRUCTIONSELECTOR_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUINSTRUCTIONSELECTOR_H
 
+#include "SIDefines.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/IR/InstrTypes.h"
 
@@ -109,8 +110,9 @@ private:
   bool selectInterpP1F16(MachineInstr &MI) const;
   bool selectWritelane(MachineInstr &MI) const;
   bool selectDivScale(MachineInstr &MI) const;
-  bool selectIntrinsicIcmp(MachineInstr &MI) const;
+  bool selectIntrinsicCmp(MachineInstr &MI) const;
   bool selectBallot(MachineInstr &I) const;
+  bool selectInverseBallot(MachineInstr &I) const;
   bool selectRelocConstant(MachineInstr &I) const;
   bool selectGroupStaticSize(MachineInstr &I) const;
   bool selectReturnAddress(MachineInstr &I) const;
@@ -148,7 +150,11 @@ private:
 
   std::pair<Register, unsigned>
   selectVOP3ModsImpl(MachineOperand &Root, bool AllowAbs = true,
-                     bool OpSel = false, bool ForceVGPR = false) const;
+                     bool OpSel = false) const;
+
+  Register copyToVGPRIfSrcFolded(Register Src, unsigned Mods,
+                                 MachineOperand Root, MachineInstr *InsertPt,
+                                 bool ForceVGPR = false) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -168,9 +174,6 @@ private:
   selectVOP3BMods(MachineOperand &Root) const;
 
   ComplexRendererFns selectVOP3NoMods(MachineOperand &Root) const;
-
-  InstructionSelector::ComplexRendererFns
-  selectVOP3Mods_nnan(MachineOperand &Root) const;
 
   std::pair<Register, unsigned>
   selectVOP3PModsImpl(Register Src, const MachineRegisterInfo &MRI,
@@ -235,6 +238,8 @@ private:
   bool isDSOffsetLegal(Register Base, int64_t Offset) const;
   bool isDSOffset2Legal(Register Base, int64_t Offset0, int64_t Offset1,
                         unsigned Size) const;
+  bool isFlatScratchBaseLegal(
+      Register Base, uint64_t FlatVariant = SIInstrFlags::FlatScratch) const;
 
   std::pair<Register, unsigned>
   selectDS1Addr1OffsetImpl(MachineOperand &Root) const;
@@ -284,24 +289,22 @@ private:
   InstructionSelector::ComplexRendererFns
   selectMUBUFOffset(MachineOperand &Root) const;
 
-  InstructionSelector::ComplexRendererFns
-  selectMUBUFOffsetAtomic(MachineOperand &Root) const;
-
-  InstructionSelector::ComplexRendererFns
-  selectMUBUFAddr64Atomic(MachineOperand &Root) const;
-
   ComplexRendererFns selectSMRDBufferImm(MachineOperand &Root) const;
   ComplexRendererFns selectSMRDBufferImm32(MachineOperand &Root) const;
   ComplexRendererFns selectSMRDBufferSgprImm(MachineOperand &Root) const;
 
   std::pair<Register, unsigned> selectVOP3PMadMixModsImpl(MachineOperand &Root,
                                                           bool &Matched) const;
+  ComplexRendererFns selectVOP3PMadMixModsExt(MachineOperand &Root) const;
   ComplexRendererFns selectVOP3PMadMixMods(MachineOperand &Root) const;
 
   void renderTruncImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx = -1) const;
 
   void renderTruncTImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                       int OpIdx) const;
+
+  void renderOpSelTImm(MachineInstrBuilder &MIB, const MachineInstr &MI,
                        int OpIdx) const;
 
   void renderNegateImm(MachineInstrBuilder &MIB, const MachineInstr &MI,

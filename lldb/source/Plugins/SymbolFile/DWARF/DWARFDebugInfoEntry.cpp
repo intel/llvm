@@ -11,6 +11,7 @@
 #include <cassert>
 
 #include <algorithm>
+#include <optional>
 
 #include "llvm/Support/LEB128.h"
 
@@ -60,9 +61,10 @@ bool DWARFDebugInfoEntry::Extract(const DWARFDataExtractor &data,
   const auto *abbrevDecl = GetAbbreviationDeclarationPtr(cu);
   if (abbrevDecl == nullptr) {
     cu->GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(
-        "{0x%8.8x}: invalid abbreviation code %u, please file a bug and "
+        "[{0:x16}]: invalid abbreviation code {1}, "
+        "please file a bug and "
         "attach the file at the start of this error message",
-        m_offset, (unsigned)abbr_idx);
+        (uint64_t)m_offset, (unsigned)abbr_idx);
     // WE can't parse anymore if the DWARF is borked...
     *offset_ptr = UINT32_MAX;
     return false;
@@ -75,7 +77,7 @@ bool DWARFDebugInfoEntry::Extract(const DWARFDataExtractor &data,
   dw_form_t form;
   for (i = 0; i < numAttributes; ++i) {
     form = abbrevDecl->GetFormByIndexUnchecked(i);
-    llvm::Optional<uint8_t> fixed_skip_size =
+    std::optional<uint8_t> fixed_skip_size =
         DWARFFormValue::GetFixedSize(form, cu);
     if (fixed_skip_size)
       offset += *fixed_skip_size;
@@ -190,9 +192,10 @@ bool DWARFDebugInfoEntry::Extract(const DWARFDataExtractor &data,
 
         default:
           cu->GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(
-              "{0x%8.8x}: Unsupported DW_FORM_0x%x, please file a bug and "
+              "[{0:x16}]: Unsupported DW_FORM_{1:x}, please file a bug "
+              "and "
               "attach the file at the start of this error message",
-              m_offset, (unsigned)form);
+              (uint64_t)m_offset, (unsigned)form);
           *offset_ptr = m_offset;
           return false;
         }
@@ -214,9 +217,10 @@ static DWARFRangeList GetRangesOrReportError(DWARFUnit &unit,
           : unit.FindRnglistFromOffset(value.Unsigned());
   if (expected_ranges)
     return std::move(*expected_ranges);
+
   unit.GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(
-      "{0x%8.8x}: DIE has DW_AT_ranges(%s 0x%" PRIx64 ") attribute, but "
-      "range extraction failed (%s), please file a bug "
+      "[{0:x16}]: DIE has DW_AT_ranges({1} {2:x16}) attribute, but "
+      "range extraction failed ({3}), please file a bug "
       "and attach the file at the start of this error message",
       die.GetOffset(),
       llvm::dwarf::FormEncodingString(value.Form()).str().c_str(),
@@ -230,9 +234,10 @@ static DWARFRangeList GetRangesOrReportError(DWARFUnit &unit,
 // DW_AT_low_pc/DW_AT_high_pc pair, DW_AT_entry_pc, or DW_AT_ranges attributes.
 bool DWARFDebugInfoEntry::GetDIENamesAndRanges(
     DWARFUnit *cu, const char *&name, const char *&mangled,
-    DWARFRangeList &ranges, int &decl_file, int &decl_line, int &decl_column,
-    int &call_file, int &call_line, int &call_column,
-    DWARFExpressionList *frame_base) const {
+    DWARFRangeList &ranges, std::optional<int> &decl_file,
+    std::optional<int> &decl_line, std::optional<int> &decl_column,
+    std::optional<int> &call_file, std::optional<int> &call_line,
+    std::optional<int> &call_column, DWARFExpressionList *frame_base) const {
   dw_addr_t lo_pc = LLDB_INVALID_ADDRESS;
   dw_addr_t hi_pc = LLDB_INVALID_ADDRESS;
   std::vector<DWARFDIE> dies;
@@ -311,32 +316,32 @@ bool DWARFDebugInfoEntry::GetDIENamesAndRanges(
           break;
 
         case DW_AT_decl_file:
-          if (decl_file == 0)
+          if (!decl_file)
             decl_file = form_value.Unsigned();
           break;
 
         case DW_AT_decl_line:
-          if (decl_line == 0)
+          if (!decl_line)
             decl_line = form_value.Unsigned();
           break;
 
         case DW_AT_decl_column:
-          if (decl_column == 0)
+          if (!decl_column)
             decl_column = form_value.Unsigned();
           break;
 
         case DW_AT_call_file:
-          if (call_file == 0)
+          if (!call_file)
             call_file = form_value.Unsigned();
           break;
 
         case DW_AT_call_line:
-          if (call_line == 0)
+          if (!call_line)
             call_line = form_value.Unsigned();
           break;
 
         case DW_AT_call_column:
-          if (call_column == 0)
+          if (!call_column)
             call_column = form_value.Unsigned();
           break;
 
@@ -448,7 +453,8 @@ size_t DWARFDebugInfoEntry::GetAttributes(DWARFUnit *cu,
                                              recurse, curr_depth + 1);
         }
       } else {
-        llvm::Optional<uint8_t> fixed_skip_size = DWARFFormValue::GetFixedSize(form, cu);
+        std::optional<uint8_t> fixed_skip_size =
+            DWARFFormValue::GetFixedSize(form, cu);
         if (fixed_skip_size)
           offset += *fixed_skip_size;
         else
@@ -547,7 +553,7 @@ uint64_t DWARFDebugInfoEntry::GetAttributeValueAsUnsigned(
   return fail_value;
 }
 
-llvm::Optional<uint64_t>
+std::optional<uint64_t>
 DWARFDebugInfoEntry::GetAttributeValueAsOptionalUnsigned(
     const DWARFUnit *cu, const dw_attr_t attr,
     bool check_specification_or_abstract_origin) const {
@@ -555,7 +561,7 @@ DWARFDebugInfoEntry::GetAttributeValueAsOptionalUnsigned(
   if (GetAttributeValue(cu, attr, form_value, nullptr,
                         check_specification_or_abstract_origin))
     return form_value.Unsigned();
-  return llvm::None;
+  return std::nullopt;
 }
 
 // GetAttributeValueAsReference

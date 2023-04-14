@@ -46,6 +46,7 @@
 #include "llvm/Support/WithColor.h"
 
 #include <cstdio>
+#include <optional>
 #include <thread>
 
 using namespace lldb;
@@ -140,7 +141,7 @@ static cl::opt<std::string> InputFile(cl::Positional, cl::desc("<input file>"),
                                       cl::Required, cl::sub(SymTabSubcommand));
 
 /// Validate that the options passed make sense.
-static llvm::Optional<llvm::Error> validate();
+static std::optional<llvm::Error> validate();
 
 /// Transforms the selected mangling preference into a Mangled::NamePreference
 static Mangled::NamePreference getNamePreference();
@@ -658,13 +659,13 @@ Error opts::symbols::dumpAST(lldb_private::Module &Module) {
   if (!symfile)
     return make_string_error("Module has no symbol file.");
 
-  llvm::Expected<TypeSystem &> type_system_or_err =
+  auto type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeC_plus_plus);
   if (!type_system_or_err)
     return make_string_error("Can't retrieve TypeSystemClang");
 
-  auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
+  auto ts = *type_system_or_err;
+  auto *clang_ast_ctx = llvm::dyn_cast_or_null<TypeSystemClang>(ts.get());
   if (!clang_ast_ctx)
     return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
@@ -686,13 +687,12 @@ Error opts::symbols::dumpEntireClangAST(lldb_private::Module &Module) {
   if (!symfile)
     return make_string_error("Module has no symbol file.");
 
-  llvm::Expected<TypeSystem &> type_system_or_err =
+  auto type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeObjC_plus_plus);
   if (!type_system_or_err)
     return make_string_error("Can't retrieve TypeSystemClang");
-
-  auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
+  auto ts = *type_system_or_err;
+  auto *clang_ast_ctx = llvm::dyn_cast_or_null<TypeSystemClang>(ts.get());
   if (!clang_ast_ctx)
     return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
@@ -861,7 +861,7 @@ Expected<Error (*)(lldb_private::Module &)> opts::symbols::getAction() {
   llvm_unreachable("Unsupported symbol action.");
 }
 
-llvm::Optional<llvm::Error> opts::symtab::validate() {
+std::optional<llvm::Error> opts::symtab::validate() {
   if (ManglingPreference != ManglingPreference::None &&
       FindSymbolsByRegex.empty())
     return make_string_error("Mangling preference set but no regex specified.");
@@ -884,7 +884,7 @@ static Mangled::NamePreference opts::symtab::getNamePreference() {
 
 int opts::symtab::handleSymtabCommand(Debugger &Dbg) {
   if (auto error = validate()) {
-    logAllUnhandledErrors(std::move(error.value()), WithColor::error(), "");
+    logAllUnhandledErrors(std::move(*error), WithColor::error(), "");
     return 1;
   }
 

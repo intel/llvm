@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -O2 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_DLP:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_II:[0-9]+]]

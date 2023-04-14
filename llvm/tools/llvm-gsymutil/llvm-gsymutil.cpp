@@ -8,7 +8,6 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Object/Archive.h"
@@ -25,11 +24,13 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstring>
 #include <inttypes.h>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -41,6 +42,7 @@
 #include "llvm/DebugInfo/GSYM/InlineInfo.h"
 #include "llvm/DebugInfo/GSYM/LookupResult.h"
 #include "llvm/DebugInfo/GSYM/ObjectFileTransformer.h"
+#include <optional>
 
 using namespace llvm;
 using namespace gsym;
@@ -105,6 +107,13 @@ static opt<unsigned>
                     "to use when converting files to GSYM.\nDefaults to the "
                     "number of cores on the current machine."),
                cl::value_desc("n"), cat(ConversionOptions));
+
+static opt<uint64_t>
+    SegmentSize("segment-size",
+               desc("Specify the size in bytes of the size the final GSYM file "
+                    "should be segmented into. This allows GSYM files to be "
+                    "split across multiple files."),
+               cl::value_desc("s"), cat(ConversionOptions));
 
 static opt<bool>
     Quiet("quiet", desc("Do not output warnings about the debug information"),
@@ -186,17 +195,17 @@ static bool filterArch(MachOObjectFile &Obj) {
 ///
 /// \returns A valid image base address if we are able to extract one.
 template <class ELFT>
-static llvm::Optional<uint64_t>
+static std::optional<uint64_t>
 getImageBaseAddress(const object::ELFFile<ELFT> &ELFFile) {
   auto PhdrRangeOrErr = ELFFile.program_headers();
   if (!PhdrRangeOrErr) {
     consumeError(PhdrRangeOrErr.takeError());
-    return llvm::None;
+    return std::nullopt;
   }
   for (const typename ELFT::Phdr &Phdr : *PhdrRangeOrErr)
     if (Phdr.p_type == ELF::PT_LOAD)
       return (uint64_t)Phdr.p_vaddr;
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Determine the virtual address that is considered the base address of mach-o
@@ -207,7 +216,7 @@ getImageBaseAddress(const object::ELFFile<ELFT> &ELFFile) {
 /// \param MachO A mach-o object file we will search.
 ///
 /// \returns A valid image base address if we are able to extract one.
-static llvm::Optional<uint64_t>
+static std::optional<uint64_t>
 getImageBaseAddress(const object::MachOObjectFile *MachO) {
   for (const auto &Command : MachO->load_commands()) {
     if (Command.C.cmd == MachO::LC_SEGMENT) {
@@ -222,7 +231,7 @@ getImageBaseAddress(const object::MachOObjectFile *MachO) {
         return SLC.vmaddr;
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Determine the virtual address that is considered the base address of an
@@ -237,7 +246,7 @@ getImageBaseAddress(const object::MachOObjectFile *MachO) {
 /// \param Obj An object file we will search.
 ///
 /// \returns A valid image base address if we are able to extract one.
-static llvm::Optional<uint64_t> getImageBaseAddress(object::ObjectFile &Obj) {
+static std::optional<uint64_t> getImageBaseAddress(object::ObjectFile &Obj) {
   if (const auto *MachO = dyn_cast<object::MachOObjectFile>(&Obj))
     return getImageBaseAddress(MachO);
   else if (const auto *ELFObj = dyn_cast<object::ELF32LEObjectFile>(&Obj))
@@ -248,7 +257,7 @@ static llvm::Optional<uint64_t> getImageBaseAddress(object::ObjectFile &Obj) {
     return getImageBaseAddress(ELFObj->getELFFile());
   else if (const auto *ELFObj = dyn_cast<object::ELF64BEObjectFile>(&Obj))
     return getImageBaseAddress(ELFObj->getELFFile());
-  return llvm::None;
+  return std::nullopt;
 }
 
 static llvm::Error handleObjectFile(ObjectFile &Obj,
@@ -285,7 +294,6 @@ static llvm::Error handleObjectFile(ObjectFile &Obj,
   if (!DICtx)
     return createStringError(std::errc::invalid_argument,
                              "unable to create DWARF context");
-  logAllUnhandledErrors(DICtx->loadRegisterInfo(Obj), OS, "DwarfTransformer: ");
 
   // Make a DWARF transformer object and populate the ranges of the code
   // so we don't end up adding invalid functions to GSYM data.
@@ -310,7 +318,11 @@ static llvm::Error handleObjectFile(ObjectFile &Obj,
   // Save the GSYM file to disk.
   support::endianness Endian =
       Obj.makeTriple().isLittleEndian() ? support::little : support::big;
-  if (auto Err = Gsym.save(OutFile, Endian))
+
+  std::optional<uint64_t> OptSegmentSize;
+  if (SegmentSize > 0)
+    OptSegmentSize = SegmentSize;
+  if (auto Err = Gsym.save(OutFile, Endian, OptSegmentSize))
     return Err;
 
   // Verify the DWARF if requested. This will ensure all the info in the DWARF
@@ -480,7 +492,7 @@ int main(int argc, char const *argv[]) {
 
     std::string InputLine;
     std::string CurrentGSYMPath;
-    llvm::Optional<Expected<GsymReader>> CurrentGsym;
+    std::optional<Expected<GsymReader>> CurrentGsym;
 
     while (std::getline(std::cin, InputLine)) {
       // Strip newline characters.

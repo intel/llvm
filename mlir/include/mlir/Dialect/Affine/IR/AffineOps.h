@@ -89,7 +89,8 @@ Region *getAffineScope(Operation *op);
 class AffineDmaStartOp
     : public Op<AffineDmaStartOp, OpTrait::MemRefsNormalizable,
                 OpTrait::VariadicOperands, OpTrait::ZeroResults,
-                OpTrait::OpInvariants, AffineMapAccessInterface::Trait> {
+                OpTrait::OpInvariants, AffineMapAccessInterface::Trait,
+                MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static ArrayRef<StringRef> getAttributeNames() { return {}; }
@@ -233,6 +234,10 @@ public:
     return isSrcMemorySpaceFaster() ? 0 : getDstMemRefOperandIndex();
   }
 
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects);
+
   static StringRef getSrcMapAttrStrName() { return "src_map"; }
   static StringRef getDstMapAttrStrName() { return "dst_map"; }
   static StringRef getTagMapAttrStrName() { return "tag_map"; }
@@ -333,6 +338,9 @@ public:
   LogicalResult verifyInvariants() { return verifyInvariantsImpl(); }
   LogicalResult fold(ArrayRef<Attribute> cstOperands,
                      SmallVectorImpl<OpFoldResult> &results);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects);
 };
 
 /// Returns true if the given Value can be used as a dimension id in the region
@@ -437,18 +445,34 @@ void fullyComposeAffineMapAndOperands(AffineMap *map,
 #include "mlir/Dialect/Affine/IR/AffineOps.h.inc"
 
 namespace mlir {
-/// Returns true if the provided value is the induction variable of a
+/// Returns true if the provided value is the induction variable of an
 /// AffineForOp.
-bool isForInductionVar(Value val);
+bool isAffineForInductionVar(Value val);
+
+/// Returns true if `val` is the induction variable of an AffineParallelOp.
+bool isAffineParallelInductionVar(Value val);
+
+/// Returns true if the provided value is the induction variable of an
+/// AffineForOp or AffineParallelOp.
+bool isAffineInductionVar(Value val);
 
 /// Returns the loop parent of an induction variable. If the provided value is
 /// not an induction variable, then return nullptr.
 AffineForOp getForInductionVarOwner(Value val);
 
+/// Returns true if the provided value is among the induction variables of an
+/// AffineParallelOp.
+AffineParallelOp getAffineParallelInductionVarOwner(Value val);
+
 /// Extracts the induction variables from a list of AffineForOps and places them
 /// in the output argument `ivs`.
 void extractForInductionVars(ArrayRef<AffineForOp> forInsts,
                              SmallVectorImpl<Value> *ivs);
+
+/// Extracts the induction variables from a list of either AffineForOp or
+/// AffineParallelOp and places them in the output argument `ivs`.
+void extractInductionVars(ArrayRef<Operation *> affineOps,
+                          SmallVectorImpl<Value> &ivs);
 
 /// Builds a perfect nest of affine.for loops, i.e., each loop except the
 /// innermost one contains only another loop and a terminator. The loops iterate

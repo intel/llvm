@@ -11,7 +11,6 @@
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
-#include "mlir/IR/SubElementInterfaces.h"
 
 namespace llvm {
 class BitVector;
@@ -47,6 +46,10 @@ public:
   static FloatType getF80(MLIRContext *ctx);
   static FloatType getF128(MLIRContext *ctx);
   static FloatType getFloat8E5M2(MLIRContext *ctx);
+  static FloatType getFloat8E4M3FN(MLIRContext *ctx);
+  static FloatType getFloat8E5M2FNUZ(MLIRContext *ctx);
+  static FloatType getFloat8E4M3FNUZ(MLIRContext *ctx);
+  static FloatType getFloat8E4M3B11FNUZ(MLIRContext *ctx);
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(Type type);
@@ -89,7 +92,7 @@ public:
 
   /// Clone this type with the given shape and element type. If the
   /// provided shape is `None`, the current shape of the type is used.
-  TensorType cloneWith(Optional<ArrayRef<int64_t>> shape,
+  TensorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                        Type elementType) const;
 
   /// Return true if the specified element type is ok in a tensor.
@@ -125,7 +128,7 @@ public:
 
   /// Clone this type with the given shape and element type. If the
   /// provided shape is `None`, the current shape of the type is used.
-  BaseMemRefType cloneWith(Optional<ArrayRef<int64_t>> shape,
+  BaseMemRefType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                            Type elementType) const;
 
   /// Return true if the specified element type is ok in a memref.
@@ -334,9 +337,9 @@ private:
 /// `reducedShape`. The returned mask can be applied as a projection to
 /// `originalShape` to obtain the `reducedShape`. This mask is useful to track
 /// which dimensions must be kept when e.g. compute MemRef strides under
-/// rank-reducing operations. Return None if reducedShape cannot be obtained
-/// by dropping only `1` entries in `originalShape`.
-llvm::Optional<llvm::SmallDenseSet<unsigned>>
+/// rank-reducing operations. Return std::nullopt if reducedShape cannot be
+/// obtained by dropping only `1` entries in `originalShape`.
+std::optional<llvm::SmallDenseSet<unsigned>>
 computeRankReductionMask(ArrayRef<int64_t> originalShape,
                          ArrayRef<int64_t> reducedShape);
 
@@ -374,12 +377,30 @@ inline bool BaseMemRefType::isValidElementType(Type type) {
 }
 
 inline bool FloatType::classof(Type type) {
-  return type.isa<Float8E5M2Type, BFloat16Type, Float16Type, Float32Type,
-                  Float64Type, Float80Type, Float128Type>();
+  return type
+      .isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+           Float8E4M3FNUZType, Float8E4M3B11FNUZType, BFloat16Type, Float16Type,
+           Float32Type, Float64Type, Float80Type, Float128Type>();
 }
 
 inline FloatType FloatType::getFloat8E5M2(MLIRContext *ctx) {
   return Float8E5M2Type::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E4M3FN(MLIRContext *ctx) {
+  return Float8E4M3FNType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E5M2FNUZ(MLIRContext *ctx) {
+  return Float8E5M2FNUZType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E4M3FNUZ(MLIRContext *ctx) {
+  return Float8E4M3FNUZType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E4M3B11FNUZ(MLIRContext *ctx) {
+  return Float8E4M3B11FNUZType::get(ctx);
 }
 
 inline FloatType FloatType::getBF16(MLIRContext *ctx) {
@@ -424,12 +445,16 @@ inline bool TensorType::classof(Type type) {
 ///      symbols.
 ///
 /// A stride specification is a list of integer values that are either static
-/// or dynamic (encoded with ShapedType::kDynamicStrideOrOffset). Strides encode
+/// or dynamic (encoded with ShapedType::kDynamic). Strides encode
 /// the distance in the number of elements between successive entries along a
 /// particular dimension.
 LogicalResult getStridesAndOffset(MemRefType t,
                                   SmallVectorImpl<int64_t> &strides,
                                   int64_t &offset);
+
+/// Wrapper around getStridesAndOffset(MemRefType, SmallVectorImpl<int64_t>,
+/// int64_t) that will assert if the logical result is not succeeded.
+std::pair<SmallVector<int64_t>, int64_t> getStridesAndOffset(MemRefType t);
 
 /// Return a version of `t` with identity layout if it can be determined
 /// statically that the layout is the canonical contiguous strided layout.

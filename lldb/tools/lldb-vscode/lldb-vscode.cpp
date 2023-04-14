@@ -79,11 +79,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr llvm::StringLiteral NAME##_init[] = VALUE;                  \
+  static constexpr llvm::ArrayRef<llvm::StringLiteral> NAME(                   \
+      NAME##_init, std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
-static const llvm::opt::OptTable::Info InfoTable[] = {
+static constexpr llvm::opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {PREFIX,      NAME,      HELPTEXT,                                           \
@@ -93,9 +96,9 @@ static const llvm::opt::OptTable::Info InfoTable[] = {
 #include "Options.inc"
 #undef OPTION
 };
-class LLDBVSCodeOptTable : public llvm::opt::OptTable {
+class LLDBVSCodeOptTable : public llvm::opt::GenericOptTable {
 public:
-  LLDBVSCodeOptTable() : OptTable(InfoTable, true) {}
+  LLDBVSCodeOptTable() : llvm::opt::GenericOptTable(InfoTable, true) {}
 };
 
 typedef void (*RequestCallback)(const llvm::json::Object &command);
@@ -204,7 +207,7 @@ void SendTerminatedEvent() {
     g_vsc.sent_terminated_event = true;
     g_vsc.RunTerminateCommands();
     // Send a "terminated" event
-    llvm::json::Object event(CreateEventObject("terminated"));
+    llvm::json::Object event(CreateTerminatedEventObject());
     g_vsc.SendJSON(llvm::json::Value(std::move(event)));
   }
 }
@@ -1062,8 +1065,9 @@ void request_completions(const llvm::json::Object &request) {
     text = text.substr(1);
     actual_column--;
   } else {
-    text = "p " + text;
-    actual_column += 2;
+    char command[] = "expression -- ";
+    text = command + text;
+    actual_column += strlen(command);
   }
   lldb::SBStringList matches;
   lldb::SBStringList descriptions;
@@ -2949,7 +2953,7 @@ void request_variables(const llvm::json::Object &request) {
       const uint32_t addr_size = g_vsc.target.GetProcess().GetAddressByteSize();
       lldb::SBValue reg_set = g_vsc.variables.registers.GetValueAtIndex(0);
       const uint32_t num_regs = reg_set.GetNumChildren();
-      for (uint32_t reg_idx=0; reg_idx<num_regs; ++reg_idx) {
+      for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
         lldb::SBValue reg = reg_set.GetChildAtIndex(reg_idx);
         const lldb::Format format = reg.GetFormat();
         if (format == lldb::eFormatDefault || format == lldb::eFormatHex) {
@@ -3224,7 +3228,7 @@ int main(int argc, char *argv[]) {
 
   LLDBVSCodeOptTable T;
   unsigned MAI, MAC;
-  llvm::ArrayRef<const char *> ArgsArr = llvm::makeArrayRef(argv + 1, argc);
+  llvm::ArrayRef<const char *> ArgsArr = llvm::ArrayRef(argv + 1, argc);
   llvm::opt::InputArgList input_args = T.ParseArgs(ArgsArr, MAI, MAC);
 
   if (input_args.hasArg(OPT_help)) {

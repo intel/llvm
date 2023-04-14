@@ -49,6 +49,7 @@
 #include "SizeofContainerCheck.h"
 #include "SizeofExpressionCheck.h"
 #include "SpuriouslyWakeUpFunctionsCheck.h"
+#include "StandaloneEmptyCheck.h"
 #include "StringConstructorCheck.h"
 #include "StringIntegerAssignmentCheck.h"
 #include "StringLiteralWithEmbeddedNulCheck.h"
@@ -70,13 +71,13 @@
 #include "UndelegatedConstructorCheck.h"
 #include "UnhandledExceptionAtNewCheck.h"
 #include "UnhandledSelfAssignmentCheck.h"
+#include "UnsafeFunctionsCheck.h"
 #include "UnusedRaiiCheck.h"
 #include "UnusedReturnValueCheck.h"
 #include "UseAfterMoveCheck.h"
 #include "VirtualNearMissCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace bugprone {
 
 class BugproneModule : public ClangTidyModule {
@@ -156,6 +157,8 @@ public:
         "bugprone-sizeof-expression");
     CheckFactories.registerCheck<SpuriouslyWakeUpFunctionsCheck>(
         "bugprone-spuriously-wake-up-functions");
+    CheckFactories.registerCheck<StandaloneEmptyCheck>(
+        "bugprone-standalone-empty");
     CheckFactories.registerCheck<StringConstructorCheck>(
         "bugprone-string-constructor");
     CheckFactories.registerCheck<StringIntegerAssignmentCheck>(
@@ -198,6 +201,8 @@ public:
         "bugprone-unhandled-self-assignment");
     CheckFactories.registerCheck<UnhandledExceptionAtNewCheck>(
         "bugprone-unhandled-exception-at-new");
+    CheckFactories.registerCheck<UnsafeFunctionsCheck>(
+        "bugprone-unsafe-functions");
     CheckFactories.registerCheck<UnusedRaiiCheck>("bugprone-unused-raii");
     CheckFactories.registerCheck<UnusedReturnValueCheck>(
         "bugprone-unused-return-value");
@@ -217,5 +222,4 @@ static ClangTidyModuleRegistry::Add<bugprone::BugproneModule>
 // and thus register the BugproneModule.
 volatile int BugproneModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

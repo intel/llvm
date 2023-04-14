@@ -1,10 +1,30 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
-// RUN: TENSOR1="%mlir_src_dir/test/Integration/data/mttkrp_b.tns" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
+// DEFINE: TENSOR1="%mlir_src_dir/test/Integration/data/mttkrp_b.tns" \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
+// DEFINE: FileCheck %s
+//
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true"
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
+// REDEFINE:    TENSOR1="%mlir_src_dir/test/Integration/data/mttkrp_b.tns" \
+// REDEFINE:    lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 !Filename = !llvm.ptr<i8>
 
@@ -64,9 +84,16 @@ module {
     return
   }
 
+  func.func @dumpsi(%arg0: memref<?xindex, strided<[?], offset: ?>>) {
+    %c0 = arith.constant 0 : index
+    %v = vector.transfer_read %arg0[%c0], %c0: memref<?xindex, strided<[?], offset: ?>>, vector<20xindex>
+    vector.print %v : vector<20xindex>
+    return
+  }
+
   func.func @dumpf(%arg0: memref<?xf64>) {
     %c0 = arith.constant 0 : index
-    %nan = arith.constant 0x7FF0000001000000 : f64
+    %nan = arith.constant 0x0 : f64
     %v = vector.transfer_read %arg0[%c0], %nan: memref<?xf64>, vector<20xf64>
     vector.print %v : vector<20xf64>
     return
@@ -96,38 +123,38 @@ module {
     // CHECK:      ( 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 0, 0, 0, 1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 126, 127, 254, 1, 253, 2, 0, 1, 3, 98, 126, 127, 128, 249, 253, 255, 0, 0, 0 )
-    // CHECK-NEXT: ( -1, 2, -3, 4, -5, 6, -7, 8, -9, 10, -11, 12, -13, 14, -15, 16, -17, nan, nan, nan )
+    // CHECK-NEXT: ( -1, 2, -3, 4, -5, 6, -7, 8, -9, 10, -11, 12, -13, 14, -15, 16, -17, 0, 0, 0 )
     //
-    %p0 = sparse_tensor.pointers %0 { dimension = 0 : index }
+    %p0 = sparse_tensor.positions %0 { level = 0 : index }
       : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
-    %i00 = sparse_tensor.indices %0 { dimension = 0 : index }
-      : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
-    %i01 = sparse_tensor.indices %0 { dimension = 1 : index }
-      : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
+    %i00 = sparse_tensor.coordinates %0 { level = 0 : index }
+      : tensor<?x?xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
+    %i01 = sparse_tensor.coordinates %0 { level = 1 : index }
+      : tensor<?x?xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
     %v0 = sparse_tensor.values %0
       : tensor<?x?xf64, #SortedCOO> to memref<?xf64>
     call @dumpi(%p0)  : (memref<?xindex>) -> ()
-    call @dumpi(%i00) : (memref<?xindex>) -> ()
-    call @dumpi(%i01) : (memref<?xindex>) -> ()
+    call @dumpsi(%i00) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i01) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
     call @dumpf(%v0)  : (memref<?xf64>) -> ()
 
     //
     // CHECK-NEXT: ( 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 0, 1, 1, 2, 3, 98, 126, 126, 127, 127, 128, 249, 253, 253, 254, 255, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 3, 1, 3, 2, 3, 3, 0, 3, 0, 3, 3, 3, 1, 3, 0, 3, 0, 0, 0 )
-    // CHECK-NEXT: ( -1, 8, -5, -9, -7, 10, -11, 2, 12, -3, -13, 14, -15, 6, 16, 4, -17, nan, nan, nan )
+    // CHECK-NEXT: ( -1, 8, -5, -9, -7, 10, -11, 2, 12, -3, -13, 14, -15, 6, 16, 4, -17, 0, 0, 0 )
     //
-    %p1 = sparse_tensor.pointers %1 { dimension = 0 : index }
+    %p1 = sparse_tensor.positions %1 { level = 0 : index }
       : tensor<?x?xf64, #SortedCOOPermuted> to memref<?xindex>
-    %i10 = sparse_tensor.indices %1 { dimension = 0 : index }
-      : tensor<?x?xf64, #SortedCOOPermuted> to memref<?xindex>
-    %i11 = sparse_tensor.indices %1 { dimension = 1 : index }
-      : tensor<?x?xf64, #SortedCOOPermuted> to memref<?xindex>
+    %i10 = sparse_tensor.coordinates %1 { level = 0 : index }
+      : tensor<?x?xf64, #SortedCOOPermuted> to memref<?xindex, strided<[?], offset: ?>>
+    %i11 = sparse_tensor.coordinates %1 { level = 1 : index }
+      : tensor<?x?xf64, #SortedCOOPermuted> to memref<?xindex, strided<[?], offset: ?>>
     %v1 = sparse_tensor.values %1
       : tensor<?x?xf64, #SortedCOOPermuted> to memref<?xf64>
     call @dumpi(%p1)  : (memref<?xindex>) -> ()
-    call @dumpi(%i10) : (memref<?xindex>) -> ()
-    call @dumpi(%i11) : (memref<?xindex>) -> ()
+    call @dumpsi(%i10) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i11) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
     call @dumpf(%v1)  : (memref<?xf64>) -> ()
 
     //
@@ -135,22 +162,22 @@ module {
     // CHECK-NEXT: ( 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 0, 1, 1, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, 1, 2, 2, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 0, 1, 1, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, 1, 2, 2, 0, 0, 0 )
-    // CHECK-NEXT: ( 3, 63, 11, 100, 66, 61, 13, 43, 77, 10, 46, 61, 53, 3, 75, 22, 18, nan, nan, nan )
+    // CHECK-NEXT: ( 3, 63, 11, 100, 66, 61, 13, 43, 77, 10, 46, 61, 53, 3, 75, 22, 18, 0, 0, 0 )
     //
-    %p2 = sparse_tensor.pointers %2 { dimension = 0 : index }
+    %p2 = sparse_tensor.positions %2 { level = 0 : index }
       : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex>
-    %i20 = sparse_tensor.indices %2 { dimension = 0 : index }
-      : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex>
-    %i21 = sparse_tensor.indices %2 { dimension = 1 : index }
-      : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex>
-    %i22 = sparse_tensor.indices %2 { dimension = 2 : index }
-      : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex>
+    %i20 = sparse_tensor.coordinates %2 { level = 0 : index }
+      : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex, strided<[?], offset: ?>>
+    %i21 = sparse_tensor.coordinates %2 { level = 1 : index }
+      : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex, strided<[?], offset: ?>>
+    %i22 = sparse_tensor.coordinates %2 { level = 2 : index }
+      : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xindex, strided<[?], offset: ?>>
     %v2 = sparse_tensor.values %2
       : tensor<?x?x?xf64, #SortedCOO3D> to memref<?xf64>
     call @dumpi(%p2)  : (memref<?xindex>) -> ()
-    call @dumpi(%i20) : (memref<?xindex>) -> ()
-    call @dumpi(%i21) : (memref<?xindex>) -> ()
-    call @dumpi(%i21) : (memref<?xindex>) -> ()
+    call @dumpsi(%i20) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i21) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i21) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
     call @dumpf(%v2)  : (memref<?xf64>) -> ()
 
     //
@@ -158,41 +185,41 @@ module {
     // CHECK-NEXT: ( 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0 )
-    // CHECK-NEXT: ( 66, 77, 61, 11, 61, 53, 22, 3, 100, 13, 10, 3, 18, 63, 43, 46, 75, nan, nan, nan )
+    // CHECK-NEXT: ( 66, 77, 61, 11, 61, 53, 22, 3, 100, 13, 10, 3, 18, 63, 43, 46, 75, 0, 0, 0 )
     //
-    %p3 = sparse_tensor.pointers %3 { dimension = 0 : index }
+    %p3 = sparse_tensor.positions %3 { level = 0 : index }
       : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex>
-    %i30 = sparse_tensor.indices %3 { dimension = 0 : index }
-      : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex>
-    %i31 = sparse_tensor.indices %3 { dimension = 1 : index }
-      : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex>
-    %i32 = sparse_tensor.indices %3 { dimension = 2 : index }
-      : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex>
+    %i30 = sparse_tensor.coordinates %3 { level = 0 : index }
+      : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex, strided<[?], offset: ?>>
+    %i31 = sparse_tensor.coordinates %3 { level = 1 : index }
+      : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex, strided<[?], offset: ?>>
+    %i32 = sparse_tensor.coordinates %3 { level = 2 : index }
+      : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xindex, strided<[?], offset: ?>>
     %v3 = sparse_tensor.values %3
       : tensor<?x?x?xf64, #SortedCOO3DPermuted> to memref<?xf64>
     call @dumpi(%p3)  : (memref<?xindex>) -> ()
-    call @dumpi(%i30) : (memref<?xindex>) -> ()
-    call @dumpi(%i31) : (memref<?xindex>) -> ()
-    call @dumpi(%i31) : (memref<?xindex>) -> ()
+    call @dumpsi(%i30) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i31) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i31) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
     call @dumpf(%v3)  : (memref<?xf64>) -> ()
 
     //
     // CHECK-NEXT: ( 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 1, 2, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 3, 0, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
-    // CHECK-NEXT: ( 6, 5, 4, 3, 2, 11, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan )
+   // CHECK-NEXT: ( 6, 5, 4, 3, 2, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     //
-    %p4 = sparse_tensor.pointers %4 { dimension = 0 : index }
+    %p4 = sparse_tensor.positions %4 { level = 0 : index }
       : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
-    %i40 = sparse_tensor.indices %4 { dimension = 0 : index }
-      : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
-    %i41 = sparse_tensor.indices %4 { dimension = 1 : index }
-      : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
+    %i40 = sparse_tensor.coordinates %4 { level = 0 : index }
+      : tensor<?x?xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
+    %i41 = sparse_tensor.coordinates %4 { level = 1 : index }
+      : tensor<?x?xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
     %v4 = sparse_tensor.values %4
       : tensor<?x?xf64, #SortedCOO> to memref<?xf64>
     call @dumpi(%p4)  : (memref<?xindex>) -> ()
-    call @dumpi(%i40) : (memref<?xindex>) -> ()
-    call @dumpi(%i41) : (memref<?xindex>) -> ()
+    call @dumpsi(%i40) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i41) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
     call @dumpf(%v4)  : (memref<?xf64>) -> ()
 
     // And last but not least, an actual operation applied to COO.
@@ -203,19 +230,19 @@ module {
     // CHECK-NEXT: ( 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 1, 2, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     // CHECK-NEXT: ( 0, 3, 0, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
-    // CHECK-NEXT: ( 12, 10, 8, 6, 4, 22, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan )
+    // CHECK-NEXT: ( 12, 10, 8, 6, 4, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
     //
-    %p5 = sparse_tensor.pointers %5 { dimension = 0 : index }
+    %p5 = sparse_tensor.positions %5 { level = 0 : index }
       : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
-    %i50 = sparse_tensor.indices %5 { dimension = 0 : index }
-      : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
-    %i51 = sparse_tensor.indices %5 { dimension = 1 : index }
-      : tensor<?x?xf64, #SortedCOO> to memref<?xindex>
+    %i50 = sparse_tensor.coordinates %5 { level = 0 : index }
+      : tensor<?x?xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
+    %i51 = sparse_tensor.coordinates %5 { level = 1 : index }
+      : tensor<?x?xf64, #SortedCOO> to memref<?xindex, strided<[?], offset: ?>>
     %v5 = sparse_tensor.values %5
       : tensor<?x?xf64, #SortedCOO> to memref<?xf64>
     call @dumpi(%p5)  : (memref<?xindex>) -> ()
-    call @dumpi(%i50) : (memref<?xindex>) -> ()
-    call @dumpi(%i51) : (memref<?xindex>) -> ()
+    call @dumpsi(%i50) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
+    call @dumpsi(%i51) : (memref<?xindex, strided<[?], offset: ?>>) -> ()
     call @dumpf(%v5)  : (memref<?xf64>) -> ()
 
     // Release the resources.

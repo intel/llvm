@@ -44,9 +44,7 @@ def testInterchange():
   with InsertionPoint(sequence.body):
     structured.InterchangeOp(
         sequence.bodyTarget,
-        iterator_interchange=[
-            IntegerAttr.get(IntegerType.get_signless(64), 1), 0
-        ])
+        iterator_interchange=[1, 0])
     transform.YieldOp()
   # CHECK-LABEL: TEST: testInterchange
   # CHECK: transform.sequence
@@ -58,8 +56,10 @@ def testInterchange():
 def testMultitileSizes():
   sequence = transform.SequenceOp(transform.FailurePropagationMode.PROPAGATE, [], pdl.OperationType.get())
   with InsertionPoint(sequence.body):
-    structured.MultiTileSizesOp(
-        sequence.bodyTarget, dimension=1, target_size=42)
+    structured.MultiTileSizesOp(pdl.OperationType.get(),
+                                sequence.bodyTarget,
+                                dimension=1,
+                                target_size=42)
     transform.YieldOp()
   # CHECK-LABEL: TEST: testMultitileSizes
   # CHECK: transform.sequence
@@ -84,7 +84,7 @@ def testPad():
   # CHECK-DAG: padding_values = [4.200000e+01 : f32]
   # CHECK-DAG: padding_dimensions = [1]
   # CHECK-DAG: transpose_paddings = {{\[}}[1, 0]]
-  # (hoist_paddings and pack_paddings have default values)
+  # (pack_paddings has default values)
 
 @run
 def testScalarize():
@@ -108,47 +108,46 @@ def testSplit():
   # CHECK: %[[F:.+]], %[[S:.+]] = transform.structured.split %{{.*}} after 42 {dimension = 1
   # CHECK: transform.structured.split %[[F]] after %[[S]] {dimension = 3
 
-
 @run
 def testTileCompact():
   sequence = transform.SequenceOp(transform.FailurePropagationMode.PROPAGATE, [], pdl.OperationType.get())
   with InsertionPoint(sequence.body):
-    structured.TileOp(sequence.bodyTarget, sizes=[4, 8], interchange=[0, 1])
+    structured.TileOp(sequence.bodyTarget,
+                      sizes=[4, 8],
+                      interchange=[0, 1])
     transform.YieldOp()
   # CHECK-LABEL: TEST: testTileCompact
   # CHECK: transform.sequence
   # CHECK: %{{.+}}, %{{.+}}:2 = transform.structured.tile %{{.*}}[4, 8]
   # CHECK: interchange = [0, 1]
 
-
 @run
 def testTileAttributes():
   sequence = transform.SequenceOp(transform.FailurePropagationMode.PROPAGATE, [], pdl.OperationType.get())
-  attr = ArrayAttr.get(
-      [IntegerAttr.get(IntegerType.get_signless(64), x) for x in [4, 8]])
-  ichange = ArrayAttr.get(
-      [IntegerAttr.get(IntegerType.get_signless(64), x) for x in [0, 1]])
+  attr = DenseI64ArrayAttr.get([4, 8])
+  ichange = DenseI64ArrayAttr.get([0, 1])
   with InsertionPoint(sequence.body):
-    structured.TileOp(sequence.bodyTarget, sizes=attr, interchange=ichange)
+    structured.TileOp(sequence.bodyTarget,
+                      sizes=attr,
+                      interchange=ichange)
     transform.YieldOp()
   # CHECK-LABEL: TEST: testTileAttributes
   # CHECK: transform.sequence
   # CHECK: %{{.+}}, %{{.+}}:2 = transform.structured.tile %{{.*}}[4, 8]
   # CHECK: interchange = [0, 1]
 
-
 @run
 def testTileZero():
   sequence = transform.SequenceOp(transform.FailurePropagationMode.PROPAGATE, [], pdl.OperationType.get())
   with InsertionPoint(sequence.body):
-    structured.TileOp(
-        sequence.bodyTarget, sizes=[4, 0, 2, 0], interchange=[0, 1, 2, 3])
+    structured.TileOp(sequence.bodyTarget,
+                      sizes=[4, 0, 2, 0],
+                      interchange=[0, 1, 2, 3])
     transform.YieldOp()
   # CHECK-LABEL: TEST: testTileZero
   # CHECK: transform.sequence
   # CHECK: %{{.+}}, %{{.+}}:2 = transform.structured.tile %{{.*}}[4, 0, 2, 0]
   # CHECK: interchange = [0, 1, 2, 3]
-
 
 @run
 def testTileDynamic():
@@ -159,13 +158,45 @@ def testTileDynamic():
     with InsertionPoint(sequence.body):
       m1 = transform.PDLMatchOp(pdl.OperationType.get(), sequence.bodyTarget, "first")
       m2 = transform.PDLMatchOp(pdl.OperationType.get(), sequence.bodyTarget, "second")
-      structured.TileOp(sequence.bodyTarget, sizes=[m1, 3, m2, 0])
+      structured.TileOp(sequence.bodyTarget,
+                        sizes=[m1, 3, m2, 0])
       transform.YieldOp()
   # CHECK-LABEL: TEST: testTileDynamic
   # CHECK: %[[FIRST:.+]] = pdl_match
   # CHECK: %[[SECOND:.+]] = pdl_match
   # CHECK: %{{.+}}, %{{.+}}:3 = transform.structured.tile %{{.*}}[%[[FIRST]], 3, %[[SECOND]], 0]
 
+
+@run
+def testTileExplicitLoopTypeSingle():
+  sequence = transform.SequenceOp(transform.FailurePropagationMode.PROPAGATE,
+                                  [], transform.AnyOpType.get())
+  with InsertionPoint(sequence.body):
+    structured.TileOp(transform.OperationType.get("scf.for"),
+                      sequence.bodyTarget,
+                      sizes=[2, 3, 4])
+    transform.YieldOp()
+  # CHECK-LABEL: TEST: testTileExplicitLoopTypeSingle
+  # CHECK: = transform.structured.tile %{{.*}} : (!{{.*}}) ->
+  # CHECK-COUNT-3: !transform.op<"scf.for">
+
+
+
+@run
+def testTileExplicitLoopTypeAll():
+  sequence = transform.SequenceOp(transform.FailurePropagationMode.PROPAGATE,
+                                  [], transform.AnyOpType.get())
+  types = [
+      transform.OperationType.get(x)
+      for x in ["scf.for", "scf.parallel", "scf.forall"]
+  ]
+  with InsertionPoint(sequence.body):
+    structured.TileOp(types, sequence.bodyTarget, sizes=[2, 3, 4])
+    transform.YieldOp()
+  # CHECK-LABEL: TEST: testTileExplicitLoopTypeAll
+  # CHECK: = transform.structured.tile
+  # CHECK-SAME : (!transform.any_op) -> (!transform.any_op, !transform.op<"scf.for">,
+  # CHECK-SAME: !transform.op<"scf.parallel">, !transform.op<"scf.forall">
 
 @run
 def testVectorize():

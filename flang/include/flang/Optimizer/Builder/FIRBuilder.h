@@ -18,16 +18,18 @@
 
 #include "flang/Common/MathOptionsBase.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
+#include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
-#include "flang/Optimizer/Support/KindMapping.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
+#include <optional>
 
 namespace fir {
 class AbstractArrayBox;
 class ExtendedValue;
+class MutableBoxValue;
 class BoxValue;
 
 //===----------------------------------------------------------------------===//
@@ -42,14 +44,14 @@ public:
       : OpBuilder{op, /*listener=*/this}, kindMap{kindMap} {}
   explicit FirOpBuilder(mlir::OpBuilder &builder,
                         const fir::KindMapping &kindMap)
-      : OpBuilder{builder}, kindMap{kindMap} {
+      : OpBuilder(builder), OpBuilder::Listener(), kindMap{kindMap} {
     setListener(this);
   }
 
   // The listener self-reference has to be updated in case of copy-construction.
   FirOpBuilder(const FirOpBuilder &other)
-      : OpBuilder{other}, kindMap{other.kindMap}, fastMathFlags{
-                                                      other.fastMathFlags} {
+      : OpBuilder(other), OpBuilder::Listener(), kindMap{other.kindMap},
+        fastMathFlags{other.fastMathFlags} {
     setListener(this);
   }
 
@@ -182,6 +184,13 @@ public:
     return createTemporary(loc, type, name, {}, {}, attrs);
   }
 
+  /// Create a temporary on the heap.
+  mlir::Value
+  createHeapTemporary(mlir::Location loc, mlir::Type type,
+                      llvm::StringRef name = {}, mlir::ValueRange shape = {},
+                      mlir::ValueRange lenParams = {},
+                      llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
+
   /// Create a global value.
   fir::GlobalOp createGlobal(mlir::Location loc, mlir::Type type,
                              llvm::StringRef name,
@@ -211,6 +220,11 @@ public:
     return createGlobal(loc, type, name, /*isConst=*/true, /*isTarget=*/false,
                         bodyBuilder, linkage);
   }
+
+  /// Create a fir::DispatchTable operation.
+  fir::DispatchTableOp createDispatchTableOp(mlir::Location loc,
+                                             llvm::StringRef name,
+                                             llvm::StringRef parentName);
 
   /// Convert a StringRef string into a fir::StringLitOp.
   fir::StringLitOp createStringLitOp(mlir::Location loc,
@@ -322,7 +336,11 @@ public:
   /// Array entities are boxed with a shape and possibly a shift. Character
   /// entities are boxed with a LEN parameter.
   mlir::Value createBox(mlir::Location loc, const fir::ExtendedValue &exv,
-                        bool isPolymorphic = false);
+                        bool isPolymorphic = false, bool isAssumedType = false);
+
+  mlir::Value createBox(mlir::Location loc, mlir::Type boxType,
+                        mlir::Value addr, mlir::Value shape, mlir::Value slice,
+                        llvm::ArrayRef<mlir::Value> lengths, mlir::Value tdesc);
 
   /// Create constant i1 with value 1. if \p b is true or 0. otherwise
   mlir::Value createBool(mlir::Location loc, bool b) {
@@ -380,15 +398,20 @@ public:
   /// Create an IfOp with no "else" region, and no result values.
   /// Usage: genIfThen(loc, cdt).genThen(lambda).end();
   IfBuilder genIfThen(mlir::Location loc, mlir::Value cdt) {
-    auto op = create<fir::IfOp>(loc, llvm::None, cdt, false);
+    auto op = create<fir::IfOp>(loc, std::nullopt, cdt, false);
     return IfBuilder(op, *this);
   }
 
   /// Create an IfOp with an "else" region, and no result values.
   /// Usage: genIfThenElse(loc, cdt).genThen(lambda).genElse(lambda).end();
   IfBuilder genIfThenElse(mlir::Location loc, mlir::Value cdt) {
-    auto op = create<fir::IfOp>(loc, llvm::None, cdt, true);
+    auto op = create<fir::IfOp>(loc, std::nullopt, cdt, true);
     return IfBuilder(op, *this);
+  }
+
+  mlir::Value genNot(mlir::Location loc, mlir::Value boolean) {
+    return create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::eq,
+                                       boolean, createBool(loc, false));
   }
 
   /// Generate code testing \p addr is not a null address.
@@ -403,6 +426,10 @@ public:
                                    mlir::Value ub, mlir::Value step,
                                    mlir::Type type);
 
+  /// Create an AbsentOp of \p argTy type and handle special cases, such as
+  /// Character Procedure Tuple arguments.
+  mlir::Value genAbsentOp(mlir::Location loc, mlir::Type argTy);
+
   /// Set default FastMathFlags value for all operations
   /// supporting mlir::arith::FastMathAttr that will be created
   /// by this builder.
@@ -414,18 +441,21 @@ public:
   /// config.
   void setFastMathFlags(Fortran::common::MathOptionsBase options);
 
+  /// Get current FastMathFlags value.
+  mlir::arith::FastMathFlags getFastMathFlags() const { return fastMathFlags; }
+
   /// Dump the current function. (debug)
   LLVM_DUMP_METHOD void dumpFunc();
-
-private:
-  /// Set attributes (e.g. FastMathAttr) to \p op operation
-  /// based on the current attributes setting.
-  void setCommonAttributes(mlir::Operation *op) const;
 
   /// FirOpBuilder hook for creating new operation.
   void notifyOperationInserted(mlir::Operation *op) override {
     setCommonAttributes(op);
   }
+
+private:
+  /// Set attributes (e.g. FastMathAttr) to \p op operation
+  /// based on the current attributes setting.
+  void setCommonAttributes(mlir::Operation *op) const;
 
   const KindMapping &kindMap;
 
@@ -552,7 +582,8 @@ void genScalarAssignment(fir::FirOpBuilder &builder, mlir::Location loc,
 /// derived types (10.2.1.3 point 13).
 void genRecordAssignment(fir::FirOpBuilder &builder, mlir::Location loc,
                          const fir::ExtendedValue &lhs,
-                         const fir::ExtendedValue &rhs);
+                         const fir::ExtendedValue &rhs,
+                         bool needFinalization = false);
 
 /// Builds and returns the type of a ragged array header used to cache mask
 /// evaluations. RaggedArrayHeader is defined in
@@ -578,12 +609,9 @@ mlir::Value genLenOfCharacter(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value createZeroValue(fir::FirOpBuilder &builder, mlir::Location loc,
                             mlir::Type type);
 
-/// Unwrap integer constant from an mlir::Value.
-llvm::Optional<std::int64_t> getIntIfConstant(mlir::Value value);
-
 /// Get the integer constants of triplet and compute the extent.
-llvm::Optional<std::int64_t>
-getExtentFromTriplet(mlir::Value lb, mlir::Value ub, mlir::Value stride);
+std::optional<std::int64_t> getExtentFromTriplet(mlir::Value lb, mlir::Value ub,
+                                                 mlir::Value stride);
 
 /// Generate max(\p value, 0) where \p value is a scalar integer.
 mlir::Value genMaxWithZero(fir::FirOpBuilder &builder, mlir::Location loc,

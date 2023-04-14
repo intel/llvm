@@ -140,7 +140,9 @@ defvar FXIN64X = [FX_64, FX_INX_64];
 def FRMArg : AsmOperandClass {
   let Name = "FRMArg";
   let RenderMethod = "addFRMArgOperands";
-  let DiagnosticType = "InvalidFRMArg";
+  let ParserMethod = "parseFRMArg";
+  let IsOptional = 1;
+  let DefaultMethod = "defaultFRMArgOp";
 }
 
 def frmarg : Operand<XLenVT> {
@@ -157,7 +159,7 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 class FPLoad_r<bits<3> funct3, string opcodestr, RegisterClass rty,
                SchedWrite sw>
     : RVInstI<funct3, OPC_LOAD_FP, (outs rty:$rd),
-              (ins GPR:$rs1, simm12:$imm12),
+              (ins GPRMem:$rs1, simm12:$imm12),
               opcodestr, "$rd, ${imm12}(${rs1})">,
       Sched<[sw, ReadFMemBase]>;
 
@@ -165,7 +167,7 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
 class FPStore_r<bits<3> funct3, string opcodestr, RegisterClass rty,
                 SchedWrite sw>
     : RVInstS<funct3, OPC_STORE_FP, (outs),
-              (ins rty:$rs2, GPR:$rs1, simm12:$imm12),
+              (ins rty:$rs2, GPRMem:$rs1, simm12:$imm12),
               opcodestr, "$rs2, ${imm12}(${rs1})">,
       Sched<[sw, ReadFStoreData, ReadFMemBase]>;
 
@@ -175,25 +177,13 @@ class FPFMA_rrr_frm<RISCVOpcode opcode, bits<2> funct2, string opcodestr,
                     DAGOperand rty>
     : RVInstR4Frm<funct2, opcode, (outs rty:$rd),
                   (ins rty:$rs1, rty:$rs2, rty:$rs3, frmarg:$frm),
-                  opcodestr, "$rd, $rs1, $rs2, $rs3, $frm">;
+                  opcodestr, "$rd, $rs1, $rs2, $rs3$frm">;
 
 multiclass FPFMA_rrr_frm_m<RISCVOpcode opcode, bits<2> funct2,
                            string opcodestr, list<ExtInfo_r> Exts> {
   foreach Ext = Exts in
     let Predicates = Ext.Predicates, DecoderNamespace = Ext.Space in
     def Ext.Suffix : FPFMA_rrr_frm<opcode, funct2, opcodestr, Ext.Reg>;
-}
-
-class FPFMADynFrmAlias<FPFMA_rrr_frm Inst, string OpcodeStr,
-                       DAGOperand rty>
-    : InstAlias<OpcodeStr#" $rd, $rs1, $rs2, $rs3",
-                (Inst rty:$rd, rty:$rs1, rty:$rs2, rty:$rs3, 0b111)>;
-multiclass FPFMADynFrmAlias_m<FPFMA_rrr_frm Inst, string OpcodeStr,
-                              list<ExtInfo_r> Exts> {
-  foreach Ext = Exts in
-    let Predicates = Ext.Predicates in
-    def : FPFMADynFrmAlias<!cast<FPFMA_rrr_frm>(Inst#Ext.Suffix), OpcodeStr,
-                           Ext.Reg>;
 }
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1 in
@@ -216,7 +206,7 @@ class FPALU_rr_frm<bits<7> funct7, string opcodestr, DAGOperand rty,
                    bit Commutable>
     : RVInstRFrm<funct7, OPC_OP_FP, (outs rty:$rd),
                  (ins rty:$rs1, rty:$rs2, frmarg:$frm), opcodestr,
-                  "$rd, $rs1, $rs2, $frm"> {
+                  "$rd, $rs1, $rs2$frm"> {
   let isCommutable = Commutable;
 }
 multiclass FPALU_rr_frm_m<bits<7> funct7, string opcodestr,
@@ -224,18 +214,6 @@ multiclass FPALU_rr_frm_m<bits<7> funct7, string opcodestr,
   foreach Ext = Exts in
     let Predicates = Ext.Predicates, DecoderNamespace = Ext.Space in
     def Ext.Suffix : FPALU_rr_frm<funct7, opcodestr, Ext.Reg, Commutable>;
-}
-
-class FPALUDynFrmAlias<FPALU_rr_frm Inst, string OpcodeStr,
-                       DAGOperand rty>
-    : InstAlias<OpcodeStr#" $rd, $rs1, $rs2",
-                (Inst rty:$rd, rty:$rs1, rty:$rs2, 0b111)>;
-multiclass FPALUDynFrmAlias_m<FPALU_rr_frm Inst, string OpcodeStr,
-                              list<ExtInfo_r> Exts> {
-  foreach Ext = Exts in
-    let Predicates = Ext.Predicates in
-    def : FPALUDynFrmAlias<!cast<FPALU_rr_frm>(Inst#Ext.Suffix), OpcodeStr,
-                           Ext.Reg>;
 }
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1 in
@@ -259,7 +237,7 @@ class FPUnaryOp_r_frm<bits<7> funct7, bits<5> rs2val, DAGOperand rdty,
                       DAGOperand rs1ty, string opcodestr>
     : RVInstRFrm<funct7, OPC_OP_FP, (outs rdty:$rd),
                  (ins rs1ty:$rs1, frmarg:$frm), opcodestr,
-                  "$rd, $rs1, $frm"> {
+                  "$rd, $rs1$frm"> {
   let rs2 = rs2val;
 }
 multiclass FPUnaryOp_r_frm_m<bits<7> funct7, bits<5> rs2val,
@@ -270,21 +248,10 @@ multiclass FPUnaryOp_r_frm_m<bits<7> funct7, bits<5> rs2val,
                                      opcodestr>;
 }
 
-class FPUnaryOpDynFrmAlias<FPUnaryOp_r_frm Inst, string OpcodeStr,
-                           DAGOperand rdty, DAGOperand rs1ty>
-    : InstAlias<OpcodeStr#" $rd, $rs1",
-                (Inst rdty:$rd, rs1ty:$rs1, 0b111)>;
-multiclass FPUnaryOpDynFrmAlias_m<FPUnaryOp_r_frm Inst, string OpcodeStr,
-                                  list<ExtInfo_rr> Exts> {
-  foreach Ext = Exts in
-    let Predicates = Ext.Predicates in
-    def : FPUnaryOpDynFrmAlias<!cast<FPUnaryOp_r_frm>(Inst#Ext.Suffix),
-                               OpcodeStr, Ext.RdTy, Ext.Rs1Ty>;
-}
-
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1,
+    IsSignExtendingOpW = 1 in
 class FPCmp_rr<bits<7> funct7, bits<3> funct3, string opcodestr,
-               DAGOperand rty, bit Commutable>
+               DAGOperand rty, bit Commutable = 0>
     : RVInstR<funct7, funct3, OPC_OP_FP, (outs GPR:$rd),
               (ins rty:$rs1, rty:$rs2), opcodestr, "$rd, $rs1, $rs2"> {
   let isCommutable = Commutable;
@@ -326,11 +293,6 @@ defm FNMSUB_S : FPFMA_rrr_frm_m<OPC_NMSUB, 0b00, "fnmsub.s", FINX>;
 defm FNMADD_S : FPFMA_rrr_frm_m<OPC_NMADD, 0b00, "fnmadd.s", FINX>;
 }
 
-defm : FPFMADynFrmAlias_m<FMADD_S,  "fmadd.s",  FINX>;
-defm : FPFMADynFrmAlias_m<FMSUB_S,  "fmsub.s",  FINX>;
-defm : FPFMADynFrmAlias_m<FNMSUB_S, "fnmsub.s", FINX>;
-defm : FPFMADynFrmAlias_m<FNMADD_S, "fnmadd.s", FINX>;
-
 let SchedRW = [WriteFAdd32, ReadFAdd32, ReadFAdd32] in {
 defm FADD_S : FPALU_rr_frm_m<0b0000000, "fadd.s", FINX, /*Commutable*/1>;
 defm FSUB_S : FPALU_rr_frm_m<0b0000100, "fsub.s", FINX>;
@@ -341,14 +303,8 @@ defm FMUL_S : FPALU_rr_frm_m<0b0001000, "fmul.s", FINX, /*Commutable*/1>;
 let SchedRW = [WriteFDiv32, ReadFDiv32, ReadFDiv32] in
 defm FDIV_S : FPALU_rr_frm_m<0b0001100, "fdiv.s", FINX>;
 
-defm : FPALUDynFrmAlias_m<FADD_S, "fadd.s", FINX>;
-defm : FPALUDynFrmAlias_m<FSUB_S, "fsub.s", FINX>;
-defm : FPALUDynFrmAlias_m<FMUL_S, "fmul.s", FINX>;
-defm : FPALUDynFrmAlias_m<FDIV_S, "fdiv.s", FINX>;
-
 defm FSQRT_S : FPUnaryOp_r_frm_m<0b0101100, 0b00000, FFINX, "fsqrt.s">,
                Sched<[WriteFSqrt32, ReadFSqrt32]>;
-defm         : FPUnaryOpDynFrmAlias_m<FSQRT_S, "fsqrt.s", FFINX>;
 
 let SchedRW = [WriteFSGNJ32, ReadFSGNJ32, ReadFSGNJ32],
     mayRaiseFPException = 0 in {
@@ -362,15 +318,16 @@ defm FMIN_S   : FPALU_rr_m<0b0010100, 0b000, "fmin.s", FINX, /*Commutable*/1>;
 defm FMAX_S   : FPALU_rr_m<0b0010100, 0b001, "fmax.s", FINX, /*Commutable*/1>;
 }
 
+let IsSignExtendingOpW = 1 in
 defm FCVT_W_S : FPUnaryOp_r_frm_m<0b1100000, 0b00000, XFINX, "fcvt.w.s">,
                 Sched<[WriteFCvtF32ToI32, ReadFCvtF32ToI32]>;
-defm          : FPUnaryOpDynFrmAlias_m<FCVT_W_S, "fcvt.w.s", XFINX>;
 
+let IsSignExtendingOpW = 1 in
 defm FCVT_WU_S : FPUnaryOp_r_frm_m<0b1100000, 0b00001, XFINX, "fcvt.wu.s">,
                  Sched<[WriteFCvtF32ToI32, ReadFCvtF32ToI32]>;
-defm           : FPUnaryOpDynFrmAlias_m<FCVT_WU_S, "fcvt.wu.s", XFINX>;
 
-let mayRaiseFPException = 0 in
+let Predicates = [HasStdExtF], mayRaiseFPException = 0,
+    IsSignExtendingOpW = 1 in
 def FMV_X_W : FPUnaryOp_r<0b1110000, 0b00000, 0b000, GPR, FPR32, "fmv.x.w">,
               Sched<[WriteFMovF32ToI32, ReadFMovF32ToI32]>;
 
@@ -386,31 +343,25 @@ defm FCLASS_S : FPUnaryOp_r_m<0b1110000, 0b00000, 0b001, XFINX, "fclass.s">,
 
 defm FCVT_S_W : FPUnaryOp_r_frm_m<0b1101000, 0b00000, FXINX, "fcvt.s.w">,
                 Sched<[WriteFCvtI32ToF32, ReadFCvtI32ToF32]>;
-defm          : FPUnaryOpDynFrmAlias_m<FCVT_S_W, "fcvt.s.w", FXINX>;
 
 defm FCVT_S_WU : FPUnaryOp_r_frm_m<0b1101000, 0b00001, FXINX, "fcvt.s.wu">,
                  Sched<[WriteFCvtI32ToF32, ReadFCvtI32ToF32]>;
-defm           : FPUnaryOpDynFrmAlias_m<FCVT_S_WU, "fcvt.s.wu", FXINX>;
 
-let mayRaiseFPException = 0 in
+let Predicates = [HasStdExtF], mayRaiseFPException = 0 in
 def FMV_W_X : FPUnaryOp_r<0b1111000, 0b00000, 0b000, FPR32, GPR, "fmv.w.x">,
               Sched<[WriteFMovI32ToF32, ReadFMovI32ToF32]>;
 
 defm FCVT_L_S  : FPUnaryOp_r_frm_m<0b1100000, 0b00010, XFIN64X, "fcvt.l.s">,
                  Sched<[WriteFCvtF32ToI64, ReadFCvtF32ToI64]>;
-defm           : FPUnaryOpDynFrmAlias_m<FCVT_L_S, "fcvt.l.s", XFIN64X>;
 
 defm FCVT_LU_S  : FPUnaryOp_r_frm_m<0b1100000, 0b00011, XFIN64X, "fcvt.lu.s">,
                   Sched<[WriteFCvtF32ToI64, ReadFCvtF32ToI64]>;
-defm            : FPUnaryOpDynFrmAlias_m<FCVT_LU_S, "fcvt.lu.s", XFIN64X>;
 
 defm FCVT_S_L : FPUnaryOp_r_frm_m<0b1101000, 0b00010, FXIN64X, "fcvt.s.l">,
                 Sched<[WriteFCvtI64ToF32, ReadFCvtI64ToF32]>;
-defm          : FPUnaryOpDynFrmAlias_m<FCVT_S_L, "fcvt.s.l", FXIN64X>;
 
 defm FCVT_S_LU : FPUnaryOp_r_frm_m<0b1101000, 0b00011, FXIN64X, "fcvt.s.lu">,
                  Sched<[WriteFCvtI64ToF32, ReadFCvtI64ToF32]>;
-defm           : FPUnaryOpDynFrmAlias_m<FCVT_S_LU, "fcvt.s.lu", FXIN64X>;
 
 //===----------------------------------------------------------------------===//
 // Assembler Pseudo Instructions (User-Level ISA, Version 2.2, Chapter 20)
@@ -483,9 +434,15 @@ def : InstAlias<"fge.s $rd, $rs, $rt",
 // Pseudo-instructions and codegen patterns
 //===----------------------------------------------------------------------===//
 
+defvar FRM_RNE = 0b000;
+defvar FRM_RTZ = 0b001;
+defvar FRM_RDN = 0b010;
+defvar FRM_RUP = 0b011;
+defvar FRM_RMM = 0b100;
+defvar FRM_DYN = 0b111;
+
 /// Floating point constants
 def fpimm0    : PatLeaf<(fpimm), [{ return N->isExactlyValue(+0.0); }]>;
-def fpimmneg0 : PatLeaf<(fpimm), [{ return N->isExactlyValue(-0.0); }]>;
 
 /// Generic pattern classes
 class PatSetCC<RegisterClass Ty, SDPatternOperator OpNode, CondCode Cond, RVInst Inst>
@@ -497,13 +454,9 @@ class PatFprFpr<SDPatternOperator OpNode, RVInstR Inst,
 
 class PatFprFprDynFrm<SDPatternOperator OpNode, RVInstRFrm Inst,
                       RegisterClass RegTy>
-    : Pat<(OpNode RegTy:$rs1, RegTy:$rs2), (Inst $rs1, $rs2, 0b111)>;
+    : Pat<(OpNode RegTy:$rs1, RegTy:$rs2), (Inst $rs1, $rs2, FRM_DYN)>;
 
 let Predicates = [HasStdExtF] in {
-
-/// Float constants
-def : Pat<(f32 (fpimm0)), (FMV_W_X X0)>;
-def : Pat<(f32 (fpimmneg0)), (FSGNJN_S (FMV_W_X X0), (FMV_W_X X0))>;
 
 /// Float conversion operations
 
@@ -517,7 +470,7 @@ def : PatFprFprDynFrm<any_fsub, FSUB_S, FPR32>;
 def : PatFprFprDynFrm<any_fmul, FMUL_S, FPR32>;
 def : PatFprFprDynFrm<any_fdiv, FDIV_S, FPR32>;
 
-def : Pat<(any_fsqrt FPR32:$rs1), (FSQRT_S FPR32:$rs1, 0b111)>;
+def : Pat<(any_fsqrt FPR32:$rs1), (FSQRT_S FPR32:$rs1, FRM_DYN)>;
 
 def : Pat<(fneg FPR32:$rs1), (FSGNJN_S $rs1, $rs1)>;
 def : Pat<(fabs FPR32:$rs1), (FSGNJX_S $rs1, $rs1)>;
@@ -527,23 +480,23 @@ def : Pat<(fcopysign FPR32:$rs1, (fneg FPR32:$rs2)), (FSGNJN_S $rs1, $rs2)>;
 
 // fmadd: rs1 * rs2 + rs3
 def : Pat<(any_fma FPR32:$rs1, FPR32:$rs2, FPR32:$rs3),
-          (FMADD_S $rs1, $rs2, $rs3, 0b111)>;
+          (FMADD_S $rs1, $rs2, $rs3, FRM_DYN)>;
 
 // fmsub: rs1 * rs2 - rs3
 def : Pat<(any_fma FPR32:$rs1, FPR32:$rs2, (fneg FPR32:$rs3)),
-          (FMSUB_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, 0b111)>;
+          (FMSUB_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, FRM_DYN)>;
 
 // fnmsub: -rs1 * rs2 + rs3
 def : Pat<(any_fma (fneg FPR32:$rs1), FPR32:$rs2, FPR32:$rs3),
-          (FNMSUB_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, 0b111)>;
+          (FNMSUB_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, FRM_DYN)>;
 
 // fnmadd: -rs1 * rs2 - rs3
 def : Pat<(any_fma (fneg FPR32:$rs1), FPR32:$rs2, (fneg FPR32:$rs3)),
-          (FNMADD_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, 0b111)>;
+          (FNMADD_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, FRM_DYN)>;
 
 // fnmadd: -(rs1 * rs2 + rs3) (the nsz flag on the FMA)
 def : Pat<(fneg (any_fma_nsz FPR32:$rs1, FPR32:$rs2, FPR32:$rs3)),
-          (FNMADD_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, 0b111)>;
+          (FNMADD_S FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, FRM_DYN)>;
 
 // The ratified 20191213 ISA spec defines fmin and fmax in a way that matches
 // LLVM's fminnum and fmaxnum
@@ -601,22 +554,22 @@ def : Pat<(bitconvert (i32 GPR:$rs1)), (FMV_W_X GPR:$rs1)>;
 def : Pat<(i32 (bitconvert FPR32:$rs1)), (FMV_X_W FPR32:$rs1)>;
 
 // float->[u]int. Round-to-zero must be used.
-def : Pat<(i32 (any_fp_to_sint FPR32:$rs1)), (FCVT_W_S $rs1, 0b001)>;
-def : Pat<(i32 (any_fp_to_uint FPR32:$rs1)), (FCVT_WU_S $rs1, 0b001)>;
+def : Pat<(i32 (any_fp_to_sint FPR32:$rs1)), (FCVT_W_S $rs1, FRM_RTZ)>;
+def : Pat<(i32 (any_fp_to_uint FPR32:$rs1)), (FCVT_WU_S $rs1, FRM_RTZ)>;
 
 // Saturating float->[u]int32.
 def : Pat<(i32 (riscv_fcvt_x FPR32:$rs1, timm:$frm)), (FCVT_W_S $rs1, timm:$frm)>;
 def : Pat<(i32 (riscv_fcvt_xu FPR32:$rs1, timm:$frm)), (FCVT_WU_S $rs1, timm:$frm)>;
 
 // float->int32 with current rounding mode.
-def : Pat<(i32 (any_lrint FPR32:$rs1)), (FCVT_W_S $rs1, 0b111)>;
+def : Pat<(i32 (any_lrint FPR32:$rs1)), (FCVT_W_S $rs1, FRM_DYN)>;
 
 // float->int32 rounded to nearest with ties rounded away from zero.
-def : Pat<(i32 (any_lround FPR32:$rs1)), (FCVT_W_S $rs1, 0b100)>;
+def : Pat<(i32 (any_lround FPR32:$rs1)), (FCVT_W_S $rs1, FRM_RMM)>;
 
 // [u]int->float. Match GCC and default to using dynamic rounding mode.
-def : Pat<(any_sint_to_fp (i32 GPR:$rs1)), (FCVT_S_W $rs1, 0b111)>;
-def : Pat<(any_uint_to_fp (i32 GPR:$rs1)), (FCVT_S_WU $rs1, 0b111)>;
+def : Pat<(any_sint_to_fp (i32 GPR:$rs1)), (FCVT_S_W $rs1, FRM_DYN)>;
+def : Pat<(any_uint_to_fp (i32 GPR:$rs1)), (FCVT_S_WU $rs1, FRM_DYN)>;
 } // Predicates = [HasStdExtF, IsRV32]
 
 let Predicates = [HasStdExtF, IsRV64] in {
@@ -633,24 +586,24 @@ def : Pat<(riscv_any_fcvt_w_rv64 FPR32:$rs1, timm:$frm),  (FCVT_W_S $rs1, timm:$
 def : Pat<(riscv_any_fcvt_wu_rv64 FPR32:$rs1, timm:$frm), (FCVT_WU_S $rs1, timm:$frm)>;
 
 // float->[u]int64. Round-to-zero must be used.
-def : Pat<(i64 (any_fp_to_sint FPR32:$rs1)), (FCVT_L_S $rs1, 0b001)>;
-def : Pat<(i64 (any_fp_to_uint FPR32:$rs1)), (FCVT_LU_S $rs1, 0b001)>;
+def : Pat<(i64 (any_fp_to_sint FPR32:$rs1)), (FCVT_L_S $rs1, FRM_RTZ)>;
+def : Pat<(i64 (any_fp_to_uint FPR32:$rs1)), (FCVT_LU_S $rs1, FRM_RTZ)>;
 
 // Saturating float->[u]int64.
 def : Pat<(i64 (riscv_fcvt_x FPR32:$rs1, timm:$frm)), (FCVT_L_S $rs1, timm:$frm)>;
 def : Pat<(i64 (riscv_fcvt_xu FPR32:$rs1, timm:$frm)), (FCVT_LU_S $rs1, timm:$frm)>;
 
 // float->int64 with current rounding mode.
-def : Pat<(i64 (any_lrint FPR32:$rs1)), (FCVT_L_S $rs1, 0b111)>;
-def : Pat<(i64 (any_llrint FPR32:$rs1)), (FCVT_L_S $rs1, 0b111)>;
+def : Pat<(i64 (any_lrint FPR32:$rs1)), (FCVT_L_S $rs1, FRM_DYN)>;
+def : Pat<(i64 (any_llrint FPR32:$rs1)), (FCVT_L_S $rs1, FRM_DYN)>;
 
 // float->int64 rounded to neartest with ties rounded away from zero.
-def : Pat<(i64 (any_lround FPR32:$rs1)), (FCVT_L_S $rs1, 0b100)>;
-def : Pat<(i64 (any_llround FPR32:$rs1)), (FCVT_L_S $rs1, 0b100)>;
+def : Pat<(i64 (any_lround FPR32:$rs1)), (FCVT_L_S $rs1, FRM_RMM)>;
+def : Pat<(i64 (any_llround FPR32:$rs1)), (FCVT_L_S $rs1, FRM_RMM)>;
 
 // [u]int->fp. Match GCC and default to using dynamic rounding mode.
-def : Pat<(any_sint_to_fp (i64 (sexti32 (i64 GPR:$rs1)))), (FCVT_S_W $rs1, 0b111)>;
-def : Pat<(any_uint_to_fp (i64 (zexti32 (i64 GPR:$rs1)))), (FCVT_S_WU $rs1, 0b111)>;
-def : Pat<(any_sint_to_fp (i64 GPR:$rs1)), (FCVT_S_L $rs1, 0b111)>;
-def : Pat<(any_uint_to_fp (i64 GPR:$rs1)), (FCVT_S_LU $rs1, 0b111)>;
+def : Pat<(any_sint_to_fp (i64 (sexti32 (i64 GPR:$rs1)))), (FCVT_S_W $rs1, FRM_DYN)>;
+def : Pat<(any_uint_to_fp (i64 (zexti32 (i64 GPR:$rs1)))), (FCVT_S_WU $rs1, FRM_DYN)>;
+def : Pat<(any_sint_to_fp (i64 GPR:$rs1)), (FCVT_S_L $rs1, FRM_DYN)>;
+def : Pat<(any_uint_to_fp (i64 GPR:$rs1)), (FCVT_S_LU $rs1, FRM_DYN)>;
 } // Predicates = [HasStdExtF, IsRV64]

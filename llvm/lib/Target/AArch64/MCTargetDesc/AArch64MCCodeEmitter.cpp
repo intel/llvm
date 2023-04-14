@@ -193,6 +193,13 @@ public:
                             SmallVectorImpl<MCFixup> &Fixups,
                             const MCSubtargetInfo &STI) const;
 
+  uint32_t EncodeZPR2StridedRegisterClass(const MCInst &MI, unsigned OpIdx,
+                                          SmallVectorImpl<MCFixup> &Fixups,
+                                          const MCSubtargetInfo &STI) const;
+  uint32_t EncodeZPR4StridedRegisterClass(const MCInst &MI, unsigned OpIdx,
+                                          SmallVectorImpl<MCFixup> &Fixups,
+                                          const MCSubtargetInfo &STI) const;
+
   uint32_t EncodeMatrixTileListRegisterClass(const MCInst &MI, unsigned OpIdx,
                                              SmallVectorImpl<MCFixup> &Fixups,
                                              const MCSubtargetInfo &STI) const;
@@ -544,6 +551,26 @@ AArch64MCCodeEmitter::EncodePPR_p8to15(const MCInst &MI, unsigned OpIdx,
   return RegOpnd - AArch64::P8;
 }
 
+uint32_t AArch64MCCodeEmitter::EncodeZPR2StridedRegisterClass(
+    const MCInst &MI, unsigned OpIdx, SmallVectorImpl<MCFixup> &Fixups,
+    const MCSubtargetInfo &STI) const {
+  auto RegOpnd = MI.getOperand(OpIdx).getReg();
+  unsigned RegVal = Ctx.getRegisterInfo()->getEncodingValue(RegOpnd);
+  unsigned T = (RegVal & 0x10) >> 1;
+  unsigned Zt = RegVal & 0x7;
+  return T | Zt;
+}
+
+uint32_t AArch64MCCodeEmitter::EncodeZPR4StridedRegisterClass(
+    const MCInst &MI, unsigned OpIdx, SmallVectorImpl<MCFixup> &Fixups,
+    const MCSubtargetInfo &STI) const {
+  auto RegOpnd = MI.getOperand(OpIdx).getReg();
+  unsigned RegVal = Ctx.getRegisterInfo()->getEncodingValue(RegOpnd);
+  unsigned T = (RegVal & 0x10) >> 2;
+  unsigned Zt = RegVal & 0x3;
+  return T | Zt;
+}
+
 uint32_t AArch64MCCodeEmitter::EncodeMatrixTileListRegisterClass(
     const MCInst &MI, unsigned OpIdx, SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const {
@@ -650,9 +677,7 @@ void AArch64MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     return;
   }
 
-  if (MI.getOpcode() == AArch64::CompilerBarrier ||
-      MI.getOpcode() == AArch64::SPACE) {
-    // CompilerBarrier just prevents the compiler from reordering accesses, and
+  if (MI.getOpcode() == AArch64::SPACE) {
     // SPACE just increases basic block size, in both cases no actual code.
     return;
   }

@@ -11,13 +11,10 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/Optional.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 namespace {
 
 SourceRange getTypeRange(const ParmVarDecl &Param) {
@@ -90,6 +87,4 @@ void AvoidConstParamsInDecls::check(const MatchFinder::MatchResult &Result) {
       CharSourceRange::getTokenRange(Tok->getLocation(), Tok->getLocation()));
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

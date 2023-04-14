@@ -10,6 +10,9 @@
 #ifndef _LIBCPP___FORMAT_FORMATTER_INTEGRAL_H
 #define _LIBCPP___FORMAT_FORMATTER_INTEGRAL_H
 
+#include <__charconv/to_chars_integral.h>
+#include <__charconv/to_chars_result.h>
+#include <__charconv/traits.h>
 #include <__concepts/arithmetic.h>
 #include <__concepts/same_as.h>
 #include <__config>
@@ -17,11 +20,13 @@
 #include <__format/format_error.h>
 #include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
+#include <__system_error/errc.h>
+#include <__type_traits/make_unsigned.h>
 #include <__utility/unreachable.h>
 #include <array>
-#include <charconv>
 #include <limits>
 #include <string>
+#include <string_view>
 
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #  include <locale>
@@ -36,7 +41,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __formatter {
 
@@ -217,7 +222,7 @@ _LIBCPP_HIDE_FROM_ABI auto __format_integer(
 
 #  ifndef _LIBCPP_HAS_NO_LOCALIZATION
   if (__specs.__std_.__locale_specific_form_) {
-    const auto& __np  = use_facet<numpunct<_CharT>>(__ctx.locale());
+    const auto& __np  = std::use_facet<numpunct<_CharT>>(__ctx.locale());
     string __grouping = __np.grouping();
     ptrdiff_t __size  = __last - __first;
     // Writing the grouped form has more overhead than the normal output
@@ -310,7 +315,7 @@ __format_integer(_Tp __value, auto& __ctx, __format_spec::__parsed_specification
   auto __r        = std::__to_unsigned_like(__value);
   bool __negative = __value < 0;
   if (__negative)
-    __r = __complement(__r);
+    __r = std::__complement(__r);
 
   return __formatter::__format_integer(__r, __ctx, __specs, __negative);
 }
@@ -342,7 +347,7 @@ __format_bool(bool __value, auto& __ctx, __format_spec::__parsed_specifications<
     -> decltype(__ctx.out()) {
 #  ifndef _LIBCPP_HAS_NO_LOCALIZATION
   if (__specs.__std_.__locale_specific_form_) {
-    const auto& __np           = use_facet<numpunct<_CharT>>(__ctx.locale());
+    const auto& __np           = std::use_facet<numpunct<_CharT>>(__ctx.locale());
     basic_string<_CharT> __str = __value ? __np.truename() : __np.falsename();
     return __formatter::__write_string_no_precision(basic_string_view<_CharT>{__str}, __ctx.out(), __specs);
   }
@@ -354,7 +359,7 @@ __format_bool(bool __value, auto& __ctx, __format_spec::__parsed_specifications<
 
 } // namespace __formatter
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

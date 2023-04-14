@@ -14,8 +14,8 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/TargetParser.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -32,7 +32,7 @@ ArrayRef<const char *> LoongArchTargetInfo::getGCCRegNames() const {
       "$f10", "$f11", "$f12", "$f13", "$f14", "$f15", "$f16", "$f17", "$f18",
       "$f19", "$f20", "$f21", "$f22", "$f23", "$f24", "$f25", "$f26", "$f27",
       "$f28", "$f29", "$f30", "$f31"};
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 ArrayRef<TargetInfo::GCCRegAlias>
@@ -60,7 +60,7 @@ LoongArchTargetInfo::getGCCRegAliases() const {
       {{"$fs2"}, "$f26"},       {{"$fs3"}, "$f27"},  {{"$fs4"}, "$f28"},
       {{"$fs5"}, "$f29"},       {{"$fs6"}, "$f30"},  {{"$fs7"}, "$f31"},
   };
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
 bool LoongArchTargetInfo::validateAsmConstraint(
@@ -131,10 +131,87 @@ LoongArchTargetInfo::convertConstraint(const char *&Constraint) const {
 void LoongArchTargetInfo::getTargetDefines(const LangOptions &Opts,
                                            MacroBuilder &Builder) const {
   Builder.defineMacro("__loongarch__");
-  // TODO: Define more macros.
+  unsigned GRLen = getRegisterWidth();
+  Builder.defineMacro("__loongarch_grlen", Twine(GRLen));
+  if (GRLen == 64)
+    Builder.defineMacro("__loongarch64");
+
+  if (HasFeatureD)
+    Builder.defineMacro("__loongarch_frlen", "64");
+  else if (HasFeatureF)
+    Builder.defineMacro("__loongarch_frlen", "32");
+  else
+    Builder.defineMacro("__loongarch_frlen", "0");
+
+  // TODO: define __loongarch_arch and __loongarch_tune.
+
+  StringRef ABI = getABI();
+  if (ABI == "lp64d" || ABI == "lp64f" || ABI == "lp64s")
+    Builder.defineMacro("__loongarch_lp64");
+
+  if (ABI == "lp64d" || ABI == "ilp32d") {
+    Builder.defineMacro("__loongarch_hard_float");
+    Builder.defineMacro("__loongarch_double_float");
+  } else if (ABI == "lp64f" || ABI == "ilp32f") {
+    Builder.defineMacro("__loongarch_hard_float");
+    Builder.defineMacro("__loongarch_single_float");
+  } else if (ABI == "lp64s" || ABI == "ilp32s") {
+    Builder.defineMacro("__loongarch_soft_float");
+  }
+
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+  if (GRLen == 64)
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
+}
+
+static constexpr Builtin::Info BuiltinInfo[] = {
+#define BUILTIN(ID, TYPE, ATTRS)                                               \
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+#include "clang/Basic/BuiltinsLoongArch.def"
+};
+
+bool LoongArchTargetInfo::initFeatureMap(
+    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
+    const std::vector<std::string> &FeaturesVec) const {
+  if (getTriple().getArch() == llvm::Triple::loongarch64)
+    Features["64bit"] = true;
+  if (getTriple().getArch() == llvm::Triple::loongarch32)
+    Features["32bit"] = true;
+
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+}
+
+/// Return true if has this feature.
+bool LoongArchTargetInfo::hasFeature(StringRef Feature) const {
+  bool Is64Bit = getTriple().getArch() == llvm::Triple::loongarch64;
+  // TODO: Handle more features.
+  return llvm::StringSwitch<bool>(Feature)
+      .Case("loongarch32", !Is64Bit)
+      .Case("loongarch64", Is64Bit)
+      .Case("32bit", !Is64Bit)
+      .Case("64bit", Is64Bit)
+      .Default(false);
 }
 
 ArrayRef<Builtin::Info> LoongArchTargetInfo::getTargetBuiltins() const {
-  // TODO: To be implemented in future.
-  return {};
+  return llvm::ArrayRef(BuiltinInfo, clang::LoongArch::LastTSBuiltin -
+                                         Builtin::FirstTSBuiltin);
+}
+
+bool LoongArchTargetInfo::handleTargetFeatures(
+    std::vector<std::string> &Features, DiagnosticsEngine &Diags) {
+  for (const auto &Feature : Features) {
+    if (Feature == "+d" || Feature == "+f") {
+      // "d" implies "f".
+      HasFeatureF = true;
+      if (Feature == "+d") {
+        HasFeatureD = true;
+      }
+    }
+  }
+  return true;
 }

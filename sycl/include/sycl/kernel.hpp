@@ -12,7 +12,9 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/stl.hpp>
@@ -66,7 +68,7 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
 /// \sa queue
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT kernel {
+class __SYCL_EXPORT kernel : public detail::OwnerLessBase<kernel> {
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///

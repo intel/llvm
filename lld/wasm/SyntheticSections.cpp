@@ -17,12 +17,12 @@
 #include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::wasm;
 
-namespace lld {
-namespace wasm {
+namespace lld::wasm {
 
 OutStruct out;
 
@@ -107,7 +107,8 @@ void DylinkSection::writeBody() {
       LLVM_DEBUG(llvm::dbgs() << "export info: " << toString(*sym) << "\n");
       StringRef name = sym->getName();
       if (auto *f = dyn_cast<DefinedFunction>(sym)) {
-        if (Optional<StringRef> exportName = f->function->getExportName()) {
+        if (std::optional<StringRef> exportName =
+                f->function->getExportName()) {
           name = *exportName;
         }
       }
@@ -236,8 +237,8 @@ void ImportSection::writeBody() {
 
   if (config->memoryImport) {
     WasmImport import;
-    import.Module = config->memoryImport.value().first;
-    import.Field = config->memoryImport.value().second;
+    import.Module = config->memoryImport->first;
+    import.Field = config->memoryImport->second;
     import.Kind = WASM_EXTERNAL_MEMORY;
     import.Memory.Flags = 0;
     import.Memory.Minimum = out.memorySec->numMemoryPages;
@@ -886,5 +887,39 @@ void RelocSection::writeBody() {
   sec->writeRelocations(bodyOutputStream);
 }
 
-} // namespace wasm
-} // namespace lld
+static size_t getHashSize() {
+  switch (config->buildId) {
+  case BuildIdKind::Fast:
+  case BuildIdKind::Uuid:
+    return 16;
+  case BuildIdKind::Sha1:
+    return 20;
+  case BuildIdKind::Hexstring:
+    return config->buildIdVector.size();
+  case BuildIdKind::None:
+    return 0;
+  }
+  llvm_unreachable("build id kind not implemented");
+}
+
+BuildIdSection::BuildIdSection()
+    : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, buildIdSectionName),
+      hashSize(getHashSize()) {}
+
+void BuildIdSection::writeBody() {
+  LLVM_DEBUG(llvm::dbgs() << "BuildId writebody\n");
+  // Write hash size
+  auto &os = bodyOutputStream;
+  writeUleb128(os, hashSize, "build id size");
+  writeBytes(os, std::vector<char>(hashSize, ' ').data(), hashSize,
+             "placeholder");
+}
+
+void BuildIdSection::writeBuildId(llvm::ArrayRef<uint8_t> buf) {
+  assert(buf.size() == hashSize);
+  LLVM_DEBUG(dbgs() << "buildid write " << buf.size() << " "
+                    << hashPlaceholderPtr << '\n');
+  memcpy(hashPlaceholderPtr, buf.data(), hashSize);
+}
+
+} // namespace wasm::lld

@@ -21,8 +21,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename T, typename Group>
 std::enable_if_t<
     std::is_trivially_destructible<T>::value &&
@@ -33,6 +32,12 @@ std::enable_if_t<
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
+  // If the type is non-trivial we need to default initialize it.
+  if constexpr (!std::is_trivial_v<T>) {
+    if (g.get_local_linear_id() == 0)
+      new (AllocatedMem) T; // Default initialize.
+    sycl::detail::workGroupBarrier();
+  }
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   throw feature_not_supported(
@@ -47,26 +52,22 @@ std::enable_if_t<
         sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&...args) {
-  (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
-
-  // TODO switch to using group::get_local_linear_id here once it's implemented
-  id<3> Id = __spirv::initLocalInvocationId<3, id<3>>();
-  if (Id == id<3>(0, 0, 0))
+  if (g.get_local_linear_id() == 0)
     new (AllocatedMem) T(std::forward<Args>(args)...);
   sycl::detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   // Silence unused variable warning
+  (void)g;
   [&args...] {}();
   throw feature_not_supported(
       "sycl_ext_oneapi_local_memory extension is not supported on host device",
       PI_ERROR_INVALID_OPERATION);
 #endif
 }
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -219,14 +219,15 @@ TableGen provides "bang operators" that have a wide variety of uses:
 
 .. productionlist::
    BangOperator: one of
-               : !add        !and         !cast        !con         !dag
-               : !div        !empty       !eq          !filter      !find
-               : !foldl      !foreach     !ge          !getdagop    !gt
-               : !head       !if          !interleave  !isa         !le
-               : !listconcat !listsplat   !logtwo      !lt          !mul
-               : !ne         !not         !or          !setdagop    !shl
-               : !size       !sra         !srl         !strconcat   !sub
-               : !subst      !substr      !tail        !xor
+               : !add         !and         !cast        !con         !dag
+               : !div         !empty       !eq          !exists      !filter
+               : !find        !foldl       !foreach     !ge          !getdagop
+               : !gt          !head        !if          !interleave  !isa
+               : !le          !listconcat  !listremove  !listsplat   !logtwo
+               : !lt          !mul         !ne          !not         !or
+               : !setdagop    !shl         !size        !sra         !srl
+               : !strconcat   !sub         !subst       !substr      !tail
+               : !tolower     !toupper     !xor
 
 The ``!cond`` operator has a slightly different
 syntax compared to other bang operators, so it is defined separately:
@@ -1635,6 +1636,10 @@ and non-0 as true.
     The arguments must be ``bit``, ``bits``, ``int``, ``string``, or
     record values. Use ``!cast<string>`` to compare other types of objects.
 
+``!exists<``\ *type*\ ``>(``\ *name*\ ``)``
+    This operator produces 1 if a record of the given *type* whose name is *name*
+    exists; 0 otherwise. *name* should be of type *string*.
+
 ``!filter(``\ *var*\ ``,`` *list*\ ``,`` *predicate*\ ``)``
 
     This operator creates a new ``list`` by filtering the elements in
@@ -1728,10 +1733,6 @@ and non-0 as true.
     This operator produces 1 if the type of *a* is a subtype of the given *type*; 0
     otherwise.
 
-``!exists<``\ *type*\ ``>(``\ *name*\ ``)``
-    This operator produces 1 if a record of the given *type* whose name is *name*
-    exists; 0 otherwise. *name* should be of type *string*.
-
 ``!le(``\ *a*\ ``,`` *b*\ ``)``
     This operator produces 1 if *a* is less than or equal to *b*; 0 otherwise.
     The arguments must be ``bit``, ``bits``, ``int``, or ``string`` values.
@@ -1739,6 +1740,10 @@ and non-0 as true.
 ``!listconcat(``\ *list1*\ ``,`` *list2*\ ``, ...)``
     This operator concatenates the list arguments *list1*, *list2*, etc., and
     produces the resulting list. The lists must have the same element type.
+
+``!listremove(``\ *list1*\ ``,`` *list2*\ ``)``
+    This operator returns a copy of *list1* removing all elements that also occur in
+    *list2*. The lists must have the same element type.
 
 ``!listsplat(``\ *value*\ ``,`` *count*\ ``)``
     This operator produces a list of length *count* whose elements are all
@@ -1823,6 +1828,12 @@ and non-0 as true.
 ``!tail(``\ *a*\ ``)``
     This operator produces a new list with all the elements
     of the list *a* except for the zeroth one. (See also ``!head``.)
+
+``!tolower(``\ *a*\ ``)``
+  This operator converts a string input *a* to lower case.
+
+``!toupper(``\ *a*\ ``)``
+  This operator converts a string input *a* to upper case.
 
 ``!xor(``\ *a*\ ``,`` *b*\ ``, ...)``
     This operator does a bitwise EXCLUSIVE OR on *a*, *b*, etc., and produces

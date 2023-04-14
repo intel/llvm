@@ -25,6 +25,7 @@ Checks: >
   readability-redundant-control-flow,
   readability-redundant-function-ptr-dereference,
   readability-redundant-preprocessor,
+  readability-simplify-boolean-expr,
   readability-simplify-subscript-expr,
   readability-uniqueptr-delete-release,
 
@@ -45,6 +46,10 @@ CheckOptions:
     value: __
   - key:   readability-identifier-naming.PrivateMemberSuffix
     value: _
+  - key:   readability-identifier-naming.LocalVariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.LocalVariablePrefix
+    value: __
 
 # TODO: investigate these checks
 # bugprone-branch-clone,
@@ -63,4 +68,4 @@ CheckOptions:
 # readability-redundant-access-specifiers,
 # readability-redundant-declaration,
 # readability-redundant-member-init,
-# readability-simplify-boolean-expr,
+#

@@ -17,10 +17,11 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/GPU/Transforms/Utils.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -45,9 +46,7 @@ class GpuAsyncRegionPass
 static bool isTerminator(Operation *op) {
   return op->mightHaveTrait<OpTrait::IsTerminator>();
 }
-static bool hasSideEffects(Operation *op) {
-  return !MemoryEffectOpInterface::hasNoEffect(op);
-}
+static bool hasSideEffects(Operation *op) { return !isMemoryEffectFree(op); }
 
 // Region walk callback which makes GPU ops implementing the AsyncOpInterface
 // execute asynchronously.
@@ -117,7 +116,7 @@ private:
                                     op->getSuccessors(), op->getNumRegions());
 
     // Clone regions into new op.
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     for (auto pair : llvm::zip_first(op->getRegions(), newOp->getRegions()))
       std::get<0>(pair).cloneInto(&std::get<1>(pair), mapping);
 
@@ -171,7 +170,7 @@ async::ExecuteOp addExecuteResults(async::ExecuteOp executeOp,
   auto newOp = builder.create<async::ExecuteOp>(
       executeOp.getLoc(), TypeRange{resultTypes}.drop_front() /*drop token*/,
       executeOp.getDependencies(), executeOp.getBodyOperands());
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   newOp.getRegion().getBlocks().clear();
   executeOp.getRegion().cloneInto(&newOp.getRegion(), mapper);
 

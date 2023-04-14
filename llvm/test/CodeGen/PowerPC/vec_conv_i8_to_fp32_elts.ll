@@ -31,7 +31,8 @@ define i64 @test2elt(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-P9-LABEL: test2elt:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrws v2, r3
+; CHECK-P9-NEXT:    mtfprd f0, r3
+; CHECK-P9-NEXT:    xxswapd v2, vs0
 ; CHECK-P9-NEXT:    vextractub v3, v2, 15
 ; CHECK-P9-NEXT:    vextractub v2, v2, 14
 ; CHECK-P9-NEXT:    xscvuxdsp f0, v3
@@ -44,7 +45,8 @@ define i64 @test2elt(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-BE-LABEL: test2elt:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrws v2, r3
+; CHECK-BE-NEXT:    sldi r3, r3, 48
+; CHECK-BE-NEXT:    mtvsrd v2, r3
 ; CHECK-BE-NEXT:    vextractub v3, v2, 2
 ; CHECK-BE-NEXT:    vextractub v2, v2, 0
 ; CHECK-BE-NEXT:    xscvuxdsp f0, v3
@@ -76,24 +78,24 @@ define <4 x float> @test4elt(i32 %a.coerce) local_unnamed_addr #1 {
 ;
 ; CHECK-P9-LABEL: test4elt:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrwz v2, r3
+; CHECK-P9-NEXT:    mtfprwz f0, r3
 ; CHECK-P9-NEXT:    addis r3, r2, .LCPI1_0@toc@ha
-; CHECK-P9-NEXT:    xxlxor v4, v4, v4
+; CHECK-P9-NEXT:    xxlxor vs2, vs2, vs2
 ; CHECK-P9-NEXT:    addi r3, r3, .LCPI1_0@toc@l
-; CHECK-P9-NEXT:    lxv v3, 0(r3)
-; CHECK-P9-NEXT:    vperm v2, v4, v2, v3
-; CHECK-P9-NEXT:    xvcvuxwsp v2, v2
+; CHECK-P9-NEXT:    lxv vs1, 0(r3)
+; CHECK-P9-NEXT:    xxperm vs0, vs2, vs1
+; CHECK-P9-NEXT:    xvcvuxwsp v2, vs0
 ; CHECK-P9-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: test4elt:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrwz v2, r3
+; CHECK-BE-NEXT:    mtfprwz f0, r3
 ; CHECK-BE-NEXT:    addis r3, r2, .LCPI1_0@toc@ha
-; CHECK-BE-NEXT:    xxlxor v4, v4, v4
+; CHECK-BE-NEXT:    xxlxor vs2, vs2, vs2
 ; CHECK-BE-NEXT:    addi r3, r3, .LCPI1_0@toc@l
-; CHECK-BE-NEXT:    lxv v3, 0(r3)
-; CHECK-BE-NEXT:    vperm v2, v4, v2, v3
-; CHECK-BE-NEXT:    xvcvuxwsp v2, v2
+; CHECK-BE-NEXT:    lxv vs1, 0(r3)
+; CHECK-BE-NEXT:    xxperm vs0, vs2, vs1
+; CHECK-BE-NEXT:    xvcvuxwsp v2, vs0
 ; CHECK-BE-NEXT:    blr
 entry:
   %0 = bitcast i32 %a.coerce to <4 x i8>
@@ -293,7 +295,8 @@ define i64 @test2elt_signed(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-P9-LABEL: test2elt_signed:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrws v2, r3
+; CHECK-P9-NEXT:    mtfprd f0, r3
+; CHECK-P9-NEXT:    xxswapd v2, vs0
 ; CHECK-P9-NEXT:    vextractub v3, v2, 15
 ; CHECK-P9-NEXT:    vextractub v2, v2, 14
 ; CHECK-P9-NEXT:    vextsh2d v3, v3
@@ -308,7 +311,8 @@ define i64 @test2elt_signed(i16 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-BE-LABEL: test2elt_signed:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrws v2, r3
+; CHECK-BE-NEXT:    sldi r3, r3, 48
+; CHECK-BE-NEXT:    mtvsrd v2, r3
 ; CHECK-BE-NEXT:    vextractub v3, v2, 2
 ; CHECK-BE-NEXT:    vextractub v2, v2, 0
 ; CHECK-BE-NEXT:    vextsh2d v3, v3
@@ -348,8 +352,8 @@ define <4 x float> @test4elt_signed(i32 %a.coerce) local_unnamed_addr #1 {
 ; CHECK-P9-NEXT:    mtvsrwz v2, r3
 ; CHECK-P9-NEXT:    addis r3, r2, .LCPI5_0@toc@ha
 ; CHECK-P9-NEXT:    addi r3, r3, .LCPI5_0@toc@l
-; CHECK-P9-NEXT:    lxv v3, 0(r3)
-; CHECK-P9-NEXT:    vperm v2, v2, v2, v3
+; CHECK-P9-NEXT:    lxv vs0, 0(r3)
+; CHECK-P9-NEXT:    xxperm v2, v2, vs0
 ; CHECK-P9-NEXT:    vextsb2w v2, v2
 ; CHECK-P9-NEXT:    xvcvsxwsp v2, v2
 ; CHECK-P9-NEXT:    blr
@@ -359,8 +363,8 @@ define <4 x float> @test4elt_signed(i32 %a.coerce) local_unnamed_addr #1 {
 ; CHECK-BE-NEXT:    mtvsrwz v2, r3
 ; CHECK-BE-NEXT:    addis r3, r2, .LCPI5_0@toc@ha
 ; CHECK-BE-NEXT:    addi r3, r3, .LCPI5_0@toc@l
-; CHECK-BE-NEXT:    lxv v3, 0(r3)
-; CHECK-BE-NEXT:    vperm v2, v2, v2, v3
+; CHECK-BE-NEXT:    lxv vs0, 0(r3)
+; CHECK-BE-NEXT:    xxperm v2, v2, vs0
 ; CHECK-BE-NEXT:    vextsb2w v2, v2
 ; CHECK-BE-NEXT:    xvcvsxwsp v2, v2
 ; CHECK-BE-NEXT:    blr

@@ -270,7 +270,9 @@ using Location = const char *;
 
 // A parse tree node with provenance only
 struct Verbatim {
-  BOILERPLATE(Verbatim);
+  // Allow a no-arg constructor for Verbatim so parsers can return `RESULT{}`.
+  constexpr Verbatim() {}
+  COPY_AND_ASSIGN_BOILERPLATE(Verbatim);
   using EmptyTrait = std::true_type;
   CharBlock source;
 };
@@ -3229,6 +3231,7 @@ struct StmtFunctionStmt {
 
 // Compiler directives
 // !DIR$ IGNORE_TKR [ [(tkr...)] name ]...
+// !DIR$ LOOP COUNT (n1[, n2]...)
 // !DIR$ name...
 struct CompilerDirective {
   UNION_CLASS_BOILERPLATE(CompilerDirective);
@@ -3236,12 +3239,15 @@ struct CompilerDirective {
     TUPLE_CLASS_BOILERPLATE(IgnoreTKR);
     std::tuple<std::list<const char *>, Name> t;
   };
+  struct LoopCount {
+    WRAPPER_CLASS_BOILERPLATE(LoopCount, std::list<std::uint64_t>);
+  };
   struct NameValue {
     TUPLE_CLASS_BOILERPLATE(NameValue);
     std::tuple<Name, std::optional<std::uint64_t>> t;
   };
   CharBlock source;
-  std::variant<std::list<IgnoreTKR>, std::list<NameValue>> u;
+  std::variant<std::list<IgnoreTKR>, LoopCount, std::list<NameValue>> u;
 };
 
 // Legacy extensions
@@ -3390,6 +3396,12 @@ struct OmpDeviceClause {
   std::tuple<std::optional<DeviceModifier>, ScalarIntExpr> t;
 };
 
+// device_type(any | host | nohost)
+struct OmpDeviceTypeClause {
+  ENUM_CLASS(Type, Any, Host, Nohost)
+  WRAPPER_CLASS_BOILERPLATE(OmpDeviceTypeClause, Type);
+};
+
 // 2.12 if-clause -> IF ([ directive-name-modifier :] scalar-logical-expr)
 struct OmpIfClause {
   TUPLE_CLASS_BOILERPLATE(OmpIfClause);
@@ -3403,6 +3415,19 @@ struct OmpAlignedClause {
   TUPLE_CLASS_BOILERPLATE(OmpAlignedClause);
   CharBlock source;
   std::tuple<std::list<Name>, std::optional<ScalarIntConstantExpr>> t;
+};
+
+// 2.9.5 order-clause -> ORDER ([order-modifier :]concurrent)
+struct OmpOrderModifier {
+  UNION_CLASS_BOILERPLATE(OmpOrderModifier);
+  ENUM_CLASS(Kind, Reproducible, Unconstrained)
+  std::variant<Kind> u;
+};
+
+struct OmpOrderClause {
+  TUPLE_CLASS_BOILERPLATE(OmpOrderClause);
+  ENUM_CLASS(Type, Concurrent)
+  std::tuple<std::optional<OmpOrderModifier>, Type> t;
 };
 
 // 2.15.3.7 linear-modifier -> REF | VAL | UVAL
@@ -3492,6 +3517,14 @@ struct OmpDependClause {
     std::tuple<OmpDependenceType, std::list<Designator>> t;
   };
   std::variant<Source, Sink, InOut> u;
+};
+
+// OMP 5.0 2.4 atomic-default-mem-order-clause ->
+//                 ATOMIC_DEFAULT_MEM_ORDER (SEQ_CST | ACQ_REL |
+//                                           RELAXED)
+struct OmpAtomicDefaultMemOrderClause {
+  ENUM_CLASS(Type, SeqCst, AcqRel, Relaxed)
+  WRAPPER_CLASS_BOILERPLATE(OmpAtomicDefaultMemOrderClause, Type);
 };
 
 // OpenMP Clauses
@@ -3611,6 +3644,13 @@ struct OpenMPDeclareSimdConstruct {
   std::tuple<Verbatim, std::optional<Name>, OmpClauseList> t;
 };
 
+// 2.4 requires -> REQUIRES requires-clause[ [ [,] requires-clause]...]
+struct OpenMPRequiresConstruct {
+  TUPLE_CLASS_BOILERPLATE(OpenMPRequiresConstruct);
+  CharBlock source;
+  std::tuple<Verbatim, OmpClauseList> t;
+};
+
 // 2.15.2 threadprivate -> THREADPRIVATE (variable-name-list)
 struct OpenMPThreadprivate {
   TUPLE_CLASS_BOILERPLATE(OpenMPThreadprivate);
@@ -3630,7 +3670,7 @@ struct OpenMPDeclarativeConstruct {
   CharBlock source;
   std::variant<OpenMPDeclarativeAllocate, OpenMPDeclareReductionConstruct,
       OpenMPDeclareSimdConstruct, OpenMPDeclareTargetConstruct,
-      OpenMPThreadprivate>
+      OpenMPThreadprivate, OpenMPRequiresConstruct>
       u;
 };
 

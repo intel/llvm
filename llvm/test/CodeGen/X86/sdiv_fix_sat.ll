@@ -81,10 +81,8 @@ define i16 @func2(i8 %x, i8 %y) nounwind {
 ;
 ; X64-LABEL: func2:
 ; X64:       # %bb.0:
-; X64-NEXT:    movsbl %dil, %eax
-; X64-NEXT:    movsbl %sil, %ecx
-; X64-NEXT:    movswl %cx, %esi
-; X64-NEXT:    movswl %ax, %ecx
+; X64-NEXT:    movsbl %sil, %esi
+; X64-NEXT:    movsbl %dil, %ecx
 ; X64-NEXT:    shll $14, %ecx
 ; X64-NEXT:    movl %ecx, %eax
 ; X64-NEXT:    cltd
@@ -1240,7 +1238,6 @@ define <4 x i32> @vec(<4 x i32> %x, <4 x i32> %y) nounwind {
 ; X86-NEXT:    movl {{[-0-9]+}}(%e{{[sb]}}p), %ecx # 4-byte Reload
 ; X86-NEXT:    testl %ecx, %ecx
 ; X86-NEXT:    cmovsl %esi, %eax
-; X86-NEXT:    movl $0, %esi
 ; X86-NEXT:    movl $-1, %ebx
 ; X86-NEXT:    cmovsl %ebx, %edi
 ; X86-NEXT:    andl {{[-0-9]+}}(%e{{[sb]}}p), %ecx # 4-byte Folded Reload

@@ -18,7 +18,7 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTMATHTOLLVM
+#define GEN_PASS_DEF_CONVERTMATHTOLLVMPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -50,6 +50,8 @@ using Log10OpLowering =
 using Log2OpLowering = ConvertFMFMathToLLVMPattern<math::Log2Op, LLVM::Log2Op>;
 using LogOpLowering = ConvertFMFMathToLLVMPattern<math::LogOp, LLVM::LogOp>;
 using PowFOpLowering = ConvertFMFMathToLLVMPattern<math::PowFOp, LLVM::PowOp>;
+using FPowIOpLowering =
+    ConvertFMFMathToLLVMPattern<math::FPowIOp, LLVM::PowIOp>;
 using RoundEvenOpLowering =
     ConvertFMFMathToLLVMPattern<math::RoundEvenOp, LLVM::RoundEvenOp>;
 using RoundOpLowering =
@@ -283,13 +285,13 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<math::RsqrtOp> {
 };
 
 struct ConvertMathToLLVMPass
-    : public impl::ConvertMathToLLVMBase<ConvertMathToLLVMPass> {
-  ConvertMathToLLVMPass() = default;
+    : public impl::ConvertMathToLLVMPassBase<ConvertMathToLLVMPass> {
+  using Base::Base;
 
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     LLVMTypeConverter converter(&getContext());
-    populateMathToLLVMConversionPatterns(converter, patterns);
+    populateMathToLLVMConversionPatterns(converter, patterns, approximateLog1p);
     LLVMConversionTarget target(getContext());
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
@@ -299,7 +301,10 @@ struct ConvertMathToLLVMPass
 } // namespace
 
 void mlir::populateMathToLLVMConversionPatterns(LLVMTypeConverter &converter,
-                                                RewritePatternSet &patterns) {
+                                                RewritePatternSet &patterns,
+                                                bool approximateLog1p) {
+  if (approximateLog1p)
+    patterns.add<Log1pOpLowering>(converter);
   // clang-format off
   patterns.add<
     AbsFOpLowering,
@@ -313,10 +318,10 @@ void mlir::populateMathToLLVMConversionPatterns(LLVMTypeConverter &converter,
     Exp2OpLowering,
     ExpM1OpLowering,
     ExpOpLowering,
+    FPowIOpLowering,
     FloorOpLowering,
     FmaOpLowering,
     Log10OpLowering,
-    Log1pOpLowering,
     Log2OpLowering,
     LogOpLowering,
     PowFOpLowering,
@@ -328,8 +333,4 @@ void mlir::populateMathToLLVMConversionPatterns(LLVMTypeConverter &converter,
     FTruncOpLowering
   >(converter);
   // clang-format on
-}
-
-std::unique_ptr<Pass> mlir::createConvertMathToLLVMPass() {
-  return std::make_unique<ConvertMathToLLVMPass>();
 }

@@ -9,10 +9,8 @@
 #include "DwarfGenerator.h"
 #include "DwarfUtils.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
@@ -30,6 +28,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 #include <string>
@@ -49,6 +48,12 @@ void TestAllForms() {
 
   // Test that we can decode all DW_FORM values correctly.
   const AddrType AddrValue = (AddrType)0x0123456789abcdefULL;
+  const AddrType AddrxValue = (AddrType)0x4231abcd4231abcdULL;
+  const AddrType Addrx1Value = (AddrType)0x0000aaaabbbbccccULL;
+  const AddrType Addrx2Value = (AddrType)0xf00123f00456f000ULL;
+  const AddrType Addrx3Value = (AddrType)0xABABA000B111C222ULL;
+  const AddrType Addrx4Value = (AddrType)0xa1b2c3d4e5f6e5d4ULL;
+
   const uint8_t BlockData[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
   const uint32_t BlockSize = sizeof(BlockData);
   const RefAddrType RefAddr = 0x12345678;
@@ -80,8 +85,10 @@ void TestAllForms() {
   dwarfgen::CompileUnit &CU = DG->addCompileUnit();
   dwarfgen::DIE CUDie = CU.getUnitDIE();
 
-  if (Version >= 5)
+  if (Version >= 5) {
     CUDie.addStrOffsetsBaseAttribute();
+    CUDie.addAddrBaseAttribute();
+  }
 
   uint16_t Attr = DW_AT_lo_user;
 
@@ -90,6 +97,20 @@ void TestAllForms() {
   //----------------------------------------------------------------------
   const auto Attr_DW_FORM_addr = static_cast<dwarf::Attribute>(Attr++);
   CUDie.addAttribute(Attr_DW_FORM_addr, DW_FORM_addr, AddrValue);
+
+  const auto Attr_DW_FORM_addrx = static_cast<dwarf::Attribute>(Attr++);
+  const auto Attr_DW_FORM_addrx1 = static_cast<dwarf::Attribute>(Attr++);
+  const auto Attr_DW_FORM_addrx2 = static_cast<dwarf::Attribute>(Attr++);
+  const auto Attr_DW_FORM_addrx3 = static_cast<dwarf::Attribute>(Attr++);
+  const auto Attr_DW_FORM_addrx4 = static_cast<dwarf::Attribute>(Attr++);
+
+  if (Version >= 5) {
+    CUDie.addAttribute(Attr_DW_FORM_addrx, DW_FORM_addrx, AddrxValue);
+    CUDie.addAttribute(Attr_DW_FORM_addrx1, DW_FORM_addrx1, Addrx1Value);
+    CUDie.addAttribute(Attr_DW_FORM_addrx2, DW_FORM_addrx2, Addrx2Value);
+    CUDie.addAttribute(Attr_DW_FORM_addrx3, DW_FORM_addrx3, Addrx3Value);
+    CUDie.addAttribute(Attr_DW_FORM_addrx4, DW_FORM_addrx4, Addrx4Value);
+  }
 
   //----------------------------------------------------------------------
   // Test block forms
@@ -242,18 +263,40 @@ void TestAllForms() {
   //----------------------------------------------------------------------
   EXPECT_EQ(AddrValue, toAddress(DieDG.find(Attr_DW_FORM_addr), 0));
 
+  if (Version >= 5) {
+    auto ExtractedAddrxValue = toAddress(DieDG.find(Attr_DW_FORM_addrx));
+    EXPECT_TRUE(ExtractedAddrxValue.has_value());
+    EXPECT_EQ(AddrxValue, *ExtractedAddrxValue);
+
+    auto ExtractedAddrx1Value = toAddress(DieDG.find(Attr_DW_FORM_addrx1));
+    EXPECT_TRUE(ExtractedAddrx1Value.has_value());
+    EXPECT_EQ(Addrx1Value, *ExtractedAddrx1Value);
+
+    auto ExtractedAddrx2Value = toAddress(DieDG.find(Attr_DW_FORM_addrx2));
+    EXPECT_TRUE(ExtractedAddrx2Value.has_value());
+    EXPECT_EQ(Addrx2Value, *ExtractedAddrx2Value);
+
+    auto ExtractedAddrx3Value = toAddress(DieDG.find(Attr_DW_FORM_addrx3));
+    EXPECT_TRUE(ExtractedAddrx3Value.has_value());
+    EXPECT_EQ(Addrx3Value, *ExtractedAddrx3Value);
+
+    auto ExtractedAddrx4Value = toAddress(DieDG.find(Attr_DW_FORM_addrx4));
+    EXPECT_TRUE(ExtractedAddrx1Value.has_value());
+    EXPECT_EQ(Addrx4Value, *ExtractedAddrx4Value);
+  }
+
   //----------------------------------------------------------------------
   // Test block forms
   //----------------------------------------------------------------------
-  Optional<DWARFFormValue> FormValue;
+  std::optional<DWARFFormValue> FormValue;
   ArrayRef<uint8_t> ExtractedBlockData;
-  Optional<ArrayRef<uint8_t>> BlockDataOpt;
+  std::optional<ArrayRef<uint8_t>> BlockDataOpt;
 
   FormValue = DieDG.find(Attr_DW_FORM_block);
   EXPECT_TRUE((bool)FormValue);
   BlockDataOpt = FormValue->getAsBlock();
   EXPECT_TRUE(BlockDataOpt.has_value());
-  ExtractedBlockData = BlockDataOpt.value();
+  ExtractedBlockData = *BlockDataOpt;
   EXPECT_EQ(ExtractedBlockData.size(), BlockSize);
   EXPECT_TRUE(memcmp(ExtractedBlockData.data(), BlockData, BlockSize) == 0);
 
@@ -261,7 +304,7 @@ void TestAllForms() {
   EXPECT_TRUE((bool)FormValue);
   BlockDataOpt = FormValue->getAsBlock();
   EXPECT_TRUE(BlockDataOpt.has_value());
-  ExtractedBlockData = BlockDataOpt.value();
+  ExtractedBlockData = *BlockDataOpt;
   EXPECT_EQ(ExtractedBlockData.size(), BlockSize);
   EXPECT_TRUE(memcmp(ExtractedBlockData.data(), BlockData, BlockSize) == 0);
 
@@ -269,7 +312,7 @@ void TestAllForms() {
   EXPECT_TRUE((bool)FormValue);
   BlockDataOpt = FormValue->getAsBlock();
   EXPECT_TRUE(BlockDataOpt.has_value());
-  ExtractedBlockData = BlockDataOpt.value();
+  ExtractedBlockData = *BlockDataOpt;
   EXPECT_EQ(ExtractedBlockData.size(), BlockSize);
   EXPECT_TRUE(memcmp(ExtractedBlockData.data(), BlockData, BlockSize) == 0);
 
@@ -277,7 +320,7 @@ void TestAllForms() {
   EXPECT_TRUE((bool)FormValue);
   BlockDataOpt = FormValue->getAsBlock();
   EXPECT_TRUE(BlockDataOpt.has_value());
-  ExtractedBlockData = BlockDataOpt.value();
+  ExtractedBlockData = *BlockDataOpt;
   EXPECT_EQ(ExtractedBlockData.size(), BlockSize);
   EXPECT_TRUE(memcmp(ExtractedBlockData.data(), BlockData, BlockSize) == 0);
 
@@ -287,7 +330,7 @@ void TestAllForms() {
     EXPECT_TRUE((bool)FormValue);
     BlockDataOpt = FormValue->getAsBlock();
     EXPECT_TRUE(BlockDataOpt.has_value());
-    ExtractedBlockData = BlockDataOpt.value();
+    ExtractedBlockData = *BlockDataOpt;
     EXPECT_EQ(ExtractedBlockData.size(), 16u);
     EXPECT_TRUE(memcmp(ExtractedBlockData.data(), Data16, 16) == 0);
   }
@@ -937,7 +980,7 @@ template <uint16_t Version, class AddrType> void TestAddresses() {
   EXPECT_TRUE(DieDG.isValid());
 
   uint64_t LowPC, HighPC, SectionIndex;
-  Optional<uint64_t> OptU64;
+  std::optional<uint64_t> OptU64;
   // Verify the that our subprogram with no PC value fails appropriately when
   // asked for any PC values.
   auto SubprogramDieNoPC = DieDG.getFirstChild();
@@ -989,21 +1032,21 @@ template <uint16_t Version, class AddrType> void TestAddresses() {
     EXPECT_FALSE((bool)OptU64);
   } else {
     EXPECT_TRUE((bool)OptU64);
-    EXPECT_EQ(OptU64.value(), ActualHighPC);
+    EXPECT_EQ(*OptU64, ActualHighPC);
   }
   // Get the high PC as an unsigned constant. This should succeed if the high PC
   // was encoded as an offset and fail if the high PC was encoded as an address.
   OptU64 = toUnsigned(SubprogramDieLowHighPC.find(DW_AT_high_pc));
   if (SupportsHighPCAsOffset) {
     EXPECT_TRUE((bool)OptU64);
-    EXPECT_EQ(OptU64.value(), ActualHighPCOffset);
+    EXPECT_EQ(*OptU64, ActualHighPCOffset);
   } else {
     EXPECT_FALSE((bool)OptU64);
   }
 
   OptU64 = SubprogramDieLowHighPC.getHighPC(ActualLowPC);
   EXPECT_TRUE((bool)OptU64);
-  EXPECT_EQ(OptU64.value(), ActualHighPC);
+  EXPECT_EQ(*OptU64, ActualHighPC);
 
   EXPECT_TRUE(SubprogramDieLowHighPC.getLowAndHighPC(LowPC, HighPC, SectionIndex));
   EXPECT_EQ(LowPC, ActualLowPC);
@@ -1118,14 +1161,14 @@ TEST(DWARFDebugInfo, TestStringOffsets) {
   ASSERT_TRUE((bool)Extracted1);
   EXPECT_STREQ(String1, *Extracted1);
 
-  Optional<DWARFFormValue> Form2 = DieDG.find(Attr2);
+  std::optional<DWARFFormValue> Form2 = DieDG.find(Attr2);
   ASSERT_TRUE((bool)Form2);
   EXPECT_EQ(0u, Form2->getRawUValue());
   auto Extracted2 = toString(Form2);
   ASSERT_TRUE((bool)Extracted2);
   EXPECT_STREQ(String2, *Extracted2);
 
-  Optional<DWARFFormValue> Form3 = DieDG.find(Attr3);
+  std::optional<DWARFFormValue> Form3 = DieDG.find(Attr3);
   ASSERT_TRUE((bool)Form3);
   EXPECT_EQ(1u, Form3->getRawUValue());
   auto Extracted3 = toString(Form3);
@@ -1632,13 +1675,13 @@ TEST(DWARFDebugInfo, TestFindRecurse) {
 
 TEST(DWARFDebugInfo, TestDwarfToFunctions) {
   // Test all of the dwarf::toXXX functions that take a
-  // Optional<DWARFFormValue> and extract the values from it.
+  // std::optional<DWARFFormValue> and extract the values from it.
   uint64_t InvalidU64 = 0xBADBADBADBADBADB;
   int64_t InvalidS64 = 0xBADBADBADBADBADB;
 
   // First test that we don't get valid values back when using an optional with
   // no value.
-  Optional<DWARFFormValue> FormValOpt1 = DWARFFormValue();
+  std::optional<DWARFFormValue> FormValOpt1 = DWARFFormValue();
   EXPECT_FALSE(toString(FormValOpt1).has_value());
   EXPECT_FALSE(toUnsigned(FormValOpt1).has_value());
   EXPECT_FALSE(toReference(FormValOpt1).has_value());
@@ -1655,7 +1698,7 @@ TEST(DWARFDebugInfo, TestDwarfToFunctions) {
 
   // Test successful and unsuccessful address decoding.
   uint64_t Address = 0x100000000ULL;
-  Optional<DWARFFormValue> FormValOpt2 =
+  std::optional<DWARFFormValue> FormValOpt2 =
       DWARFFormValue::createFromUValue(DW_FORM_addr, Address);
 
   EXPECT_FALSE(toString(FormValOpt2).has_value());
@@ -1674,7 +1717,7 @@ TEST(DWARFDebugInfo, TestDwarfToFunctions) {
 
   // Test successful and unsuccessful unsigned constant decoding.
   uint64_t UData8 = 0x1020304050607080ULL;
-  Optional<DWARFFormValue> FormValOpt3 =
+  std::optional<DWARFFormValue> FormValOpt3 =
       DWARFFormValue::createFromUValue(DW_FORM_udata, UData8);
 
   EXPECT_FALSE(toString(FormValOpt3).has_value());
@@ -1693,7 +1736,7 @@ TEST(DWARFDebugInfo, TestDwarfToFunctions) {
 
   // Test successful and unsuccessful reference decoding.
   uint32_t RefData = 0x11223344U;
-  Optional<DWARFFormValue> FormValOpt4 =
+  std::optional<DWARFFormValue> FormValOpt4 =
       DWARFFormValue::createFromUValue(DW_FORM_ref_addr, RefData);
 
   EXPECT_FALSE(toString(FormValOpt4).has_value());
@@ -1712,7 +1755,7 @@ TEST(DWARFDebugInfo, TestDwarfToFunctions) {
 
   // Test successful and unsuccessful signed constant decoding.
   int64_t SData8 = 0x1020304050607080ULL;
-  Optional<DWARFFormValue> FormValOpt5 =
+  std::optional<DWARFFormValue> FormValOpt5 =
       DWARFFormValue::createFromSValue(DW_FORM_udata, SData8);
 
   EXPECT_FALSE(toString(FormValOpt5).has_value());
@@ -1732,7 +1775,7 @@ TEST(DWARFDebugInfo, TestDwarfToFunctions) {
   // Test successful and unsuccessful block decoding.
   uint8_t Data[] = { 2, 3, 4 };
   ArrayRef<uint8_t> Array(Data);
-  Optional<DWARFFormValue> FormValOpt6 =
+  std::optional<DWARFFormValue> FormValOpt6 =
       DWARFFormValue::createFromBlockValue(DW_FORM_block1, Array);
 
   EXPECT_FALSE(toString(FormValOpt6).has_value());
@@ -1873,7 +1916,7 @@ TEST(DWARFDebugInfo, TestImplicitConstAbbrevs) {
     auto A = it->getAttrByIndex(0);
     EXPECT_EQ(A, Attr);
 
-    Optional<uint32_t> AttrIndex = it->findAttributeIndex(A);
+    std::optional<uint32_t> AttrIndex = it->findAttributeIndex(A);
     EXPECT_TRUE((bool)AttrIndex);
     EXPECT_EQ(*AttrIndex, 0u);
     uint64_t OffsetVal =

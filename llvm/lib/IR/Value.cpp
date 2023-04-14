@@ -315,8 +315,12 @@ StringRef Value::getName() const {
 }
 
 void Value::setNameImpl(const Twine &NewName) {
+  bool NeedNewName =
+      !getContext().shouldDiscardValueNames() || isa<GlobalValue>(this);
+
   // Fast-path: LLVMContext can be set to strip out non-GlobalValue names
-  if (getContext().shouldDiscardValueNames() && !isa<GlobalValue>(this))
+  // and there is no need to delete the old name.
+  if (!NeedNewName && !hasName())
     return;
 
   // Fast path for common IRBuilder case of setName("") when there is no name.
@@ -324,7 +328,7 @@ void Value::setNameImpl(const Twine &NewName) {
     return;
 
   SmallString<256> NameData;
-  StringRef NameRef = NewName.toStringRef(NameData);
+  StringRef NameRef = NeedNewName ? NewName.toStringRef(NameData) : "";
   assert(NameRef.find_first_of(0) == StringRef::npos &&
          "Null bytes are not allowed in names");
 
@@ -340,20 +344,17 @@ void Value::setNameImpl(const Twine &NewName) {
     return;  // Cannot set a name on this value (e.g. constant).
 
   if (!ST) { // No symbol table to update?  Just do the change.
-    if (NameRef.empty()) {
-      // Free the name for this value.
-      destroyValueName();
-      return;
-    }
-
     // NOTE: Could optimize for the case the name is shrinking to not deallocate
     // then reallocated.
     destroyValueName();
 
-    // Create the new name.
-    MallocAllocator Allocator;
-    setValueName(ValueName::Create(NameRef, Allocator));
-    getValueName()->setValue(this);
+    if (!NameRef.empty()) {
+      // Create the new name.
+      assert(NeedNewName);
+      MallocAllocator Allocator;
+      setValueName(ValueName::create(NameRef, Allocator));
+      getValueName()->setValue(this);
+    }
     return;
   }
 
@@ -369,6 +370,7 @@ void Value::setNameImpl(const Twine &NewName) {
   }
 
   // Name is changing to something new.
+  assert(NeedNewName);
   setValueName(ST->createValueName(NameRef, this));
 }
 
@@ -737,7 +739,7 @@ const Value *Value::stripAndAccumulateConstantOffsets(
       // Stop traversal if the pointer offset wouldn't fit in the bit-width
       // provided by the Offset argument. This can happen due to AddrSpaceCast
       // stripping.
-      if (GEPOffset.getMinSignedBits() > BitWidth)
+      if (GEPOffset.getSignificantBits() > BitWidth)
         return V;
 
       // External Analysis can return a result higher/lower than the value
@@ -855,7 +857,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       if (Type *ArgMemTy = A->getPointeeInMemoryValueType()) {
         if (ArgMemTy->isSized()) {
           // FIXME: Why isn't this the type alloc size?
-          DerefBytes = DL.getTypeStoreSize(ArgMemTy).getKnownMinSize();
+          DerefBytes = DL.getTypeStoreSize(ArgMemTy).getKnownMinValue();
         }
       }
     }
@@ -899,7 +901,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
   } else if (auto *AI = dyn_cast<AllocaInst>(this)) {
     if (!AI->isArrayAllocation()) {
       DerefBytes =
-          DL.getTypeStoreSize(AI->getAllocatedType()).getKnownMinSize();
+          DL.getTypeStoreSize(AI->getAllocatedType()).getKnownMinValue();
       CanBeNull = false;
       CanBeFreed = false;
     }
@@ -907,7 +909,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
     if (GV->getValueType()->isSized() && !GV->hasExternalWeakLinkage()) {
       // TODO: Don't outright reject hasExternalWeakLinkage but set the
       // CanBeNull flag.
-      DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
+      DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedValue();
       CanBeNull = false;
       CanBeFreed = false;
     }
@@ -972,7 +974,7 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
     if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
             const_cast<Constant *>(CstPtr), DL.getIntPtrType(getType()),
             /*OnlyIfReduced=*/true))) {
-      size_t TrailingZeros = CstInt->getValue().countTrailingZeros();
+      size_t TrailingZeros = CstInt->getValue().countr_zero();
       // While the actual alignment may be large, elsewhere we have
       // an arbitrary upper alignmet limit, so let's clamp to it.
       return Align(TrailingZeros < Value::MaxAlignmentExponent
@@ -1020,22 +1022,6 @@ bool Value::isSwiftError() const {
   if (!Alloca)
     return false;
   return Alloca->isSwiftError();
-}
-
-bool Value::isTransitiveUsedByMetadataOnly() const {
-  SmallVector<const User *, 32> WorkList(user_begin(), user_end());
-  SmallPtrSet<const User *, 32> Visited(user_begin(), user_end());
-  while (!WorkList.empty()) {
-    const User *U = WorkList.pop_back_val();
-    // If it is transitively used by a global value or a non-constant value,
-    // it's obviously not only used by metadata.
-    if (!isa<Constant>(U) || isa<GlobalValue>(U))
-      return false;
-    for (const User *UU : U->users())
-      if (Visited.insert(UU).second)
-        WorkList.push_back(UU);
-  }
-  return true;
 }
 
 //===----------------------------------------------------------------------===//

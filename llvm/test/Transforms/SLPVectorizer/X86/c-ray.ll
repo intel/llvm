@@ -67,11 +67,11 @@ define i32 @ray_sphere(ptr nocapture noundef readonly %sph, ptr nocapture nounde
 ; CHECK-NEXT:    [[MUL88:%.*]] = fmul double [[TMP4]], 2.000000e+00
 ; CHECK-NEXT:    [[TMP26:%.*]] = insertelement <2 x double> poison, double [[FNEG87]], i32 0
 ; CHECK-NEXT:    [[TMP27:%.*]] = insertelement <2 x double> [[TMP26]], double [[CALL]], i32 1
-; CHECK-NEXT:    [[TMP28:%.*]] = insertelement <2 x double> poison, double [[CALL]], i32 0
+; CHECK-NEXT:    [[TMP28:%.*]] = shufflevector <2 x double> [[TMP27]], <2 x double> poison, <2 x i32> <i32 1, i32 undef>
 ; CHECK-NEXT:    [[TMP29:%.*]] = insertelement <2 x double> [[TMP28]], double [[TMP12]], i32 1
 ; CHECK-NEXT:    [[TMP30:%.*]] = fsub <2 x double> [[TMP27]], [[TMP29]]
 ; CHECK-NEXT:    [[TMP31:%.*]] = insertelement <2 x double> poison, double [[MUL88]], i32 0
-; CHECK-NEXT:    [[TMP32:%.*]] = insertelement <2 x double> [[TMP31]], double [[MUL88]], i32 1
+; CHECK-NEXT:    [[TMP32:%.*]] = shufflevector <2 x double> [[TMP31]], <2 x double> poison, <2 x i32> zeroinitializer
 ; CHECK-NEXT:    [[TMP33:%.*]] = fdiv <2 x double> [[TMP30]], [[TMP32]]
 ; CHECK-NEXT:    [[TMP34:%.*]] = extractelement <2 x double> [[TMP33]], i32 1
 ; CHECK-NEXT:    [[CMP93:%.*]] = fcmp olt double [[TMP34]], 0x3EB0C6F7A0B5ED8D

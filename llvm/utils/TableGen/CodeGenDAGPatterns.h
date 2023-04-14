@@ -69,7 +69,7 @@ struct MachineValueTypeSet {
   unsigned size() const {
     unsigned Count = 0;
     for (WordType W : Words)
-      Count += countPopulation(W);
+      Count += llvm::popcount(W);
     return Count;
   }
   LLVM_ATTRIBUTE_ALWAYS_INLINE
@@ -150,7 +150,7 @@ struct MachineValueTypeSet {
         WordType W = Set->Words[SkipWords];
         W &= maskLeadingOnes<WordType>(WordWidth-SkipBits);
         if (W != 0)
-          return Count + findFirstSet(W);
+          return Count + llvm::countr_zero(W);
         Count += WordWidth;
         SkipWords++;
       }
@@ -158,7 +158,7 @@ struct MachineValueTypeSet {
       for (unsigned i = SkipWords; i != NumWords; ++i) {
         WordType W = Set->Words[i];
         if (W != 0)
-          return Count + findFirstSet(W);
+          return Count + llvm::countr_zero(W);
         Count += WordWidth;
       }
       return Capacity;
@@ -211,21 +211,16 @@ struct TypeSetByHwMode : public InfoByHwMode<MachineValueTypeSet> {
 
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   bool isMachineValueType() const {
-    return isDefaultOnly() && Map.begin()->second.size() == 1;
+    return isSimple() && getSimple().size() == 1;
   }
 
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   MVT getMachineValueType() const {
     assert(isMachineValueType());
-    return *Map.begin()->second.begin();
+    return *getSimple().begin();
   }
 
   bool isPossible() const;
-
-  LLVM_ATTRIBUTE_ALWAYS_INLINE
-  bool isDefaultOnly() const {
-    return Map.size() == 1 && Map.begin()->first == DefaultMode;
-  }
 
   bool isPointer() const {
     return getValueTypeByHwMode().isPointer();
@@ -338,11 +333,7 @@ struct TypeInfer {
 
   struct ValidateOnExit {
     ValidateOnExit(TypeSetByHwMode &T, TypeInfer &TI) : Infer(TI), VTS(T) {}
-  #ifndef NDEBUG
     ~ValidateOnExit();
-  #else
-    ~ValidateOnExit() {}  // Empty destructor with NDEBUG.
-  #endif
     TypeInfer &Infer;
     TypeSetByHwMode &VTS;
   };
@@ -665,6 +656,10 @@ class TreePatternNode {
 
   std::vector<TreePatternNodePtr> Children;
 
+  /// If this was instantiated from a PatFrag node, and the PatFrag was derived
+  /// from "GISelFlags": the original Record derived from GISelFlags.
+  const Record *GISelFlags = nullptr;
+
 public:
   TreePatternNode(Record *Op, std::vector<TreePatternNodePtr> Ch,
                   unsigned NumResults)
@@ -794,6 +789,9 @@ public:
   /// marked isCommutative.
   bool isCommutativeIntrinsic(const CodeGenDAGPatterns &CDP) const;
 
+  void setGISelFlagsRecord(const Record *R) { GISelFlags = R; }
+  const Record *getGISelFlagsRecord() const { return GISelFlags; }
+
   void print(raw_ostream &OS) const;
   void dump() const;
 
@@ -818,12 +816,12 @@ public:   // Higher level manipulation routines.
   void
   SubstituteFormalArguments(std::map<std::string, TreePatternNodePtr> &ArgMap);
 
-  /// InlinePatternFragments - If this pattern refers to any pattern
+  /// InlinePatternFragments - If \p T pattern refers to any pattern
   /// fragments, return the set of inlined versions (this can be more than
   /// one if a PatFrags record has multiple alternatives).
-  void InlinePatternFragments(TreePatternNodePtr T,
-                              TreePattern &TP,
-                              std::vector<TreePatternNodePtr> &OutAlternatives);
+  static void
+  InlinePatternFragments(TreePatternNodePtr T, TreePattern &TP,
+                         std::vector<TreePatternNodePtr> &OutAlternatives);
 
   /// ApplyTypeConstraints - Apply all of the type constraints relevant to
   /// this node and its children in the tree.  This returns true if it makes a
@@ -1023,13 +1021,14 @@ class DAGInstruction {
   TreePatternNodePtr ResultPattern;
 
 public:
-  DAGInstruction(const std::vector<Record*> &results,
-                 const std::vector<Record*> &operands,
-                 const std::vector<Record*> &impresults,
+  DAGInstruction(std::vector<Record *> &&results,
+                 std::vector<Record *> &&operands,
+                 std::vector<Record *> &&impresults,
                  TreePatternNodePtr srcpattern = nullptr,
                  TreePatternNodePtr resultpattern = nullptr)
-    : Results(results), Operands(operands), ImpResults(impresults),
-      SrcPattern(srcpattern), ResultPattern(resultpattern) {}
+      : Results(std::move(results)), Operands(std::move(operands)),
+        ImpResults(std::move(impresults)), SrcPattern(srcpattern),
+        ResultPattern(resultpattern) {}
 
   unsigned getNumResults() const { return Results.size(); }
   unsigned getNumOperands() const { return Operands.size(); }

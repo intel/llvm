@@ -33,18 +33,19 @@
 
 #include <cinttypes>
 #include <complex>
+#include <optional>
 
 namespace mlir {
 namespace sparse_tensor {
 
 /// This type is used in the public API at all places where MLIR expects
 /// values with the built-in type "index".  For now, we simply assume that
-/// type is 64-bit, but targets with different "index" bit widths should
+/// type is 64-bit, but targets with different "index" bitwidths should
 /// link with an alternatively built runtime support library.
 // TODO: support such targets?
 using index_type = uint64_t;
 
-/// Encoding of overhead types (both pointer overhead and indices
+/// Encoding of overhead types (both position overhead and coordinate
 /// overhead), for "overloading" @newSparseTensor.
 enum class OverheadType : uint32_t {
   kIndex = 0,
@@ -91,6 +92,11 @@ enum class PrimaryType : uint32_t {
 };
 
 // This x-macro includes all `V` types.
+// TODO: We currently split out the non-variadic version from the variadic
+// version. Using ##__VA_ARGS__ to avoid the split gives
+//   warning: token pasting of ',' and __VA_ARGS__ is a GNU extension
+//   [-Wgnu-zero-variadic-macro-arguments]
+// and __VA_OPT__(, ) __VA_ARGS__ requires c++20.
 #define MLIR_SPARSETENSOR_FOREVERY_V(DO)                                       \
   DO(F64, double)                                                              \
   DO(F32, float)                                                               \
@@ -102,6 +108,27 @@ enum class PrimaryType : uint32_t {
   DO(I8, int8_t)                                                               \
   DO(C64, complex64)                                                           \
   DO(C32, complex32)
+
+// This x-macro includes all `V` types and supports variadic arguments.
+#define MLIR_SPARSETENSOR_FOREVERY_V_VAR(DO, ...)                              \
+  DO(F64, double, __VA_ARGS__)                                                 \
+  DO(F32, float, __VA_ARGS__)                                                  \
+  DO(F16, f16, __VA_ARGS__)                                                    \
+  DO(BF16, bf16, __VA_ARGS__)                                                  \
+  DO(I64, int64_t, __VA_ARGS__)                                                \
+  DO(I32, int32_t, __VA_ARGS__)                                                \
+  DO(I16, int16_t, __VA_ARGS__)                                                \
+  DO(I8, int8_t, __VA_ARGS__)                                                  \
+  DO(C64, complex64, __VA_ARGS__)                                              \
+  DO(C32, complex32, __VA_ARGS__)
+
+// This x-macro calls its argument on every pair of overhead and `V` types.
+#define MLIR_SPARSETENSOR_FOREVERY_V_O(DO)                                     \
+  MLIR_SPARSETENSOR_FOREVERY_V_VAR(DO, 64, uint64_t)                           \
+  MLIR_SPARSETENSOR_FOREVERY_V_VAR(DO, 32, uint32_t)                           \
+  MLIR_SPARSETENSOR_FOREVERY_V_VAR(DO, 16, uint16_t)                           \
+  MLIR_SPARSETENSOR_FOREVERY_V_VAR(DO, 8, uint8_t)                             \
+  MLIR_SPARSETENSOR_FOREVERY_V_VAR(DO, 0, index_type)
 
 constexpr bool isFloatingPrimaryType(PrimaryType valTy) {
   return PrimaryType::kF64 <= valTy && valTy <= PrimaryType::kBF16;
@@ -122,7 +149,8 @@ constexpr bool isComplexPrimaryType(PrimaryType valTy) {
 /// The actions performed by @newSparseTensor.
 enum class Action : uint32_t {
   kEmpty = 0,
-  kFromFile = 1,
+  // newSparseTensor no longer handles `kFromFile=1`, so we leave this
+  // number reserved to help catch any code that still needs updating.
   kFromCOO = 2,
   kSparseToSparse = 3,
   kEmptyCOO = 4,
@@ -155,6 +183,42 @@ enum class DimLevelType : uint8_t {
   SingletonNo = 18,    // 0b100_10
   SingletonNuNo = 19,  // 0b100_11
 };
+
+/// This enum defines all the storage formats supported by the sparse compiler,
+/// without the level properties.
+enum class LevelFormat : uint8_t {
+  Dense = 4,      // 0b001_00
+  Compressed = 8, // 0b010_00
+  Singleton = 16, // 0b100_00
+};
+
+/// Returns string representation of the given dimension level type.
+inline std::string toMLIRString(DimLevelType dlt) {
+  switch (dlt) {
+  // TODO: should probably raise an error instead of printing it...
+  case DimLevelType::Undef:
+    return "undef";
+  case DimLevelType::Dense:
+    return "dense";
+  case DimLevelType::Compressed:
+    return "compressed";
+  case DimLevelType::CompressedNu:
+    return "compressed-nu";
+  case DimLevelType::CompressedNo:
+    return "compressed-no";
+  case DimLevelType::CompressedNuNo:
+    return "compressed-nu-no";
+  case DimLevelType::Singleton:
+    return "singleton";
+  case DimLevelType::SingletonNu:
+    return "singleton-nu";
+  case DimLevelType::SingletonNo:
+    return "singleton-no";
+  case DimLevelType::SingletonNuNo:
+    return "singleton-nu-no";
+  }
+  return "";
+}
 
 /// Check that the `DimLevelType` contains a valid (possibly undefined) value.
 constexpr bool isValidDLT(DimLevelType dlt) {
@@ -201,6 +265,63 @@ constexpr bool isOrderedDLT(DimLevelType dlt) {
 constexpr bool isUniqueDLT(DimLevelType dlt) {
   return !(static_cast<uint8_t>(dlt) & 1);
 }
+
+/// Convert a DimLevelType to its corresponding LevelFormat.
+/// Returns std::nullopt when input dlt is Undef.
+constexpr std::optional<LevelFormat> getLevelFormat(DimLevelType dlt) {
+  if (dlt == DimLevelType::Undef)
+    return std::nullopt;
+  return static_cast<LevelFormat>(static_cast<uint8_t>(dlt) & ~3);
+}
+
+/// Convert a LevelFormat to its corresponding DimLevelType with the given
+/// properties. Returns std::nullopt when the properties are not applicable for
+/// the input level format.
+/// TODO: factor out a new LevelProperties type so we can add new properties
+/// without changing this function's signature
+constexpr std::optional<DimLevelType>
+getDimLevelType(LevelFormat lf, bool ordered, bool unique) {
+  auto dlt = static_cast<DimLevelType>(static_cast<uint8_t>(lf) |
+                                       (ordered ? 0 : 2) | (unique ? 0 : 1));
+  return isValidDLT(dlt) ? std::optional(dlt) : std::nullopt;
+}
+
+/// Ensure the above conversion works as intended.
+static_assert(
+    (getLevelFormat(DimLevelType::Undef) == std::nullopt &&
+     *getLevelFormat(DimLevelType::Dense) == LevelFormat::Dense &&
+     *getLevelFormat(DimLevelType::Compressed) == LevelFormat::Compressed &&
+     *getLevelFormat(DimLevelType::CompressedNu) == LevelFormat::Compressed &&
+     *getLevelFormat(DimLevelType::CompressedNo) == LevelFormat::Compressed &&
+     *getLevelFormat(DimLevelType::CompressedNuNo) == LevelFormat::Compressed &&
+     *getLevelFormat(DimLevelType::Singleton) == LevelFormat::Singleton &&
+     *getLevelFormat(DimLevelType::SingletonNu) == LevelFormat::Singleton &&
+     *getLevelFormat(DimLevelType::SingletonNo) == LevelFormat::Singleton &&
+     *getLevelFormat(DimLevelType::SingletonNuNo) == LevelFormat::Singleton),
+    "getLevelFormat conversion is broken");
+
+static_assert(
+    (getDimLevelType(LevelFormat::Dense, false, true) == std::nullopt &&
+     getDimLevelType(LevelFormat::Dense, true, false) == std::nullopt &&
+     getDimLevelType(LevelFormat::Dense, false, false) == std::nullopt &&
+     *getDimLevelType(LevelFormat::Dense, true, true) == DimLevelType::Dense &&
+     *getDimLevelType(LevelFormat::Compressed, true, true) ==
+         DimLevelType::Compressed &&
+     *getDimLevelType(LevelFormat::Compressed, true, false) ==
+         DimLevelType::CompressedNu &&
+     *getDimLevelType(LevelFormat::Compressed, false, true) ==
+         DimLevelType::CompressedNo &&
+     *getDimLevelType(LevelFormat::Compressed, false, false) ==
+         DimLevelType::CompressedNuNo &&
+     *getDimLevelType(LevelFormat::Singleton, true, true) ==
+         DimLevelType::Singleton &&
+     *getDimLevelType(LevelFormat::Singleton, true, false) ==
+         DimLevelType::SingletonNu &&
+     *getDimLevelType(LevelFormat::Singleton, false, true) ==
+         DimLevelType::SingletonNo &&
+     *getDimLevelType(LevelFormat::Singleton, false, false) ==
+         DimLevelType::SingletonNuNo),
+    "getDimLevelType conversion is broken");
 
 // Ensure the above predicates work as intended.
 static_assert((isValidDLT(DimLevelType::Undef) &&

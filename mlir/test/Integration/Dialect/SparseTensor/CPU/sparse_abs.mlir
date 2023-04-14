@@ -1,8 +1,30 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
+// DEFINE: FileCheck %s
+//
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 #SparseVector = #sparse_tensor.encoding<{ dimLevelType = [ "compressed" ] }>
 
@@ -72,8 +94,8 @@ module {
     %v2 = arith.constant sparse<
        [ [0], [3], [5], [11], [13], [17], [18], [21], [31] ],
          [ -2147483648, -2147483647, -1000, -1, 0,
-	   1, 1000, 2147483646, 2147483647
-	 ]
+           1, 1000, 2147483646, 2147483647
+         ]
     > : tensor<32xi32>
     %sv1 = sparse_tensor.convert %v1
          : tensor<32xf64> to tensor<?xf64, #SparseVector>
@@ -90,15 +112,21 @@ module {
     //
     // Verify the results.
     //
-    // CHECK:      ( 1.5, 1.5, 10.2, 11.3, 1, 1, nan, nan, inf, inf, 0, 0, 99.99 )
-    // CHECK-NEXT: ( -2147483648, 2147483647, 1000, 1, 0, 1, 1000, 2147483646, 2147483647, 9999, 9999, 9999, 9999 )
+    // CHECK:       12
+    // CHECK-NEXT: ( 1.5, 1.5, 10.2, 11.3, 1, 1, nan, nan, inf, inf, 0, 0 )
+    // CHECK-NEXT:  9
+    // CHECK-NEXT: ( -2147483648, 2147483647, 1000, 1, 0, 1, 1000, 2147483646, 2147483647 )
     //
     %x = sparse_tensor.values %0 : tensor<?xf64, #SparseVector> to memref<?xf64>
     %y = sparse_tensor.values %1 : tensor<?xi32, #SparseVector> to memref<?xi32>
-    %a = vector.transfer_read %x[%c0], %df: memref<?xf64>, vector<13xf64>
-    %b = vector.transfer_read %y[%c0], %di: memref<?xi32>, vector<13xi32>
-    vector.print %a : vector<13xf64>
-    vector.print %b : vector<13xi32>
+    %a = vector.transfer_read %x[%c0], %df: memref<?xf64>, vector<12xf64>
+    %b = vector.transfer_read %y[%c0], %di: memref<?xi32>, vector<9xi32>
+    %na = sparse_tensor.number_of_entries %0 : tensor<?xf64, #SparseVector>
+    %nb = sparse_tensor.number_of_entries %1 : tensor<?xi32, #SparseVector>
+    vector.print %na : index
+    vector.print %a : vector<12xf64>
+    vector.print %nb : index
+    vector.print %b : vector<9xi32>
 
     // Release the resources.
     bufferization.dealloc_tensor %sv1 : tensor<?xf64, #SparseVector>

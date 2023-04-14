@@ -27,8 +27,12 @@
 #include "omptarget.h"
 #include "omptargetplugin.h"
 
+#ifndef TARGET_NAME
 #define TARGET_NAME CUDA
+#endif
+#ifndef DEBUG_PREFIX
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
+#endif
 
 #include "MemoryManager.h"
 
@@ -932,7 +936,7 @@ public:
       if (const char *EnvStr = getenv("LIBOMPTARGET_DEVICE_RTL_DEBUG"))
         DeviceEnv.DebugKind = std::stoi(EnvStr);
 
-      const char *DeviceEnvName = "omptarget_device_environment";
+      const char *DeviceEnvName = "__omp_rtl_device_environment";
       CUdeviceptr DeviceEnvPtr;
       size_t CUSize;
 
@@ -1260,6 +1264,29 @@ public:
 
     if (Err != CUDA_SUCCESS) {
       DP("Error when synchronizing stream. stream = " DPxMOD
+         ", async info ptr = " DPxMOD "\n",
+         DPxPTR(Stream), DPxPTR(AsyncInfo));
+      CUDA_ERR_STRING(Err);
+    }
+    return (Err == CUDA_SUCCESS) ? OFFLOAD_SUCCESS : OFFLOAD_FAIL;
+  }
+
+  int queryAsync(const int DeviceId, __tgt_async_info *AsyncInfo) const {
+    CUstream Stream = reinterpret_cast<CUstream>(AsyncInfo->Queue);
+    CUresult Err = cuStreamQuery(Stream);
+
+    // Not ready streams must be considered as successful operations.
+    if (Err == CUDA_ERROR_NOT_READY)
+      return OFFLOAD_SUCCESS;
+
+    // Once the stream is synchronized or an error occurs, return it to the
+    // stream pool and reset AsyncInfo. This is to make sure the
+    // synchronization only works for its own tasks.
+    StreamPool[DeviceId]->release(Stream);
+    AsyncInfo->Queue = nullptr;
+
+    if (Err != CUDA_SUCCESS) {
+      DP("Error when querying for stream progress. stream = " DPxMOD
          ", async info ptr = " DPxMOD "\n",
          DPxPTR(Stream), DPxPTR(AsyncInfo));
       CUDA_ERR_STRING(Err);
@@ -1780,6 +1807,15 @@ int32_t __tgt_rtl_synchronize(int32_t DeviceId,
   return DeviceRTL.synchronize(DeviceId, AsyncInfoPtr);
 }
 
+int32_t __tgt_rtl_query_async(int32_t DeviceId,
+                              __tgt_async_info *AsyncInfoPtr) {
+  assert(DeviceRTL.isValidDeviceId(DeviceId) && "device_id is invalid");
+  assert(AsyncInfoPtr && "async_info_ptr is nullptr");
+  assert(AsyncInfoPtr->Queue && "async_info_ptr->Queue is nullptr");
+  // NOTE: We don't need to set context for stream query.
+  return DeviceRTL.queryAsync(DeviceId, AsyncInfoPtr);
+}
+
 void __tgt_rtl_set_info_flag(uint32_t NewInfoLevel) {
   std::atomic<uint32_t> &InfoLevel = getInfoLevelInternal();
   InfoLevel.store(NewInfoLevel);
@@ -1867,6 +1903,21 @@ int32_t __tgt_rtl_init_device_info(int32_t DeviceId,
     return OFFLOAD_FAIL;
 
   return DeviceRTL.initDeviceInfo(DeviceId, DeviceInfoPtr, ErrStr);
+}
+
+int32_t __tgt_rtl_launch_kernel(int32_t DeviceId, void *TgtEntryPtr,
+                                void **TgtArgs, ptrdiff_t *TgtOffsets,
+                                KernelArgsTy *KernelArgs,
+                                __tgt_async_info *AsyncInfo) {
+  assert(DeviceRTL.isValidDeviceId(DeviceId) && "device_id is invalid");
+
+  if (DeviceRTL.setContext(DeviceId) != OFFLOAD_SUCCESS)
+    return OFFLOAD_FAIL;
+
+  return DeviceRTL.runTargetTeamRegion(
+      DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, KernelArgs->NumArgs,
+      KernelArgs->NumTeams[0], KernelArgs->ThreadLimit[0],
+      KernelArgs->Tripcount, AsyncInfo);
 }
 
 #ifdef __cplusplus

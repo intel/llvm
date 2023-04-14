@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/Transforms/BufferUtils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 
@@ -26,10 +27,11 @@ struct ConstantOpInterface
                           const BufferizationOptions &options) const {
     auto constantOp = cast<arith::ConstantOp>(op);
 
-    // TODO: Implement memory space for this op. E.g., by adding a memory_space
-    // attribute to ConstantOp.
-    if (options.defaultMemorySpace != static_cast<unsigned>(0))
-      return op->emitError("memory space not implemented yet");
+    Attribute memorySpace;
+    if (options.defaultMemorySpace.has_value())
+      memorySpace = *options.defaultMemorySpace;
+    else
+      return constantOp->emitError("could not infer memory space");
 
     // Only ranked tensors are supported.
     if (!constantOp.getType().isa<RankedTensorType>())
@@ -43,7 +45,7 @@ struct ConstantOpInterface
     // Create global memory segment and replace tensor with memref pointing to
     // that memory segment.
     FailureOr<memref::GlobalOp> globalOp =
-        getGlobalFor(constantOp, options.bufferAlignment);
+        getGlobalFor(constantOp, options.bufferAlignment, memorySpace);
     if (failed(globalOp))
       return failure();
     memref::GlobalOp globalMemref = *globalOp;
@@ -74,14 +76,9 @@ struct IndexCastOpInterface
     return false;
   }
 
-  SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
+  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
-    return {op->getResult(0)};
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    return BufferRelation::Equivalent;
+    return {{op->getResult(0), BufferRelation::Equivalent}};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -126,16 +123,10 @@ struct SelectOpInterface
     return false;
   }
 
-  SmallVector<OpResult> getAliasingOpResult(Operation *op, OpOperand &opOperand,
+  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
-    return {op->getOpResult(0) /*result*/};
-  }
-
-  SmallVector<OpOperand *>
-  getAliasingOpOperand(Operation *op, OpResult opResult,
-                       const AnalysisState &state) const {
-    return {&op->getOpOperand(1) /*true_value*/,
-            &op->getOpOperand(2) /*false_value*/};
+    return {{op->getOpResult(0) /*result*/, BufferRelation::Equivalent,
+             /*isDefinite=*/false}};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -188,7 +179,7 @@ struct SelectOpInterface
       return failure();
     if (*trueType == *falseType)
       return *trueType;
-    if (trueType->getMemorySpaceAsInt() != falseType->getMemorySpaceAsInt())
+    if (trueType->getMemorySpace() != falseType->getMemorySpace())
       return op->emitError("inconsistent memory space on true/false operands");
 
     // If the buffers have different types, they differ only in their layout
@@ -197,12 +188,7 @@ struct SelectOpInterface
     return getMemRefTypeWithFullyDynamicLayout(
         RankedTensorType::get(memrefType.getShape(),
                               memrefType.getElementType()),
-        memrefType.getMemorySpaceAsInt());
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const AnalysisState &state) const {
-    return BufferRelation::None;
+        memrefType.getMemorySpace());
   }
 };
 

@@ -8,6 +8,7 @@
 
 #include "TraceIntelPTJSONStructs.h"
 #include "llvm/Support/JSON.h"
+#include <optional>
 #include <string>
 
 using namespace lldb;
@@ -19,9 +20,10 @@ using namespace llvm::json;
 namespace lldb_private {
 namespace trace_intel_pt {
 
-Optional<std::vector<lldb::cpu_id_t>> JSONTraceBundleDescription::GetCpuIds() {
+std::optional<std::vector<lldb::cpu_id_t>>
+JSONTraceBundleDescription::GetCpuIds() {
   if (!cpus)
-    return None;
+    return std::nullopt;
   std::vector<lldb::cpu_id_t> cpu_ids;
   for (const JSONCpu &cpu : *cpus)
     cpu_ids.push_back(cpu.id);

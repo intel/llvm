@@ -9,7 +9,9 @@
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
 #include "Plugins/SymbolFile/DWARF/DWARFCompileUnit.h"
 #include "Plugins/SymbolFile/DWARF/DWARFDIE.h"
+#include "TestingSupport/Symbol/ClangTestUtils.h"
 #include "TestingSupport/Symbol/YAMLModuleTester.h"
+#include "lldb/Core/Debugger.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -18,7 +20,14 @@ using namespace lldb_private;
 using namespace lldb_private::dwarf;
 
 namespace {
-class DWARFASTParserClangTests : public testing::Test {};
+static std::once_flag debugger_initialize_flag;
+
+class DWARFASTParserClangTests : public testing::Test {
+  void SetUp() override {
+    std::call_once(debugger_initialize_flag,
+                   []() { Debugger::Initialize(nullptr); });
+  }
+};
 
 class DWARFASTParserClangStub : public DWARFASTParserClang {
 public:
@@ -93,7 +102,9 @@ DWARF:
   YAMLModuleTester t(yamldata);
   ASSERT_TRUE((bool)t.GetDwarfUnit());
 
-  TypeSystemClang ast_ctx("dummy ASTContext", HostInfoBase::GetTargetTriple());
+  auto holder = std::make_unique<clang_utils::TypeSystemClangHolder>("ast");
+  auto &ast_ctx = *holder->GetAST();
+
   DWARFASTParserClangStub ast_parser(ast_ctx);
 
   DWARFUnit *unit = t.GetDwarfUnit();
@@ -244,7 +255,8 @@ DWARF:
   ASSERT_EQ(cu_entry->Tag(), DW_TAG_compile_unit);
   DWARFDIE cu_die(unit, cu_entry);
 
-  TypeSystemClang ast_ctx("dummy ASTContext", HostInfoBase::GetTargetTriple());
+  auto holder = std::make_unique<clang_utils::TypeSystemClangHolder>("ast");
+  auto &ast_ctx = *holder->GetAST();
   DWARFASTParserClangStub ast_parser(ast_ctx);
 
   std::vector<std::string> found_function_types;
@@ -276,10 +288,12 @@ DWARF:
 
 struct ExtractIntFromFormValueTest : public testing::Test {
   SubsystemRAII<FileSystem, HostInfo> subsystems;
-  TypeSystemClang ts;
+  clang_utils::TypeSystemClangHolder holder;
+  TypeSystemClang &ts;
+
   DWARFASTParserClang parser;
   ExtractIntFromFormValueTest()
-      : ts("dummy ASTContext", HostInfoBase::GetTargetTriple()), parser(ts) {}
+      : holder("dummy ASTContext"), ts(*holder.GetAST()), parser(ts) {}
 
   /// Takes the given integer value, stores it in a DWARFFormValue and then
   /// tries to extract the value back via
@@ -397,4 +411,54 @@ TEST_F(ExtractIntFromFormValueTest, TestUnsignedInt) {
                        llvm::Failed());
   EXPECT_THAT_EXPECTED(Extract(ast.UnsignedIntTy, uint_max + 2),
                        llvm::Failed());
+}
+
+TEST_F(DWARFASTParserClangTests, TestDefaultTemplateParamParsing) {
+  // Tests parsing DW_AT_default_value for template parameters.
+  auto BufferOrError = llvm::MemoryBuffer::getFile(
+      GetInputFilePath("DW_AT_default_value-test.yaml"), /*IsText=*/true);
+  ASSERT_TRUE(BufferOrError);
+  YAMLModuleTester t(BufferOrError.get()->getBuffer());
+
+  DWARFUnit *unit = t.GetDwarfUnit();
+  ASSERT_NE(unit, nullptr);
+  const DWARFDebugInfoEntry *cu_entry = unit->DIE().GetDIE();
+  ASSERT_EQ(cu_entry->Tag(), DW_TAG_compile_unit);
+  DWARFDIE cu_die(unit, cu_entry);
+
+  auto holder = std::make_unique<clang_utils::TypeSystemClangHolder>("ast");
+  auto &ast_ctx = *holder->GetAST();
+  DWARFASTParserClangStub ast_parser(ast_ctx);
+
+  llvm::SmallVector<lldb::TypeSP, 2> types;
+  for (DWARFDIE die : cu_die.children()) {
+    if (die.Tag() == DW_TAG_class_type) {
+      SymbolContext sc;
+      bool new_type = false;
+      types.push_back(ast_parser.ParseTypeFromDWARF(sc, die, &new_type));
+    }
+  }
+
+  ASSERT_EQ(types.size(), 3U);
+
+  auto check_decl = [](auto const *decl) {
+    clang::ClassTemplateSpecializationDecl const *ctsd =
+        llvm::dyn_cast_or_null<clang::ClassTemplateSpecializationDecl>(decl);
+    ASSERT_NE(ctsd, nullptr);
+
+    auto const &args = ctsd->getTemplateArgs();
+    ASSERT_GT(args.size(), 0U);
+
+    for (auto const &arg : args.asArray()) {
+      EXPECT_TRUE(arg.getIsDefaulted());
+    }
+  };
+
+  for (auto const &type_sp : types) {
+    ASSERT_NE(type_sp, nullptr);
+    auto const *decl = ClangUtil::GetAsTagDecl(type_sp->GetFullCompilerType());
+    if (decl->getName() == "bar" || decl->getName() == "baz") {
+      check_decl(decl);
+    }
+  }
 }

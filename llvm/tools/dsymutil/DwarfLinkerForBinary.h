@@ -20,6 +20,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Remarks/RemarkFormat.h"
 #include "llvm/Remarks/RemarkLinker.h"
+#include <mutex>
 
 namespace llvm {
 namespace dsymutil {
@@ -35,14 +36,21 @@ namespace dsymutil {
 class DwarfLinkerForBinary {
 public:
   DwarfLinkerForBinary(raw_fd_ostream &OutFile, BinaryHolder &BinHolder,
-                       LinkOptions Options)
-      : OutFile(OutFile), BinHolder(BinHolder), Options(std::move(Options)) {}
+                       LinkOptions Options, std::mutex &ErrorHandlerMutex)
+      : OutFile(OutFile), BinHolder(BinHolder), Options(std::move(Options)),
+        ErrorHandlerMutex(ErrorHandlerMutex) {}
 
   /// Link the contents of the DebugMap.
   bool link(const DebugMap &);
 
-  void reportWarning(const Twine &Warning, StringRef Context,
+  void reportWarning(Twine Warning, Twine Context = {},
                      const DWARFDie *DIE = nullptr) const;
+  void reportError(Twine Error, Twine Context = {},
+                   const DWARFDie *DIE = nullptr) const;
+
+  /// Returns true if input verification is enabled and verification errors were
+  /// found.
+  bool InputVerificationFailed() const { return HasVerificationErrors; }
 
   /// Flags passed to DwarfLinker::lookForDIEsToKeep
   enum TraversalFlags {
@@ -177,9 +185,6 @@ private:
     bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                           bool IsLittleEndian) override;
 
-    llvm::Expected<uint64_t> relocateIndexedAddr(uint64_t StartOffset,
-                                                 uint64_t EndOffset) override;
-
     RangesTy &getValidAddressRanges() override { return AddressRanges; }
 
     void clear() override {
@@ -210,6 +215,8 @@ private:
       std::vector<MachOUtils::DwarfRelocationApplicationInfo>
           &RelocationsToApply) const;
 
+  Error copySwiftInterfaces(StringRef Architecture) const;
+
   void copySwiftReflectionMetadata(
       const llvm::dsymutil::DebugMapObject *Obj, DwarfStreamer *Streamer,
       std::vector<uint64_t> &SectionToOffsetInDwarf,
@@ -219,6 +226,8 @@ private:
   raw_fd_ostream &OutFile;
   BinaryHolder &BinHolder;
   LinkOptions Options;
+  std::mutex &ErrorHandlerMutex;
+
   std::unique_ptr<DwarfStreamer> Streamer;
   std::vector<std::unique_ptr<DWARFFile>> ObjectsForLinking;
   std::vector<std::unique_ptr<DWARFContext>> ContextForLinking;
@@ -233,6 +242,7 @@ private:
 
   bool ModuleCacheHintDisplayed = false;
   bool ArchiveHintDisplayed = false;
+  bool HasVerificationErrors = false;
 };
 
 } // end namespace dsymutil

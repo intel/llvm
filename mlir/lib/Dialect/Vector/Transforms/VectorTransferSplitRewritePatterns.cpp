@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <optional>
 #include <type_traits>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -37,13 +38,13 @@
 using namespace mlir;
 using namespace mlir::vector;
 
-static Optional<int64_t> extractConstantIndex(Value v) {
+static std::optional<int64_t> extractConstantIndex(Value v) {
   if (auto cstOp = v.getDefiningOp<arith::ConstantIndexOp>())
     return cstOp.value();
   if (auto affineApplyOp = v.getDefiningOp<AffineApplyOp>())
     if (affineApplyOp.getAffineMap().isSingleConstant())
       return affineApplyOp.getAffineMap().getSingleConstantResult();
-  return None;
+  return std::nullopt;
 }
 
 // Missing foldings of scf.if make it necessary to perform poor man's folding
@@ -91,11 +92,11 @@ static Value createInBoundsCond(RewriterBase &b,
 }
 
 /// Split a vector.transfer operation into an in-bounds (i.e., no out-of-bounds
-/// masking) fastpath and a slowpath.
+/// masking) fast path and a slow path.
 /// If `ifOp` is not null and the result is `success, the `ifOp` points to the
 /// newly created conditional upon function return.
-/// To accomodate for the fact that the original vector.transfer indexing may be
-/// arbitrary and the slow path indexes @[0...0] in the temporary buffer, the
+/// To accommodate for the fact that the original vector.transfer indexing may
+/// be arbitrary and the slow path indexes @[0...0] in the temporary buffer, the
 /// scf.if op returns a view and values of type index.
 /// At this time, only vector.transfer_read case is implemented.
 ///
@@ -106,11 +107,11 @@ static Value createInBoundsCond(RewriterBase &b,
 /// is transformed into:
 /// ```
 ///    %1:3 = scf.if (%inBounds) {
-///      // fastpath, direct cast
+///      // fast path, direct cast
 ///      memref.cast %A: memref<A...> to compatibleMemRefType
 ///      scf.yield %view : compatibleMemRefType, index, index
 ///    } else {
-///      // slowpath, not in-bounds vector.transfer or linalg.copy.
+///      // slow path, not in-bounds vector.transfer or linalg.copy.
 ///      memref.cast %alloc: memref<B...> to compatibleMemRefType
 ///      scf.yield %4 : compatibleMemRefType, index, index
 //     }
@@ -170,13 +171,11 @@ static MemRefType getCastCompatibleMemRefType(MemRefType aT, MemRefType bT) {
       resStrides(bT.getRank(), 0);
   for (int64_t idx = 0, e = aT.getRank(); idx < e; ++idx) {
     resShape[idx] =
-        (aShape[idx] == bShape[idx]) ? aShape[idx] : ShapedType::kDynamicSize;
-    resStrides[idx] = (aStrides[idx] == bStrides[idx])
-                          ? aStrides[idx]
-                          : ShapedType::kDynamicStrideOrOffset;
+        (aShape[idx] == bShape[idx]) ? aShape[idx] : ShapedType::kDynamic;
+    resStrides[idx] =
+        (aStrides[idx] == bStrides[idx]) ? aStrides[idx] : ShapedType::kDynamic;
   }
-  resOffset =
-      (aOffset == bOffset) ? aOffset : ShapedType::kDynamicStrideOrOffset;
+  resOffset = (aOffset == bOffset) ? aOffset : ShapedType::kDynamic;
   return MemRefType::get(
       resShape, aT.getElementType(),
       StridedLayoutAttr::get(aT.getContext(), resOffset, resStrides));
@@ -251,7 +250,7 @@ createFullPartialLinalgCopy(RewriterBase &b, vector::TransferReadOp xferOp,
   Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   Value memref = xferOp.getSource();
   return b.create<scf::IfOp>(
-      loc, returnTypes, inBoundsCond,
+      loc, inBoundsCond,
       [&](OpBuilder &b, Location loc) {
         Value res = memref;
         if (compatibleMemRefType != xferOp.getShapedType())
@@ -306,7 +305,7 @@ static scf::IfOp createFullPartialVectorTransferRead(
   Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   Value memref = xferOp.getSource();
   return b.create<scf::IfOp>(
-      loc, returnTypes, inBoundsCond,
+      loc, inBoundsCond,
       [&](OpBuilder &b, Location loc) {
         Value res = memref;
         if (compatibleMemRefType != xferOp.getShapedType())
@@ -357,7 +356,7 @@ getLocationToWriteFullVec(RewriterBase &b, vector::TransferWriteOp xferOp,
   Value memref = xferOp.getSource();
   return b
       .create<scf::IfOp>(
-          loc, returnTypes, inBoundsCond,
+          loc, inBoundsCond,
           [&](OpBuilder &b, Location loc) {
             Value res = memref;
             if (compatibleMemRefType != xferOp.getShapedType())
@@ -428,11 +427,12 @@ static void createFullPartialVectorTransferWrite(RewriterBase &b,
   auto notInBounds = b.create<arith::XOrIOp>(
       loc, inBoundsCond, b.create<arith::ConstantIntOp>(loc, true, 1));
   b.create<scf::IfOp>(loc, notInBounds, [&](OpBuilder &b, Location loc) {
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     Value load = b.create<memref::LoadOp>(
         loc,
         b.create<vector::TypeCastOp>(
-            loc, MemRefType::get({}, xferOp.getVector().getType()), alloc));
+            loc, MemRefType::get({}, xferOp.getVector().getType()), alloc),
+        ValueRange());
     mapping.map(xferOp.getVector(), load);
     b.clone(*xferOp.getOperation(), mapping);
     b.create<scf::YieldOp>(loc, ValueRange{});
@@ -525,7 +525,9 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   SmallVector<bool, 4> bools(xferOp.getTransferRank(), true);
   auto inBoundsAttr = b.getBoolArrayAttr(bools);
   if (options.vectorTransferSplit == VectorTransferSplit::ForceInBounds) {
-    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    b.updateRootInPlace(xferOp, [&]() {
+      xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    });
     return success();
   }
 
@@ -596,7 +598,9 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
     for (unsigned i = 0, e = returnTypes.size(); i != e; ++i)
       xferReadOp.setOperand(i, fullPartialIfOp.getResult(i));
 
-    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    b.updateRootInPlace(xferOp, [&]() {
+      xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    });
 
     return success();
   }
@@ -610,7 +614,7 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   // Do an in bounds write to either the output or the extra allocated buffer.
   // The operation is cloned to prevent deleting information needed for the
   // later IR creation.
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
   mapping.map(xferWriteOp.getSource(), memrefAndIndices.front());
   mapping.map(xferWriteOp.getIndices(), memrefAndIndices.drop_front());
   auto *clone = b.clone(*xferWriteOp, mapping);
@@ -623,22 +627,49 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   else
     createFullPartialLinalgCopy(b, xferWriteOp, inBoundsCond, alloc);
 
-  xferOp->erase();
+  b.eraseOp(xferOp);
 
   return success();
 }
 
-LogicalResult mlir::vector::VectorTransferFullPartialRewriter::matchAndRewrite(
+namespace {
+/// Apply `splitFullAndPartialTransfer` selectively via a pattern. This pattern
+/// may take an extra filter to perform selection at a finer granularity.
+struct VectorTransferFullPartialRewriter : public RewritePattern {
+  using FilterConstraintType =
+      std::function<LogicalResult(VectorTransferOpInterface op)>;
+
+  explicit VectorTransferFullPartialRewriter(
+      MLIRContext *context,
+      VectorTransformsOptions options = VectorTransformsOptions(),
+      FilterConstraintType filter =
+          [](VectorTransferOpInterface op) { return success(); },
+      PatternBenefit benefit = 1)
+      : RewritePattern(MatchAnyOpTypeTag(), benefit, context), options(options),
+        filter(std::move(filter)) {}
+
+  /// Performs the rewrite.
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override;
+
+private:
+  VectorTransformsOptions options;
+  FilterConstraintType filter;
+};
+
+} // namespace
+
+LogicalResult VectorTransferFullPartialRewriter::matchAndRewrite(
     Operation *op, PatternRewriter &rewriter) const {
   auto xferOp = dyn_cast<VectorTransferOpInterface>(op);
   if (!xferOp || failed(splitFullAndPartialTransferPrecondition(xferOp)) ||
       failed(filter(xferOp)))
     return failure();
-  rewriter.startRootUpdate(xferOp);
-  if (succeeded(splitFullAndPartialTransfer(rewriter, xferOp, options))) {
-    rewriter.finalizeRootUpdate(xferOp);
-    return success();
-  }
-  rewriter.cancelRootUpdate(xferOp);
-  return failure();
+  return splitFullAndPartialTransfer(rewriter, xferOp, options);
+}
+
+void mlir::vector::populateVectorTransferFullPartialPatterns(
+    RewritePatternSet &patterns, const VectorTransformsOptions &options) {
+  patterns.add<VectorTransferFullPartialRewriter>(patterns.getContext(),
+                                                  options);
 }

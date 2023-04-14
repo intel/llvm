@@ -811,8 +811,8 @@ void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
                                   .Case("ballot_inclusive_scan", "add")
                                   .Case("ballot_exclusive_scan", "add")
                                   .Default(FuncName.take_back(
-                                      3)); // assumes op is three characters
-          GroupOp.consume_front("_");      // when op is two characters
+                                      3));    // assumes op is three characters
+          (void)(GroupOp.consume_front("_")); // when op is two characters
           assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
           auto OpTy = F->getReturnType();
@@ -1383,9 +1383,11 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
 
   // If no event arguments in original call, add dummy ones
   if (!HasEvents) {
-    Args.push_back(getInt32(M, 0));           // dummy num events
-    Args.push_back(getOCLNullClkEventPtr(M)); // dummy wait events
-    Args.push_back(getOCLNullClkEventPtr(M)); // dummy ret event
+    Args.push_back(getInt32(M, 0)); // dummy num events
+    Value *Null = Constant::getNullValue(PointerType::get(
+        getSPIRVType(OpTypeDeviceEvent, true), SPIRAS_Generic));
+    Args.push_back(Null); // dummy wait events
+    Args.push_back(Null); // dummy ret event
   }
 
   // Invoke: Pointer to invoke function
@@ -1401,7 +1403,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // TODO: these numbers should be obtained from block literal structure
   Type *ParamType = getBlockStructType(BlockLiteral);
   Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
-  Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
+  Args.push_back(getInt32(M, DL.getPrefTypeAlign(ParamType).value()));
 
   // Local sizes arguments: Sizes of block invoke arguments
   // Clang 6.0 and higher generates local size operands as an array,
@@ -1422,8 +1424,8 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   }
 
   StringRef NewName = "__spirv_EnqueueKernel__";
-  FunctionType *FT =
-      FunctionType::get(CI->getType(), getTypes(Args), false /*isVarArg*/);
+  FunctionType *FT = FunctionType::get(
+      CI->getType(), getTypes(ArrayRef<Value *>(Args)), false /*isVarArg*/);
   Function *NewF =
       Function::Create(FT, GlobalValue::ExternalLinkage, NewName, M);
   NewF->setCallingConv(CallingConv::SPIR_FUNC);
@@ -1455,7 +1457,7 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
         // Add Param Size and Param Align at the end.
         Args[BlockFIdx] = BlockF;
         Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
-        Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
+        Args.push_back(getInt32(M, DL.getPrefTypeAlign(ParamType).value()));
 
         Op Opcode = OCLSPIRVBuiltinMap::map(DemangledName.str());
         // Adding "__" postfix, so in case we have multiple such
@@ -1659,7 +1661,9 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
     return; // this is not a VME built-in
 
   SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(CI->getCalledFunction(), ParamTys);
+  [[maybe_unused]] bool DidDemangle =
+      getParameterTypes(CI->getCalledFunction(), ParamTys);
+  assert(DidDemangle && "Expected SPIR-V builtins to be properly mangled");
   auto *TyIt = std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerTy);
   assert(TyIt != ParamTys.end() && "Invalid Subgroup AVC Intel built-in call");
   unsigned SamplerIndex = TyIt - ParamTys.begin();

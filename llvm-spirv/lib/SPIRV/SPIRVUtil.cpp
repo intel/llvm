@@ -162,83 +162,11 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
   return MangledName.erase(0, 3);
 }
 
-std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
-  if (Ty->isTypeFloat()) {
-    auto W = Ty->getBitWidth();
-    switch (W) {
-    case 16:
-      return "half";
-    case 32:
-      return "float";
-    case 64:
-      return "double";
-    default:
-      assert(0 && "Invalid floating pointer type");
-      return std::string("float") + W + "_t";
-    }
-  }
-  if (Ty->isTypeInt()) {
-    std::string SignPrefix;
-    std::string Stem;
-    if (!Signed)
-      SignPrefix = "u";
-    auto W = Ty->getBitWidth();
-    switch (W) {
-    case 8:
-      Stem = "char";
-      break;
-    case 16:
-      Stem = "short";
-      break;
-    case 32:
-      Stem = "int";
-      break;
-    case 64:
-      Stem = "long";
-      break;
-    default:
-      llvm_unreachable("Invalid integer type");
-      Stem = std::string("int") + W + "_t";
-      break;
-    }
-    return SignPrefix + Stem;
-  }
-  if (Ty->isTypeVector()) {
-    auto EleTy = Ty->getVectorComponentType();
-    auto Size = Ty->getVectorComponentCount();
-    std::stringstream Ss;
-    Ss << mapSPIRVTypeToOCLType(EleTy, Signed) << Size;
-    return Ss.str();
-  }
-  llvm_unreachable("Invalid type");
-  return "unknown_type";
-}
-
-PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
-                                      unsigned AddrSpace) {
-  return PointerType::get(getOrCreateOpaqueStructType(M, Name), AddrSpace);
-}
-
 StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name) {
   auto OpaqueType = StructType::getTypeByName(M->getContext(), Name);
   if (!OpaqueType)
     OpaqueType = StructType::create(M->getContext(), Name);
   return OpaqueType;
-}
-
-PointerType *getSamplerType(Module *M) {
-  return getOrCreateOpaquePtrType(M, getSPIRVTypeName(kSPIRVTypeName::Sampler),
-                                  SPIRAS_Constant);
-}
-
-Type *getSamplerStructType(Module *M) {
-  return getOrCreateOpaqueStructType(M,
-                                     getSPIRVTypeName(kSPIRVTypeName::Sampler));
-}
-
-PointerType *getSPIRVOpaquePtrType(Module *M, Op OC) {
-  std::string Name = getSPIRVTypeName(SPIRVOpaqueTypeOpCodeMap::rmap(OC));
-  return getOrCreateOpaquePtrType(M, Name, getOCLOpaqueTypeAddrSpace(OC));
 }
 
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
@@ -261,6 +189,10 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
           return true;
         }
       }
+  if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
+    assert(!Name && "Cannot get the name for a target-extension type image");
+    return TET->getName() == "spirv.Image";
+  }
   return false;
 }
 /// \param BaseTyName is the type Name as in spirv.BaseTyName.Postfixes
@@ -291,7 +223,8 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::half")) {
@@ -306,7 +239,8 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::bfloat16")) {
@@ -544,16 +478,22 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     size_t DemangledNameLenStart = NameSpaceStart + 11;
     size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
     size_t Len = 0;
-    Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
-        .getAsInteger(10, Len);
-    DemangledName = Name.substr(Start, Len);
-  } else {
-    size_t Start = Name.find_first_not_of("0123456789", 2);
-    size_t Len = 0;
-    Name.substr(2, Start - 2).getAsInteger(10, Len);
-    DemangledName = Name.substr(Start, Len);
+    if (!Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+             .getAsInteger(10, Len)) {
+      DemangledName = Name.substr(Start, Len);
+      return true;
+    }
+    SPIRVDBG(errs() << "Error in extracting integer value");
+    return false;
   }
-  return DemangledName.size() != 0;
+  size_t Start = Name.find_first_not_of("0123456789", 2);
+  size_t Len = 0;
+  if (!Name.substr(2, Start - 2).getAsInteger(10, Len)) {
+    DemangledName = Name.substr(Start, Len);
+    return true;
+  }
+  SPIRVDBG(errs() << "Error in extracting integer value");
+  return false;
 }
 
 // Check if a mangled type Name is unsigned
@@ -722,6 +662,37 @@ static StringRef stringify(const itanium_demangle::NameType *Node) {
   return StringRef(Str.begin(), Str.size());
 }
 
+/// Convert a mangled name that represents a basic integer, floating-point,
+/// etc. type into the corresponding LLVM type.
+static Type *getPrimitiveType(LLVMContext &Ctx,
+                              const llvm::itanium_demangle::Node *N) {
+  using namespace llvm::itanium_demangle;
+  if (auto *Name = dyn_cast<NameType>(N)) {
+    return parsePrimitiveType(Ctx, stringify(Name));
+  }
+  if (auto *BitInt = dyn_cast<BitIntType>(N)) {
+    unsigned BitWidth = 0;
+    BitInt->match([&](const Node *NodeSize, bool) {
+      const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
+      SizeStr.getAsInteger(10, BitWidth);
+    });
+    return Type::getIntNTy(Ctx, BitWidth);
+  }
+  if (auto *FP = dyn_cast<BinaryFPType>(N)) {
+    StringRef SizeStr;
+    FP->match([&](const Node *NodeDimension) {
+      SizeStr = stringify(cast<NameType>(NodeDimension));
+    });
+    return StringSwitch<Type *>(SizeStr)
+        .Case("16", Type::getHalfTy(Ctx))
+        .Case("32", Type::getFloatTy(Ctx))
+        .Case("64", Type::getDoubleTy(Ctx))
+        .Case("128", Type::getFP128Ty(Ctx))
+        .Default(nullptr);
+  }
+  return nullptr;
+}
+
 template <typename FnType>
 static TypedPointerType *
 parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
@@ -793,21 +764,15 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
       } else {
         PointeeTy = parsePrimitiveType(M->getContext(), MangledStructName);
       }
-    } else if (auto *BitInt = dyn_cast<BitIntType>(Pointee)) {
-      unsigned BitWidth = 0;
-      BitInt->match([&](const Node *NodeSize, bool) {
-        const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
-        SizeStr.getAsInteger(10, BitWidth);
-      });
-      PointeeTy = Type::getIntNTy(M->getContext(), BitWidth);
+    } else if (auto *Ty = getPrimitiveType(M->getContext(), Pointee)) {
+      PointeeTy = Ty;
     } else if (auto *Vec = dyn_cast<itanium_demangle::VectorType>(Pointee)) {
       unsigned ElemCount = 0;
       const StringRef ElemCountStr(
           stringify(cast<NameType>(Vec->getDimension())));
       ElemCountStr.getAsInteger(10, ElemCount);
-      if (auto *Name = dyn_cast<NameType>(Vec->getBaseType())) {
-        PointeeTy = parsePrimitiveType(M->getContext(), stringify(Name));
-        PointeeTy = llvm::VectorType::get(PointeeTy, ElemCount, false);
+      if (auto *Ty = getPrimitiveType(M->getContext(), Vec->getBaseType())) {
+        PointeeTy = llvm::VectorType::get(Ty, ElemCount, false);
       }
     } else if (llvm::isa<itanium_demangle::PointerType>(Pointee)) {
       PointeeTy = parseNode(M, Pointee, GetStructType);
@@ -929,7 +894,7 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       LLVM_DEBUG(dbgs() << "Failed to recover type of argument " << *ArgTy
                         << " of function " << F->getName() << "\n");
       DemangledSuccessfully = false;
-    } else if (!DemangledTy)
+    } else if (ArgTy->isTargetExtTy() || !DemangledTy)
       DemangledTy = ArgTy;
     *ArgIter++ = DemangledTy;
   }
@@ -1077,21 +1042,6 @@ PointerType *getInt8PtrTy(PointerType *T) {
 Value *castToInt8Ptr(Value *V, Instruction *Pos) {
   return CastInst::CreatePointerCast(
       V, getInt8PtrTy(cast<PointerType>(V->getType())), "", Pos);
-}
-
-CallInst *addBlockBind(Module *M, Function *InvokeFunc, Value *BlkCtx,
-                       Value *CtxLen, Value *CtxAlign, Instruction *InsPos,
-                       StringRef InstName) {
-  auto BlkTy =
-      getOrCreateOpaquePtrType(M, SPIR_TYPE_NAME_BLOCK_T, SPIRAS_Private);
-  auto &Ctx = M->getContext();
-  Value *BlkArgs[] = {
-      castToInt8Ptr(InvokeFunc),
-      CtxLen ? CtxLen : UndefValue::get(Type::getInt32Ty(Ctx)),
-      CtxAlign ? CtxAlign : UndefValue::get(Type::getInt32Ty(Ctx)),
-      BlkCtx ? BlkCtx : UndefValue::get(Type::getInt8PtrTy(Ctx))};
-  return addCallInst(M, SPIR_INTRINSIC_BLOCK_BIND, BlkTy, BlkArgs, nullptr,
-                     InsPos, nullptr, InstName);
 }
 
 IntegerType *getSizetType(Module *M) {
@@ -1395,6 +1345,25 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     }
     return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
   }
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty)) {
+    std::string FullName;
+    {
+      raw_string_ostream OS(FullName);
+      StringRef Name = TargetTy->getName();
+      if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
+        OS << "__spirv_" << Name;
+      } else {
+        OS << Name;
+      }
+      if (!TargetTy->int_params().empty())
+        OS << "_";
+      for (Type *InnerTy : TargetTy->type_params())
+        OS << "_" << convertTypeToPostfix(InnerTy);
+      for (unsigned Param : TargetTy->int_params())
+        OS << "_" << Param;
+    }
+    return SPIR::RefParamType(new SPIR::UserDefinedType(FullName));
+  }
 
   if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
     auto *ET = TPT->getElementType();
@@ -1470,8 +1439,10 @@ Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   auto GEP = cast<GEPOperator>(V);
   assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
   assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
-  assert(dyn_cast<ConstantInt>(GEP->getOperand(1))->getZExtValue() == 0);
-  assert(dyn_cast<ConstantInt>(GEP->getOperand(2))->getZExtValue() == 0);
+  [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
+  [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
+  assert(OP1->getZExtValue() == 0);
+  assert(OP2->getZExtValue() == 0);
   return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
 }
 
@@ -1549,20 +1520,6 @@ bool isSPIRVConstantName(StringRef TyName) {
   return false;
 }
 
-std::string getSPIRVImageTypePostfixes(StringRef SampledType,
-                                       SPIRVTypeImageDescriptor Desc,
-                                       SPIRVAccessQualifierKind Acc) {
-  std::string S;
-  raw_string_ostream OS(S);
-  OS << kSPIRVTypeName::PostfixDelim << SampledType
-     << kSPIRVTypeName::PostfixDelim << Desc.Dim << kSPIRVTypeName::PostfixDelim
-     << Desc.Depth << kSPIRVTypeName::PostfixDelim << Desc.Arrayed
-     << kSPIRVTypeName::PostfixDelim << Desc.MS << kSPIRVTypeName::PostfixDelim
-     << Desc.Sampled << kSPIRVTypeName::PostfixDelim << Desc.Format
-     << kSPIRVTypeName::PostfixDelim << Acc;
-  return OS.str();
-}
-
 std::string getSPIRVImageSampledTypeName(SPIRVType *Ty) {
   switch (Ty->getOpCode()) {
   case OpTypeVoid:
@@ -1609,6 +1566,35 @@ Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
   return nullptr;
 }
 
+std::string convertTypeToPostfix(Type *Ty) {
+  if (Ty->isIntegerTy()) {
+    switch (Ty->getIntegerBitWidth()) {
+    case 8:
+      return "char";
+    case 16:
+      return "short";
+    case 32:
+      return "uint";
+    case 64:
+      return "long";
+    default:
+      return (Twine("i") + Twine(Ty->getIntegerBitWidth())).str();
+    }
+  } else if (Ty->isHalfTy()) {
+    return "half";
+  } else if (Ty->isFloatTy()) {
+    return "float";
+  } else if (Ty->isDoubleTy()) {
+    return "double";
+  } else if (Ty->isBFloatTy()) {
+    return "bfloat16";
+  } else if (Ty->isVoidTy()) {
+    return "void";
+  } else {
+    report_fatal_error("Unknown LLVM type for element type");
+  }
+}
+
 std::string getImageBaseTypeName(StringRef Name) {
 
   SmallVector<StringRef, 4> SubStrs;
@@ -1627,30 +1613,14 @@ std::string getImageBaseTypeName(StringRef Name) {
   return ImageTyName;
 }
 
-std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc) {
-  std::string BaseTy;
-  std::string Postfixes;
-  raw_string_ostream OS(Postfixes);
-  if (Name.startswith(kSPR2TypeName::ImagePrefix)) {
-    std::string ImageTyName = getImageBaseTypeName(Name);
-    auto Desc = map<SPIRVTypeImageDescriptor>(ImageTyName);
-    LLVM_DEBUG(dbgs() << "[trans image type] " << Name << " => "
-                      << "(" << (unsigned)Desc.Dim << ", " << Desc.Depth << ", "
-                      << Desc.Arrayed << ", " << Desc.MS << ", " << Desc.Sampled
-                      << ", " << Desc.Format << ")\n");
-
-    BaseTy = kSPIRVTypeName::Image;
-    OS << getSPIRVImageTypePostfixes(
-        kSPIRVImageSampledTypeName::Void, Desc,
-        SPIRSPIRVAccessQualifierMap::map(Acc.str()));
-  } else {
-    LLVM_DEBUG(dbgs() << "Mapping of " << Name << " is not implemented\n");
-    llvm_unreachable("Not implemented");
-  }
-  return getSPIRVTypeName(BaseTy, OS.str());
-}
-
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
+  if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
+    auto IntParams = TET->int_params();
+    assert(IntParams.size() > 6 && "Expected type to be an image type");
+    return SPIRVTypeImageDescriptor(SPIRVImageDimKind(IntParams[0]),
+                                    IntParams[1], IntParams[2], IntParams[3],
+                                    IntParams[4], IntParams[5]);
+  }
   StringRef TyName;
   [[maybe_unused]] bool IsImg = isOCLImageType(Ty, &TyName);
   assert(IsImg && "Must be an image type");
@@ -1788,8 +1758,13 @@ bool hasAccessQualifiedName(StringRef TyName) {
 }
 
 SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName) {
-  return SPIRSPIRVAccessQualifierMap::map(
-      getAccessQualifierFullName(TyName).str());
+  assert(hasAccessQualifiedName(TyName) &&
+         "Type is not qualified with access.");
+  auto Acc = TyName.substr(TyName.size() - 5, 3);
+  return llvm::StringSwitch<SPIRVAccessQualifierKind>(Acc)
+      .Case(kAccessQualPostfix::ReadOnly, AccessQualifierReadOnly)
+      .Case(kAccessQualPostfix::WriteOnly, AccessQualifierWriteOnly)
+      .Case(kAccessQualPostfix::ReadWrite, AccessQualifierReadWrite);
 }
 
 StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access) {
@@ -1804,30 +1779,6 @@ StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access) {
     assert(false && "Unrecognized access qualifier!");
     return kAccessQualPostfix::ReadWrite;
   }
-}
-
-/// Get access qualifier from the type Name.
-StringRef getAccessQualifierFullName(StringRef TyName) {
-  assert(hasAccessQualifiedName(TyName) &&
-         "Type is not qualified with access.");
-  auto Acc = TyName.substr(TyName.size() - 5, 3);
-  return llvm::StringSwitch<StringRef>(Acc)
-      .Case(kAccessQualPostfix::ReadOnly, kAccessQualName::ReadOnly)
-      .Case(kAccessQualPostfix::WriteOnly, kAccessQualName::WriteOnly)
-      .Case(kAccessQualPostfix::ReadWrite, kAccessQualName::ReadWrite);
-}
-
-llvm::PointerType *getOCLClkEventType(Module *M) {
-  return getOrCreateOpaquePtrType(M, SPIR_TYPE_NAME_CLK_EVENT_T,
-                                  SPIRAS_Private);
-}
-
-llvm::PointerType *getOCLClkEventPtrType(Module *M) {
-  return PointerType::get(getOCLClkEventType(M), SPIRAS_Generic);
-}
-
-llvm::Constant *getOCLNullClkEventPtr(Module *M) {
-  return Constant::getNullValue(getOCLClkEventPtrType(M));
 }
 
 bool hasLoopMetadata(const Module *M) {
@@ -1929,7 +1880,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       Ty = VecTy->getElementType();
     }
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
-        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+        (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(
           false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
       return false;
@@ -1944,7 +1896,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       Ty = VecTy->getElementType();
     }
     if ((!Ty->isIntegerTy()) ||
-        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+        (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(
           false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
     }
@@ -1956,14 +1909,15 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   return true;
 }
 
-void setAttrByCalledFunc(CallInst *Call) {
+CallInst *setAttrByCalledFunc(CallInst *Call) {
   Function *F = Call->getCalledFunction();
   assert(F);
   if (F->isIntrinsic()) {
-    return;
+    return Call;
   }
   Call->setCallingConv(F->getCallingConv());
   Call->setAttributes(F->getAttributes());
+  return Call;
 }
 
 bool isSPIRVBuiltinVariable(GlobalVariable *GV,
@@ -2013,6 +1967,75 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 // %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
 // %5 = insertelement <3 x i64> %3, i64 %4, i32 2
 // %6 = extractelement <3 x i64> %5, i32 0
+
+/// Recursively look through the uses of a global variable, including casts or
+/// gep offsets, to find all loads of the variable. Gep offsets that are non-0
+/// are accumulated in the AccumulatedOffset parameter, which will eventually be
+/// used to figure out which index of a variable is being used.
+static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
+                                    Function *ReplacementFunc) {
+  const DataLayout &DL = ReplacementFunc->getParent()->getDataLayout();
+  SmallVector<Instruction *, 4> InstsToRemove;
+  for (User *U : V->users()) {
+    if (auto *Cast = dyn_cast<CastInst>(U)) {
+      replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc);
+      InstsToRemove.push_back(Cast);
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+      APInt NewOffset = AccumulatedOffset.sextOrTrunc(
+          DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
+      if (!GEP->accumulateConstantOffset(DL, NewOffset))
+        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc);
+      InstsToRemove.push_back(GEP);
+    } else if (auto *Load = dyn_cast<LoadInst>(U)) {
+      // Figure out which index the accumulated offset corresponds to. If we
+      // have a weird offset (e.g., trying to load byte 7), bail out.
+      Type *ScalarTy = ReplacementFunc->getReturnType();
+      APInt Index;
+      uint64_t Remainder;
+      APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
+                     Index, Remainder);
+      if (Remainder != 0)
+        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+
+      IRBuilder<> Builder(Load);
+      Value *Replacement;
+      if (ReplacementFunc->getFunctionType()->getNumParams() == 0) {
+        if (Load->getType() != ScalarTy)
+          llvm_unreachable("Illegal use of a SPIR-V builtin variable");
+        Replacement =
+            setAttrByCalledFunc(Builder.CreateCall(ReplacementFunc, {}));
+      } else {
+        // The function has an index parameter.
+        if (auto *VecTy = dyn_cast<FixedVectorType>(Load->getType())) {
+          if (!Index.isZero())
+            llvm_unreachable("Illegal use of a SPIR-V builtin variable");
+          Replacement = UndefValue::get(VecTy);
+          for (unsigned I = 0; I < VecTy->getNumElements(); I++) {
+            Replacement = Builder.CreateInsertElement(
+                Replacement,
+                setAttrByCalledFunc(
+                    Builder.CreateCall(ReplacementFunc, {Builder.getInt32(I)})),
+                Builder.getInt32(I));
+          }
+        } else if (Load->getType() == ScalarTy) {
+          Replacement = setAttrByCalledFunc(Builder.CreateCall(
+              ReplacementFunc, {Builder.getInt32(Index.getZExtValue())}));
+        } else {
+          llvm_unreachable("Illegal load type of a SPIR-V builtin variable");
+        }
+      }
+      Load->replaceAllUsesWith(Replacement);
+      InstsToRemove.push_back(Load);
+    } else {
+      llvm_unreachable("Illegal use of a SPIR-V builtin variable");
+    }
+  }
+
+  for (Instruction *I : InstsToRemove)
+    I->eraseFromParent();
+}
+
 bool lowerBuiltinVariableToCall(GlobalVariable *GV,
                                 SPIRVBuiltinVariableKind Kind) {
   // There might be dead constant users of GV (for example, SPIRVLowerConstExpr
@@ -2045,112 +2068,10 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     Func->addFnAttr(Attribute::NoUnwind);
     Func->addFnAttr(Attribute::WillReturn);
-    for (llvm::Argument &Arg : Func->args())
-      if (Arg.getType()->isPointerTy())
-        Arg.addAttr(Attribute::ReadNone);
+    Func->setDoesNotAccessMemory();
   }
 
-  // Collect instructions in these containers to remove them later.
-  std::vector<Instruction *> Loads;
-  std::vector<Instruction *> Casts;
-  std::vector<Instruction *> GEPs;
-
-  auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
-    auto *Call = CallInst::Create(Func, Arg, "", I);
-    Call->takeName(I);
-    setAttrByCalledFunc(Call);
-    SPIRVDBG(dbgs() << "[lowerBuiltinVariableToCall] " << *I << " -> " << *Call
-                    << '\n';)
-    I->replaceAllUsesWith(Call);
-  };
-
-  // If HasIndexArg is true, we create 3 built-in calls and insertelement to
-  // get 3-element vector filled with ids and replace uses of Load instruction
-  // with this vector.
-  // If HasIndexArg is false, the result of the Load instruction is the value
-  // which should be replaced with the Func.
-  // Returns true if Load was replaced, false otherwise.
-  auto ReplaceIfLoad = [&](User *I) {
-    auto *LD = dyn_cast<LoadInst>(I);
-    if (!LD)
-      return false;
-    std::vector<Value *> Vectors;
-    Loads.push_back(LD);
-    if (HasIndexArg) {
-      auto *VecTy = cast<FixedVectorType>(GVTy);
-      Value *EmptyVec = UndefValue::get(VecTy);
-      Vectors.push_back(EmptyVec);
-      const DebugLoc &DLoc = LD->getDebugLoc();
-      for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
-        auto *Idx = ConstantInt::get(Type::getInt32Ty(C), I);
-        auto *Call = CallInst::Create(Func, {Idx}, "", LD);
-        if (DLoc)
-          Call->setDebugLoc(DLoc);
-        setAttrByCalledFunc(Call);
-        auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
-        if (DLoc)
-          Insert->setDebugLoc(DLoc);
-        Insert->insertAfter(Call);
-        Vectors.push_back(Insert);
-      }
-
-      Value *Ptr = LD->getPointerOperand();
-
-      if (isa<FixedVectorType>(LD->getType())) {
-        LD->replaceAllUsesWith(Vectors.back());
-      } else {
-        auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);
-        assert(GEP && "Unexpected pattern!");
-        assert(GEP->getNumIndices() == 2 && "Unexpected pattern!");
-        Value *Idx = GEP->getOperand(2);
-        Value *Vec = Vectors.back();
-        auto *NewExtract = ExtractElementInst::Create(Vec, Idx);
-        NewExtract->insertAfter(cast<Instruction>(Vec));
-        LD->replaceAllUsesWith(NewExtract);
-      }
-
-    } else {
-      Replace({}, LD);
-    }
-
-    return true;
-  };
-
-  // Go over the GV users, find Load and ExtractElement instructions and
-  // replace them with the corresponding function call.
-  for (auto *UI : GV->users()) {
-    // There might or might not be an addrspacecast instruction.
-    if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
-      Casts.push_back(ASCast);
-      for (auto *CastUser : ASCast->users()) {
-        if (ReplaceIfLoad(CastUser))
-          continue;
-        if (auto *GEP = dyn_cast<GetElementPtrInst>(CastUser)) {
-          GEPs.push_back(GEP);
-          for (auto *GEPUser : GEP->users()) {
-            if (!ReplaceIfLoad(GEPUser))
-              llvm_unreachable("Unexpected pattern!");
-          }
-        } else {
-          llvm_unreachable("Unexpected pattern!");
-        }
-      }
-    } else if (!ReplaceIfLoad(UI)) {
-      llvm_unreachable("Unexpected pattern!");
-    }
-  }
-
-  auto Erase = [](std::vector<Instruction *> &ToErase) {
-    for (Instruction *I : ToErase) {
-      assert(I->hasNUses(0));
-      I->eraseFromParent();
-    }
-  };
-  // Order of erasing is important.
-  Erase(Loads);
-  Erase(GEPs);
-  Erase(Casts);
-
+  replaceUsesOfBuiltinVar(GV, APInt(64, 0), Func);
   return true;
 }
 
@@ -2327,6 +2248,7 @@ public:
     case OpGroupNonUniformBallotFindMSB:
       addUnsignedArg(1);
       break;
+    case OpBitFieldSExtract:
     case OpGroupNonUniformBallotBitExtract:
       addUnsignedArg(1);
       addUnsignedArg(2);
@@ -2347,6 +2269,7 @@ public:
     case OpGroupNonUniformLogicalXor:
       addUnsignedArg(3);
       break;
+    case OpBitFieldInsert:
     case OpGroupNonUniformUMax:
     case OpGroupNonUniformUMin:
       addUnsignedArg(2);
@@ -2397,6 +2320,7 @@ public:
     case OpSubgroupAvcImeSetSingleReferenceINTEL:
       addUnsignedArg(1);
       break;
+    case OpBitFieldUExtract:
     case OpSubgroupAvcImeInitializeINTEL:
     case OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL:
     case OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL:
@@ -2513,8 +2437,5 @@ MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
   std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
   return MetadataAsValue::get(C, MDString::get(C, Str));
 }
-template MetadataAsValue *
-map2MDString<internal::InternalJointMatrixLayout>(LLVMContext &, SPIRVValue *);
-template MetadataAsValue *map2MDString<spv::Scope>(LLVMContext &, SPIRVValue *);
 
 } // namespace SPIRV

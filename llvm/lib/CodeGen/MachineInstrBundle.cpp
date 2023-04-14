@@ -58,8 +58,7 @@ bool UnpackMachineBundles::runOnMachineFunction(MachineFunction &MF) {
       if (MI->isBundle()) {
         while (++MII != MIE && MII->isBundledWithPred()) {
           MII->unbundleFromPred();
-          for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
-            MachineOperand &MO = MII->getOperand(i);
+          for (MachineOperand &MO  : MII->operands()) {
             if (MO.isReg() && MO.isInternalRead())
               MO.setIsInternalRead(false);
           }
@@ -149,8 +148,7 @@ void llvm::finalizeBundle(MachineBasicBlock &MBB,
     if (MII->isDebugInstr())
       continue;
 
-    for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
-      MachineOperand &MO = MII->getOperand(i);
+    for (MachineOperand &MO : MII->operands()) {
       if (!MO.isReg())
         continue;
       if (MO.isDef()) {
@@ -198,7 +196,7 @@ void llvm::finalizeBundle(MachineBasicBlock &MBB,
           DeadDefSet.erase(Reg);
       }
 
-      if (!MO.isDead() && Register::isPhysicalRegister(Reg)) {
+      if (!MO.isDead() && Reg.isPhysical()) {
         for (MCSubRegIterator SubRegs(Reg, TRI); SubRegs.isValid(); ++SubRegs) {
           unsigned SubReg = *SubRegs;
           if (LocalDefSet.insert(SubReg).second)
@@ -328,7 +326,7 @@ PhysRegInfo llvm::AnalyzePhysRegInBundle(const MachineInstr &MI, Register Reg,
       continue;
 
     Register MOReg = MO.getReg();
-    if (!MOReg || !Register::isPhysicalRegister(MOReg))
+    if (!MOReg || !MOReg.isPhysical())
       continue;
 
     if (!TRI->regsOverlap(MOReg, Reg))

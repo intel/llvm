@@ -92,41 +92,39 @@ module color_points
   end interface
 end module color_points
 
-! We don't handle lowering of submodules yet.  The following tests are
-! commented out and "CHECK" is changed to "xHECK" to not trigger FileCheck.
-!submodule (color_points) color_points_a
-!contains
-!  ! xHECK-LABEL: func @_QMcolor_pointsScolor_points_aPsub() {
-!  subroutine sub
-!  end subroutine
-!  ! xHECK: }
-!end submodule
-!
-!submodule (color_points:color_points_a) impl
-!contains
-!  ! xHECK-LABEL: func @_QMcolor_pointsScolor_points_aSimplPfoo()
-!  subroutine foo
-!    contains
-!    ! xHECK-LABEL: func @_QMcolor_pointsScolor_points_aSimplFfooPbar() {
-!    subroutine bar
-!    ! xHECK: }
-!    end subroutine
-!  end subroutine
-!  ! xHECK-LABEL: func @_QMcolor_pointsPdraw() {
-!  module subroutine draw()
-!  end subroutine
-!  !FIXME func @_QMcolor_pointsPerase() -> i32 {
-!  module procedure erase
-!  ! xHECK: }
-!  end procedure
-!end submodule
+submodule (color_points) color_points_a
+contains
+  ! CHECK-LABEL: func @_QMcolor_pointsScolor_points_aPsub() {
+  subroutine sub
+  end subroutine
+  ! CHECK: }
+end submodule
+
+submodule (color_points:color_points_a) impl
+contains
+  ! CHECK-LABEL: func @_QMcolor_pointsScolor_points_aSimplPfoo()
+  subroutine foo
+    contains
+    ! CHECK-LABEL: func @_QMcolor_pointsScolor_points_aSimplFfooPbar() {
+    subroutine bar
+    ! CHECK: }
+    end subroutine
+  end subroutine
+  ! CHECK-LABEL: func @_QMcolor_pointsPdraw() {
+  module subroutine draw()
+  end subroutine
+  !FIXME func @_QMcolor_pointsPerase() -> i32 {
+  module procedure erase
+  ! CHECK: }
+  end procedure
+end submodule
 
 ! CHECK-LABEL: func @_QPshould_not_collide() {
 subroutine should_not_collide()
 ! CHECK: }
 end subroutine
 
-! CHECK-LABEL: func @_QQmain() {
+! CHECK-LABEL: func @_QQmain() attributes {fir.bindc_name = "test"} {
 program test
 ! CHECK: }
 contains
@@ -158,7 +156,7 @@ end subroutine bind_c_s
 
 ! CHECK-LABEL: func @_QPbind_c_s() {
 subroutine bind_c_s()
-  ! CHECK: fir.call @_QPbind_c_q() : () -> ()
+  ! CHECK: fir.call @_QPbind_c_q() {{.*}}: () -> ()
   ! CHECK: return
   call bind_c_q
 end
@@ -169,7 +167,7 @@ subroutine bind_c_q()
     subroutine bind_c_s() Bind(C, name='bc1')
     end
   end interface
-  ! CHECK: fir.call @bc1() : () -> ()
+  ! CHECK: fir.call @bc1() {{.*}}: () -> ()
   ! CHECK: return
   call bind_c_s
 end
@@ -201,25 +199,52 @@ module testMod3
 ! CHECK-LABEL: func @ok3() -> f32 attributes {fir.bindc_name = "ok3"} {
   real function f2() bind(c,name=foo//'3')
     character*(*), parameter :: foo = ok
-! CHECK: fir.call @ok1() : () -> f32
+! CHECK: fir.call @ok1() {{.*}}: () -> f32
 ! CHECK-LABEL: func @ok4() -> f32 attributes {fir.bindc_name = "ok4"} {
     entry f3() bind(c,name=foo//'4')
-! CHECK: fir.call @ok1() : () -> f32
+! CHECK: fir.call @ok1() {{.*}}: () -> f32
     f2 = f1()
   end function
 ! CHECK-LABEL: func @ok5() attributes {fir.bindc_name = "ok5"} {
   subroutine s2() bind(c,name=foo//'5')
     character*(*), parameter :: foo = ok
-! CHECK: fir.call @ok2() : () -> ()
+! CHECK: fir.call @ok2() {{.*}}: () -> ()
 ! CHECK-LABEL: func @ok6() attributes {fir.bindc_name = "ok6"} {
     entry s3() bind(c,name=foo//'6')
-! CHECK: fir.call @ok2() : () -> ()
+! CHECK: fir.call @ok2() {{.*}}: () -> ()
     continue ! force end of specification part
 ! CHECK-LABEL: func @ok7() attributes {fir.bindc_name = "ok7"} {
     entry s4() bind(c,name=foo//'7')
-! CHECK: fir.call @ok2() : () -> ()
+! CHECK: fir.call @ok2() {{.*}}: () -> ()
     call s1
   end subroutine
 end module
+
+
+! CHECK-LABEL: func @_QPnest1
+subroutine nest1
+  ! CHECK:   fir.call @_QFnest1Pinner()
+  call inner
+contains
+  ! CHECK-LABEL: func @_QFnest1Pinner
+  subroutine inner
+    ! CHECK:   %[[V_0:[0-9]+]] = fir.address_of(@_QFnest1FinnerEkk) : !fir.ref<i32>
+    integer, save :: kk = 1
+    print*, 'qq:inner', kk
+  end
+end
+
+! CHECK-LABEL: func @_QPnest2
+subroutine nest2
+  ! CHECK:   fir.call @_QFnest2Pinner()
+  call inner
+contains
+  ! CHECK-LABEL: func @_QFnest2Pinner
+  subroutine inner
+    ! CHECK:   %[[V_0:[0-9]+]] = fir.address_of(@_QFnest2FinnerEkk) : !fir.ref<i32>
+    integer, save :: kk = 77
+    print*, 'ss:inner', kk
+  end
+end
 
 ! CHECK-LABEL: fir.global internal @_QFfooEpi : f32 {

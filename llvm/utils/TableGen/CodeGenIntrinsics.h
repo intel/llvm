@@ -1,4 +1,4 @@
-//===- CodeGenIntrinsic.h - Intrinsic Class Wrapper ------------*- C++ -*--===//
+//===- CodeGenIntrinsics.h - Intrinsic Class Wrapper -----------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,12 +16,21 @@
 #include "SDNodeProperties.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MachineValueType.h"
+#include "llvm/Support/ModRef.h"
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace llvm {
 class Record;
 class RecordKeeper;
+
+// FIXME: Sweep this in the near future.
+namespace tmp {
+/// getValueType - Return the MVT::SimpleValueType that the specified TableGen
+/// record corresponds to.
+MVT::SimpleValueType getValueType(Record *Rec);
+} // namespace tmp
 
 struct CodeGenIntrinsic {
   Record *TheDef;             // The actual record defining this intrinsic.
@@ -58,51 +67,8 @@ struct CodeGenIntrinsic {
 
   IntrinsicSignature IS;
 
-  /// Bit flags describing the type (ref/mod) and location of memory
-  /// accesses that may be performed by the intrinsics. Analogous to
-  /// \c FunctionModRefBehaviour.
-  enum ModRefBits {
-    /// The intrinsic may access memory that is otherwise inaccessible via
-    /// LLVM IR.
-    MR_InaccessibleMem = 1,
-
-    /// The intrinsic may access memory through pointer arguments.
-    /// LLVM IR.
-    MR_ArgMem = 2,
-
-    /// The intrinsic may access memory anywhere, i.e. it is not restricted
-    /// to access through pointer arguments.
-    MR_Anywhere = 4 | MR_ArgMem | MR_InaccessibleMem,
-
-    /// The intrinsic may read memory.
-    MR_Ref = 8,
-
-    /// The intrinsic may write memory.
-    MR_Mod = 16,
-
-    /// The intrinsic may both read and write memory.
-    MR_ModRef = MR_Ref | MR_Mod,
-  };
-
-  /// Memory mod/ref behavior of this intrinsic, corresponding to intrinsic
-  /// properties (IntrReadMem, IntrArgMemOnly, etc.).
-  enum ModRefBehavior {
-    NoMem = 0,
-    ReadArgMem = MR_Ref | MR_ArgMem,
-    ReadInaccessibleMem = MR_Ref | MR_InaccessibleMem,
-    ReadInaccessibleMemOrArgMem = MR_Ref | MR_ArgMem | MR_InaccessibleMem,
-    ReadMem = MR_Ref | MR_Anywhere,
-    WriteArgMem = MR_Mod | MR_ArgMem,
-    WriteInaccessibleMem = MR_Mod | MR_InaccessibleMem,
-    WriteInaccessibleMemOrArgMem = MR_Mod | MR_ArgMem | MR_InaccessibleMem,
-    WriteMem = MR_Mod | MR_Anywhere,
-    ReadWriteArgMem = MR_ModRef | MR_ArgMem,
-    ReadWriteInaccessibleMem = MR_ModRef | MR_InaccessibleMem,
-    ReadWriteInaccessibleMemOrArgMem = MR_ModRef | MR_ArgMem |
-                                       MR_InaccessibleMem,
-    ReadWriteMem = MR_ModRef | MR_Anywhere,
-  };
-  ModRefBehavior ModRef;
+  /// Memory effects of the intrinsic.
+  MemoryEffects ME = MemoryEffects::unknown();
 
   /// SDPatternOperator Properties applied to the intrinsic.
   unsigned Properties;

@@ -13,7 +13,6 @@
 #include "DwarfCompileUnit.h"
 #include "AddressPool.h"
 #include "DwarfExpression.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -36,6 +35,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include <iterator>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -121,8 +121,8 @@ unsigned DwarfCompileUnit::getOrCreateSourceID(const DIFile *File) {
   // extend .file to support this.
   unsigned CUID = Asm->OutStreamer->hasRawTextSupport() ? 0 : getUniqueID();
   if (!File)
-    return Asm->OutStreamer->emitDwarfFileDirective(0, "", "", None, None,
-                                                    CUID);
+    return Asm->OutStreamer->emitDwarfFileDirective(0, "", "", std::nullopt,
+                                                    std::nullopt, CUID);
 
   if (LastFile != File) {
     LastFile = File;
@@ -203,7 +203,7 @@ void DwarfCompileUnit::addLocationAttribute(
     DIE *VariableDIE, const DIGlobalVariable *GV, ArrayRef<GlobalExpr> GlobalExprs) {
   bool addToAccelTable = false;
   DIELoc *Loc = nullptr;
-  Optional<unsigned> NVPTXAddressSpace;
+  std::optional<unsigned> NVPTXAddressSpace;
   std::unique_ptr<DIEDwarfExpression> DwarfExpr;
   for (const auto &GE : GlobalExprs) {
     const GlobalVariable *Global = GE.Var;
@@ -278,7 +278,16 @@ void DwarfCompileUnit::addLocationAttribute(
                    : FormAndOp{dwarf::DW_FORM_data8, dwarf::DW_OP_const8u};
       };
       if (Global->isThreadLocal()) {
-        if (Asm->TM.useEmulatedTLS()) {
+        if (Asm->TM.getTargetTriple().isWasm()) {
+          // FIXME This is not guaranteed, but in practice, in static linking,
+          // if present, __tls_base's index is 1. This doesn't hold for dynamic
+          // linking, so TLS variables used in dynamic linking won't have
+          // correct debug info for now. See
+          // https://github.com/llvm/llvm-project/blob/19afbfe33156d211fa959dadeea46cd17b9c723c/lld/wasm/Driver.cpp#L786-L823
+          addWasmRelocBaseGlobal(Loc, "__tls_base", 1);
+          addOpAddress(*Loc, Sym);
+          addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_plus);
+        } else if (Asm->TM.useEmulatedTLS()) {
           // TODO: add debug info for emulated thread local mode.
         } else {
           // FIXME: Make this work with -gsplit-dwarf.
@@ -301,6 +310,14 @@ void DwarfCompileUnit::addLocationAttribute(
                   DD->useGNUTLSOpcode() ? dwarf::DW_OP_GNU_push_tls_address
                                         : dwarf::DW_OP_form_tls_address);
         }
+      } else if (Asm->TM.getTargetTriple().isWasm() &&
+                 Asm->TM.getRelocationModel() == Reloc::PIC_) {
+        // FIXME This is not guaranteed, but in practice, if present,
+        // __memory_base's index is 1. See
+        // https://github.com/llvm/llvm-project/blob/19afbfe33156d211fa959dadeea46cd17b9c723c/lld/wasm/Driver.cpp#L786-L823
+        addWasmRelocBaseGlobal(Loc, "__memory_base", 1);
+        addOpAddress(*Loc, Sym);
+        addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_plus);
       } else if ((Asm->TM.getRelocationModel() == Reloc::RWPI ||
                   Asm->TM.getRelocationModel() == Reloc::ROPI_RWPI) &&
                  !Asm->getObjFileLowering()
@@ -340,7 +357,7 @@ void DwarfCompileUnit::addLocationAttribute(
     // correctly interpret address space of the variable address.
     const unsigned NVPTX_ADDR_global_space = 5;
     addUInt(*VariableDIE, dwarf::DW_AT_address_class, dwarf::DW_FORM_data1,
-            NVPTXAddressSpace ? *NVPTXAddressSpace : NVPTX_ADDR_global_space);
+            NVPTXAddressSpace.value_or(NVPTX_ADDR_global_space));
   }
   if (Loc)
     addBlock(*VariableDIE, dwarf::DW_AT_location, DwarfExpr->finalize());
@@ -449,6 +466,39 @@ DIE &DwarfCompileUnit::updateSubprogramScopeDIE(const DISubprogram *SP) {
   return ContextCU->updateSubprogramScopeDIEImpl(SP, SPDie);
 }
 
+// Add info for Wasm-global-based relocation.
+// 'GlobalIndex' is used for split dwarf, which currently relies on a few
+// assumptions that are not guaranteed in a formal way but work in practice.
+void DwarfCompileUnit::addWasmRelocBaseGlobal(DIELoc *Loc, StringRef GlobalName,
+                                              uint64_t GlobalIndex) {
+  // FIXME: duplicated from Target/WebAssembly/WebAssembly.h
+  // don't want to depend on target specific headers in this code?
+  const unsigned TI_GLOBAL_RELOC = 3;
+  unsigned PointerSize = Asm->getDataLayout().getPointerSize();
+  auto *Sym = cast<MCSymbolWasm>(Asm->GetExternalSymbolSymbol(GlobalName));
+  // FIXME: this repeats what WebAssemblyMCInstLower::
+  // GetExternalSymbolSymbol does, since if there's no code that
+  // refers to this symbol, we have to set it here.
+  Sym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
+  Sym->setGlobalType(wasm::WasmGlobalType{
+      static_cast<uint8_t>(PointerSize == 4 ? wasm::WASM_TYPE_I32
+                                            : wasm::WASM_TYPE_I64),
+      true});
+  addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_WASM_location);
+  addSInt(*Loc, dwarf::DW_FORM_sdata, TI_GLOBAL_RELOC);
+  if (!isDwoUnit()) {
+    addLabel(*Loc, dwarf::DW_FORM_data4, Sym);
+  } else {
+    // FIXME: when writing dwo, we need to avoid relocations. Probably
+    // the "right" solution is to treat globals the way func and data
+    // symbols are (with entries in .debug_addr).
+    // For now we hardcode the indices in the callsites. Global indices are not
+    // fixed, but in practice a few are fixed; for example, __stack_pointer is
+    // always index 0.
+    addUInt(*Loc, dwarf::DW_FORM_data4, GlobalIndex);
+  }
+}
+
 DIE &DwarfCompileUnit::updateSubprogramScopeDIEImpl(const DISubprogram *SP,
                                                     DIE *SPDie) {
   SmallVector<RangeSpan, 2> BB_List;
@@ -485,35 +535,14 @@ DIE &DwarfCompileUnit::updateSubprogramScopeDIEImpl(const DISubprogram *SP,
     }
     case TargetFrameLowering::DwarfFrameBase::WasmFrameBase: {
       // FIXME: duplicated from Target/WebAssembly/WebAssembly.h
-      // don't want to depend on target specific headers in this code?
       const unsigned TI_GLOBAL_RELOC = 3;
       if (FrameBase.Location.WasmLoc.Kind == TI_GLOBAL_RELOC) {
         // These need to be relocatable.
-        assert(FrameBase.Location.WasmLoc.Index == 0);  // Only SP so far.
-        auto SPSym = cast<MCSymbolWasm>(
-          Asm->GetExternalSymbolSymbol("__stack_pointer"));
-        // FIXME: this repeats what WebAssemblyMCInstLower::
-        // GetExternalSymbolSymbol does, since if there's no code that
-        // refers to this symbol, we have to set it here.
-        SPSym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
-        SPSym->setGlobalType(wasm::WasmGlobalType{
-            uint8_t(Asm->getSubtargetInfo().getTargetTriple().getArch() ==
-                            Triple::wasm64
-                        ? wasm::WASM_TYPE_I64
-                        : wasm::WASM_TYPE_I32),
-            true});
         DIELoc *Loc = new (DIEValueAllocator) DIELoc;
-        addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_WASM_location);
-        addSInt(*Loc, dwarf::DW_FORM_sdata, TI_GLOBAL_RELOC);
-        if (!isDwoUnit()) {
-          addLabel(*Loc, dwarf::DW_FORM_data4, SPSym);
-        } else {
-          // FIXME: when writing dwo, we need to avoid relocations. Probably
-          // the "right" solution is to treat globals the way func and data
-          // symbols are (with entries in .debug_addr).
-          // For now, since we only ever use index 0, this should work as-is.
-          addUInt(*Loc, dwarf::DW_FORM_data4, FrameBase.Location.WasmLoc.Index);
-        }
+        assert(FrameBase.Location.WasmLoc.Index == 0); // Only SP so far.
+        // For now, since we only ever use index 0, this should work as-is.
+        addWasmRelocBaseGlobal(Loc, "__stack_pointer",
+                               FrameBase.Location.WasmLoc.Index);
         addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_stack_value);
         addBlock(*SPDie, dwarf::DW_AT_frame_base, Loc);
       } else {
@@ -608,7 +637,7 @@ void DwarfCompileUnit::attachRangesOrLowHighPC(
   assert(!Ranges.empty());
   if (!DD->useRangesSection() ||
       (Ranges.size() == 1 &&
-       (!DD->alwaysUseRanges() ||
+       (!DD->alwaysUseRanges(*this) ||
         DD->getSectionLabel(&Ranges.front().Begin->getSection()) ==
             Ranges.front().Begin))) {
     const RangeSpan &Front = Ranges.front();
@@ -670,13 +699,13 @@ DIE *DwarfCompileUnit::constructInlinedScopeDIE(LexicalScope *Scope,
 
   // Add the call site information to the DIE.
   const DILocation *IA = Scope->getInlinedAt();
-  addUInt(*ScopeDIE, dwarf::DW_AT_call_file, None,
+  addUInt(*ScopeDIE, dwarf::DW_AT_call_file, std::nullopt,
           getOrCreateSourceID(IA->getFile()));
-  addUInt(*ScopeDIE, dwarf::DW_AT_call_line, None, IA->getLine());
+  addUInt(*ScopeDIE, dwarf::DW_AT_call_line, std::nullopt, IA->getLine());
   if (IA->getColumn())
-    addUInt(*ScopeDIE, dwarf::DW_AT_call_column, None, IA->getColumn());
+    addUInt(*ScopeDIE, dwarf::DW_AT_call_column, std::nullopt, IA->getColumn());
   if (IA->getDiscriminator() && DD->getDwarfVersion() >= 4)
-    addUInt(*ScopeDIE, dwarf::DW_AT_GNU_discriminator, None,
+    addUInt(*ScopeDIE, dwarf::DW_AT_GNU_discriminator, std::nullopt,
             IA->getDiscriminator());
 
   // Add name to the name table, we do this here because we're guaranteed
@@ -847,7 +876,7 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
   if (!DV.hasFrameIndexExprs())
     return VariableDie;
 
-  Optional<unsigned> NVPTXAddressSpace;
+  std::optional<unsigned> NVPTXAddressSpace;
   DIELoc *Loc = new (DIEValueAllocator) DIELoc;
   DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
   for (const auto &Fragment : DV.getFrameIndexExprs()) {
@@ -895,7 +924,7 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
     // correctly interpret address space of the variable address.
     const unsigned NVPTX_ADDR_local_space = 6;
     addUInt(*VariableDie, dwarf::DW_AT_address_class, dwarf::DW_FORM_data1,
-            NVPTXAddressSpace ? *NVPTXAddressSpace : NVPTX_ADDR_local_space);
+            NVPTXAddressSpace.value_or(NVPTX_ADDR_local_space));
   }
   addBlock(*VariableDie, dwarf::DW_AT_location, DwarfExpr.finalize());
   if (DwarfExpr.TagOffset)
@@ -1129,7 +1158,7 @@ void DwarfCompileUnit::constructAbstractSubprogramScopeDIE(
   AbsDef = &ContextCU->createAndAddDIE(dwarf::DW_TAG_subprogram, *ContextDIE, nullptr);
   ContextCU->applySubprogramAttributesToDefinition(SP, *AbsDef);
   ContextCU->addSInt(*AbsDef, dwarf::DW_AT_inline,
-                     DD->getDwarfVersion() <= 4 ? Optional<dwarf::Form>()
+                     DD->getDwarfVersion() <= 4 ? std::optional<dwarf::Form>()
                                                 : dwarf::DW_FORM_implicit_const,
                      dwarf::DW_INL_inlined);
   if (DIE *ObjectPointer = ContextCU->createAndAddScopeChildren(Scope, *AbsDef))
@@ -1289,8 +1318,16 @@ DIE *DwarfCompileUnit::constructImportedEntityDIE(
   addSourceLine(*IMDie, Module->getLine(), Module->getFile());
   addDIEEntry(*IMDie, dwarf::DW_AT_import, *EntityDie);
   StringRef Name = Module->getName();
-  if (!Name.empty())
+  if (!Name.empty()) {
     addString(*IMDie, dwarf::DW_AT_name, Name);
+
+    // FIXME: if consumers ever start caring about handling
+    // unnamed import declarations such as `using ::nullptr_t`
+    // or `using namespace std::ranges`, we could add the
+    // import declaration into the accelerator table with the
+    // name being the one of the entity being imported.
+    DD->addAccelNamespace(*CUNode, Name, *IMDie);
+  }
 
   // This is for imported module with renamed entities (such as variables and
   // subprograms).
@@ -1593,7 +1630,8 @@ void DwarfCompileUnit::createBaseTypeDIEs() {
                     "_" + Twine(Btr.BitSize)).toStringRef(Str));
     addUInt(Die, dwarf::DW_AT_encoding, dwarf::DW_FORM_data1, Btr.Encoding);
     // Round up to smallest number of bytes that contains this number of bits.
-    addUInt(Die, dwarf::DW_AT_byte_size, None, divideCeil(Btr.BitSize, 8));
+    addUInt(Die, dwarf::DW_AT_byte_size, std::nullopt,
+            divideCeil(Btr.BitSize, 8));
 
     Btr.Die = &Die;
   }

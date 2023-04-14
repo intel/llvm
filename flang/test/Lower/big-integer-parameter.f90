@@ -13,8 +13,8 @@ program i128
   print*,y
 end
 
-! CHECK-LABEL: func.func @_QQmain() {
-! CHECK-COUNT-2:  %{{.*}} = fir.call @_FortranAioOutputInteger128(%{{.*}}, %{{.*}}) : (!fir.ref<i8>, i128) -> i1
+! CHECK-LABEL: func.func @_QQmain() attributes {fir.bindc_name = "i128"} {
+! CHECK-COUNT-2:  %{{.*}} = fir.call @_FortranAioOutputInteger128(%{{.*}}, %{{.*}}) {{.*}}: (!fir.ref<i8>, i128) -> i1
 
 
 ! CHECK-LABEL: fir.global internal @_QFECmaxi128 constant : i128 {

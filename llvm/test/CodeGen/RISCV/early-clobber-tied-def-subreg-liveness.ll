@@ -20,20 +20,22 @@ define void @_Z3foov() {
 ; CHECK-NEXT:    li a1, 10
 ; CHECK-NEXT:    mul a0, a0, a1
 ; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    .cfi_escape 0x0f, 0x0d, 0x72, 0x00, 0x11, 0x10, 0x22, 0x11, 0x0a, 0x92, 0xa2, 0x38, 0x00, 0x1e, 0x22 # sp + 16 + 10 * vlenb
 ; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_49)
 ; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_49)
 ; CHECK-NEXT:    vsetivli zero, 2, e16, m2, ta, ma
-; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vle16.v v10, (a0)
 ; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_48)
 ; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_48)
-; CHECK-NEXT:    vle8.v v10, (a0)
+; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    csrr a0, vlenb
 ; CHECK-NEXT:    slli a0, a0, 3
 ; CHECK-NEXT:    add a0, sp, a0
 ; CHECK-NEXT:    addi a0, a0, 16
-; CHECK-NEXT:    vs1r.v v10, (a0) # Unknown-size Folded Spill
+; CHECK-NEXT:    vs1r.v v8, (a0) # Unknown-size Folded Spill
 ; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_46)
 ; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_46)
+; CHECK-NEXT:    vmv.v.v v8, v10
 ; CHECK-NEXT:    vle16.v v10, (a0)
 ; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_45)
 ; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_45)
@@ -50,9 +52,12 @@ define void @_Z3foov() {
 ; CHECK-NEXT:    vs2r.v v14, (a0) # Unknown-size Folded Spill
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    #NO_APP
+; CHECK-NEXT:    vsetivli zero, 2, e16, m2, ta, ma
+; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_40)
+; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_40)
+; CHECK-NEXT:    vle16.v v8, (a0)
 ; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_44)
 ; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_44)
-; CHECK-NEXT:    vsetivli zero, 2, e16, m2, ta, ma
 ; CHECK-NEXT:    addi a1, sp, 16
 ; CHECK-NEXT:    csrr a2, vlenb
 ; CHECK-NEXT:    slli a2, a2, 1
@@ -64,15 +69,10 @@ define void @_Z3foov() {
 ; CHECK-NEXT:    add a1, a1, a2
 ; CHECK-NEXT:    vl2r.v v16, (a1) # Unknown-size Folded Reload
 ; CHECK-NEXT:    vle16.v v16, (a0)
-; CHECK-NEXT:    vsetivli zero, 2, e16, m2, ta, mu
-; CHECK-NEXT:    lui a0, %hi(.L__const._Z3foov.var_40)
-; CHECK-NEXT:    addi a0, a0, %lo(.L__const._Z3foov.var_40)
-; CHECK-NEXT:    vle16.v v8, (a0)
-; CHECK-NEXT:    vsetivli zero, 2, e16, m2, ta, mu
 ; CHECK-NEXT:    lui a0, 1048572
 ; CHECK-NEXT:    addiw a0, a0, 928
 ; CHECK-NEXT:    vmsbc.vx v0, v8, a0
-; CHECK-NEXT:    vsetivli zero, 2, e16, m2, tu, mu
+; CHECK-NEXT:    vsetvli zero, zero, e16, m2, tu, mu
 ; CHECK-NEXT:    csrr a0, vlenb
 ; CHECK-NEXT:    slli a0, a0, 3
 ; CHECK-NEXT:    add a0, sp, a0

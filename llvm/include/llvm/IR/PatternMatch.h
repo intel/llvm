@@ -1536,7 +1536,7 @@ struct m_SplatOrUndefMask {
   int &SplatIndex;
   m_SplatOrUndefMask(int &SplatIndex) : SplatIndex(SplatIndex) {}
   bool match(ArrayRef<int> Mask) {
-    auto First = find_if(Mask, [](int Elem) { return Elem != -1; });
+    const auto *First = find_if(Mask, [](int Elem) { return Elem != -1; });
     if (First == Mask.end())
       return false;
     SplatIndex = *First;
@@ -2206,6 +2206,17 @@ inline typename m_Intrinsic_Ty<Opnd0>::Ty m_Sqrt(const Opnd0 &Op0) {
   return m_Intrinsic<Intrinsic::sqrt>(Op0);
 }
 
+template <typename Opnd0, typename Opnd1>
+inline typename m_Intrinsic_Ty<Opnd0, Opnd1>::Ty m_CopySign(const Opnd0 &Op0,
+                                                            const Opnd1 &Op1) {
+  return m_Intrinsic<Intrinsic::copysign>(Op0, Op1);
+}
+
+template <typename Opnd0>
+inline typename m_Intrinsic_Ty<Opnd0>::Ty m_VecReverse(const Opnd0 &Op0) {
+  return m_Intrinsic<Intrinsic::experimental_vector_reverse>(Op0);
+}
+
 //===----------------------------------------------------------------------===//
 // Matchers for two-operands operators with the operators in either order
 //
@@ -2284,10 +2295,12 @@ m_NSWNeg(const ValTy &V) {
 }
 
 /// Matches a 'Not' as 'xor V, -1' or 'xor -1, V'.
+/// NOTE: we first match the 'Not' (by matching '-1'),
+/// and only then match the inner matcher!
 template <typename ValTy>
-inline BinaryOp_match<ValTy, cst_pred_ty<is_all_ones>, Instruction::Xor, true>
+inline BinaryOp_match<cst_pred_ty<is_all_ones>, ValTy, Instruction::Xor, true>
 m_Not(const ValTy &V) {
-  return m_c_Xor(V, m_AllOnes());
+  return m_c_Xor(m_AllOnes(), V);
 }
 
 template <typename ValTy> struct NotForbidUndef_match {
@@ -2349,6 +2362,14 @@ inline match_combine_or<
 m_c_MaxOrMin(const LHS &L, const RHS &R) {
   return m_CombineOr(m_CombineOr(m_c_SMax(L, R), m_c_SMin(L, R)),
                      m_CombineOr(m_c_UMax(L, R), m_c_UMin(L, R)));
+}
+
+template <Intrinsic::ID IntrID, typename T0, typename T1>
+inline match_combine_or<typename m_Intrinsic_Ty<T0, T1>::Ty,
+                        typename m_Intrinsic_Ty<T1, T0>::Ty>
+m_c_Intrinsic(const T0 &Op0, const T1 &Op1) {
+  return m_CombineOr(m_Intrinsic<IntrID>(Op0, Op1),
+                     m_Intrinsic<IntrID>(Op1, Op0));
 }
 
 /// Matches FAdd with LHS and RHS in either order.
@@ -2463,9 +2484,6 @@ inline InsertValue_match<Ind, Val_t, Elt_t> m_InsertValue(const Val_t &Val,
 ///  `ptrtoint(gep <vscale x 1 x i8>, <vscale x 1 x i8>* null, i32 1>`
 /// under the right conditions determined by DataLayout.
 struct VScaleVal_match {
-  const DataLayout &DL;
-  VScaleVal_match(const DataLayout &DL) : DL(DL) {}
-
   template <typename ITy> bool match(ITy *V) {
     if (m_Intrinsic<Intrinsic::vscale>().match(V))
       return true;
@@ -2473,11 +2491,12 @@ struct VScaleVal_match {
     Value *Ptr;
     if (m_PtrToInt(m_Value(Ptr)).match(V)) {
       if (auto *GEP = dyn_cast<GEPOperator>(Ptr)) {
-        auto *DerefTy = GEP->getSourceElementType();
-        if (GEP->getNumIndices() == 1 && isa<ScalableVectorType>(DerefTy) &&
+        auto *DerefTy =
+            dyn_cast<ScalableVectorType>(GEP->getSourceElementType());
+        if (GEP->getNumIndices() == 1 && DerefTy &&
+            DerefTy->getElementType()->isIntegerTy(8) &&
             m_Zero().match(GEP->getPointerOperand()) &&
-            m_SpecificInt(1).match(GEP->idx_begin()->get()) &&
-            DL.getTypeAllocSizeInBits(DerefTy).getKnownMinSize() == 8)
+            m_SpecificInt(1).match(GEP->idx_begin()->get()))
           return true;
       }
     }
@@ -2486,8 +2505,8 @@ struct VScaleVal_match {
   }
 };
 
-inline VScaleVal_match m_VScale(const DataLayout &DL) {
-  return VScaleVal_match(DL);
+inline VScaleVal_match m_VScale() {
+  return VScaleVal_match();
 }
 
 template <typename LHS, typename RHS, unsigned Opcode, bool Commutable = false>
@@ -2571,6 +2590,25 @@ template <typename LHS, typename RHS>
 inline LogicalOp_match<LHS, RHS, Instruction::Or, true>
 m_c_LogicalOr(const LHS &L, const RHS &R) {
   return LogicalOp_match<LHS, RHS, Instruction::Or, true>(L, R);
+}
+
+/// Matches either L && R or L || R,
+/// either one being in the either binary or logical form.
+/// Note that the latter form is poison-blocking.
+template <typename LHS, typename RHS, bool Commutable = false>
+inline auto m_LogicalOp(const LHS &L, const RHS &R) {
+  return m_CombineOr(
+      LogicalOp_match<LHS, RHS, Instruction::And, Commutable>(L, R),
+      LogicalOp_match<LHS, RHS, Instruction::Or, Commutable>(L, R));
+}
+
+/// Matches either L && R or L || R where L and R are arbitrary values.
+inline auto m_LogicalOp() { return m_LogicalOp(m_Value(), m_Value()); }
+
+/// Matches either L && R or L || R with LHS and RHS in either order.
+template <typename LHS, typename RHS>
+inline auto m_c_LogicalOp(const LHS &L, const RHS &R) {
+  return m_LogicalOp<LHS, RHS, /*Commutable=*/true>(L, R);
 }
 
 } // end namespace PatternMatch

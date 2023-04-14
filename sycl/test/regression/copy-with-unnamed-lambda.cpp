@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsyntax-only %s
 // The purpose of this test is to check that the following code can be
 // successfully compiled
 #include <sycl/sycl.hpp>

@@ -981,11 +981,10 @@ bool Parser::ParseLambdaIntroducer(LambdaIntroducer &Intro,
         InitKind = LambdaCaptureInitKind::DirectInit;
 
         ExprVector Exprs;
-        CommaLocsTy Commas;
         if (Tentative) {
           Parens.skipToEnd();
           *Tentative = LambdaIntroducerTentativeParse::Incomplete;
-        } else if (ParseExpressionList(Exprs, Commas)) {
+        } else if (ParseExpressionList(Exprs)) {
           Parens.skipToEnd();
           Init = ExprError();
         } else {
@@ -1276,18 +1275,19 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(), LambdaBeginLoc,
                                 "lambda expression parsing");
 
-
-
-  // FIXME: Call into Actions to add any init-capture declarations to the
-  // scope while parsing the lambda-declarator and compound-statement.
-
   // Parse lambda-declarator[opt].
   DeclSpec DS(AttrFactory);
   Declarator D(DS, ParsedAttributesView::none(), DeclaratorContext::LambdaExpr);
   TemplateParameterDepthRAII CurTemplateDepthTracker(TemplateParameterDepth);
-  Actions.PushLambdaScope();
 
-  ParsedAttributes Attr(AttrFactory);
+  ParseScope LambdaScope(this, Scope::LambdaScope | Scope::DeclScope |
+                                   Scope::FunctionDeclarationScope |
+                                   Scope::FunctionPrototypeScope);
+
+  Actions.PushLambdaScope();
+  Actions.ActOnLambdaExpressionAfterIntroducer(Intro, getCurScope());
+
+  ParsedAttributes Attributes(AttrFactory);
   if (getLangOpts().CUDA) {
     // In CUDA code, GNU attributes are allowed to appear immediately after the
     // "[...]", even if there is no "(...)" before the lambda body.
@@ -1298,22 +1298,23 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
       if (Tok.is(tok::kw___noinline__)) {
         IdentifierInfo *AttrName = Tok.getIdentifierInfo();
         SourceLocation AttrNameLoc = ConsumeToken();
-        Attr.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
-                    ParsedAttr::AS_Keyword);
+        Attributes.addNew(AttrName, AttrNameLoc, /*ScopeName=*/nullptr,
+                          AttrNameLoc, /*ArgsUnion=*/nullptr,
+                          /*numArgs=*/0, ParsedAttr::AS_Keyword);
       } else if (Tok.is(tok::kw___attribute))
-        ParseGNUAttributes(Attr, nullptr, &D);
+        ParseGNUAttributes(Attributes, /*LatePArsedAttrList=*/nullptr, &D);
       else
         break;
     }
 
-    D.takeAttributes(Attr);
+    D.takeAttributes(Attributes);
   }
 
   // Helper to emit a warning if we see a CUDA host/device/global attribute
   // after '(...)'. nvcc doesn't accept this.
   auto WarnIfHasCUDATargetAttr = [&] {
     if (getLangOpts().CUDA)
-      for (const ParsedAttr &A : Attr)
+      for (const ParsedAttr &A : Attributes)
         if (A.getKind() == ParsedAttr::AT_CUDADevice ||
             A.getKind() == ParsedAttr::AT_CUDAHost ||
             A.getKind() == ParsedAttr::AT_CUDAGlobal)
@@ -1350,7 +1351,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
       }
 
       Actions.ActOnLambdaExplicitTemplateParameterList(
-          LAngleLoc, TemplateParams, RAngleLoc, RequiresClause);
+          Intro, LAngleLoc, TemplateParams, RAngleLoc, RequiresClause);
       ++CurTemplateDepthTracker;
     }
   }
@@ -1368,32 +1369,36 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
   TypeResult TrailingReturnType;
   SourceLocation TrailingReturnTypeLoc;
+  SourceLocation LParenLoc, RParenLoc;
+  SourceLocation DeclEndLoc;
+  bool HasParentheses = false;
+  bool HasSpecifiers = false;
+  SourceLocation MutableLoc;
+
+  auto ParseConstexprAndMutableSpecifiers = [&] {
+    // GNU-style attributes must be parsed before the mutable specifier to
+    // be compatible with GCC. MSVC-style attributes must be parsed before
+    // the mutable specifier to be compatible with MSVC.
+    MaybeParseAttributes(PAKM_GNU | PAKM_Declspec, Attributes);
+    // Parse mutable-opt and/or constexpr-opt or consteval-opt, and update
+    // the DeclEndLoc.
+    SourceLocation ConstexprLoc;
+    SourceLocation ConstevalLoc;
+    SourceLocation StaticLoc;
+
+    tryConsumeLambdaSpecifierToken(*this, MutableLoc, StaticLoc, ConstexprLoc,
+                                   ConstevalLoc, DeclEndLoc);
+
+    DiagnoseStaticSpecifierRestrictions(*this, StaticLoc, MutableLoc, Intro);
+
+    addStaticToLambdaDeclSpecifier(*this, StaticLoc, DS);
+    addConstexprToLambdaDeclSpecifier(*this, ConstexprLoc, DS);
+    addConstevalToLambdaDeclSpecifier(*this, ConstevalLoc, DS);
+  };
 
   auto ParseLambdaSpecifiers =
-      [&](SourceLocation LParenLoc, SourceLocation RParenLoc,
-          MutableArrayRef<DeclaratorChunk::ParamInfo> ParamInfo,
+      [&](MutableArrayRef<DeclaratorChunk::ParamInfo> ParamInfo,
           SourceLocation EllipsisLoc) {
-        SourceLocation DeclEndLoc = RParenLoc;
-
-        // GNU-style attributes must be parsed before the mutable specifier to
-        // be compatible with GCC. MSVC-style attributes must be parsed before
-        // the mutable specifier to be compatible with MSVC.
-        MaybeParseAttributes(PAKM_GNU | PAKM_Declspec, Attr);
-
-        // Parse lambda specifiers and update the DeclEndLoc.
-        SourceLocation MutableLoc;
-        SourceLocation StaticLoc;
-        SourceLocation ConstexprLoc;
-        SourceLocation ConstevalLoc;
-        tryConsumeLambdaSpecifierToken(*this, MutableLoc, StaticLoc,
-                                       ConstexprLoc, ConstevalLoc, DeclEndLoc);
-
-        DiagnoseStaticSpecifierRestrictions(*this, StaticLoc, MutableLoc,
-                                            Intro);
-
-        addStaticToLambdaDeclSpecifier(*this, StaticLoc, DS);
-        addConstexprToLambdaDeclSpecifier(*this, ConstexprLoc, DS);
-        addConstevalToLambdaDeclSpecifier(*this, ConstevalLoc, DS);
         // Parse exception-specification[opt].
         ExceptionSpecificationType ESpecType = EST_None;
         SourceRange ESpecRange;
@@ -1401,6 +1406,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
         SmallVector<SourceRange, 2> DynamicExceptionRanges;
         ExprResult NoexceptExpr;
         CachedTokens *ExceptionSpecTokens;
+
         ESpecType = tryParseExceptionSpecification(
             /*Delayed=*/false, ESpecRange, DynamicExceptions,
             DynamicExceptionRanges, NoexceptExpr, ExceptionSpecTokens);
@@ -1409,8 +1415,8 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
           DeclEndLoc = ESpecRange.getEnd();
 
         // Parse attribute-specifier[opt].
-        if (MaybeParseCXX11Attributes(Attr))
-          DeclEndLoc = Attr.Range.getEnd();
+        if (MaybeParseCXX11Attributes(Attributes))
+          DeclEndLoc = Attributes.Range.getEnd();
 
         // Parse OpenCL addr space attribute.
         if (Tok.isOneOf(tok::kw___private, tok::kw___global, tok::kw___local,
@@ -1444,29 +1450,34 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                 DynamicExceptions.size(),
                 NoexceptExpr.isUsable() ? NoexceptExpr.get() : nullptr,
                 /*ExceptionSpecTokens*/ nullptr,
-                /*DeclsInPrototype=*/None, LParenLoc, FunLocalRangeEnd, D,
-                TrailingReturnType, TrailingReturnTypeLoc, &DS),
-            std::move(Attr), DeclEndLoc);
+                /*DeclsInPrototype=*/std::nullopt, LParenLoc, FunLocalRangeEnd,
+                D, TrailingReturnType, TrailingReturnTypeLoc, &DS),
+            std::move(Attributes), DeclEndLoc);
+
+        Actions.ActOnLambdaClosureQualifiers(Intro, MutableLoc);
+
+        if (HasParentheses && Tok.is(tok::kw_requires))
+          ParseTrailingRequiresClause(D);
       };
 
-  if (Tok.is(tok::l_paren)) {
-    ParseScope PrototypeScope(this, Scope::FunctionPrototypeScope |
-                                        Scope::FunctionDeclarationScope |
-                                        Scope::DeclScope);
+  ParseScope Prototype(this, Scope::FunctionPrototypeScope |
+                                 Scope::FunctionDeclarationScope |
+                                 Scope::DeclScope);
 
+  // Parse parameter-declaration-clause.
+  SmallVector<DeclaratorChunk::ParamInfo, 16> ParamInfo;
+  SourceLocation EllipsisLoc;
+
+  if (Tok.is(tok::l_paren)) {
     BalancedDelimiterTracker T(*this, tok::l_paren);
     T.consumeOpen();
-    SourceLocation LParenLoc = T.getOpenLocation();
-
-    // Parse parameter-declaration-clause.
-    SmallVector<DeclaratorChunk::ParamInfo, 16> ParamInfo;
-    SourceLocation EllipsisLoc;
+    LParenLoc = T.getOpenLocation();
 
     if (Tok.isNot(tok::r_paren)) {
       Actions.RecordParsingTemplateParameterDepth(
           CurTemplateDepthTracker.getOriginalDepth());
 
-      ParseParameterDeclarationClause(D, Attr, ParamInfo, EllipsisLoc);
+      ParseParameterDeclarationClause(D, Attributes, ParamInfo, EllipsisLoc);
       // For a generic lambda, each 'auto' within the parameter declaration
       // clause creates a template type parameter, so increment the depth.
       // If we've parsed any explicit template parameters, then the depth will
@@ -1477,36 +1488,40 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
     }
 
     T.consumeClose();
-
-    // Parse lambda-specifiers.
-    ParseLambdaSpecifiers(LParenLoc, /*DeclEndLoc=*/T.getCloseLocation(),
-                          ParamInfo, EllipsisLoc);
-
-    // Parse requires-clause[opt].
-    if (Tok.is(tok::kw_requires))
-      ParseTrailingRequiresClause(D);
-  } else if (Tok.isOneOf(tok::kw_mutable, tok::arrow, tok::kw___attribute,
-                         tok::kw_constexpr, tok::kw_consteval, tok::kw_static,
-                         tok::kw___private, tok::kw___global, tok::kw___local,
-                         tok::kw___constant, tok::kw___generic,
-                         tok::kw_groupshared, tok::kw_requires,
-                         tok::kw_noexcept) ||
-             (Tok.is(tok::l_square) && NextToken().is(tok::l_square))) {
-    if (!getLangOpts().CPlusPlus2b)
-      // It's common to forget that one needs '()' before 'mutable', an
-      // attribute specifier, the result type, or the requires clause. Deal with
-      // this.
-      Diag(Tok, diag::ext_lambda_missing_parens)
-          << FixItHint::CreateInsertion(Tok.getLocation(), "() ");
-
-    SourceLocation NoLoc;
-    // Parse lambda-specifiers.
-    std::vector<DeclaratorChunk::ParamInfo> EmptyParamInfo;
-    ParseLambdaSpecifiers(/*LParenLoc=*/NoLoc, /*RParenLoc=*/NoLoc,
-                          EmptyParamInfo, /*EllipsisLoc=*/NoLoc);
+    DeclEndLoc = RParenLoc = T.getCloseLocation();
+    HasParentheses = true;
   }
 
+  HasSpecifiers =
+      Tok.isOneOf(tok::kw_mutable, tok::arrow, tok::kw___attribute,
+                  tok::kw_constexpr, tok::kw_consteval, tok::kw_static,
+                  tok::kw___private, tok::kw___global, tok::kw___local,
+                  tok::kw___constant, tok::kw___generic, tok::kw_groupshared,
+                  tok::kw_requires, tok::kw_noexcept) ||
+      (Tok.is(tok::l_square) && NextToken().is(tok::l_square));
+
+  if (HasSpecifiers && !HasParentheses && !getLangOpts().CPlusPlus2b) {
+    // It's common to forget that one needs '()' before 'mutable', an
+    // attribute specifier, the result type, or the requires clause. Deal with
+    // this.
+    Diag(Tok, diag::ext_lambda_missing_parens)
+        << FixItHint::CreateInsertion(Tok.getLocation(), "() ");
+  }
+
+  if (HasParentheses || HasSpecifiers)
+    ParseConstexprAndMutableSpecifiers();
+
+  Actions.ActOnLambdaClosureParameters(getCurScope(), ParamInfo);
+
+  if (!HasParentheses)
+    Actions.ActOnLambdaClosureQualifiers(Intro, MutableLoc);
+
+  if (HasSpecifiers || HasParentheses)
+    ParseLambdaSpecifiers(ParamInfo, EllipsisLoc);
+
   WarnIfHasCUDATargetAttr();
+
+  Prototype.Exit();
 
   // FIXME: Rename BlockScope -> ClosureScope if we decide to continue using
   // it.
@@ -1514,7 +1529,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                         Scope::CompoundStmtScope;
   ParseScope BodyScope(this, ScopeFlags);
 
-  Actions.ActOnStartOfLambdaDefinition(Intro, D, getCurScope());
+  Actions.ActOnStartOfLambdaDefinition(Intro, D, DS);
 
   // Parse compound-statement.
   if (!Tok.is(tok::l_brace)) {
@@ -1526,6 +1541,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
   StmtResult Stmt(ParseCompoundStatementBody());
   BodyScope.Exit();
   TemplateParamScope.Exit();
+  LambdaScope.Exit();
 
   if (!Stmt.isInvalid() && !TrailingReturnType.isInvalid())
     return Actions.ActOnLambdaExpr(LambdaBeginLoc, Stmt.get(), getCurScope());
@@ -1929,7 +1945,6 @@ Parser::ParseCXXTypeConstructExpression(const DeclSpec &DS) {
     PreferredType.enterTypeCast(Tok.getLocation(), TypeRep.get());
 
     ExprVector Exprs;
-    CommaLocsTy CommaLocs;
 
     auto RunSignatureHelp = [&]() {
       QualType PreferredType;
@@ -1942,7 +1957,7 @@ Parser::ParseCXXTypeConstructExpression(const DeclSpec &DS) {
     };
 
     if (Tok.isNot(tok::r_paren)) {
-      if (ParseExpressionList(Exprs, CommaLocs, [&] {
+      if (ParseExpressionList(Exprs, [&] {
             PreferredType.enterFunctionArgument(Tok.getLocation(),
                                                 RunSignatureHelp);
           })) {
@@ -1960,8 +1975,6 @@ Parser::ParseCXXTypeConstructExpression(const DeclSpec &DS) {
     if (!TypeRep)
       return ExprError();
 
-    assert((Exprs.size() == 0 || Exprs.size()-1 == CommaLocs.size())&&
-           "Unexpected number of commas!");
     return Actions.ActOnCXXTypeConstructExpr(TypeRep, T.getOpenLocation(),
                                              Exprs, T.getCloseLocation(),
                                              /*ListInitialization=*/false);
@@ -3239,7 +3252,6 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
     T.consumeOpen();
     ConstructorLParen = T.getOpenLocation();
     if (Tok.isNot(tok::r_paren)) {
-      CommaLocsTy CommaLocs;
       auto RunSignatureHelp = [&]() {
         ParsedType TypeRep =
             Actions.ActOnTypeName(getCurScope(), DeclaratorInfo).get();
@@ -3255,7 +3267,7 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
         CalledSignatureHelp = true;
         return PreferredType;
       };
-      if (ParseExpressionList(ConstructorArgs, CommaLocs, [&] {
+      if (ParseExpressionList(ConstructorArgs, [&] {
             PreferredType.enterFunctionArgument(Tok.getLocation(),
                                                 RunSignatureHelp);
           })) {
@@ -3354,9 +3366,7 @@ bool Parser::ParseExpressionListOrTypeId(
   }
 
   // It's not a type, it has to be an expression list.
-  // Discard the comma locations - ActOnCXXNew has enough parameters.
-  CommaLocsTy CommaLocs;
-  return ParseExpressionList(PlacementArgs, CommaLocs);
+  return ParseExpressionList(PlacementArgs);
 }
 
 /// ParseCXXDeleteExpression - Parse a C++ delete-expression. Delete is used
@@ -3516,6 +3526,10 @@ ExprResult Parser::ParseRequiresExpression() {
       Actions, Sema::ExpressionEvaluationContext::Unevaluated);
 
   ParseScope BodyScope(this, Scope::DeclScope);
+  // Create a separate diagnostic pool for RequiresExprBodyDecl.
+  // Dependent diagnostics are attached to this Decl and non-depenedent
+  // diagnostics are surfaced after this parse.
+  ParsingDeclRAIIObject ParsingBodyDecl(*this, ParsingDeclRAIIObject::NoParent);
   RequiresExprBodyDecl *Body = Actions.ActOnStartRequiresExpr(
       RequiresKWLoc, LocalParameterDecls, getCurScope());
 
@@ -3753,6 +3767,7 @@ ExprResult Parser::ParseRequiresExpression() {
   }
   Braces.consumeClose();
   Actions.ActOnFinishRequiresExpr();
+  ParsingBodyDecl.complete(Body);
   return Actions.ActOnRequiresExpr(RequiresKWLoc, Body, LocalParameterDecls,
                                    Requirements, Braces.getCloseLocation());
 }

@@ -19,7 +19,7 @@
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/FoldUtils.h"
@@ -61,7 +61,7 @@ static void inlineRegionAndEmitStore(OpBuilder &b, Location loc, OpType op,
                                      ArrayRef<SmallVector<Value>> indexing,
                                      ArrayRef<Value> outputBuffers) {
   auto &block = op->getRegion(0).front();
-  BlockAndValueMapping map;
+  IRMapping map;
   map.map(block.getArguments(), indexedValues);
   for (auto &op : block.without_terminator()) {
     auto *newOp = b.clone(op, map);
@@ -175,8 +175,8 @@ static void emitScalarImplementation(OpBuilder &b, Location loc,
 
 /// Replace the index operations in the body of the loop nest by the matching
 /// induction variables.
-static void replaceIndexOpsByInductionVariables(LinalgOp linalgOp,
-                                                PatternRewriter &rewriter,
+static void replaceIndexOpsByInductionVariables(RewriterBase &rewriter,
+                                                LinalgOp linalgOp,
                                                 ArrayRef<Operation *> loopOps) {
   // Extract the induction variables of the loop nest from outer to inner.
   SmallVector<Value> allIvs;
@@ -206,7 +206,7 @@ static void replaceIndexOpsByInductionVariables(LinalgOp linalgOp,
 }
 
 template <typename LoopTy>
-static FailureOr<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
+static FailureOr<LinalgLoops> linalgOpToLoopsImpl(RewriterBase &rewriter,
                                                   LinalgOp linalgOp) {
   using LoadOpTy = std::conditional_t<std::is_same<LoopTy, AffineForOp>::value,
                                       AffineLoadOp, memref::LoadOp>;
@@ -247,7 +247,7 @@ static FailureOr<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
   }
   LinalgLoops loops(loopSet.begin(), loopSet.end());
   // Replace all index operations in the loop body.
-  replaceIndexOpsByInductionVariables(linalgOp, rewriter, loops);
+  replaceIndexOpsByInductionVariables(rewriter, linalgOp, loops);
   return loops;
 }
 
@@ -261,8 +261,10 @@ public:
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     auto linalgOp = dyn_cast<LinalgOp>(op);
-    if (!isa<LinalgOp>(op))
-      return failure();
+    if (!isa<LinalgOp>(op) || !linalgOp.hasBufferSemantics()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected linalg op with buffer semantics");
+    }
     if (failed(linalgOpToLoopsImpl<LoopType>(rewriter, linalgOp)))
       return failure();
     rewriter.eraseOp(op);
@@ -365,20 +367,19 @@ mlir::createConvertLinalgToAffineLoopsPass() {
 
 /// Emits a loop nest of `affine.for` with the proper body for `linalgOp`.
 FailureOr<LinalgLoops>
-mlir::linalg::linalgOpToAffineLoops(PatternRewriter &rewriter,
-                                    LinalgOp linalgOp) {
+mlir::linalg::linalgOpToAffineLoops(RewriterBase &rewriter, LinalgOp linalgOp) {
   return linalgOpToLoopsImpl<AffineForOp>(rewriter, linalgOp);
 }
 
 /// Emits a loop nest of `scf.for` with the proper body for `linalgOp`.
-FailureOr<LinalgLoops> mlir::linalg::linalgOpToLoops(PatternRewriter &rewriter,
+FailureOr<LinalgLoops> mlir::linalg::linalgOpToLoops(RewriterBase &rewriter,
                                                      LinalgOp linalgOp) {
   return linalgOpToLoopsImpl<scf::ForOp>(rewriter, linalgOp);
 }
 
 /// Emits a loop nest of `scf.parallel` with the proper body for `linalgOp`.
 FailureOr<LinalgLoops>
-mlir::linalg::linalgOpToParallelLoops(PatternRewriter &rewriter,
+mlir::linalg::linalgOpToParallelLoops(RewriterBase &rewriter,
                                       LinalgOp linalgOp) {
   return linalgOpToLoopsImpl<scf::ParallelOp>(rewriter, linalgOp);
 }

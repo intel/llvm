@@ -20,6 +20,7 @@
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallString.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::bufferization;
@@ -78,7 +79,7 @@ void BufferPlacementAllocs::build(Operation *op) {
     // Get allocation result.
     Value allocValue = allocateResultEffects[0].getValue();
     // Find the associated dealloc value and register the allocation entry.
-    llvm::Optional<Operation *> dealloc = memref::findDealloc(allocValue);
+    std::optional<Operation *> dealloc = memref::findDealloc(allocValue);
     // If the allocation has > 1 dealloc associated with it, skip handling it.
     if (!dealloc)
       return;
@@ -131,7 +132,7 @@ bool BufferPlacementTransformationBase::isLoop(Operation *op) {
 
   // Start with all entry regions and test whether they induce a loop.
   SmallVector<RegionSuccessor, 2> successorRegions;
-  regionInterface.getSuccessorRegions(/*index=*/llvm::None, successorRegions);
+  regionInterface.getSuccessorRegions(/*index=*/std::nullopt, successorRegions);
   for (RegionSuccessor &regionEntry : successorRegions) {
     if (recurse(regionEntry.getSuccessor()))
       return true;
@@ -146,7 +147,8 @@ bool BufferPlacementTransformationBase::isLoop(Operation *op) {
 //===----------------------------------------------------------------------===//
 
 FailureOr<memref::GlobalOp>
-bufferization::getGlobalFor(arith::ConstantOp constantOp, uint64_t alignment) {
+bufferization::getGlobalFor(arith::ConstantOp constantOp, uint64_t alignment,
+                            Attribute memorySpace) {
   auto type = constantOp.getType().cast<RankedTensorType>();
   auto moduleOp = constantOp->getParentOfType<ModuleOp>();
   if (!moduleOp)
@@ -183,10 +185,13 @@ bufferization::getGlobalFor(arith::ConstantOp constantOp, uint64_t alignment) {
                     : IntegerAttr();
 
   BufferizeTypeConverter typeConverter;
+  auto memrefType = typeConverter.convertType(type).cast<MemRefType>();
+  if (memorySpace)
+    memrefType = MemRefType::Builder(memrefType).setMemorySpace(memorySpace);
   auto global = globalBuilder.create<memref::GlobalOp>(
       constantOp.getLoc(), (Twine("__constant_") + os.str()).str(),
       /*sym_visibility=*/globalBuilder.getStringAttr("private"),
-      /*type=*/typeConverter.convertType(type).cast<MemRefType>(),
+      /*type=*/memrefType,
       /*initial_value=*/constantOp.getValue().cast<ElementsAttr>(),
       /*constant=*/true,
       /*alignment=*/memrefAlignment);

@@ -22,10 +22,12 @@
 #include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
+#include "clang/Analysis/FlowSensitive/Logger.h"
 #include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -88,11 +90,7 @@ public:
                                      const Environment &Env2) {
       // FIXME: Consider adding QualType to StructValue and removing the Type
       // argument here.
-      //
-      // FIXME: default to a sound comparison (`Unknown`) and/or expand the
-      // comparison logic built into the framework to support broader forms of
-      // equivalence than strict pointer equality.
-      return ComparisonResult::Same;
+      return ComparisonResult::Unknown;
     }
 
     /// Modifies `MergedVal` to approximate both `Val1` and `Val2`. This could
@@ -118,6 +116,46 @@ public:
                        Environment &MergedEnv) {
       return true;
     }
+
+    /// This function may widen the current value -- replace it with an
+    /// approximation that can reach a fixed point more quickly than iterated
+    /// application of the transfer function alone. The previous value is
+    /// provided to inform the choice of widened value. The function must also
+    /// serve as a comparison operation, by indicating whether the widened value
+    /// is equivalent to the previous value.
+    ///
+    /// Returns either:
+    ///
+    ///   `nullptr`, if this value is not of interest to the model, or
+    ///
+    ///   `&Prev`, if the widened value is equivalent to `Prev`, or
+    ///
+    ///   A non-null value that approximates `Current`. `Prev` is available to
+    ///   inform the chosen approximation.
+    ///
+    /// `PrevEnv` and `CurrentEnv` can be used to query child values and path
+    /// condition implications of `Prev` and `Current`, respectively.
+    ///
+    /// Requirements:
+    ///
+    ///  `Prev` and `Current` must model values of type `Type`.
+    ///
+    ///  `Prev` and `Current` must be assigned to the same storage location in
+    ///  `PrevEnv` and `CurrentEnv`, respectively.
+    virtual Value *widen(QualType Type, Value &Prev, const Environment &PrevEnv,
+                         Value &Current, Environment &CurrentEnv) {
+      // The default implementation reduces to just comparison, since comparison
+      // is required by the API, even if no widening is performed.
+      switch (compare(Type, Prev, PrevEnv, Current, CurrentEnv)) {
+        case ComparisonResult::Same:
+          return &Prev;
+        case ComparisonResult::Different:
+          return &Current;
+        case ComparisonResult::Unknown:
+          return nullptr;
+      }
+      llvm_unreachable("all cases in switch covered");
+    }
   };
 
   /// Creates an environment that uses `DACtx` to store objects that encompass
@@ -139,6 +177,12 @@ public:
   /// If `DeclCtx` is a non-static member function, initializes the environment
   /// with a symbolic representation of the `this` pointee.
   Environment(DataflowAnalysisContext &DACtx, const DeclContext &DeclCtx);
+
+  const DataflowAnalysisContext::Options &getAnalysisOptions() const {
+    return DACtx->getOptions();
+  }
+
+  Logger &logger() const { return *DACtx->getOptions().Log; }
 
   /// Creates and returns an environment to use for an inline analysis  of the
   /// callee. Uses the storage location from each argument in the `Call` as the
@@ -181,6 +225,17 @@ public:
   ///  `Other` and `this` must use the same `DataflowAnalysisContext`.
   LatticeJoinEffect join(const Environment &Other,
                          Environment::ValueModel &Model);
+
+
+  /// Widens the environment point-wise, using `PrevEnv` as needed to inform the
+  /// approximation.
+  ///
+  /// Requirements:
+  ///
+  ///  `PrevEnv` must be the immediate previous version of the environment.
+  ///  `PrevEnv` and `this` must use the same `DataflowAnalysisContext`.
+  LatticeJoinEffect widen(const Environment &PrevEnv,
+                          Environment::ValueModel &Model);
 
   // FIXME: Rename `createOrGetStorageLocation` to `getOrCreateStorageLocation`,
   // `getStableStorageLocation`, or something more appropriate.
@@ -264,27 +319,59 @@ public:
   /// is assigned a storage location in the environment, otherwise returns null.
   Value *getValue(const Expr &E, SkipPast SP) const;
 
+  /// Creates a `T` (some subclass of `StorageLocation`), forwarding `args` to
+  /// the constructor, and returns a reference to it.
+  ///
+  /// The analysis context takes ownership of the created object. The object
+  /// will be destroyed when the analysis context is destroyed.
+  template <typename T, typename... Args>
+  std::enable_if_t<std::is_base_of<StorageLocation, T>::value, T &>
+  create(Args &&...args) {
+    return DACtx->create<T>(std::forward<Args>(args)...);
+  }
+
+  /// Creates a `T` (some subclass of `Value`), forwarding `args` to the
+  /// constructor, and returns a reference to it.
+  ///
+  /// The analysis context takes ownership of the created object. The object
+  /// will be destroyed when the analysis context is destroyed.
+  template <typename T, typename... Args>
+  std::enable_if_t<std::is_base_of<Value, T>::value, T &>
+  create(Args &&...args) {
+    return DACtx->create<T>(std::forward<Args>(args)...);
+  }
+
   /// Transfers ownership of `Loc` to the analysis context and returns a
   /// reference to it.
+  ///
+  /// This function is deprecated. Instead of
+  /// `takeOwnership(std::make_unique<SomeStorageLocation>(args))`, prefer
+  /// `create<SomeStorageLocation>(args)`.
   ///
   /// Requirements:
   ///
   ///  `Loc` must not be null.
   template <typename T>
-  std::enable_if_t<std::is_base_of<StorageLocation, T>::value, T &>
-  takeOwnership(std::unique_ptr<T> Loc) {
+  LLVM_DEPRECATED("use create<T> instead", "")
+  std::enable_if_t<std::is_base_of<StorageLocation, T>::value,
+                   T &> takeOwnership(std::unique_ptr<T> Loc) {
     return DACtx->takeOwnership(std::move(Loc));
   }
 
   /// Transfers ownership of `Val` to the analysis context and returns a
   /// reference to it.
   ///
+  /// This function is deprecated. Instead of
+  /// `takeOwnership(std::make_unique<SomeValue>(args))`, prefer
+  /// `create<SomeValue>(args)`.
+  ///
   /// Requirements:
   ///
   ///  `Val` must not be null.
   template <typename T>
-  std::enable_if_t<std::is_base_of<Value, T>::value, T &>
-  takeOwnership(std::unique_ptr<T> Val) {
+  LLVM_DEPRECATED("use create<T> instead", "")
+  std::enable_if_t<std::is_base_of<Value, T>::value, T &> takeOwnership(
+      std::unique_ptr<T> Val) {
     return DACtx->takeOwnership(std::move(Val));
   }
 
@@ -296,12 +383,12 @@ public:
 
   /// Returns an atomic boolean value.
   BoolValue &makeAtomicBoolValue() const {
-    return DACtx->createAtomicBoolValue();
+    return DACtx->create<AtomicBoolValue>();
   }
 
   /// Returns a unique instance of boolean Top.
   BoolValue &makeTopBoolValue() const {
-    return DACtx->createTopBoolValue();
+    return DACtx->create<TopBoolValue>();
   }
 
   /// Returns a boolean value that represents the conjunction of `LHS` and
@@ -378,6 +465,7 @@ public:
   }
 
   LLVM_DUMP_METHOD void dump() const;
+  LLVM_DUMP_METHOD void dump(raw_ostream &OS) const;
 
 private:
   /// Creates a value appropriate for `Type`, if `Type` is supported, otherwise
@@ -404,8 +492,17 @@ private:
   void pushCallInternal(const FunctionDecl *FuncDecl,
                         ArrayRef<const Expr *> Args);
 
+  /// Assigns storage locations and values to all global variables and fields
+  /// referenced in `FuncDecl`. `FuncDecl` must have a body.
+  void initFieldsAndGlobals(const FunctionDecl *FuncDecl);
+
   // `DACtx` is not null and not owned by this object.
   DataflowAnalysisContext *DACtx;
+
+
+  // FIXME: move the fields `CallStack`, `ReturnLoc` and `ThisPointeeLoc` into a
+  // separate call-context object, shared between environments in the same call.
+  // https://github.com/llvm/llvm-project/issues/59005
 
   // `DeclContext` of the block being analysed if provided.
   std::vector<const DeclContext *> CallStack;

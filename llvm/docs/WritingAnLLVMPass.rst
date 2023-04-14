@@ -36,11 +36,10 @@ advanced features are discussed.
 
 .. warning::
   This document deals with the legacy pass manager. LLVM uses the new pass
-  manager by default for the optimization pipeline (the codegen pipeline is
-  still using the legacy pass manager), which has its own way of defining
+  manager for the optimization pipeline (the codegen pipeline
+  still uses the legacy pass manager), which has its own way of defining
   passes. For more details, see :doc:`WritingAnLLVMNewPMPass` and
-  :doc:`NewPassManager`. To use the legacy pass manager with ``opt``, pass
-  the ``-enable-new-pm=0`` flag to all ``opt`` invocations.
+  :doc:`NewPassManager`.
 
 Quick Start --- Writing hello world
 ===================================
@@ -185,18 +184,6 @@ without modifying it then the third argument is set to ``true``; if a pass is
 an analysis pass, for example dominator tree pass, then ``true`` is supplied as
 the fourth argument.
 
-If we want to register the pass as a step of an existing pipeline, some extension
-points are provided, e.g. ``PassManagerBuilder::EP_EarlyAsPossible`` to apply our
-pass before any optimization, or ``PassManagerBuilder::EP_FullLinkTimeOptimizationLast``
-to apply it after Link Time Optimizations.
-
-.. code-block:: c++
-
-    static llvm::RegisterStandardPasses Y(
-        llvm::PassManagerBuilder::EP_EarlyAsPossible,
-        [](const llvm::PassManagerBuilder &Builder,
-           llvm::legacy::PassManagerBase &PM) { PM.add(new Hello()); });
-
 As a whole, the ``.cpp`` file looks like:
 
 .. code-block:: c++
@@ -206,7 +193,6 @@ As a whole, the ``.cpp`` file looks like:
   #include "llvm/Support/raw_ostream.h"
 
   #include "llvm/IR/LegacyPassManager.h"
-  #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
   using namespace llvm;
 
@@ -227,11 +213,6 @@ As a whole, the ``.cpp`` file looks like:
   static RegisterPass<Hello> X("hello", "Hello World Pass",
                                false /* Only looks at CFG */,
                                false /* Analysis Pass */);
-
-  static RegisterStandardPasses Y(
-      PassManagerBuilder::EP_EarlyAsPossible,
-      [](const PassManagerBuilder &Builder,
-         legacy::PassManagerBase &PM) { PM.add(new Hello()); });
 
 Now that it's all together, compile the file with a simple "``gmake``" command
 from the top level of your build directory and you should get a new file
@@ -1280,7 +1261,7 @@ Then you need to declare the registry.  Example: if your pass registry is
 
 .. code-block:: c++
 
-  MachinePassRegistry RegisterMyPasses::Registry;
+  MachinePassRegistry<RegisterMyPasses::FunctionPassCtor> RegisterMyPasses::Registry;
 
 And finally, declare the command line option for your passes.  Example:
 

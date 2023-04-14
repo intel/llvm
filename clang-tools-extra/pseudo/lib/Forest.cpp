@@ -9,9 +9,9 @@
 #include "clang-pseudo/Forest.h"
 #include "clang-pseudo/Token.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <optional>
 
 namespace clang {
 namespace pseudo {
@@ -94,11 +94,10 @@ std::string ForestNode::dumpRecursive(const Grammar &G,
   llvm::DenseMap<const ForestNode *, size_t> ReferenceIds;
   std::string Result;
   constexpr Token::Index KEnd = std::numeric_limits<Token::Index>::max();
-  std::function<void(const ForestNode *, Token::Index, llvm::Optional<SymbolID>,
+  std::function<void(const ForestNode *, Token::Index, std::optional<SymbolID>,
                      LineDecoration &LineDec)>
       Dump = [&](const ForestNode *P, Token::Index End,
-                 llvm::Optional<SymbolID> ElidedParent,
-                 LineDecoration LineDec) {
+                 std::optional<SymbolID> ElidedParent, LineDecoration LineDec) {
         bool SharedNode = VisitCounts.find(P)->getSecond() > 1;
         llvm::ArrayRef<const ForestNode *> Children;
         auto EndOfElement = [&](size_t ChildIndex) {
@@ -167,12 +166,12 @@ std::string ForestNode::dumpRecursive(const Grammar &G,
             LineDec.Subsequent = "│ ";
           }
           Dump(Children[I], P->kind() == Sequence ? EndOfElement(I) : End,
-               llvm::None, LineDec);
+               std::nullopt, LineDec);
         }
         LineDec.Prefix.resize(OldPrefixSize);
       };
   LineDecoration LineDec;
-  Dump(this, KEnd, llvm::None, LineDec);
+  Dump(this, KEnd, std::nullopt, LineDec);
   return Result;
 }
 
@@ -193,7 +192,7 @@ ForestArena::createTerminals(const TokenStream &Code) {
                  /*Start=*/Index, /*TerminalData*/ 0);
   ++Index;
   NodeCount = Index;
-  return llvm::makeArrayRef(Terminals, Index);
+  return llvm::ArrayRef(Terminals, Index);
 }
 
 } // namespace pseudo

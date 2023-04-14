@@ -9,12 +9,14 @@
 #include "lldb/Utility/ProcessInfo.h"
 
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/ScriptedMetadata.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/UserIDResolver.h"
 #include "llvm/ADT/SmallString.h"
 
 #include <climits>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -35,6 +37,7 @@ void ProcessInfo::Clear() {
   m_gid = UINT32_MAX;
   m_arch.Clear();
   m_pid = LLDB_INVALID_PROCESS_ID;
+  m_scripted_metadata_sp.reset();
 }
 
 const char *ProcessInfo::GetName() const {
@@ -106,6 +109,10 @@ void ProcessInfo::SetArguments(const Args &args, bool first_arg_is_executable) {
       m_executable.SetFile(first_arg, FileSpec::Style::native);
     }
   }
+}
+
+bool ProcessInfo::IsScriptedProcess() const {
+  return m_scripted_metadata_sp && *m_scripted_metadata_sp;
 }
 
 void ProcessInstanceInfo::Dump(Stream &s, UserIDResolver &resolver) const {
@@ -192,7 +199,7 @@ void ProcessInstanceInfo::DumpAsTableRow(Stream &s, UserIDResolver &resolver,
 
     auto print = [&](bool (ProcessInstanceInfo::*isValid)() const,
                      uint32_t (ProcessInstanceInfo::*getID)() const,
-                     llvm::Optional<llvm::StringRef> (UserIDResolver::*getName)(
+                     std::optional<llvm::StringRef> (UserIDResolver::*getName)(
                          UserIDResolver::id_t id)) {
       const char *format = "{0,-10} ";
       if (!(this->*isValid)()) {

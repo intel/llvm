@@ -15,7 +15,7 @@
 #define LLVM_SUPPORT_KNOWNBITS_H
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/Optional.h"
+#include <optional>
 
 namespace llvm {
 
@@ -49,7 +49,7 @@ public:
   /// Returns true if we know the value of all bits.
   bool isConstant() const {
     assert(!hasConflict() && "KnownBits conflict!");
-    return Zero.countPopulation() + One.countPopulation() == getBitWidth();
+    return Zero.popcount() + One.popcount() == getBitWidth();
   }
 
   /// Returns the value when all bits have a known value. This just returns One
@@ -230,24 +230,16 @@ public:
   KnownBits makeGE(const APInt &Val) const;
 
   /// Returns the minimum number of trailing zero bits.
-  unsigned countMinTrailingZeros() const {
-    return Zero.countTrailingOnes();
-  }
+  unsigned countMinTrailingZeros() const { return Zero.countr_one(); }
 
   /// Returns the minimum number of trailing one bits.
-  unsigned countMinTrailingOnes() const {
-    return One.countTrailingOnes();
-  }
+  unsigned countMinTrailingOnes() const { return One.countr_one(); }
 
   /// Returns the minimum number of leading zero bits.
-  unsigned countMinLeadingZeros() const {
-    return Zero.countLeadingOnes();
-  }
+  unsigned countMinLeadingZeros() const { return Zero.countl_one(); }
 
   /// Returns the minimum number of leading one bits.
-  unsigned countMinLeadingOnes() const {
-    return One.countLeadingOnes();
-  }
+  unsigned countMinLeadingOnes() const { return One.countl_one(); }
 
   /// Returns the number of times the sign bit is replicated into the other
   /// bits.
@@ -270,33 +262,23 @@ public:
   }
 
   /// Returns the maximum number of trailing zero bits possible.
-  unsigned countMaxTrailingZeros() const {
-    return One.countTrailingZeros();
-  }
+  unsigned countMaxTrailingZeros() const { return One.countr_zero(); }
 
   /// Returns the maximum number of trailing one bits possible.
-  unsigned countMaxTrailingOnes() const {
-    return Zero.countTrailingZeros();
-  }
+  unsigned countMaxTrailingOnes() const { return Zero.countr_zero(); }
 
   /// Returns the maximum number of leading zero bits possible.
-  unsigned countMaxLeadingZeros() const {
-    return One.countLeadingZeros();
-  }
+  unsigned countMaxLeadingZeros() const { return One.countl_zero(); }
 
   /// Returns the maximum number of leading one bits possible.
-  unsigned countMaxLeadingOnes() const {
-    return Zero.countLeadingZeros();
-  }
+  unsigned countMaxLeadingOnes() const { return Zero.countl_zero(); }
 
   /// Returns the number of bits known to be one.
-  unsigned countMinPopulation() const {
-    return One.countPopulation();
-  }
+  unsigned countMinPopulation() const { return One.popcount(); }
 
   /// Returns the maximum number of bits that could be one.
   unsigned countMaxPopulation() const {
-    return getBitWidth() - Zero.countPopulation();
+    return getBitWidth() - Zero.popcount();
   }
 
   /// Returns the maximum number of bits needed to represent all possible
@@ -373,34 +355,34 @@ public:
   static KnownBits ashr(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_EQ result.
-  static Optional<bool> eq(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> eq(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_NE result.
-  static Optional<bool> ne(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> ne(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_UGT result.
-  static Optional<bool> ugt(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> ugt(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_UGE result.
-  static Optional<bool> uge(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> uge(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_ULT result.
-  static Optional<bool> ult(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> ult(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_ULE result.
-  static Optional<bool> ule(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> ule(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_SGT result.
-  static Optional<bool> sgt(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> sgt(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_SGE result.
-  static Optional<bool> sge(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> sge(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_SLT result.
-  static Optional<bool> slt(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> slt(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Determine if these known bits always give the same ICMP_SLE result.
-  static Optional<bool> sle(const KnownBits &LHS, const KnownBits &RHS);
+  static std::optional<bool> sle(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Update known bits based on ANDing with RHS.
   KnownBits &operator&=(const KnownBits &RHS);
@@ -414,13 +396,21 @@ public:
   /// Compute known bits for the absolute value.
   KnownBits abs(bool IntMinIsPoison = false) const;
 
-  KnownBits byteSwap() {
+  KnownBits byteSwap() const {
     return KnownBits(Zero.byteSwap(), One.byteSwap());
   }
 
-  KnownBits reverseBits() {
+  KnownBits reverseBits() const {
     return KnownBits(Zero.reverseBits(), One.reverseBits());
   }
+
+  /// Compute known bits for X & -X, which has only the lowest bit set of X set.
+  /// The name comes from the X86 BMI instruction
+  KnownBits blsi() const;
+
+  /// Compute known bits for X ^ (X - 1), which has all bits up to and including
+  /// the lowest set bit of X set. The name comes from the X86 BMI instruction.
+  KnownBits blsmsk() const;
 
   bool operator==(const KnownBits &Other) const {
     return Zero == Other.Zero && One == Other.One;

@@ -12,6 +12,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include <optional>
 
 using namespace mlir;
 using namespace presburger;
@@ -212,7 +213,7 @@ static PresburgerRelation getSetDifference(IntegerRelation b,
     SmallVector<unsigned, 8> ineqsToProcess;
     // The index of the last inequality that was processed at this level.
     // This is empty when we are coming to this level for the first time.
-    Optional<unsigned> lastIneqProcessed;
+    std::optional<unsigned> lastIneqProcessed;
   };
   SmallVector<Frame, 2> frames;
 
@@ -369,7 +370,7 @@ static PresburgerRelation getSetDifference(IntegerRelation b,
       unsigned simplexSnapshot = simplex.getSnapshot();
       IntegerRelation::CountsSnapshot bCounts = b.getCounts();
       frames.push_back(Frame{simplexSnapshot, bCounts, sI, ineqsToProcess,
-                             /*lastIneqProcessed=*/llvm::None});
+                             /*lastIneqProcessed=*/std::nullopt});
       // We have completed the initial setup for this level.
       // Fallthrough to the main recursive part below.
     }
@@ -462,7 +463,8 @@ bool PresburgerRelation::isIntegerEmpty() const {
 bool PresburgerRelation::findIntegerSample(SmallVectorImpl<MPInt> &sample) {
   // A sample exists iff any of the disjuncts contains a sample.
   for (const IntegerRelation &disjunct : disjuncts) {
-    if (Optional<SmallVector<MPInt, 8>> opt = disjunct.findIntegerSample()) {
+    if (std::optional<SmallVector<MPInt, 8>> opt =
+            disjunct.findIntegerSample()) {
       sample = std::move(*opt);
       return true;
     }
@@ -470,13 +472,13 @@ bool PresburgerRelation::findIntegerSample(SmallVectorImpl<MPInt> &sample) {
   return false;
 }
 
-Optional<MPInt> PresburgerRelation::computeVolume() const {
+std::optional<MPInt> PresburgerRelation::computeVolume() const {
   assert(getNumSymbolVars() == 0 && "Symbols are not yet supported!");
   // The sum of the volumes of the disjuncts is a valid overapproximation of the
   // volume of their union, even if they overlap.
   MPInt result(0);
   for (const IntegerRelation &disjunct : disjuncts) {
-    Optional<MPInt> volume = disjunct.computeVolume();
+    std::optional<MPInt> volume = disjunct.computeVolume();
     if (!volume)
       return {};
     result += *volume;

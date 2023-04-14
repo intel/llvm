@@ -56,11 +56,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -72,9 +75,9 @@ const opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class SymbolizerOptTable : public opt::OptTable {
+class SymbolizerOptTable : public opt::GenericOptTable {
 public:
-  SymbolizerOptTable() : OptTable(InfoTable) {
+  SymbolizerOptTable() : GenericOptTable(InfoTable) {
     setGroupedShortOptions(true);
   }
 };
@@ -120,15 +123,6 @@ static void enableDebuginfod(LLVMSymbolizer &Symbolizer,
       Args.getAllArgValues(OPT_debug_file_directory_EQ)));
   // The HTTPClient must be initialized for use by the debuginfod client.
   HTTPClient::initialize();
-}
-
-static object::BuildID parseBuildID(StringRef Str) {
-  std::string Bytes;
-  if (!tryGetFromHex(Str, Bytes))
-    return {};
-  ArrayRef<uint8_t> BuildID(reinterpret_cast<const uint8_t *>(Bytes.data()),
-                            Bytes.size());
-  return object::BuildID(BuildID.begin(), BuildID.end());
 }
 
 static bool parseCommand(StringRef BinaryName, bool IsAddr2Line,
@@ -215,17 +209,18 @@ void executeCommand(StringRef ModuleName, const T &ModuleSpec, Command Cmd,
   uint64_t AdjustedOffset = Offset - AdjustVMA;
   object::SectionedAddress Address = {AdjustedOffset,
                                       object::SectionedAddress::UndefSection};
+  Request SymRequest = {ModuleName, Offset};
   if (Cmd == Command::Data) {
     Expected<DIGlobal> ResOrErr = Symbolizer.symbolizeData(ModuleSpec, Address);
-    print({ModuleName, Offset}, ResOrErr, Printer);
+    print(SymRequest, ResOrErr, Printer);
   } else if (Cmd == Command::Frame) {
     Expected<std::vector<DILocal>> ResOrErr =
         Symbolizer.symbolizeFrame(ModuleSpec, Address);
-    print({ModuleName, Offset}, ResOrErr, Printer);
+    print(SymRequest, ResOrErr, Printer);
   } else if (ShouldInline) {
     Expected<DIInliningInfo> ResOrErr =
         Symbolizer.symbolizeInlinedCode(ModuleSpec, Address);
-    print({ModuleName, Offset}, ResOrErr, Printer);
+    print(SymRequest, ResOrErr, Printer);
   } else if (Style == OutputStyle::GNU) {
     // With PrintFunctions == FunctionNameKind::LinkageName (default)
     // and UseSymbolTable == true (also default), Symbolizer.symbolizeCode()
@@ -240,11 +235,11 @@ void executeCommand(StringRef ModuleName, const T &ModuleSpec, Command Cmd,
             ? Expected<DILineInfo>(ResOrErr.takeError())
             : ((ResOrErr->getNumberOfFrames() == 0) ? DILineInfo()
                                                     : ResOrErr->getFrame(0));
-    print({ModuleName, Offset}, Res0OrErr, Printer);
+    print(SymRequest, Res0OrErr, Printer);
   } else {
     Expected<DILineInfo> ResOrErr =
         Symbolizer.symbolizeCode(ModuleSpec, Address);
-    print({ModuleName, Offset}, ResOrErr, Printer);
+    print(SymRequest, ResOrErr, Printer);
   }
   Symbolizer.pruneCache();
 }
@@ -260,7 +255,7 @@ static void symbolizeInput(const opt::InputArgList &Args,
   uint64_t Offset = 0;
   if (!parseCommand(Args.getLastArgValue(OPT_obj_EQ), IsAddr2Line,
                     StringRef(InputString), Cmd, ModuleName, BuildID, Offset)) {
-    Printer.printInvalidCommand({ModuleName, None}, InputString);
+    Printer.printInvalidCommand({ModuleName, std::nullopt}, InputString);
     return;
   }
   bool ShouldInline = Args.hasFlag(OPT_inlines, OPT_no_inlines, !IsAddr2Line);
@@ -341,15 +336,15 @@ static FunctionNameKind decideHowToPrintFunctions(const opt::InputArgList &Args,
   return IsAddr2Line ? FunctionNameKind::None : FunctionNameKind::LinkageName;
 }
 
-static Optional<bool> parseColorArg(const opt::InputArgList &Args) {
+static std::optional<bool> parseColorArg(const opt::InputArgList &Args) {
   if (Args.hasArg(OPT_color))
     return true;
   if (const opt::Arg *A = Args.getLastArg(OPT_color_EQ))
-    return StringSwitch<Optional<bool>>(A->getValue())
+    return StringSwitch<std::optional<bool>>(A->getValue())
         .Case("always", true)
         .Case("never", false)
-        .Case("auto", None);
-  return None;
+        .Case("auto", std::nullopt);
+  return std::nullopt;
 }
 
 static object::BuildID parseBuildIDArg(const opt::InputArgList &Args, int ID) {
@@ -440,13 +435,7 @@ int main(int argc, char **argv) {
 
   LLVMSymbolizer Symbolizer(Opts);
 
-  // A debuginfod lookup could succeed if a HTTP client is available and at
-  // least one backing URL is configured.
-  bool ShouldUseDebuginfodByDefault =
-      HTTPClient::isAvailable() &&
-      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
-  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
-                   ShouldUseDebuginfodByDefault))
+  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod, canUseDebuginfod()))
     enableDebuginfod(Symbolizer, Args);
 
   if (Args.hasArg(OPT_filter_markup)) {

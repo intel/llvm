@@ -49,6 +49,7 @@ inline OwningOpRef<ContainerOpT> constructContainerOpForParserIfNecessary(
   // If not, then build a new top-level op if a concrete operation type was
   // specified.
   if constexpr (std::is_same_v<ContainerOpT, Operation *>) {
+    (void)context;
     return emitError(sourceFileLoc)
                << "source must contain a single top-level operation, found: "
                << parsedBlock->getOperations().size(),
@@ -92,6 +93,14 @@ inline OwningOpRef<ContainerOpT> constructContainerOpForParserIfNecessary(
 LogicalResult parseSourceFile(const llvm::SourceMgr &sourceMgr, Block *block,
                               const ParserConfig &config,
                               LocationAttr *sourceFileLoc = nullptr);
+/// An overload with a source manager that may have references taken during the
+/// parsing process, and whose lifetime can be freely extended (such that the
+/// source manager is not destroyed before the parsed IR). This is useful, for
+/// example, to avoid copying some large resources into the MLIRContext and
+/// instead referencing the data directly from the input buffers.
+LogicalResult parseSourceFile(const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                              Block *block, const ParserConfig &config,
+                              LocationAttr *sourceFileLoc = nullptr);
 
 /// This parses the file specified by the indicated filename and appends parsed
 /// operations to the given block. If the block is non-empty, the operations are
@@ -115,16 +124,28 @@ LogicalResult parseSourceFile(llvm::StringRef filename,
                               llvm::SourceMgr &sourceMgr, Block *block,
                               const ParserConfig &config,
                               LocationAttr *sourceFileLoc = nullptr);
+/// An overload with a source manager that may have references taken during the
+/// parsing process, and whose lifetime can be freely extended (such that the
+/// source manager is not destroyed before the parsed IR). This is useful, for
+/// example, to avoid copying some large resources into the MLIRContext and
+/// instead referencing the data directly from the input buffers.
+LogicalResult parseSourceFile(llvm::StringRef filename,
+                              const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                              Block *block, const ParserConfig &config,
+                              LocationAttr *sourceFileLoc = nullptr);
 
 /// This parses the IR string and appends parsed operations to the given block.
 /// If the block is non-empty, the operations are placed before the current
 /// terminator. If parsing is successful, success is returned. Otherwise, an
 /// error message is emitted through the error handler registered in the
-/// context, and failure is returned. If `sourceFileLoc` is non-null, it is
-/// populated with a file location representing the start of the source file
-/// that is being parsed.
+/// context, and failure is returned.
+/// `sourceName` is used as the file name of the source; any IR without
+/// locations will get a `FileLineColLoc` location with `sourceName` as the file
+/// name. If `sourceFileLoc` is non-null, it is populated with a file location
+/// representing the start of the source file that is being parsed.
 LogicalResult parseSourceString(llvm::StringRef sourceStr, Block *block,
                                 const ParserConfig &config,
+                                StringRef sourceName = "",
                                 LocationAttr *sourceFileLoc = nullptr);
 
 namespace detail {
@@ -156,6 +177,17 @@ inline OwningOpRef<ContainerOpT>
 parseSourceFile(const llvm::SourceMgr &sourceMgr, const ParserConfig &config) {
   return detail::parseSourceFile<ContainerOpT>(config, sourceMgr);
 }
+/// An overload with a source manager that may have references taken during the
+/// parsing process, and whose lifetime can be freely extended (such that the
+/// source manager is not destroyed before the parsed IR). This is useful, for
+/// example, to avoid copying some large resources into the MLIRContext and
+/// instead referencing the data directly from the input buffers.
+template <typename ContainerOpT = Operation *>
+inline OwningOpRef<ContainerOpT>
+parseSourceFile(const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                const ParserConfig &config) {
+  return detail::parseSourceFile<ContainerOpT>(config, sourceMgr);
+}
 
 /// This parses the file specified by the indicated filename. If the source IR
 /// contained a single instance of `ContainerOpT`, it is returned. Otherwise, a
@@ -185,6 +217,18 @@ inline OwningOpRef<ContainerOpT> parseSourceFile(llvm::StringRef filename,
                                                  const ParserConfig &config) {
   return detail::parseSourceFile<ContainerOpT>(config, filename, sourceMgr);
 }
+/// An overload with a source manager that may have references taken during the
+/// parsing process, and whose lifetime can be freely extended (such that the
+/// source manager is not destroyed before the parsed IR). This is useful, for
+/// example, to avoid copying some large resources into the MLIRContext and
+/// instead referencing the data directly from the input buffers.
+template <typename ContainerOpT = Operation *>
+inline OwningOpRef<ContainerOpT>
+parseSourceFile(llvm::StringRef filename,
+                const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                const ParserConfig &config) {
+  return detail::parseSourceFile<ContainerOpT>(config, filename, sourceMgr);
+}
 
 /// This parses the provided string containing MLIR. If the source IR contained
 /// a single instance of `ContainerOpT`, it is returned. Otherwise, a new
@@ -194,12 +238,17 @@ inline OwningOpRef<ContainerOpT> parseSourceFile(llvm::StringRef filename,
 /// failure is returned. `ContainerOpT` is required to have a single region
 /// containing a single block, and must implement the
 /// `SingleBlockImplicitTerminator` trait.
+/// `sourceName` is used as the file name of the source; any IR without
+/// locations will get a `FileLineColLoc` location with `sourceName` as the file
+/// name.
 template <typename ContainerOpT = Operation *>
 inline OwningOpRef<ContainerOpT> parseSourceString(llvm::StringRef sourceStr,
-                                                   const ParserConfig &config) {
+                                                   const ParserConfig &config,
+                                                   StringRef sourceName = "") {
   LocationAttr sourceFileLoc;
   Block block;
-  if (failed(parseSourceString(sourceStr, &block, config, &sourceFileLoc)))
+  if (failed(parseSourceString(sourceStr, &block, config, sourceName,
+                               &sourceFileLoc)))
     return OwningOpRef<ContainerOpT>();
   return detail::constructContainerOpForParserIfNecessary<ContainerOpT>(
       &block, config.getContext(), sourceFileLoc);

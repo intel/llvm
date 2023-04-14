@@ -42,6 +42,7 @@
 
 #include "LLVMSPIRVLib.h"
 #include "libSPIRV/SPIRVOpCode.h"
+#include "libSPIRV/SPIRVType.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -251,6 +252,7 @@ class BuiltinCallHelper {
 
 protected:
   llvm::Module *M = nullptr;
+  bool UseTargetTypes = false;
 
 public:
   /// Initialize details about how to mangle and demangle builtins correctly.
@@ -264,7 +266,7 @@ public:
 
   /// Initialize the module that will be operated on. This method must be called
   /// before future methods.
-  void initialize(llvm::Module &M) { this->M = &M; }
+  void initialize(llvm::Module &M);
 
   /// Return a mutator that will replace the given call instruction with a call
   /// to the given function name. The function name will have its name mangled
@@ -309,6 +311,40 @@ public:
   /// If the image type does not match OldImageKind, this method will abort.
   llvm::Type *adjustImageType(llvm::Type *T, llvm::StringRef OldImageKind,
                               llvm::StringRef NewImageKind);
+
+  /// Create a new type representing a SPIR-V opaque type that takes no
+  /// parameters (such as sampler types).
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, bool UseRealType = false);
+
+  /// Create a new type representing a SPIR-V opaque type that takes only an
+  /// access qualifier (such as pipe types).
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, spv::AccessQualifier Access,
+                           bool UseRealType = false);
+
+  /// Create a new type representing a SPIR-V opaque type that is an image type
+  /// of some kind.
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, llvm::Type *InnerType,
+                           SPIRVTypeImageDescriptor Desc,
+                           std::optional<spv::AccessQualifier> Access,
+                           bool UseRealType = false);
+
+  /// Create a new type representing a SPIR-V opaque type that takes arbitrary
+  /// parameters.
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, llvm::StringRef InnerTypeName,
+                           llvm::ArrayRef<unsigned> Parameters,
+                           bool UseRealType = false);
 
 private:
   llvm::SmallVector<llvm::Type *, 4> CachedParameterTypes;

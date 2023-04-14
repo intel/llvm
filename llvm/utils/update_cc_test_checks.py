@@ -287,10 +287,7 @@ def main():
         run_list.append((None, exe, None, None))
         continue
 
-      check_prefixes = [item for m in common.CHECK_PREFIX_RE.finditer(filecheck_cmd)
-                               for item in m.group(1).split(',')]
-      if not check_prefixes:
-        check_prefixes = ['CHECK']
+      check_prefixes = common.get_check_prefixes(filecheck_cmd)
       run_list.append((check_prefixes, clang_args, commands[1:-1], triple_in_cmd))
 
     # Execute clang, generate LLVM IR, and extract functions.
@@ -332,7 +329,7 @@ def main():
                                                       lambda args: ti.args.include_generated_funcs,
                                                       '--include-generated-funcs',
                                                       True)
-
+    generated_prefixes = []
     if include_generated_funcs:
       # Generate the appropriate checks for each function.  We need to emit
       # these in the order according to the generated output so that CHECK-LABEL
@@ -353,6 +350,7 @@ def main():
                                       prefixes,
                                       func_dict, func, False,
                                       ti.args.function_signature,
+                                      ti.args.version,
                                       global_vars_seen_dict,
                                       is_filtered=builder.is_filtered())
         else:
@@ -362,13 +360,15 @@ def main():
                                 is_filtered=builder.is_filtered())
 
       if ti.args.check_globals:
-        common.add_global_checks(builder.global_var_dict(), '//', run_list,
-                                 output_lines, global_vars_seen_dict, True,
-                                 True)
-      common.add_checks_at_end(output_lines, filecheck_run_list, builder.func_order(),
-                               '//', lambda my_output_lines, prefixes, func:
-                               check_generator(my_output_lines,
-                                               prefixes, func))
+        generated_prefixes.extend(
+            common.add_global_checks(builder.global_var_dict(), '//', run_list,
+                                     output_lines, global_vars_seen_dict, True,
+                                     True))
+      generated_prefixes.extend(
+          common.add_checks_at_end(
+              output_lines, filecheck_run_list, builder.func_order(), '//',
+              lambda my_output_lines, prefixes, func: check_generator(
+                  my_output_lines, prefixes, func)))
     else:
       # Normal mode.  Put checks before each source function.
       for line_info in ti.iterlines(output_lines):
@@ -401,16 +401,26 @@ def main():
                 output_lines.pop()
                 last_line = output_lines[-1].strip()
               if ti.args.check_globals and not has_checked_pre_function_globals:
-                common.add_global_checks(builder.global_var_dict(), '//',
-                                         run_list, output_lines,
-                                         global_vars_seen_dict, True, True)
+                generated_prefixes.extend(
+                    common.add_global_checks(builder.global_var_dict(), '//',
+                                             run_list, output_lines,
+                                             global_vars_seen_dict, True, True))
                 has_checked_pre_function_globals = True
               if added:
                 output_lines.append('//')
               added.add(mangled)
-              common.add_ir_checks(output_lines, '//', filecheck_run_list, func_dict, mangled,
-                                   False, args.function_signature, global_vars_seen_dict,
-                                   is_filtered=builder.is_filtered())
+              generated_prefixes.extend(
+                  common.add_ir_checks(
+                      output_lines,
+                      '//',
+                      filecheck_run_list,
+                      func_dict,
+                      mangled,
+                      False,
+                      args.function_signature,
+                      args.version,
+                      global_vars_seen_dict,
+                      is_filtered=builder.is_filtered()))
               if line.rstrip('\n') == '//':
                 include_line = False
 
@@ -418,8 +428,13 @@ def main():
           output_lines.append(line.rstrip('\n'))
 
     if ti.args.check_globals:
-      common.add_global_checks(builder.global_var_dict(), '//', run_list,
-                               output_lines, global_vars_seen_dict, True, False)
+      generated_prefixes.extend(
+          common.add_global_checks(builder.global_var_dict(), '//', run_list,
+                                   output_lines, global_vars_seen_dict, True,
+                                   False))
+    if ti.args.gen_unused_prefix_body:
+      output_lines.extend(
+          ti.get_checks_for_unused_prefixes(run_list, generated_prefixes))
     common.debug('Writing %d lines to %s...' % (len(output_lines), ti.path))
     with open(ti.path, 'wb') as f:
       f.writelines(['{}\n'.format(l).encode('utf-8') for l in output_lines])

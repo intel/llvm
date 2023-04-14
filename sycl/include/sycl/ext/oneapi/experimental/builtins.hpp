@@ -15,7 +15,7 @@
 #include <sycl/detail/type_traits.hpp>
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -28,17 +28,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace detail {
-template <size_t N>
-uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
-  uint32_t res;
-  std::memcpy(&res, &x[start], sizeof(uint32_t));
-  return res;
-}
-} // namespace detail
+namespace ext::oneapi::experimental {
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -93,10 +83,12 @@ int printf(const FormatT *__format, Args... args) {
 namespace native {
 
 // genfloatfh tanh (genfloatfh x)
+// sycl::native::tanh is only implemented on nvptx backend so far. For other
+// backends we revert to the sycl::tanh impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_genfloatf<T>::value ||
-                                  sycl::detail::is_genfloath<T>::value,
+    sycl::detail::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
+                                  sycl::detail::is_svgenfloath<T>::value,
                               T>
     tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
@@ -108,10 +100,46 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
+// The marray math function implementations use vectorizations of
+// size two as a simple general optimization. A more complex implementation
+// using larger vectorizations for large marray sizes is possible; however more
+// testing is required in order to ascertain the performance implications for
+// all backends.
+// sycl::native::tanh is only implemented on nvptx backend so far. For other
+// backends we revert to the sycl::tanh impl.
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<T, half> || std::is_same_v<T, float>,
+                     sycl::marray<T, N>>
+    tanh(sycl::marray<T, N> x) __NOEXC {
+  sycl::marray<T, N> res;
+
+  for (size_t i = 0; i < N / 2; i++) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    auto partial_res = native::tanh(sycl::detail::to_vec2(x, i * 2));
+#else
+    auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
+        sycl::detail::to_vec2(x, i * 2));
+#endif
+    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
+  }
+  if (N % 2) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    res[N - 1] = native::tanh(x[N - 1]);
+#else
+    res[N - 1] = __sycl_std::__invoke_tanh<T>(x[N - 1]);
+#endif
+  }
+
+  return res;
+}
+
 // genfloath exp2 (genfloath x)
+// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// For other backends we revert to the sycl::exp2 impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value, T>
+    sycl::detail::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
@@ -122,159 +150,35 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
+// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// For other backends we revert to the sycl::exp2 impl.
+template <size_t N>
+inline __SYCL_ALWAYS_INLINE sycl::marray<half, N>
+exp2(sycl::marray<half, N> x) __NOEXC {
+  sycl::marray<half, N> res;
+
+  for (size_t i = 0; i < N / 2; i++) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    auto partial_res = native::exp2(sycl::detail::to_vec2(x, i * 2));
+#else
+    auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
+        sycl::detail::to_vec2(x, i * 2));
+#endif
+    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
+  }
+  if (N % 2) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    res[N - 1] = native::exp2(x[N - 1]);
+#else
+    res[N - 1] = __sycl_std::__invoke_exp2<half>(x[N - 1]);
+#endif
+  }
+  return res;
+}
+
 } // namespace native
 
-template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fabs(x.raw()));
-#else
-  std::ignore = x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <size_t N>
-sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
-
-  for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
-  }
-
-  if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
-  }
-  return res;
-#else
-  std::ignore = x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
-#else
-  std::ignore = x;
-  std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <size_t N>
-sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
-                               sycl::marray<bfloat16, N> y) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
-
-  for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_fmin(detail::to_uint32_t(x, i * 2),
-                                  detail::to_uint32_t(y, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
-  }
-
-  if (N % 2) {
-    res[N - 1] =
-        bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
-  }
-
-  return res;
-#else
-  std::ignore = x;
-  std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
-#else
-  std::ignore = x;
-  std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <size_t N>
-sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
-                               sycl::marray<bfloat16, N> y) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
-
-  for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_fmax(detail::to_uint32_t(x, i * 2),
-                                  detail::to_uint32_t(y, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
-  }
-
-  if (N % 2) {
-    res[N - 1] =
-        bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
-  }
-  return res;
-#else
-  std::ignore = x;
-  std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
-#else
-  std::ignore = x;
-  std::ignore = y;
-  std::ignore = z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <size_t N>
-sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
-                              sycl::marray<bfloat16, N> y,
-                              sycl::marray<bfloat16, N> z) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
-
-  for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res =
-        __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
-                  detail::to_uint32_t(z, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
-  }
-
-  if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(
-        __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
-  }
-  return res;
-#else
-  std::ignore = x;
-  std::ignore = y;
-  std::ignore = z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

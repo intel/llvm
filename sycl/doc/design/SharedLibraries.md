@@ -31,8 +31,8 @@ SYCL_EXTERNAL int LibDeviceFunc(int i) {
 
 ```bash
 ; Commands
-clang++ -fsycl lib.cpp -shared -o helpers.so
-clang++ -fsycl app.cpp -lhelpers -o a.out
+clang++ -fsycl lib.cpp -shared -o libhelpers.so
+clang++ -fsycl app.cpp -L. -lhelpers -o a.out
 ./a.out
 Output: 0 2 4 6 ...
 ```
@@ -607,4 +607,4 @@ same name as one of the explicitly linked libraries.
 ## Related links
 
 1. Test plan for this feature
-https://github.com/intel/llvm-test-suite/blob/intel/SYCL/TestPlans/DynamicLinkingTestPlan.md
+https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/TestPlans/DynamicLinkingTestPlan.md

@@ -16,6 +16,9 @@
 #include <__algorithm/min.h>
 #include <__algorithm/rotate.h>
 #include <__algorithm/transform.h>
+#include <__charconv/chars_format.h>
+#include <__charconv/to_chars_floating_point.h>
+#include <__charconv/to_chars_result.h>
 #include <__concepts/arithmetic.h>
 #include <__concepts/same_as.h>
 #include <__config>
@@ -26,9 +29,12 @@
 #include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
 #include <__memory/allocator.h>
+#include <__system_error/errc.h>
+#include <__type_traits/conditional.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
-#include <charconv>
+#include <cmath>
+#include <cstddef>
 
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #  include <locale>
@@ -43,7 +49,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __formatter {
 
@@ -404,7 +410,6 @@ _LIBCPP_HIDE_FROM_ABI __float_result __format_buffer_general_lower_case(__float_
       // In fixed mode the algorithm truncates trailing spaces and possibly the
       // radix point. There's no good guess for the position of the radix point
       // therefore scan the output after the first digit.
-
       __result.__radix_point = _VSTD::find(__first, __result.__last, '.');
     }
   }
@@ -498,7 +503,7 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __format_locale_specific_form(
     const __float_result& __result,
     _VSTD::locale __loc,
     __format_spec::__parsed_specifications<_CharT> __specs) {
-  const auto& __np = use_facet<numpunct<_CharT>>(__loc);
+  const auto& __np = std::use_facet<numpunct<_CharT>>(__loc);
   string __grouping = __np.grouping();
   char* __first = __result.__integral;
   // When no radix point or exponent are present __last will be __result.__last.
@@ -665,7 +670,7 @@ __format_floating_point(_Tp __value, auto& __ctx, __format_spec::__parsed_specif
       if (__result.__exponent == __result.__last)
         // if P > X >= -4, the conversion is with style f or F and precision P - 1 - X.
         // By including the radix point it calculates P - (1 + X)
-        __p -= __result.__radix_point - __buffer.begin();
+        __p -= __result.__radix_point - __result.__integral;
       else
         // otherwise, the conversion is with style e or E and precision P - 1.
         --__p;
@@ -739,16 +744,16 @@ public:
 };
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<float, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<float, _CharT>
     : public __formatter_floating_point<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<double, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<double, _CharT>
     : public __formatter_floating_point<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<long double, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<long double, _CharT>
     : public __formatter_floating_point<_CharT> {};
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

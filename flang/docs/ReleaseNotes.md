@@ -1,15 +1,15 @@
-# Flang 15.0.0 (In-Progress) Release Notes
+# Flang |version| (In-Progress) Release Notes
 
 > **warning**
 >
-> These are in-progress notes for the upcoming LLVM 15.0.0 release.
+> These are in-progress notes for the upcoming LLVM |version| release.
 > Release notes for previous releases can be found on [the Download
 > Page](https://releases.llvm.org/download.html).
 
 ## Introduction
 
 This document contains the release notes for the Flang Fortran frontend,
-part of the LLVM Compiler Infrastructure, release 15.0.0. Here we
+part of the LLVM Compiler Infrastructure, release |version|. Here we
 describe the status of Flang in some detail, including major
 improvements from the previous release and new feature work. For the
 general LLVM release notes, see [the LLVM
@@ -23,6 +23,13 @@ release notes for a specific release, please see the [releases
 page](https://llvm.org/releases/).
 
 ## Major New Features
+
+* Flang now supports loading LLVM pass plugins with the `-fpass-plugin` option
+  which is also available in clang. The option mimics the behavior of the
+  corresponding option in clang and has the same capabilities and limitations.
+* Flang also supports statically linked LLVM pass extensions. Projects can be
+  linked statically into `flang-new` if the cmake command includes
+  `-DLLVM_${NAME}_LINK_INTO_TOOLS=ON`. This behavior is also similar to clang.
 
 ## Bug Fixes
 

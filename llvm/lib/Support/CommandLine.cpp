@@ -21,14 +21,12 @@
 
 #include "llvm-c/Support.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/ConvertUTF.h"
@@ -36,7 +34,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -45,6 +42,7 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
+#include <optional>
 #include <string>
 using namespace llvm;
 using namespace cl;
@@ -210,8 +208,7 @@ public:
     bool HadErrors = false;
     if (O->hasArgStr()) {
       // If it's a DefaultOption, check to make sure it isn't already there.
-      if (O->isDefaultOption() &&
-          SC->OptionsMap.find(O->ArgStr) != SC->OptionsMap.end())
+      if (O->isDefaultOption() && SC->OptionsMap.contains(O->ArgStr))
         return;
 
       // Add argument to the argument map!
@@ -1191,27 +1188,44 @@ Error ExpansionContext::expandResponseFile(
     return Error::success();
 
   StringRef BasePath = llvm::sys::path::parent_path(FName);
-  for (auto I = NewArgv.begin(), E = NewArgv.end(); I != E; ++I) {
-    const char *&Arg = *I;
-    if (Arg == nullptr)
+  for (const char *&Arg : NewArgv) {
+    if (!Arg)
       continue;
 
     // Substitute <CFGDIR> with the file's base path.
     if (InConfigFile)
       ExpandBasePaths(BasePath, Saver, Arg);
 
-    // Get expanded file name.
-    StringRef FileName(Arg);
-    if (!FileName.consume_front("@"))
+    // Discover the case, when argument should be transformed into '@file' and
+    // evaluate 'file' for it.
+    StringRef ArgStr(Arg);
+    StringRef FileName;
+    bool ConfigInclusion = false;
+    if (ArgStr.consume_front("@")) {
+      FileName = ArgStr;
+      if (!llvm::sys::path::is_relative(FileName))
+        continue;
+    } else if (ArgStr.consume_front("--config=")) {
+      FileName = ArgStr;
+      ConfigInclusion = true;
+    } else {
       continue;
-    if (!llvm::sys::path::is_relative(FileName))
-      continue;
+    }
 
     // Update expansion construct.
     SmallString<128> ResponseFile;
     ResponseFile.push_back('@');
-    ResponseFile.append(BasePath);
-    llvm::sys::path::append(ResponseFile, FileName);
+    if (ConfigInclusion && !llvm::sys::path::has_parent_path(FileName)) {
+      SmallString<128> FilePath;
+      if (!findConfigFile(FileName, FilePath))
+        return createStringError(
+            std::make_error_code(std::errc::no_such_file_or_directory),
+            "cannot not find configuration file: " + FileName);
+      ResponseFile.append(FilePath);
+    } else {
+      ResponseFile.append(BasePath);
+      llvm::sys::path::append(ResponseFile, FileName);
+    }
     Arg = Saver.save(ResponseFile.str()).data();
   }
   return Error::success();
@@ -1341,12 +1355,14 @@ Error ExpansionContext::expandResponseFiles(
 bool cl::expandResponseFiles(int Argc, const char *const *Argv,
                              const char *EnvVar, StringSaver &Saver,
                              SmallVectorImpl<const char *> &NewArgv) {
-  auto Tokenize = Triple(sys::getProcessTriple()).isOSWindows()
-                      ? cl::TokenizeWindowsCommandLine
-                      : cl::TokenizeGNUCommandLine;
+#ifdef _WIN32
+  auto Tokenize = cl::TokenizeWindowsCommandLine;
+#else
+  auto Tokenize = cl::TokenizeGNUCommandLine;
+#endif
   // The environment variable specifies initial options.
   if (EnvVar)
-    if (llvm::Optional<std::string> EnvValue = sys::Process::GetEnv(EnvVar))
+    if (std::optional<std::string> EnvValue = sys::Process::GetEnv(EnvVar))
       Tokenize(*EnvValue, Saver, NewArgv, /*MarkEOLs=*/false);
 
   // Command line options can override the environment variable.
@@ -1439,7 +1455,7 @@ bool cl::ParseCommandLineOptions(int argc, const char *const *argv,
 
   // Parse options from environment variable.
   if (EnvVar) {
-    if (llvm::Optional<std::string> EnvValue =
+    if (std::optional<std::string> EnvValue =
             sys::Process::GetEnv(StringRef(EnvVar)))
       TokenizeGNUCommandLine(*EnvValue, Saver, NewArgv);
   }
@@ -1487,9 +1503,12 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
   // Expand response files.
   SmallVector<const char *, 20> newArgv(argv, argv + argc);
   BumpPtrAllocator A;
-  ExpansionContext ECtx(A, Triple(sys::getProcessTriple()).isOSWindows()
-                               ? cl::TokenizeWindowsCommandLine
-                               : cl::TokenizeGNUCommandLine);
+#ifdef _WIN32
+  auto Tokenize = cl::TokenizeWindowsCommandLine;
+#else
+  auto Tokenize = cl::TokenizeGNUCommandLine;
+#endif
+  ExpansionContext ECtx(A, Tokenize);
   if (Error Err = ECtx.expandResponseFiles(newArgv)) {
     *Errs << toString(std::move(Err)) << '\n';
     return false;
@@ -2518,7 +2537,7 @@ public:
 namespace {
 class VersionPrinter {
 public:
-  void print() {
+  void print(std::vector<VersionPrinterTy> ExtraPrinters = {}) {
     raw_ostream &OS = outs();
 #ifdef PACKAGE_VENDOR
     OS << PACKAGE_VENDOR << " ";
@@ -2534,15 +2553,14 @@ public:
 #ifndef NDEBUG
     OS << " with assertions";
 #endif
-#if LLVM_VERSION_PRINTER_SHOW_HOST_TARGET_INFO
-    std::string CPU = std::string(sys::getHostCPUName());
-    if (CPU == "generic")
-      CPU = "(unknown)";
-    OS << ".\n"
-       << "  Default target: " << sys::getDefaultTargetTriple() << '\n'
-       << "  Host CPU: " << CPU;
-#endif
-    OS << '\n';
+    OS << ".\n";
+
+    // Iterate over any registered extra printers and call them to add further
+    // information.
+    if (!ExtraPrinters.empty()) {
+      for (const auto &I : ExtraPrinters)
+        I(outs());
+    }
   }
   void operator=(bool OptionWasSpecified);
 };
@@ -2669,15 +2687,7 @@ void VersionPrinter::operator=(bool OptionWasSpecified) {
     CommonOptions->OverrideVersionPrinter(outs());
     exit(0);
   }
-  print();
-
-  // Iterate over any registered extra printers and call them to add further
-  // information.
-  if (!CommonOptions->ExtraVersionPrinters.empty()) {
-    outs() << '\n';
-    for (const auto &I : CommonOptions->ExtraVersionPrinters)
-      I(outs());
-  }
+  print(CommonOptions->ExtraVersionPrinters);
 
   exit(0);
 }
@@ -2732,7 +2742,7 @@ void cl::PrintHelpMessage(bool Hidden, bool Categorized) {
 
 /// Utility function for printing version number.
 void cl::PrintVersionMessage() {
-  CommonOptions->VersionPrinterInstance.print();
+  CommonOptions->VersionPrinterInstance.print(CommonOptions->ExtraVersionPrinters);
 }
 
 void cl::SetVersionPrinter(VersionPrinterTy func) {
@@ -2747,7 +2757,7 @@ StringMap<Option *> &cl::getRegisteredOptions(SubCommand &Sub) {
   initCommonOptions();
   auto &Subs = GlobalParser->RegisteredSubCommands;
   (void)Subs;
-  assert(is_contained(Subs, &Sub));
+  assert(Subs.contains(&Sub));
   return Sub.OptionsMap;
 }
 

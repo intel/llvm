@@ -91,8 +91,10 @@ bool llvm::checkVOPDRegConstraints(const SIInstrInfo &TII,
         addLiteral(Src0);
     }
 
-    if (InstInfo[CompIdx].hasMandatoryLiteral())
-      addLiteral(MI.getOperand(InstInfo[CompIdx].getMandatoryLiteralIndex()));
+    if (InstInfo[CompIdx].hasMandatoryLiteral()) {
+      auto CompOprIdx = InstInfo[CompIdx].getMandatoryLiteralCompOperandIndex();
+      addLiteral(MI.getOperand(CompOprIdx));
+    }
     if (MI.getDesc().hasImplicitUseOfPhysReg(AMDGPU::VCC))
       UniqueScalarRegs.push_back(AMDGPU::VCC_LO);
   }
@@ -134,6 +136,7 @@ static bool shouldScheduleVOPDAdjacent(const TargetInstrInfo &TII,
   return checkVOPDRegConstraints(STII, *FirstMI, SecondMI);
 }
 
+namespace {
 /// Adapts design from MacroFusion
 /// Puts valid candidate instructions back-to-back so they can easily
 /// be turned into VOPD instructions
@@ -175,6 +178,7 @@ struct VOPDPairingMutation : ScheduleDAGMutation {
     LLVM_DEBUG(dbgs() << "Completed VOPDPairingMutation\n");
   }
 };
+} // namespace
 
 std::unique_ptr<ScheduleDAGMutation> llvm::createVOPDPairingMutation() {
   return std::make_unique<VOPDPairingMutation>(shouldScheduleVOPDAdjacent);

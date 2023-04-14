@@ -27,6 +27,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace lld::elf {
@@ -72,7 +73,14 @@ enum class UnresolvedPolicy { ReportError, Warn, Ignore };
 enum class OrphanHandlingPolicy { Place, Warn, Error };
 
 // For --sort-section and linkerscript sorting rules.
-enum class SortSectionPolicy { Default, None, Alignment, Name, Priority };
+enum class SortSectionPolicy {
+  Default,
+  None,
+  Alignment,
+  Name,
+  Priority,
+  Reverse,
+};
 
 // For --target2
 enum class Target2Policy { Abs, Rel, GotRel };
@@ -153,7 +161,7 @@ struct Config {
   llvm::StringRef mapFile;
   llvm::StringRef outputFile;
   llvm::StringRef optRemarksFilename;
-  llvm::Optional<uint64_t> optRemarksHotnessThreshold = 0;
+  std::optional<uint64_t> optRemarksHotnessThreshold = 0;
   llvm::StringRef optRemarksPasses;
   llvm::StringRef optRemarksFormat;
   llvm::StringRef optStatsFilename;
@@ -169,7 +177,9 @@ struct Config {
   StringRef zCetReport = "none";
   llvm::StringRef ltoBasicBlockSections;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
-  std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
+  llvm::StringRef thinLTOPrefixReplaceOld;
+  llvm::StringRef thinLTOPrefixReplaceNew;
+  llvm::StringRef thinLTOPrefixReplaceNativeObject;
   std::string rpath;
   llvm::SmallVector<VersionDefinition, 0> versionDefinitions;
   llvm::SmallVector<llvm::StringRef, 0> auxiliaryList;
@@ -310,13 +320,14 @@ struct Config {
   SeparateSegmentKind zSeparate;
   ELFKind ekind = ELFNoneKind;
   uint16_t emachine = llvm::ELF::EM_NONE;
-  llvm::Optional<uint64_t> imageBase;
+  std::optional<uint64_t> imageBase;
   uint64_t commonPageSize;
   uint64_t maxPageSize;
   uint64_t mipsGotSize;
   uint64_t zStackSize;
   unsigned ltoPartitions;
   unsigned ltoo;
+  llvm::CodeGenOpt::Level ltoCgo;
   unsigned optimize;
   StringRef thinLTOJobs;
   unsigned timeTraceGranularity;
@@ -449,7 +460,7 @@ LLVM_LIBRARY_VISIBILITY extern Ctx ctx;
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and
 // VER_NDX_GLOBAL. This helper returns other elements.
 static inline ArrayRef<VersionDefinition> namedVersionDefs() {
-  return llvm::makeArrayRef(config->versionDefinitions).slice(2);
+  return llvm::ArrayRef(config->versionDefinitions).slice(2);
 }
 
 void errorOrWarn(const Twine &msg);

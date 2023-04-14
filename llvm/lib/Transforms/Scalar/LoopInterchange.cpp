@@ -182,63 +182,36 @@ static void interChangeDependencies(CharMatrix &DepMatrix, unsigned FromIndx,
     std::swap(DepMatrix[I][ToIndx], DepMatrix[I][FromIndx]);
 }
 
-// Checks if no dependence exist in the dependency matrix in Row before Column.
-static bool containsNoDependence(CharMatrix &DepMatrix, unsigned Row,
-                                 unsigned Column) {
-  for (unsigned i = 0; i < Column; ++i) {
-    if (DepMatrix[Row][i] != '=' && DepMatrix[Row][i] != 'S' &&
-        DepMatrix[Row][i] != 'I')
+// After interchanging, check if the direction vector is valid.
+// [Theorem] A permutation of the loops in a perfect nest is legal if and only
+// if the direction matrix, after the same permutation is applied to its
+// columns, has no ">" direction as the leftmost non-"=" direction in any row.
+static bool isLexicographicallyPositive(std::vector<char> &DV) {
+  for (unsigned Level = 0; Level < DV.size(); ++Level) {
+    unsigned char Direction = DV[Level];
+    if (Direction == '<')
+      return true;
+    if (Direction == '>' || Direction == '*')
       return false;
   }
   return true;
 }
 
-static bool validDepInterchange(CharMatrix &DepMatrix, unsigned Row,
-                                unsigned OuterLoopId, char InnerDep,
-                                char OuterDep) {
-  if (InnerDep == OuterDep)
-    return true;
-
-  // It is legal to interchange if and only if after interchange no row has a
-  // '>' direction as the leftmost non-'='.
-
-  if (InnerDep == '=' || InnerDep == 'S' || InnerDep == 'I')
-    return true;
-
-  if (InnerDep == '<')
-    return true;
-
-  if (InnerDep == '>') {
-    // If OuterLoopId represents outermost loop then interchanging will make the
-    // 1st dependency as '>'
-    if (OuterLoopId == 0)
-      return false;
-
-    // If all dependencies before OuterloopId are '=','S'or 'I'. Then
-    // interchanging will result in this row having an outermost non '='
-    // dependency of '>'
-    if (!containsNoDependence(DepMatrix, Row, OuterLoopId))
-      return true;
-  }
-
-  return false;
-}
-
 // Checks if it is legal to interchange 2 loops.
-// [Theorem] A permutation of the loops in a perfect nest is legal if and only
-// if the direction matrix, after the same permutation is applied to its
-// columns, has no ">" direction as the leftmost non-"=" direction in any row.
 static bool isLegalToInterChangeLoops(CharMatrix &DepMatrix,
                                       unsigned InnerLoopId,
                                       unsigned OuterLoopId) {
   unsigned NumRows = DepMatrix.size();
+  std::vector<char> Cur;
   // For each row check if it is valid to interchange.
   for (unsigned Row = 0; Row < NumRows; ++Row) {
-    char InnerDep = DepMatrix[Row][InnerLoopId];
-    char OuterDep = DepMatrix[Row][OuterLoopId];
-    if (InnerDep == '*' || OuterDep == '*')
+    // Create temporary DepVector check its lexicographical order
+    // before and after swapping OuterLoop vs InnerLoop
+    Cur = DepMatrix[Row];
+    if (!isLexicographicallyPositive(Cur))
       return false;
-    if (!validDepInterchange(DepMatrix, Row, OuterLoopId, InnerDep, OuterDep))
+    std::swap(Cur[InnerLoopId], Cur[OuterLoopId]);
+    if (!isLexicographicallyPositive(Cur))
       return false;
   }
   return true;
@@ -338,11 +311,18 @@ public:
   bool isProfitable(const Loop *InnerLoop, const Loop *OuterLoop,
                     unsigned InnerLoopId, unsigned OuterLoopId,
                     CharMatrix &DepMatrix,
-                    const DenseMap<const Loop *, unsigned> &CostMap);
+                    const DenseMap<const Loop *, unsigned> &CostMap,
+                    std::unique_ptr<CacheCost> &CC);
 
 private:
   int getInstrOrderCost();
-
+  std::optional<bool> isProfitablePerLoopCacheAnalysis(
+      const DenseMap<const Loop *, unsigned> &CostMap,
+      std::unique_ptr<CacheCost> &CC);
+  std::optional<bool> isProfitablePerInstrOrderCost();
+  std::optional<bool> isProfitableForVectorization(unsigned InnerLoopId,
+                                                   unsigned OuterLoopId,
+                                                   CharMatrix &DepMatrix);
   Loop *OuterLoop;
   Loop *InnerLoop;
 
@@ -539,7 +519,7 @@ struct LoopInterchange {
     LLVM_DEBUG(dbgs() << "Loops are legal to interchange\n");
     LoopInterchangeProfitability LIP(OuterLoop, InnerLoop, SE, ORE);
     if (!LIP.isProfitable(InnerLoop, OuterLoop, InnerLoopId, OuterLoopId,
-                          DependencyMatrix, CostMap)) {
+                          DependencyMatrix, CostMap, CC)) {
       LLVM_DEBUG(dbgs() << "Interchanging loops not profitable.\n");
       return false;
     }
@@ -756,7 +736,6 @@ bool LoopInterchangeLegality::findInductionAndReductions(
   if (!L->getLoopLatch() || !L->getLoopPredecessor())
     return false;
   for (PHINode &PHI : L->getHeader()->phis()) {
-    RecurrenceDescriptor RD;
     InductionDescriptor ID;
     if (InductionDescriptor::isInductionPHI(&PHI, L, SE, ID))
       Inductions.push_back(&PHI);
@@ -1118,66 +1097,105 @@ int LoopInterchangeProfitability::getInstrOrderCost() {
   return GoodOrder - BadOrder;
 }
 
-static bool isProfitableForVectorization(unsigned InnerLoopId,
-                                         unsigned OuterLoopId,
-                                         CharMatrix &DepMatrix) {
-  // TODO: Improve this heuristic to catch more cases.
-  // If the inner loop is loop independent or doesn't carry any dependency it is
-  // profitable to move this to outer position.
-  for (auto &Row : DepMatrix) {
-    if (Row[InnerLoopId] != 'S' && Row[InnerLoopId] != 'I')
-      return false;
-    // TODO: We need to improve this heuristic.
-    if (Row[OuterLoopId] != '=')
-      return false;
-  }
-  // If outer loop has dependence and inner loop is loop independent then it is
-  // profitable to interchange to enable parallelism.
-  // If there are no dependences, interchanging will not improve anything.
-  return !DepMatrix.empty();
-}
-
-bool LoopInterchangeProfitability::isProfitable(
-    const Loop *InnerLoop, const Loop *OuterLoop, unsigned InnerLoopId,
-    unsigned OuterLoopId, CharMatrix &DepMatrix,
-    const DenseMap<const Loop *, unsigned> &CostMap) {
-  // TODO: Remove the legacy cost model.
-
+std::optional<bool>
+LoopInterchangeProfitability::isProfitablePerLoopCacheAnalysis(
+    const DenseMap<const Loop *, unsigned> &CostMap,
+    std::unique_ptr<CacheCost> &CC) {
   // This is the new cost model returned from loop cache analysis.
   // A smaller index means the loop should be placed an outer loop, and vice
   // versa.
-  if (CostMap.find(InnerLoop) != CostMap.end() &&
-      CostMap.find(OuterLoop) != CostMap.end()) {
+  if (CostMap.contains(InnerLoop) && CostMap.contains(OuterLoop)) {
     unsigned InnerIndex = 0, OuterIndex = 0;
     InnerIndex = CostMap.find(InnerLoop)->second;
     OuterIndex = CostMap.find(OuterLoop)->second;
     LLVM_DEBUG(dbgs() << "InnerIndex = " << InnerIndex
                       << ", OuterIndex = " << OuterIndex << "\n");
     if (InnerIndex < OuterIndex)
-      return true;
-  } else {
-    // Legacy cost model: this is rough cost estimation algorithm. It counts the
-    // good and bad order of induction variables in the instruction and allows
-    // reordering if number of bad orders is more than good.
-    int Cost = getInstrOrderCost();
-    LLVM_DEBUG(dbgs() << "Cost = " << Cost << "\n");
-    if (Cost < -LoopInterchangeCostThreshold)
-      return true;
+      return std::optional<bool>(true);
+    assert(InnerIndex != OuterIndex && "CostMap should assign unique "
+                                       "numbers to each loop");
+    if (CC->getLoopCost(*OuterLoop) == CC->getLoopCost(*InnerLoop))
+      return std::nullopt;
+    return std::optional<bool>(false);
   }
+  return std::nullopt;
+}
 
-  // It is not profitable as per current cache profitability model. But check if
-  // we can move this loop outside to improve parallelism.
-  if (isProfitableForVectorization(InnerLoopId, OuterLoopId, DepMatrix))
-    return true;
+std::optional<bool>
+LoopInterchangeProfitability::isProfitablePerInstrOrderCost() {
+  // Legacy cost model: this is rough cost estimation algorithm. It counts the
+  // good and bad order of induction variables in the instruction and allows
+  // reordering if number of bad orders is more than good.
+  int Cost = getInstrOrderCost();
+  LLVM_DEBUG(dbgs() << "Cost = " << Cost << "\n");
+  if (Cost < 0 && Cost < LoopInterchangeCostThreshold)
+    return std::optional<bool>(true);
 
-  ORE->emit([&]() {
-    return OptimizationRemarkMissed(DEBUG_TYPE, "InterchangeNotProfitable",
-                                    InnerLoop->getStartLoc(),
-                                    InnerLoop->getHeader())
-           << "Interchanging loops is too costly and it does not improve "
-              "parallelism.";
-  });
-  return false;
+  return std::nullopt;
+}
+
+std::optional<bool> LoopInterchangeProfitability::isProfitableForVectorization(
+    unsigned InnerLoopId, unsigned OuterLoopId, CharMatrix &DepMatrix) {
+  for (auto &Row : DepMatrix) {
+    // If the inner loop is loop independent or doesn't carry any dependency
+    // it is not profitable to move this to outer position, since we are
+    // likely able to do inner loop vectorization already.
+    if (Row[InnerLoopId] == 'I' || Row[InnerLoopId] == '=')
+      return std::optional<bool>(false);
+
+    // If the outer loop is not loop independent it is not profitable to move
+    // this to inner position, since doing so would not enable inner loop
+    // parallelism.
+    if (Row[OuterLoopId] != 'I' && Row[OuterLoopId] != '=')
+      return std::optional<bool>(false);
+  }
+  // If inner loop has dependence and outer loop is loop independent then it
+  // is/ profitable to interchange to enable inner loop parallelism.
+  // If there are no dependences, interchanging will not improve anything.
+  return std::optional<bool>(!DepMatrix.empty());
+}
+
+bool LoopInterchangeProfitability::isProfitable(
+    const Loop *InnerLoop, const Loop *OuterLoop, unsigned InnerLoopId,
+    unsigned OuterLoopId, CharMatrix &DepMatrix,
+    const DenseMap<const Loop *, unsigned> &CostMap,
+    std::unique_ptr<CacheCost> &CC) {
+  // isProfitable() is structured to avoid endless loop interchange.
+  // If loop cache analysis could decide the profitability then,
+  // profitability check will stop and return the analysis result.
+  // If cache analysis failed to analyze the loopnest (e.g.,
+  // due to delinearization issues) then only check whether it is
+  // profitable for InstrOrderCost. Likewise, if InstrOrderCost failed to
+  // analysis the profitability then only, isProfitableForVectorization
+  // will decide.
+  std::optional<bool> shouldInterchange =
+      isProfitablePerLoopCacheAnalysis(CostMap, CC);
+  if (!shouldInterchange.has_value()) {
+    shouldInterchange = isProfitablePerInstrOrderCost();
+    if (!shouldInterchange.has_value())
+      shouldInterchange =
+          isProfitableForVectorization(InnerLoopId, OuterLoopId, DepMatrix);
+  }
+  if (!shouldInterchange.has_value()) {
+    ORE->emit([&]() {
+      return OptimizationRemarkMissed(DEBUG_TYPE, "InterchangeNotProfitable",
+                                      InnerLoop->getStartLoc(),
+                                      InnerLoop->getHeader())
+             << "Insufficient information to calculate the cost of loop for "
+                "interchange.";
+    });
+    return false;
+  } else if (!shouldInterchange.value()) {
+    ORE->emit([&]() {
+      return OptimizationRemarkMissed(DEBUG_TYPE, "InterchangeNotProfitable",
+                                      InnerLoop->getStartLoc(),
+                                      InnerLoop->getHeader())
+             << "Interchanging loops is not considered to improve cache "
+                "locality nor vectorization.";
+    });
+    return false;
+  }
+  return true;
 }
 
 void LoopInterchangeTransform::removeChildLoop(Loop *OuterLoop,
@@ -1267,7 +1285,6 @@ void LoopInterchangeTransform::restructureLoops(
 
   // Tell SE that we move the loops around.
   SE->forgetLoop(NewOuter);
-  SE->forgetLoop(NewInner);
 }
 
 bool LoopInterchangeTransform::transform() {
@@ -1377,11 +1394,10 @@ bool LoopInterchangeTransform::transform() {
 /// \brief Move all instructions except the terminator from FromBB right before
 /// InsertBefore
 static void moveBBContents(BasicBlock *FromBB, Instruction *InsertBefore) {
-  auto &ToList = InsertBefore->getParent()->getInstList();
-  auto &FromList = FromBB->getInstList();
+  BasicBlock *ToBB = InsertBefore->getParent();
 
-  ToList.splice(InsertBefore->getIterator(), FromList, FromList.begin(),
-                FromBB->getTerminator()->getIterator());
+  ToBB->splice(InsertBefore->getIterator(), FromBB, FromBB->begin(),
+               FromBB->getTerminator()->getIterator());
 }
 
 /// Swap instructions between \p BB1 and \p BB2 but keep terminators intact.
@@ -1696,52 +1712,6 @@ bool LoopInterchangeTransform::adjustLoopLinks() {
     swapBBContents(OuterLoopPreHeader, InnerLoopPreHeader);
   }
   return Changed;
-}
-
-namespace {
-/// Main LoopInterchange Pass.
-struct LoopInterchangeLegacyPass : public LoopPass {
-  static char ID;
-
-  LoopInterchangeLegacyPass() : LoopPass(ID) {
-    initializeLoopInterchangeLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<DependenceAnalysisWrapperPass>();
-    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
-
-    getLoopAnalysisUsage(AU);
-  }
-
-  bool runOnLoop(Loop *L, LPPassManager &LPM) override {
-    if (skipLoop(L))
-      return false;
-
-    auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-    auto *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    auto *DI = &getAnalysis<DependenceAnalysisWrapperPass>().getDI();
-    auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    auto *ORE = &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
-    std::unique_ptr<CacheCost> CC = nullptr;
-    return LoopInterchange(SE, LI, DI, DT, CC, ORE).run(L);
-  }
-};
-} // namespace
-
-char LoopInterchangeLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(LoopInterchangeLegacyPass, "loop-interchange",
-                      "Interchanges loops for cache reuse", false, false)
-INITIALIZE_PASS_DEPENDENCY(LoopPass)
-INITIALIZE_PASS_DEPENDENCY(DependenceAnalysisWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
-
-INITIALIZE_PASS_END(LoopInterchangeLegacyPass, "loop-interchange",
-                    "Interchanges loops for cache reuse", false, false)
-
-Pass *llvm::createLoopInterchangePass() {
-  return new LoopInterchangeLegacyPass();
 }
 
 PreservedAnalyses LoopInterchangePass::run(LoopNest &LN,

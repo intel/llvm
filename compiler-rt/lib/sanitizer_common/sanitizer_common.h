@@ -315,6 +315,8 @@ CheckFailed(const char *file, int line, const char *cond, u64 v1, u64 v2);
 void NORETURN ReportMmapFailureAndDie(uptr size, const char *mem_type,
                                       const char *mmap_type, error_t err,
                                       bool raw_report = false);
+void NORETURN ReportMunmapFailureAndDie(void *ptr, uptr size, error_t err,
+                                        bool raw_report = false);
 
 // Returns true if the platform-specific error reported is an OOM error.
 bool ErrorIsOOM(error_t err);
@@ -709,6 +711,7 @@ enum ModuleArch {
   kModuleArchARMV7S,
   kModuleArchARMV7K,
   kModuleArchARM64,
+  kModuleArchLoongArch64,
   kModuleArchRISCV64,
   kModuleArchHexagon
 };
@@ -781,6 +784,8 @@ inline const char *ModuleArchToString(ModuleArch arch) {
       return "armv7k";
     case kModuleArchARM64:
       return "arm64";
+    case kModuleArchLoongArch64:
+      return "loongarch64";
     case kModuleArchRISCV64:
       return "riscv64";
     case kModuleArchHexagon:

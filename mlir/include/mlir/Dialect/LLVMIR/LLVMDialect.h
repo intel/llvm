@@ -15,6 +15,7 @@
 #define MLIR_DIALECT_LLVMIR_LLVMDIALECT_H_
 
 #include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
+#include "mlir/Dialect/LLVMIR/LLVMInterfaces.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
@@ -33,8 +34,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-
-#include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.h.inc"
 
 namespace llvm {
 class Type;
@@ -165,9 +164,8 @@ public:
       if (*rawConstantIter == GEPOp::kDynamicIndex)
         return *valuesIter;
 
-      return IntegerAttr::get(
-          ElementsAttr::getElementType(base->rawConstantIndices),
-          *rawConstantIter);
+      return IntegerAttr::get(base->rawConstantIndices.getElementType(),
+                              *rawConstantIter);
     }
 
     iterator &operator++() {
@@ -209,7 +207,8 @@ private:
 /// global and use it to compute the address of the first character in the
 /// string (operations inserted at the builder insertion point).
 Value createGlobalString(Location loc, OpBuilder &builder, StringRef name,
-                         StringRef value, Linkage linkage);
+                         StringRef value, Linkage linkage,
+                         bool useOpaquePointers);
 
 /// LLVM requires some operations to be inside of a Module operation. This
 /// function confirms that the Operation has the desired properties.

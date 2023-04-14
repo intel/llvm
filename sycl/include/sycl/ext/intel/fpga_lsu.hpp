@@ -13,8 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+namespace ext::intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
 constexpr uint8_t STATICALLY_COALESCE = 0x4;
@@ -124,8 +123,7 @@ private:
                   "unable to implement a store LSU with a prefetcher.");
   }
 };
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

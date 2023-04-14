@@ -15,12 +15,12 @@
 #include "llvm/Transforms/CFGuard.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -272,8 +272,8 @@ bool CFGuard::runOnFunction(Function &F) {
   // instructions. Make a separate list of pointers to indirect
   // call/invoke/callbr instructions because the original instructions will be
   // deleted as the checks are added.
-  for (BasicBlock &BB : F.getBasicBlockList()) {
-    for (Instruction &I : BB.getInstList()) {
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
       auto *CB = dyn_cast<CallBase>(&I);
       if (CB && CB->isIndirectCall() && !CB->hasFnAttr("guard_nocf")) {
         IndirectCalls.push_back(CB);

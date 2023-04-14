@@ -99,6 +99,15 @@ static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 namespace detail {
 
 /// @cond ESIMD_DETAIL
+/// \c dqword_element_aligned_tag type. Flag of this type should be used in load
+/// and store operations when memory address is aligned by simd object's element
+/// type or dword whatever is greater.
+struct dqword_element_aligned_tag {
+  template <typename VT, typename ET = detail::element_type_t<VT>>
+  static constexpr unsigned alignment = alignof(ET) > 4 ? alignof(ET) : 4;
+};
+
+inline constexpr dqword_element_aligned_tag dqword_element_aligned = {};
 
 // Functions to support efficient simd constructors - avoiding internal loop
 // over elements.
@@ -344,6 +353,15 @@ public:
     return __esimd_vload<RawTy, N>(&M_data);
 #endif
   }
+
+  /// @return A reference to the value of the
+  /// underlying raw vector. Intended for use
+  /// with l-value contexts in inline assembly.
+  raw_vector_type &data_ref() { return M_data; }
+
+  /// Commit the current stored underlying raw vector to memory.
+  /// This is required when using inline assembly with private global variables.
+  void commit() { __esimd_vstore<RawTy, N>(&M_data, M_data); }
 
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.
@@ -881,6 +899,9 @@ protected:
 
 } // namespace detail
 
+template <>
+struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
+};
 } // namespace ext::intel::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

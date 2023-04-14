@@ -60,6 +60,7 @@ endif()
 # Getting correct source files to build library
 set(LIBOMP_CXXFILES)
 set(LIBOMP_ASMFILES)
+set(LIBOMP_GNUASMFILES)
 if(STUBS_LIBRARY)
   set(LIBOMP_CXXFILES kmp_stub.cpp)
 else()
@@ -94,12 +95,18 @@ else()
     libomp_append(LIBOMP_CXXFILES z_Windows_NT-586_util.cpp)
     if(${LIBOMP_ARCH} STREQUAL "i386" OR ${LIBOMP_ARCH} STREQUAL "x86_64")
       libomp_append(LIBOMP_ASMFILES z_Windows_NT-586_asm.asm) # Windows assembly file
+    elseif((${LIBOMP_ARCH} STREQUAL "aarch64" OR ${LIBOMP_ARCH} STREQUAL "arm") AND (NOT MSVC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+      # z_Linux_asm.S works for AArch64 and ARM Windows too.
+      libomp_append(LIBOMP_GNUASMFILES z_Linux_asm.S)
+    else()
+      # AArch64 with MSVC gets implementations of the functions from
+      # ifdeffed sections in z_Windows_NT-586_util.cpp.
     endif()
   else()
     # Unix specific files
     libomp_append(LIBOMP_CXXFILES z_Linux_util.cpp)
     libomp_append(LIBOMP_CXXFILES kmp_gsupport.cpp)
-    libomp_append(LIBOMP_ASMFILES z_Linux_asm.S) # Unix assembly file
+    libomp_append(LIBOMP_GNUASMFILES z_Linux_asm.S) # Unix assembly file
   endif()
   libomp_append(LIBOMP_CXXFILES thirdparty/ittnotify/ittnotify_static.cpp LIBOMP_USE_ITT_NOTIFY)
   libomp_append(LIBOMP_CXXFILES kmp_debugger.cpp LIBOMP_USE_DEBUGGER)
@@ -115,7 +122,7 @@ libomp_append(LIBOMP_CXXFILES kmp_version.cpp)
 libomp_append(LIBOMP_CXXFILES ompt-general.cpp IF_TRUE LIBOMP_OMPT_SUPPORT)
 libomp_append(LIBOMP_CXXFILES ompd-specific.cpp IF_TRUE LIBOMP_OMPD_SUPPORT)
 
-set(LIBOMP_SOURCE_FILES ${LIBOMP_CXXFILES} ${LIBOMP_ASMFILES})
+set(LIBOMP_SOURCE_FILES ${LIBOMP_CXXFILES} ${LIBOMP_ASMFILES} ${LIBOMP_GNUASMFILES})
 # For Windows, there is a resource file (.rc -> .res) that is also compiled
 libomp_append(LIBOMP_SOURCE_FILES libomp.rc WIN32)
 
@@ -124,11 +131,9 @@ libomp_get_cxxflags(LIBOMP_CONFIGURED_CXXFLAGS)
 libomp_get_asmflags(LIBOMP_CONFIGURED_ASMFLAGS)
 # Set the compiler flags for each type of source
 set_source_files_properties(${LIBOMP_CXXFILES} PROPERTIES COMPILE_FLAGS "${LIBOMP_CONFIGURED_CXXFLAGS}")
-set_source_files_properties(${LIBOMP_ASMFILES} PROPERTIES COMPILE_FLAGS "${LIBOMP_CONFIGURED_ASMFLAGS}")
-# Let the compiler handle the assembly files on Unix-like systems
-if(NOT WIN32)
-  set_source_files_properties(${LIBOMP_ASMFILES} PROPERTIES LANGUAGE C)
-endif()
+set_source_files_properties(${LIBOMP_ASMFILES} ${LIBOMP_GNUASMFILES} PROPERTIES COMPILE_FLAGS "${LIBOMP_CONFIGURED_ASMFLAGS}")
+# Let the compiler handle the GNU assembly files
+set_source_files_properties(${LIBOMP_GNUASMFILES} PROPERTIES LANGUAGE C)
 
 # Remove any cmake-automatic linking of the standard C++ library.
 # We neither need (nor want) the standard C++ library dependency even though we compile c++ files.
@@ -230,10 +235,6 @@ add_dependencies(omp libomp-needed-headers)
 # Windows specific build rules
 if(WIN32)
   configure_file(libomp.rc.var libomp.rc @ONLY)
-
-  # Create .def and .rc file before compiling any sources
-  add_custom_target(libomp-needed-windows-files DEPENDS ${LIBOMP_LIB_NAME}.def)
-  add_dependencies(omp libomp-needed-windows-files)
   # z_Windows_NT-586_asm.asm requires definitions to be sent via command line
   # It only needs the architecture macro and OMPT_SUPPORT=0|1
   libomp_append(LIBOMP_MASM_DEFINITIONS "-D_M_IA32" IF_TRUE IA32)
@@ -245,10 +246,6 @@ if(WIN32)
   set_source_files_properties(thirdparty/ittnotify/ittnotify_static.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE")
 
   # Create Windows import library
-  # the import library is "re-linked" to include kmp_import.cpp which prevents
-  # linking of both Visual Studio OpenMP and newly built OpenMP
-  set_source_files_properties(kmp_import.cpp PROPERTIES COMPILE_FLAGS "${LIBOMP_CONFIGURED_CXXFLAGS}")
-
   # On debug LIBOMP_IMP_LIB_FILE should be LIBOMP_IMP_LIB_FILE_DBG = ${LIBOMP_DEFAULT_LIB_NAME_DBG}${CMAKE_STATIC_LIBRARY_SUFFIX}
   # 									${LIBOMP_DEFAULT_LIB_NAME}d${CMAKE_STATIC_LIBRARY_SUFFIX}
   # and the ARCHIVE_OUTPUT_NAME of ompdbg should be ${LIBOMP_DEFAULT_LIB_NAME_DBG}${LIBOMP_LIBRARY_SUFFIX}${CMAKE_STATIC_LIBRARY_SUFFIX}
@@ -271,36 +268,41 @@ if(WIN32)
     ARCHIVE_OUTPUT_NAME ${LIBOMP_GENERATED_IMP_LIB_FILENAME}
   )
 
-  if(MSVC)
-    # Get generated import library from creating omp
-    get_target_property(LIBOMP_IMPORT_LIB_DIRECTORY omp ARCHIVE_OUTPUT_DIRECTORY)
-    if(LIBOMP_IMPORT_LIB_DIRECTORY)
-      set(LIBOMP_GENERATED_IMP_LIB ${LIBOMP_IMPORT_LIB_DIRECTORY}/${LIBOMP_GENERATED_IMP_LIB_FILENAME})
-    else()
-      set(LIBOMP_GENERATED_IMP_LIB ${CMAKE_CURRENT_BINARY_DIR}/${LIBOMP_GENERATED_IMP_LIB_FILENAME})
-    endif()
-    set_source_files_properties(${LIBOMP_GENERATED_IMP_LIB} PROPERTIES GENERATED TRUE EXTERNAL_OBJECT TRUE)
-    # Create new import library that is just the previously created one + kmp_import.cpp
-    add_library(ompimp STATIC ${LIBOMP_GENERATED_IMP_LIB} kmp_import.cpp)
-    set_target_properties(ompimp PROPERTIES
-      PREFIX "" SUFFIX "" OUTPUT_NAME "${LIBOMP_IMP_LIB_FILE}"
-      LINKER_LANGUAGE C
-    )
-    add_dependencies(ompimp omp) # ensure generated import library is created first
-    set(LIBOMP_IMP_LIB_TARGET ompimp)
-  else()
-    set(LIBOMP_IMP_LIB_TARGET omp)
-  endif()
-
-  # Create def file to designate exported functions
-  libomp_get_gdflags(LIBOMP_GDFLAGS) # generate-def.pl flags (Windows only)
+  set(LIBOMP_IMP_LIB_TARGET omp)
+  set(LIBOMP_GENERATED_DEF_FILE ${LIBOMP_LIB_NAME}.def)
+  add_custom_target(libomp-needed-def-file DEPENDS ${LIBOMP_GENERATED_DEF_FILE})
+  add_dependencies(omp libomp-needed-def-file)
+    
+  # Create the main def file with ordinals to use for building the runtime dll to maintain backwards compatible exports order
+  libomp_get_gdflags(LIBOMP_GDFLAGS)
   libomp_string_to_list("${LIBOMP_GDFLAGS}" LIBOMP_GDFLAGS)
   add_custom_command(
-    OUTPUT  ${LIBOMP_LIB_NAME}.def
-    COMMAND ${PERL_EXECUTABLE} ${LIBOMP_TOOLS_DIR}/generate-def.pl ${LIBOMP_GDFLAGS}
-      -o ${LIBOMP_LIB_NAME}.def ${CMAKE_CURRENT_SOURCE_DIR}/dllexports
+    OUTPUT  ${LIBOMP_GENERATED_DEF_FILE}
+    COMMAND ${PERL_EXECUTABLE} ${LIBOMP_TOOLS_DIR}/generate-def.pl ${LIBOMP_GDFLAGS} -D NAME=${LIBOMP_LIB_FILE}
+            -o ${LIBOMP_GENERATED_DEF_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/dllexports
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dllexports ${LIBOMP_TOOLS_DIR}/generate-def.pl
   )
+
+  if(MSVC)
+    # For toolchains that generated the import library importing by ordinal, re-generate it to import by name
+    set(LIBOMP_IMP_LIB_TARGET ompimp)
+    # Create the auxiliary def file without ordinals to use for building the import library to import by name 
+    set(LIBOMPIMP_GENERATED_DEF_FILE ${LIBOMP_LIB_NAME}.imp.def)
+    add_custom_target(libompimp-needed-def-file DEPENDS ${LIBOMPIMP_GENERATED_DEF_FILE})
+    add_custom_command(
+      OUTPUT  ${LIBOMPIMP_GENERATED_DEF_FILE}
+      COMMAND ${PERL_EXECUTABLE} ${LIBOMP_TOOLS_DIR}/generate-def.pl ${LIBOMP_GDFLAGS} -D NAME=${LIBOMP_LIB_FILE} -D NOORDINALS
+          -o ${LIBOMPIMP_GENERATED_DEF_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/dllexports
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dllexports ${LIBOMP_TOOLS_DIR}/generate-def.pl
+    )
+    # while this merely generates an import library off a def file, CMAKE still requires it to have a "source" so feed it a dummy one, 
+    # making it a .txt which CMAKE will filter out from the librarian (a .cpp will make lib.exe punt trying to resolve the .def symbols)
+    add_library(${LIBOMP_IMP_LIB_TARGET} STATIC kmp_dummy.txt)
+    set_target_properties(${LIBOMP_IMP_LIB_TARGET} PROPERTIES
+        PREFIX "" SUFFIX "" OUTPUT_NAME "${LIBOMP_IMP_LIB_FILE}" LINKER_LANGUAGE ${LIBOMP_LINKER_LANGUAGE}
+        STATIC_LIBRARY_OPTIONS "${CMAKE_LINK_DEF_FILE_FLAG}${CMAKE_CURRENT_BINARY_DIR}/${LIBOMPIMP_GENERATED_DEF_FILE}")
+    add_dependencies(${LIBOMP_IMP_LIB_TARGET} libompimp-needed-def-file)
+  endif()
 endif()
 
 # Building the Fortran module files
@@ -391,6 +393,7 @@ if(${LIBOMP_OMPT_SUPPORT})
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/omp-tools.h DESTINATION ${LIBOMP_HEADERS_INSTALL_PATH})
   # install under legacy name ompt.h
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/omp-tools.h DESTINATION ${LIBOMP_HEADERS_INSTALL_PATH} RENAME ompt.h)
+  set(LIBOMP_OMP_TOOLS_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR} PARENT_SCOPE)
 endif()
 if(${LIBOMP_FORTRAN_MODULES})
   install(FILES

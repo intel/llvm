@@ -25,8 +25,6 @@
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/Core/Replacement.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -41,6 +39,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <random>
 #include <string>
 #include <thread>
@@ -943,7 +942,7 @@ void f() {}
   FS.Files[Path] = Code;
   runAddDocument(Server, Path, Code);
 
-  auto Replaces = runFormatFile(Server, Path, /*Rng=*/llvm::None);
+  auto Replaces = runFormatFile(Server, Path, /*Rng=*/std::nullopt);
   EXPECT_TRUE(static_cast<bool>(Replaces));
   auto Changed = tooling::applyAllReplacements(Code, *Replaces);
   EXPECT_TRUE(static_cast<bool>(Changed));
@@ -1111,7 +1110,7 @@ TEST(ClangdServerTest, FallbackWhenWaitingForCompileCommand) {
     DelayedCompilationDatabase(Notification &CanReturnCommand)
         : CanReturnCommand(CanReturnCommand) {}
 
-    llvm::Optional<tooling::CompileCommand>
+    std::optional<tooling::CompileCommand>
     getCompileCommand(PathRef File) const override {
       // FIXME: make this timeout and fail instead of waiting forever in case
       // something goes wrong.

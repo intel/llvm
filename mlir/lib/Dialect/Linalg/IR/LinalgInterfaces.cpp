@@ -36,6 +36,11 @@ bool linalg::detail::canOpOperandsBeDroppedImpl(
       continue;
     indexingMaps.push_back(linalgOp.getMatchingIndexingMap(&opOperand));
   }
+  if (indexingMaps.empty()) {
+    // If there are no indexing maps, the operand can only be dropped
+    // if the op has no loops.
+    return linalgOp.getNumLoops() == 0;
+  }
   return inversePermutation(concatAffineMaps(indexingMaps)) != AffineMap();
 }
 
@@ -263,6 +268,7 @@ static llvm::SmallDenseSet<unsigned> getPreservedDims(AffineMap map) {
   return preservedDims;
 }
 
+namespace mlir::linalg::detail {
 enum class MatchConvolutionResult {
   Success = 0,
   NotLinalgOp,
@@ -273,8 +279,11 @@ enum class MatchConvolutionResult {
   OutputDimsNotParallel,
   NonOutputDimNotReduction
 };
+} // namespace mlir::linalg::detail
 
-static MatchConvolutionResult isConvolutionInterfaceImpl(Operation *op) {
+mlir::linalg::detail::MatchConvolutionResult
+mlir::linalg::detail::isConvolutionInterfaceImpl(
+    Operation *op, ConvolutionDimensions *dimensions) {
   auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
   if (!linalgOp)
     return MatchConvolutionResult::NotLinalgOp;
@@ -302,7 +311,7 @@ static MatchConvolutionResult isConvolutionInterfaceImpl(Operation *op) {
   llvm::SmallDenseSet<unsigned> outputDims =
       getPreservedDims(indexingMaps.back());
   llvm::SmallDenseSet<unsigned> filterDims = getPreservedDims(indexingMaps[1]);
-  // Make sure all loops are charecterized as one of:
+  // Make sure all loops are characterized as one of:
   // - Batch loop : present in output, as non-convolved in input, not present in
   //   filter.
   // - Output image dimension : present in output, convolved dims in input, not
@@ -321,34 +330,42 @@ static MatchConvolutionResult isConvolutionInterfaceImpl(Operation *op) {
     if (inputExprWalker.unConvolvedDims.count(outputDim) &&
         !filterDims.count(outputDim)) {
       // Batch dimension.
-      if (iteratorTypes[outputDim] != getParallelIteratorTypeName())
+      if (iteratorTypes[outputDim] != utils::IteratorType::parallel)
         return MatchConvolutionResult::OutputDimsNotParallel;
       allLoopDims.insert(outputDim);
+      if (dimensions)
+        dimensions->batch.push_back(outputDim);
       continue;
     }
     if (inputExprWalker.convolvedDims.count(outputDim) &&
         !filterDims.count(outputDim)) {
       // Output image Loop dimension.
-      if (iteratorTypes[outputDim] != getParallelIteratorTypeName())
+      if (iteratorTypes[outputDim] != utils::IteratorType::parallel)
         return MatchConvolutionResult::OutputDimsNotParallel;
       allLoopDims.insert(outputDim);
+      if (dimensions)
+        dimensions->outputImage.push_back(outputDim);
       continue;
     }
     if (!inputExprWalker.convolvedDims.count(outputDim) &&
         !inputExprWalker.unConvolvedDims.count(outputDim) &&
         filterDims.count(outputDim)) {
       // Output channel dimension.
-      if (iteratorTypes[outputDim] != getParallelIteratorTypeName())
+      if (iteratorTypes[outputDim] != utils::IteratorType::parallel)
         return MatchConvolutionResult::OutputDimsNotParallel;
       allLoopDims.insert(outputDim);
+      if (dimensions)
+        dimensions->outputChannel.push_back(outputDim);
       continue;
     }
     if (inputExprWalker.unConvolvedDims.count(outputDim) &&
         filterDims.count(outputDim)) {
       // Depth multiplier.
-      if (iteratorTypes[outputDim] != getParallelIteratorTypeName())
+      if (iteratorTypes[outputDim] != utils::IteratorType::parallel)
         return MatchConvolutionResult::OutputDimsNotParallel;
       allLoopDims.insert(outputDim);
+      if (dimensions)
+        dimensions->depth.push_back(outputDim);
       continue;
     }
     return MatchConvolutionResult::NonConvolutionLoop;
@@ -358,32 +375,42 @@ static MatchConvolutionResult isConvolutionInterfaceImpl(Operation *op) {
     if (outputDims.count(filterDim) &&
         !inputExprWalker.unConvolvedDims.count(filterDim) &&
         !inputExprWalker.convolvedDims.count(filterDim)) {
-      // Output channel dimension. THis is already seen, continue;
+      // Output channel dimension. This is already seen, continue;
+      assert((!dimensions ||
+              llvm::is_contained(dimensions->outputChannel, filterDim)) &&
+             "expected output channel to have been found from output dims");
       continue;
     }
     if (inputExprWalker.convolvedDims.count(filterDim) &&
         !outputDims.count(filterDim)) {
       // Filter loop dimension.
-      if (iteratorTypes[filterDim] != getReductionIteratorTypeName())
+      if (iteratorTypes[filterDim] != utils::IteratorType::reduction)
         return MatchConvolutionResult::NonOutputDimNotReduction;
       if (allLoopDims.count(filterDim))
         return MatchConvolutionResult::NonConvolutionLoop;
       allLoopDims.insert(filterDim);
+      if (dimensions)
+        dimensions->filterLoop.push_back(filterDim);
       continue;
     }
     if (inputExprWalker.unConvolvedDims.count(filterDim) &&
         !outputDims.count(filterDim)) {
       // Input channel dimension.
-      if (iteratorTypes[filterDim] != getReductionIteratorTypeName())
+      if (iteratorTypes[filterDim] != utils::IteratorType::reduction)
         return MatchConvolutionResult::NonOutputDimNotReduction;
       if (allLoopDims.count(filterDim))
         return MatchConvolutionResult::NonConvolutionLoop;
       allLoopDims.insert(filterDim);
+      if (dimensions)
+        dimensions->inputChannel.push_back(filterDim);
       continue;
     }
     if (inputExprWalker.unConvolvedDims.count(filterDim) &&
         outputDims.count(filterDim)) {
       // Depthwise loop. Already seen.
+      assert(
+          (!dimensions || llvm::is_contained(dimensions->depth, filterDim)) &&
+          "expected depthwise dimension to have been found from output dims");
       continue;
     }
     return MatchConvolutionResult::NonConvolutionLoop;
@@ -392,32 +419,45 @@ static MatchConvolutionResult isConvolutionInterfaceImpl(Operation *op) {
   if (allLoopDims.size() != linalgOp.getNumLoops())
     return MatchConvolutionResult::NonConvolutionLoop;
 
+  if (dimensions) {
+    assert(dimensions->batch.size() + dimensions->outputImage.size() +
+                   dimensions->outputChannel.size() +
+                   dimensions->filterLoop.size() +
+                   dimensions->inputChannel.size() + dimensions->depth.size() ==
+               linalgOp.getNumLoops() &&
+           "expected all loops to be classified");
+  }
+
   return MatchConvolutionResult::Success;
 }
 
+StringRef
+mlir::linalg::detail::getMatchConvolutionMessage(MatchConvolutionResult res) {
+  switch (res) {
+  case MatchConvolutionResult::NotLinalgOp:
+    return "expected a LinalgOp";
+  case MatchConvolutionResult::WrongNumOperands:
+    return "expected op with 2 inputs and 1 output";
+  case MatchConvolutionResult::WrongInputIndexingMap:
+    return "unexpected input index map for convolutions";
+  case MatchConvolutionResult::NotProjectedPermutations:
+    return "expected output/filter indexing maps to be projected permutations";
+  case MatchConvolutionResult::NonConvolutionLoop:
+    return "unexpected loop dimension for convolution op";
+  case MatchConvolutionResult::OutputDimsNotParallel:
+    return "expected all iterators used to access outputs to be parallel";
+  case MatchConvolutionResult::NonOutputDimNotReduction:
+    return "expected all iterators not used to access outputs to be reduction";
+  case MatchConvolutionResult::Success:
+    return "";
+  }
+  llvm_unreachable("unhandled MatchConvolutionResult case");
+}
+
 LogicalResult mlir::linalg::detail::verifyConvolutionInterface(Operation *op) {
-  auto res = isConvolutionInterfaceImpl(op);
-  if (res == MatchConvolutionResult::NotLinalgOp)
-    return op->emitError("expected a LinalgOp");
-  if (res == MatchConvolutionResult::WrongNumOperands)
-    return op->emitError("expected op with 2 inputs and 1 output");
-  if (res == MatchConvolutionResult::WrongInputIndexingMap)
-    return op->emitError("unexpected input index map for convolutions");
-  if (res == MatchConvolutionResult::NotProjectedPermutations) {
-    return op->emitError(
-        "expected output/filter indexing maps to be projected permutations");
-  }
-  if (res == MatchConvolutionResult::NonConvolutionLoop) {
-    return op->emitError("unexpected loop dimension for convolution op");
-  }
-  if (res == MatchConvolutionResult::OutputDimsNotParallel) {
-    return op->emitError(
-        "expected all iterators used to access outputs to be parallel");
-  }
-  if (res == MatchConvolutionResult::NonOutputDimNotReduction) {
-    return op->emitError(
-        "expected all iterators not used to access outputs to be reduction");
-  }
+  MatchConvolutionResult res = isConvolutionInterfaceImpl(op);
+  if (res != MatchConvolutionResult::Success)
+    return op->emitError(getMatchConvolutionMessage(res));
   return success();
 }
 
@@ -602,13 +642,20 @@ LinalgOp::reifyResultShapes(OpBuilder &b,
   int64_t pos = 0;
   ArrayRef<AffineExpr> shapeExprs = resultShapesFromInputShapesMap.getResults();
   for (OpOperand *opOperand : getDpsInitOperands()) {
-    SmallVector<Value> shapes;
+    SmallVector<OpFoldResult> shapes;
     for (int64_t dim : llvm::seq<int64_t>(0, getRank(opOperand))) {
-      if (checkDimExpr.visit(shapeExprs[pos]))
-        shapes.push_back(createOrFoldDimOp(b, loc, opOperand->get(), dim));
-      else
-        shapes.push_back(
-            getValueOrCreateConstantIndexOp(b, loc, allResultDimValues[pos]));
+      auto shapedType = opOperand->get().getType().cast<ShapedType>();
+      if (!shapedType.isDynamicDim(dim)) {
+        // Static dim: Return IntegerAttr.
+        shapes.push_back(b.getIndexAttr(shapedType.getDimSize(dim)));
+      } else {
+        // Dynamic dim: Return Value.
+        OpFoldResult ofr =
+            checkDimExpr.visit(shapeExprs[pos])
+                ? createOrFoldDimOp(b, loc, opOperand->get(), dim)
+                : allResultDimValues[pos];
+        shapes.push_back(getValueOrCreateConstantIndexOp(b, loc, ofr));
+      }
       pos++;
     }
     reifiedReturnShapes.emplace_back(std::move(shapes));
@@ -616,17 +663,24 @@ LinalgOp::reifyResultShapes(OpBuilder &b,
   return success();
 }
 
+/// Return the index in the indexingMaps vector that corresponds to this
+/// `opOperand`.
+int64_t LinalgOp::getIndexingMapIndex(OpOperand *opOperand) {
+  auto operandNumber = opOperand->getOperandNumber();
+  auto dpsIface = cast<DestinationStyleOpInterface>(*this->getOperation());
+  if (!dpsIface.isDpsInput(opOperand))
+    return operandNumber;
+  auto [start, end] = dpsIface.getDpsInitsPositionRange();
+  assert(!dpsIface.isDpsInit(opOperand));
+  // Account for potential inputs that are not DPS and may not appear in
+  // `indexingMaps`.
+  return cast<DestinationStyleOpInterface>(*this->getOperation())
+             .getNumDpsInputs() +
+         operandNumber - start;
+}
+
 LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
   LinalgOp linalgOp = cast<LinalgOp>(op);
-
-  // Check all iterator types are known.
-  auto iteratorTypesRange = linalgOp.getIteratorTypesArray();
-  for (StringRef iteratorType : iteratorTypesRange) {
-    if (!llvm::is_contained(getAllIteratorTypeNames(), iteratorType) ||
-        !utils::symbolizeIteratorType(iteratorType).has_value())
-      return op->emitOpError("unexpected iterator_type (")
-             << iteratorType << ")";
-  }
 
   // Before checking indexing maps, we need to make sure the attributes
   // referenced by it are valid.

@@ -19,6 +19,11 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "loongarch-isel"
+#define PASS_NAME "LoongArch DAG->DAG Pattern Instruction Selection"
+
+char LoongArchDAGToDAGISel::ID;
+
+INITIALIZE_PASS(LoongArchDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)
 
 void LoongArchDAGToDAGISel::Select(SDNode *Node) {
   // If we have a custom node, we have already selected.
@@ -79,19 +84,19 @@ void LoongArchDAGToDAGISel::Select(SDNode *Node) {
 
 bool LoongArchDAGToDAGISel::SelectInlineAsmMemoryOperand(
     const SDValue &Op, unsigned ConstraintID, std::vector<SDValue> &OutOps) {
+  SDValue Base = Op;
+  SDValue Offset =
+      CurDAG->getTargetConstant(0, SDLoc(Op), Subtarget->getGRLenVT());
   switch (ConstraintID) {
   default:
     llvm_unreachable("unexpected asm memory constraint");
   // Reg+Reg addressing.
   case InlineAsm::Constraint_k:
-    OutOps.push_back(Op.getOperand(0));
-    OutOps.push_back(Op.getOperand(1));
-    return false;
+    Base = Op.getOperand(0);
+    Offset = Op.getOperand(1);
+    break;
   // Reg+simm12 addressing.
-  case InlineAsm::Constraint_m: {
-    SDValue Base = Op;
-    SDValue Offset =
-        CurDAG->getTargetConstant(0, SDLoc(Op), Subtarget->getGRLenVT());
+  case InlineAsm::Constraint_m:
     if (CurDAG->isBaseWithConstantOffset(Op)) {
       ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Op.getOperand(1));
       if (isIntN(12, CN->getSExtValue())) {
@@ -100,19 +105,12 @@ bool LoongArchDAGToDAGISel::SelectInlineAsmMemoryOperand(
                                            Op.getValueType());
       }
     }
-    OutOps.push_back(Base);
-    OutOps.push_back(Offset);
-    return false;
-  }
+    break;
+  // Reg+0 addressing.
   case InlineAsm::Constraint_ZB:
-    OutOps.push_back(Op);
-    // No offset.
-    return false;
+    break;
   // Reg+(simm14<<2) addressing.
-  case InlineAsm::Constraint_ZC: {
-    SDValue Base = Op;
-    SDValue Offset =
-        CurDAG->getTargetConstant(0, SDLoc(Op), Subtarget->getGRLenVT());
+  case InlineAsm::Constraint_ZC:
     if (CurDAG->isBaseWithConstantOffset(Op)) {
       ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Op.getOperand(1));
       if (isIntN(16, CN->getSExtValue()) &&
@@ -122,12 +120,11 @@ bool LoongArchDAGToDAGISel::SelectInlineAsmMemoryOperand(
                                            Op.getValueType());
       }
     }
-    OutOps.push_back(Base);
-    OutOps.push_back(Offset);
-    return false;
+    break;
   }
-  }
-  return true;
+  OutOps.push_back(Base);
+  OutOps.push_back(Offset);
+  return false;
 }
 
 bool LoongArchDAGToDAGISel::SelectBaseAddr(SDValue Addr, SDValue &Base) {
@@ -138,6 +135,25 @@ bool LoongArchDAGToDAGISel::SelectBaseAddr(SDValue Addr, SDValue &Base) {
         CurDAG->getTargetFrameIndex(FIN->getIndex(), Subtarget->getGRLenVT());
   else
     Base = Addr;
+  return true;
+}
+
+// Fold constant addresses.
+bool LoongArchDAGToDAGISel::SelectAddrConstant(SDValue Addr, SDValue &Base,
+                                               SDValue &Offset) {
+  SDLoc DL(Addr);
+  MVT VT = Addr.getSimpleValueType();
+
+  if (!isa<ConstantSDNode>(Addr))
+    return false;
+
+  // If the constant is a simm12, we can fold the whole constant and use R0 as
+  // the base.
+  int64_t CVal = cast<ConstantSDNode>(Addr)->getSExtValue();
+  if (!isInt<12>(CVal))
+    return false;
+  Base = CurDAG->getRegister(LoongArch::R0, VT);
+  Offset = CurDAG->getTargetConstant(SignExtend64<12>(CVal), DL, VT);
   return true;
 }
 

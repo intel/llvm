@@ -55,7 +55,10 @@ public:
     Threads.reserve(ThreadCount);
     Threads.resize(1);
     std::lock_guard<std::mutex> Lock(Mutex);
-    Threads[0] = std::thread([this, ThreadCount, S] {
+    // Use operator[] before creating the thread to avoid data race in .size()
+    // in “safe libc++” mode.
+    auto &Thread0 = Threads[0];
+    Thread0 = std::thread([this, ThreadCount, S] {
       for (unsigned I = 1; I < ThreadCount; ++I) {
         Threads.emplace_back([=] { work(S, I); });
         if (Stop)
@@ -214,8 +217,12 @@ void llvm::parallelFor(size_t Begin, size_t End,
           Fn(I);
       });
     }
-    for (; Begin != End; ++Begin)
-      Fn(Begin);
+    if (Begin != End) {
+      TG.spawn([=, &Fn] {
+        for (size_t I = Begin; I != End; ++I)
+          Fn(I);
+      });
+    }
     return;
   }
 #endif

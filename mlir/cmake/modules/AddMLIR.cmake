@@ -202,7 +202,7 @@ function(add_mlir_doc doc_filename output_file output_directory command)
 endfunction()
 
 # Declare an mlir library which can be compiled in libMLIR.so
-# In addition to everything that llvm_add_librar accepts, this
+# In addition to everything that llvm_add_library accepts, this
 # also has the following option:
 # EXCLUDE_FROM_LIBMLIR
 #   Don't include this library in libMLIR.so.  This option should be used
@@ -495,7 +495,9 @@ function(add_mlir_aggregate name)
   # many other platforms are more strict. We want these libraries to be
   # self contained, and we want any undefined symbols to be reported at
   # library construction time, not at library use, so make Linux strict too.
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # We make an exception for sanitizer builds, since the AddressSanitizer
+  # run-time doesn't get linked into shared libraries.
+  if((CMAKE_SYSTEM_NAME STREQUAL "Linux") AND (NOT LLVM_USE_SANITIZER))
     target_link_options(${name} PRIVATE
       "LINKER:-z,defs"
     )

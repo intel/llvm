@@ -1,15 +1,40 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils,%mlir_runner_utils | \
+// DEFINE: FileCheck %s
 //
-// Do the same run, but now with parallelization.
+// RUN: %{compile} | %{run}
 //
-// RUN: mlir-opt %s --sparse-compiler="parallelization-strategy=any-storage-any-loop" | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true"
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with parallelization strategy.
+// REDEFINE: %{option} = "enable-runtime-library=true parallelization-strategy=any-storage-any-loop"
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and parallelization strategy.
+// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true parallelization-strategy=any-storage-any-loop"
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
 
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext --dlopen=%mlir_runner_utils | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
+
+// TODO: Investigate the output generated for SVE, see https://github.com/llvm/llvm-project/issues/60626
 
 #CSR = #sparse_tensor.encoding<{
   dimLevelType = [ "dense", "compressed" ],
@@ -22,6 +47,9 @@
 }>
 
 module {
+  func.func private @printMemrefF64(%ptr : tensor<*xf64>)
+  func.func private @printMemref1dF64(%ptr : memref<?xf64>) attributes { llvm.emit_c_interface }
+
   //
   // Computes C = A x B with all matrices dense.
   //
@@ -62,7 +90,6 @@ module {
   //
   func.func @entry() {
     %c0 = arith.constant 0 : index
-    %d1 = arith.constant -1.0 : f64
 
     // Initialize various matrices, dense for stress testing,
     // and sparse to verify correct nonzero structure.
@@ -110,6 +137,35 @@ module {
     %b3 = sparse_tensor.convert %sb : tensor<8x4xf64> to tensor<8x4xf64, #CSR>
     %b4 = sparse_tensor.convert %sb : tensor<8x4xf64> to tensor<8x4xf64, #DCSR>
 
+    //
+    // Sanity check on stored entries before going into the computations.
+    //
+    // CHECK:      32
+    // CHECK-NEXT: 32
+    // CHECK-NEXT: 4
+    // CHECK-NEXT: 4
+    // CHECK-NEXT: 32
+    // CHECK-NEXT: 32
+    // CHECK-NEXT: 8
+    // CHECK-NEXT: 8
+    //
+    %noea1 = sparse_tensor.number_of_entries %a1 : tensor<4x8xf64, #CSR>
+    %noea2 = sparse_tensor.number_of_entries %a2 : tensor<4x8xf64, #DCSR>
+    %noea3 = sparse_tensor.number_of_entries %a3 : tensor<4x8xf64, #CSR>
+    %noea4 = sparse_tensor.number_of_entries %a4 : tensor<4x8xf64, #DCSR>
+    %noeb1 = sparse_tensor.number_of_entries %b1 : tensor<8x4xf64, #CSR>
+    %noeb2 = sparse_tensor.number_of_entries %b2 : tensor<8x4xf64, #DCSR>
+    %noeb3 = sparse_tensor.number_of_entries %b3 : tensor<8x4xf64, #CSR>
+    %noeb4 = sparse_tensor.number_of_entries %b4 : tensor<8x4xf64, #DCSR>
+    vector.print %noea1 : index
+    vector.print %noea2 : index
+    vector.print %noea3 : index
+    vector.print %noea4 : index
+    vector.print %noeb1 : index
+    vector.print %noeb2 : index
+    vector.print %noeb3 : index
+    vector.print %noeb4 : index
+
     // Call kernels with dense.
     %0 = call @matmul1(%da, %db, %zero)
        : (tensor<4x8xf64>, tensor<8x4xf64>, tensor<4x4xf64>) -> tensor<4x4xf64>
@@ -141,95 +197,113 @@ module {
           tensor<8x4xf64, #DCSR>) -> tensor<4x4xf64, #DCSR>
 
     //
-    // CHECK:    ( ( 388.76, 425.56, 462.36, 499.16 ),
-    // CHECK-SAME: ( 397.12, 434.72, 472.32, 509.92 ),
-    // CHECK-SAME: ( 405.48, 443.88, 482.28, 520.68 ),
-    // CHECK-SAME: ( 413.84, 453.04, 492.24, 531.44 ) )
+    // CHECK:      {{\[}}[388.76,   425.56,   462.36,   499.16],
+    // CHECK-NEXT: [397.12,   434.72,   472.32,   509.92],
+    // CHECK-NEXT: [405.48,   443.88,   482.28,   520.68],
+    // CHECK-NEXT: [413.84,   453.04,   492.24,   531.44]]
     //
-    %v0 = vector.transfer_read %0[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v0 : vector<4x4xf64>
+    %u0 = tensor.cast %0 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%u0) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK:    ( ( 388.76, 425.56, 462.36, 499.16 ),
-    // CHECK-SAME: ( 397.12, 434.72, 472.32, 509.92 ),
-    // CHECK-SAME: ( 405.48, 443.88, 482.28, 520.68 ),
-    // CHECK-SAME: ( 413.84, 453.04, 492.24, 531.44 ) )
+    // CHECK:      {{\[}}[388.76,   425.56,   462.36,   499.16],
+    // CHECK-NEXT: [397.12,   434.72,   472.32,   509.92],
+    // CHECK-NEXT: [405.48,   443.88,   482.28,   520.68],
+    // CHECK-NEXT: [413.84,   453.04,   492.24,   531.44]]
     //
     %c1 = sparse_tensor.convert %1 : tensor<4x4xf64, #CSR> to tensor<4x4xf64>
-    %v1 = vector.transfer_read %c1[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v1 : vector<4x4xf64>
+    %c1u = tensor.cast %c1 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%c1u) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK:    ( ( 388.76, 425.56, 462.36, 499.16 ),
-    // CHECK-SAME: ( 397.12, 434.72, 472.32, 509.92 ),
-    // CHECK-SAME: ( 405.48, 443.88, 482.28, 520.68 ),
-    // CHECK-SAME: ( 413.84, 453.04, 492.24, 531.44 ) )
+    // CHECK:      {{\[}}[388.76,   425.56,   462.36,   499.16],
+    // CHECK-NEXT: [397.12,   434.72,   472.32,   509.92],
+    // CHECK-NEXT: [405.48,   443.88,   482.28,   520.68],
+    // CHECK-NEXT: [413.84,   453.04,   492.24,   531.44]]
     //
     %c2 = sparse_tensor.convert %2 : tensor<4x4xf64, #DCSR> to tensor<4x4xf64>
-    %v2 = vector.transfer_read %c2[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v2 : vector<4x4xf64>
+    %c2u = tensor.cast %c2 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%c2u) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK:    ( ( 86.08, 94.28, 102.48, 110.68 ),
-    // CHECK-SAME: ( 0, 0, 0, 0 ),
-    // CHECK-SAME: ( 23.46, 25.76, 28.06, 30.36 ),
-    // CHECK-SAME: ( 10.8, 11.8, 12.8, 13.8 ) )
+    // CHECK:      {{\[}}[86.08,   94.28,   102.48,   110.68],
+    // CHECK-NEXT: [0,   0,   0,   0],
+    // CHECK-NEXT: [23.46,   25.76,   28.06,   30.36],
+    // CHECK-NEXT: [10.8,   11.8,   12.8,   13.8]]
     //
-    %v3 = vector.transfer_read %3[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v3 : vector<4x4xf64>
+    %u3 = tensor.cast %3 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%u3) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK:    ( ( 86.08, 94.28, 102.48, 110.68 ),
-    // CHECK-SAME: ( 0, 0, 0, 0 ),
-    // CHECK-SAME: ( 23.46, 25.76, 28.06, 30.36 ),
-    // CHECK-SAME: ( 10.8, 11.8, 12.8, 13.8 ) )
+    // CHECK:      {{\[}}[86.08,   94.28,   102.48,   110.68],
+    // CHECK-NEXT: [0,   0,   0,   0],
+    // CHECK-NEXT: [23.46,   25.76,   28.06,   30.36],
+    // CHECK-NEXT: [10.8,   11.8,   12.8,   13.8]]
     //
     %c4 = sparse_tensor.convert %4 : tensor<4x4xf64, #CSR> to tensor<4x4xf64>
-    %v4 = vector.transfer_read %c4[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v4 : vector<4x4xf64>
+    %c4u = tensor.cast %c4 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%c4u) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK:    ( ( 86.08, 94.28, 102.48, 110.68 ),
-    // CHECK-SAME: ( 0, 0, 0, 0 ),
-    // CHECK-SAME: ( 23.46, 25.76, 28.06, 30.36 ),
-    // CHECK-SAME: ( 10.8, 11.8, 12.8, 13.8 ) )
+    // CHECK:      {{\[}}[86.08,   94.28,   102.48,   110.68],
+    // CHECK-NEXT: [0,   0,   0,   0],
+    // CHECK-NEXT: [23.46,   25.76,   28.06,   30.36],
+    // CHECK-NEXT: [10.8,   11.8,   12.8,   13.8]]
     //
     %c5 = sparse_tensor.convert %5 : tensor<4x4xf64, #DCSR> to tensor<4x4xf64>
-    %v5 = vector.transfer_read %c5[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v5 : vector<4x4xf64>
+    %c5u = tensor.cast %c5 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%c5u) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK: ( ( 0, 30.5, 4.2, 0 ), ( 0, 0, 0, 0 ), ( 0, 0, 4.6, 0 ), ( 0, 0, 7, 8 ) )
+    // CHECK:      {{\[}}[0,   30.5,   4.2,   0],
+    // CHECK-NEXT: [0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   4.6,   0],
+    // CHECK-NEXT: [0,   0,   7,   8]]
     //
-    %v6 = vector.transfer_read %6[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v6 : vector<4x4xf64>
+    %u6 = tensor.cast %6 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%u6) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK: ( ( 0, 30.5, 4.2, 0 ), ( 0, 0, 0, 0 ), ( 0, 0, 4.6, 0 ), ( 0, 0, 7, 8 ) )
+    // CHECK:      {{\[}}[0,   30.5,   4.2,   0],
+    // CHECK-NEXT: [0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   4.6,   0],
+    // CHECK-NEXT: [0,   0,   7,   8]]
     //
     %c7 = sparse_tensor.convert %7 : tensor<4x4xf64, #CSR> to tensor<4x4xf64>
-    %v7 = vector.transfer_read %c7[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v7 : vector<4x4xf64>
+    %c7u = tensor.cast %c7 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%c7u) : (tensor<*xf64>) -> ()
 
     //
-    // CHECK: ( ( 0, 30.5, 4.2, 0 ), ( 0, 0, 0, 0 ), ( 0, 0, 4.6, 0 ), ( 0, 0, 7, 8 ) )
+    // CHECK:      {{\[}}[0,   30.5,   4.2,   0],
+    // CHECK-NEXT: [0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   4.6,   0],
+    // CHECK-NEXT: [0,   0,   7,   8]]
     //
     %c8 = sparse_tensor.convert %8 : tensor<4x4xf64, #DCSR> to tensor<4x4xf64>
-    %v8 = vector.transfer_read %c8[%c0, %c0], %d1 : tensor<4x4xf64>, vector<4x4xf64>
-    vector.print %v8 : vector<4x4xf64>
+    %c8u = tensor.cast %c8 : tensor<4x4xf64> to tensor<*xf64>
+    call @printMemrefF64(%c8u) : (tensor<*xf64>) -> ()
 
     //
     // Sanity check on nonzeros.
     //
-    // CHECK: ( 30.5, 4.2, 4.6, 7, 8, -1, -1, -1 )
-    // CHECK: ( 30.5, 4.2, 4.6, 7, 8, -1, -1, -1 )
+    // CHECK: [30.5,  4.2,  4.6,  7,  8{{.*}}]
+    // CHECK: [30.5,  4.2,  4.6,  7,  8{{.*}}]
     //
     %val7 = sparse_tensor.values %7 : tensor<4x4xf64, #CSR> to memref<?xf64>
     %val8 = sparse_tensor.values %8 : tensor<4x4xf64, #DCSR> to memref<?xf64>
-    %nz7 = vector.transfer_read %val7[%c0], %d1 : memref<?xf64>, vector<8xf64>
-    %nz8 = vector.transfer_read %val8[%c0], %d1 : memref<?xf64>, vector<8xf64>
-    vector.print %nz7 : vector<8xf64>
-    vector.print %nz8 : vector<8xf64>
+    call @printMemref1dF64(%val7) : (memref<?xf64>) -> ()
+    call @printMemref1dF64(%val8) : (memref<?xf64>) -> ()
+
+    //
+    // Sanity check on stored entries after the computations.
+    //
+    // CHECK-NEXT: 5
+    // CHECK-NEXT: 5
+    //
+    %noe7 = sparse_tensor.number_of_entries %7 : tensor<4x4xf64, #CSR>
+    %noe8 = sparse_tensor.number_of_entries %8 : tensor<4x4xf64, #DCSR>
+    vector.print %noe7 : index
+    vector.print %noe8 : index
 
     // Release the resources.
     bufferization.dealloc_tensor %a1 : tensor<4x8xf64, #CSR>

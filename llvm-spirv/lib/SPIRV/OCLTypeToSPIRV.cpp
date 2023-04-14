@@ -76,10 +76,12 @@ OCLTypeToSPIRVBase &OCLTypeToSPIRVPass::run(llvm::Module &M,
   return *this;
 }
 
-OCLTypeToSPIRVBase::OCLTypeToSPIRVBase() : M(nullptr), Ctx(nullptr) {}
+OCLTypeToSPIRVBase::OCLTypeToSPIRVBase()
+    : BuiltinCallHelper(ManglingRules::None), M(nullptr), Ctx(nullptr) {}
 
 bool OCLTypeToSPIRVBase::runOCLTypeToSPIRV(Module &Module) {
   LLVM_DEBUG(dbgs() << "Enter OCLTypeToSPIRV:\n");
+  initialize(Module);
   M = &Module;
   Ctx = &M->getContext();
   AdaptedTy.clear();
@@ -179,8 +181,7 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
           AdaptedTy.count(SamplerArg) != 0) // Already traced this, move on.
         continue;
 
-      addAdaptedType(SamplerArg, TypedPointerType::get(getSamplerStructType(&M),
-                                                       SPIRAS_Constant));
+      addAdaptedType(SamplerArg, getSPIRVType(OpTypeSampler));
       auto Caller = cast<Argument>(SamplerArg)->getParent();
       addWork(Caller);
       TraceArg(Caller, cast<Argument>(SamplerArg)->getArgNo());
@@ -224,11 +225,10 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
         continue;
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
-        auto AccStr = getAccessQualifierFullName(Ty);
-        addAdaptedType(&*Arg, TypedPointerType::get(
-                                  getOrCreateOpaqueStructType(
-                                      M, mapOCLTypeNameToSPIRV(Ty, AccStr)),
-                                  SPIRAS_Global));
+        auto Acc = getAccessQualifier(Ty);
+        auto Desc = getImageDescriptor(ParamTys[I]);
+        addAdaptedType(
+            &*Arg, getSPIRVType(OpTypeImage, Type::getVoidTy(*Ctx), Desc, Acc));
         Changed = true;
       }
     }
@@ -249,19 +249,19 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
   for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++Arg) {
     auto OCLTyStr = getMDOperandAsString(TypeMD, I);
     if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T) {
-      addAdaptedType(&(*Arg), TypedPointerType::get(getSamplerStructType(M),
-                                                    SPIRAS_Constant));
+      addAdaptedType(&(*Arg), getSPIRVType(OpTypeSampler));
       Changed = true;
     } else if (OCLTyStr.startswith("image") && OCLTyStr.endswith("_t")) {
       auto Ty = (Twine("opencl.") + OCLTyStr).str();
-      if (StructType::getTypeByName(F->getContext(), Ty)) {
+      if (auto *STy = StructType::getTypeByName(F->getContext(), Ty)) {
+        auto *ImageTy = TypedPointerType::get(STy, SPIRAS_Global);
+        auto Desc = getImageDescriptor(ImageTy);
         auto AccMD = F->getMetadata(SPIR_MD_KERNEL_ARG_ACCESS_QUAL);
         assert(AccMD && "Invalid access qualifier metadata");
-        auto AccStr = getMDOperandAsString(AccMD, I);
-        addAdaptedType(&(*Arg), TypedPointerType::get(
-                                    getOrCreateOpaqueStructType(
-                                        M, mapOCLTypeNameToSPIRV(Ty, AccStr)),
-                                    SPIRAS_Global));
+        auto Acc = SPIRSPIRVAccessQualifierMap::map(
+            getMDOperandAsString(AccMD, I).str());
+        addAdaptedType(
+            &*Arg, getSPIRVType(OpTypeImage, Type::getVoidTy(*Ctx), Desc, Acc));
         Changed = true;
       }
     }

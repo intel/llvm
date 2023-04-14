@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.cpp - RISCV Instruction Information ------*- C++ -*-===//
+//===-- RISCVInstrInfo.cpp - RISC-V Instruction Information -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of the TargetInstrInfo class.
+// This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +25,9 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineTraceMetrics.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -43,6 +45,16 @@ static cl::opt<bool> PreferWholeRegisterMove(
     "riscv-prefer-whole-register-move", cl::init(false), cl::Hidden,
     cl::desc("Prefer whole register move for vector registers."));
 
+static cl::opt<MachineTraceStrategy> ForceMachineCombinerStrategy(
+    "riscv-force-machine-combiner-strategy", cl::Hidden,
+    cl::desc("Force machine combiner to use a specific strategy for machine "
+             "trace metrics evaluation."),
+    cl::init(MachineTraceStrategy::TS_NumStrategies),
+    cl::values(clEnumValN(MachineTraceStrategy::TS_Local, "local",
+                          "Local strategy."),
+               clEnumValN(MachineTraceStrategy::TS_MinInstrCount, "min-instr",
+                          "MinInstrCount strategy.")));
+
 namespace llvm::RISCVVPseudosTable {
 
 using namespace RISCV;
@@ -57,7 +69,7 @@ RISCVInstrInfo::RISCVInstrInfo(RISCVSubtarget &STI)
       STI(STI) {}
 
 MCInst RISCVInstrInfo::getNop() const {
-  if (STI.getFeatureBits()[RISCV::FeatureStdExtC])
+  if (STI.hasStdExtCOrZca())
     return MCInstBuilder(RISCV::C_NOP);
   return MCInstBuilder(RISCV::ADDI)
       .addReg(RISCV::X0)
@@ -67,19 +79,33 @@ MCInst RISCVInstrInfo::getNop() const {
 
 unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
+  unsigned Dummy;
+  return isLoadFromStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+                                             int &FrameIndex,
+                                             unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::LB:
   case RISCV::LBU:
+    MemBytes = 1;
+    break;
   case RISCV::LH:
   case RISCV::LHU:
   case RISCV::FLH:
+    MemBytes = 2;
+    break;
   case RISCV::LW:
   case RISCV::FLW:
   case RISCV::LWU:
+    MemBytes = 4;
+    break;
   case RISCV::LD:
   case RISCV::FLD:
+    MemBytes = 8;
     break;
   }
 
@@ -94,16 +120,30 @@ unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 
 unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                             int &FrameIndex) const {
+  unsigned Dummy;
+  return isStoreToStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+                                            int &FrameIndex,
+                                            unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::SB:
+    MemBytes = 1;
+    break;
   case RISCV::SH:
-  case RISCV::SW:
   case RISCV::FSH:
+    MemBytes = 2;
+    break;
+  case RISCV::SW:
   case RISCV::FSW:
+    MemBytes = 4;
+    break;
   case RISCV::SD:
   case RISCV::FSD:
+    MemBytes = 8;
     break;
   }
 
@@ -281,7 +321,17 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   RISCVII::VLMUL LMul = RISCVII::LMUL_1;
   unsigned SubRegIdx = RISCV::sub_vrm1_0;
   if (RISCV::FPR16RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::FSGNJ_H;
+    if (!STI.hasStdExtZfh() && STI.hasStdExtZfhmin()) {
+      // Zfhmin subset doesn't have FSGNJ_H, replaces FSGNJ_H with FSGNJ_S.
+      const TargetRegisterInfo *TRI = STI.getRegisterInfo();
+      DstReg = TRI->getMatchingSuperReg(DstReg, RISCV::sub_16,
+                                        &RISCV::FPR32RegClass);
+      SrcReg = TRI->getMatchingSuperReg(SrcReg, RISCV::sub_16,
+                                        &RISCV::FPR32RegClass);
+      Opc = RISCV::FSGNJ_S;
+    } else {
+      Opc = RISCV::FSGNJ_H;
+    }
     IsScalableVector = false;
   } else if (RISCV::FPR32RegClass.contains(DstReg, SrcReg)) {
     Opc = RISCV::FSGNJ_S;
@@ -290,69 +340,69 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     Opc = RISCV::FSGNJ_D;
     IsScalableVector = false;
   } else if (RISCV::VRRegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRM2RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV2R_V;
+    Opc = RISCV::VMV2R_V;
     LMul = RISCVII::LMUL_2;
   } else if (RISCV::VRM4RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV4R_V;
+    Opc = RISCV::VMV4R_V;
     LMul = RISCVII::LMUL_4;
   } else if (RISCV::VRM8RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV8R_V;
+    Opc = RISCV::VMV8R_V;
     LMul = RISCVII::LMUL_8;
   } else if (RISCV::VRN2M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 2;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRN2M2RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV2R_V;
+    Opc = RISCV::VMV2R_V;
     SubRegIdx = RISCV::sub_vrm2_0;
     NF = 2;
     LMul = RISCVII::LMUL_2;
   } else if (RISCV::VRN2M4RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV4R_V;
+    Opc = RISCV::VMV4R_V;
     SubRegIdx = RISCV::sub_vrm4_0;
     NF = 2;
     LMul = RISCVII::LMUL_4;
   } else if (RISCV::VRN3M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 3;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRN3M2RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV2R_V;
+    Opc = RISCV::VMV2R_V;
     SubRegIdx = RISCV::sub_vrm2_0;
     NF = 3;
     LMul = RISCVII::LMUL_2;
   } else if (RISCV::VRN4M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 4;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRN4M2RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV2R_V;
+    Opc = RISCV::VMV2R_V;
     SubRegIdx = RISCV::sub_vrm2_0;
     NF = 4;
     LMul = RISCVII::LMUL_2;
   } else if (RISCV::VRN5M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 5;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRN6M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 6;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRN7M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 7;
     LMul = RISCVII::LMUL_1;
   } else if (RISCV::VRN8M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = RISCV::PseudoVMV1R_V;
+    Opc = RISCV::VMV1R_V;
     SubRegIdx = RISCV::sub_vrm1_0;
     NF = 8;
     LMul = RISCVII::LMUL_1;
@@ -453,7 +503,8 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator I,
                                          Register SrcReg, bool IsKill, int FI,
                                          const TargetRegisterClass *RC,
-                                         const TargetRegisterInfo *TRI) const {
+                                         const TargetRegisterInfo *TRI,
+                                         Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
@@ -463,7 +514,6 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode;
   bool IsScalableVector = true;
-  bool IsZvlsseg = true;
   if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = TRI->getRegSizeInBits(RISCV::GPRRegClass) == 32 ?
              RISCV::SW : RISCV::SD;
@@ -478,17 +528,13 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     Opcode = RISCV::FSD;
     IsScalableVector = false;
   } else if (RISCV::VRRegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVSPILL_M1;
-    IsZvlsseg = false;
+    Opcode = RISCV::VS1R_V;
   } else if (RISCV::VRM2RegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVSPILL_M2;
-    IsZvlsseg = false;
+    Opcode = RISCV::VS2R_V;
   } else if (RISCV::VRM4RegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVSPILL_M4;
-    IsZvlsseg = false;
+    Opcode = RISCV::VS4R_V;
   } else if (RISCV::VRM8RegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVSPILL_M8;
-    IsZvlsseg = false;
+    Opcode = RISCV::VS8R_V;
   } else if (RISCV::VRN2M1RegClass.hasSubClassEq(RC))
     Opcode = RISCV::PseudoVSPILL2_M1;
   else if (RISCV::VRN2M2RegClass.hasSubClassEq(RC))
@@ -520,16 +566,10 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
         MemoryLocation::UnknownSize, MFI.getObjectAlign(FI));
 
     MFI.setStackID(FI, TargetStackID::ScalableVector);
-    auto MIB = BuildMI(MBB, I, DL, get(Opcode))
-                   .addReg(SrcReg, getKillRegState(IsKill))
-                   .addFrameIndex(FI)
-                   .addMemOperand(MMO);
-    if (IsZvlsseg) {
-      // For spilling/reloading Zvlsseg registers, append the dummy field for
-      // the scaled vector length. The argument will be used when expanding
-      // these pseudo instructions.
-      MIB.addReg(RISCV::X0);
-    }
+    BuildMI(MBB, I, DL, get(Opcode))
+        .addReg(SrcReg, getKillRegState(IsKill))
+        .addFrameIndex(FI)
+        .addMemOperand(MMO);
   } else {
     MachineMemOperand *MMO = MF->getMachineMemOperand(
         MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore,
@@ -547,7 +587,8 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                           MachineBasicBlock::iterator I,
                                           Register DstReg, int FI,
                                           const TargetRegisterClass *RC,
-                                          const TargetRegisterInfo *TRI) const {
+                                          const TargetRegisterInfo *TRI,
+                                          Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
@@ -557,7 +598,6 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode;
   bool IsScalableVector = true;
-  bool IsZvlsseg = true;
   if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = TRI->getRegSizeInBits(RISCV::GPRRegClass) == 32 ?
              RISCV::LW : RISCV::LD;
@@ -572,17 +612,13 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     Opcode = RISCV::FLD;
     IsScalableVector = false;
   } else if (RISCV::VRRegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVRELOAD_M1;
-    IsZvlsseg = false;
+    Opcode = RISCV::VL1RE8_V;
   } else if (RISCV::VRM2RegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVRELOAD_M2;
-    IsZvlsseg = false;
+    Opcode = RISCV::VL2RE8_V;
   } else if (RISCV::VRM4RegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVRELOAD_M4;
-    IsZvlsseg = false;
+    Opcode = RISCV::VL4RE8_V;
   } else if (RISCV::VRM8RegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::PseudoVRELOAD_M8;
-    IsZvlsseg = false;
+    Opcode = RISCV::VL8RE8_V;
   } else if (RISCV::VRN2M1RegClass.hasSubClassEq(RC))
     Opcode = RISCV::PseudoVRELOAD2_M1;
   else if (RISCV::VRN2M2RegClass.hasSubClassEq(RC))
@@ -614,15 +650,9 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
         MemoryLocation::UnknownSize, MFI.getObjectAlign(FI));
 
     MFI.setStackID(FI, TargetStackID::ScalableVector);
-    auto MIB = BuildMI(MBB, I, DL, get(Opcode), DstReg)
-                   .addFrameIndex(FI)
-                   .addMemOperand(MMO);
-    if (IsZvlsseg) {
-      // For spilling/reloading Zvlsseg registers, append the dummy field for
-      // the scaled vector length. The argument will be used when expanding
-      // these pseudo instructions.
-      MIB.addReg(RISCV::X0);
-    }
+    BuildMI(MBB, I, DL, get(Opcode), DstReg)
+        .addFrameIndex(FI)
+        .addMemOperand(MMO);
   } else {
     MachineMemOperand *MMO = MF->getMachineMemOperand(
         MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad,
@@ -709,26 +739,26 @@ void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
   for (RISCVMatInt::Inst &Inst : Seq) {
     switch (Inst.getOpndKind()) {
     case RISCVMatInt::Imm:
-      BuildMI(MBB, MBBI, DL, get(Inst.Opc), DstReg)
-          .addImm(Inst.Imm)
+      BuildMI(MBB, MBBI, DL, get(Inst.getOpcode()), DstReg)
+          .addImm(Inst.getImm())
           .setMIFlag(Flag);
       break;
     case RISCVMatInt::RegX0:
-      BuildMI(MBB, MBBI, DL, get(Inst.Opc), DstReg)
+      BuildMI(MBB, MBBI, DL, get(Inst.getOpcode()), DstReg)
           .addReg(SrcReg, RegState::Kill)
           .addReg(RISCV::X0)
           .setMIFlag(Flag);
       break;
     case RISCVMatInt::RegReg:
-      BuildMI(MBB, MBBI, DL, get(Inst.Opc), DstReg)
+      BuildMI(MBB, MBBI, DL, get(Inst.getOpcode()), DstReg)
           .addReg(SrcReg, RegState::Kill)
           .addReg(SrcReg, RegState::Kill)
           .setMIFlag(Flag);
       break;
     case RISCVMatInt::RegImm:
-      BuildMI(MBB, MBBI, DL, get(Inst.Opc), DstReg)
+      BuildMI(MBB, MBBI, DL, get(Inst.getOpcode()), DstReg)
           .addReg(SrcReg, RegState::Kill)
-          .addImm(Inst.Imm)
+          .addImm(Inst.getImm())
           .setMIFlag(Flag);
       break;
     }
@@ -921,7 +951,7 @@ unsigned RISCVInstrInfo::insertBranch(
   // Shouldn't be a fall through.
   assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
-         "RISCV branch conditions have two components!");
+         "RISC-V branch conditions have two components!");
 
   // Unconditional branch.
   if (Cond.empty()) {
@@ -998,14 +1028,14 @@ void RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
       report_fatal_error("underestimated function size");
 
     storeRegToStackSlot(MBB, MI, TmpGPR, /*IsKill=*/true, FrameIndex,
-                        &RISCV::GPRRegClass, TRI);
+                        &RISCV::GPRRegClass, TRI, Register());
     TRI->eliminateFrameIndex(std::prev(MI.getIterator()),
                              /*SpAdj=*/0, /*FIOperandNum=*/1);
 
     MI.getOperand(1).setMBB(&RestoreBB);
 
     loadRegFromStackSlot(RestoreBB, RestoreBB.end(), TmpGPR, FrameIndex,
-                         &RISCV::GPRRegClass, TRI);
+                         &RISCV::GPRRegClass, TRI, Register());
     TRI->eliminateFrameIndex(RestoreBB.back(),
                              /*SpAdj=*/0, /*FIOperandNum=*/1);
   }
@@ -1054,6 +1084,151 @@ bool RISCVInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
   }
 }
 
+// If the operation has a predicated pseudo instruction, return the pseudo
+// instruction opcode. Otherwise, return RISCV::INSTRUCTION_LIST_END.
+// TODO: Support more operations.
+unsigned getPredicatedOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  case RISCV::ADD:   return RISCV::PseudoCCADD;   break;
+  case RISCV::SUB:   return RISCV::PseudoCCSUB;   break;
+  case RISCV::AND:   return RISCV::PseudoCCAND;   break;
+  case RISCV::OR:    return RISCV::PseudoCCOR;    break;
+  case RISCV::XOR:   return RISCV::PseudoCCXOR;   break;
+
+  case RISCV::ADDW:  return RISCV::PseudoCCADDW;  break;
+  case RISCV::SUBW:  return RISCV::PseudoCCSUBW;  break;
+  }
+
+  return RISCV::INSTRUCTION_LIST_END;
+}
+
+/// Identify instructions that can be folded into a CCMOV instruction, and
+/// return the defining instruction.
+static MachineInstr *canFoldAsPredicatedOp(Register Reg,
+                                           const MachineRegisterInfo &MRI,
+                                           const TargetInstrInfo *TII) {
+  if (!Reg.isVirtual())
+    return nullptr;
+  if (!MRI.hasOneNonDBGUse(Reg))
+    return nullptr;
+  MachineInstr *MI = MRI.getVRegDef(Reg);
+  if (!MI)
+    return nullptr;
+  // Check if MI can be predicated and folded into the CCMOV.
+  if (getPredicatedOpcode(MI->getOpcode()) == RISCV::INSTRUCTION_LIST_END)
+    return nullptr;
+  // Check if MI has any other defs or physreg uses.
+  for (unsigned i = 1, e = MI->getNumOperands(); i != e; ++i) {
+    const MachineOperand &MO = MI->getOperand(i);
+    // Reject frame index operands, PEI can't handle the predicated pseudos.
+    if (MO.isFI() || MO.isCPI() || MO.isJTI())
+      return nullptr;
+    if (!MO.isReg())
+      continue;
+    // MI can't have any tied operands, that would conflict with predication.
+    if (MO.isTied())
+      return nullptr;
+    if (MO.isDef())
+      return nullptr;
+    // Allow constant physregs.
+    if (MO.getReg().isPhysical() && !MRI.isConstantPhysReg(MO.getReg()))
+      return nullptr;
+  }
+  bool DontMoveAcrossStores = true;
+  if (!MI->isSafeToMove(/* AliasAnalysis = */ nullptr, DontMoveAcrossStores))
+    return nullptr;
+  return MI;
+}
+
+bool RISCVInstrInfo::analyzeSelect(const MachineInstr &MI,
+                                   SmallVectorImpl<MachineOperand> &Cond,
+                                   unsigned &TrueOp, unsigned &FalseOp,
+                                   bool &Optimizable) const {
+  assert(MI.getOpcode() == RISCV::PseudoCCMOVGPR &&
+         "Unknown select instruction");
+  // CCMOV operands:
+  // 0: Def.
+  // 1: LHS of compare.
+  // 2: RHS of compare.
+  // 3: Condition code.
+  // 4: False use.
+  // 5: True use.
+  TrueOp = 5;
+  FalseOp = 4;
+  Cond.push_back(MI.getOperand(1));
+  Cond.push_back(MI.getOperand(2));
+  Cond.push_back(MI.getOperand(3));
+  // We can only fold when we support short forward branch opt.
+  Optimizable = STI.hasShortForwardBranchOpt();
+  return false;
+}
+
+MachineInstr *
+RISCVInstrInfo::optimizeSelect(MachineInstr &MI,
+                               SmallPtrSetImpl<MachineInstr *> &SeenMIs,
+                               bool PreferFalse) const {
+  assert(MI.getOpcode() == RISCV::PseudoCCMOVGPR &&
+         "Unknown select instruction");
+  if (!STI.hasShortForwardBranchOpt())
+    return nullptr;
+
+  MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
+  MachineInstr *DefMI =
+      canFoldAsPredicatedOp(MI.getOperand(5).getReg(), MRI, this);
+  bool Invert = !DefMI;
+  if (!DefMI)
+    DefMI = canFoldAsPredicatedOp(MI.getOperand(4).getReg(), MRI, this);
+  if (!DefMI)
+    return nullptr;
+
+  // Find new register class to use.
+  MachineOperand FalseReg = MI.getOperand(Invert ? 5 : 4);
+  Register DestReg = MI.getOperand(0).getReg();
+  const TargetRegisterClass *PreviousClass = MRI.getRegClass(FalseReg.getReg());
+  if (!MRI.constrainRegClass(DestReg, PreviousClass))
+    return nullptr;
+
+  unsigned PredOpc = getPredicatedOpcode(DefMI->getOpcode());
+  assert(PredOpc != RISCV::INSTRUCTION_LIST_END && "Unexpected opcode!");
+
+  // Create a new predicated version of DefMI.
+  MachineInstrBuilder NewMI =
+      BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), get(PredOpc), DestReg);
+
+  // Copy the condition portion.
+  NewMI.add(MI.getOperand(1));
+  NewMI.add(MI.getOperand(2));
+
+  // Add condition code, inverting if necessary.
+  auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());
+  if (Invert)
+    CC = RISCVCC::getOppositeBranchCondition(CC);
+  NewMI.addImm(CC);
+
+  // Copy the false register.
+  NewMI.add(FalseReg);
+
+  // Copy all the DefMI operands.
+  const MCInstrDesc &DefDesc = DefMI->getDesc();
+  for (unsigned i = 1, e = DefDesc.getNumOperands(); i != e; ++i)
+    NewMI.add(DefMI->getOperand(i));
+
+  // Update SeenMIs set: register newly created MI and erase removed DefMI.
+  SeenMIs.insert(NewMI);
+  SeenMIs.erase(DefMI);
+
+  // If MI is inside a loop, and DefMI is outside the loop, then kill flags on
+  // DefMI would be invalid when tranferred inside the loop.  Checking for a
+  // loop is expensive, but at least remove kill flags if they are in different
+  // BBs.
+  if (DefMI->getParent() != MI.getParent())
+    NewMI->clearKillInfo();
+
+  // The caller will erase MI, but not DefMI.
+  DefMI->eraseFromParent();
+  return NewMI;
+}
+
 unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   if (MI.isMetaInstruction())
     return 0;
@@ -1068,13 +1243,22 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
                               *TM.getMCAsmInfo());
   }
 
+  if (!MI.memoperands_empty()) {
+    MachineMemOperand *MMO = *(MI.memoperands_begin());
+    const MachineFunction &MF = *MI.getParent()->getParent();
+    const auto &ST = MF.getSubtarget<RISCVSubtarget>();
+    if (ST.hasStdExtZihintntl() && MMO->isNonTemporal()) {
+      if (ST.hasStdExtCOrZca() && ST.enableRVCHintInstrs()) {
+        if (isCompressibleInst(MI, STI))
+          return 4; // c.ntl.all + c.load/c.store
+        return 6;   // c.ntl.all + load/store
+      }
+      return 8; // ntl.all + load/store
+    }
+  }
+
   if (MI.getParent() && MI.getParent()->getParent()) {
-    const auto MF = MI.getMF();
-    const auto &TM = static_cast<const RISCVTargetMachine &>(MF->getTarget());
-    const MCRegisterInfo &MRI = *TM.getMCRegisterInfo();
-    const MCSubtargetInfo &STI = *TM.getMCSubtargetInfo();
-    const RISCVSubtarget &ST = MF->getSubtarget<RISCVSubtarget>();
-    if (isCompressibleInst(MI, &ST, MRI, STI))
+    if (isCompressibleInst(MI, STI))
       return 2;
   }
   return get(Opcode).getSize();
@@ -1101,7 +1285,7 @@ bool RISCVInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
   return MI.isAsCheapAsAMove();
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 RISCVInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (MI.isMoveReg())
     return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
@@ -1123,7 +1307,21 @@ RISCVInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
     break;
   }
-  return None;
+  return std::nullopt;
+}
+
+MachineTraceStrategy RISCVInstrInfo::getMachineCombinerTraceStrategy() const {
+  if (ForceMachineCombinerStrategy.getNumOccurrences() == 0) {
+    // The option is unused. Choose Local strategy only for in-order cores. When
+    // scheduling model is unspecified, use MinInstrCount strategy as more
+    // generic one.
+    const auto &SchedModel = STI.getSchedModel();
+    return (!SchedModel.hasInstrSchedModel() || SchedModel.isOutOfOrder())
+               ? MachineTraceStrategy::TS_MinInstrCount
+               : MachineTraceStrategy::TS_Local;
+  }
+  // The strategy was forced by the option.
+  return ForceMachineCombinerStrategy;
 }
 
 void RISCVInstrInfo::setSpecialOperandAttr(MachineInstr &OldMI1,
@@ -1176,6 +1374,17 @@ static bool isFADD(unsigned Opc) {
   }
 }
 
+static bool isFSUB(unsigned Opc) {
+  switch (Opc) {
+  default:
+    return false;
+  case RISCV::FSUB_H:
+  case RISCV::FSUB_S:
+  case RISCV::FSUB_D:
+    return true;
+  }
+}
+
 static bool isFMUL(unsigned Opc) {
   switch (Opc) {
   default:
@@ -1187,75 +1396,280 @@ static bool isFMUL(unsigned Opc) {
   }
 }
 
-static bool isAssociativeAndCommutativeFPOpcode(unsigned Opc) {
-  return isFADD(Opc) || isFMUL(Opc);
+bool RISCVInstrInfo::hasReassociableSibling(const MachineInstr &Inst,
+                                            bool &Commuted) const {
+  if (!TargetInstrInfo::hasReassociableSibling(Inst, Commuted))
+    return false;
+
+  const MachineRegisterInfo &MRI = Inst.getMF()->getRegInfo();
+  unsigned OperandIdx = Commuted ? 2 : 1;
+  const MachineInstr &Sibling =
+      *MRI.getVRegDef(Inst.getOperand(OperandIdx).getReg());
+
+  int16_t InstFrmOpIdx =
+      RISCV::getNamedOperandIdx(Inst.getOpcode(), RISCV::OpName::frm);
+  int16_t SiblingFrmOpIdx =
+      RISCV::getNamedOperandIdx(Sibling.getOpcode(), RISCV::OpName::frm);
+
+  return (InstFrmOpIdx < 0 && SiblingFrmOpIdx < 0) ||
+         RISCV::hasEqualFRM(Inst, Sibling);
 }
 
-static bool canReassociate(MachineInstr &Root, MachineOperand &MO) {
-  if (!MO.isReg() || !Register::isVirtualRegister(MO.getReg()))
+bool RISCVInstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst,
+                                                 bool Invert) const {
+  unsigned Opc = Inst.getOpcode();
+  if (Invert) {
+    auto InverseOpcode = getInverseOpcode(Opc);
+    if (!InverseOpcode)
+      return false;
+    Opc = *InverseOpcode;
+  }
+
+  if (isFADD(Opc) || isFMUL(Opc))
+    return Inst.getFlag(MachineInstr::MIFlag::FmReassoc) &&
+           Inst.getFlag(MachineInstr::MIFlag::FmNsz);
+
+  switch (Opc) {
+  default:
     return false;
-  MachineRegisterInfo &MRI = Root.getMF()->getRegInfo();
+  case RISCV::ADD:
+  case RISCV::ADDW:
+  case RISCV::AND:
+  case RISCV::OR:
+  case RISCV::XOR:
+  // From RISC-V ISA spec, if both the high and low bits of the same product
+  // are required, then the recommended code sequence is:
+  //
+  // MULH[[S]U] rdh, rs1, rs2
+  // MUL        rdl, rs1, rs2
+  // (source register specifiers must be in same order and rdh cannot be the
+  //  same as rs1 or rs2)
+  //
+  // Microarchitectures can then fuse these into a single multiply operation
+  // instead of performing two separate multiplies.
+  // MachineCombiner may reassociate MUL operands and lose the fusion
+  // opportunity.
+  case RISCV::MUL:
+  case RISCV::MULW:
+  case RISCV::MIN:
+  case RISCV::MINU:
+  case RISCV::MAX:
+  case RISCV::MAXU:
+  case RISCV::FMIN_H:
+  case RISCV::FMIN_S:
+  case RISCV::FMIN_D:
+  case RISCV::FMAX_H:
+  case RISCV::FMAX_S:
+  case RISCV::FMAX_D:
+    return true;
+  }
+
+  return false;
+}
+
+std::optional<unsigned>
+RISCVInstrInfo::getInverseOpcode(unsigned Opcode) const {
+  switch (Opcode) {
+  default:
+    return std::nullopt;
+  case RISCV::FADD_H:
+    return RISCV::FSUB_H;
+  case RISCV::FADD_S:
+    return RISCV::FSUB_S;
+  case RISCV::FADD_D:
+    return RISCV::FSUB_D;
+  case RISCV::FSUB_H:
+    return RISCV::FADD_H;
+  case RISCV::FSUB_S:
+    return RISCV::FADD_S;
+  case RISCV::FSUB_D:
+    return RISCV::FADD_D;
+  case RISCV::ADD:
+    return RISCV::SUB;
+  case RISCV::SUB:
+    return RISCV::ADD;
+  case RISCV::ADDW:
+    return RISCV::SUBW;
+  case RISCV::SUBW:
+    return RISCV::ADDW;
+  }
+}
+
+static bool canCombineFPFusedMultiply(const MachineInstr &Root,
+                                      const MachineOperand &MO,
+                                      bool DoRegPressureReduce) {
+  if (!MO.isReg() || !MO.getReg().isVirtual())
+    return false;
+  const MachineRegisterInfo &MRI = Root.getMF()->getRegInfo();
   MachineInstr *MI = MRI.getVRegDef(MO.getReg());
-  if (!MI || !MRI.hasOneNonDBGUse(MO.getReg()))
+  if (!MI || !isFMUL(MI->getOpcode()))
     return false;
 
-  if (MI->getOpcode() != Root.getOpcode())
+  if (!Root.getFlag(MachineInstr::MIFlag::FmContract) ||
+      !MI->getFlag(MachineInstr::MIFlag::FmContract))
     return false;
 
-  if (!Root.getFlag(MachineInstr::MIFlag::FmReassoc) ||
-      !Root.getFlag(MachineInstr::MIFlag::FmNsz) ||
-      !MI->getFlag(MachineInstr::MIFlag::FmReassoc) ||
-      !MI->getFlag(MachineInstr::MIFlag::FmNsz))
+  // Try combining even if fmul has more than one use as it eliminates
+  // dependency between fadd(fsub) and fmul. However, it can extend liveranges
+  // for fmul operands, so reject the transformation in register pressure
+  // reduction mode.
+  if (DoRegPressureReduce && !MRI.hasOneNonDBGUse(MI->getOperand(0).getReg()))
     return false;
 
+  // Do not combine instructions from different basic blocks.
+  if (Root.getParent() != MI->getParent())
+    return false;
   return RISCV::hasEqualFRM(Root, *MI);
 }
 
 static bool
-getFPReassocPatterns(MachineInstr &Root,
-                     SmallVectorImpl<MachineCombinerPattern> &Patterns) {
+getFPFusedMultiplyPatterns(MachineInstr &Root,
+                           SmallVectorImpl<MachineCombinerPattern> &Patterns,
+                           bool DoRegPressureReduce) {
+  unsigned Opc = Root.getOpcode();
+  bool IsFAdd = isFADD(Opc);
+  if (!IsFAdd && !isFSUB(Opc))
+    return false;
   bool Added = false;
-  if (canReassociate(Root, Root.getOperand(1))) {
-    Patterns.push_back(MachineCombinerPattern::REASSOC_AX_BY);
-    Patterns.push_back(MachineCombinerPattern::REASSOC_XA_BY);
+  if (canCombineFPFusedMultiply(Root, Root.getOperand(1),
+                                DoRegPressureReduce)) {
+    Patterns.push_back(IsFAdd ? MachineCombinerPattern::FMADD_AX
+                              : MachineCombinerPattern::FMSUB);
     Added = true;
   }
-  if (canReassociate(Root, Root.getOperand(2))) {
-    Patterns.push_back(MachineCombinerPattern::REASSOC_AX_YB);
-    Patterns.push_back(MachineCombinerPattern::REASSOC_XA_YB);
+  if (canCombineFPFusedMultiply(Root, Root.getOperand(2),
+                                DoRegPressureReduce)) {
+    Patterns.push_back(IsFAdd ? MachineCombinerPattern::FMADD_XA
+                              : MachineCombinerPattern::FNMSUB);
     Added = true;
   }
   return Added;
 }
 
 static bool getFPPatterns(MachineInstr &Root,
-                          SmallVectorImpl<MachineCombinerPattern> &Patterns) {
-  unsigned Opc = Root.getOpcode();
-  if (isAssociativeAndCommutativeFPOpcode(Opc))
-    return getFPReassocPatterns(Root, Patterns);
-  return false;
+                          SmallVectorImpl<MachineCombinerPattern> &Patterns,
+                          bool DoRegPressureReduce) {
+  return getFPFusedMultiplyPatterns(Root, Patterns, DoRegPressureReduce);
 }
 
 bool RISCVInstrInfo::getMachineCombinerPatterns(
     MachineInstr &Root, SmallVectorImpl<MachineCombinerPattern> &Patterns,
     bool DoRegPressureReduce) const {
 
-  if (getFPPatterns(Root, Patterns))
+  if (getFPPatterns(Root, Patterns, DoRegPressureReduce))
     return true;
 
   return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns,
                                                      DoRegPressureReduce);
 }
 
+static unsigned getFPFusedMultiplyOpcode(unsigned RootOpc,
+                                         MachineCombinerPattern Pattern) {
+  switch (RootOpc) {
+  default:
+    llvm_unreachable("Unexpected opcode");
+  case RISCV::FADD_H:
+    return RISCV::FMADD_H;
+  case RISCV::FADD_S:
+    return RISCV::FMADD_S;
+  case RISCV::FADD_D:
+    return RISCV::FMADD_D;
+  case RISCV::FSUB_H:
+    return Pattern == MachineCombinerPattern::FMSUB ? RISCV::FMSUB_H
+                                                    : RISCV::FNMSUB_H;
+  case RISCV::FSUB_S:
+    return Pattern == MachineCombinerPattern::FMSUB ? RISCV::FMSUB_S
+                                                    : RISCV::FNMSUB_S;
+  case RISCV::FSUB_D:
+    return Pattern == MachineCombinerPattern::FMSUB ? RISCV::FMSUB_D
+                                                    : RISCV::FNMSUB_D;
+  }
+}
+
+static unsigned getAddendOperandIdx(MachineCombinerPattern Pattern) {
+  switch (Pattern) {
+  default:
+    llvm_unreachable("Unexpected pattern");
+  case MachineCombinerPattern::FMADD_AX:
+  case MachineCombinerPattern::FMSUB:
+    return 2;
+  case MachineCombinerPattern::FMADD_XA:
+  case MachineCombinerPattern::FNMSUB:
+    return 1;
+  }
+}
+
+static void combineFPFusedMultiply(MachineInstr &Root, MachineInstr &Prev,
+                                   MachineCombinerPattern Pattern,
+                                   SmallVectorImpl<MachineInstr *> &InsInstrs,
+                                   SmallVectorImpl<MachineInstr *> &DelInstrs) {
+  MachineFunction *MF = Root.getMF();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetInstrInfo *TII = MF->getSubtarget().getInstrInfo();
+
+  MachineOperand &Mul1 = Prev.getOperand(1);
+  MachineOperand &Mul2 = Prev.getOperand(2);
+  MachineOperand &Dst = Root.getOperand(0);
+  MachineOperand &Addend = Root.getOperand(getAddendOperandIdx(Pattern));
+
+  Register DstReg = Dst.getReg();
+  unsigned FusedOpc = getFPFusedMultiplyOpcode(Root.getOpcode(), Pattern);
+  auto IntersectedFlags = Root.getFlags() & Prev.getFlags();
+  DebugLoc MergedLoc =
+      DILocation::getMergedLocation(Root.getDebugLoc(), Prev.getDebugLoc());
+
+  MachineInstrBuilder MIB =
+      BuildMI(*MF, MergedLoc, TII->get(FusedOpc), DstReg)
+          .addReg(Mul1.getReg(), getKillRegState(Mul1.isKill()))
+          .addReg(Mul2.getReg(), getKillRegState(Mul2.isKill()))
+          .addReg(Addend.getReg(), getKillRegState(Addend.isKill()))
+          .setMIFlags(IntersectedFlags);
+
+  // Mul operands are not killed anymore.
+  Mul1.setIsKill(false);
+  Mul2.setIsKill(false);
+
+  InsInstrs.push_back(MIB);
+  if (MRI.hasOneNonDBGUse(Prev.getOperand(0).getReg()))
+    DelInstrs.push_back(&Prev);
+  DelInstrs.push_back(&Root);
+}
+
+void RISCVInstrInfo::genAlternativeCodeSequence(
+    MachineInstr &Root, MachineCombinerPattern Pattern,
+    SmallVectorImpl<MachineInstr *> &InsInstrs,
+    SmallVectorImpl<MachineInstr *> &DelInstrs,
+    DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) const {
+  MachineRegisterInfo &MRI = Root.getMF()->getRegInfo();
+  switch (Pattern) {
+  default:
+    TargetInstrInfo::genAlternativeCodeSequence(Root, Pattern, InsInstrs,
+                                                DelInstrs, InstrIdxForVirtReg);
+    return;
+  case MachineCombinerPattern::FMADD_AX:
+  case MachineCombinerPattern::FMSUB: {
+    MachineInstr &Prev = *MRI.getVRegDef(Root.getOperand(1).getReg());
+    combineFPFusedMultiply(Root, Prev, Pattern, InsInstrs, DelInstrs);
+    return;
+  }
+  case MachineCombinerPattern::FMADD_XA:
+  case MachineCombinerPattern::FNMSUB: {
+    MachineInstr &Prev = *MRI.getVRegDef(Root.getOperand(2).getReg());
+    combineFPFusedMultiply(Root, Prev, Pattern, InsInstrs, DelInstrs);
+    return;
+  }
+  }
+}
+
 bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
                                        StringRef &ErrInfo) const {
   MCInstrDesc const &Desc = MI.getDesc();
 
-  for (auto &OI : enumerate(Desc.operands())) {
-    unsigned OpType = OI.value().OperandType;
+  for (const auto &[Index, Operand] : enumerate(Desc.operands())) {
+    unsigned OpType = Operand.OperandType;
     if (OpType >= RISCVOp::OPERAND_FIRST_RISCV_IMM &&
         OpType <= RISCVOp::OPERAND_LAST_RISCV_IMM) {
-      const MachineOperand &MO = MI.getOperand(OI.index());
+      const MachineOperand &MO = MI.getOperand(Index);
       if (MO.isImm()) {
         int64_t Imm = MO.getImm();
         bool Ok;
@@ -1268,11 +1682,20 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
   case RISCVOp::OPERAND_UIMM##NUM:                                             \
     Ok = isUInt<NUM>(Imm);                                                     \
     break;
+        CASE_OPERAND_UIMM(1)
         CASE_OPERAND_UIMM(2)
         CASE_OPERAND_UIMM(3)
         CASE_OPERAND_UIMM(4)
         CASE_OPERAND_UIMM(5)
+        CASE_OPERAND_UIMM(6)
         CASE_OPERAND_UIMM(7)
+        CASE_OPERAND_UIMM(8)
+        CASE_OPERAND_UIMM(12)
+        CASE_OPERAND_UIMM(20)
+          // clang-format on
+        case RISCVOp::OPERAND_UIMM2_LSB0:
+          Ok = isShiftedUInt<1, 1>(Imm);
+          break;
         case RISCVOp::OPERAND_UIMM7_LSB00:
           Ok = isShiftedUInt<5, 2>(Imm);
           break;
@@ -1282,11 +1705,14 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         case RISCVOp::OPERAND_UIMM8_LSB000:
           Ok = isShiftedUInt<5, 3>(Imm);
           break;
-        CASE_OPERAND_UIMM(12)
-        CASE_OPERAND_UIMM(20)
-          // clang-format on
+        case RISCVOp::OPERAND_UIMM9_LSB000:
+          Ok = isShiftedUInt<6, 3>(Imm);
+          break;
         case RISCVOp::OPERAND_SIMM10_LSB0000_NONZERO:
           Ok = isShiftedInt<6, 4>(Imm) && (Imm != 0);
+          break;
+        case RISCVOp::OPERAND_UIMM10_LSB00_NONZERO:
+          Ok = isShiftedUInt<8, 2>(Imm) && (Imm != 0);
           break;
         case RISCVOp::OPERAND_ZERO:
           Ok = Imm == 0;
@@ -1322,11 +1748,21 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           Ok = STI.is64Bit() ? isUInt<6>(Imm) : isUInt<5>(Imm);
           Ok = Ok && Imm != 0;
           break;
-        case RISCVOp::OPERAND_UIMM_SHFL:
-          Ok = STI.is64Bit() ? isUInt<5>(Imm) : isUInt<4>(Imm);
+        case RISCVOp::OPERAND_CLUI_IMM:
+          Ok = (isUInt<5>(Imm) && Imm != 0) ||
+               (Imm >= 0xfffe0 && Imm <= 0xfffff);
           break;
         case RISCVOp::OPERAND_RVKRNUM:
           Ok = Imm >= 0 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_0_7:
+          Ok = Imm >= 0 && Imm <= 7;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_1_10:
+          Ok = Imm >= 1 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_2_14:
+          Ok = Imm >= 2 && Imm <= 14;
           break;
         }
         if (!Ok) {
@@ -1480,7 +1916,7 @@ RISCVInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_TPREL_ADD, "riscv-tprel-add"},
       {MO_TLS_GOT_HI, "riscv-tls-got-hi"},
       {MO_TLS_GD_HI, "riscv-tls-gd-hi"}};
-  return makeArrayRef(TargetFlags);
+  return ArrayRef(TargetFlags);
 }
 bool RISCVInstrInfo::isFunctionSafeToOutlineFrom(
     MachineFunction &MF, bool OutlineFromLinkOnceODRs) const {
@@ -1515,7 +1951,8 @@ bool RISCVInstrInfo::shouldOutlineFromFunctionByDefault(
   return MF.getFunction().hasMinSize();
 }
 
-outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+RISCVInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
 
   // First we need to filter out candidates where the X5 register (IE t0) can't
@@ -1529,7 +1966,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 
   // If the sequence doesn't have enough candidates left, then we're done.
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   unsigned SequenceSize = 0;
 
@@ -1545,8 +1982,10 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 
   // jr t0 = 4 bytes, 2 bytes if compressed instructions are enabled.
   unsigned FrameOverhead = 4;
-  if (RepeatedSequenceLocs[0].getMF()->getSubtarget()
-          .getFeatureBits()[RISCV::FeatureStdExtC])
+  if (RepeatedSequenceLocs[0]
+          .getMF()
+          ->getSubtarget<RISCVSubtarget>()
+          .hasStdExtCOrZca())
     FrameOverhead = 2;
 
   return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
@@ -1554,7 +1993,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 }
 
 outliner::InstrType
-RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
+RISCVInstrInfo::getOutliningTypeImpl(MachineBasicBlock::iterator &MBBI,
                                  unsigned Flags) const {
   MachineInstr &MI = *MBBI;
   MachineBasicBlock *MBB = MI.getParent();
@@ -1562,26 +2001,13 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
       MBB->getParent()->getSubtarget().getRegisterInfo();
   const auto &F = MI.getMF()->getFunction();
 
-  // Positions generally can't safely be outlined.
-  if (MI.isPosition()) {
-    // We can manually strip out CFI instructions later.
-    if (MI.isCFIInstruction())
-      // If current function has exception handling code, we can't outline &
-      // strip these CFI instructions since it may break .eh_frame section
-      // needed in unwinding.
-      return F.needsUnwindTableEntry() ? outliner::InstrType::Illegal
-                                       : outliner::InstrType::Invisible;
-
-    return outliner::InstrType::Illegal;
-  }
-
-  // Don't trust the user to write safe inline assembly.
-  if (MI.isInlineAsm())
-    return outliner::InstrType::Illegal;
-
-  // We can't outline branches to other basic blocks.
-  if (MI.isTerminator() && !MBB->succ_empty())
-    return outliner::InstrType::Illegal;
+  // We can manually strip out CFI instructions later.
+  if (MI.isCFIInstruction())
+    // If current function has exception handling code, we can't outline &
+    // strip these CFI instructions since it may break .eh_frame section
+    // needed in unwinding.
+    return F.needsUnwindTableEntry() ? outliner::InstrType::Illegal
+                                     : outliner::InstrType::Invisible;
 
   // We need support for tail calls to outlined functions before return
   // statements can be allowed.
@@ -1596,8 +2022,6 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
 
   // Make sure the operands don't reference something unsafe.
   for (const auto &MO : MI.operands()) {
-    if (MO.isMBB() || MO.isBlockAddress() || MO.isCPI() || MO.isJTI())
-      return outliner::InstrType::Illegal;
 
     // pcrel-hi and pcrel-lo can't put in separate sections, filter that out
     // if any possible.
@@ -1606,11 +2030,6 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
          F.hasSection()))
       return outliner::InstrType::Illegal;
   }
-
-  // Don't allow instructions which won't be materialized to impact outlining
-  // analysis.
-  if (MI.isMetaInstruction())
-    return outliner::InstrType::Invisible;
 
   return outliner::InstrType::Legal;
 }
@@ -1738,6 +2157,23 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
     return false;
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ:
+    // We can't commute operands if operand 2 (i.e., rs1 in
+    // mveqz/mvnez rd,rs1,rs2) is the zero-register (as it is
+    // not valid as the in/out-operand 1).
+    if (MI.getOperand(2).getReg() == RISCV::X0)
+      return false;
+    // Operands 1 and 2 are commutable, if we switch the opcode.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 1, 2);
+  case RISCV::TH_MULA:
+  case RISCV::TH_MULAW:
+  case RISCV::TH_MULAH:
+  case RISCV::TH_MULS:
+  case RISCV::TH_MULSW:
+  case RISCV::TH_MULSH:
+    // Operands 2 and 3 are commutable.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 2, 3);
   case RISCV::PseudoCCMOVGPR:
     // Operands 4 and 5 are commutable.
     return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 4, 5);
@@ -1886,6 +2322,14 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   };
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ: {
+    auto &WorkingMI = cloneIfNew(MI);
+    WorkingMI.setDesc(get(MI.getOpcode() == RISCV::TH_MVEQZ ? RISCV::TH_MVNEZ
+                                                            : RISCV::TH_MVEQZ));
+    return TargetInstrInfo::commuteInstructionImpl(WorkingMI, false, OpIdx1,
+                                                   OpIdx2);
+  }
   case RISCV::PseudoCCMOVGPR: {
     // CCMOV can be commuted by inverting the condition.
     auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());
@@ -2112,7 +2556,7 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
   BuildMI(MBB, II, DL, get(RISCV::PseudoReadVLENB), DestReg).setMIFlag(Flag);
   assert(isInt<32>(NumOfVReg) &&
          "Expect the number of vector registers within 32-bits.");
-  if (isPowerOf2_32(NumOfVReg)) {
+  if (llvm::has_single_bit<uint32_t>(NumOfVReg)) {
     uint32_t ShiftAmount = Log2_32(NumOfVReg);
     if (ShiftAmount == 0)
       return;
@@ -2148,7 +2592,7 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(DestReg, RegState::Kill)
         .addReg(DestReg)
         .setMIFlag(Flag);
-  } else if (isPowerOf2_32(NumOfVReg - 1)) {
+  } else if (llvm::has_single_bit<uint32_t>(NumOfVReg - 1)) {
     Register ScaledRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
     uint32_t ShiftAmount = Log2_32(NumOfVReg - 1);
     BuildMI(MBB, II, DL, get(RISCV::SLLI), ScaledRegister)
@@ -2159,7 +2603,7 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(ScaledRegister, RegState::Kill)
         .addReg(DestReg, RegState::Kill)
         .setMIFlag(Flag);
-  } else if (isPowerOf2_32(NumOfVReg + 1)) {
+  } else if (llvm::has_single_bit<uint32_t>(NumOfVReg + 1)) {
     Register ScaledRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
     uint32_t ShiftAmount = Log2_32(NumOfVReg + 1);
     BuildMI(MBB, II, DL, get(RISCV::SLLI), ScaledRegister)
@@ -2241,11 +2685,11 @@ bool RISCV::isRVVSpill(const MachineInstr &MI) {
   return true;
 }
 
-Optional<std::pair<unsigned, unsigned>>
+std::optional<std::pair<unsigned, unsigned>>
 RISCV::isRVVSpillForZvlsseg(unsigned Opcode) {
   switch (Opcode) {
   default:
-    return None;
+    return std::nullopt;
   case RISCV::PseudoVSPILL2_M1:
   case RISCV::PseudoVRELOAD2_M1:
     return std::make_pair(2u, 1u);

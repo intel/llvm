@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/Dialect.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 
@@ -57,9 +58,9 @@ ArrayRef<StringRef> Dialect::getDependentDialects() const {
   return dependentDialects;
 }
 
-llvm::Optional<StringRef> Dialect::getExtraClassDeclaration() const {
+std::optional<StringRef> Dialect::getExtraClassDeclaration() const {
   auto value = def->getValueAsString("extraClassDeclaration");
-  return value.empty() ? llvm::Optional<StringRef>() : value;
+  return value.empty() ? std::optional<StringRef>() : value;
 }
 
 bool Dialect::hasCanonicalizer() const {
@@ -96,14 +97,6 @@ bool Dialect::useDefaultAttributePrinterParser() const {
 
 bool Dialect::useDefaultTypePrinterParser() const {
   return def->getValueAsBit("useDefaultTypePrinterParser");
-}
-
-Dialect::EmitPrefix Dialect::getEmitAccessorPrefix() const {
-  int prefix = def->getValueAsInt("emitAccessorPrefix");
-  if (prefix < 0 || prefix > static_cast<int>(EmitPrefix::Both))
-    PrintFatalError(def->getLoc(), "Invalid accessor prefix value");
-
-  return static_cast<EmitPrefix>(prefix);
 }
 
 bool Dialect::isExtensible() const {

@@ -28,9 +28,6 @@
 #include <vector>
 
 namespace llvm {
-
-template <typename T> class Optional;
-
 namespace object {
 
 const char ArchiveMagic[] = "!<arch>\n";
@@ -358,7 +355,7 @@ public:
   static bool classof(Binary const *v) { return v->isArchive(); }
 
   // check if a symbol is in the archive
-  Expected<Optional<Child>> findSym(StringRef name) const;
+  Expected<std::optional<Child>> findSym(StringRef name) const;
 
   virtual bool isEmpty() const;
   bool hasSymbolTable() const;
@@ -413,9 +410,7 @@ public:
   BigArchive(MemoryBufferRef Source, Error &Err);
   uint64_t getFirstChildOffset() const override { return FirstChildOffset; }
   uint64_t getLastChildOffset() const { return LastChildOffset; }
-  bool isEmpty() const override {
-    return Data.getBufferSize() == sizeof(FixLenHdr);
-  };
+  bool isEmpty() const override { return getFirstChildOffset() == 0; }
 };
 
 } // end namespace object

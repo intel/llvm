@@ -10,11 +10,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -22,6 +20,8 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -436,7 +436,7 @@ TEST(CommandLineTest, HideUnrelatedOptionsMulti) {
   const cl::OptionCategory *VisibleCategories[] = {&TestCategory,
                                                    &TestCategory2};
 
-  cl::HideUnrelatedOptions(makeArrayRef(VisibleCategories));
+  cl::HideUnrelatedOptions(ArrayRef(VisibleCategories));
 
   ASSERT_EQ(cl::ReallyHidden, TestOption1.getOptionHiddenFlag())
       << "Failed to hide extra option.";
@@ -740,7 +740,7 @@ TEST(CommandLineTest, DefaultOptions) {
   StackOption<std::string> SC2_Foo("foo", cl::sub(SC2));
 
   const char *args0[] = {"prog", "-b", "args0 bar string", "-f"};
-  EXPECT_TRUE(cl::ParseCommandLineOptions(sizeof(args0) / sizeof(char *), args0,
+  EXPECT_TRUE(cl::ParseCommandLineOptions(std::size(args0), args0,
                                           StringRef(), &llvm::nulls()));
   EXPECT_EQ(Bar, "args0 bar string");
   EXPECT_TRUE(Foo);
@@ -750,7 +750,7 @@ TEST(CommandLineTest, DefaultOptions) {
   cl::ResetAllOptionOccurrences();
 
   const char *args1[] = {"prog", "sc1", "-b", "-bar", "args1 bar string", "-f"};
-  EXPECT_TRUE(cl::ParseCommandLineOptions(sizeof(args1) / sizeof(char *), args1,
+  EXPECT_TRUE(cl::ParseCommandLineOptions(std::size(args1), args1,
                                           StringRef(), &llvm::nulls()));
   EXPECT_EQ(Bar, "args1 bar string");
   EXPECT_TRUE(Foo);
@@ -766,7 +766,7 @@ TEST(CommandLineTest, DefaultOptions) {
 
   const char *args2[] = {"prog", "sc2", "-b", "args2 bar string",
                          "-f", "-foo", "foo string"};
-  EXPECT_TRUE(cl::ParseCommandLineOptions(sizeof(args2) / sizeof(char *), args2,
+  EXPECT_TRUE(cl::ParseCommandLineOptions(std::size(args2), args2,
                                           StringRef(), &llvm::nulls()));
   EXPECT_EQ(Bar, "args2 bar string");
   EXPECT_TRUE(Foo);
@@ -1060,7 +1060,7 @@ TEST(CommandLineTest, BadResponseFile) {
   ASSERT_STREQ(Argv[0], "clang");
   ASSERT_STREQ(Argv[1], AFileExp.c_str());
 
-#ifndef _AIX
+#if !defined(_AIX) && !defined(__MVS__)
   std::string ADirExp = std::string("@") + std::string(ADir.path());
   Argv = {"clang", ADirExp.c_str()};
   Res = cl::ExpandResponseFiles(Saver, cl::TokenizeGNUCommandLine, Argv);

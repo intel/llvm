@@ -28,6 +28,7 @@
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 
@@ -74,18 +75,27 @@ convertMLIRModule(Operation *op, llvm::LLVMContext &context) {
   return mainModule;
 }
 
-static LogicalResult runMLIRPasses(Operation *module) {
+static LogicalResult runMLIRPasses(Operation *module,
+                                   JitRunnerOptions &options) {
   PassManager passManager(module->getContext(),
                           module->getName().getStringRef());
-  applyPassManagerCLOptions(passManager);
+  if (failed(applyPassManagerCLOptions(passManager)))
+    return failure();
   passManager.addPass(createGpuKernelOutliningPass());
   passManager.addPass(createConvertGPUToSPIRVPass(/*mapMemorySpace=*/true));
 
+  auto enableOpaquePointers = [](auto options) {
+    options.useOpaquePointers = true;
+    return options;
+  };
+
   OpPassManager &nestedPM = passManager.nest<spirv::ModuleOp>();
-  nestedPM.addPass(spirv::createLowerABIAttributesPass());
-  nestedPM.addPass(spirv::createUpdateVersionCapabilityExtensionPass());
-  passManager.addPass(createLowerHostCodeToLLVMPass());
-  passManager.addPass(createConvertSPIRVToLLVMPass());
+  nestedPM.addPass(spirv::createSPIRVLowerABIAttributesPass());
+  nestedPM.addPass(spirv::createSPIRVUpdateVCEPass());
+  passManager.addPass(createLowerHostCodeToLLVMPass(
+      enableOpaquePointers(LowerHostCodeToLLVMPassOptions{})));
+  passManager.addPass(createConvertSPIRVToLLVMPass(
+      enableOpaquePointers(ConvertSPIRVToLLVMPassOptions{})));
   return passManager.run(module);
 }
 
@@ -103,6 +113,8 @@ int main(int argc, char **argv) {
   registry.insert<mlir::arith::ArithDialect, mlir::LLVM::LLVMDialect,
                   mlir::gpu::GPUDialect, mlir::spirv::SPIRVDialect,
                   mlir::func::FuncDialect, mlir::memref::MemRefDialect>();
+  mlir::registerPassManagerCLOptions();
+  mlir::registerBuiltinDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
 
   return mlir::JitRunnerMain(argc, argv, registry, jitRunnerConfig);

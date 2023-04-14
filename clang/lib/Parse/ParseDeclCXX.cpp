@@ -27,6 +27,7 @@
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <optional>
 
 using namespace clang;
 
@@ -227,7 +228,7 @@ Parser::DeclGroupPtrTy Parser::ParseNamespace(DeclaratorContext Context,
   UsingDirectiveDecl *ImplicitUsingDirectiveDecl = nullptr;
   Decl *NamespcDecl = Actions.ActOnStartNamespaceDef(
       getCurScope(), InlineLoc, NamespaceLoc, IdentLoc, Ident,
-      T.getOpenLocation(), attrs, ImplicitUsingDirectiveDecl);
+      T.getOpenLocation(), attrs, ImplicitUsingDirectiveDecl, false);
 
   PrettyDeclStackTraceEntry CrashInfo(Actions.Context, NamespcDecl,
                                       NamespaceLoc, "parsing namespace");
@@ -254,9 +255,10 @@ void Parser::ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
   if (index == InnerNSs.size()) {
     while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
            Tok.isNot(tok::eof)) {
-      ParsedAttributes Attrs(AttrFactory);
-      MaybeParseCXX11Attributes(Attrs);
-      ParseExternalDeclaration(Attrs);
+      ParsedAttributes DeclAttrs(AttrFactory);
+      MaybeParseCXX11Attributes(DeclAttrs);
+      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+      ParseExternalDeclaration(DeclAttrs, EmptyDeclSpecAttrs);
     }
 
     // The caller is what called check -- we are simply calling
@@ -274,7 +276,7 @@ void Parser::ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
   Decl *NamespcDecl = Actions.ActOnStartNamespaceDef(
       getCurScope(), InnerNSs[index].InlineLoc, InnerNSs[index].NamespaceLoc,
       InnerNSs[index].IdentLoc, InnerNSs[index].Ident,
-      Tracker.getOpenLocation(), attrs, ImplicitUsingDirectiveDecl);
+      Tracker.getOpenLocation(), attrs, ImplicitUsingDirectiveDecl, true);
   assert(!ImplicitUsingDirectiveDecl &&
          "nested namespace definition cannot define anonymous namespace");
 
@@ -358,7 +360,11 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
                 Tok.is(tok::l_brace) ? Tok.getLocation() : SourceLocation());
 
   ParsedAttributes DeclAttrs(AttrFactory);
-  MaybeParseCXX11Attributes(DeclAttrs);
+  ParsedAttributes DeclSpecAttrs(AttrFactory);
+
+  while (MaybeParseCXX11Attributes(DeclAttrs) ||
+         MaybeParseGNUAttributes(DeclSpecAttrs))
+    ;
 
   if (Tok.isNot(tok::l_brace)) {
     // Reset the source range in DS, as the leading "extern"
@@ -367,7 +373,7 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
     DS.SetRangeEnd(SourceLocation());
     // ... but anyway remember that such an "extern" was seen.
     DS.setExternInLinkageSpec(true);
-    ParseExternalDeclaration(DeclAttrs, &DS);
+    ParseExternalDeclaration(DeclAttrs, DeclSpecAttrs, &DS);
     return LinkageSpec ? Actions.ActOnFinishLinkageSpecification(
                              getCurScope(), LinkageSpec, SourceLocation())
                        : nullptr;
@@ -407,9 +413,9 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
         break;
       [[fallthrough]];
     default:
-      ParsedAttributes Attrs(AttrFactory);
-      MaybeParseCXX11Attributes(Attrs);
-      ParseExternalDeclaration(Attrs);
+      ParsedAttributes DeclAttrs(AttrFactory);
+      MaybeParseCXX11Attributes(DeclAttrs);
+      ParseExternalDeclaration(DeclAttrs, DeclSpecAttrs);
       continue;
     }
 
@@ -422,7 +428,7 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
                      : nullptr;
 }
 
-/// Parse a C++ Modules TS export-declaration.
+/// Parse a standard C++ Modules export-declaration.
 ///
 ///       export-declaration:
 ///         'export' declaration
@@ -439,9 +445,10 @@ Decl *Parser::ParseExportDeclaration() {
 
   if (Tok.isNot(tok::l_brace)) {
     // FIXME: Factor out a ParseExternalDeclarationWithAttrs.
-    ParsedAttributes Attrs(AttrFactory);
-    MaybeParseCXX11Attributes(Attrs);
-    ParseExternalDeclaration(Attrs);
+    ParsedAttributes DeclAttrs(AttrFactory);
+    MaybeParseCXX11Attributes(DeclAttrs);
+    ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+    ParseExternalDeclaration(DeclAttrs, EmptyDeclSpecAttrs);
     return Actions.ActOnFinishExportDecl(getCurScope(), ExportDecl,
                                          SourceLocation());
   }
@@ -449,18 +456,12 @@ Decl *Parser::ParseExportDeclaration() {
   BalancedDelimiterTracker T(*this, tok::l_brace);
   T.consumeOpen();
 
-  // The Modules TS draft says "An export-declaration shall declare at least one
-  // entity", but the intent is that it shall contain at least one declaration.
-  if (Tok.is(tok::r_brace) && getLangOpts().ModulesTS) {
-    Diag(ExportLoc, diag::err_export_empty)
-        << SourceRange(ExportLoc, Tok.getLocation());
-  }
-
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
          Tok.isNot(tok::eof)) {
-    ParsedAttributes Attrs(AttrFactory);
-    MaybeParseCXX11Attributes(Attrs);
-    ParseExternalDeclaration(Attrs);
+    ParsedAttributes DeclAttrs(AttrFactory);
+    MaybeParseCXX11Attributes(DeclAttrs);
+    ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+    ParseExternalDeclaration(DeclAttrs, EmptyDeclSpecAttrs);
   }
 
   T.consumeClose();
@@ -957,14 +958,16 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
   assert(Tok.isOneOf(tok::kw_static_assert, tok::kw__Static_assert) &&
          "Not a static_assert declaration");
 
-  // Save the token used for static assertion.
-  Token SavedTok = Tok;
+  // Save the token name used for static assertion.
+  const char *TokName = Tok.getName();
 
   if (Tok.is(tok::kw__Static_assert) && !getLangOpts().C11)
     Diag(Tok, diag::ext_c11_feature) << Tok.getName();
   if (Tok.is(tok::kw_static_assert)) {
     if (!getLangOpts().CPlusPlus) {
-      if (!getLangOpts().C2x)
+      if (getLangOpts().C2x)
+        Diag(Tok, diag::warn_c2x_compat_keyword) << Tok.getName();
+      else
         Diag(Tok, diag::ext_ms_static_assert) << FixItHint::CreateReplacement(
             Tok.getLocation(), "_Static_assert");
     } else
@@ -1024,9 +1027,7 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
   T.consumeClose();
 
   DeclEnd = Tok.getLocation();
-  // Passing the token used to the error message.
-  ExpectAndConsumeSemi(diag::err_expected_semi_after_static_assert,
-                       SavedTok.getName());
+  ExpectAndConsumeSemi(diag::err_expected_semi_after_static_assert, TokName);
 
   return Actions.ActOnStaticAssertDeclaration(StaticAssertLoc, AssertExpr.get(),
                                               AssertMessage.get(),
@@ -1673,6 +1674,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     ColonProtectionRAIIObject X(*this);
 
     CXXScopeSpec Spec;
+    if (TemplateInfo.TemplateParams)
+      Spec.setTemplateParamLists(*TemplateInfo.TemplateParams);
+
     bool HasValidSpec = true;
     if (ParseOptionalCXXScopeSpecifier(Spec, /*ObjectType=*/nullptr,
                                        /*ObjectHasErrors=*/false,
@@ -1995,8 +1999,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           // "template<>", so that we treat this construct as a class
           // template specialization.
           FakedParamLists.push_back(Actions.ActOnTemplateParameterList(
-              0, SourceLocation(), TemplateInfo.TemplateLoc, LAngleLoc, None,
-              LAngleLoc, nullptr));
+              0, SourceLocation(), TemplateInfo.TemplateLoc, LAngleLoc,
+              std::nullopt, LAngleLoc, nullptr));
           TemplateParams = &FakedParamLists;
         }
       }
@@ -2066,7 +2070,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         DSC == DeclSpecContext::DSC_type_specifier,
         DSC == DeclSpecContext::DSC_template_param ||
             DSC == DeclSpecContext::DSC_template_type_arg,
-        &SkipBody);
+        OffsetOfState, &SkipBody);
 
     // If ActOnTag said the type was dependent, try again with the
     // less common call.
@@ -3184,7 +3188,11 @@ ExprResult Parser::ParseCXXMemberInitializer(Decl *D, bool IsFunction,
          "Data member initializer not starting with '=' or '{'");
 
   EnterExpressionEvaluationContext Context(
-      Actions, Sema::ExpressionEvaluationContext::PotentiallyEvaluated, D);
+      Actions,
+      isa_and_present<FieldDecl>(D)
+          ? Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed
+          : Sema::ExpressionEvaluationContext::PotentiallyEvaluated,
+      D);
   if (TryConsumeToken(tok::equal, EqualLoc)) {
     if (Tok.is(tok::kw_delete)) {
       // In principle, an initializer of '= delete p;' is legal, but it will
@@ -3803,7 +3811,6 @@ MemInitResult Parser::ParseMemInitializer(Decl *ConstructorDecl) {
 
     // Parse the optional expression-list.
     ExprVector ArgExprs;
-    CommaLocsTy CommaLocs;
     auto RunSignatureHelp = [&] {
       if (TemplateTypeTy.isInvalid())
         return QualType();
@@ -3813,8 +3820,7 @@ MemInitResult Parser::ParseMemInitializer(Decl *ConstructorDecl) {
       CalledSignatureHelp = true;
       return PreferredType;
     };
-    if (Tok.isNot(tok::r_paren) &&
-        ParseExpressionList(ArgExprs, CommaLocs, [&] {
+    if (Tok.isNot(tok::r_paren) && ParseExpressionList(ArgExprs, [&] {
           PreferredType.enterFunctionArgument(Tok.getLocation(),
                                               RunSignatureHelp);
         })) {
@@ -4062,7 +4068,7 @@ void Parser::ParseTrailingRequiresClause(Declarator &D) {
 
   Actions.ActOnStartTrailingRequiresClause(getCurScope(), D);
 
-  llvm::Optional<Sema::CXXThisScopeRAII> ThisScope;
+  std::optional<Sema::CXXThisScopeRAII> ThisScope;
   InitCXXThisScopeForDeclaratorIfRelevant(D, D.getDeclSpec(), ThisScope);
 
   TrailingRequiresClause =
@@ -4454,7 +4460,10 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
                                                   CachedTokens &OpenMPTokens,
                                                   SourceLocation *EndLoc) {
   if (Tok.is(tok::kw_alignas)) {
-    Diag(Tok.getLocation(), diag::warn_cxx98_compat_alignas);
+    if (getLangOpts().C2x)
+      Diag(Tok, diag::warn_c2x_compat_keyword) << Tok.getName();
+    else
+      Diag(Tok.getLocation(), diag::warn_cxx98_compat_alignas);
     ParseAlignmentSpecifier(Attrs, EndLoc);
     return;
   }
@@ -4486,8 +4495,6 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     if (!TryConsumeToken(tok::colon) && CommonScopeName)
       Diag(Tok.getLocation(), diag::err_expected) << tok::colon;
   }
-
-  llvm::SmallDenseMap<IdentifierInfo *, SourceLocation, 4> SeenAttrs;
 
   bool AttrParsed = false;
   while (!Tok.isOneOf(tok::r_square, tok::semi, tok::eof)) {

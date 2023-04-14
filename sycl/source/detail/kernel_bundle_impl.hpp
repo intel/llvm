@@ -30,11 +30,9 @@ namespace detail {
 
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
-  const std::vector<device> &ContextDevices = Context.get_devices();
   return std::all_of(
-      Devices.begin(), Devices.end(), [&ContextDevices](const device &Dev) {
-        return ContextDevices.end() !=
-               std::find(ContextDevices.begin(), ContextDevices.end(), Dev);
+      Devices.begin(), Devices.end(), [&Context](const device &Dev) {
+        return getSyclObjImpl(Context)->isDeviceValid(getSyclObjImpl(Dev));
       });
 }
 
@@ -238,8 +236,6 @@ public:
                      bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    // TODO: Add a check that all kernel ids are compatible with at least one
-    // device in Devs
     common_ctor_checks(State);
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
@@ -406,7 +402,8 @@ public:
   }
 
   bool native_specialization_constant() const noexcept {
-    return std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
+    return contains_specialization_constants() &&
+           std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
                        [](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
                              ->all_specialization_constant_native();
@@ -429,10 +426,9 @@ public:
         getSyclObjImpl(DeviceImage)
             ->set_specialization_constant_raw_value(SpecName, Value);
     else {
-      const auto *DataPtr = static_cast<const unsigned char *>(Value);
       std::vector<unsigned char> &Val = MSpecConstValues[std::string{SpecName}];
       Val.resize(Size);
-      Val.insert(Val.begin(), DataPtr, DataPtr + Size);
+      std::memcpy(Val.data(), Value, Size);
     }
   }
 

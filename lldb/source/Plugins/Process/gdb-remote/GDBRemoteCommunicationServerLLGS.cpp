@@ -10,10 +10,10 @@
 
 #include "lldb/Host/Config.h"
 
-
 #include <chrono>
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <thread>
 
 #include "GDBRemoteCommunicationServerLLGS.h"
@@ -42,9 +42,9 @@
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/UnimplementedError.h"
 #include "lldb/Utility/UriParser.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include "ProcessGDBRemote.h"
 #include "ProcessGDBRemoteLog.h"
@@ -69,9 +69,9 @@ enum GDBRemoteServerError {
 
 // GDBRemoteCommunicationServerLLGS constructor
 GDBRemoteCommunicationServerLLGS::GDBRemoteCommunicationServerLLGS(
-    MainLoop &mainloop, const NativeProcessProtocol::Factory &process_factory)
+    MainLoop &mainloop, NativeProcessProtocol::Manager &process_manager)
     : GDBRemoteCommunicationServerCommon(), m_mainloop(mainloop),
-      m_process_factory(process_factory), m_current_process(nullptr),
+      m_process_manager(process_manager), m_current_process(nullptr),
       m_continue_process(nullptr), m_stdio_communication() {
   RegisterPacketHandlers();
 }
@@ -286,8 +286,7 @@ Status GDBRemoteCommunicationServerLLGS::LaunchProcess() {
     std::lock_guard<std::recursive_mutex> guard(m_debugged_process_mutex);
     assert(m_debugged_processes.empty() && "lldb-server creating debugged "
                                            "process but one already exists");
-    auto process_or =
-        m_process_factory.Launch(m_process_launch_info, *this, m_mainloop);
+    auto process_or = m_process_manager.Launch(m_process_launch_info, *this);
     if (!process_or)
       return Status(process_or.takeError());
     m_continue_process = m_current_process = process_or->get();
@@ -356,7 +355,7 @@ Status GDBRemoteCommunicationServerLLGS::AttachToProcess(lldb::pid_t pid) {
                   pid, m_current_process->GetID());
 
   // Try to attach.
-  auto process_or = m_process_factory.Attach(pid, *this, m_mainloop);
+  auto process_or = m_process_manager.Attach(pid, *this);
   if (!process_or) {
     Status status(process_or.takeError());
     llvm::errs() << llvm::formatv("failed to attach to process {0}: {1}\n", pid,
@@ -639,7 +638,7 @@ static void WriteRegisterValueInHexFixedWidth(
   }
 }
 
-static llvm::Optional<json::Object>
+static std::optional<json::Object>
 GetRegistersAsJSON(NativeThreadProtocol &thread) {
   Log *log = GetLog(LLDBLog::Thread);
 
@@ -655,7 +654,7 @@ GetRegistersAsJSON(NativeThreadProtocol &thread) {
       reg_ctx.GetExpeditedRegisters(ExpeditedRegs::Minimal);
 #endif
   if (expedited_regs.empty())
-    return llvm::None;
+    return std::nullopt;
 
   for (auto &reg_num : expedited_regs) {
     const RegisterInfo *const reg_info_p =
@@ -753,7 +752,7 @@ GetJSONThreadsInfo(NativeProcessProtocol &process, bool abridged) {
     json::Object thread_obj;
 
     if (!abridged) {
-      if (llvm::Optional<json::Object> registers = GetRegistersAsJSON(thread))
+      if (std::optional<json::Object> registers = GetRegistersAsJSON(thread))
         thread_obj.try_emplace("registers", std::move(*registers));
     }
 
@@ -2307,7 +2306,7 @@ GDBRemoteCommunicationServerLLGS::Handle_P(StringExtractorGDBRemote &packet) {
   // Build the reginfos response.
   StreamGDBRemote response;
 
-  RegisterValue reg_value(makeArrayRef(reg_bytes, reg_size),
+  RegisterValue reg_value(ArrayRef(reg_bytes, reg_size),
                           m_current_process->GetArchitecture().GetByteOrder());
   Status error = reg_context.WriteRegister(reg_info, reg_value);
   if (error.Fail()) {
@@ -3658,7 +3657,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qWatchpointSupportInfo(
   auto hw_debug_cap = m_current_process->GetHardwareDebugSupportInfo();
 
   StreamGDBRemote response;
-  if (hw_debug_cap == llvm::None)
+  if (hw_debug_cap == std::nullopt)
     response.Printf("num:0;");
   else
     response.Printf("num:%d;", hw_debug_cap->second);
@@ -4209,7 +4208,7 @@ std::vector<std::string> GDBRemoteCommunicationServerLLGS::HandleFeatures(
 
   // report server-only features
   using Extension = NativeProcessProtocol::Extension;
-  Extension plugin_features = m_process_factory.GetSupportedExtensions();
+  Extension plugin_features = m_process_manager.GetSupportedExtensions();
   if (bool(plugin_features & Extension::pass_signals))
     ret.push_back("QPassSignals+");
   if (bool(plugin_features & Extension::auxv))
@@ -4255,7 +4254,7 @@ std::vector<std::string> GDBRemoteCommunicationServerLLGS::HandleFeatures(
 void GDBRemoteCommunicationServerLLGS::SetEnabledExtensions(
     NativeProcessProtocol &process) {
   NativeProcessProtocol::Extension flags = m_extensions_supported;
-  assert(!bool(flags & ~m_process_factory.GetSupportedExtensions()));
+  assert(!bool(flags & ~m_process_manager.GetSupportedExtensions()));
   process.SetEnabledExtensions(flags);
 }
 
@@ -4279,7 +4278,7 @@ std::string
 lldb_private::process_gdb_remote::LLGSArgToURL(llvm::StringRef url_arg,
                                                bool reverse_connect) {
   // Try parsing the argument as URL.
-  if (llvm::Optional<URI> url = URI::Parse(url_arg)) {
+  if (std::optional<URI> url = URI::Parse(url_arg)) {
     if (reverse_connect)
       return url_arg.str();
 

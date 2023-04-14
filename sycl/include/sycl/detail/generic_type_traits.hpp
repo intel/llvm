@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_types.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/aliases.hpp>
 #include <sycl/detail/common.hpp>
@@ -16,6 +17,7 @@
 #include <sycl/half_type.hpp>
 #include <sycl/multi_ptr.hpp>
 
+#include <complex>
 #include <limits>
 
 namespace sycl {
@@ -27,13 +29,24 @@ template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
 template <typename T> using is_genfloatf = is_contained<T, gtl::float_list>;
 
 template <typename T>
+using is_svgenfloatf = is_contained<T, gtl::scalar_vector_float_list>;
+
+template <typename T>
 using is_doublen = is_contained<T, gtl::vector_double_list>;
 
 template <typename T> using is_genfloatd = is_contained<T, gtl::double_list>;
 
+template <typename T>
+using is_svgenfloatd = is_contained<T, gtl::scalar_vector_double_list>;
+
 template <typename T> using is_halfn = is_contained<T, gtl::vector_half_list>;
 
 template <typename T> using is_genfloath = is_contained<T, gtl::half_list>;
+
+template <typename T> using is_half = is_contained<T, gtl::scalar_half_list>;
+
+template <typename T>
+using is_svgenfloath = is_contained<T, gtl::scalar_vector_half_list>;
 
 template <typename T> using is_genfloat = is_contained<T, gtl::floating_list>;
 
@@ -44,10 +57,24 @@ template <typename T>
 using is_vgenfloat = is_contained<T, gtl::vector_floating_list>;
 
 template <typename T>
+using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
+
+template <typename T>
+using is_mgenfloat = bool_constant<
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    is_svgenfloat<marray_element_t<T>>::value>;
+
+template <typename T>
 using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
 
 template <typename T>
 using is_gengeodouble = is_contained<T, gtl::geo_double_list>;
+
+template <typename T>
+using is_gengeomarrayfloat = is_contained<T, gtl::marray_geo_float_list>;
+
+template <typename T>
+using is_gengeomarray = is_contained<T, gtl::marray_geo_list>;
 
 template <typename T> using is_gengeohalf = is_contained<T, gtl::geo_half_list>;
 
@@ -75,6 +102,9 @@ using is_gencrosshalf = is_contained<T, gtl::cross_half_list>;
 
 template <typename T>
 using is_gencross = is_contained<T, gtl::cross_floating_list>;
+
+template <typename T>
+using is_gencrossmarray = is_contained<T, gtl::cross_marray_list>;
 
 template <typename T>
 using is_charn = is_contained<T, gtl::vector_default_char_list>;
@@ -115,17 +145,6 @@ template <typename T>
 using is_intn = is_contained<T, gtl::vector_signed_int_list>;
 
 template <typename T> using is_genint = is_contained<T, gtl::signed_int_list>;
-
-template <typename T>
-using is_ulongn = is_contained<T, gtl::vector_unsigned_long_list>;
-
-template <typename T>
-using is_ugenlong = is_contained<T, gtl::unsigned_long_list>;
-
-template <typename T>
-using is_longn = is_contained<T, gtl::vector_signed_long_list>;
-
-template <typename T> using is_genlong = is_contained<T, gtl::signed_long_list>;
 
 template <typename T>
 using is_ulonglongn = is_contained<T, gtl::vector_unsigned_longlong_list>;
@@ -170,6 +189,8 @@ using is_vigeninteger = is_contained<T, gtl::vector_signed_integer_list>;
 
 template <typename T>
 using is_vugeninteger = is_contained<T, gtl::vector_unsigned_integer_list>;
+
+template <typename T> using is_genbool = is_contained<T, gtl::bool_list>;
 
 template <typename T> using is_gentype = is_contained<T, gtl::basic_list>;
 
@@ -220,10 +241,29 @@ using is_genintptr = bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+using is_genintptr_marray = bool_constant<
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    is_genint<marray_element_t<remove_pointer_t<T>>>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
+
 template <typename T>
 using is_genfloatptr = bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+using is_genfloatptr_marray = bool_constant<
+    is_mgenfloat<T>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
 
 template <typename T>
 using is_genptr = bool_constant<
@@ -289,7 +329,8 @@ struct convert_data_type_impl<T, B, enable_if_t<is_vgentype<T>::value, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// Try to get pointer_t (legacy) or pointer, otherwise T
+// TryToGetPointerT<T>::type is T::pointer_t (legacy) or T::pointer if those
+// exist, otherwise T.
 template <typename T> class TryToGetPointerT {
   static T check(...);
   template <typename A> static typename A::pointer_t check(const A &);
@@ -301,7 +342,8 @@ public:
       std::is_pointer<T>::value || !std::is_same<T, type>::value;
 };
 
-// Try to get element_type or value_type, otherwise T
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
 template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
@@ -312,7 +354,7 @@ public:
   static constexpr bool value = !std::is_same<T, type>::value;
 };
 
-// Try to get vector_t, otherwise T
+// TryToGetVectorT<T>::type is T::vector_t if that exists, otherwise T.
 template <typename T> class TryToGetVectorT {
   static T check(...);
   template <typename A> static typename A::vector_t check(const A &);
@@ -419,18 +461,26 @@ using select_apply_cl_scalar_t =
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
 using select_cl_scalar_integral_signed_t =
-    select_apply_cl_scalar_t<T, sycl::cl_char, sycl::cl_short, sycl::cl_int,
-                             sycl::cl_long>;
+    select_apply_cl_scalar_t<T, sycl::opencl::cl_char, sycl::opencl::cl_short,
+                             sycl::opencl::cl_int, sycl::opencl::cl_long>;
 
 template <typename T>
 using select_cl_scalar_integral_unsigned_t =
-    select_apply_cl_scalar_t<T, sycl::cl_uchar, sycl::cl_ushort, sycl::cl_uint,
-                             sycl::cl_ulong>;
+    select_apply_cl_scalar_t<T, sycl::opencl::cl_uchar, sycl::opencl::cl_ushort,
+                             sycl::opencl::cl_uint, sycl::opencl::cl_ulong>;
 
 template <typename T>
 using select_cl_scalar_float_t =
-    select_apply_cl_scalar_t<T, std::false_type, sycl::cl_half, sycl::cl_float,
-                             sycl::cl_double>;
+    select_apply_cl_scalar_t<T, std::false_type, sycl::opencl::cl_half,
+                             sycl::opencl::cl_float, sycl::opencl::cl_double>;
+
+template <typename T>
+using select_cl_scalar_complex_or_T_t = std::conditional_t<
+    std::is_same<T, std::complex<float>>::value, __spv::complex_float,
+    std::conditional_t<
+        std::is_same<T, std::complex<double>>::value, __spv::complex_double,
+        std::conditional_t<std::is_same<T, std::complex<half>>::value,
+                           __spv::complex_half, T>>>;
 
 template <typename T>
 using select_cl_scalar_integral_t =
@@ -443,12 +493,13 @@ using select_cl_scalar_integral_t =
 template <typename T>
 using select_cl_scalar_t = conditional_t<
     std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
-    conditional_t<
-        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
-        // half is a special case: it is implemented differently on host and
-        // device and therefore, might lower to different types
-        conditional_t<std::is_same<T, half>::value,
-                      sycl::detail::half_impl::BIsRepresentationT, T>>>;
+    conditional_t<std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+                  // half is a special case: it is implemented differently on
+                  // host and device and therefore, might lower to different
+                  // types
+                  conditional_t<std::is_same<T, half>::value,
+                                sycl::detail::half_impl::BIsRepresentationT,
+                                select_cl_scalar_complex_or_T_t<T>>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.
@@ -502,7 +553,7 @@ template <typename T> struct TypeHelper {
   using RetType = T;
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct TypeHelper<std::byte> {
   using RetType = std::uint8_t;
 };
@@ -533,14 +584,14 @@ using SelectMatchingOpenCLType_t =
 
 // Converts T to OpenCL friendly
 //
+template <typename T /* MatchingOpencCLTypeT */>
+using ConvertToOpenCLTypeImpl_t =
+    conditional_t<TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
+                  conditional_t<TryToGetPointerT<T>::value,
+                                typename TryToGetPointerVecT<T>::type, T>>;
 template <typename T>
-using ConvertToOpenCLType_t = conditional_t<
-    TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
-    typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
-    conditional_t<
-        TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
-        typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
-        SelectMatchingOpenCLType_t<T>>>;
+using ConvertToOpenCLType_t =
+    ConvertToOpenCLTypeImpl_t<SelectMatchingOpenCLType_t<T>>;
 
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.
@@ -572,9 +623,37 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
 
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
+// SYCL 2020 4.17.9 (Relation functions), e.g. table 178
+//
+//  genbool isequal (genfloatf x, genfloatf y)
+//  genbool isequal (genfloatd x, genfloatd y)
+//
+// TODO: marray support isn't implemented yet.
+template <typename T>
+using common_rel_ret_t =
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
+
+// TODO: Remove this when common_rel_ret_t is promoted.
+template <typename T>
+using internal_host_rel_ret_t =
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+#else
+// SYCL 1.2.1 4.13.7 (Relation functions), e.g.
+//
+//   igeninteger32bit isequal (genfloatf x, genfloatf y)
+//   igeninteger64bit isequal (genfloatd x, genfloatd y)
+//
+// However, we have pre-existing bug so
+//
+//   igeninteger32bit isequal (genfloatd x, genfloatd y)
+//
+// Fixing it would be an ABI-breaking change so isn't done.
 template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+template <typename T> using internal_host_rel_ret_t = common_rel_ret_t<T>;
+#endif
 
 // forward declaration
 template <int N> struct Boolean;
@@ -598,11 +677,21 @@ template <typename T> struct RelationalReturnType {
 #ifdef __SYCL_DEVICE_ONLY__
   using type = Boolean<TryToGetNumElements<T>::value>;
 #else
-  using type = common_rel_ret_t<T>;
+  // After changing the return type of scalar relational operations to boolean
+  // we keep the old representation of the internal implementation of the
+  // host-side builtins to avoid ABI-breaks.
+  // TODO: Use common_rel_ret_t when ABI break is allowed and the boolean return
+  //       type for relationals are promoted out of SYCL2020_CONFORMANT_APIS.
+  //       The scalar relational builtins in
+  //       sycl/source/detail/builtins_relational.cpp should likewise be updated
+  //       to return boolean values.
+  using type = internal_host_rel_ret_t<T>;
 #endif
 };
 
-template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
+// Type representing the internal return type of relational builtins.
+template <typename T>
+using internal_rel_ret_t = typename RelationalReturnType<T>::type;
 
 // Used for any and all built-in functions
 template <typename T> struct RelationalTestForSignBitType {
@@ -634,7 +723,7 @@ struct RelConverter<
   using ret_t = common_rel_ret_t<T>;
 #else
   using bool_t = Boolean<N>;
-  using ret_t = rel_ret_t<T>;
+  using ret_t = internal_rel_ret_t<T>;
 #endif
 
   static ret_t apply(bool_t value) {
@@ -653,7 +742,7 @@ struct RelConverter<
 template <typename T>
 struct RelConverter<
     T, typename detail::enable_if_t<!TryToGetElementType<T>::value>> {
-  using R = rel_ret_t<T>;
+  using R = internal_rel_ret_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using value_t = bool;
 #else

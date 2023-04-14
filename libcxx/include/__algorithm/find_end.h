@@ -15,12 +15,12 @@
 #include <__algorithm/search.h>
 #include <__config>
 #include <__functional/identity.h>
+#include <__functional/invoke.h>
 #include <__iterator/advance.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/next.h>
 #include <__iterator/reverse_iterator.h>
 #include <__utility/pair.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -219,9 +219,7 @@ template <class _ForwardIterator1, class _ForwardIterator2>
 _LIBCPP_NODISCARD_EXT inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
 _ForwardIterator1 find_end(_ForwardIterator1 __first1, _ForwardIterator1 __last1,
                            _ForwardIterator2 __first2, _ForwardIterator2 __last2) {
-  using __v1 = typename iterator_traits<_ForwardIterator1>::value_type;
-  using __v2 = typename iterator_traits<_ForwardIterator2>::value_type;
-  return std::find_end(__first1, __last1, __first2, __last2, __equal_to<__v1, __v2>());
+  return std::find_end(__first1, __last1, __first2, __last2, __equal_to());
 }
 
 _LIBCPP_END_NAMESPACE_STD

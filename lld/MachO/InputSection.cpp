@@ -111,7 +111,7 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
   };
 
   // First, look up a function for a given offset.
-  if (Optional<DILineInfo> li = dwarf->getDILineInfo(
+  if (std::optional<DILineInfo> li = dwarf->getDILineInfo(
           section.addr + off, object::SectionedAddress::UndefSection))
     return createMsg(li->FileName, li->Line);
 
@@ -123,7 +123,7 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
     if (!symName.empty() && symName[0] == '_')
       symName = symName.substr(1);
 
-    if (Optional<std::pair<std::string, unsigned>> fileLine =
+    if (std::optional<std::pair<std::string, unsigned>> fileLine =
             dwarf->getVariableLoc(symName))
       return createMsg(fileLine->first, fileLine->second);
   }
@@ -133,6 +133,14 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
     return obj->sourceFile();
 
   return {};
+}
+
+const Reloc *InputSection::getRelocAt(uint32_t off) const {
+  auto it = llvm::find_if(
+      relocs, [=](const macho::Reloc &r) { return r.offset == off; });
+  if (it == relocs.end())
+    return nullptr;
+  return &*it;
 }
 
 void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
@@ -257,6 +265,15 @@ StringPiece &CStringInputSection::getStringPiece(uint64_t off) {
 
 const StringPiece &CStringInputSection::getStringPiece(uint64_t off) const {
   return const_cast<CStringInputSection *>(this)->getStringPiece(off);
+}
+
+size_t CStringInputSection::getStringPieceIndex(uint64_t off) const {
+  if (off >= data.size())
+    fatal(toString(this) + ": offset is outside the section");
+
+  auto it =
+      partition_point(pieces, [=](StringPiece p) { return p.inSecOff <= off; });
+  return std::distance(pieces.begin(), it) - 1;
 }
 
 uint64_t CStringInputSection::getOffset(uint64_t off) const {

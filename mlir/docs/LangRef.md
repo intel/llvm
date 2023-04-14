@@ -188,7 +188,7 @@ toplevel := (operation | attribute-alias-def | type-alias-def)*
 
 The production `toplevel` is the top level production that is parsed by any parsing
 consuming the MLIR syntax. [Operations](#operations),
-[Attribute alises](#attribute-value-aliases), and [Type aliases](#type-aliases)
+[Attribute aliases](#attribute-value-aliases), and [Type aliases](#type-aliases)
 can be declared on the toplevel.
 
 ### Identifiers and keywords
@@ -725,7 +725,7 @@ part of the syntax into an equivalent, but lighter weight form:
 !foo.something<abcd>
 ```
 
-See [here](AttributesAndTypes.md) to learn how to define dialect types.
+See [here](DefiningDialects/AttributesAndTypes.md) to learn how to define dialect types.
 
 ### Builtin Types
 
@@ -837,7 +837,7 @@ part of the syntax into an equivalent, but lighter weight form:
 #foo.string<"">
 ```
 
-See [here](AttributesAndTypes.md) on how to define dialect attribute values.
+See [here](DefiningDialects/AttributesAndTypes.md) on how to define dialect attribute values.
 
 ### Builtin Attribute Values
 
@@ -845,3 +845,18 @@ The [builtin dialect](Dialects/Builtin.md) defines a set of attribute values
 that are directly usable by any other dialect in MLIR. These types cover a range
 from primitive integer and floating-point values, attribute dictionaries, dense
 multi-dimensional arrays, and more.
+
+### IR Versioning
+
+A dialect can opt-in to handle versioning through the
+`BytecodeDialectInterface`. Few hooks are exposed to the dialect to allow
+managing a version encoded into the bytecode file. The version is loaded lazily
+and allows to retrieve the version information while parsing the input IR, and
+gives an opportunity to each dialect for which a version is present to perform
+IR upgrades post-parsing through the `upgradeFromVersion` method. Custom
+Attribute and Type encodings can also be upgraded according to the dialect
+version using readAttribute and readType methods.
+
+There is no restriction on what kind of information a dialect is allowed to
+encode to model its versioning. Currently, versioning is supported only for
+bytecode formats.

@@ -19,6 +19,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <utility>
 
@@ -106,9 +107,6 @@ public:
 
 /// Models the trivially true formula, which is Top in the lattice of boolean
 /// formulas.
-///
-/// FIXME: Given the subtlety of comparison involving `TopBoolValue`, define
-/// `operator==` for `Value`.
 class TopBoolValue final : public BoolValue {
 public:
   TopBoolValue() : BoolValue(Kind::TopBool) {}
@@ -312,6 +310,8 @@ public:
 private:
   llvm::DenseMap<const ValueDecl *, Value *> Children;
 };
+
+raw_ostream &operator<<(raw_ostream &OS, const Value &Val);
 
 } // namespace dataflow
 } // namespace clang

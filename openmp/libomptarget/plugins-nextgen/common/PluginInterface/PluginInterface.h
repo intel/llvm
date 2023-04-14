@@ -15,11 +15,13 @@
 #include <cstdint>
 #include <list>
 #include <map>
+#include <shared_mutex>
 #include <vector>
 
 #include "Debug.h"
 #include "DeviceEnvironment.h"
 #include "GlobalHandler.h"
+#include "JIT.h"
 #include "MemoryManager.h"
 #include "Utilities.h"
 #include "omptarget.h"
@@ -31,10 +33,12 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
 namespace omp {
 namespace target {
+
 namespace plugin {
 
 struct GenericPluginTy;
@@ -44,16 +48,14 @@ struct GenericDeviceTy;
 /// Class that wraps the __tgt_async_info to simply its usage. In case the
 /// object is constructed without a valid __tgt_async_info, the object will use
 /// an internal one and will synchronize the current thread with the pending
-/// operations on object destruction.
+/// operations when calling AsyncInfoWrapperTy::finalize(). This latter function
+/// must be called before destroying the wrapper object.
 struct AsyncInfoWrapperTy {
-  AsyncInfoWrapperTy(Error &Err, GenericDeviceTy &Device,
-                     __tgt_async_info *AsyncInfoPtr)
-      : Err(Err), ErrOutParam(&Err), Device(Device),
-        AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {}
+  AsyncInfoWrapperTy(GenericDeviceTy &Device, __tgt_async_info *AsyncInfoPtr);
 
-  /// Synchronize with the __tgt_async_info's pending operations if it's the
-  /// internal one.
-  ~AsyncInfoWrapperTy();
+  ~AsyncInfoWrapperTy() {
+    assert(!AsyncInfoPtr && "AsyncInfoWrapperTy not finalized");
+  }
 
   /// Get the raw __tgt_async_info pointer.
   operator __tgt_async_info *() const { return AsyncInfoPtr; }
@@ -65,12 +67,23 @@ struct AsyncInfoWrapperTy {
     return reinterpret_cast<Ty &>(AsyncInfoPtr->Queue);
   }
 
+  /// Indicate whether there is queue.
+  bool hasQueue() const { return (AsyncInfoPtr->Queue != nullptr); }
+
+  // Get a reference to the error associated with the asycnhronous operations
+  // related to the async info wrapper.
+  Error &getError() { return Err; }
+
+  /// Synchronize with the __tgt_async_info's pending operations if it's the
+  /// internal async info and return the error associated with the async
+  /// operations. This function must be called before destroying the object.
+  Error finalize();
+
 private:
-  Error &Err;
-  ErrorAsOutParameter ErrOutParam;
+  Error Err;
   GenericDeviceTy &Device;
   __tgt_async_info LocalAsyncInfo;
-  __tgt_async_info *const AsyncInfoPtr;
+  __tgt_async_info *AsyncInfoPtr;
 };
 
 /// Class wrapping a __tgt_device_image and its offload entry table on a
@@ -106,13 +119,14 @@ class DeviceImageTy {
 
   /// The pointer to the raw __tgt_device_image.
   const __tgt_device_image *TgtImage;
+  const __tgt_device_image *TgtImageBitcode;
 
   /// Table of offload entries.
   OffloadEntryTableTy OffloadEntryTable;
 
 public:
   DeviceImageTy(int32_t Id, const __tgt_device_image *Image)
-      : ImageId(Id), TgtImage(Image) {
+      : ImageId(Id), TgtImage(Image), TgtImageBitcode(nullptr) {
     assert(TgtImage && "Invalid target image");
   }
 
@@ -122,12 +136,20 @@ public:
   /// Get the pointer to the raw __tgt_device_image.
   const __tgt_device_image *getTgtImage() const { return TgtImage; }
 
+  void setTgtImageBitcode(const __tgt_device_image *TgtImageBitcode) {
+    this->TgtImageBitcode = TgtImageBitcode;
+  }
+
+  const __tgt_device_image *getTgtImageBitcode() const {
+    return TgtImageBitcode;
+  }
+
   /// Get the image starting address.
   void *getStart() const { return TgtImage->ImageStart; }
 
   /// Get the image size.
   size_t getSize() const {
-    return ((char *)TgtImage->ImageEnd) - ((char *)TgtImage->ImageStart);
+    return getPtrDiff(TgtImage->ImageEnd, TgtImage->ImageStart);
   }
 
   /// Get a memory buffer reference to the whole image.
@@ -146,7 +168,7 @@ public:
 struct GenericKernelTy {
   /// Construct a kernel with a name and a execution mode.
   GenericKernelTy(const char *Name, OMPTgtExecModeFlags ExecutionMode)
-      : Name(Name), ExecutionMode(ExecutionMode), DynamicMemorySize(0),
+      : Name(Name), ExecutionMode(ExecutionMode),
         PreferredNumThreads(0), MaxNumThreads(0) {}
 
   virtual ~GenericKernelTy() {}
@@ -159,12 +181,11 @@ struct GenericKernelTy {
   /// Launch the kernel on the specific device. The device must be the same
   /// one used to initialize the kernel.
   Error launch(GenericDeviceTy &GenericDevice, void **ArgPtrs,
-               ptrdiff_t *ArgOffsets, int32_t NumArgs, uint64_t NumTeamsClause,
-               uint32_t ThreadLimitClause, uint64_t LoopTripCount,
+               ptrdiff_t *ArgOffsets, KernelArgsTy &KernelArgs,
                AsyncInfoWrapperTy &AsyncInfoWrapper) const;
   virtual Error launchImpl(GenericDeviceTy &GenericDevice, uint32_t NumThreads,
-                           uint64_t NumBlocks, uint32_t DynamicMemorySize,
-                           int32_t NumKernelArgs, void *KernelArgs,
+                           uint64_t NumBlocks,
+                           KernelArgsTy &KernelArgs, void *Args,
                            AsyncInfoWrapperTy &AsyncInfoWrapper) const = 0;
 
   /// Get the kernel name.
@@ -181,35 +202,7 @@ struct GenericKernelTy {
     return false;
   }
 
-private:
-  /// Prepare the arguments before launching the kernel.
-  void *prepareArgs(GenericDeviceTy &GenericDevice, void **ArgPtrs,
-                    ptrdiff_t *ArgOffsets, int32_t NumArgs,
-                    llvm::SmallVectorImpl<void *> &Args,
-                    llvm::SmallVectorImpl<void *> &Ptrs,
-                    AsyncInfoWrapperTy &AsyncInfoWrapper) const;
-
-  /// Get the default number of threads and blocks for the kernel.
-  virtual uint32_t getDefaultNumThreads(GenericDeviceTy &Device) const = 0;
-  virtual uint64_t getDefaultNumBlocks(GenericDeviceTy &Device) const = 0;
-
-  /// Get the number of threads and blocks for the kernel based on the
-  /// user-defined threads and block clauses.
-  uint32_t getNumThreads(GenericDeviceTy &GenericDevice,
-                         uint32_t ThreadLimitClause) const;
-  uint64_t getNumBlocks(GenericDeviceTy &GenericDevice,
-                        uint64_t BlockLimitClause, uint64_t LoopTripCount,
-                        uint32_t NumThreads) const;
-
-  /// Indicate if the kernel works in Generic SPMD, Generic or SPMD mode.
-  bool isGenericSPMDMode() const {
-    return ExecutionMode == OMP_TGT_EXEC_MODE_GENERIC_SPMD;
-  }
-  bool isGenericMode() const {
-    return ExecutionMode == OMP_TGT_EXEC_MODE_GENERIC;
-  }
-  bool isSPMDMode() const { return ExecutionMode == OMP_TGT_EXEC_MODE_SPMD; }
-
+protected:
   /// Get the execution mode name of the kernel.
   const char *getExecutionModeName() const {
     switch (ExecutionMode) {
@@ -223,6 +216,46 @@ private:
     llvm_unreachable("Unknown execution mode!");
   }
 
+  /// Prints generic kernel launch information.
+  Error printLaunchInfo(GenericDeviceTy &GenericDevice,
+                        KernelArgsTy &KernelArgs, uint32_t NumThreads,
+                        uint64_t NumBlocks) const;
+
+  /// Prints plugin-specific kernel launch information after generic kernel
+  /// launch information
+  virtual Error printLaunchInfoDetails(GenericDeviceTy &GenericDevice,
+                                       KernelArgsTy &KernelArgs,
+                                       uint32_t NumThreads,
+                                       uint64_t NumBlocks) const;
+
+private:
+  /// Prepare the arguments before launching the kernel.
+  void *prepareArgs(GenericDeviceTy &GenericDevice, void **ArgPtrs,
+                    ptrdiff_t *ArgOffsets, int32_t NumArgs,
+                    llvm::SmallVectorImpl<void *> &Args,
+                    llvm::SmallVectorImpl<void *> &Ptrs) const;
+
+  /// Get the default number of threads and blocks for the kernel.
+  virtual uint32_t getDefaultNumThreads(GenericDeviceTy &Device) const = 0;
+  virtual uint32_t getDefaultNumBlocks(GenericDeviceTy &Device) const = 0;
+
+  /// Get the number of threads and blocks for the kernel based on the
+  /// user-defined threads and block clauses.
+  uint32_t getNumThreads(GenericDeviceTy &GenericDevice,
+                         uint32_t ThreadLimitClause[3]) const;
+  uint64_t getNumBlocks(GenericDeviceTy &GenericDevice,
+                        uint32_t BlockLimitClause[3], uint64_t LoopTripCount,
+                        uint32_t NumThreads) const;
+
+  /// Indicate if the kernel works in Generic SPMD, Generic or SPMD mode.
+  bool isGenericSPMDMode() const {
+    return ExecutionMode == OMP_TGT_EXEC_MODE_GENERIC_SPMD;
+  }
+  bool isGenericMode() const {
+    return ExecutionMode == OMP_TGT_EXEC_MODE_GENERIC;
+  }
+  bool isSPMDMode() const { return ExecutionMode == OMP_TGT_EXEC_MODE_SPMD; }
+
   /// The kernel name.
   const char *Name;
 
@@ -230,14 +263,230 @@ private:
   OMPTgtExecModeFlags ExecutionMode;
 
 protected:
-  /// The dynamic memory size reserved for executing the kernel.
-  uint32_t DynamicMemorySize;
-
   /// The preferred number of threads to run the kernel.
   uint32_t PreferredNumThreads;
 
   /// The maximum number of threads which the kernel could leverage.
   uint32_t MaxNumThreads;
+};
+
+/// Class representing a map of host pinned allocations. We track these pinned
+/// allocations, so memory tranfers invloving these buffers can be optimized.
+class PinnedAllocationMapTy {
+
+  /// Struct representing a map entry.
+  struct EntryTy {
+    /// The host pointer of the pinned allocation.
+    void *HstPtr;
+
+    /// The pointer that devices' driver should use to transfer data from/to the
+    /// pinned allocation. In most plugins, this pointer will be the same as the
+    /// host pointer above.
+    void *DevAccessiblePtr;
+
+    /// The size of the pinned allocation.
+    size_t Size;
+
+    /// Indicate whether the allocation was locked from outside the plugin, for
+    /// instance, from the application. The externally locked allocations are
+    /// not unlocked by the plugin when unregistering the last user.
+    bool ExternallyLocked;
+
+    /// The number of references to the pinned allocation. The allocation should
+    /// remain pinned and registered to the map until the number of references
+    /// becomes zero.
+    mutable size_t References;
+
+    /// Create an entry with the host and device acessible pointers, the buffer
+    /// size, and a boolean indicating whether the buffer was locked externally.
+    EntryTy(void *HstPtr, void *DevAccessiblePtr, size_t Size,
+            bool ExternallyLocked)
+        : HstPtr(HstPtr), DevAccessiblePtr(DevAccessiblePtr), Size(Size),
+          ExternallyLocked(ExternallyLocked), References(1) {}
+
+    /// Utility constructor used for std::set searches.
+    EntryTy(void *HstPtr)
+        : HstPtr(HstPtr), DevAccessiblePtr(nullptr), Size(0),
+          ExternallyLocked(false), References(0) {}
+  };
+
+  /// Comparator of mep entries. Use the host pointer to enforce an order
+  /// between entries.
+  struct EntryCmpTy {
+    bool operator()(const EntryTy &Left, const EntryTy &Right) const {
+      return Left.HstPtr < Right.HstPtr;
+    }
+  };
+
+  typedef std::set<EntryTy, EntryCmpTy> PinnedAllocSetTy;
+
+  /// The map of host pinned allocations.
+  PinnedAllocSetTy Allocs;
+
+  /// The mutex to protect accesses to the map.
+  mutable std::shared_mutex Mutex;
+
+  /// Reference to the corresponding device.
+  GenericDeviceTy &Device;
+
+  /// Indicate whether mapped host buffers should be locked automatically.
+  bool LockMappedBuffers;
+
+  /// Indicate whether failures when locking mapped buffers should be ingored.
+  bool IgnoreLockMappedFailures;
+
+  /// Find an allocation that intersects with \p HstPtr pointer. Assume the
+  /// map's mutex is acquired.
+  const EntryTy *findIntersecting(const void *HstPtr) const {
+    if (Allocs.empty())
+      return nullptr;
+
+    // Search the first allocation with starting address that is not less than
+    // the buffer address.
+    auto It = Allocs.lower_bound({const_cast<void *>(HstPtr)});
+
+    // Direct match of starting addresses.
+    if (It != Allocs.end() && It->HstPtr == HstPtr)
+      return &(*It);
+
+    // Not direct match but may be a previous pinned allocation in the map which
+    // contains the buffer. Return false if there is no such a previous
+    // allocation.
+    if (It == Allocs.begin())
+      return nullptr;
+
+    // Move to the previous pinned allocation.
+    --It;
+
+    // The buffer is not contained in the pinned allocation.
+    if (advanceVoidPtr(It->HstPtr, It->Size) > HstPtr)
+      return &(*It);
+
+    // None found.
+    return nullptr;
+  }
+
+  /// Insert an entry to the map representing a locked buffer. The number of
+  /// references is set to one.
+  Error insertEntry(void *HstPtr, void *DevAccessiblePtr, size_t Size,
+                    bool ExternallyLocked = false);
+
+  /// Erase an existing entry from the map.
+  Error eraseEntry(const EntryTy &Entry);
+
+  /// Register a new user into an entry that represents a locked buffer. Check
+  /// also that the registered buffer with \p HstPtr address and \p Size is
+  /// actually contained into the entry.
+  Error registerEntryUse(const EntryTy &Entry, void *HstPtr, size_t Size);
+
+  /// Unregister a user from the entry and return whether it is the last user.
+  /// If it is the last user, the entry will have to be removed from the map
+  /// and unlock the entry's host buffer (if necessary).
+  Expected<bool> unregisterEntryUse(const EntryTy &Entry);
+
+  /// Indicate whether the first range A fully contains the second range B.
+  static bool contains(void *PtrA, size_t SizeA, void *PtrB, size_t SizeB) {
+    void *EndA = advanceVoidPtr(PtrA, SizeA);
+    void *EndB = advanceVoidPtr(PtrB, SizeB);
+    return (PtrB >= PtrA && EndB <= EndA);
+  }
+
+  /// Indicate whether the first range A intersects with the second range B.
+  static bool intersects(void *PtrA, size_t SizeA, void *PtrB, size_t SizeB) {
+    void *EndA = advanceVoidPtr(PtrA, SizeA);
+    void *EndB = advanceVoidPtr(PtrB, SizeB);
+    return (PtrA < EndB && PtrB < EndA);
+  }
+
+public:
+  /// Create the map of pinned allocations corresponding to a specific device.
+  PinnedAllocationMapTy(GenericDeviceTy &Device) : Device(Device) {
+
+    // Envar that indicates whether mapped host buffers should be locked
+    // automatically. The possible values are boolean (on/off) and a special:
+    //   off:       Mapped host buffers are not locked.
+    //   on:        Mapped host buffers are locked in a best-effort approach.
+    //              Failure to lock the buffers are silent.
+    //   mandatory: Mapped host buffers are always locked and failures to lock
+    //              a buffer results in a fatal error.
+    StringEnvar OMPX_LockMappedBuffers("LIBOMPTARGET_LOCK_MAPPED_HOST_BUFFERS",
+                                       "off");
+
+    bool Enabled;
+    if (StringParser::parse(OMPX_LockMappedBuffers.get().data(), Enabled)) {
+      // Parsed as a boolean value. Enable the feature if necessary.
+      LockMappedBuffers = Enabled;
+      IgnoreLockMappedFailures = true;
+    } else if (OMPX_LockMappedBuffers.get() == "mandatory") {
+      // Enable the feature and failures are fatal.
+      LockMappedBuffers = true;
+      IgnoreLockMappedFailures = false;
+    } else {
+      // Disable by default.
+      DP("Invalid value LIBOMPTARGET_LOCK_MAPPED_HOST_BUFFERS=%s\n",
+         OMPX_LockMappedBuffers.get().data());
+      LockMappedBuffers = false;
+    }
+  }
+
+  /// Register a buffer that was recently allocated as a locked host buffer.
+  /// None of the already registered pinned allocations should intersect with
+  /// this new one. The registration requires the host pointer in \p HstPtr,
+  /// the device accessible pointer in \p DevAccessiblePtr, and the size of the
+  /// allocation in \p Size. The allocation must be unregistered using the
+  /// unregisterHostBuffer function.
+  Error registerHostBuffer(void *HstPtr, void *DevAccessiblePtr, size_t Size);
+
+  /// Unregister a host pinned allocation passing the host pointer which was
+  /// previously registered using the registerHostBuffer function. When calling
+  /// this function, the pinned allocation cannot have any other user and will
+  /// not be unlocked by this function.
+  Error unregisterHostBuffer(void *HstPtr);
+
+  /// Lock the host buffer at \p HstPtr or register a new user if it intersects
+  /// with an already existing one. A partial overlapping with extension is not
+  /// allowed. The function returns the device accessible pointer of the pinned
+  /// buffer. The buffer must be unlocked using the unlockHostBuffer function.
+  Expected<void *> lockHostBuffer(void *HstPtr, size_t Size);
+
+  /// Unlock the host buffer at \p HstPtr or unregister a user if other users
+  /// are still using the pinned allocation. If this was the last user, the
+  /// pinned allocation is removed from the map and the memory is unlocked.
+  Error unlockHostBuffer(void *HstPtr);
+
+  /// Lock or register a host buffer that was recently mapped by libomptarget.
+  /// This behavior is applied if LIBOMPTARGET_LOCK_MAPPED_HOST_BUFFERS is
+  /// enabled. Even if not enabled, externally locked buffers are registered
+  /// in order to optimize their transfers.
+  Error lockMappedHostBuffer(void *HstPtr, size_t Size);
+
+  /// Unlock or unregister a host buffer that was unmapped by libomptarget.
+  Error unlockUnmappedHostBuffer(void *HstPtr);
+
+  /// Return the device accessible pointer associated to the host pinned
+  /// allocation which the \p HstPtr belongs, if any. Return null in case the
+  /// \p HstPtr does not belong to any host pinned allocation. The device
+  /// accessible pointer is the one that devices should use for data transfers
+  /// that involve a host pinned buffer.
+  void *getDeviceAccessiblePtrFromPinnedBuffer(const void *HstPtr) const {
+    std::shared_lock<std::shared_mutex> Lock(Mutex);
+
+    // Find the intersecting allocation if any.
+    const EntryTy *Entry = findIntersecting(HstPtr);
+    if (!Entry)
+      return nullptr;
+
+    return advanceVoidPtr(Entry->DevAccessiblePtr,
+                          getPtrDiff(HstPtr, Entry->HstPtr));
+  }
+
+  /// Check whether a buffer belongs to a registered host pinned allocation.
+  bool isHostPinnedBuffer(const void *HstPtr) const {
+    std::shared_lock<std::shared_mutex> Lock(Mutex);
+
+    // Return whether there is an intersecting allocation.
+    return (findIntersecting(const_cast<void *>(HstPtr)) != nullptr);
+  }
 };
 
 /// Class implementing common functionalities of offload devices. Each plugin
@@ -287,11 +536,58 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
   Error synchronize(__tgt_async_info *AsyncInfo);
   virtual Error synchronizeImpl(__tgt_async_info &AsyncInfo) = 0;
 
+  /// Query for the completion of the pending operations on the __tgt_async_info
+  /// structure in a non-blocking manner.
+  Error queryAsync(__tgt_async_info *AsyncInfo);
+  virtual Error queryAsyncImpl(__tgt_async_info &AsyncInfo) = 0;
+
   /// Allocate data on the device or involving the device.
   Expected<void *> dataAlloc(int64_t Size, void *HostPtr, TargetAllocTy Kind);
 
   /// Deallocate data from the device or involving the device.
   Error dataDelete(void *TgtPtr, TargetAllocTy Kind);
+
+  /// Pin host memory to optimize transfers and return the device accessible
+  /// pointer that devices should use for memory transfers involving the host
+  /// pinned allocation.
+  Expected<void *> dataLock(void *HstPtr, int64_t Size) {
+    return PinnedAllocs.lockHostBuffer(HstPtr, Size);
+  }
+
+  /// Unpin a host memory buffer that was previously pinned.
+  Error dataUnlock(void *HstPtr) {
+    return PinnedAllocs.unlockHostBuffer(HstPtr);
+  }
+
+  /// Lock the host buffer \p HstPtr with \p Size bytes with the vendor-specific
+  /// API and return the device accessible pointer.
+  virtual Expected<void *> dataLockImpl(void *HstPtr, int64_t Size) = 0;
+
+  /// Unlock a previously locked host buffer starting at \p HstPtr.
+  virtual Error dataUnlockImpl(void *HstPtr) = 0;
+
+  /// Mark the host buffer with address \p HstPtr and \p Size bytes as a mapped
+  /// buffer. This means that libomptarget created a new mapping of that host
+  /// buffer (e.g., because a user OpenMP target map) and the buffer may be used
+  /// as source/destination of memory transfers. We can use this information to
+  /// lock the host buffer and optimize its memory transfers.
+  Error notifyDataMapped(void *HstPtr, int64_t Size) {
+    return PinnedAllocs.lockMappedHostBuffer(HstPtr, Size);
+  }
+
+  /// Mark the host buffer with address \p HstPtr as unmapped. This means that
+  /// libomptarget removed an existing mapping. If the plugin locked the buffer
+  /// in notifyDataMapped, this function should unlock it.
+  Error notifyDataUnmapped(void *HstPtr) {
+    return PinnedAllocs.unlockUnmappedHostBuffer(HstPtr);
+  }
+
+  /// Check whether the host buffer with address \p HstPtr is pinned by the
+  /// underlying vendor-specific runtime (if any). Retrieve the host pointer,
+  /// the device accessible pointer and the size of the original pinned buffer.
+  virtual Expected<bool> isPinnedPtrImpl(void *HstPtr, void *&BaseHstPtr,
+                                         void *&BaseDevAccessiblePtr,
+                                         size_t &BaseSize) const = 0;
 
   /// Submit data to the device (host to device transfer).
   Error dataSubmit(void *TgtPtr, const void *HstPtr, int64_t Size,
@@ -314,12 +610,9 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
                                  void *DstPtr, int64_t Size,
                                  AsyncInfoWrapperTy &AsyncInfoWrapper) = 0;
 
-  /// Run the target region with multiple teams.
-  Error runTargetTeamRegion(void *EntryPtr, void **ArgPtrs,
-                            ptrdiff_t *ArgOffsets, int32_t NumArgs,
-                            uint64_t NumTeamsClause, uint32_t ThreadLimitClause,
-                            uint64_t LoopTripCount,
-                            __tgt_async_info *AsyncInfo);
+  /// Run the kernel associated with \p EntryPtr
+  Error launchKernel(void *EntryPtr, void **ArgPtrs, ptrdiff_t *ArgOffsets,
+                     KernelArgsTy &KernelArgs, __tgt_async_info *AsyncInfo);
 
   /// Initialize a __tgt_async_info structure. Related to interop features.
   Error initAsyncInfo(__tgt_async_info **AsyncInfoPtr);
@@ -359,15 +652,23 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
   /// Getters of the grid values.
   uint32_t getWarpSize() const { return GridValues.GV_Warp_Size; }
   uint32_t getThreadLimit() const { return GridValues.GV_Max_WG_Size; }
-  uint64_t getBlockLimit() const { return GridValues.GV_Max_Teams; }
+  uint32_t getBlockLimit() const { return GridValues.GV_Max_Teams; }
   uint32_t getDefaultNumThreads() const {
     return GridValues.GV_Default_WG_Size;
   }
-  uint64_t getDefaultNumBlocks() const {
-    // TODO: Introduce a default num blocks value.
-    return GridValues.GV_Default_WG_Size;
+  uint32_t getDefaultNumBlocks() const {
+    return GridValues.GV_Default_Num_Teams;
   }
   uint32_t getDynamicMemorySize() const { return OMPX_SharedMemorySize; }
+
+  /// Get target compute unit kind (e.g., sm_80, or gfx908).
+  virtual std::string getComputeUnitKind() const { return "unknown"; }
+
+  /// Post processing after jit backend. The ownership of \p MB will be taken.
+  virtual Expected<std::unique_ptr<MemoryBuffer>>
+  doJITPostProcessing(std::unique_ptr<MemoryBuffer> MB) const {
+    return std::move(MB);
+  }
 
 private:
   /// Register offload entry for global variable.
@@ -398,6 +699,9 @@ private:
   /// setupDeviceEnvironment() function.
   virtual bool shouldSetupDeviceEnvironment() const { return true; }
 
+  /// Pointer to the memory manager or nullptr if not available.
+  MemoryManagerTy *MemoryManager;
+
   /// Environment variables defined by the OpenMP standard.
   Int32Envar OMP_TeamLimit;
   Int32Envar OMP_NumTeams;
@@ -409,10 +713,16 @@ private:
   UInt64Envar OMPX_TargetStackSize;
   UInt64Envar OMPX_TargetHeapSize;
 
-  /// Pointer to the memory manager or nullptr if not available.
-  MemoryManagerTy *MemoryManager;
-
 protected:
+  /// Return the execution mode used for kernel \p Name.
+  Expected<OMPTgtExecModeFlags> getExecutionModeForKernel(StringRef Name,
+                                                          DeviceImageTy &Image);
+
+  /// Environment variables defined by the LLVM OpenMP implementation
+  /// regarding the initial number of streams and events.
+  UInt32Envar OMPX_InitialNumStreams;
+  UInt32Envar OMPX_InitialNumEvents;
+
   /// Array of images loaded into the device. Images are automatically
   /// deallocated by the allocator.
   llvm::SmallVector<DeviceImageTy *> LoadedImages;
@@ -437,6 +747,9 @@ protected:
   /// does not mean that device J can access device I's memory directly.
   llvm::SmallVector<PeerAccessState> PeerAccesses;
   std::mutex PeerAccessesLock;
+
+  /// Map of host pinned allocations used for optimize device transfers.
+  PinnedAllocationMapTy PinnedAllocs;
 };
 
 /// Class implementing common functionalities of offload plugins. Each plugin
@@ -444,31 +757,21 @@ protected:
 /// implement the necessary virtual function members.
 struct GenericPluginTy {
 
-  /// Construct a plugin instance. The number of active instances should be
-  /// always be either zero or one.
-  GenericPluginTy() : RequiresFlags(OMP_REQ_UNDEFINED), GlobalHandler(nullptr) {
-    ++NumActiveInstances;
-  }
+  /// Construct a plugin instance.
+  GenericPluginTy(Triple::ArchType TA)
+      : RequiresFlags(OMP_REQ_UNDEFINED), GlobalHandler(nullptr), JIT(TA) {}
 
-  /// Destroy the plugin instance and release all its resources. Also decrease
-  /// the number of instances.
-  virtual ~GenericPluginTy() {
-    // There is no global handler if no device is available.
-    if (GlobalHandler)
-      delete GlobalHandler;
+  virtual ~GenericPluginTy() {}
 
-    // Deinitialize all active devices.
-    for (int32_t DeviceId = 0; DeviceId < NumDevices; ++DeviceId) {
-      if (Devices[DeviceId]) {
-        if (auto Err = deinitDevice(DeviceId))
-          REPORT("Failure to deinitialize device %d: %s\n", DeviceId,
-                 toString(std::move(Err)).data());
-      }
-      assert(!Devices[DeviceId] && "Device was not deinitialized");
-    }
+  /// Initialize the plugin.
+  Error init();
 
-    --NumActiveInstances;
-  }
+  /// Initialize the plugin and return the number of available devices.
+  virtual Expected<int32_t> initImpl() = 0;
+
+  /// Deinitialize the plugin and release the resources.
+  Error deinit();
+  virtual Error deinitImpl() = 0;
 
   /// Get the reference to the device with a certain device id.
   GenericDeviceTy &getDevice(int32_t DeviceId) {
@@ -484,6 +787,9 @@ struct GenericPluginTy {
   /// Get the ELF code to recognize the binary image of this plugin.
   virtual uint16_t getMagicElfBits() const = 0;
 
+  /// Get the target triple of this plugin.
+  virtual Triple::ArchType getTripleArch() const = 0;
+
   /// Allocate a structure using the internal allocator.
   template <typename Ty> Ty *allocate() {
     return reinterpret_cast<Ty *>(Allocator.Allocate(sizeof(Ty), alignof(Ty)));
@@ -494,6 +800,10 @@ struct GenericPluginTy {
     assert(GlobalHandler && "Global handler not initialized");
     return *GlobalHandler;
   }
+
+  /// Get the reference to the JIT used for all devices connected to this
+  /// plugin.
+  JITEngine &getJIT() { return JIT; }
 
   /// Get the OpenMP requires flags set for this plugin.
   int64_t getRequiresFlags() const { return RequiresFlags; }
@@ -522,26 +832,7 @@ struct GenericPluginTy {
   /// Indicate whether the plugin supports empty images.
   virtual bool supportsEmptyImages() const { return false; }
 
-  /// Indicate whether there is any active plugin instance.
-  static bool hasAnyActiveInstance() {
-    assert(NumActiveInstances <= 1 && "Invalid number of instances");
-    return (NumActiveInstances > 0);
-  }
-
 protected:
-  /// Initialize the plugin and prepare for initializing its devices.
-  void init(int NumDevices, GenericGlobalHandlerTy *GlobalHandler) {
-    this->NumDevices = NumDevices;
-    this->GlobalHandler = GlobalHandler;
-
-    assert(Devices.size() == 0 && "Plugin already intialized");
-
-    Devices.resize(NumDevices, nullptr);
-  }
-
-  /// Create a new device with a specific device id.
-  virtual GenericDeviceTy &createDevice(int32_t DeviceId) = 0;
-
   /// Indicate whether a device id is valid.
   bool isValidDeviceId(int32_t DeviceId) const {
     return (DeviceId >= 0 && DeviceId < getNumDevices());
@@ -566,40 +857,100 @@ private:
   /// Internal allocator for different structures.
   BumpPtrAllocator Allocator;
 
-  /// Indicates the number of active plugin instances. Actually, we should only
-  /// have one active instance per plugin library. But we use a counter for
-  /// simplicity.
-  static uint32_t NumActiveInstances;
+  /// The JIT engine shared by all devices connected to this plugin.
+  JITEngine JIT;
 };
 
 /// Class for simplifying the getter operation of the plugin. Anywhere on the
-/// code, the current plugin can be retrieved by Plugin::get(). The init(),
-/// deinit(), get() and check() functions should be defined by each plugin
-/// implementation.
+/// code, the current plugin can be retrieved by Plugin::get(). The class also
+/// declares functions to create plugin-specific object instances. The check(),
+/// createPlugin(), createDevice() and createGlobalHandler() functions should be
+/// defined by each plugin implementation.
 class Plugin {
-  /// Avoid instances of this class.
-  Plugin() {}
+  // Reference to the plugin instance.
+  static GenericPluginTy *SpecificPlugin;
+
+  Plugin() {
+    if (auto Err = init())
+      REPORT("Failed to initialize plugin: %s\n",
+             toString(std::move(Err)).data());
+  }
+
+  ~Plugin() {
+    if (auto Err = deinit())
+      REPORT("Failed to deinitialize plugin: %s\n",
+             toString(std::move(Err)).data());
+  }
+
   Plugin(const Plugin &) = delete;
   void operator=(const Plugin &) = delete;
 
-public:
-  /// Initialize the plugin if it was not initialized yet.
-  static Error init();
+  /// Create and intialize the plugin instance.
+  static Error init() {
+    assert(!SpecificPlugin && "Plugin already created");
 
-  /// Deinitialize the plugin if it was not deinitialized yet.
-  static Error deinit();
+    // Create the specific plugin.
+    SpecificPlugin = createPlugin();
+    assert(SpecificPlugin && "Plugin was not created");
+
+    // Initialize the plugin.
+    return SpecificPlugin->init();
+  }
+
+  // Deinitialize and destroy the plugin instance.
+  static Error deinit() {
+    assert(SpecificPlugin && "Plugin no longer valid");
+
+    // Deinitialize the plugin.
+    if (auto Err = SpecificPlugin->deinit())
+      return Err;
+
+    // Delete the plugin instance.
+    delete SpecificPlugin;
+
+    // Invalidate the plugin reference.
+    SpecificPlugin = nullptr;
+
+    return Plugin::success();
+  }
+
+public:
+  /// Initialize the plugin if needed. The plugin could have been initialized by
+  /// a previous call to Plugin::get().
+  static Error initIfNeeded() {
+    // Trigger the initialization if needed.
+    get();
+
+    return Error::success();
+  }
+
+  // Deinitialize the plugin if needed. The plugin could have been deinitialized
+  // because the plugin library was exiting.
+  static Error deinitIfNeeded() {
+    // Do nothing. The plugin is deinitialized automatically.
+    return Plugin::success();
+  }
 
   /// Get a reference (or create if it was not created) to the plugin instance.
-  static GenericPluginTy &get();
+  static GenericPluginTy &get() {
+    // This static variable will initialize the underlying plugin instance in
+    // case there was no previous explicit initialization. The initialization is
+    // thread safe.
+    static Plugin Plugin;
+
+    assert(SpecificPlugin && "Plugin is not active");
+    return *SpecificPlugin;
+  }
 
   /// Get a reference to the plugin with a specific plugin-specific type.
   template <typename Ty> static Ty &get() { return static_cast<Ty &>(get()); }
 
-  /// Indicate if the plugin is currently active. Actually, we check if there is
-  /// any active instances.
-  static bool isActive() { return GenericPluginTy::hasAnyActiveInstance(); }
+  /// Indicate whether the plugin is active.
+  static bool isActive() { return SpecificPlugin != nullptr; }
 
-  /// Create a success error.
+  /// Create a success error. This is the same as calling Error::success(), but
+  /// it is recommended to use this one for consistency with Plugin::error() and
+  /// Plugin::check().
   static Error success() { return Error::success(); }
 
   /// Create a string error.
@@ -617,36 +968,48 @@ public:
   /// the plugin-specific code.
   template <typename... ArgsTy>
   static Error check(int32_t ErrorCode, const char *ErrFmt, ArgsTy... Args);
+
+  /// Create a plugin instance.
+  static GenericPluginTy *createPlugin();
+
+  /// Create a plugin-specific device.
+  static GenericDeviceTy *createDevice(int32_t DeviceId, int32_t NumDevices);
+
+  /// Create a plugin-specific global handler.
+  static GenericGlobalHandlerTy *createGlobalHandler();
 };
 
-/// Auxiliary interface class for GenericDeviceResourcePoolTy. This class acts
-/// as a reference to a device resource, such as a stream, and requires some
-/// basic functions to be implemented. The derived class should define an empty
-/// constructor that creates an empty and invalid resource reference. Do not
-/// create a new resource on the ctor, but on the create() function instead.
+/// Auxiliary interface class for GenericDeviceResourceManagerTy. This class
+/// acts as a reference to a device resource, such as a stream, and requires
+/// some basic functions to be implemented. The derived class should define an
+/// empty constructor that creates an empty and invalid resource reference. Do
+/// not create a new resource on the ctor, but on the create() function instead.
 struct GenericDeviceResourceRef {
   /// Create a new resource and stores a reference.
-  virtual Error create() = 0;
+  virtual Error create(GenericDeviceTy &Device) = 0;
 
   /// Destroy and release the resources pointed by the reference.
-  virtual Error destroy() = 0;
+  virtual Error destroy(GenericDeviceTy &Device) = 0;
+
+protected:
+  ~GenericDeviceResourceRef() = default;
 };
 
 /// Class that implements a resource pool belonging to a device. This class
 /// operates with references to the actual resources. These reference must
 /// derive from the GenericDeviceResourceRef class and implement the create
 /// and destroy virtual functions.
-template <typename ResourceRef> class GenericDeviceResourcePoolTy {
-  using ResourcePoolTy = GenericDeviceResourcePoolTy<ResourceRef>;
+template <typename ResourceRef> class GenericDeviceResourceManagerTy {
+  using ResourcePoolTy = GenericDeviceResourceManagerTy<ResourceRef>;
 
 public:
   /// Create an empty resource pool for a specific device.
-  GenericDeviceResourcePoolTy(GenericDeviceTy &Device)
+  GenericDeviceResourceManagerTy(GenericDeviceTy &Device)
       : Device(Device), NextAvailable(0) {}
 
   /// Destroy the resource pool. At this point, the deinit() function should
   /// already have been executed so the resource pool should be empty.
-  virtual ~GenericDeviceResourcePoolTy() {
+  virtual ~GenericDeviceResourceManagerTy() {
     assert(ResourcePool.empty() && "Resource pool not empty");
   }
 
@@ -672,10 +1035,13 @@ public:
     return Plugin::success();
   }
 
-protected:
   /// Get resource from the pool or create new resources.
   ResourceRef getResource() {
     const std::lock_guard<std::mutex> Lock(Mutex);
+
+    assert(NextAvailable <= ResourcePool.size() &&
+           "Resource pool is corrupted");
+
     if (NextAvailable == ResourcePool.size()) {
       // By default we double the resource pool every time.
       if (auto Err = ResourcePoolTy::resizeResourcePool(NextAvailable * 2)) {
@@ -691,6 +1057,8 @@ protected:
   /// Return resource to the pool.
   void returnResource(ResourceRef Resource) {
     const std::lock_guard<std::mutex> Lock(Mutex);
+
+    assert(NextAvailable > 0 && "Resource pool is corrupted");
     ResourcePool[--NextAvailable] = Resource;
   }
 
@@ -706,13 +1074,13 @@ private:
     if (OldSize < NewSize) {
       // Create new resources.
       for (uint32_t I = OldSize; I < NewSize; ++I) {
-        if (auto Err = ResourcePool[I].create())
+        if (auto Err = ResourcePool[I].create(Device))
           return Err;
       }
     } else {
       // Destroy the obsolete resources.
       for (uint32_t I = NewSize; I < OldSize; ++I) {
-        if (auto Err = ResourcePool[I].destroy())
+        if (auto Err = ResourcePool[I].destroy(Device))
           return Err;
       }
     }
@@ -728,16 +1096,17 @@ private:
     if (OldSize == NewSize)
       return Plugin::success();
 
-    if (OldSize > NewSize) {
-      // Decrease the number of resources.
-      auto Err = ResourcePoolTy::resizeResourcePoolImpl(OldSize, NewSize);
+    if (OldSize < NewSize) {
+      // Increase the number of resources.
       ResourcePool.resize(NewSize);
-      return Err;
+      return ResourcePoolTy::resizeResourcePoolImpl(OldSize, NewSize);
     }
 
-    // Increase the number of resources otherwise.
+    // Decrease the number of resources otherwise.
+    auto Err = ResourcePoolTy::resizeResourcePoolImpl(OldSize, NewSize);
     ResourcePool.resize(NewSize);
-    return ResourcePoolTy::resizeResourcePoolImpl(OldSize, NewSize);
+
+    return Err;
   }
 
   /// The device to which the resources belong
@@ -749,71 +1118,8 @@ private:
   /// The next available resource in the pool.
   uint32_t NextAvailable;
 
-protected:
   /// The actual resource pool.
   std::deque<ResourceRef> ResourcePool;
-};
-
-/// Class implementing a common stream manager. This class can be directly used
-/// by the specific plugins if necessary. The StreamRef type should derive from
-/// the GenericDeviceResourceRef. Look at its description to know the details of
-/// their requirements.
-template <typename StreamRef>
-class GenericStreamManagerTy : public GenericDeviceResourcePoolTy<StreamRef> {
-  using ResourcePoolTy = GenericDeviceResourcePoolTy<StreamRef>;
-
-public:
-  /// Create a stream manager with space for an initial number of streams. No
-  /// stream will be created until the init() function is called.
-  GenericStreamManagerTy(GenericDeviceTy &Device, uint32_t DefNumStreams = 32)
-      : ResourcePoolTy(Device),
-        InitialNumStreams("LIBOMPTARGET_NUM_INITIAL_STREAMS", DefNumStreams) {}
-
-  /// Initialize the stream pool and their resources with the initial number of
-  /// streams.
-  Error init() { return ResourcePoolTy::init(InitialNumStreams.get()); }
-
-  /// Get an available stream or create new.
-  StreamRef getStream() { return ResourcePoolTy::getResource(); }
-
-  /// Return idle stream.
-  void returnStream(StreamRef Stream) {
-    ResourcePoolTy::returnResource(Stream);
-  }
-
-private:
-  /// The initial stream pool size, potentially defined by an envar.
-  UInt32Envar InitialNumStreams;
-};
-
-/// Class implementing a common event manager. This class can be directly used
-/// by the specific plugins if necessary. The EventRef type should derive from
-/// the GenericDeviceResourceRef. Look at its description to know the details of
-/// their requirements.
-template <typename EventRef>
-struct GenericEventManagerTy : public GenericDeviceResourcePoolTy<EventRef> {
-  using ResourcePoolTy = GenericDeviceResourcePoolTy<EventRef>;
-
-public:
-  /// Create an event manager with space for an initial number of events. No
-  /// event will be created until the init() function is called.
-  GenericEventManagerTy(GenericDeviceTy &Device, uint32_t DefNumEvents = 32)
-      : ResourcePoolTy(Device),
-        InitialNumEvents("LIBOMPTARGET_NUM_INITIAL_EVENTS", DefNumEvents) {}
-
-  /// Initialize the event pool and their resources with the initial number of
-  /// events.
-  Error init() { return ResourcePoolTy::init(InitialNumEvents.get()); }
-
-  /// Get an available event or create new.
-  EventRef getEvent() { return ResourcePoolTy::getResource(); }
-
-  /// Return an idle event.
-  void returnEvent(EventRef Event) { ResourcePoolTy::returnResource(Event); }
-
-private:
-  /// The initial event pool size, potentially defined by an envar.
-  UInt32Envar InitialNumEvents;
 };
 
 } // namespace plugin

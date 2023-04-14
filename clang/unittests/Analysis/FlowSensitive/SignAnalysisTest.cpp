@@ -20,9 +20,8 @@
 #include "clang/Analysis/FlowSensitive/CFGMatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/NoopLattice.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 #include <memory>
@@ -331,9 +330,9 @@ public:
 
   static NoopLattice initialElement() { return {}; }
 
-  void transfer(const CFGElement *Elt, NoopLattice &L, Environment &Env) {
+  void transfer(const CFGElement &Elt, NoopLattice &L, Environment &Env) {
     LatticeTransferState State(L, Env);
-    TransferMatchSwitch(*Elt, getASTContext(), State);
+    TransferMatchSwitch(Elt, getASTContext(), State);
   }
   bool merge(QualType Type, const Value &Val1, const Environment &Env1,
              const Value &Val2, const Environment &Env2, Value &MergedVal,

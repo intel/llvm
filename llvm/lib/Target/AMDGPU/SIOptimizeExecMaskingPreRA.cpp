@@ -106,7 +106,7 @@ static bool isDefBetween(const SIRegisterInfo &TRI,
 
 // Optimize sequence
 //    %sel = V_CNDMASK_B32_e64 0, 1, %cc
-//    %cmp = V_CMP_NE_U32 1, %1
+//    %cmp = V_CMP_NE_U32 1, %sel
 //    $vcc = S_AND_B64 $exec, %cmp
 //    S_CBRANCH_VCC[N]Z
 // =>
@@ -226,16 +226,23 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
       auto DefSegment = SelLI->FindSegmentContaining(SelIdx.getRegSlot());
       assert(DefSegment != SelLI->end() &&
              "No live interval segment covering definition?");
-      for (auto I = DefSegment; I != SelLI->end() && I->start <= AndIdx; ++I) {
+      for (auto I = DefSegment; I != SelLI->end(); ++I) {
         SlotIndex Start = I->start < SelIdx.getRegSlot() ?
                           SelIdx.getRegSlot() : I->start;
         SlotIndex End = I->end < AndIdx.getRegSlot() || I->end.isBlock() ?
                         I->end : AndIdx.getRegSlot();
-        Dst.addSegment(LiveRange::Segment(Start, End, VNI));
+        if (Start < End)
+          Dst.addSegment(LiveRange::Segment(Start, End, VNI));
       }
-      // If SelLI does not cover AndIdx (because Cmp killed Sel) then extend.
       if (!SelLI->getSegmentContaining(AndIdx.getRegSlot()))
-        Dst.addSegment(LiveRange::Segment(CmpIdx.getRegSlot(), AndIdx.getRegSlot(), VNI));
+        // If SelLI does not cover AndIdx (because Cmp killed Sel) then extend.
+        Dst.addSegment(
+            LiveRange::Segment(CmpIdx.getRegSlot(), AndIdx.getRegSlot(), VNI));
+      else if (!Dst.liveAt(AndIdx))
+        // This is live-in, so extend segment to the beginning of the block.
+        Dst.addSegment(LiveRange::Segment(
+            LIS->getSlotIndexes()->getMBBStartIdx(Andn2->getParent()),
+            AndIdx.getRegSlot(), VNI));
     };
 
     LiveInterval &CCLI = LIS->getInterval(CCReg);
@@ -287,7 +294,13 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
 
       LIS->removeVRegDefAt(*SelLI, SelIdx.getRegSlot());
       LIS->RemoveMachineInstrFromMaps(*Sel);
+      bool ShrinkSel = Sel->getOperand(0).readsReg();
       Sel->eraseFromParent();
+      if (ShrinkSel) {
+        // The result of the V_CNDMASK was a subreg def which counted as a read
+        // from the other parts of the reg. Shrink their live ranges.
+        LIS->shrinkToUses(SelLI);
+      }
     }
   }
 

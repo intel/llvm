@@ -29,7 +29,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -41,6 +40,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 
 using namespace clang;
 
@@ -161,8 +161,9 @@ static bool needsAmpersandOnTemplateArg(QualType paramType, QualType argType) {
 //===----------------------------------------------------------------------===//
 
 TemplateArgument::TemplateArgument(ASTContext &Ctx, const llvm::APSInt &Value,
-                                   QualType Type) {
+                                   QualType Type, bool IsDefaulted) {
   Integer.Kind = Integral;
+  Integer.IsDefaulted = IsDefaulted;
   // Copy the APSInt value into our decomposed form.
   Integer.BitWidth = Value.getBitWidth();
   Integer.IsUnsigned = Value.isUnsigned();
@@ -271,12 +272,12 @@ bool TemplateArgument::containsUnexpandedParameterPack() const {
   return getDependence() & TemplateArgumentDependence::UnexpandedPack;
 }
 
-Optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
+std::optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
   assert(getKind() == TemplateExpansion);
   if (TemplateArg.NumExpansions)
     return TemplateArg.NumExpansions - 1;
 
-  return None;
+  return std::nullopt;
 }
 
 QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
@@ -328,7 +329,7 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     ID.AddInteger(TemplateArg.NumExpansions);
     LLVM_FALLTHROUGH;
   case Template:
-    getAsTemplateOrTemplatePattern().Profile(ID);
+    ID.AddPointer(TemplateArg.Name);
     break;
 
   case Integral:

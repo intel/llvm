@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
+#include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
 
@@ -89,6 +90,24 @@ TEST(LinkGraphTest, AddressAccess) {
   EXPECT_EQ(B1.getAddress(), B1Addr) << "Incorrect block address";
   EXPECT_EQ(S1.getAddress(), B1Addr + 4) << "Incorrect symbol address";
   EXPECT_EQ(B1.getFixupAddress(E1), B1Addr + 8) << "Incorrect fixup address";
+}
+
+TEST(LinkGraphTest, SectionEmpty) {
+  // Check that Section::empty behaves as expected.
+  LinkGraph G("foo", Triple("x86_64-apple-darwin"), 8, support::little,
+              getGenericEdgeKindName);
+  auto &Sec1 =
+      G.createSection("__data.1", orc::MemProt::Read | orc::MemProt::Write);
+  auto &B =
+      G.createContentBlock(Sec1, BlockContent, orc::ExecutorAddr(0x1000), 8, 0);
+  G.addDefinedSymbol(B, 0, "S", 4, Linkage::Strong, Scope::Default, false,
+                     false);
+
+  auto &Sec2 =
+      G.createSection("__data.2", orc::MemProt::Read | orc::MemProt::Write);
+
+  EXPECT_FALSE(Sec1.empty());
+  EXPECT_TRUE(Sec2.empty());
 }
 
 TEST(LinkGraphTest, BlockAndSymbolIteration) {
@@ -222,6 +241,15 @@ TEST(LinkGraphTest, ContentAccessAndUpdate) {
                                          orc::ExecutorAddr(0x10000), 8, 0);
 
   EXPECT_TRUE(B2.isContentMutable()) << "Expected B2 content to be mutable";
+  EXPECT_EQ(B2.getSize(), MutableContent.size());
+
+  // Create a mutable content block with initial zero-fill.
+  auto &B3 =
+      G.createMutableContentBlock(Sec, 16, orc::ExecutorAddr(0x2000), 8, 0);
+  EXPECT_TRUE(B3.isContentMutable()) << "Expected B2 content to be mutable";
+  EXPECT_EQ(B3.getSize(), 16U);
+  EXPECT_TRUE(llvm::all_of(B3.getAlreadyMutableContent(),
+                           [](char C) { return C == 0; }));
 }
 
 TEST(LinkGraphTest, MakeExternal) {
@@ -438,7 +466,7 @@ TEST(LinkGraphTest, TransferDefinedSymbol) {
   EXPECT_EQ(S1.getSize(), 64U) << "Size was not updated";
 
   // Transfer with non-zero offset, implicit truncation.
-  G.transferDefinedSymbol(S1, B3, 16, None);
+  G.transferDefinedSymbol(S1, B3, 16, std::nullopt);
 
   EXPECT_EQ(&S1.getBlock(), &B3) << "Block was not updated";
   EXPECT_EQ(S1.getOffset(), 16U) << "Offset was not updated";
@@ -709,4 +737,77 @@ TEST(LinkGraphTest, SplitBlock) {
     EXPECT_EQ(E1->getOffset(), 0U);
     EXPECT_EQ(E2->getOffset(), 4U);
   }
+}
+
+TEST(LinkGraphTest, GraphAllocationMethods) {
+  LinkGraph G("foo", Triple("x86_64-apple-darwin"), 8, support::little,
+              getGenericEdgeKindName);
+
+  // Test allocation of sized, uninitialized buffer.
+  auto Buf1 = G.allocateBuffer(10);
+  EXPECT_EQ(Buf1.size(), 10U);
+
+  // Test allocation of content-backed buffer.
+  char Buf2Src[] = {1, static_cast<char>(-1), 0, 42};
+  auto Buf2 = G.allocateContent(ArrayRef<char>(Buf2Src));
+  EXPECT_EQ(Buf2, ArrayRef<char>(Buf2Src));
+
+  // Test c-string allocation from StringRef.
+  StringRef Buf3Src = "hello";
+  auto Buf3 = G.allocateCString(Buf3Src);
+  EXPECT_TRUE(llvm::equal(Buf3.drop_back(1), Buf3Src));
+  EXPECT_EQ(Buf3.back(), '\0');
+}
+
+TEST(LinkGraphTest, IsCStringBlockTest) {
+  // Check that the LinkGraph::splitBlock test works as expected.
+  LinkGraph G("foo", Triple("x86_64-apple-darwin"), 8, support::little,
+              getGenericEdgeKindName);
+  auto &Sec =
+      G.createSection("__data", orc::MemProt::Read | orc::MemProt::Write);
+
+  char CString[] = "hello, world!";
+  char NotACString[] = {0, 1, 0, 1, 0};
+
+  auto &CStringBlock =
+      G.createContentBlock(Sec, CString, orc::ExecutorAddr(), 1, 0);
+  auto &NotACStringBlock =
+      G.createContentBlock(Sec, NotACString, orc::ExecutorAddr(), 1, 0);
+  auto &SizeOneZeroFillBlock =
+      G.createZeroFillBlock(Sec, 1, orc::ExecutorAddr(), 1, 0);
+  auto &LargerZeroFillBlock =
+      G.createZeroFillBlock(Sec, 2, orc::ExecutorAddr(), 1, 0);
+
+  EXPECT_TRUE(isCStringBlock(CStringBlock));
+  EXPECT_FALSE(isCStringBlock(NotACStringBlock));
+  EXPECT_TRUE(isCStringBlock(SizeOneZeroFillBlock));
+  EXPECT_FALSE(isCStringBlock(LargerZeroFillBlock));
+}
+
+TEST(LinkGraphTest, BasicLayoutHonorsNoAlloc) {
+  // Check that BasicLayout honors NoAlloc.
+  LinkGraph G("foo", Triple("x86_64-apple-darwin"), 8, support::little,
+              getGenericEdgeKindName);
+
+  // Create a regular section and block.
+  auto &Sec1 =
+      G.createSection("__data", orc::MemProt::Read | orc::MemProt::Write);
+  G.createContentBlock(Sec1, BlockContent.slice(0, 8), orc::ExecutorAddr(), 8,
+                       0);
+
+  // Create a NoAlloc section and block.
+  auto &Sec2 =
+      G.createSection("__metadata", orc::MemProt::Read | orc::MemProt::Write);
+  Sec2.setMemLifetimePolicy(orc::MemLifetimePolicy::NoAlloc);
+  G.createContentBlock(Sec2, BlockContent.slice(0, 8), orc::ExecutorAddr(), 8,
+                       0);
+
+  BasicLayout BL(G);
+
+  EXPECT_EQ(std::distance(BL.segments().begin(), BL.segments().end()), 1U);
+  EXPECT_EQ(BL.segments().begin()->first,
+            orc::MemProt::Read | orc::MemProt::Write);
+  auto &SegInfo = BL.segments().begin()->second;
+  EXPECT_EQ(SegInfo.Alignment, 8U);
+  EXPECT_EQ(SegInfo.ContentSize, 8U);
 }

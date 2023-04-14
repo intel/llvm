@@ -9,6 +9,8 @@
 #include "CommonArgs.h"
 #include "Arch/AArch64.h"
 #include "Arch/ARM.h"
+#include "Arch/CSKY.h"
+#include "Arch/LoongArch.h"
 #include "Arch/M68k.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
@@ -19,6 +21,7 @@
 #include "Arch/X86.h"
 #include "HIPAMD.h"
 #include "Hexagon.h"
+#include "MSP430.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/ObjCRuntime.h"
@@ -51,15 +54,16 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/YAMLParser.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include <optional>
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -304,7 +308,7 @@ void tools::addLinkerCompressDebugSectionsOption(
       CmdArgs.push_back(Args.MakeArgString("--compress-debug-sections=" + V));
     else
       TC.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-          << A->getOption().getName() << V;
+          << A->getSpelling() << V;
   }
 }
 
@@ -334,6 +338,9 @@ static std::string getAMDGPUTargetGPU(const llvm::Triple &T,
         .Case("hemlock", "cypress")
         .Case("aruba", "cayman")
         .Default(GPUName.str());
+  }
+  if (Arg *A = Args.getLastArg(options::OPT_march_EQ)) {
+    return getProcessorFromTargetID(T, A->getValue()).str();
   }
   return "";
 }
@@ -413,25 +420,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
-  case llvm::Triple::ppc64le: {
-    std::string TargetCPUName = ppc::getPPCTargetCPU(Args);
-    // LLVM may default to generating code for the native CPU,
-    // but, like gcc, we default to a more generic option for
-    // each architecture. (except on AIX)
-    if (!TargetCPUName.empty())
-      return TargetCPUName;
+  case llvm::Triple::ppc64le:
+    return ppc::getPPCTargetCPU(D, Args, T);
 
-    if (T.isOSAIX())
-      TargetCPUName = "pwr7";
-    else if (T.getArch() == llvm::Triple::ppc64le)
-      TargetCPUName = "ppc64le";
-    else if (T.getArch() == llvm::Triple::ppc64)
-      TargetCPUName = "ppc64";
-    else
-      TargetCPUName = "ppc";
-
-    return TargetCPUName;
-  }
   case llvm::Triple::csky:
     if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
       return A->getValue();
@@ -478,6 +469,96 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   }
 }
 
+static void getWebAssemblyTargetFeatures(const ArgList &Args,
+                                         std::vector<StringRef> &Features) {
+  handleTargetFeaturesGroup(Args, Features, options::OPT_m_wasm_Features_Group);
+}
+
+void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                              const ArgList &Args, ArgStringList &CmdArgs,
+                              bool ForAS, bool IsAux) {
+  std::vector<StringRef> Features;
+  switch (Triple.getArch()) {
+  default:
+    break;
+  case llvm::Triple::mips:
+  case llvm::Triple::mipsel:
+  case llvm::Triple::mips64:
+  case llvm::Triple::mips64el:
+    mips::getMIPSTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    arm::getARMTargetFeatures(D, Triple, Args, Features, ForAS);
+    break;
+  case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
+  case llvm::Triple::ppc64:
+  case llvm::Triple::ppc64le:
+    ppc::getPPCTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64:
+    riscv::getRISCVTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::systemz:
+    systemz::getSystemZTargetFeatures(D, Args, Features);
+    break;
+  case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
+  case llvm::Triple::aarch64_be:
+    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features, ForAS);
+    break;
+  case llvm::Triple::x86:
+  case llvm::Triple::x86_64:
+    x86::getX86TargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::hexagon:
+    hexagon::getHexagonTargetFeatures(D, Args, Features);
+    break;
+  case llvm::Triple::wasm32:
+  case llvm::Triple::wasm64:
+    getWebAssemblyTargetFeatures(Args, Features);
+    break;
+  case llvm::Triple::sparc:
+  case llvm::Triple::sparcel:
+  case llvm::Triple::sparcv9:
+    sparc::getSparcTargetFeatures(D, Args, Features);
+    break;
+  case llvm::Triple::r600:
+  case llvm::Triple::amdgcn:
+    amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::nvptx:
+  case llvm::Triple::nvptx64:
+    NVPTX::getNVPTXTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::m68k:
+    m68k::getM68kTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::msp430:
+    msp430::getMSP430TargetFeatures(D, Args, Features);
+    break;
+  case llvm::Triple::ve:
+    ve::getVETargetFeatures(D, Args, Features);
+    break;
+  case llvm::Triple::csky:
+    csky::getCSKYTargetFeatures(D, Triple, Args, CmdArgs, Features);
+    break;
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64:
+    loongarch::getLoongArchTargetFeatures(D, Triple, Args, Features);
+    break;
+  }
+
+  for (auto Feature : unifyTargetFeatures(Features)) {
+    CmdArgs.push_back(IsAux ? "-aux-target-feature" : "-target-feature");
+    CmdArgs.push_back(Feature.data());
+  }
+}
+
 llvm::StringRef tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
   Arg *LtoJobsArg = Args.getLastArg(options::OPT_flto_jobs_EQ);
   if (!LtoJobsArg)
@@ -497,6 +578,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                           ArgStringList &CmdArgs, const InputInfo &Output,
                           const InputInfo &Input, bool IsThinLTO) {
   const bool IsOSAIX = ToolChain.getTriple().isOSAIX();
+  const bool IsAMDGCN = ToolChain.getTriple().isAMDGCN();
   const char *Linker = Args.MakeArgString(ToolChain.GetLinkerPath());
   const Driver &D = ToolChain.getDriver();
   if (llvm::sys::path::filename(Linker) != "ld.lld" &&
@@ -527,8 +609,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
   }
 
   const char *PluginOptPrefix = IsOSAIX ? "-bplugin_opt:" : "-plugin-opt=";
-  const char *mcpuOptPrefix = IsOSAIX ? "-mcpu=" : "mcpu=";
-  const char *OptLevelPrefix = IsOSAIX ? "-O" : "O";
+  const char *ExtraDash = IsOSAIX ? "-" : "";
 
   // Note, this solution is far from perfect, better to encode it into IR
   // metadata, but this may not be worth it, since it looks like aranges is on
@@ -545,7 +626,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
   std::string CPU = getCPUName(D, Args, ToolChain.getTriple());
   if (!CPU.empty())
     CmdArgs.push_back(
-        Args.MakeArgString(Twine(PluginOptPrefix) + mcpuOptPrefix + CPU));
+        Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash + "mcpu=" + CPU));
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
     // The optimization level matches
@@ -562,9 +643,12 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
         OOpt = "2";
     } else if (A->getOption().matches(options::OPT_O0))
       OOpt = "0";
-    if (!OOpt.empty())
+    if (!OOpt.empty()) {
       CmdArgs.push_back(
-          Args.MakeArgString(Twine(PluginOptPrefix) + OptLevelPrefix + OOpt));
+          Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash + "O" + OOpt));
+      if (IsAMDGCN)
+        CmdArgs.push_back(Args.MakeArgString(Twine("--lto-CGO") + OOpt));
+    }
   }
 
   if (Args.hasArg(options::OPT_gsplit_dwarf))
@@ -661,24 +745,25 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
   auto *ProfileUseArg = getLastProfileUseArg(Args);
 
   if (CSPGOGenerateArg) {
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine(PluginOptPrefix) + "cs-profile-generate"));
+    CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash +
+                                         "cs-profile-generate"));
     if (CSPGOGenerateArg->getOption().matches(
             options::OPT_fcs_profile_generate_EQ)) {
       SmallString<128> Path(CSPGOGenerateArg->getValue());
       llvm::sys::path::append(Path, "default_%m.profraw");
-      CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) +
+      CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash +
                                            "cs-profile-path=" + Path));
     } else
-      CmdArgs.push_back(Args.MakeArgString(
-          Twine(PluginOptPrefix) + "cs-profile-path=default_%m.profraw"));
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash +
+                             "cs-profile-path=default_%m.profraw"));
   } else if (ProfileUseArg) {
     SmallString<128> Path(
         ProfileUseArg->getNumValues() == 0 ? "" : ProfileUseArg->getValue());
     if (Path.empty() || llvm::sys::fs::is_directory(Path))
       llvm::sys::path::append(Path, "default.profdata");
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine(PluginOptPrefix) + "cs-profile-path=" + Path));
+    CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash +
+                                         "cs-profile-path=" + Path));
   }
 
   // This controls whether or not we perform JustMyCode instrumentation.
@@ -689,6 +774,18 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     else
       D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
   }
+
+  if (Arg *A = Args.getLastArg(options::OPT_femulated_tls,
+                               options::OPT_fno_emulated_tls)) {
+    bool Enable = A->getOption().getID() == options::OPT_femulated_tls;
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine(PluginOptPrefix) + "-emulated-tls=" + (Enable ? "1" : "0")));
+  }
+
+  if (Args.hasFlag(options::OPT_fstack_size_section,
+                   options::OPT_fno_stack_size_section, false))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine(PluginOptPrefix) + "-stack-size-section"));
 
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
@@ -719,22 +816,6 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                          /*IsLTO=*/true, PluginOptPrefix);
 }
 
-void tools::addOpenMPRuntimeSpecificRPath(const ToolChain &TC,
-                                          const ArgList &Args,
-                                          ArgStringList &CmdArgs) {
-
-  if (Args.hasFlag(options::OPT_fopenmp_implicit_rpath,
-                   options::OPT_fno_openmp_implicit_rpath, true)) {
-    // Default to clang lib / lib64 folder, i.e. the same location as device
-    // runtime
-    SmallString<256> DefaultLibPath =
-        llvm::sys::path::parent_path(TC.getDriver().Dir);
-    llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
-    CmdArgs.push_back("-rpath");
-    CmdArgs.push_back(Args.MakeArgString(DefaultLibPath));
-  }
-}
-
 void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
                                         const ArgList &Args,
                                         ArgStringList &CmdArgs) {
@@ -755,10 +836,11 @@ void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
                     options::OPT_fno_rtlib_add_rpath, DefaultValue))
     return;
 
-  std::string CandidateRPath = TC.getArchSpecificLibPath();
-  if (TC.getVFS().exists(CandidateRPath)) {
-    CmdArgs.push_back("-rpath");
-    CmdArgs.push_back(Args.MakeArgString(CandidateRPath));
+  for (const auto &CandidateRPath : TC.getArchSpecificLibPaths()) {
+    if (TC.getVFS().exists(CandidateRPath)) {
+      CmdArgs.push_back("-rpath");
+      CmdArgs.push_back(Args.MakeArgString(CandidateRPath));
+    }
   }
 }
 
@@ -801,14 +883,10 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   if (IsOffloadingHost)
     CmdArgs.push_back("-lomptarget");
 
-  if (IsOffloadingHost && TC.getDriver().isUsingLTO(/* IsOffload */ true) &&
-      !Args.hasArg(options::OPT_nogpulib))
+  if (IsOffloadingHost && !Args.hasArg(options::OPT_nogpulib))
     CmdArgs.push_back("-lomptarget.devicertl");
 
   addArchSpecificRPath(TC, Args, CmdArgs);
-
-  if (RTKind == Driver::OMPRT_OMP)
-    addOpenMPRuntimeSpecificRPath(TC, Args, CmdArgs);
   addOpenMPRuntimeLibraryPath(TC, Args, CmdArgs);
 
   return true;
@@ -901,7 +979,7 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
   CmdArgs.push_back(getAsNeededOption(TC, false));
   // There's no libpthread or librt on RTEMS & Android.
   if (TC.getTriple().getOS() != llvm::Triple::RTEMS &&
-      !TC.getTriple().isAndroid()) {
+      !TC.getTriple().isAndroid() && !TC.getTriple().isOHOSFamily()) {
     CmdArgs.push_back("-lpthread");
     if (!TC.getTriple().isOSOpenBSD())
       CmdArgs.push_back("-lrt");
@@ -952,10 +1030,7 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
         SharedRuntimes.push_back("ubsan_standalone");
     }
     if (SanArgs.needsScudoRt() && SanArgs.linkRuntimes()) {
-      if (SanArgs.requiresMinimalRuntime())
-        SharedRuntimes.push_back("scudo_minimal");
-      else
-        SharedRuntimes.push_back("scudo");
+      SharedRuntimes.push_back("scudo_standalone");
     }
     if (SanArgs.needsTsanRt() && SanArgs.linkRuntimes())
       SharedRuntimes.push_back("tsan");
@@ -1052,15 +1127,9 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     RequiredSymbols.push_back("__sanitizer_stats_register");
   }
   if (!SanArgs.needsSharedRt() && SanArgs.needsScudoRt() && SanArgs.linkRuntimes()) {
-    if (SanArgs.requiresMinimalRuntime()) {
-      StaticRuntimes.push_back("scudo_minimal");
-      if (SanArgs.linkCXXRuntimes())
-        StaticRuntimes.push_back("scudo_cxx_minimal");
-    } else {
-      StaticRuntimes.push_back("scudo");
-      if (SanArgs.linkCXXRuntimes())
-        StaticRuntimes.push_back("scudo_cxx");
-    }
+    StaticRuntimes.push_back("scudo_standalone");
+    if (SanArgs.linkCXXRuntimes())
+      StaticRuntimes.push_back("scudo_standalone_cxx");
   }
 }
 
@@ -1343,6 +1412,10 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
     }
   }
 
+  // OHOS-specific defaults for PIC/PIE
+  if (Triple.isOHOSFamily() && Triple.getArch() == llvm::Triple::aarch64)
+    PIC = true;
+
   // OpenBSD-specific defaults for PIE
   if (Triple.isOSOpenBSD()) {
     switch (ToolChain.getArch()) {
@@ -1364,10 +1437,6 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
       break;
     }
   }
-
-  // AMDGPU-specific defaults for PIC.
-  if (Triple.getArch() == llvm::Triple::amdgcn)
-    PIC = true;
 
   // The last argument relating to either PIC or PIE wins, and no
   // other argument is used. If the last argument is any flavor of the
@@ -1543,6 +1612,48 @@ unsigned tools::ParseFunctionAlignment(const ToolChain &TC,
   return Value ? llvm::Log2_32_Ceil(std::min(Value, 65536u)) : Value;
 }
 
+void tools::addDebugInfoKind(
+    ArgStringList &CmdArgs, llvm::codegenoptions::DebugInfoKind DebugInfoKind) {
+  switch (DebugInfoKind) {
+  case llvm::codegenoptions::DebugDirectivesOnly:
+    CmdArgs.push_back("-debug-info-kind=line-directives-only");
+    break;
+  case llvm::codegenoptions::DebugLineTablesOnly:
+    CmdArgs.push_back("-debug-info-kind=line-tables-only");
+    break;
+  case llvm::codegenoptions::DebugInfoConstructor:
+    CmdArgs.push_back("-debug-info-kind=constructor");
+    break;
+  case llvm::codegenoptions::LimitedDebugInfo:
+    CmdArgs.push_back("-debug-info-kind=limited");
+    break;
+  case llvm::codegenoptions::FullDebugInfo:
+    CmdArgs.push_back("-debug-info-kind=standalone");
+    break;
+  case llvm::codegenoptions::UnusedTypeInfo:
+    CmdArgs.push_back("-debug-info-kind=unused-types");
+    break;
+  default:
+    break;
+  }
+}
+
+// Convert an arg of the form "-gN" or "-ggdbN" or one of their aliases
+// to the corresponding DebugInfoKind.
+llvm::codegenoptions::DebugInfoKind tools::debugLevelToInfoKind(const Arg &A) {
+  assert(A.getOption().matches(options::OPT_gN_Group) &&
+         "Not a -g option that specifies a debug-info level");
+  if (A.getOption().matches(options::OPT_g0) ||
+      A.getOption().matches(options::OPT_ggdb0))
+    return llvm::codegenoptions::NoDebugInfo;
+  if (A.getOption().matches(options::OPT_gline_tables_only) ||
+      A.getOption().matches(options::OPT_ggdb1))
+    return llvm::codegenoptions::DebugLineTablesOnly;
+  if (A.getOption().matches(options::OPT_gline_directives_only))
+    return llvm::codegenoptions::DebugDirectivesOnly;
+  return llvm::codegenoptions::DebugInfoConstructor;
+}
+
 static unsigned ParseDebugDefaultVersion(const ToolChain &TC,
                                          const ArgList &Args) {
   const Arg *A = Args.getLastArg(options::OPT_fdebug_default_version);
@@ -1633,6 +1744,12 @@ static LibGccType getLibGccType(const ToolChain &TC, const Driver &D,
 static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
                              ArgStringList &CmdArgs, const ArgList &Args) {
   ToolChain::UnwindLibType UNW = TC.GetUnwindLibType(Args);
+  // By default OHOS binaries are linked statically to libunwind.
+  if (TC.getTriple().isOHOSFamily() && UNW == ToolChain::UNW_CompilerRT) {
+    CmdArgs.push_back("-l:libunwind.a");
+    return;
+  }
+
   // Targets that don't use unwind libraries.
   if ((TC.getTriple().isAndroid() && UNW == ToolChain::UNW_Libgcc) ||
       TC.getTriple().isOSIAMCU() || TC.getTriple().isOSBinFormatWasm() ||
@@ -1732,22 +1849,29 @@ SmallString<128> tools::getStatsFileName(const llvm::opt::ArgList &Args,
                                          const InputInfo &Input,
                                          const Driver &D) {
   const Arg *A = Args.getLastArg(options::OPT_save_stats_EQ);
-  if (!A)
+  if (!A && !D.CCPrintInternalStats)
     return {};
 
-  StringRef SaveStats = A->getValue();
   SmallString<128> StatsFile;
-  if (SaveStats == "obj" && Output.isFilename()) {
-    StatsFile.assign(Output.getFilename());
-    llvm::sys::path::remove_filename(StatsFile);
-  } else if (SaveStats != "cwd") {
-    D.Diag(diag::err_drv_invalid_value) << A->getAsString(Args) << SaveStats;
-    return {};
-  }
+  if (A) {
+    StringRef SaveStats = A->getValue();
+    if (SaveStats == "obj" && Output.isFilename()) {
+      StatsFile.assign(Output.getFilename());
+      llvm::sys::path::remove_filename(StatsFile);
+    } else if (SaveStats != "cwd") {
+      D.Diag(diag::err_drv_invalid_value) << A->getAsString(Args) << SaveStats;
+      return {};
+    }
 
-  StringRef BaseName = llvm::sys::path::filename(Input.getBaseInput());
-  llvm::sys::path::append(StatsFile, BaseName);
-  llvm::sys::path::replace_extension(StatsFile, "stats");
+    StringRef BaseName = llvm::sys::path::filename(Input.getBaseInput());
+    llvm::sys::path::append(StatsFile, BaseName);
+    llvm::sys::path::replace_extension(StatsFile, "stats");
+  } else {
+    assert(D.CCPrintInternalStats);
+    StatsFile.assign(D.CCPrintInternalStatReportFilename.empty()
+                         ? "-"
+                         : D.CCPrintInternalStatReportFilename);
+  }
   return StatsFile;
 }
 
@@ -2078,7 +2202,7 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
 
   SmallVector<std::string, 8> LibraryPaths;
   // Add search directories from LIBRARY_PATH env variable
-  llvm::Optional<std::string> LibPath =
+  std::optional<std::string> LibPath =
       llvm::sys::Process::GetEnv("LIBRARY_PATH");
   if (LibPath) {
     SmallVector<StringRef, 8> Frags;
@@ -2141,26 +2265,13 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
 
 static llvm::opt::Arg *
 getAMDGPUCodeObjectArgument(const Driver &D, const llvm::opt::ArgList &Args) {
-  // The last of -mcode-object-v3, -mno-code-object-v3 and
-  // -mcode-object-version=<version> wins.
-  return Args.getLastArg(options::OPT_mcode_object_v3_legacy,
-                         options::OPT_mno_code_object_v3_legacy,
-                         options::OPT_mcode_object_version_EQ);
+  return Args.getLastArg(options::OPT_mcode_object_version_EQ);
 }
 
 void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
                                          const llvm::opt::ArgList &Args) {
   const unsigned MinCodeObjVer = 2;
   const unsigned MaxCodeObjVer = 5;
-
-  // Emit warnings for legacy options even if they are overridden.
-  if (Args.hasArg(options::OPT_mno_code_object_v3_legacy))
-    D.Diag(diag::warn_drv_deprecated_arg) << "-mno-code-object-v3"
-                                          << "-mcode-object-version=2";
-
-  if (Args.hasArg(options::OPT_mcode_object_v3_legacy))
-    D.Diag(diag::warn_drv_deprecated_arg) << "-mcode-object-v3"
-                                          << "-mcode-object-version=3";
 
   if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args)) {
     if (CodeObjArg->getOption().getID() ==
@@ -2178,17 +2289,8 @@ void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
 unsigned tools::getAMDGPUCodeObjectVersion(const Driver &D,
                                            const llvm::opt::ArgList &Args) {
   unsigned CodeObjVer = 4; // default
-  if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args)) {
-    if (CodeObjArg->getOption().getID() ==
-        options::OPT_mno_code_object_v3_legacy) {
-      CodeObjVer = 2;
-    } else if (CodeObjArg->getOption().getID() ==
-               options::OPT_mcode_object_v3_legacy) {
-      CodeObjVer = 3;
-    } else {
-      StringRef(CodeObjArg->getValue()).getAsInteger(0, CodeObjVer);
-    }
-  }
+  if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args))
+    StringRef(CodeObjArg->getValue()).getAsInteger(0, CodeObjVer);
   return CodeObjVer;
 }
 
@@ -2245,7 +2347,7 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
   LibraryPaths.emplace_back(DefaultLibPath.c_str());
 
   // Add user defined library paths from LIBRARY_PATH.
-  llvm::Optional<std::string> LibPath =
+  std::optional<std::string> LibPath =
       llvm::sys::Process::GetEnv("LIBRARY_PATH");
   if (LibPath) {
     SmallVector<StringRef, 8> Frags;

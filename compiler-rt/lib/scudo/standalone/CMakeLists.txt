@@ -7,6 +7,8 @@ set(SCUDO_CFLAGS)
 list(APPEND SCUDO_CFLAGS
   -Werror=conversion
   -Wall
+  -Wextra
+  -pedantic
   -g
   -nostdinc++)
 
@@ -27,6 +29,9 @@ if(COMPILER_RT_DEBUG)
 else()
   list(APPEND SCUDO_CFLAGS -O3)
 endif()
+
+append_list_if(COMPILER_RT_HAS_WTHREAD_SAFETY_FLAG -Werror=thread-safety
+  SCUDO_CFLAGS)
 
 set(SCUDO_LINK_FLAGS)
 
@@ -66,6 +71,8 @@ set(SCUDO_HEADERS
   list.h
   local_cache.h
   memtag.h
+  mem_map.h
+  mem_map_base.h
   mutex.h
   options.h
   platform.h
@@ -74,11 +81,13 @@ set(SCUDO_HEADERS
   quarantine.h
   release.h
   report.h
+  rss_limit_checker.h
   secondary.h
   size_class_map.h
   stack_depot.h
   stats.h
   string_utils.h
+  timing.h
   tsd_exclusive.h
   tsd_shared.h
   tsd.h
@@ -97,9 +106,12 @@ set(SCUDO_SOURCES
   flags.cpp
   fuchsia.cpp
   linux.cpp
+  mem_map.cpp
   release.cpp
   report.cpp
+  rss_limit_checker.cpp
   string_utils.cpp
+  timing.cpp
   )
 
 # Enable the necessary instruction set for scudo_crc32.cpp, if available.

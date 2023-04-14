@@ -2,7 +2,7 @@
 ; RUN: llc -global-isel -mtriple=amdgcn-amd-amdpal -mcpu=fiji < %s | FileCheck -check-prefix=GFX8 %s
 ; RUN: llc -global-isel -mtriple=amdgcn-amd-amdpal -mcpu=gfx900 < %s | FileCheck -check-prefix=GFX9 %s
 
-define void @add_v3i16(<3 x i16> addrspace(1)* %ptra, <3 x i16> addrspace(1)* %ptrb, <3 x i16> addrspace(1)* %ptr2) {
+define void @add_v3i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v3i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -58,10 +58,10 @@ define void @add_v3i16(<3 x i16> addrspace(1)* %ptra, <3 x i16> addrspace(1)* %p
 ; GFX9-NEXT:    global_store_short v[4:5], v2, off offset:4
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <3 x i16>, <3 x i16> addrspace(1)* %ptra, align 4
-  %b = load <3 x i16>, <3 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <3 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <3 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <3 x i16> %a, %b
-  store <3 x i16> %add, <3 x i16> addrspace(1)* %ptr2, align 4
+  store <3 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -85,7 +85,7 @@ define <3 x i16> @add_v3i16_arg(<3 x i16> %a, <3 x i16> %b) {
   ret <3 x i16> %add
 }
 
-define void @add_v4i16(<4 x i16> addrspace(1)* %ptra, <4 x i16> addrspace(1)* %ptrb, <4 x i16> addrspace(1)* %ptr2) {
+define void @add_v4i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v4i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -113,10 +113,10 @@ define void @add_v4i16(<4 x i16> addrspace(1)* %ptra, <4 x i16> addrspace(1)* %p
 ; GFX9-NEXT:    global_store_dwordx2 v[4:5], v[0:1], off
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <4 x i16>, <4 x i16> addrspace(1)* %ptra, align 4
-  %b = load <4 x i16>, <4 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <4 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <4 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <4 x i16> %a, %b
-  store <4 x i16> %add, <4 x i16> addrspace(1)* %ptr2, align 4
+  store <4 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -142,7 +142,7 @@ define <4 x i16> @add_v4i16_arg(<4 x i16> %a, <4 x i16> %b) {
   ret <4 x i16> %add
 }
 
-define void @add_v5i16(<5 x i16> addrspace(1)* %ptra, <5 x i16> addrspace(1)* %ptrb, <5 x i16> addrspace(1)* %ptr2) {
+define void @add_v5i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v5i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -231,10 +231,10 @@ define void @add_v5i16(<5 x i16> addrspace(1)* %ptra, <5 x i16> addrspace(1)* %p
 ; GFX9-NEXT:    global_store_short v[4:5], v6, off offset:8
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <5 x i16>, <5 x i16> addrspace(1)* %ptra, align 4
-  %b = load <5 x i16>, <5 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <5 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <5 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <5 x i16> %a, %b
-  store <5 x i16> %add, <5 x i16> addrspace(1)* %ptr2, align 4
+  store <5 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -262,7 +262,7 @@ define <5 x i16> @add_v5i16_arg(<5 x i16> %a, <5 x i16> %b) {
   ret <5 x i16> %add
 }
 
-define void @add_v6i16(<6 x i16> addrspace(1)* %ptra, <6 x i16> addrspace(1)* %ptrb, <6 x i16> addrspace(1)* %ptr2) {
+define void @add_v6i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v6i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -294,10 +294,10 @@ define void @add_v6i16(<6 x i16> addrspace(1)* %ptra, <6 x i16> addrspace(1)* %p
 ; GFX9-NEXT:    global_store_dwordx3 v[4:5], v[0:2], off
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <6 x i16>, <6 x i16> addrspace(1)* %ptra, align 4
-  %b = load <6 x i16>, <6 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <6 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <6 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <6 x i16> %a, %b
-  store <6 x i16> %add, <6 x i16> addrspace(1)* %ptr2, align 4
+  store <6 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -327,7 +327,7 @@ define <6 x i16> @add_v6i16_arg(<6 x i16> %a, <6 x i16> %b) {
   ret <6 x i16> %add
 }
 
-define void @addv_7i16(<7 x i16> addrspace(1)* %ptra, <7 x i16> addrspace(1)* %ptrb, <7 x i16> addrspace(1)* %ptr2) {
+define void @addv_7i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: addv_7i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -449,10 +449,10 @@ define void @addv_7i16(<7 x i16> addrspace(1)* %ptra, <7 x i16> addrspace(1)* %p
 ; GFX9-NEXT:    global_store_short v[4:5], v8, off offset:12
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <7 x i16>, <7 x i16> addrspace(1)* %ptra, align 4
-  %b = load <7 x i16>, <7 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <7 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <7 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <7 x i16> %a, %b
-  store <7 x i16> %add, <7 x i16> addrspace(1)* %ptr2, align 4
+  store <7 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -484,7 +484,7 @@ define <7 x i16> @add_v7i16_arg(<7 x i16> %a, <7 x i16> %b) {
   ret <7 x i16> %add
 }
 
-define void @add_v9i16(<9 x i16> addrspace(1)* %ptra, <9 x i16> addrspace(1)* %ptrb, <9 x i16> addrspace(1)* %ptr2) {
+define void @add_v9i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v9i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -492,29 +492,29 @@ define void @add_v9i16(<9 x i16> addrspace(1)* %ptra, <9 x i16> addrspace(1)* %p
 ; GFX8-NEXT:    flat_load_dwordx4 v[10:13], v[2:3]
 ; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 16, v0
 ; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v1, vcc
-; GFX8-NEXT:    flat_load_ushort v14, v[0:1]
+; GFX8-NEXT:    flat_load_ushort v16, v[0:1]
 ; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 16, v2
 ; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v3, vcc
 ; GFX8-NEXT:    flat_load_ushort v0, v[0:1]
+; GFX8-NEXT:    v_add_u32_e32 v14, vcc, 16, v4
+; GFX8-NEXT:    v_addc_u32_e32 v15, vcc, 0, v5, vcc
 ; GFX8-NEXT:    s_waitcnt vmcnt(2)
 ; GFX8-NEXT:    v_add_u16_e32 v1, v6, v10
 ; GFX8-NEXT:    v_add_u16_sdwa v2, v6, v10 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
 ; GFX8-NEXT:    v_add_u16_e32 v3, v7, v11
-; GFX8-NEXT:    v_add_u16_sdwa v10, v7, v11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u16_e32 v11, v8, v12
+; GFX8-NEXT:    v_add_u16_sdwa v6, v7, v11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v7, v8, v12
 ; GFX8-NEXT:    v_add_u16_sdwa v8, v8, v12 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u16_e32 v12, v9, v13
+; GFX8-NEXT:    v_add_u16_e32 v10, v9, v13
 ; GFX8-NEXT:    v_add_u16_sdwa v9, v9, v13 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u32_e32 v6, vcc, 16, v4
 ; GFX8-NEXT:    s_waitcnt vmcnt(0)
-; GFX8-NEXT:    v_add_u16_e32 v13, v14, v0
+; GFX8-NEXT:    v_add_u16_e32 v11, v16, v0
 ; GFX8-NEXT:    v_or_b32_e32 v0, v1, v2
-; GFX8-NEXT:    v_or_b32_e32 v1, v3, v10
-; GFX8-NEXT:    v_or_b32_e32 v2, v11, v8
-; GFX8-NEXT:    v_or_b32_e32 v3, v12, v9
-; GFX8-NEXT:    v_addc_u32_e32 v7, vcc, 0, v5, vcc
+; GFX8-NEXT:    v_or_b32_e32 v1, v3, v6
+; GFX8-NEXT:    v_or_b32_e32 v2, v7, v8
+; GFX8-NEXT:    v_or_b32_e32 v3, v10, v9
 ; GFX8-NEXT:    flat_store_dwordx4 v[4:5], v[0:3]
-; GFX8-NEXT:    flat_store_short v[6:7], v13
+; GFX8-NEXT:    flat_store_short v[14:15], v11
 ; GFX8-NEXT:    s_waitcnt vmcnt(0)
 ; GFX8-NEXT:    s_setpc_b64 s[30:31]
 ;
@@ -536,10 +536,10 @@ define void @add_v9i16(<9 x i16> addrspace(1)* %ptra, <9 x i16> addrspace(1)* %p
 ; GFX9-NEXT:    global_store_short v[4:5], v6, off offset:16
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <9 x i16>, <9 x i16> addrspace(1)* %ptra, align 4
-  %b = load <9 x i16>, <9 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <9 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <9 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <9 x i16> %a, %b
-  store <9 x i16> %add, <9 x i16> addrspace(1)* %ptr2, align 4
+  store <9 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -575,7 +575,7 @@ define <9 x i16> @add_v9i16_arg(<9 x i16> %a, <9 x i16> %b) {
   ret <9 x i16> %add
 }
 
-define void @add_v10i16(<10 x i16> addrspace(1)* %ptra, <10 x i16> addrspace(1)* %ptrb, <10 x i16> addrspace(1)* %ptr2) {
+define void @add_v10i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v10i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -629,66 +629,66 @@ define void @add_v10i16(<10 x i16> addrspace(1)* %ptra, <10 x i16> addrspace(1)*
 ; GFX9-NEXT:    global_store_dword v[4:5], v6, off offset:16
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <10 x i16>, <10 x i16> addrspace(1)* %ptra, align 4
-  %b = load <10 x i16>, <10 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <10 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <10 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <10 x i16> %a, %b
-  store <10 x i16> %add, <10 x i16> addrspace(1)* %ptr2, align 4
+  store <10 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
-define void @add_v11i16(<11 x i16> addrspace(1)* %ptra, <11 x i16> addrspace(1)* %ptrb, <11 x i16> addrspace(1)* %ptr2) {
+define void @add_v11i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v11i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX8-NEXT:    v_add_u32_e32 v10, vcc, 16, v0
+; GFX8-NEXT:    v_addc_u32_e32 v11, vcc, 0, v1, vcc
+; GFX8-NEXT:    v_add_u32_e32 v12, vcc, 18, v0
+; GFX8-NEXT:    v_addc_u32_e32 v13, vcc, 0, v1, vcc
 ; GFX8-NEXT:    flat_load_dwordx4 v[6:9], v[0:1]
+; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 20, v0
+; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v1, vcc
+; GFX8-NEXT:    flat_load_ushort v18, v[10:11]
+; GFX8-NEXT:    flat_load_ushort v19, v[12:13]
+; GFX8-NEXT:    flat_load_ushort v20, v[0:1]
 ; GFX8-NEXT:    flat_load_dwordx4 v[10:13], v[2:3]
-; GFX8-NEXT:    v_add_u32_e32 v14, vcc, 16, v2
+; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 16, v2
+; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v3, vcc
+; GFX8-NEXT:    v_add_u32_e32 v14, vcc, 18, v2
 ; GFX8-NEXT:    v_addc_u32_e32 v15, vcc, 0, v3, vcc
-; GFX8-NEXT:    v_add_u32_e32 v16, vcc, 18, v2
-; GFX8-NEXT:    v_addc_u32_e32 v17, vcc, 0, v3, vcc
 ; GFX8-NEXT:    v_add_u32_e32 v2, vcc, 20, v2
 ; GFX8-NEXT:    v_addc_u32_e32 v3, vcc, 0, v3, vcc
-; GFX8-NEXT:    flat_load_ushort v14, v[14:15]
-; GFX8-NEXT:    flat_load_ushort v15, v[16:17]
-; GFX8-NEXT:    flat_load_ushort v16, v[2:3]
-; GFX8-NEXT:    v_add_u32_e32 v2, vcc, 16, v0
-; GFX8-NEXT:    v_addc_u32_e32 v3, vcc, 0, v1, vcc
-; GFX8-NEXT:    s_waitcnt vmcnt(3)
-; GFX8-NEXT:    v_add_u16_e32 v17, v6, v10
-; GFX8-NEXT:    v_add_u16_sdwa v10, v6, v10 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u32_e32 v6, vcc, 18, v0
-; GFX8-NEXT:    v_add_u16_e32 v18, v7, v11
-; GFX8-NEXT:    v_add_u16_sdwa v11, v7, v11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_addc_u32_e32 v7, vcc, 0, v1, vcc
-; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 20, v0
+; GFX8-NEXT:    flat_load_ushort v0, v[0:1]
+; GFX8-NEXT:    flat_load_ushort v1, v[14:15]
 ; GFX8-NEXT:    flat_load_ushort v2, v[2:3]
-; GFX8-NEXT:    flat_load_ushort v3, v[6:7]
-; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v1, vcc
-; GFX8-NEXT:    flat_load_ushort v21, v[0:1]
-; GFX8-NEXT:    v_add_u32_e32 v6, vcc, 16, v4
+; GFX8-NEXT:    v_add_u32_e32 v14, vcc, 16, v4
+; GFX8-NEXT:    v_addc_u32_e32 v15, vcc, 0, v5, vcc
+; GFX8-NEXT:    v_add_u32_e32 v16, vcc, 18, v4
+; GFX8-NEXT:    v_addc_u32_e32 v17, vcc, 0, v5, vcc
+; GFX8-NEXT:    s_waitcnt vmcnt(3)
+; GFX8-NEXT:    v_add_u16_e32 v3, v6, v10
+; GFX8-NEXT:    v_add_u16_sdwa v10, v6, v10 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v21, v7, v11
+; GFX8-NEXT:    v_add_u16_sdwa v11, v7, v11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v22, v8, v12
+; GFX8-NEXT:    v_add_u16_sdwa v8, v8, v12 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v12, v9, v13
+; GFX8-NEXT:    v_add_u16_sdwa v9, v9, v13 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u32_e32 v6, vcc, 20, v4
 ; GFX8-NEXT:    v_addc_u32_e32 v7, vcc, 0, v5, vcc
-; GFX8-NEXT:    v_add_u16_e32 v19, v8, v12
-; GFX8-NEXT:    v_add_u16_sdwa v12, v8, v12 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u32_e32 v8, vcc, 18, v4
-; GFX8-NEXT:    v_add_u16_e32 v20, v9, v13
-; GFX8-NEXT:    v_add_u16_sdwa v13, v9, v13 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_addc_u32_e32 v9, vcc, 0, v5, vcc
-; GFX8-NEXT:    v_or_b32_e32 v0, v17, v10
-; GFX8-NEXT:    v_or_b32_e32 v1, v18, v11
-; GFX8-NEXT:    v_add_u32_e32 v10, vcc, 20, v4
-; GFX8-NEXT:    v_addc_u32_e32 v11, vcc, 0, v5, vcc
 ; GFX8-NEXT:    s_waitcnt vmcnt(2)
-; GFX8-NEXT:    v_add_u16_e32 v14, v2, v14
+; GFX8-NEXT:    v_add_u16_e32 v13, v18, v0
 ; GFX8-NEXT:    s_waitcnt vmcnt(1)
-; GFX8-NEXT:    v_add_u16_e32 v15, v3, v15
-; GFX8-NEXT:    v_or_b32_e32 v2, v19, v12
-; GFX8-NEXT:    v_or_b32_e32 v3, v20, v13
+; GFX8-NEXT:    v_add_u16_e32 v18, v19, v1
 ; GFX8-NEXT:    s_waitcnt vmcnt(0)
-; GFX8-NEXT:    v_add_u16_e32 v16, v21, v16
+; GFX8-NEXT:    v_add_u16_e32 v19, v20, v2
+; GFX8-NEXT:    v_or_b32_e32 v0, v3, v10
+; GFX8-NEXT:    v_or_b32_e32 v1, v21, v11
+; GFX8-NEXT:    v_or_b32_e32 v2, v22, v8
+; GFX8-NEXT:    v_or_b32_e32 v3, v12, v9
 ; GFX8-NEXT:    flat_store_dwordx4 v[4:5], v[0:3]
-; GFX8-NEXT:    flat_store_short v[6:7], v14
-; GFX8-NEXT:    flat_store_short v[8:9], v15
-; GFX8-NEXT:    flat_store_short v[10:11], v16
+; GFX8-NEXT:    flat_store_short v[14:15], v13
+; GFX8-NEXT:    flat_store_short v[16:17], v18
+; GFX8-NEXT:    flat_store_short v[6:7], v19
 ; GFX8-NEXT:    s_waitcnt vmcnt(0)
 ; GFX8-NEXT:    s_setpc_b64 s[30:31]
 ;
@@ -722,10 +722,10 @@ define void @add_v11i16(<11 x i16> addrspace(1)* %ptra, <11 x i16> addrspace(1)*
 ; GFX9-NEXT:    global_store_short v[4:5], v6, off offset:20
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <11 x i16>, <11 x i16> addrspace(1)* %ptra, align 4
-  %b = load <11 x i16>, <11 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <11 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <11 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <11 x i16> %a, %b
-  store <11 x i16> %add, <11 x i16> addrspace(1)* %ptr2, align 4
+  store <11 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 
@@ -765,40 +765,40 @@ define <11 x i16> @add_v11i16_arg(<11 x i16> %a, <11 x i16> %b) {
   ret <11 x i16> %add
 }
 
-define void @add_v12i16(<12 x i16> addrspace(1)* %ptra, <12 x i16> addrspace(1)* %ptrb, <12 x i16> addrspace(1)* %ptr2) {
+define void @add_v12i16(ptr addrspace(1) %ptra, ptr addrspace(1) %ptrb, ptr addrspace(1) %ptr2) {
 ; GFX8-LABEL: add_v12i16:
 ; GFX8:       ; %bb.0:
 ; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX8-NEXT:    flat_load_dwordx4 v[6:9], v[0:1]
 ; GFX8-NEXT:    flat_load_dwordx4 v[10:13], v[2:3]
-; GFX8-NEXT:    v_add_u32_e32 v2, vcc, 16, v2
-; GFX8-NEXT:    v_addc_u32_e32 v3, vcc, 0, v3, vcc
 ; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 16, v0
 ; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v1, vcc
-; GFX8-NEXT:    flat_load_dwordx2 v[14:15], v[2:3]
-; GFX8-NEXT:    s_waitcnt vmcnt(1)
-; GFX8-NEXT:    v_add_u16_e32 v2, v6, v10
-; GFX8-NEXT:    v_add_u16_sdwa v3, v6, v10 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u16_e32 v10, v7, v11
-; GFX8-NEXT:    v_add_u16_sdwa v11, v7, v11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    flat_load_dwordx2 v[6:7], v[0:1]
-; GFX8-NEXT:    v_add_u16_e32 v16, v8, v12
-; GFX8-NEXT:    v_add_u16_sdwa v8, v8, v12 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u16_e32 v12, v9, v13
+; GFX8-NEXT:    flat_load_dwordx2 v[14:15], v[0:1]
+; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 16, v2
+; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v3, vcc
+; GFX8-NEXT:    flat_load_dwordx2 v[16:17], v[0:1]
+; GFX8-NEXT:    s_waitcnt vmcnt(2)
+; GFX8-NEXT:    v_add_u16_e32 v0, v6, v10
+; GFX8-NEXT:    v_add_u16_sdwa v1, v6, v10 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v2, v7, v11
+; GFX8-NEXT:    v_add_u16_sdwa v3, v7, v11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v6, v8, v12
+; GFX8-NEXT:    v_add_u16_sdwa v7, v8, v12 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v8, v9, v13
 ; GFX8-NEXT:    v_add_u16_sdwa v9, v9, v13 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_or_b32_e32 v0, v2, v3
-; GFX8-NEXT:    v_or_b32_e32 v1, v10, v11
-; GFX8-NEXT:    v_or_b32_e32 v2, v16, v8
-; GFX8-NEXT:    v_or_b32_e32 v3, v12, v9
+; GFX8-NEXT:    v_or_b32_e32 v0, v0, v1
+; GFX8-NEXT:    v_or_b32_e32 v1, v2, v3
+; GFX8-NEXT:    v_or_b32_e32 v2, v6, v7
+; GFX8-NEXT:    v_or_b32_e32 v3, v8, v9
+; GFX8-NEXT:    s_waitcnt vmcnt(0)
+; GFX8-NEXT:    v_add_u16_e32 v6, v14, v16
+; GFX8-NEXT:    v_add_u16_sdwa v7, v14, v16 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_add_u16_e32 v8, v15, v17
+; GFX8-NEXT:    v_add_u16_sdwa v9, v15, v17 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
 ; GFX8-NEXT:    flat_store_dwordx4 v[4:5], v[0:3]
-; GFX8-NEXT:    s_waitcnt vmcnt(1)
-; GFX8-NEXT:    v_add_u16_e32 v8, v6, v14
-; GFX8-NEXT:    v_add_u16_sdwa v6, v6, v14 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
-; GFX8-NEXT:    v_add_u16_e32 v9, v7, v15
-; GFX8-NEXT:    v_add_u16_sdwa v7, v7, v15 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; GFX8-NEXT:    v_or_b32_e32 v6, v6, v7
 ; GFX8-NEXT:    v_add_u32_e32 v0, vcc, 16, v4
-; GFX8-NEXT:    v_or_b32_e32 v6, v8, v6
-; GFX8-NEXT:    v_or_b32_e32 v7, v9, v7
+; GFX8-NEXT:    v_or_b32_e32 v7, v8, v9
 ; GFX8-NEXT:    v_addc_u32_e32 v1, vcc, 0, v5, vcc
 ; GFX8-NEXT:    flat_store_dwordx2 v[0:1], v[6:7]
 ; GFX8-NEXT:    s_waitcnt vmcnt(0)
@@ -823,10 +823,10 @@ define void @add_v12i16(<12 x i16> addrspace(1)* %ptra, <12 x i16> addrspace(1)*
 ; GFX9-NEXT:    global_store_dwordx2 v[4:5], v[6:7], off offset:16
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
-  %a = load <12 x i16>, <12 x i16> addrspace(1)* %ptra, align 4
-  %b = load <12 x i16>, <12 x i16> addrspace(1)* %ptrb, align 4
+  %a = load <12 x i16>, ptr addrspace(1) %ptra, align 4
+  %b = load <12 x i16>, ptr addrspace(1) %ptrb, align 4
   %add = add <12 x i16> %a, %b
-  store <12 x i16> %add, <12 x i16> addrspace(1)* %ptr2, align 4
+  store <12 x i16> %add, ptr addrspace(1) %ptr2, align 4
   ret void
 }
 

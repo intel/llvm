@@ -19,9 +19,12 @@ header_restrictions = {
 
     "filesystem": "!defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)",
 
+    # TODO LLVM17: simplify this to __cplusplus >= 202002L
+    "coroutine": "(defined(__cpp_impl_coroutine) && __cpp_impl_coroutine >= 201902L) || (defined(__cpp_coroutines) && __cpp_coroutines >= 201703L)",
+
     "clocale": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
     "codecvt": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
-    "fstream": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
+    "fstream": "!defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_FSTREAM)",
     "iomanip": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
     "ios": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
     "iostream": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
@@ -40,7 +43,6 @@ header_restrictions = {
     "wchar.h": "!defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)",
 
     "experimental/algorithm": "__cplusplus >= 201103L",
-    "experimental/coroutine": "__cplusplus >= 201103L && !defined(_LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES)",
     "experimental/deque": "__cplusplus >= 201103L",
     "experimental/forward_list": "__cplusplus >= 201103L",
     "experimental/functional": "__cplusplus >= 201103L",
@@ -113,7 +115,8 @@ def produce(test_file, variables):
 
 def is_header(file):
     """Returns whether the given file is a header (i.e. not a directory or the modulemap file)."""
-    return not file.is_dir() and not file.name == 'module.modulemap.in'
+    return not file.is_dir() and not file.name == 'module.modulemap.in' and file.name != 'libcxx.imp'
+
 
 def main():
     monorepo_root = pathlib.Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

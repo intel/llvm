@@ -62,11 +62,21 @@ enum TraceLevel {
 bool trace(TraceLevel level);
 
 #ifdef __SYCL_RT_OS_WINDOWS
+// these same constants are used by win_proxy_loader.dll
+// if a plugin is added here, add it there as well.
+#ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#else
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
+#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
+#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#endif
 #elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
@@ -112,6 +122,7 @@ using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;
 using PiDeviceBinaryType = ::pi_device_binary_type;
 using PiContext = ::pi_context;
+using PiContextInfo = ::pi_context_info;
 using PiProgram = ::pi_program;
 using PiKernel = ::pi_kernel;
 using PiQueue = ::pi_queue;
@@ -130,6 +141,7 @@ using PiMemImageInfo = ::pi_image_info;
 using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
+using PiKernelCacheConfig = ::pi_kernel_cache_config;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
@@ -137,11 +149,11 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
 
 // Function to load the shared library
 // Implementation is OS dependent.
-void *loadOsLibrary(const std::string &Library);
+void *loadOsPluginLibrary(const std::string &Library);
 
 // Function to unload the shared library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
-int unloadOsLibrary(void *Library);
+int unloadOsPluginLibrary(void *Library);
 
 // OS agnostic function to unload the shared library
 int unloadPlugin(void *Library);

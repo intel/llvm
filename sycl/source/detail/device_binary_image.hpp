@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
@@ -112,6 +113,7 @@ public:
     };
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
+    size_t size() const { return std::distance(begin(), end()); }
     friend class RTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
@@ -220,6 +222,7 @@ public:
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
   }
+  const PropertyRange &getHostPipes() const { return HostPipes; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -243,6 +246,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
+  RTDeviceBinaryImage::PropertyRange HostPipes;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

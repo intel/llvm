@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CodeGenHwModes.h"
 #include "CodeGenInstruction.h"
 #include "CodeGenTarget.h"
-#include "SubtargetFeatureInfo.h"
-#include "Types.h"
+#include "InfoByHwMode.h"
 #include "VarLenCodeEmitterGen.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -25,7 +25,6 @@
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
-#include <cassert>
 #include <cstdint>
 #include <map>
 #include <set>
@@ -51,8 +50,7 @@ private:
   std::string getInstructionCaseForEncoding(Record *R, Record *EncodingDef,
                                             CodeGenTarget &Target);
   bool addCodeToMergeInOperand(Record *R, BitsInit *BI,
-                               const std::string &VarName, unsigned &NumberedOp,
-                               std::set<unsigned> &NamedOpIndices,
+                               const std::string &VarName,
                                std::string &Case, CodeGenTarget &Target);
 
   void emitInstructionBaseValues(
@@ -81,8 +79,6 @@ int CodeEmitterGen::getVariableBit(const std::string &VarName,
 // Returns true if it succeeds, false if an error.
 bool CodeEmitterGen::addCodeToMergeInOperand(Record *R, BitsInit *BI,
                                              const std::string &VarName,
-                                             unsigned &NumberedOp,
-                                             std::set<unsigned> &NamedOpIndices,
                                              std::string &Case,
                                              CodeGenTarget &Target) {
   CodeGenInstruction &CGI = Target.getInstruction(R);
@@ -113,81 +109,35 @@ bool CodeEmitterGen::addCodeToMergeInOperand(Record *R, BitsInit *BI,
   } else if (CGI.Operands.hasOperandNamed(VarName, OpIdx)) {
     // Get the machine operand number for the indicated operand.
     OpIdx = CGI.Operands[OpIdx].MIOperandNo;
-    assert(!CGI.Operands.isFlatOperandNotEmitted(OpIdx) &&
-           "Explicitly used operand also marked as not emitted!");
   } else {
-    // Fall back to positional lookup. By default, we now disable positional
-    // lookup (and print an error, below), but even so, we'll do the lookup to
-    // help print a helpful diagnostic message.
-    //
-    // TODO: When we remove useDeprecatedPositionallyEncodedOperands, delete all
-    // this code, just leaving a "no operand named X in record Y" error.
+    PrintError(R, Twine("No operand named ") + VarName + " in record " + R->getName());
+    return false;
+  }
 
-    unsigned NumberOps = CGI.Operands.size();
-    /// If this operand is not supposed to be emitted by the
-    /// generated emitter, skip it.
-    while (NumberedOp < NumberOps &&
-           (CGI.Operands.isFlatOperandNotEmitted(NumberedOp) ||
-              (!NamedOpIndices.empty() && NamedOpIndices.count(
-                CGI.Operands.getSubOperandNumber(NumberedOp).first)))) {
-      ++NumberedOp;
-    }
-
-    if (NumberedOp >=
-        CGI.Operands.back().MIOperandNo + CGI.Operands.back().MINumOperands) {
-      if (!Target.getInstructionSet()->getValueAsBit(
-              "useDeprecatedPositionallyEncodedOperands")) {
-        PrintError(R, Twine("No operand named ") + VarName + " in record " +
-                          R->getName() +
-                          " (would've given 'too few operands' error with "
-                          "useDeprecatedPositionallyEncodedOperands=true)");
-      } else {
-        PrintError(R, "Too few operands in record " + R->getName() +
-                          " (no match for variable " + VarName + ")");
-      }
-      return false;
-    }
-
-    OpIdx = NumberedOp++;
-
-    if (!Target.getInstructionSet()->getValueAsBit(
-            "useDeprecatedPositionallyEncodedOperands")) {
-      std::pair<unsigned, unsigned> SO =
-          CGI.Operands.getSubOperandNumber(OpIdx);
-      std::string OpName = CGI.Operands[SO.first].Name;
-      PrintError(R, Twine("No operand named ") + VarName + " in record " +
-                        R->getName() + " (would've used positional operand #" +
-                        Twine(SO.first) + " ('" + OpName + "') sub-op #" +
-                        Twine(SO.second) +
-                        " with useDeprecatedPositionallyEncodedOperands=true)");
-      return false;
-    }
+  if (CGI.Operands.isFlatOperandNotEmitted(OpIdx)) {
+    PrintError(R, "Operand " + VarName + " used but also marked as not emitted!");
+    return false;
   }
 
   std::pair<unsigned, unsigned> SO = CGI.Operands.getSubOperandNumber(OpIdx);
-  std::string &EncoderMethodName = CGI.Operands[SO.first].EncoderMethodName;
+  std::string &EncoderMethodName =
+      CGI.Operands[SO.first].EncoderMethodNames[SO.second];
 
   if (UseAPInt)
     Case += "      op.clearAllBits();\n";
 
-  // If the source operand has a custom encoder, use it. This will
-  // get the encoding for all of the suboperands.
+  Case += "      // op: " + VarName + "\n";
+
+  // If the source operand has a custom encoder, use it.
   if (!EncoderMethodName.empty()) {
-    // A custom encoder has all of the information for the
-    // sub-operands, if there are more than one, so only
-    // query the encoder once per source operand.
-    if (SO.second == 0) {
-      Case += "      // op: " + VarName + "\n";
-      if (UseAPInt) {
-        Case += "      " + EncoderMethodName + "(MI, " + utostr(OpIdx);
-        Case += ", op";
-      } else {
-        Case += "      op = " + EncoderMethodName + "(MI, " + utostr(OpIdx);
-      }
-      Case += ", Fixups, STI);\n";
+    if (UseAPInt) {
+      Case += "      " + EncoderMethodName + "(MI, " + utostr(OpIdx);
+      Case += ", op";
+    } else {
+      Case += "      op = " + EncoderMethodName + "(MI, " + utostr(OpIdx);
     }
+    Case += ", Fixups, STI);\n";
   } else {
-    Case += "      // op: " + VarName + "\n";
     if (UseAPInt) {
       Case += "      getMachineOpValue(MI, MI.getOperand(" + utostr(OpIdx) + ")";
       Case += ", op, Fixups, STI";
@@ -322,22 +272,6 @@ std::string CodeEmitterGen::getInstructionCaseForEncoding(Record *R, Record *Enc
                                                           CodeGenTarget &Target) {
   std::string Case;
   BitsInit *BI = EncodingDef->getValueAsBitsInit("Inst");
-  unsigned NumberedOp = 0;
-  std::set<unsigned> NamedOpIndices;
-
-  // Collect the set of operand indices that might correspond to named
-  // operand, and skip these when assigning operands based on position.
-  if (Target.getInstructionSet()->
-       getValueAsBit("noNamedPositionallyEncodedOperands")) {
-    CodeGenInstruction &CGI = Target.getInstruction(R);
-    for (const RecordVal &RV : R->getValues()) {
-      unsigned OpIdx;
-      if (!CGI.Operands.hasOperandNamed(RV.getName(), OpIdx))
-        continue;
-
-      NamedOpIndices.insert(OpIdx);
-    }
-  }
 
   // Loop over all of the fields in the instruction, determining which are the
   // operands to the instruction.
@@ -349,8 +283,8 @@ std::string CodeEmitterGen::getInstructionCaseForEncoding(Record *R, Record *Enc
       continue;
 
     Success &=
-        addCodeToMergeInOperand(R, BI, std::string(RV.getName()), NumberedOp,
-                                NamedOpIndices, Case, Target);
+        addCodeToMergeInOperand(R, BI, std::string(RV.getName()),
+                                Case, Target);
   }
 
   if (!Success) {
@@ -423,6 +357,8 @@ void CodeEmitterGen::emitInstructionBaseValues(
 }
 
 void CodeEmitterGen::run(raw_ostream &o) {
+  emitSourceFileHeader("Machine Code Emitter", o);
+
   CodeGenTarget Target(Records);
   std::vector<Record*> Insts = Records.getAllDerivedDefinitions("Instruction");
 
@@ -520,9 +456,8 @@ void CodeEmitterGen::run(raw_ostream &o) {
       o << "  const unsigned opcode = MI.getOpcode();\n"
         << "  if (Scratch.getBitWidth() != " << BitWidth << ")\n"
         << "    Scratch = Scratch.zext(" << BitWidth << ");\n"
-        << "  Inst = APInt(" << BitWidth
-        << ", makeArrayRef(InstBits + opcode * " << NumWords << ", " << NumWords
-        << "));\n"
+        << "  Inst = APInt(" << BitWidth << ", ArrayRef(InstBits + opcode * "
+        << NumWords << ", " << NumWords << "));\n"
         << "  APInt &Value = Inst;\n"
         << "  APInt &op = Scratch;\n"
         << "  switch (opcode) {\n";
@@ -568,11 +503,5 @@ void CodeEmitterGen::run(raw_ostream &o) {
 
 } // end anonymous namespace
 
-namespace llvm {
-
-void EmitCodeEmitter(RecordKeeper &RK, raw_ostream &OS) {
-  emitSourceFileHeader("Machine Code Emitter", OS);
-  CodeEmitterGen(RK).run(OS);
-}
-
-} // end namespace llvm
+static TableGen::Emitter::OptClass<CodeEmitterGen>
+    X("gen-emitter", "Generate machine code emitter");

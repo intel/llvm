@@ -12,20 +12,19 @@
 
 #include <__assert>
 #include <__config>
+#include <__type_traits/is_constant_evaluated.h>
 #include <cstddef>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
-// Catch invalid uses of the legacy _LIBCPP_DEBUG toggle.
-#if defined(_LIBCPP_DEBUG) && _LIBCPP_DEBUG != 0 && !defined(_LIBCPP_ENABLE_DEBUG_MODE)
-#   error "Enabling the debug mode now requires having configured the library with support for the debug mode"
-#endif
-
 #if defined(_LIBCPP_ENABLE_DEBUG_MODE) && !defined(_LIBCPP_CXX03_LANG) && !defined(_LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY)
 # define _LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY
+#endif
+
+#if defined(_LIBCPP_ENABLE_DEBUG_MODE) && !defined(_LIBCPP_DEBUG_ITERATOR_BOUNDS_CHECKING)
+# define _LIBCPP_DEBUG_ITERATOR_BOUNDS_CHECKING
 #endif
 
 #ifdef _LIBCPP_ENABLE_DEBUG_MODE
@@ -99,8 +98,8 @@ _C_node<_Cont>::__dereferenceable(const void* __i) const
 {
     typedef typename _Cont::const_iterator iterator;
     const iterator* __j = static_cast<const iterator*>(__i);
-    _Cont* _Cp = static_cast<_Cont*>(__c_);
-    return _Cp->__dereferenceable(__j);
+    _Cont* __cp = static_cast<_Cont*>(__c_);
+    return __cp->__dereferenceable(__j);
 }
 
 template <class _Cont>
@@ -109,8 +108,8 @@ _C_node<_Cont>::__decrementable(const void* __i) const
 {
     typedef typename _Cont::const_iterator iterator;
     const iterator* __j = static_cast<const iterator*>(__i);
-    _Cont* _Cp = static_cast<_Cont*>(__c_);
-    return _Cp->__decrementable(__j);
+    _Cont* __cp = static_cast<_Cont*>(__c_);
+    return __cp->__decrementable(__j);
 }
 
 template <class _Cont>
@@ -119,8 +118,8 @@ _C_node<_Cont>::__addable(const void* __i, ptrdiff_t __n) const
 {
     typedef typename _Cont::const_iterator iterator;
     const iterator* __j = static_cast<const iterator*>(__i);
-    _Cont* _Cp = static_cast<_Cont*>(__c_);
-    return _Cp->__addable(__j, __n);
+    _Cont* __cp = static_cast<_Cont*>(__c_);
+    return __cp->__addable(__j, __n);
 }
 
 template <class _Cont>
@@ -129,8 +128,8 @@ _C_node<_Cont>::__subscriptable(const void* __i, ptrdiff_t __n) const
 {
     typedef typename _Cont::const_iterator iterator;
     const iterator* __j = static_cast<const iterator*>(__i);
-    _Cont* _Cp = static_cast<_Cont*>(__c_);
-    return _Cp->__subscriptable(__j, __n);
+    _Cont* __cp = static_cast<_Cont*>(__c_);
+    return __cp->__subscriptable(__j, __n);
 }
 
 class _LIBCPP_TYPE_VIS __libcpp_db

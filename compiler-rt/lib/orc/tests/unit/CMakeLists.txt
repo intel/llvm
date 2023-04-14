@@ -5,9 +5,12 @@ set(UNITTEST_SOURCES
   error_test.cpp
   executor_address_test.cpp
   extensible_rtti_test.cpp
+  interval_map_test.cpp
+  interval_set_test.cpp
   orc_unit_test_main.cpp
   wrapper_function_utils_test.cpp
   simple_packed_serialization_test.cpp
+  string_pool_test.cpp
   )
 
 if (COMPILER_RT_CAN_EXECUTE_TESTS)

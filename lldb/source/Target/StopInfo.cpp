@@ -256,7 +256,7 @@ protected:
     if (!m_should_perform_action)
       return;
     m_should_perform_action = false;
-    bool internal_breakpoint = true;
+    bool all_stopping_locs_internal = true;
 
     ThreadSP thread_sp(m_thread_wp.lock());
 
@@ -332,7 +332,7 @@ protected:
 
           ExecutionContext exe_ctx(thread_sp->GetStackFrameAtIndex(0));
           Process *process = exe_ctx.GetProcessPtr();
-          if (process->GetModIDRef().IsLastResumeForUserExpression()) {
+          if (process->GetModIDRef().IsRunningExpression()) {
             // If we are in the middle of evaluating an expression, don't run
             // asynchronous breakpoint commands or expressions.  That could
             // lead to infinite recursion if the command or condition re-calls
@@ -421,8 +421,6 @@ protected:
               continue;
             }
 
-            internal_breakpoint = bp_loc_sp->GetBreakpoint().IsInternal();
-
             // First run the precondition, but since the precondition is per
             // breakpoint, only run it once per breakpoint.
             std::pair<std::unordered_set<break_id_t>::iterator, bool> result =
@@ -509,7 +507,7 @@ protected:
                         loc_desc.GetData());
               // We want this stop reported, so you will know we auto-continued
               // but only for external breakpoints:
-              if (!internal_breakpoint)
+              if (!bp_loc_sp->GetBreakpoint().IsInternal())
                 thread_sp->SetShouldReportStop(eVoteYes);
               auto_continue_says_stop = false;
             }
@@ -538,6 +536,9 @@ protected:
               else
                 actually_said_continue = true;
             }
+
+            if (m_should_stop && !bp_loc_sp->GetBreakpoint().IsInternal())
+              all_stopping_locs_internal = false;
 
             // If we are going to stop for this breakpoint, then remove the
             // breakpoint.
@@ -576,7 +577,7 @@ protected:
                   __FUNCTION__, m_value);
       }
 
-      if ((!m_should_stop || internal_breakpoint) &&
+      if ((!m_should_stop || all_stopping_locs_internal) &&
           thread_sp->CompletedPlanOverridesBreakpoint()) {
 
         // Override should_stop decision when we have completed step plan
@@ -822,22 +823,19 @@ protected:
     // stop
 
     ProcessSP process_sp = exe_ctx.GetProcessSP();
-    uint32_t num;
-    bool wp_triggers_after;
+    bool wp_triggers_after = process_sp->GetWatchpointReportedAfter();
 
-    if (!process_sp->GetWatchpointSupportInfo(num, wp_triggers_after)
-            .Success()) {
-      m_should_stop_is_valid = true;
-      m_should_stop = true;
-      return m_should_stop;
-    }
-            
     if (!wp_triggers_after) {
       // We have to step over the watchpoint before we know what to do:   
       StopInfoWatchpointSP me_as_siwp_sp 
           = std::static_pointer_cast<StopInfoWatchpoint>(shared_from_this());
       ThreadPlanSP step_over_wp_sp(new ThreadPlanStepOverWatchpoint(
           *(thread_sp.get()), me_as_siwp_sp, wp_sp));
+      // When this plan is done we want to stop, so set this as a Controlling
+      // plan.    
+      step_over_wp_sp->SetIsControllingPlan(true);
+      step_over_wp_sp->SetOkayToDiscard(false);
+
       Status error;
       error = thread_sp->QueueThreadPlan(step_over_wp_sp, false);
       // If we couldn't push the thread plan, just stop here:
@@ -1046,8 +1044,9 @@ private:
 
 class StopInfoUnixSignal : public StopInfo {
 public:
-  StopInfoUnixSignal(Thread &thread, int signo, const char *description)
-      : StopInfo(thread, signo) {
+  StopInfoUnixSignal(Thread &thread, int signo, const char *description,
+                     std::optional<int> code)
+      : StopInfo(thread, signo), m_code(code) {
     SetDescription(description);
   }
 
@@ -1102,19 +1101,26 @@ public:
     if (m_description.empty()) {
       ThreadSP thread_sp(m_thread_wp.lock());
       if (thread_sp) {
+        UnixSignalsSP unix_signals = thread_sp->GetProcess()->GetUnixSignals();
         StreamString strm;
-        const char *signal_name =
-            thread_sp->GetProcess()->GetUnixSignals()->GetSignalAsCString(
-                m_value);
-        if (signal_name)
-          strm.Printf("signal %s", signal_name);
+        strm << "signal ";
+
+        std::string signal_name =
+            unix_signals->GetSignalDescription(m_value, m_code);
+        if (signal_name.size())
+          strm << signal_name;
         else
-          strm.Printf("signal %" PRIi64, m_value);
+          strm.Printf("%" PRIi64, m_value);
+
         m_description = std::string(strm.GetString());
       }
     }
     return m_description.c_str();
   }
+
+private:
+  // In siginfo_t terms, if m_value is si_signo, m_code is si_code.
+  std::optional<int> m_code;
 };
 
 // StopInfoTrace
@@ -1373,9 +1379,10 @@ StopInfo::CreateStopReasonWithWatchpointID(Thread &thread, break_id_t watch_id,
 }
 
 StopInfoSP StopInfo::CreateStopReasonWithSignal(Thread &thread, int signo,
-                                                const char *description) {
+                                                const char *description,
+                                                std::optional<int> code) {
   thread.GetProcess()->GetUnixSignals()->IncrementSignalHitCount(signo);
-  return StopInfoSP(new StopInfoUnixSignal(thread, signo, description));
+  return StopInfoSP(new StopInfoUnixSignal(thread, signo, description, code));
 }
 
 StopInfoSP StopInfo::CreateStopReasonToTrace(Thread &thread) {

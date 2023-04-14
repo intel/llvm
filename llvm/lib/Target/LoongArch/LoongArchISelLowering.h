@@ -29,6 +29,8 @@ enum NodeType : unsigned {
   // TODO: add more LoongArchISDs
   CALL,
   RET,
+  TAIL,
+
   // 32-bit shifts, directly matching the semantics of the named LoongArch
   // instructions.
   SLL_W,
@@ -41,6 +43,8 @@ enum NodeType : unsigned {
   // FPR<->GPR transfer operations
   MOVGR2FR_W_LA64,
   MOVFR2GR_S_LA64,
+  MOVFCSR2GR,
+  MOVGR2FCSR,
 
   FTINT,
 
@@ -56,6 +60,42 @@ enum NodeType : unsigned {
   REVB_2W,
   BITREV_4B,
   BITREV_W,
+
+  // Intrinsic operations start ============================================
+  BREAK,
+  CACOP_D,
+  CACOP_W,
+  DBAR,
+  IBAR,
+  SYSCALL,
+
+  // CRC check operations
+  CRC_W_B_W,
+  CRC_W_H_W,
+  CRC_W_W_W,
+  CRC_W_D_W,
+  CRCC_W_B_W,
+  CRCC_W_H_W,
+  CRCC_W_W_W,
+  CRCC_W_D_W,
+
+  CSRRD,
+  CSRWR,
+  CSRXCHG,
+
+  // IOCSR access operations
+  IOCSRRD_B,
+  IOCSRRD_W,
+  IOCSRRD_H,
+  IOCSRRD_D,
+  IOCSRWR_B,
+  IOCSRWR_H,
+  IOCSRWR_W,
+  IOCSRWR_D,
+
+  // Read CPU configuration information operation
+  CPUCFG,
+  // Intrinsic operations end =============================================
 };
 } // end namespace LoongArchISD
 
@@ -134,6 +174,23 @@ public:
     return ISD::SIGN_EXTEND;
   }
 
+  Register getRegisterByName(const char *RegName, LLT VT,
+                             const MachineFunction &MF) const override;
+  bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
+
+  bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
+                              SDValue C) const override;
+
+  bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
+
+  bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
+                             unsigned AS,
+                             Instruction *I = nullptr) const override;
+
+  bool hasAndNotCompare(SDValue Y) const override;
+
+  bool convertSelectOfConstantsToMath(EVT VT) const override { return true; }
+
 private:
   /// Target-specific function used to lower LoongArch calling conventions.
   typedef bool LoongArchCCAssignFn(const DataLayout &DL, LoongArchABI::ABI ABI,
@@ -174,8 +231,11 @@ private:
   SDValue lowerSINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerWRITE_REGISTER(SDValue Op, SelectionDAG &DAG) const;
 
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
@@ -193,6 +253,10 @@ private:
   void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
+
+  bool isEligibleForTailCallOptimization(
+      CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
+      const SmallVectorImpl<CCValAssign> &ArgLocs) const;
 };
 
 } // end namespace llvm

@@ -1,15 +1,16 @@
-// UNSUPPORTED: -zos, -aix
+// UNSUPPORTED: target={{.*}}-zos{{.*}}, target={{.*}}-aix{{.*}}
 // RUN: cd %S
 // RUN: %clang_cc1 -x objective-c -fmodules -fno-implicit-modules \
 // RUN:     -fmodule-file-home-is-cwd -fmodule-name=libA -emit-module \
 // RUN:     -fmodules-embed-all-files %S/Inputs/normal-module-map/module.map \
 // RUN:     -o %t/mod.pcm
 // RUN: llvm-bcanalyzer --dump --disable-histogram %t/mod.pcm | FileCheck %s
+// RUN: llvm-bcanalyzer --dump --disable-histogram %t/mod.pcm | FileCheck %s --check-prefix=INPUT
 
-// CHECK: <INPUT_FILE {{.*}}/> blob data = 'Inputs{{/|\\}}normal-module-map{{/|\\}}module.map'
-// CHECK: <INPUT_FILE {{.*}}/> blob data = 'Inputs{{/|\\}}normal-module-map{{/|\\}}a2.h'
-// CHECK: <INPUT_FILE {{.*}}/> blob data = 'Inputs{{/|\\}}normal-module-map{{/|\\}}a1.h'
 // CHECK-NOT: MODULE_DIRECTORY
+// INPUT: <INPUT_FILE {{.*}}/> blob data = 'Inputs{{/|\\}}normal-module-map{{/|\\}}module.map'
+// INPUT: <INPUT_FILE {{.*}}/> blob data = 'Inputs{{/|\\}}normal-module-map{{/|\\}}a2.h'
+// INPUT: <INPUT_FILE {{.*}}/> blob data = 'Inputs{{/|\\}}normal-module-map{{/|\\}}a1.h'
 
 @import libA;
 

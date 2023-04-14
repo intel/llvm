@@ -69,6 +69,12 @@ public:
     CodeplayInteropTask = 13,
     CodeplayHostTask = 14,
     AdviseUSM = 15,
+    Copy2DUSM = 16,
+    Fill2DUSM = 17,
+    Memset2DUSM = 18,
+    CopyToDeviceGlobal = 19,
+    CopyFromDeviceGlobal = 20,
+    ReadWriteHostPipe = 21,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -94,6 +100,10 @@ public:
   CG(CG &&CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
+
+  std::vector<std::vector<char>> &getArgsStorage() { return MArgsStorage; }
+
+  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MAccStorage; }
 
   virtual ~CG() = default;
 
@@ -135,6 +145,7 @@ public:
   detail::OSModuleHandle MOSModuleHandle;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
+  RT::PiKernelCacheConfig MKernelCacheConfig;
 
   CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -148,7 +159,8 @@ public:
                detail::OSModuleHandle OSModuleHandle,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type, detail::code_location loc = {})
+               CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
+               detail::code_location loc = {})
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
@@ -157,7 +169,8 @@ public:
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)),
-        MAuxiliaryResources(std::move(AuxiliaryResources)) {
+        MAuxiliaryResources(std::move(AuxiliaryResources)),
+        MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }
@@ -392,6 +405,193 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+};
+
+/// "Copy 2D USM" command group class.
+class CGCopy2DUSM : public CG {
+  void *MSrc;
+  void *MDst;
+  size_t MSrcPitch;
+  size_t MDstPitch;
+  size_t MWidth;
+  size_t MHeight;
+
+public:
+  CGCopy2DUSM(void *Src, void *Dst, size_t SrcPitch, size_t DstPitch,
+              size_t Width, size_t Height,
+              std::vector<std::vector<char>> ArgsStorage,
+              std::vector<detail::AccessorImplPtr> AccStorage,
+              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+              std::vector<AccessorImplHost *> Requirements,
+              std::vector<detail::EventImplPtr> Events,
+              detail::code_location loc = {})
+      : CG(Copy2DUSM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MSrc(Src), MDst(Dst), MSrcPitch(SrcPitch), MDstPitch(DstPitch),
+        MWidth(Width), MHeight(Height) {}
+
+  void *getSrc() const { return MSrc; }
+  void *getDst() const { return MDst; }
+  size_t getSrcPitch() const { return MSrcPitch; }
+  size_t getDstPitch() const { return MDstPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+};
+
+/// "Fill 2D USM" command group class.
+class CGFill2DUSM : public CG {
+  std::vector<char> MPattern;
+  void *MDst;
+  size_t MPitch;
+  size_t MWidth;
+  size_t MHeight;
+
+public:
+  CGFill2DUSM(std::vector<char> Pattern, void *DstPtr, size_t Pitch,
+              size_t Width, size_t Height,
+              std::vector<std::vector<char>> ArgsStorage,
+              std::vector<detail::AccessorImplPtr> AccStorage,
+              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+              std::vector<AccessorImplHost *> Requirements,
+              std::vector<detail::EventImplPtr> Events,
+              detail::code_location loc = {})
+      : CG(Fill2DUSM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MPattern(std::move(Pattern)), MDst(DstPtr), MPitch(Pitch),
+        MWidth(Width), MHeight(Height) {}
+  void *getDst() const { return MDst; }
+  size_t getPitch() const { return MPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+  const std::vector<char> &getPattern() const { return MPattern; }
+};
+
+/// "Memset 2D USM" command group class.
+class CGMemset2DUSM : public CG {
+  char MValue;
+  void *MDst;
+  size_t MPitch;
+  size_t MWidth;
+  size_t MHeight;
+
+public:
+  CGMemset2DUSM(char Value, void *DstPtr, size_t Pitch, size_t Width,
+                size_t Height, std::vector<std::vector<char>> ArgsStorage,
+                std::vector<detail::AccessorImplPtr> AccStorage,
+                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                std::vector<AccessorImplHost *> Requirements,
+                std::vector<detail::EventImplPtr> Events,
+                detail::code_location loc = {})
+      : CG(Memset2DUSM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MValue(Value), MDst(DstPtr), MPitch(Pitch), MWidth(Width),
+        MHeight(Height) {}
+  void *getDst() const { return MDst; }
+  size_t getPitch() const { return MPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+  char getValue() const { return MValue; }
+};
+
+/// "ReadWriteHostPipe" command group class.
+class CGReadWriteHostPipe : public CG {
+  std::string PipeName;
+  bool Blocking;
+  void *HostPtr;
+  size_t TypeSize;
+  bool IsReadOp;
+
+public:
+  CGReadWriteHostPipe(const std::string &Name, bool Block, void *Ptr,
+                      size_t Size, bool Read,
+                      std::vector<std::vector<char>> ArgsStorage,
+                      std::vector<detail::AccessorImplPtr> AccStorage,
+                      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                      std::vector<AccessorImplHost *> Requirements,
+                      std::vector<detail::EventImplPtr> Events,
+                      detail::code_location loc = {})
+      : CG(ReadWriteHostPipe, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
+        IsReadOp(Read) {}
+
+  std::string getPipeName() { return PipeName; }
+  void *getHostPtr() { return HostPtr; }
+  size_t getTypeSize() { return TypeSize; }
+  bool isBlocking() { return Blocking; }
+  bool isReadHostPipe() { return IsReadOp; }
+};
+
+/// "Copy to device_global" command group class.
+class CGCopyToDeviceGlobal : public CG {
+  void *MSrc;
+  void *MDeviceGlobalPtr;
+  bool MIsDeviceImageScoped;
+  size_t MNumBytes;
+  size_t MOffset;
+  detail::OSModuleHandle MOSModuleHandle;
+
+public:
+  CGCopyToDeviceGlobal(
+      void *Src, void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+      size_t NumBytes, size_t Offset,
+      std::vector<std::vector<char>> ArgsStorage,
+      std::vector<detail::AccessorImplPtr> AccStorage,
+      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+      std::vector<AccessorImplHost *> Requirements,
+      std::vector<detail::EventImplPtr> Events,
+      detail::OSModuleHandle OSModuleHandle, detail::code_location loc = {})
+      : CG(CopyToDeviceGlobal, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MSrc(Src), MDeviceGlobalPtr(DeviceGlobalPtr),
+        MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
+        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+
+  void *getSrc() { return MSrc; }
+  void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
+  bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
+  size_t getNumBytes() { return MNumBytes; }
+  size_t getOffset() { return MOffset; }
+  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
+};
+
+/// "Copy to device_global" command group class.
+class CGCopyFromDeviceGlobal : public CG {
+  void *MDeviceGlobalPtr;
+  void *MDest;
+  bool MIsDeviceImageScoped;
+  size_t MNumBytes;
+  size_t MOffset;
+  detail::OSModuleHandle MOSModuleHandle;
+
+public:
+  CGCopyFromDeviceGlobal(
+      void *DeviceGlobalPtr, void *Dest, bool IsDeviceImageScoped,
+      size_t NumBytes, size_t Offset,
+      std::vector<std::vector<char>> ArgsStorage,
+      std::vector<detail::AccessorImplPtr> AccStorage,
+      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+      std::vector<AccessorImplHost *> Requirements,
+      std::vector<detail::EventImplPtr> Events,
+      detail::OSModuleHandle OSModuleHandle, detail::code_location loc = {})
+      : CG(CopyFromDeviceGlobal, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MDeviceGlobalPtr(DeviceGlobalPtr), MDest(Dest),
+        MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
+        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+
+  void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
+  void *getDest() { return MDest; }
+  bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
+  size_t getNumBytes() { return MNumBytes; }
+  size_t getOffset() { return MOffset; }
+  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 } // namespace detail

@@ -18,6 +18,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/SMLoc.h"
+#include <optional>
 
 namespace mlir {
 class AsmParsedResourceEntry;
@@ -140,7 +141,16 @@ public:
   void printStrippedAttrOrType(AttrOrType attrOrType) {
     if (succeeded(printAlias(attrOrType)))
       return;
+
+    raw_ostream &os = getStream();
+    uint64_t posPrior = os.tell();
     attrOrType.print(*this);
+    if (posPrior != os.tell())
+      return;
+
+    // Fallback to printing with prefix if the above failed to write anything
+    // to the output stream.
+    *this << attrOrType;
   }
 
   /// Print the provided array of attributes or types in the context of an
@@ -181,7 +191,7 @@ public:
   virtual void printSymbolName(StringRef symbolRef);
 
   /// Print a handle to the given dialect resource.
-  void printResourceHandle(const AsmDialectResourceHandle &resource);
+  virtual void printResourceHandle(const AsmDialectResourceHandle &resource);
 
   /// Print an optional arrow followed by a type list.
   template <typename TypeRange>
@@ -301,6 +311,7 @@ operator<<(AsmPrinterT &p, const ValueTypeRange<ValueRangeT> &types) {
   llvm::interleaveComma(types, p);
   return p;
 }
+
 template <typename AsmPrinterT>
 inline std::enable_if_t<std::is_base_of<AsmPrinter, AsmPrinterT>::value,
                         AsmPrinterT &>
@@ -308,6 +319,18 @@ operator<<(AsmPrinterT &p, const TypeRange &types) {
   llvm::interleaveComma(types, p);
   return p;
 }
+
+// Prevent matching the TypeRange version above for ValueRange
+// printing through base AsmPrinter. This is needed so that the
+// ValueRange printing behaviour does not change from printing
+// the SSA values to printing the types for the operands when
+// using AsmPrinter instead of OpAsmPrinter.
+template <typename AsmPrinterT, typename T>
+inline std::enable_if_t<std::is_same<AsmPrinter, AsmPrinterT>::value &&
+                            std::is_convertible<T &, ValueRange>::value,
+                        AsmPrinterT &>
+operator<<(AsmPrinterT &p, const T &other) = delete;
+
 template <typename AsmPrinterT, typename ElementT>
 inline std::enable_if_t<std::is_base_of<AsmPrinter, AsmPrinterT>::value,
                         AsmPrinterT &>
@@ -577,6 +600,9 @@ public:
   /// Parse a quoted string token if present.
   virtual ParseResult parseOptionalString(std::string *string) = 0;
 
+  /// Parses a Base64 encoded string of bytes.
+  virtual ParseResult parseBase64Bytes(std::vector<char> *bytes) = 0;
+
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;
 
@@ -753,7 +779,7 @@ public:
     StringRef keyword;
 
     /// The result of the switch statement or none if currently unknown.
-    Optional<ResultT> result;
+    std::optional<ResultT> result;
   };
 
   /// Parse a given keyword.
@@ -968,6 +994,10 @@ public:
 
   /// Parse an optional string attribute and return it in result.
   virtual OptionalParseResult parseOptionalAttribute(StringAttr &result,
+                                                     Type type = {}) = 0;
+
+  /// Parse an optional symbol ref attribute and return it in result.
+  virtual OptionalParseResult parseOptionalAttribute(SymbolRefAttr &result,
                                                      Type type = {}) = 0;
 
   /// Parse an optional attribute of a specific type and add it to the list with
@@ -1206,8 +1236,9 @@ public:
   }
 
   /// Parse a dimension list of a tensor or memref type.  This populates the
-  /// dimension list, using -1 for the `?` dimensions if `allowDynamic` is set
-  /// and errors out on `?` otherwise. Parsing the trailing `x` is configurable.
+  /// dimension list, using ShapedType::kDynamic for the `?` dimensions if
+  /// `allowDynamic` is set and errors out on `?` otherwise. Parsing the
+  /// trailing `x` is configurable.
   ///
   ///   dimension-list ::= eps | dimension (`x` dimension)*
   ///   dimension-list-with-trailing-x ::= (dimension `x`)*
@@ -1277,7 +1308,7 @@ public:
   /// which case an OpaqueLoc is set and will be resolved when parsing
   /// completes.
   virtual ParseResult
-  parseOptionalLocationSpecifier(Optional<Location> &result) = 0;
+  parseOptionalLocationSpecifier(std::optional<Location> &result) = 0;
 
   /// Return the name of the specified result in the specified syntax, as well
   /// as the sub-element in the name.  It returns an empty string and ~0U for
@@ -1331,12 +1362,13 @@ public:
   /// skip parsing that component.
   virtual ParseResult parseGenericOperationAfterOpName(
       OperationState &result,
-      Optional<ArrayRef<UnresolvedOperand>> parsedOperandType = llvm::None,
-      Optional<ArrayRef<Block *>> parsedSuccessors = llvm::None,
-      Optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions =
-          llvm::None,
-      Optional<ArrayRef<NamedAttribute>> parsedAttributes = llvm::None,
-      Optional<FunctionType> parsedFnType = llvm::None) = 0;
+      std::optional<ArrayRef<UnresolvedOperand>> parsedOperandType =
+          std::nullopt,
+      std::optional<ArrayRef<Block *>> parsedSuccessors = std::nullopt,
+      std::optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions =
+          std::nullopt,
+      std::optional<ArrayRef<NamedAttribute>> parsedAttributes = std::nullopt,
+      std::optional<FunctionType> parsedFnType = std::nullopt) = 0;
 
   /// Parse a single SSA value operand name along with a result number if
   /// `allowResultNumber` is true.
@@ -1443,7 +1475,7 @@ public:
     UnresolvedOperand ssaName;    // SourceLoc, SSA name, result #.
     Type type;                    // Type.
     DictionaryAttr attrs;         // Attributes if present.
-    Optional<Location> sourceLoc; // Source location specifier if present.
+    std::optional<Location> sourceLoc; // Source location specifier if present.
   };
 
   /// Parse a single argument with the following syntax:

@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___ITERATOR_COUNTED_ITERATOR_H
 #define _LIBCPP___ITERATOR_COUNTED_ITERATOR_H
 
@@ -24,9 +25,10 @@
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
 #include <__memory/pointer_traits.h>
+#include <__type_traits/add_pointer.h>
+#include <__type_traits/conditional.h>
 #include <__utility/move.h>
 #include <compare>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -34,7 +36,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 template<class>
 struct __counted_iterator_concept {};
@@ -141,12 +143,12 @@ public:
   decltype(auto) operator++(int) {
     _LIBCPP_ASSERT(__count_ > 0, "Iterator already at or past end.");
     --__count_;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try { return __current_++; }
     catch(...) { ++__count_; throw; }
 #else
     return __current_++;
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
   }
 
   _LIBCPP_HIDE_FROM_ABI
@@ -301,7 +303,7 @@ struct iterator_traits<counted_iterator<_Iter>> : iterator_traits<_Iter> {
                                 add_pointer_t<iter_reference_t<_Iter>>, void>;
 };
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

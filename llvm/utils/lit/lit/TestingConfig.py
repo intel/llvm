@@ -30,6 +30,7 @@ class TestingConfig(object):
             'LLDB',
             'LD_PRELOAD',
             'LLVM_SYMBOLIZER_PATH',
+            'LLVM_PROFILE_FILE',
             'ASAN_SYMBOLIZER_PATH',
             'HWASAN_SYMBOLIZER_PATH',
             'LSAN_SYMBOLIZER_PATH',
@@ -63,7 +64,9 @@ class TestingConfig(object):
             'DFLTCC',
         ]
 
-        if sys.platform == 'win32':
+        if sys.platform.startswith('aix'):
+            pass_vars += ['LIBPATH']
+        elif sys.platform == 'win32':
             pass_vars += [
                 'COMSPEC',
                 'INCLUDE',

@@ -9,6 +9,7 @@
 #ifndef LLDB_LLDB_ENUMERATIONS_H
 #define LLDB_LLDB_ENUMERATIONS_H
 
+#include <cstdint>
 #include <type_traits>
 
 #ifndef SWIG
@@ -374,6 +375,9 @@ FLAGS_ENUM(SymbolContextItem){
     /// from being used during frame PC lookups and many other
     /// potential address to symbol context lookups.
     eSymbolContextVariable = (1u << 7),
+
+    // Keep this last and up-to-date for what the last enum value is.
+    eSymbolContextLastItem = eSymbolContextVariable,
 };
 LLDB_MARK_AS_BITMASK_ENUM(SymbolContextItem)
 
@@ -433,6 +437,9 @@ FLAGS_ENUM(WatchpointEventType){
 /// specification for ease of use and consistency.
 /// The enum -> string code is in Language.cpp, don't change this
 /// table without updating that code as well.
+///
+/// This datatype is used in SBExpressionOptions::SetLanguage() which
+/// makes this type API. Do not change its underlying storage type!
 enum LanguageType {
   eLanguageTypeUnknown = 0x0000,        ///< Unknown or invalid language value.
   eLanguageTypeC89 = 0x0001,            ///< ISO C:1989.
@@ -478,7 +485,6 @@ enum LanguageType {
   // Language::SetLanguageFromCString and Language::AsCString assume these can
   // be used as indexes into array g_languages.
   eLanguageTypeMipsAssembler = 0x0024,   ///< Mips_Assembler.
-  eLanguageTypeExtRenderScript = 0x0025, ///< RenderScript.
   eNumLanguageTypes
 };
 
@@ -1202,6 +1208,25 @@ enum TraceCursorSeekType {
   eTraceCursorSeekTypeEnd
 };
 
+/// Enum to control the verbosity level of `dwim-print` execution.
+enum DWIMPrintVerbosity {
+  /// Run `dwim-print` with no verbosity.
+  eDWIMPrintVerbosityNone,
+  /// Print a message when `dwim-print` uses `expression` evaluation.
+  eDWIMPrintVerbosityExpression,
+  /// Always print a message indicating how `dwim-print` is evaluating its
+  /// expression.
+  eDWIMPrintVerbosityFull,
+};
+
+enum WatchpointValueKind {
+  eWatchPointValueKindInvalid = 0,
+  ///< Watchpoint was created watching a variable
+  eWatchPointValueKindVariable = 1,
+  ///< Watchpoint was created watching the result of an expression that was
+  ///< evaluated at creation time.
+  eWatchPointValueKindExpression = 2,
+};
 
 } // namespace lldb
 

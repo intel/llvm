@@ -13,6 +13,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/memcpy.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
 
@@ -35,13 +36,6 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-inline void memcpy(void *Dst, const void *Src, size_t Size) {
-  char *Destination = reinterpret_cast<char *>(Dst);
-  const char *Source = reinterpret_cast<const char *>(Src);
-  for (size_t I = 0; I < Size; ++I) {
-    Destination[I] = Source[I];
-  }
-}
 
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
@@ -82,8 +76,8 @@ public:
     return group<Dims>(Global, Local, Global / Local, Index);
   }
 
-  template <class ResType>
-  static ResType createSubGroupMask(uint32_t Bits, size_t BitsNum) {
+  template <class ResType, typename BitsType>
+  static ResType createSubGroupMask(BitsType Bits, size_t BitsNum) {
     return ResType(Bits, BitsNum);
   }
 
@@ -243,6 +237,16 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
                  __spv::MemorySemanticsMask::SequentiallyConsistent |
                  __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                  LocalScopeMask);
+}
+
+// To ensure loop unrolling is done when processing dimensions.
+template <size_t... Inds, class F>
+void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+  (f(Inds), ...);
+}
+
+template <size_t count, class F> void dim_loop(F &&f) {
+  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 
 } // namespace detail

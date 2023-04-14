@@ -416,7 +416,7 @@ BitsInit *BitsInit::get(RecordKeeper &RK, ArrayRef<Init *> Range) {
 }
 
 void BitsInit::Profile(FoldingSetNodeID &ID) const {
-  ProfileBitsInit(ID, makeArrayRef(getTrailingObjects<Init *>(), NumBits));
+  ProfileBitsInit(ID, ArrayRef(getTrailingObjects<Init *>(), NumBits));
 }
 
 Init *BitsInit::convertInitializerTo(RecTy *Ty) const {
@@ -778,6 +778,14 @@ void UnOpInit::Profile(FoldingSetNodeID &ID) const {
 Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
   RecordKeeper &RK = getRecordKeeper();
   switch (getOpcode()) {
+  case TOLOWER:
+    if (StringInit *LHSs = dyn_cast<StringInit>(LHS))
+      return StringInit::get(RK, LHSs->getValue().lower());
+    break;
+  case TOUPPER:
+    if (StringInit *LHSs = dyn_cast<StringInit>(LHS))
+      return StringInit::get(RK, LHSs->getValue().upper());
+    break;
   case CAST:
     if (isa<StringRecTy>(getType())) {
       if (StringInit *LHSs = dyn_cast<StringInit>(LHS))
@@ -792,37 +800,40 @@ Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
 
     } else if (isa<RecordRecTy>(getType())) {
       if (StringInit *Name = dyn_cast<StringInit>(LHS)) {
-        if (!CurRec && !IsFinal)
-          break;
-        assert(CurRec && "NULL pointer");
-        Record *D;
-
-        // Self-references are allowed, but their resolution is delayed until
-        // the final resolve to ensure that we get the correct type for them.
-        auto *Anonymous = dyn_cast<AnonymousNameInit>(CurRec->getNameInit());
-        if (Name == CurRec->getNameInit() ||
-            (Anonymous && Name == Anonymous->getNameInit())) {
-          if (!IsFinal)
-            break;
-          D = CurRec;
-        } else {
-          D = CurRec->getRecords().getDef(Name->getValue());
-          if (!D) {
-            if (IsFinal)
-              PrintFatalError(CurRec->getLoc(),
-                              Twine("Undefined reference to record: '") +
-                              Name->getValue() + "'\n");
-            break;
+        Record *D = RK.getDef(Name->getValue());
+        if (!D && CurRec) {
+          // Self-references are allowed, but their resolution is delayed until
+          // the final resolve to ensure that we get the correct type for them.
+          auto *Anonymous = dyn_cast<AnonymousNameInit>(CurRec->getNameInit());
+          if (Name == CurRec->getNameInit() ||
+              (Anonymous && Name == Anonymous->getNameInit())) {
+            if (!IsFinal)
+              break;
+            D = CurRec;
           }
+        }
+
+        auto PrintFatalErrorHelper = [CurRec](const Twine &T) {
+          if (CurRec)
+            PrintFatalError(CurRec->getLoc(), T);
+          else
+            PrintFatalError(T);
+        };
+
+        if (!D) {
+          if (IsFinal) {
+            PrintFatalErrorHelper(Twine("Undefined reference to record: '") +
+                                  Name->getValue() + "'\n");
+          }
+          break;
         }
 
         DefInit *DI = DefInit::get(D);
         if (!DI->getType()->typeIsA(getType())) {
-          PrintFatalError(CurRec->getLoc(),
-                          Twine("Expected type '") +
-                          getType()->getAsString() + "', got '" +
-                          DI->getType()->getAsString() + "' in: " +
-                          getAsString() + "\n");
+          PrintFatalErrorHelper(Twine("Expected type '") +
+                                getType()->getAsString() + "', got '" +
+                                DI->getType()->getAsString() + "' in: " +
+                                getAsString() + "\n");
         }
         return DI;
       }
@@ -927,6 +938,12 @@ std::string UnOpInit::getAsString() const {
   case EMPTY: Result = "!empty"; break;
   case GETDAGOP: Result = "!getdagop"; break;
   case LOG2 : Result = "!logtwo"; break;
+  case TOLOWER:
+    Result = "!tolower";
+    break;
+  case TOUPPER:
+    Result = "!toupper";
+    break;
   }
   return Result + "(" + LHS->getAsString() + ")";
 }
@@ -1037,7 +1054,83 @@ Init *BinOpInit::getListConcat(TypedInit *LHS, Init *RHS) {
    return BinOpInit::get(BinOpInit::LISTCONCAT, LHS, RHS, LHS->getType());
 }
 
-Init *BinOpInit::Fold(Record *CurRec) const {
+std::optional<bool> BinOpInit::CompareInit(unsigned Opc, Init *LHS, Init *RHS) const {
+   // First see if we have two bit, bits, or int.
+   IntInit *LHSi = dyn_cast_or_null<IntInit>(
+       LHS->convertInitializerTo(IntRecTy::get(getRecordKeeper())));
+   IntInit *RHSi = dyn_cast_or_null<IntInit>(
+       RHS->convertInitializerTo(IntRecTy::get(getRecordKeeper())));
+
+   if (LHSi && RHSi) {
+     bool Result;
+     switch (Opc) {
+     case EQ:
+       Result = LHSi->getValue() == RHSi->getValue();
+       break;
+     case NE:
+       Result = LHSi->getValue() != RHSi->getValue();
+       break;
+     case LE:
+       Result = LHSi->getValue() <= RHSi->getValue();
+       break;
+     case LT:
+       Result = LHSi->getValue() < RHSi->getValue();
+       break;
+     case GE:
+       Result = LHSi->getValue() >= RHSi->getValue();
+       break;
+     case GT:
+       Result = LHSi->getValue() > RHSi->getValue();
+       break;
+     default:
+       llvm_unreachable("unhandled comparison");
+     }
+     return Result;
+   }
+
+   // Next try strings.
+   StringInit *LHSs = dyn_cast<StringInit>(LHS);
+   StringInit *RHSs = dyn_cast<StringInit>(RHS);
+
+   if (LHSs && RHSs) {
+     bool Result;
+     switch (Opc) {
+     case EQ:
+       Result = LHSs->getValue() == RHSs->getValue();
+       break;
+     case NE:
+       Result = LHSs->getValue() != RHSs->getValue();
+       break;
+     case LE:
+       Result = LHSs->getValue() <= RHSs->getValue();
+       break;
+     case LT:
+       Result = LHSs->getValue() < RHSs->getValue();
+       break;
+     case GE:
+       Result = LHSs->getValue() >= RHSs->getValue();
+       break;
+     case GT:
+       Result = LHSs->getValue() > RHSs->getValue();
+       break;
+     default:
+       llvm_unreachable("unhandled comparison");
+     }
+     return Result;
+   }
+
+   // Finally, !eq and !ne can be used with records.
+   if (Opc == EQ || Opc == NE) {
+     DefInit *LHSd = dyn_cast<DefInit>(LHS);
+     DefInit *RHSd = dyn_cast<DefInit>(RHS);
+     if (LHSd && RHSd)
+       return (Opc == EQ) ? LHSd == RHSd : LHSd != RHSd;
+   }
+
+   return std::nullopt;
+}
+
+ Init *BinOpInit::Fold(Record *CurRec) const {
   switch (getOpcode()) {
   case CONCAT: {
     DagInit *LHSs = dyn_cast<DagInit>(LHS);
@@ -1091,6 +1184,28 @@ Init *BinOpInit::Fold(Record *CurRec) const {
     }
     break;
   }
+  case LISTREMOVE: {
+    ListInit *LHSs = dyn_cast<ListInit>(LHS);
+    ListInit *RHSs = dyn_cast<ListInit>(RHS);
+    if (LHSs && RHSs) {
+      SmallVector<Init *, 8> Args;
+      for (Init *EltLHS : *LHSs) {
+        bool Found = false;
+        for (Init *EltRHS : *RHSs) {
+          if (std::optional<bool> Result = CompareInit(EQ, EltLHS, EltRHS)) {
+            if (*Result) {
+              Found = true;
+              break;
+            }
+          }
+        }
+        if (!Found)
+          Args.push_back(EltLHS);
+      }
+      return ListInit::get(Args, LHSs->getElementType());
+    }
+    break;
+  }
   case STRCONCAT: {
     StringInit *LHSs = dyn_cast<StringInit>(LHS);
     StringInit *RHSs = dyn_cast<StringInit>(RHS);
@@ -1118,53 +1233,8 @@ Init *BinOpInit::Fold(Record *CurRec) const {
   case LT:
   case GE:
   case GT: {
-    // First see if we have two bit, bits, or int.
-    IntInit *LHSi = dyn_cast_or_null<IntInit>(
-        LHS->convertInitializerTo(IntRecTy::get(getRecordKeeper())));
-    IntInit *RHSi = dyn_cast_or_null<IntInit>(
-        RHS->convertInitializerTo(IntRecTy::get(getRecordKeeper())));
-
-    if (LHSi && RHSi) {
-      bool Result;
-      switch (getOpcode()) {
-      case EQ: Result = LHSi->getValue() == RHSi->getValue(); break;
-      case NE: Result = LHSi->getValue() != RHSi->getValue(); break;
-      case LE: Result = LHSi->getValue() <= RHSi->getValue(); break;
-      case LT: Result = LHSi->getValue() <  RHSi->getValue(); break;
-      case GE: Result = LHSi->getValue() >= RHSi->getValue(); break;
-      case GT: Result = LHSi->getValue() >  RHSi->getValue(); break;
-      default: llvm_unreachable("unhandled comparison");
-      }
-      return BitInit::get(getRecordKeeper(), Result);
-    }
-
-    // Next try strings.
-    StringInit *LHSs = dyn_cast<StringInit>(LHS);
-    StringInit *RHSs = dyn_cast<StringInit>(RHS);
-
-    if (LHSs && RHSs) {
-      bool Result;
-      switch (getOpcode()) {
-      case EQ: Result = LHSs->getValue() == RHSs->getValue(); break;
-      case NE: Result = LHSs->getValue() != RHSs->getValue(); break;
-      case LE: Result = LHSs->getValue() <= RHSs->getValue(); break;
-      case LT: Result = LHSs->getValue() <  RHSs->getValue(); break;
-      case GE: Result = LHSs->getValue() >= RHSs->getValue(); break;
-      case GT: Result = LHSs->getValue() >  RHSs->getValue(); break;
-      default: llvm_unreachable("unhandled comparison");
-      }
-      return BitInit::get(getRecordKeeper(), Result);
-    }
-
-    // Finally, !eq and !ne can be used with records.
-    if (getOpcode() == EQ || getOpcode() == NE) {
-      DefInit *LHSd = dyn_cast<DefInit>(LHS);
-      DefInit *RHSd = dyn_cast<DefInit>(RHS);
-      if (LHSd && RHSd)
-        return BitInit::get(getRecordKeeper(),
-                            (getOpcode() == EQ) ? LHSd == RHSd : LHSd != RHSd);
-    }
-
+    if (std::optional<bool> Result = CompareInit(getOpcode(), LHS, RHS))
+      return BitInit::get(getRecordKeeper(), *Result);
     break;
   }
   case SETDAGOP: {
@@ -1260,6 +1330,7 @@ std::string BinOpInit::getAsString() const {
   case GT: Result = "!gt"; break;
   case LISTCONCAT: Result = "!listconcat"; break;
   case LISTSPLAT: Result = "!listsplat"; break;
+  case LISTREMOVE: Result = "!listremove"; break;
   case STRCONCAT: Result = "!strconcat"; break;
   case INTERLEAVE: Result = "!interleave"; break;
   case SETDAGOP: Result = "!setdagop"; break;
@@ -1718,34 +1789,34 @@ void ExistsOpInit::Profile(FoldingSetNodeID &ID) const {
 
 Init *ExistsOpInit::Fold(Record *CurRec, bool IsFinal) const {
   if (StringInit *Name = dyn_cast<StringInit>(Expr)) {
-    if (!CurRec && !IsFinal)
-      return const_cast<ExistsOpInit *>(this);
-
-    // Self-references are allowed, but their resolution is delayed until
-    // the final resolve to ensure that we get the correct type for them.
-    auto *Anonymous = dyn_cast<AnonymousNameInit>(CurRec->getNameInit());
-    if (Name == CurRec->getNameInit() ||
-        (Anonymous && Name == Anonymous->getNameInit())) {
-      if (!IsFinal)
-        return const_cast<ExistsOpInit *>(this);
-
-      // No doubt that there exists a record, so we should check if types are
-      // compatiable.
-      return IntInit::get(getRecordKeeper(),
-                          CurRec->getType()->typeIsA(CheckType));
-    }
 
     // Look up all defined records to see if we can find one.
     Record *D = CheckType->getRecordKeeper().getDef(Name->getValue());
-    if (!D) {
-      if (IsFinal)
-        return IntInit::get(getRecordKeeper(), 0);
-      return const_cast<ExistsOpInit *>(this);
+    if (D) {
+      // Check if types are compatible.
+      return IntInit::get(getRecordKeeper(),
+                          DefInit::get(D)->getType()->typeIsA(CheckType));
     }
 
-    // Check if types are compatiable.
-    return IntInit::get(getRecordKeeper(),
-                        DefInit::get(D)->getType()->typeIsA(CheckType));
+    if (CurRec) {
+      // Self-references are allowed, but their resolution is delayed until
+      // the final resolve to ensure that we get the correct type for them.
+      auto *Anonymous = dyn_cast<AnonymousNameInit>(CurRec->getNameInit());
+      if (Name == CurRec->getNameInit() ||
+          (Anonymous && Name == Anonymous->getNameInit())) {
+        if (!IsFinal)
+          return const_cast<ExistsOpInit *>(this);
+
+        // No doubt that there exists a record, so we should check if types are
+        // compatible.
+        return IntInit::get(getRecordKeeper(),
+                            CurRec->getType()->typeIsA(CheckType));
+      }
+    }
+
+    if (IsFinal)
+      return IntInit::get(getRecordKeeper(), 0);
+    return const_cast<ExistsOpInit *>(this);
   }
   return const_cast<ExistsOpInit *>(this);
 }
@@ -2136,10 +2207,9 @@ static void ProfileCondOpInit(FoldingSetNodeID &ID,
 }
 
 void CondOpInit::Profile(FoldingSetNodeID &ID) const {
-  ProfileCondOpInit(ID,
-      makeArrayRef(getTrailingObjects<Init *>(), NumConds),
-      makeArrayRef(getTrailingObjects<Init *>() + NumConds, NumConds),
-      ValType);
+  ProfileCondOpInit(ID, ArrayRef(getTrailingObjects<Init *>(), NumConds),
+                    ArrayRef(getTrailingObjects<Init *>() + NumConds, NumConds),
+                    ValType);
 }
 
 CondOpInit *CondOpInit::get(ArrayRef<Init *> CondRange,
@@ -2206,7 +2276,7 @@ Init *CondOpInit::Fold(Record *CurRec) const {
   }
 
   PrintFatalError(CurRec->getLoc(),
-                  CurRec->getName() +
+                  CurRec->getNameInitAsString() +
                   " does not have any true condition in:" +
                   this->getAsString());
   return nullptr;
@@ -2305,7 +2375,9 @@ DagInit::get(Init *V, StringInit *VN,
 }
 
 void DagInit::Profile(FoldingSetNodeID &ID) const {
-  ProfileDagInit(ID, Val, ValName, makeArrayRef(getTrailingObjects<Init *>(), NumArgs), makeArrayRef(getTrailingObjects<StringInit *>(), NumArgNames));
+  ProfileDagInit(ID, Val, ValName,
+                 ArrayRef(getTrailingObjects<Init *>(), NumArgs),
+                 ArrayRef(getTrailingObjects<StringInit *>(), NumArgNames));
 }
 
 Record *DagInit::getOperatorAsDef(ArrayRef<SMLoc> Loc) const {
@@ -2637,20 +2709,20 @@ Init *Record::getValueInit(StringRef FieldName) const {
 }
 
 StringRef Record::getValueAsString(StringRef FieldName) const {
-  llvm::Optional<StringRef> S = getValueAsOptionalString(FieldName);
+  std::optional<StringRef> S = getValueAsOptionalString(FieldName);
   if (!S)
     PrintFatalError(getLoc(), "Record `" + getName() +
       "' does not have a field named `" + FieldName + "'!\n");
-  return S.value();
+  return *S;
 }
 
-llvm::Optional<StringRef>
+std::optional<StringRef>
 Record::getValueAsOptionalString(StringRef FieldName) const {
   const RecordVal *R = getValue(FieldName);
   if (!R || !R->getValue())
-    return llvm::Optional<StringRef>();
+    return std::nullopt;
   if (isa<UnsetInit>(R->getValue()))
-    return llvm::Optional<StringRef>();
+    return std::nullopt;
 
   if (StringInit *SI = dyn_cast<StringInit>(R->getValue()))
     return SI->getValue();
@@ -2909,7 +2981,7 @@ RecordKeeper::getAllDerivedDefinitions(StringRef ClassName) const {
   // the same vectors multiple times.
   auto Pair = ClassRecordsMap.try_emplace(ClassName);
   if (Pair.second)
-    Pair.first->second = getAllDerivedDefinitions(makeArrayRef(ClassName));
+    Pair.first->second = getAllDerivedDefinitions(ArrayRef(ClassName));
 
   return Pair.first->second;
 }
@@ -2933,6 +3005,10 @@ std::vector<Record *> RecordKeeper::getAllDerivedDefinitions(
                           }))
       Defs.push_back(OneDef.second.get());
   }
+
+  llvm::sort(Defs, [](Record *LHS, Record *RHS) {
+    return LHS->getName().compare_numeric(RHS->getName()) < 0;
+  });
 
   return Defs;
 }

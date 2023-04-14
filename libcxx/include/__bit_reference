@@ -13,13 +13,15 @@
 #include <__algorithm/copy_n.h>
 #include <__algorithm/fill_n.h>
 #include <__algorithm/min.h>
-#include <__bits>
+#include <__bit/countr.h>
+#include <__bit/popcount.h>
 #include <__config>
 #include <__iterator/iterator_traits.h>
 #include <__memory/construct_at.h>
 #include <__memory/pointer_traits.h>
+#include <__type_traits/conditional.h>
+#include <__utility/swap.h>
 #include <cstring>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -54,6 +56,8 @@ class __bit_reference
     friend class __bit_const_reference<_Cp>;
     friend class __bit_iterator<_Cp, false>;
 public:
+    using __container = typename _Cp::__self;
+
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20
     __bit_reference(const __bit_reference&) = default;
 
@@ -72,7 +76,7 @@ public:
         return *this;
     }
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     _LIBCPP_HIDE_FROM_ABI constexpr const __bit_reference& operator=(bool __x) const noexcept {
         if (__x)
             *__seg_ |= __mask_;
@@ -88,7 +92,7 @@ public:
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20 void flip() _NOEXCEPT {*__seg_ ^= __mask_;}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20 __bit_iterator<_Cp, false> operator&() const _NOEXCEPT
-        {return __bit_iterator<_Cp, false>(__seg_, static_cast<unsigned>(__libcpp_ctz(__mask_)));}
+        {return __bit_iterator<_Cp, false>(__seg_, static_cast<unsigned>(std::__libcpp_ctz(__mask_)));}
 private:
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20
     explicit __bit_reference(__storage_pointer __s, __storage_type __m) _NOEXCEPT
@@ -152,6 +156,8 @@ class __bit_const_reference
     friend typename _Cp::__self;
     friend class __bit_iterator<_Cp, true>;
 public:
+    using __container = typename _Cp::__self;
+
     _LIBCPP_INLINE_VISIBILITY
     __bit_const_reference(const __bit_const_reference&) = default;
 
@@ -163,7 +169,7 @@ public:
         {return static_cast<bool>(*__seg_ & __mask_);}
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20 __bit_iterator<_Cp, true> operator&() const _NOEXCEPT
-        {return __bit_iterator<_Cp, true>(__seg_, static_cast<unsigned>(__libcpp_ctz(__mask_)));}
+        {return __bit_iterator<_Cp, true>(__seg_, static_cast<unsigned>(std::__libcpp_ctz(__mask_)));}
 private:
     _LIBCPP_INLINE_VISIBILITY
     _LIBCPP_CONSTEXPR
@@ -1132,7 +1138,7 @@ private:
 
 public:
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX20 __bit_iterator() _NOEXCEPT
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     : __seg_(nullptr), __ctz_(0)
 #endif
     {}

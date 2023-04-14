@@ -78,7 +78,8 @@
 #endif
 
 #if defined(__apple_build_version__)
-#define TEST_APPLE_CLANG_VER (__clang_major__ * 100) + __clang_minor__
+// Given AppleClang XX.Y.Z, TEST_APPLE_CLANG_VER is XXYZ (e.g. AppleClang 14.0.3 => 1403)
+#define TEST_APPLE_CLANG_VER (__apple_build_version__ / 10000)
 #elif defined(__clang_major__)
 #define TEST_CLANG_VER (__clang_major__ * 100) + __clang_minor__
 #elif defined(__GNUC__)
@@ -385,6 +386,10 @@ inline void DoNotOptimize(Tp const& value) {
 
 #if defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #  define TEST_HAS_NO_FILESYSTEM_LIBRARY
+#endif
+
+#if defined(_LIBCPP_HAS_NO_FSTREAM)
+#  define TEST_HAS_NO_FSTREAM
 #endif
 
 #if defined(_LIBCPP_HAS_NO_FGETPOS_FSETPOS)

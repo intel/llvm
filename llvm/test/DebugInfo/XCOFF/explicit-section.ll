@@ -71,7 +71,7 @@ entry:
 ; CHECK-NEXT:                                          # -IsFloatingPointOperationLogOrAbortEnabled
 ; CHECK-NEXT:          .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; CHECK-NEXT:                                          # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
-; CHECK-NEXT:          .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
+; CHECK-NEXT:          .byte   0x00                            # -IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
 ; CHECK-NEXT:          .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; CHECK-NEXT:          .byte   0x00                            # NumberOfFixedParms = 0
 ; CHECK-NEXT:          .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
@@ -94,9 +94,9 @@ entry:
 ; CHECK-NEXT:  # %bb.0:                                # %entry
 ; CHECK-NEXT:  L..tmp3:
 ; CHECK-NEXT:          mflr 0
-; CHECK-NEXT:          stw 0, 8(1)
 ; CHECK-NEXT:          stwu 1, -64(1)
 ; CHECK-NEXT:          li 3, 0
+; CHECK-NEXT:          stw 0, 72(1)
 ; CHECK-NEXT:          stw 3, 60(1)
 ; CHECK-NEXT:  L..tmp4:
 ; CHECK-NEXT:  L..tmp5:

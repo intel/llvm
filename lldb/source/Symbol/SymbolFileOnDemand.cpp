@@ -12,6 +12,7 @@
 #include "lldb/Symbol/SymbolFile.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -197,13 +198,13 @@ Type *SymbolFileOnDemand::ResolveTypeUID(lldb::user_id_t type_uid) {
   return m_sym_file_impl->ResolveTypeUID(type_uid);
 }
 
-llvm::Optional<SymbolFile::ArrayInfo>
+std::optional<SymbolFile::ArrayInfo>
 SymbolFileOnDemand::GetDynamicArrayInfoForUID(
     lldb::user_id_t type_uid, const lldb_private::ExecutionContext *exe_ctx) {
   if (!m_debug_info_enabled) {
     LLDB_LOG(GetLog(), "[{0}] {1} is skipped", GetSymbolFileName(),
              __FUNCTION__);
-    return llvm::None;
+    return std::nullopt;
   }
   return m_sym_file_impl->GetDynamicArrayInfoForUID(type_uid, exe_ctx);
 }
@@ -467,7 +468,7 @@ void SymbolFileOnDemand::GetTypes(SymbolContextScope *sc_scope,
   return m_sym_file_impl->GetTypes(sc_scope, type_mask, type_list);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 SymbolFileOnDemand::GetTypeSystemForLanguage(LanguageType language) {
   if (!m_debug_info_enabled) {
     Log *log = GetLog();

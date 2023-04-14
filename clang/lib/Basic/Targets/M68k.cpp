@@ -17,10 +17,11 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <optional>
 
 namespace clang {
 namespace targets {
@@ -113,11 +114,17 @@ void M68kTargetInfo::getTargetDefines(const LangOptions &Opts,
   default:
     break;
   }
+
+  if (CPU >= CK_68020) {
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+  }
 }
 
 ArrayRef<Builtin::Info> M68kTargetInfo::getTargetBuiltins() const {
   // FIXME: Implement.
-  return None;
+  return std::nullopt;
 }
 
 bool M68kTargetInfo::hasFeature(StringRef Feature) const {
@@ -131,12 +138,12 @@ const char *const M68kTargetInfo::GCCRegNames[] = {
     "pc"};
 
 ArrayRef<const char *> M68kTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 ArrayRef<TargetInfo::GCCRegAlias> M68kTargetInfo::getGCCRegAliases() const {
   // No aliases.
-  return None;
+  return std::nullopt;
 }
 
 bool M68kTargetInfo::validateAsmConstraint(
@@ -185,13 +192,19 @@ bool M68kTargetInfo::validateAsmConstraint(
       break;
     }
     break;
+  case 'Q': // address register indirect addressing
+  case 'U': // address register indirect w/ constant offset addressing
+    // TODO: Handle 'S' (basically 'm' when pc-rel is enforced) when
+    // '-mpcrel' flag is properly handled by the driver.
+    info.setAllowsMemory();
+    return true;
   default:
     break;
   }
   return false;
 }
 
-llvm::Optional<std::string>
+std::optional<std::string>
 M68kTargetInfo::handleAsmEscapedChar(char EscChar) const {
   char C;
   switch (EscChar) {
@@ -209,7 +222,7 @@ M68kTargetInfo::handleAsmEscapedChar(char EscChar) const {
     C = 'd';
     break;
   default:
-    return llvm::None;
+    return std::nullopt;
   }
 
   return std::string(1, C);

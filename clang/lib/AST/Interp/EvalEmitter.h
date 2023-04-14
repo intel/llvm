@@ -23,7 +23,6 @@
 #include "llvm/Support/Error.h"
 
 namespace clang {
-class FunctionDecl;
 namespace interp {
 class Context;
 class Function;
@@ -93,11 +92,17 @@ private:
   /// Temporaries which require storage.
   llvm::DenseMap<unsigned, std::unique_ptr<char[]>> Locals;
 
+  Block *getLocal(unsigned Index) const {
+    auto It = Locals.find(Index);
+    assert(It != Locals.end() && "Missing local variable");
+    return reinterpret_cast<Block *>(It->second.get());
+  }
+
   // The emitter always tracks the current instruction and sets OpPC to a token
   // value which is mapped to the location of the opcode being evaluated.
   CodePtr OpPC;
   /// Location of a failure.
-  llvm::Optional<SourceLocation> BailLocation;
+  std::optional<SourceLocation> BailLocation;
   /// Location of the current instruction.
   SourceInfo CurrentSource;
 

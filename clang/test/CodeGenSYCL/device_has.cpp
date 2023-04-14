@@ -29,6 +29,15 @@ constexpr sycl::aspect getAspect() { return sycl::aspect::cpu; }
 // CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !sycl_declared_aspects ![[ASPECTS1]] !srcloc ![[SRCLOC7:[0-9]+]] {
 [[sycl::device_has(getAspect())]] void func6() {}
 
+// CHECK: define linkonce_odr spir_func void @{{.*}}func7{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
+// CHECK: define linkonce_odr spir_func void @{{.*}}func7{{.*}} !sycl_declared_aspects ![[ASPECTS5:[0-9]+]]
+template <sycl::aspect... Asp>
+[[sycl::device_has(Asp...)]] void func7() {}
+
+// CHECK: define linkonce_odr spir_func void @{{.*}}func8{{.*}} !sycl_declared_aspects ![[ASPECTS5]]
+template <sycl::aspect Asp, sycl::aspect... AspPack>
+[[sycl::device_has(Asp, AspPack...)]] void func8() {}
+
 class KernelFunctor {
 public:
   [[sycl::device_has(sycl::aspect::cpu)]] void operator()() const {
@@ -38,6 +47,9 @@ public:
     func4<sycl::aspect::host>();
     func5();
     func6();
+    func7<sycl::aspect::cpu>();
+    func7<sycl::aspect::cpu, sycl::aspect::host>();
+    func8<sycl::aspect::cpu, sycl::aspect::host>();
   }
 };
 
@@ -61,5 +73,6 @@ void foo() {
 // CHECK: [[SRCLOC5]] = !{i32 {{[0-9]+}}}
 // CHECK: [[SRCLOC6]] = !{i32 {{[0-9]+}}}
 // CHECK: [[SRCLOC7]] = !{i32 {{[0-9]+}}}
+// CHECK: [[ASPECTS5]] = !{i32 1, i32 0}
 // CHECK: [[ASPECTS4]] = !{i32 2}
 // CHECK: [[SRCLOC8]] = !{i32 {{[0-9]+}}}

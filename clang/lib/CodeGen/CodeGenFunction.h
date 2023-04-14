@@ -41,6 +41,7 @@
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
+#include <optional>
 
 namespace llvm {
 class BasicBlock;
@@ -332,6 +333,7 @@ public:
   // in this header.
   struct CGCoroInfo {
     std::unique_ptr<CGCoroData> Data;
+    bool InSuspendBlock = false;
     CGCoroInfo();
     ~CGCoroInfo();
   };
@@ -339,6 +341,10 @@ public:
 
   bool isCoroutine() const {
     return CurCoro.Data != nullptr;
+  }
+
+  bool inSuspendBlock() const {
+    return isCoroutine() && CurCoro.InSuspendBlock;
   }
 
   /// CurGD - The GlobalDecl for the current function being compiled.
@@ -539,7 +545,7 @@ public:
   /// potentially set the return value.
   bool SawAsmBlock = false;
 
-  const NamedDecl *CurSEHParent = nullptr;
+  GlobalDecl CurSEHParent;
 
   /// True if the current function is an outlined SEH helper. This can be a
   /// finally block or filter expression.
@@ -723,7 +729,7 @@ public:
     FPOptions OldFPFeatures;
     llvm::fp::ExceptionBehavior OldExcept;
     llvm::RoundingMode OldRounding;
-    Optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
+    std::optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
   };
   FPOptions CurFPFeatures;
 
@@ -2021,7 +2027,7 @@ public:
     return getInvokeDestImpl();
   }
 
-  bool currentFunctionUsesSEHTry() const { return CurSEHParent != nullptr; }
+  bool currentFunctionUsesSEHTry() const { return !!CurSEHParent; }
 
   const TargetInfo &getTarget() const { return Target; }
   llvm::LLVMContext &getLLVMContext() { return CGM.getLLVMContext(); }
@@ -2231,7 +2237,7 @@ public:
   /// Emit the unified return block, trying to avoid its emission when
   /// possible.
   /// \return The debug location of the user written return statement if the
-  /// return block is is avoided.
+  /// return block is avoided.
   llvm::DebugLoc EmitReturnBlock();
 
   /// FinishFunction - Complete IR generation of the current function. It is
@@ -2884,7 +2890,7 @@ public:
                               AggValueSlot::Overlap_t Overlap,
                               SourceLocation Loc, bool NewPointerIsChecked);
 
-  /// Emit assumption load for all bases. Requires to be be called only on
+  /// Emit assumption load for all bases. Requires to be called only on
   /// most-derived class and not under construction of the object.
   void EmitVTableAssumptionLoads(const CXXRecordDecl *ClassDecl, Address This);
 
@@ -3163,7 +3169,8 @@ public:
 
     Address getIndirectAddress() const {
       assert(isIndirect());
-      return Address(Value, ElementType, CharUnits::fromQuantity(Alignment));
+      return Address(Value, ElementType, CharUnits::fromQuantity(Alignment),
+                     KnownNonNull);
     }
   };
 
@@ -3213,7 +3220,7 @@ public:
   /// This function may clear the current insertion point; callers should use
   /// EnsureInsertPoint if they wish to subsequently generate code without first
   /// calling EmitBlock, EmitBranch, or EmitStmt.
-  void EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs = None);
+  void EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs = std::nullopt);
 
   /// EmitSimpleStmt - Try to emit a "simple" statement which does not
   /// necessarily require an insertion point or debug information; typically
@@ -3241,10 +3248,10 @@ public:
   void EmitIfStmt(const IfStmt &S);
 
   void EmitWhileStmt(const WhileStmt &S,
-                     ArrayRef<const Attr *> Attrs = None);
-  void EmitDoStmt(const DoStmt &S, ArrayRef<const Attr *> Attrs = None);
+                     ArrayRef<const Attr *> Attrs = std::nullopt);
+  void EmitDoStmt(const DoStmt &S, ArrayRef<const Attr *> Attrs = std::nullopt);
   void EmitForStmt(const ForStmt &S,
-                   ArrayRef<const Attr *> Attrs = None);
+                   ArrayRef<const Attr *> Attrs = std::nullopt);
   void EmitReturnStmt(const ReturnStmt &S);
   void EmitDeclStmt(const DeclStmt &S);
   void EmitBreakStmt(const BreakStmt &S);
@@ -3321,7 +3328,7 @@ public:
                                     llvm::Value *ParentFP);
 
   void EmitCXXForRangeStmt(const CXXForRangeStmt &S,
-                           ArrayRef<const Attr *> Attrs = None);
+                           ArrayRef<const Attr *> Attrs = std::nullopt);
 
   /// Controls insertion of cancellation exit blocks in worksharing constructs.
   class OMPCancelStackRAII {
@@ -3578,6 +3585,7 @@ public:
       const OMPTargetTeamsDistributeSimdDirective &S);
   void EmitOMPGenericLoopDirective(const OMPGenericLoopDirective &S);
   void EmitOMPInteropDirective(const OMPInteropDirective &S);
+  void EmitOMPParallelMaskedDirective(const OMPParallelMaskedDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,
@@ -3770,8 +3778,13 @@ public:
   /// an LLVM type of the same size of the lvalue's type.  If the lvalue has a
   /// variable length type, this is not possible.
   ///
-  LValue EmitLValue(const Expr *E);
+  LValue EmitLValue(const Expr *E,
+                    KnownNonNull_t IsKnownNonNull = NotKnownNonNull);
 
+private:
+  LValue EmitLValueHelper(const Expr *E, KnownNonNull_t IsKnownNonNull);
+
+public:
   /// Same as EmitLValue but additionally we generate checking code to
   /// guard against undefined behavior.  This is only suitable when we know
   /// that the address will be used to access the object.
@@ -3974,6 +3987,8 @@ public:
 
   llvm::Value *EmitIvarOffset(const ObjCInterfaceDecl *Interface,
                               const ObjCIvarDecl *Ivar);
+  llvm::Value *EmitIvarOffsetAsPointerDiff(const ObjCInterfaceDecl *Interface,
+                                           const ObjCIvarDecl *Ivar);
   LValue EmitLValueForField(LValue Base, const FieldDecl* Field);
   LValue EmitLValueForLambdaField(const FieldDecl *Field);
 
@@ -4260,6 +4275,7 @@ public:
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
+  llvm::Value *EmitLoongArchBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
                                llvm::AtomicOrdering &AO,
                                llvm::SyncScope::ID &SSID);
@@ -4800,9 +4816,10 @@ public:
   /// into the address of a local variable.  In such a case, it's quite
   /// reasonable to just ignore the returned alignment when it isn't from an
   /// explicit source.
-  Address EmitPointerWithAlignment(const Expr *Addr,
-                                   LValueBaseInfo *BaseInfo = nullptr,
-                                   TBAAAccessInfo *TBAAInfo = nullptr);
+  Address
+  EmitPointerWithAlignment(const Expr *Addr, LValueBaseInfo *BaseInfo = nullptr,
+                           TBAAAccessInfo *TBAAInfo = nullptr,
+                           KnownNonNull_t IsKnownNonNull = NotKnownNonNull);
 
   /// If \p E references a parameter with pass_object_size info or a constant
   /// array size modifier, emit the object size divided by the size of \p EltTy.
@@ -4831,6 +4848,12 @@ public:
   // last (if it exists).
   void EmitMultiVersionResolver(llvm::Function *Resolver,
                                 ArrayRef<MultiVersionResolverOption> Options);
+  void
+  EmitX86MultiVersionResolver(llvm::Function *Resolver,
+                              ArrayRef<MultiVersionResolverOption> Options);
+  void
+  EmitAArch64MultiVersionResolver(llvm::Function *Resolver,
+                                  ArrayRef<MultiVersionResolverOption> Options);
 
 private:
   QualType getVarArgType(const Expr *Arg);
@@ -4849,7 +4872,11 @@ private:
   llvm::Value *EmitX86CpuSupports(ArrayRef<StringRef> FeatureStrs);
   llvm::Value *EmitX86CpuSupports(uint64_t Mask);
   llvm::Value *EmitX86CpuInit();
-  llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
+  llvm::Value *FormX86ResolverCondition(const MultiVersionResolverOption &RO);
+  llvm::Value *EmitAArch64CpuInit();
+  llvm::Value *
+  FormAArch64ResolverCondition(const MultiVersionResolverOption &RO);
+  llvm::Value *EmitAArch64CpuSupports(ArrayRef<StringRef> FeatureStrs);
 };
 
 
@@ -4859,9 +4886,9 @@ DominatingLLVMValue::save(CodeGenFunction &CGF, llvm::Value *value) {
 
   // Otherwise, we need an alloca.
   auto align = CharUnits::fromQuantity(
-            CGF.CGM.getDataLayout().getPrefTypeAlignment(value->getType()));
+      CGF.CGM.getDataLayout().getPrefTypeAlign(value->getType()));
   Address alloca =
-    CGF.CreateTempAlloca(value->getType(), align, "cond-cleanup.save");
+      CGF.CreateTempAlloca(value->getType(), align, "cond-cleanup.save");
   CGF.Builder.CreateStore(value, alloca);
 
   return saved_type(alloca.getPointer(), true);

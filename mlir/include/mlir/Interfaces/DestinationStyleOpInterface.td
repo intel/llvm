@@ -85,14 +85,14 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/"Return the init operands.",
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"::mlir::OpOperandVector",
       /*methodName=*/"getDpsInitOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         auto [start, end] = $_op.getDpsInitsPositionRange();
 
-        OpOperandVector result;
+        ::mlir::OpOperandVector result;
         result.reserve(end - start);
         for (int i = start; i < end; ++i)
           result.push_back(&$_op->getOpOperand(i));
@@ -101,7 +101,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/"Return the `i`-th init operand.",
-      /*retTy=*/"OpOperand *",
+      /*retTy=*/"::mlir::OpOperand *",
       /*methodName=*/"getDpsInitOperand",
       /*args=*/(ins "int64_t":$i),
       /*methodBody=*/"",
@@ -115,7 +115,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
       /*desc=*/"Set the `i`-th init operand.",
       /*retTy=*/"void",
       /*methodName=*/"setDpsInitOperand",
-      /*args=*/(ins "int64_t":$i, "Value":$value),
+      /*args=*/(ins "int64_t":$i, "::mlir::Value":$value),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(i >= 0 && i < $_op.getNumDpsInits());
@@ -135,7 +135,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/"Return the input operands.",
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"::mlir::OpOperandVector",
       /*methodName=*/"getDpsInputOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
@@ -144,7 +144,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
         int64_t numInits = end - start;
         int64_t numOperands = $_op.getNumOperands();
 
-        OpOperandVector result;
+        ::mlir::OpOperandVector result;
         result.reserve(numOperands - numInits);
         for (int i = 0; i < start; ++i)
           result.push_back(&$_op->getOpOperand(i));
@@ -156,7 +156,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/[{ Return the `i`-th input operand.  }],
-      /*retTy=*/"OpOperand *",
+      /*retTy=*/"::mlir::OpOperand *",
       /*methodName=*/"getDpsInputOperand",
       /*args=*/(ins "int64_t":$i),
       /*methodBody=*/"",
@@ -173,7 +173,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
       /*desc=*/"Return true if `opOperand` is an input.",
       /*retTy=*/"bool",
       /*methodName=*/"isDpsInput",
-      /*args=*/(ins "OpOperand *":$opOperand),
+      /*args=*/(ins "::mlir::OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         auto [start, end] = $_op.getDpsInitsPositionRange();
@@ -185,7 +185,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
       /*desc=*/"Return true if `opOperand` is an init.",
       /*retTy=*/"bool",
       /*methodName=*/"isDpsInit",
-      /*args=*/(ins "OpOperand *":$opOperand),
+      /*args=*/(ins "::mlir::OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         auto [start, end] = $_op.getDpsInitsPositionRange();
@@ -197,7 +197,7 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
       /*desc=*/"Return true if the `opOperand` is a scalar value.",
       /*retTy=*/"bool",
       /*methodName=*/"isScalar",
-      /*args=*/(ins "OpOperand *":$opOperand),
+      /*args=*/(ins "::mlir::OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == $_op.getOperation());
@@ -206,9 +206,9 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/"Return the OpResult that is tied to the given OpOperand.",
-      /*retTy=*/"OpResult",
+      /*retTy=*/"::mlir::OpResult",
       /*methodName=*/"getTiedOpResult",
-      /*args=*/(ins "OpOperand *":$opOperand),
+      /*args=*/(ins "::mlir::OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == $_op.getOperation());
@@ -222,9 +222,9 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/"Return the OpOperand that is tied to the given OpResult.",
-      /*retTy=*/"OpOperand *",
+      /*retTy=*/"::mlir::OpOperand *",
       /*methodName=*/"getTiedOpOperand",
-      /*args=*/(ins "OpResult":$opResult),
+      /*args=*/(ins "::mlir::OpResult":$opResult),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opResult.getDefiningOp() == $_op.getOperation());
@@ -242,10 +242,10 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         return $_op->getNumResults() == 0 &&
-          llvm::all_of($_op->getOpOperands(),
-            [&](OpOperand &opOperand) {
+          ::llvm::all_of($_op->getOpOperands(),
+            [&](::mlir::OpOperand &opOperand) {
               return isScalar(&opOperand) ||
-                     opOperand.get().getType().template isa<MemRefType>();
+                     opOperand.get().getType().template isa<::mlir::MemRefType>();
             });
       }]
     >,
@@ -256,56 +256,11 @@ def DestinationStyleOpInterface : OpInterface<"DestinationStyleOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::all_of($_op->getOpOperands(),
-          [&](OpOperand &opOperand) {
+        return ::llvm::all_of($_op->getOpOperands(),
+          [&](::mlir::OpOperand &opOperand) {
             return isScalar(&opOperand) ||
-                   opOperand.get().getType().template isa<RankedTensorType>();
+                   opOperand.get().getType().template isa<::mlir::RankedTensorType>();
           });
-      }]
-    >,
-    //===------------------------------------------------------------------===//
-    // Other static interface methods.
-    //===------------------------------------------------------------------===//
-    InterfaceMethod<
-      /*desc=*/[{
-        Clone the current operation with the given location and operands. This
-        is used to abstract away the optional underlying region creation. This
-        does not change the balance between input, init_buffer and
-        init_tensors operands.
-      }],
-      /*retTy=*/"Operation *",
-      /*methodName=*/"clone",
-      (ins "OpBuilder &":$b, "Location":$loc, "TypeRange":$resultTypes,
-           "ValueRange":$operands),
-      [{
-        BlockAndValueMapping bvm;
-        OperationState state(
-          loc, ConcreteOp::getOperationName(), operands, resultTypes,
-          $_op->getAttrs());
-        for (Region &r : $_op->getRegions())
-          r.cloneInto(state.addRegion(), bvm);
-        return b.create(state);
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Clone the current operation with the given location, operands
-        and BlockAndValueMapping but leave the regions empty. This is
-        used to abstract away the optional underlying region creation.
-        This does not change the balance between input, init_buffer
-        and init_tensors operands.
-      }],
-      /*retTy=*/"Operation *",
-      /*methodName=*/"cloneWithoutRegions",
-      (ins "OpBuilder &":$b, "Location":$loc, "TypeRange":$resultTypes,
-           "ValueRange":$operands),
-      [{
-        OperationState state(
-          loc, ConcreteOp::getOperationName(), operands, resultTypes,
-          $_op->getAttrs());
-        for (size_t cnt = 0, e = $_op->getNumRegions(); cnt < e; ++cnt)
-          state.addRegion();
-        return b.create(state);
       }]
     >
   ];

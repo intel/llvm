@@ -17,6 +17,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/platform.hpp>
@@ -204,27 +205,11 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
   }
 };
 
-// Specialization for OpenCL version, splits the string returned by OpenCL
+// Specialization for device version
 template <> struct get_device_info_impl<std::string, info::device::version> {
   static std::string get(RT::PiDevice dev, const plugin &Plugin) {
-    std::string result = get_device_info_string(
-        dev, PiInfoCode<info::device::version>::value, Plugin);
-
-    // Extract OpenCL version from the returned string.
-    // For example, for the string "OpenCL 2.1 (Build 0)"
-    // return '2.1'.
-    auto dotPos = result.find('.');
-    if (dotPos == std::string::npos)
-      return result;
-
-    auto leftPos = result.rfind(' ', dotPos);
-    if (leftPos == std::string::npos)
-      leftPos = 0;
-    else
-      leftPos++;
-
-    auto rightPos = result.find(' ', dotPos);
-    return result.substr(leftPos, rightPos - leftPos);
+    return get_device_info_string(dev, PiInfoCode<info::device::version>::value,
+                                  Plugin);
   }
 };
 
@@ -242,14 +227,23 @@ struct get_device_info_impl<std::vector<info::fp_config>,
   }
 };
 
-// Specialization for queue_profiling, OpenCL returns a bitfield
+// Specialization for queue_profiling. In addition to pi_queue level profiling,
+// piGetDeviceAndHostTimer support is needed for command_submit query support.
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-    cl_command_queue_properties result;
+  static bool get(RT::PiDevice Dev, const plugin &Plugin) {
+    pi_queue_properties Properties;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::queue_profiling>::value, sizeof(result),
-        &result, nullptr);
-    return (result & CL_QUEUE_PROFILING_ENABLE);
+        Dev, PiInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
+    if (!(Properties & PI_QUEUE_FLAG_PROFILING_ENABLE))
+      return false;
+    RT::PiResult Result =
+        Plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+            Dev, nullptr, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION)
+      return false;
+    Plugin.checkPiResult(Result);
+    return true;
   }
 };
 
@@ -259,8 +253,21 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
     pi_memory_order_capabilities result;
-    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, PiInfoCode<info::device::atomic_memory_order_capabilities>::value,
+        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    return readMemoryOrderBitfield(result);
+  }
+};
+
+// Specialization for atomic_fence_order_capabilities, PI returns a bitfield
+template <>
+struct get_device_info_impl<std::vector<memory_order>,
+                            info::device::atomic_fence_order_capabilities> {
+  static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_order_capabilities result;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
         sizeof(pi_memory_order_capabilities), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
@@ -272,22 +279,36 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
     pi_memory_scope_capabilities result;
-    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, PiInfoCode<info::device::atomic_memory_scope_capabilities>::value,
         sizeof(pi_memory_scope_capabilities), &result, nullptr);
     return readMemoryScopeBitfield(result);
   }
 };
 
-// Specialization for bf16
+// Specialization for atomic_fence_scope_capabilities, PI returns a bitfield
 template <>
-struct get_device_info_impl<bool, info::device::ext_oneapi_bfloat16> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+struct get_device_info_impl<std::vector<memory_scope>,
+                            info::device::atomic_fence_scope_capabilities> {
+  static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_scope_capabilities result;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
+        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    return readMemoryScopeBitfield(result);
+  }
+};
 
+// Specialization for bf16 math functions
+template <>
+struct get_device_info_impl<bool,
+                            info::device::ext_oneapi_bfloat16_math_functions> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
     bool result = false;
 
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::ext_oneapi_bfloat16>::value,
+        dev,
+        PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
         sizeof(result), &result, nullptr);
     if (Err != PI_SUCCESS) {
       return false;
@@ -357,6 +378,7 @@ static bool is_sycl_partition_property(info::partition_property PP) {
   case info::partition_property::partition_equally:
   case info::partition_property::partition_by_counts:
   case info::partition_property::partition_by_affinity_domain:
+  case info::partition_property::ext_intel_partition_by_cslice:
     return true;
   }
   return false;
@@ -740,6 +762,25 @@ struct get_device_info_impl<bool, info::device::ext_intel_mem_channel> {
   }
 };
 
+// Specialization for kernel fusion support
+template <>
+struct get_device_info_impl<
+    bool, ext::codeplay::experimental::info::device::supports_fusion> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
+    // and LevelZero.
+    (void)dev;
+    return (Plugin.getBackend() == backend::ext_oneapi_level_zero) ||
+           (Plugin.getBackend() == backend::opencl);
+#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    (void)dev;
+    (void)Plugin;
+    return false;
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  }
+};
+
 template <typename Param>
 typename Param::return_type get_device_info(RT::PiDevice dev,
                                             const plugin &Plugin) {
@@ -995,6 +1036,13 @@ get_device_info_host<info::device::atomic_memory_order_capabilities>() {
 }
 
 template <>
+inline std::vector<memory_order>
+get_device_info_host<info::device::atomic_fence_order_capabilities>() {
+  return {memory_order::relaxed, memory_order::acquire, memory_order::release,
+          memory_order::acq_rel};
+}
+
+template <>
 inline std::vector<memory_scope>
 get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
   return {memory_scope::work_item, memory_scope::sub_group,
@@ -1002,7 +1050,15 @@ get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
 }
 
 template <>
-inline bool get_device_info_host<info::device::ext_oneapi_bfloat16>() {
+inline std::vector<memory_scope>
+get_device_info_host<info::device::atomic_fence_scope_capabilities>() {
+  return {memory_scope::work_item, memory_scope::sub_group,
+          memory_scope::work_group, memory_scope::device, memory_scope::system};
+}
+
+template <>
+inline bool
+get_device_info_host<info::device::ext_oneapi_bfloat16_math_functions>() {
   return false;
 }
 
@@ -1571,6 +1627,37 @@ inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
   throw runtime_error(
       "Obtaining the device free memory is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_clock_rate>() {
+  throw runtime_error(
+      "Obtaining the device memory clock rate is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_bus_width>() {
+  throw runtime_error(
+      "Obtaining the device memory bus width is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline int32_t
+get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
+  throw runtime_error(
+      "Obtaining max compute queue indices is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool get_device_info_host<
+    ext::codeplay::experimental::info::device::supports_fusion>() {
+  // No support for fusion on the host device.
+  return false;
 }
 
 } // namespace detail

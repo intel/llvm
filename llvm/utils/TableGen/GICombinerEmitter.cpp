@@ -15,6 +15,9 @@
 #include "GlobalISel/CodeExpander.h"
 #include "GlobalISel/CodeExpansions.h"
 #include "GlobalISel/GIMatchDag.h"
+#include "GlobalISel/GIMatchDagEdge.h"
+#include "GlobalISel/GIMatchDagInstr.h"
+#include "GlobalISel/GIMatchDagOperands.h"
 #include "GlobalISel/GIMatchDagPredicate.h"
 #include "GlobalISel/GIMatchTree.h"
 #include "llvm/ADT/SmallSet.h"
@@ -24,6 +27,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/TableGen/Error.h"
+#include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringMatcher.h"
 #include "llvm/TableGen/TableGenBackend.h"
 #include <cstdint>
@@ -636,7 +640,7 @@ void GICombinerEmitter::emitNameMatcher(raw_ostream &OS) const {
         std::make_pair(std::string(EnumeratedRule.getName()), Code));
   }
 
-  OS << "static Optional<uint64_t> getRuleIdxForIdentifier(StringRef "
+  OS << "static std::optional<uint64_t> getRuleIdxForIdentifier(StringRef "
         "RuleIdentifier) {\n"
      << "  uint64_t I;\n"
      << "  // getAtInteger(...) returns false on success\n"
@@ -647,7 +651,7 @@ void GICombinerEmitter::emitNameMatcher(raw_ostream &OS) const {
   StringMatcher Matcher("RuleIdentifier", Cases, OS);
   Matcher.Emit();
   OS << "#endif // ifndef NDEBUG\n\n"
-     << "  return None;\n"
+     << "  return std::nullopt;\n"
      << "}\n";
 }
 
@@ -823,16 +827,19 @@ void GICombinerEmitter::generateCodeForTree(raw_ostream &OS,
          << Indent << "      "
          << CodeExpander(Rule->getMatchingFixupCode()->getValue(), Expansions,
                          RuleDef.getLoc(), ShowExpansions)
-         << "\n"
+         << '\n'
          << Indent << "      return true;\n"
          << Indent << "  }()";
     }
     OS << Indent << "     ) {\n" << Indent << "   ";
 
     if (const StringInit *Code = dyn_cast<StringInit>(Applyer->getArg(0))) {
-      OS << CodeExpander(Code->getAsUnquotedString(), Expansions,
+      OS << "    LLVM_DEBUG(dbgs() << \"Applying rule '"
+         << RuleDef.getName()
+         << "'\\n\");\n"
+         << CodeExpander(Code->getAsUnquotedString(), Expansions,
                          RuleDef.getLoc(), ShowExpansions)
-         << "\n"
+         << '\n'
          << Indent << "    return true;\n"
          << Indent << "  }\n";
     } else {
@@ -947,7 +954,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
 
   emitNameMatcher(OS);
 
-  OS << "static Optional<std::pair<uint64_t, uint64_t>> "
+  OS << "static std::optional<std::pair<uint64_t, uint64_t>> "
         "getRuleRangeForIdentifier(StringRef RuleIdentifier) {\n"
      << "  std::pair<StringRef, StringRef> RangePair = "
         "RuleIdentifier.split('-');\n"
@@ -957,7 +964,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
      << "    const auto Last = "
         "getRuleIdxForIdentifier(RangePair.second);\n"
      << "    if (!First || !Last)\n"
-     << "      return None;\n"
+     << "      return std::nullopt;\n"
      << "    if (First >= Last)\n"
      << "      report_fatal_error(\"Beginning of range should be before "
         "end of range\");\n"
@@ -968,7 +975,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
      << "  }\n"
      << "  const auto I = getRuleIdxForIdentifier(RangePair.first);\n"
      << "  if (!I)\n"
-     << "    return None;\n"
+     << "    return std::nullopt;\n"
      << "  return {{*I, *I + 1}};\n"
      << "}\n\n";
 
@@ -1059,8 +1066,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
 
 //===----------------------------------------------------------------------===//
 
-namespace llvm {
-void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
+static void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
   CodeGenTarget Target(RK);
   emitSourceFileHeader("Global Combiner", OS);
 
@@ -1075,4 +1081,5 @@ void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
   NumPatternTotalStatistic = NumPatternTotal;
 }
 
-} // namespace llvm
+static TableGen::Emitter::Opt X("gen-global-isel-combiner", EmitGICombiner,
+                                "Generate GlobalISel combiner");

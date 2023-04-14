@@ -121,6 +121,7 @@ struct OMPTaskDataTy final {
   bool Nogroup = false;
   bool IsReductionWithTaskMod = false;
   bool IsWorksharingReduction = false;
+  bool HasNowaitClause = false;
 };
 
 /// Class intended to support codegen of all kind of the reduction clauses.
@@ -306,14 +307,9 @@ public:
 
 protected:
   CodeGenModule &CGM;
-  StringRef FirstSeparator, Separator;
 
   /// An OpenMP-IR-Builder instance.
   llvm::OpenMPIRBuilder OMPBuilder;
-
-  /// Constructor allowing to redefine the name separator for the variables.
-  explicit CGOpenMPRuntime(CodeGenModule &CGM, StringRef FirstSeparator,
-                           StringRef Separator);
 
   /// Helper to emit outlined function for 'target' directive.
   /// \param D Directive to emit.
@@ -333,9 +329,10 @@ protected:
 
   /// Emits object of ident_t type with info for source location.
   /// \param Flags Flags for OpenMP location.
+  /// \param EmitLoc emit source location with debug-info is off.
   ///
   llvm::Value *emitUpdateLocation(CodeGenFunction &CGF, SourceLocation Loc,
-                                  unsigned Flags = 0);
+                                  unsigned Flags = 0, bool EmitLoc = false);
 
   /// Emit the number of teams for a target directive.  Inspect the num_teams
   /// clause associated with a teams construct combined or closely nested
@@ -381,7 +378,7 @@ protected:
   /// Emits \p Callee function call with arguments \p Args with location \p Loc.
   void emitCall(CodeGenFunction &CGF, SourceLocation Loc,
                 llvm::FunctionCallee Callee,
-                ArrayRef<llvm::Value *> Args = llvm::None) const;
+                ArrayRef<llvm::Value *> Args = std::nullopt) const;
 
   /// Emits address of the word in a memory where current thread id is
   /// stored.
@@ -413,8 +410,7 @@ protected:
   ///
   llvm::Value *getCriticalRegionLock(StringRef CriticalName);
 
-private:
-
+protected:
   /// Map for SourceLocation and OpenMP runtime library debug locations.
   typedef llvm::DenseMap<SourceLocation, llvm::Value *> OpenMPDebugLocMapTy;
   OpenMPDebugLocMapTy OpenMPDebugLocMap;
@@ -512,9 +508,6 @@ private:
   ///  kmp_int64 st; // stride
   /// };
   QualType KmpDimTy;
-  /// Entity that registers the offloading constants that were emitted so
-  /// far.
-  llvm::OffloadEntriesInfoManager OffloadEntriesInfoManager;
 
   bool ShouldMarkAsGlobal = true;
   /// List of the emitted declarations.
@@ -560,7 +553,7 @@ private:
   /// metadata.
   void loadOffloadInfoMetadata();
 
-  /// Start scanning from statement \a S and and emit all target regions
+  /// Start scanning from statement \a S and emit all target regions
   /// found along the way.
   /// \param S Starting statement.
   /// \param ParentName Name of the function declaration that is being scanned.
@@ -600,16 +593,6 @@ private:
   /// \param VD Threadprivate variable.
   /// \return Cache variable for the specified threadprivate.
   llvm::Constant *getOrCreateThreadPrivateCache(const VarDecl *VD);
-
-  /// Gets (if variable with the given name already exist) or creates
-  /// internal global variable with the specified Name. The created variable has
-  /// linkage CommonLinkage by default and is initialized by null value.
-  /// \param Ty Type of the global variable. If it is exist already the type
-  /// must be the same.
-  /// \param Name Name of the variable.
-  llvm::GlobalVariable *getOrCreateInternalVariable(llvm::Type *Ty,
-                                                    const llvm::Twine &Name,
-                                                    unsigned AddressSpace = 0);
 
   /// Set of threadprivate variables with the generated initializer.
   llvm::StringSet<> ThreadPrivateWithDefinition;
@@ -702,8 +685,7 @@ private:
                           Address DependenciesArray);
 
 public:
-  explicit CGOpenMPRuntime(CodeGenModule &CGM)
-      : CGOpenMPRuntime(CGM, ".", ".") {}
+  explicit CGOpenMPRuntime(CodeGenModule &CGM);
   virtual ~CGOpenMPRuntime() {}
   virtual void clear();
 
@@ -837,6 +819,11 @@ public:
 
   /// Emits code for a taskyield directive.
   virtual void emitTaskyieldCall(CodeGenFunction &CGF, SourceLocation Loc);
+
+  /// Emit __kmpc_error call for error directive
+  /// extern void __kmpc_error(ident_t *loc, int severity, const char *message);
+  virtual void emitErrorCall(CodeGenFunction &CGF, SourceLocation Loc, Expr *ME,
+                             bool IsFatal);
 
   /// Emit a taskgroup region.
   /// \param TaskgroupOpGen Generator for the statement associated with the
@@ -1533,7 +1520,7 @@ public:
   virtual void
   emitOutlinedFunctionCall(CodeGenFunction &CGF, SourceLocation Loc,
                            llvm::FunctionCallee OutlinedFn,
-                           ArrayRef<llvm::Value *> Args = llvm::None) const;
+                           ArrayRef<llvm::Value *> Args = std::nullopt) const;
 
   /// Emits OpenMP-specific function prolog.
   /// Required for device constructs.

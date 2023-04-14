@@ -516,12 +516,12 @@ declare double @llvm.riscv.vfmv.f.s.nxv8f64(<vscale x 8 x double>)
 define float @extractelt_fadd_nxv4f32_splat(<vscale x 4 x float> %x) {
 ; CHECK-LABEL: extractelt_fadd_nxv4f32_splat:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    lui a0, %hi(.LCPI47_0)
-; CHECK-NEXT:    flw ft0, %lo(.LCPI47_0)(a0)
 ; CHECK-NEXT:    vsetivli zero, 1, e32, m2, ta, ma
 ; CHECK-NEXT:    vslidedown.vi v8, v8, 2
-; CHECK-NEXT:    vfmv.f.s ft1, v8
-; CHECK-NEXT:    fadd.s fa0, ft1, ft0
+; CHECK-NEXT:    vfmv.f.s fa5, v8
+; CHECK-NEXT:    lui a0, 263168
+; CHECK-NEXT:    fmv.w.x fa4, a0
+; CHECK-NEXT:    fadd.s fa0, fa5, fa4
 ; CHECK-NEXT:    ret
   %head = insertelement <vscale x 4 x float> poison, float 3.0, i32 0
   %splat = shufflevector <vscale x 4 x float> %head, <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer
@@ -533,12 +533,12 @@ define float @extractelt_fadd_nxv4f32_splat(<vscale x 4 x float> %x) {
 define float @extractelt_fsub_nxv4f32_splat(<vscale x 4 x float> %x) {
 ; CHECK-LABEL: extractelt_fsub_nxv4f32_splat:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    lui a0, %hi(.LCPI48_0)
-; CHECK-NEXT:    flw ft0, %lo(.LCPI48_0)(a0)
 ; CHECK-NEXT:    vsetivli zero, 1, e32, m2, ta, ma
 ; CHECK-NEXT:    vslidedown.vi v8, v8, 1
-; CHECK-NEXT:    vfmv.f.s ft1, v8
-; CHECK-NEXT:    fsub.s fa0, ft0, ft1
+; CHECK-NEXT:    vfmv.f.s fa5, v8
+; CHECK-NEXT:    lui a0, 263168
+; CHECK-NEXT:    fmv.w.x fa4, a0
+; CHECK-NEXT:    fsub.s fa0, fa4, fa5
 ; CHECK-NEXT:    ret
   %head = insertelement <vscale x 4 x float> poison, float 3.0, i32 0
   %splat = shufflevector <vscale x 4 x float> %head, <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer
@@ -550,12 +550,12 @@ define float @extractelt_fsub_nxv4f32_splat(<vscale x 4 x float> %x) {
 define float @extractelt_fmul_nxv4f32_splat(<vscale x 4 x float> %x) {
 ; CHECK-LABEL: extractelt_fmul_nxv4f32_splat:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    lui a0, %hi(.LCPI49_0)
-; CHECK-NEXT:    flw ft0, %lo(.LCPI49_0)(a0)
 ; CHECK-NEXT:    vsetivli zero, 1, e32, m2, ta, ma
 ; CHECK-NEXT:    vslidedown.vi v8, v8, 3
-; CHECK-NEXT:    vfmv.f.s ft1, v8
-; CHECK-NEXT:    fmul.s fa0, ft1, ft0
+; CHECK-NEXT:    vfmv.f.s fa5, v8
+; CHECK-NEXT:    lui a0, 263168
+; CHECK-NEXT:    fmv.w.x fa4, a0
+; CHECK-NEXT:    fmul.s fa0, fa5, fa4
 ; CHECK-NEXT:    ret
   %head = insertelement <vscale x 4 x float> poison, float 3.0, i32 0
   %splat = shufflevector <vscale x 4 x float> %head, <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer
@@ -567,11 +567,11 @@ define float @extractelt_fmul_nxv4f32_splat(<vscale x 4 x float> %x) {
 define float @extractelt_fdiv_nxv4f32_splat(<vscale x 4 x float> %x) {
 ; CHECK-LABEL: extractelt_fdiv_nxv4f32_splat:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    lui a0, %hi(.LCPI50_0)
-; CHECK-NEXT:    flw ft0, %lo(.LCPI50_0)(a0)
 ; CHECK-NEXT:    vsetivli zero, 0, e32, m2, ta, ma
-; CHECK-NEXT:    vfmv.f.s ft1, v8
-; CHECK-NEXT:    fdiv.s fa0, ft1, ft0
+; CHECK-NEXT:    vfmv.f.s fa5, v8
+; CHECK-NEXT:    lui a0, 263168
+; CHECK-NEXT:    fmv.w.x fa4, a0
+; CHECK-NEXT:    fdiv.s fa0, fa5, fa4
 ; CHECK-NEXT:    ret
   %head = insertelement <vscale x 4 x float> poison, float 3.0, i32 0
   %splat = shufflevector <vscale x 4 x float> %head, <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer
@@ -648,8 +648,8 @@ define double @extractelt_nxv16f64_neg1(<vscale x 16 x double> %v) {
 ; RV64-NEXT:  # %bb.1:
 ; RV64-NEXT:    mv a2, a1
 ; RV64-NEXT:  .LBB52_2:
-; RV64-NEXT:    slli a1, a2, 3
-; RV64-NEXT:    add a0, a0, a1
+; RV64-NEXT:    slli a2, a2, 3
+; RV64-NEXT:    add a0, a0, a2
 ; RV64-NEXT:    fld fa0, 0(a0)
 ; RV64-NEXT:    addi sp, s0, -80
 ; RV64-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload

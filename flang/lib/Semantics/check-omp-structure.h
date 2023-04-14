@@ -152,6 +152,8 @@ public:
   void Leave(const parser::OpenMPDeclareTargetConstruct &);
   void Enter(const parser::OpenMPExecutableAllocate &);
   void Leave(const parser::OpenMPExecutableAllocate &);
+  void Enter(const parser::OpenMPRequiresConstruct &);
+  void Leave(const parser::OpenMPRequiresConstruct &);
   void Enter(const parser::OpenMPThreadprivate &);
   void Leave(const parser::OpenMPThreadprivate &);
 
@@ -257,7 +259,7 @@ private:
       const parser::OmpObjectList &, const llvm::omp::Clause);
   void CheckArraySection(const parser::ArrayElement &arrayElement,
       const parser::Name &name, const llvm::omp::Clause clause);
-  void CheckMultipleAppearanceAcrossContext(
+  void CheckSharedBindingInOuterContext(
       const parser::OmpObjectList &ompObjectList);
   const parser::OmpObjectList *GetOmpObjectList(const parser::OmpClause &);
   void CheckPredefinedAllocatorRestriction(const parser::CharBlock &source,

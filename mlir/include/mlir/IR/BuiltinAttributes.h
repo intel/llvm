@@ -10,10 +10,10 @@
 #define MLIR_IR_BUILTINATTRIBUTES_H
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
-#include "mlir/IR/SubElementInterfaces.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/Sequence.h"
 #include <complex>
+#include <optional>
 
 namespace mlir {
 class AffineMap;
@@ -125,7 +125,7 @@ public:
                                         is_valid_cpp_fp_type<T>::value ||
                                         detail::is_complex_t<T>::value>>
   static DenseElementsAttr get(const ShapedType &type, T value) {
-    return get(type, llvm::makeArrayRef(value));
+    return get(type, llvm::ArrayRef(value));
   }
 
   /// Constructs a dense complex elements attribute from an array of complex
@@ -784,8 +784,8 @@ public:
   get(ShapedType type, StringRef blobName, AsmResourceBlob blob);
 
   /// Return the data of this attribute as an ArrayRef<T> if it is present,
-  /// returns None otherwise.
-  Optional<ArrayRef<T>> tryGetAsArrayRef() const;
+  /// returns std::nullopt otherwise.
+  std::optional<ArrayRef<T>> tryGetAsArrayRef() const;
 
   /// Support for isa<>/cast<>.
   static bool classof(Attribute attr);
@@ -911,7 +911,7 @@ public:
   /// simply wraps the DenseElementsAttr::get calls.
   template <typename Arg>
   static DenseFPElementsAttr get(const ShapedType &type, Arg &&arg) {
-    return DenseElementsAttr::get(type, llvm::makeArrayRef(arg))
+    return DenseElementsAttr::get(type, llvm::ArrayRef(arg))
         .template cast<DenseFPElementsAttr>();
   }
   template <typename T>
@@ -953,7 +953,7 @@ public:
   /// simply wraps the DenseElementsAttr::get calls.
   template <typename Arg>
   static DenseIntElementsAttr get(const ShapedType &type, Arg &&arg) {
-    return DenseElementsAttr::get(type, llvm::makeArrayRef(arg))
+    return DenseElementsAttr::get(type, llvm::ArrayRef(arg))
         .template cast<DenseIntElementsAttr>();
   }
   template <typename T>
@@ -1034,7 +1034,7 @@ inline bool operator!=(StringRef lhs, StringAttr rhs) { return !(lhs == rhs); }
 
 namespace mlir {
 
-/// Given a list of strides (in which MemRefType::getDynamicStrideOrOffset()
+/// Given a list of strides (in which ShapedType::kDynamic
 /// represents a dynamic value), return the single result AffineMap which
 /// represents the linearized strided layout map. Dimensions correspond to the
 /// offset followed by the strides in order. Symbols are inserted for each

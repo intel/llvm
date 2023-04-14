@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -canonicalize | FileCheck %s
+// RUN: mlir-opt %s -canonicalize="test-convergence" | FileCheck %s
 
 // CHECK-LABEL: func @create_of_real_and_imag
 // CHECK-SAME: (%[[CPLX:.*]]: complex<f32>)
@@ -143,5 +143,15 @@ func.func @complex_sub_add_lhs() -> complex<f32> {
   // CHECK-NEXT: return %[[CPLX:.*]] : complex<f32>
   %add = complex.add %complex1, %complex2 : complex<f32>
   %sub = complex.sub %add, %complex2 : complex<f32>
+  return %sub : complex<f32>
+}
+
+// CHECK-LABEL: func @complex_sub_zero
+func.func @complex_sub_zero() -> complex<f32> {
+  %complex1 = complex.constant [1.0 : f32, 0.0 : f32] : complex<f32>
+  %complex2 = complex.constant [0.0 : f32, 0.0 : f32] : complex<f32>
+  // CHECK: %[[CPLX:.*]] = complex.constant [1.000000e+00 : f32, 0.000000e+00 : f32] : complex<f32>
+  // CHECK-NEXT: return %[[CPLX:.*]] : complex<f32>
+  %sub = complex.sub %complex1, %complex2 : complex<f32>
   return %sub : complex<f32>
 }

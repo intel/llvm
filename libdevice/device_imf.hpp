@@ -10,6 +10,7 @@
 #define __LIBDEVICE_DEVICE_IMF_H__
 
 #include "device.h"
+#include "imf_bf16.hpp"
 #include "imf_half.hpp"
 #include <cstddef>
 #include <limits>
@@ -113,7 +114,7 @@ static inline float __fclamp(float x, float y, float z) {
 #endif
 }
 
-// fma for float, double, half math, covers both device and host.
+// fma for float, double, half, bf16 math, covers both device and host.
 static inline float __fma(float x, float y, float z) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmaf(x, y, z);
@@ -145,7 +146,16 @@ static inline _iml_half __fma(_iml_half x, _iml_half y, _iml_half z) {
 #endif
 }
 
-// sqrt for float, double, half math, covers both device and host.
+// Currently, we used fp32 to emulate all bf16 arithmetic
+static inline _iml_bf16 __fma(_iml_bf16 x, _iml_bf16 y, _iml_bf16 z) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float tmp_y = __bfloat162float(y.get_internal());
+  float tmp_z = __bfloat162float(z.get_internal());
+  float res = __fma(tmp_x, tmp_y, tmp_z);
+  return _iml_bf16(res);
+}
+
+// sqrt for float, double, half, bf16 math, covers both device and host.
 static inline float __sqrt(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_sqrtf(x);
@@ -173,7 +183,13 @@ static inline _iml_half __sqrt(_iml_half x) {
 #endif
 }
 
-// rsqrt for float, double, half math, covers both device and host.
+static inline _iml_bf16 __sqrt(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __sqrt(tmp_x);
+  return _iml_bf16(res);
+}
+
+// rsqrt for float, double, half, bf16 math, covers both device and host.
 static inline float __rsqrt(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return 1.f / __builtin_sqrtf(x);
@@ -201,7 +217,13 @@ static inline _iml_half __rsqrt(_iml_half x) {
 #endif
 }
 
-// fmin for float, double, half math, covers both device and host.
+static inline _iml_bf16 __rsqrt(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __rsqrt(tmp_x);
+  return _iml_bf16(res);
+}
+
+// fmin for float, double, half, bf16 math, covers both device and host.
 static inline float __fmin(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fminf(x, y);
@@ -231,7 +253,14 @@ static inline _iml_half __fmin(_iml_half x, _iml_half y) {
 #endif
 }
 
-// fmax for float, double, half math, covers both device and host.
+static inline _iml_bf16 __fmin(_iml_bf16 x, _iml_bf16 y) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float tmp_y = __bfloat162float(y.get_internal());
+  float res = __fmin(tmp_x, tmp_y);
+  return _iml_bf16(res);
+}
+
+// fmax for float, double, half, bf16 math, covers both device and host.
 static inline float __fmax(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fmaxf(x, y);
@@ -261,7 +290,14 @@ static inline _iml_half __fmax(_iml_half x, _iml_half y) {
 #endif
 }
 
-// copysign for float, double, half math, covers both device and host.
+static inline _iml_bf16 __fmax(_iml_bf16 x, _iml_bf16 y) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float tmp_y = __bfloat162float(y.get_internal());
+  float res = __fmax(tmp_x, tmp_y);
+  return _iml_bf16(res);
+}
+
+// copysign for float, double, half, bf16 math, covers both device and host.
 static inline float __copysign(float x, float y) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_copysignf(x, y);
@@ -291,7 +327,14 @@ static inline _iml_half __copysign(_iml_half x, _iml_half y) {
 #endif
 }
 
-// fabs for float, double, half math, covers both device and host.
+static inline _iml_bf16 __copysign(_iml_bf16 x, _iml_bf16 y) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float tmp_y = __bfloat162float(y.get_internal());
+  float res = __copysign(tmp_x, tmp_y);
+  return _iml_bf16(res);
+}
+
+// fabs for float, double, half, bf16 math, covers both device and host.
 static inline float __fabs(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_fabsf(x);
@@ -319,7 +362,13 @@ static inline _iml_half __fabs(_iml_half x) {
 #endif
 }
 
-// rint for float, double, half math, covers both device and host.
+static inline _iml_bf16 __fabs(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __fabs(tmp_x);
+  return _iml_bf16(res);
+}
+
+// rint for float, double, half, bf16 math, covers both device and host.
 static inline float __rint(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_rintf(x);
@@ -347,7 +396,13 @@ static inline _iml_half __rint(_iml_half x) {
 #endif
 }
 
-// floor for float, double, half math, covers both device and host.
+static inline _iml_bf16 __rint(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __rint(tmp_x);
+  return _iml_bf16(res);
+}
+
+// floor for float, double, half, bf16 math, covers both device and host.
 static inline float __floor(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_floorf(x);
@@ -375,7 +430,13 @@ static inline _iml_half __floor(_iml_half x) {
 #endif
 }
 
-// ceil for float, double, half math, covers both device and host.
+static inline _iml_bf16 __floor(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __floor(tmp_x);
+  return _iml_bf16(res);
+}
+
+// ceil for float, double, half, bf16 math, covers both device and host.
 static inline float __ceil(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_ceilf(x);
@@ -403,7 +464,13 @@ static inline _iml_half __ceil(_iml_half x) {
 #endif
 }
 
-// trunc for float, double, half math, covers both device and host.
+static inline _iml_bf16 __ceil(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __ceil(tmp_x);
+  return _iml_bf16(res);
+}
+
+// trunc for float, double, half, bf16 math, covers both device and host.
 static inline float __trunc(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_truncf(x);
@@ -429,6 +496,12 @@ static inline _iml_half __trunc(_iml_half x) {
 #elif defined(__SPIR__)
   return _iml_half(__spirv_ocl_trunc(x_i));
 #endif
+}
+
+static inline _iml_bf16 __trunc(_iml_bf16 x) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float res = __trunc(tmp_x);
+  return _iml_bf16(res);
 }
 
 static inline int __clz(int x) {

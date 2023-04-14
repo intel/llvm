@@ -18,6 +18,7 @@
 #include <limits>
 
 namespace mlir {
+
 namespace func {
 class FuncOp;
 } // namespace func
@@ -46,8 +47,11 @@ createAffineLoopInvariantCodeMotionPass();
 /// ops.
 std::unique_ptr<OperationPass<func::FuncOp>> createAffineParallelizePass();
 
-/// Apply normalization transformations to affine loop-like ops.
-std::unique_ptr<OperationPass<func::FuncOp>> createAffineLoopNormalizePass();
+/// Apply normalization transformations to affine loop-like ops. If
+/// `promoteSingleIter` is true, single iteration loops are promoted (i.e., the
+/// loop is replaced by its loop body).
+std::unique_ptr<OperationPass<func::FuncOp>>
+createAffineLoopNormalizePass(bool promoteSingleIter = false);
 
 /// Performs packing (or explicit copying) of accessed memref regions into
 /// buffers in the specified faster memory space through either pointwise copies
@@ -70,10 +74,11 @@ createAffineScalarReplacementPass();
 /// bounds into a single loop.
 std::unique_ptr<OperationPass<func::FuncOp>> createLoopCoalescingPass();
 
-/// Creates a loop fusion pass which fuses loops according to type of fusion
+/// Creates a loop fusion pass which fuses affine loop nests at the top-level of
+/// the operation the pass is created on according to the type of fusion
 /// specified in `fusionMode`. Buffers of size less than or equal to
 /// `localBufSizeThreshold` are promoted to memory space `fastMemorySpace`.
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<Pass>
 createLoopFusionPass(unsigned fastMemorySpace = 0,
                      uint64_t localBufSizeThreshold = 0,
                      bool maximalFusion = false,
@@ -105,10 +110,6 @@ createLoopUnrollAndJamPass(int unrollJamFactor = -1);
 /// Creates a pass to pipeline explicit movement of data across levels of the
 /// memory hierarchy.
 std::unique_ptr<OperationPass<func::FuncOp>> createPipelineDataTransferPass();
-
-/// Populate patterns that expand affine index operations into more fundamental
-/// operations (not necessarily restricted to Affine dialect).
-void populateAffineExpandIndexOpsPatterns(RewritePatternSet &patterns);
 
 /// Creates a pass to expand affine index operations into more fundamental
 /// operations (not necessarily restricted to Affine dialect).

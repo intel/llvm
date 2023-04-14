@@ -15,6 +15,7 @@
 #include "lldb/Utility/Stream.h"
 
 namespace lldb_private {
+
 namespace formatters {
 
 /// Summary provider for `std::coroutine_handle<T>` from  libc++, libstdc++ and
@@ -44,7 +45,9 @@ public:
   size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
-  lldb::ValueObjectSP m_frame_ptr_sp;
+  lldb::ValueObjectSP m_resume_ptr_sp;
+  lldb::ValueObjectSP m_destroy_ptr_sp;
+  lldb::ValueObjectSP m_promise_ptr_sp;
 };
 
 SyntheticChildrenFrontEnd *

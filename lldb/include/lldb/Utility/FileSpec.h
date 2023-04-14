@@ -10,6 +10,7 @@
 #define LLDB_UTILITY_FILESPEC_H
 
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "lldb/Utility/ConstString.h"
@@ -190,11 +191,11 @@ public:
   static bool Match(const FileSpec &pattern, const FileSpec &file);
 
   /// Attempt to guess path style for a given path string. It returns a style,
-  /// if it was able to make a reasonable guess, or None if it wasn't. The guess
-  /// will be correct if the input path was a valid absolute path on the system
-  /// which produced it. On other paths the result of this function is
-  /// unreliable (e.g. "c:\foo.txt" is a valid relative posix path).
-  static llvm::Optional<Style> GuessPathStyle(llvm::StringRef absolute_path);
+  /// if it was able to make a reasonable guess, or std::nullopt if it wasn't.
+  /// The guess will be correct if the input path was a valid absolute path on
+  /// the system which produced it. On other paths the result of this function
+  /// is unreliable (e.g. "c:\foo.txt" is a valid relative posix path).
+  static std::optional<Style> GuessPathStyle(llvm::StringRef absolute_path);
 
   /// Case sensitivity of path.
   ///
@@ -252,7 +253,7 @@ public:
   /// (files with a ".c", ".cpp", ".m", ".mm" (many more) extension).
   ///
   /// \return
-  ///     \b true if the filespec represents an implementation source
+  ///     \b true if the FileSpec represents an implementation source
   ///     file, \b false otherwise.
   bool IsSourceImplementationFile() const;
 
@@ -326,7 +327,7 @@ public:
   /// Returns a ConstString that represents the extension of the filename for
   /// this FileSpec object. If this object does not represent a file, or the
   /// filename has no extension, ConstString(nullptr) is returned. The dot
-  /// ('.') character is not returned as part of the extension
+  /// ('.') character is the first character in the returned string.
   ///
   /// \return Returns the extension of the file as a ConstString object.
   ConstString GetFileNameExtension() const;

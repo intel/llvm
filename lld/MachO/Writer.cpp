@@ -133,8 +133,8 @@ public:
   LCSubFramework(StringRef umbrella) : umbrella(umbrella) {}
 
   uint32_t getSize() const override {
-    return alignTo(sizeof(sub_framework_command) + umbrella.size() + 1,
-                   target->wordSize);
+    return alignToPowerOf2(sizeof(sub_framework_command) + umbrella.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -328,7 +328,8 @@ public:
   }
 
   uint32_t getSize() const override {
-    return alignTo(sizeof(dylib_command) + path.size() + 1, 8);
+    return alignToPowerOf2(sizeof(dylib_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -362,7 +363,8 @@ uint32_t LCDylib::instanceCount = 0;
 class LCLoadDylinker final : public LoadCommand {
 public:
   uint32_t getSize() const override {
-    return alignTo(sizeof(dylinker_command) + path.size() + 1, 8);
+    return alignToPowerOf2(sizeof(dylinker_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -388,7 +390,8 @@ public:
   explicit LCRPath(StringRef path) : path(path) {}
 
   uint32_t getSize() const override {
-    return alignTo(sizeof(rpath_command) + path.size() + 1, target->wordSize);
+    return alignToPowerOf2(sizeof(rpath_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -412,8 +415,8 @@ public:
   explicit LCDyldEnv(StringRef name) : name(name) {}
 
   uint32_t getSize() const override {
-    return alignTo(sizeof(dyld_env_command) + name.size() + 1,
-                   target->wordSize);
+    return alignToPowerOf2(sizeof(dyld_env_command) + name.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -462,7 +465,7 @@ public:
       break;
     }
     c->cmdsize = getSize();
-    c->version = encodeVersion(platformInfo.minimum);
+    c->version = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
   }
 
@@ -487,7 +490,7 @@ public:
     c->cmdsize = getSize();
 
     c->platform = static_cast<uint32_t>(platformInfo.target.Platform);
-    c->minos = encodeVersion(platformInfo.minimum);
+    c->minos = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
 
     c->ntools = ntools;
@@ -761,7 +764,9 @@ static bool useLCBuildVersion(const PlatformInfo &platformInfo) {
   auto it = llvm::find_if(minVersion, [&](const auto &p) {
     return p.first == platformInfo.target.Platform;
   });
-  return it == minVersion.end() ? true : platformInfo.minimum >= it->second;
+  return it == minVersion.end()
+             ? true
+             : platformInfo.target.MinDeployment >= it->second;
 }
 
 template <class LP> void Writer::createLoadCommands() {
@@ -1055,7 +1060,7 @@ void Writer::finalizeAddresses() {
       if (!osec->isNeeded())
         continue;
       // Other kinds of OutputSections have already been finalized.
-      if (auto concatOsec = dyn_cast<ConcatOutputSection>(osec))
+      if (auto *concatOsec = dyn_cast<ConcatOutputSection>(osec))
         concatOsec->finalizeContents();
     }
   }
@@ -1072,11 +1077,12 @@ void Writer::finalizeAddresses() {
     seg->addr = addr;
     assignAddresses(seg);
     // codesign / libstuff checks for segment ordering by verifying that
-    // `fileOff + fileSize == next segment fileOff`. So we call alignTo() before
-    // (instead of after) computing fileSize to ensure that the segments are
-    // contiguous. We handle addr / vmSize similarly for the same reason.
-    fileOff = alignTo(fileOff, pageSize);
-    addr = alignTo(addr, pageSize);
+    // `fileOff + fileSize == next segment fileOff`. So we call
+    // alignToPowerOf2() before (instead of after) computing fileSize to ensure
+    // that the segments are contiguous. We handle addr / vmSize similarly for
+    // the same reason.
+    fileOff = alignToPowerOf2(fileOff, pageSize);
+    addr = alignToPowerOf2(addr, pageSize);
     seg->vmSize = addr - seg->addr;
     seg->fileSize = fileOff - seg->fileOff;
     seg->assignAddressesToStartEndSymbols();
@@ -1117,8 +1123,8 @@ void Writer::assignAddresses(OutputSegment *seg) {
   for (OutputSection *osec : seg->getSections()) {
     if (!osec->isNeeded())
       continue;
-    addr = alignTo(addr, osec->align);
-    fileOff = alignTo(fileOff, osec->align);
+    addr = alignToPowerOf2(addr, osec->align);
+    fileOff = alignToPowerOf2(fileOff, osec->align);
     osec->addr = addr;
     osec->fileOff = isZeroFill(osec->flags) ? 0 : fileOff;
     osec->finalize();
@@ -1319,15 +1325,14 @@ void macho::resetWriter() { LCDylib::resetInstanceCount(); }
 
 void macho::createSyntheticSections() {
   in.header = make<MachHeaderSection>();
-  if (config->dedupLiterals)
+  if (config->dedupStrings)
     in.cStringSection =
         make<DeduplicatedCStringSection>(section_names::cString);
   else
     in.cStringSection = make<CStringSection>(section_names::cString);
   in.objcMethnameSection =
       make<DeduplicatedCStringSection>(section_names::objcMethname);
-  in.wordLiteralSection =
-      config->dedupLiterals ? make<WordLiteralSection>() : nullptr;
+  in.wordLiteralSection = make<WordLiteralSection>();
   if (config->emitChainedFixups) {
     in.chainedFixups = make<ChainedFixupsSection>();
   } else {

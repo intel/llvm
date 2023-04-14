@@ -16,6 +16,7 @@
 #include "mlir/Pass/Pass.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include <optional>
 
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTAMDGPUTOROCDL
@@ -198,12 +199,12 @@ struct RawBufferOpLowering : public ConvertOpToLLVMPattern<GpuOp> {
     args.push_back(resource);
 
     // Indexing (voffset)
-    Value voffset;
-    for (auto &pair : llvm::enumerate(adaptor.getIndices())) {
+    Value voffset = createI32Constant(rewriter, loc, 0);
+    for (auto pair : llvm::enumerate(adaptor.getIndices())) {
       size_t i = pair.index();
       Value index = pair.value();
       Value strideOp;
-      if (ShapedType::isDynamicStrideOrOffset(strides[i])) {
+      if (ShapedType::isDynamic(strides[i])) {
         strideOp = rewriter.create<LLVM::MulOp>(
             loc, memrefDescriptor.stride(rewriter, loc, i), byteWidthConst);
       } else {
@@ -211,8 +212,7 @@ struct RawBufferOpLowering : public ConvertOpToLLVMPattern<GpuOp> {
             createI32Constant(rewriter, loc, strides[i] * elementByteWidth);
       }
       index = rewriter.create<LLVM::MulOp>(loc, index, strideOp);
-      voffset =
-          voffset ? rewriter.create<LLVM::AddOp>(loc, voffset, index) : index;
+      voffset = rewriter.create<LLVM::AddOp>(loc, voffset, index);
     }
     if (adaptor.getIndexOffset()) {
       int32_t indexOffset = *gpuOp.getIndexOffset() * elementByteWidth;
@@ -226,7 +226,7 @@ struct RawBufferOpLowering : public ConvertOpToLLVMPattern<GpuOp> {
     Value sgprOffset = adaptor.getSgprOffset();
     if (!sgprOffset)
       sgprOffset = createI32Constant(rewriter, loc, 0);
-    if (ShapedType::isDynamicStrideOrOffset(offset))
+    if (ShapedType::isDynamic(offset))
       sgprOffset = rewriter.create<LLVM::AddOp>(
           loc, memrefDescriptor.offset(rewriter, loc), sgprOffset);
     else if (offset > 0)
@@ -311,7 +311,8 @@ static Value mfmaConcatIfNeeded(ConversionPatternRewriter &rewriter,
 /// Return the `rocdl` intrinsic corresponding to a MFMA operation `mfma`
 /// if one exists. This includes checking to ensure the intrinsic is supported
 /// on the architecture you are compiling for.
-static Optional<StringRef> mfmaOpToIntrinsic(MFMAOp mfma, Chipset chipset) {
+static std::optional<StringRef> mfmaOpToIntrinsic(MFMAOp mfma,
+                                                  Chipset chipset) {
   uint32_t m = mfma.getM(), n = mfma.getN(), k = mfma.getK(),
            b = mfma.getBlocks();
   Type sourceElem = mfma.getSourceA().getType();
@@ -402,7 +403,46 @@ static Optional<StringRef> mfmaOpToIntrinsic(MFMAOp mfma, Chipset chipset) {
     if (m == 4 && n == 4 && k == 4 && b == 4)
       return ROCDL::mfma_f64_4x4x4f64::getOperationName();
   }
-  return None;
+
+  if (sourceElem.isFloat8E5M2FNUZ() && destElem.isF32() &&
+      chipset.minorVersion >= 0x40) {
+    // Known to be correct because there are no scalar f8 instructions and
+    // because a length mismatch will have been caught by the verifier.
+    Type sourceBElem =
+        mfma.getSourceB().getType().cast<VectorType>().getElementType();
+    if (m == 16 && n == 16 && k == 32 && b == 1) {
+      if (sourceBElem.isFloat8E5M2FNUZ())
+        return ROCDL::mfma_f32_16x16x32_bf8_bf8::getOperationName();
+      if (sourceBElem.isFloat8E4M3FNUZ())
+        return ROCDL::mfma_f32_16x16x32_bf8_fp8::getOperationName();
+    }
+    if (m == 32 && n == 32 && k == 16 && b == 1) {
+      if (sourceBElem.isFloat8E5M2FNUZ())
+        return ROCDL::mfma_f32_32x32x16_bf8_bf8::getOperationName();
+      if (sourceBElem.isFloat8E4M3FNUZ())
+        return ROCDL::mfma_f32_32x32x16_bf8_fp8::getOperationName();
+    }
+  }
+
+  if (sourceElem.isFloat8E4M3FNUZ() && destElem.isF32() &&
+      chipset.minorVersion >= 0x40) {
+    Type sourceBElem =
+        mfma.getSourceB().getType().cast<VectorType>().getElementType();
+    if (m == 16 && n == 16 && k == 32 && b == 1) {
+      if (sourceBElem.isFloat8E5M2FNUZ())
+        return ROCDL::mfma_f32_16x16x32_fp8_bf8::getOperationName();
+      if (sourceBElem.isFloat8E4M3FNUZ())
+        return ROCDL::mfma_f32_16x16x32_fp8_fp8::getOperationName();
+    }
+    if (m == 32 && n == 32 && k == 16 && b == 1) {
+      if (sourceBElem.isFloat8E5M2FNUZ())
+        return ROCDL::mfma_f32_32x32x16_fp8_bf8::getOperationName();
+      if (sourceBElem.isFloat8E4M3FNUZ())
+        return ROCDL::mfma_f32_32x32x16_fp8_fp8::getOperationName();
+    }
+  }
+
+  return std::nullopt;
 }
 
 namespace {
@@ -427,7 +467,7 @@ struct MFMAOpLowering : public ConvertOpToLLVMPattern<MFMAOp> {
       getBlgpField |=
           op.getNegateA() | (op.getNegateB() << 1) | (op.getNegateC() << 2);
     }
-    Optional<StringRef> maybeIntrinsic = mfmaOpToIntrinsic(op, chipset);
+    std::optional<StringRef> maybeIntrinsic = mfmaOpToIntrinsic(op, chipset);
     if (!maybeIntrinsic.has_value())
       return op.emitOpError("no intrinsic matching MFMA size on given chipset");
     OperationState loweredOp(loc, *maybeIntrinsic);
@@ -473,11 +513,22 @@ struct ConvertAMDGPUToROCDLPass
 void mlir::populateAMDGPUToROCDLConversionPatterns(LLVMTypeConverter &converter,
                                                    RewritePatternSet &patterns,
                                                    Chipset chipset) {
+  // ROCDL supports fp8 types in some contexts, but there is no LLVM-level f8
+  // type. Therefore, for this target, declare f8 to be equal to i8.
+  converter.addConversion([](FloatType type) -> std::optional<Type> {
+    if (type.isFloat8E5M2FNUZ() || type.isFloat8E4M3FNUZ())
+      return IntegerType::get(type.getContext(), 8);
+    return std::nullopt;
+  });
+
   patterns.add<LDSBarrierOpLowering>(converter);
   patterns.add<
       RawBufferOpLowering<RawBufferLoadOp, ROCDL::RawBufferLoadOp>,
       RawBufferOpLowering<RawBufferStoreOp, ROCDL::RawBufferStoreOp>,
       RawBufferOpLowering<RawBufferAtomicFaddOp, ROCDL::RawBufferAtomicFAddOp>,
+      RawBufferOpLowering<RawBufferAtomicFmaxOp, ROCDL::RawBufferAtomicFMaxOp>,
+      RawBufferOpLowering<RawBufferAtomicSmaxOp, ROCDL::RawBufferAtomicSMaxOp>,
+      RawBufferOpLowering<RawBufferAtomicUminOp, ROCDL::RawBufferAtomicUMinOp>,
       MFMAOpLowering>(converter, chipset);
 }
 

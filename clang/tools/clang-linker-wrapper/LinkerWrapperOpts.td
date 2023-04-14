@@ -59,6 +59,10 @@ def wrapper_time_trace_granularity : Joined<["--"], "wrapper-time-trace-granular
   Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
   HelpText<"Set the granularity of time-trace updates">;
 
+def wrapper_jobs : Joined<["--"], "wrapper-jobs=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
+  HelpText<"Sets the number of parallel jobs to use for device linking">;
+
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
@@ -107,14 +111,11 @@ def library_S : Separate<["--", "-"], "library">, Flags<[HelpHidden]>,
 def library_EQ : Joined<["--", "-"], "library=">, Flags<[HelpHidden]>,
   Alias<library_path>;
 
-def as_needed : Flag<["--", "-"], "as-needed">;
-def no_as_needed : Flag<["--", "-"], "no-as-needed">;
-
 def rpath : Separate<["--", "-"], "rpath">;
 def rpath_EQ : Joined<["--", "-"], "rpath=">, Flags<[HelpHidden]>, Alias<rpath>;
 
-def dynamic_linker : Separate<["--", "-"], "dynamic-linker">;
-def dynamic_linker_EQ : Joined<["--", "-"], "dynamic-linker=">, Alias<dynamic_linker>;
-
 def v : Flag<["--", "-"], "v">, HelpText<"Display the version number and exit">;
 def version : Flag<["--", "-"], "version">, Flags<[HelpHidden]>, Alias<v>;
+
+def whole_archive : Flag<["--", "-"], "whole-archive">, Flags<[HelpHidden]>;
+def no_whole_archive : Flag<["--", "-"], "no-whole-archive">, Flags<[HelpHidden]>;

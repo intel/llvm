@@ -41,8 +41,7 @@ enum NodeType : unsigned {
   GLOBAL_BASE_REG,        // Global base reg for PIC.
   Hi,                     // Hi/Lo operations, typically on a global address.
   Lo,                     // Hi/Lo operations, typically on a global address.
-  MEMBARRIER,             // Compiler barrier only; generate a no-op.
-  RET_FLAG,               // Return with a flag operand.
+  RET_GLUE,               // Return with a flag operand.
   TS1AM,                  // A TS1AM instruction used for 1/2 bytes swap.
   VEC_UNPACK_LO,          // unpack the lo v256 slice of a packed v512 vector.
   VEC_UNPACK_HI,          // unpack the hi v256 slice of a packed v512 vector.
@@ -223,7 +222,7 @@ public:
   /// specified type.
   bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AS, Align A,
                                       MachineMemOperand::Flags Flags,
-                                      bool *Fast) const override;
+                                      unsigned *Fast) const override;
 
   /// Inline Assembly {
 

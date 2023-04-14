@@ -88,7 +88,8 @@ IntegerType IntegerType::scaleElementBitwidth(unsigned scale) {
 //===----------------------------------------------------------------------===//
 
 unsigned FloatType::getWidth() {
-  if (isa<Float8E5M2Type>())
+  if (isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+          Float8E4M3FNUZType, Float8E4M3B11FNUZType>())
     return 8;
   if (isa<Float16Type, BFloat16Type>())
     return 16;
@@ -107,6 +108,14 @@ unsigned FloatType::getWidth() {
 const llvm::fltSemantics &FloatType::getFloatSemantics() {
   if (isa<Float8E5M2Type>())
     return APFloat::Float8E5M2();
+  if (isa<Float8E4M3FNType>())
+    return APFloat::Float8E4M3FN();
+  if (isa<Float8E5M2FNUZType>())
+    return APFloat::Float8E5M2FNUZ();
+  if (isa<Float8E4M3FNUZType>())
+    return APFloat::Float8E4M3FNUZ();
+  if (isa<Float8E4M3B11FNUZType>())
+    return APFloat::Float8E4M3B11FNUZ();
   if (isa<BFloat16Type>())
     return APFloat::BFloat();
   if (isa<Float16Type>())
@@ -244,7 +253,7 @@ VectorType VectorType::scaleElementBitwidth(unsigned scale) {
   return VectorType();
 }
 
-VectorType VectorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
+VectorType VectorType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
   return VectorType::get(shape.value_or(getShape()), elementType,
                          getNumScalableDims());
@@ -266,7 +275,7 @@ ArrayRef<int64_t> TensorType::getShape() const {
   return cast<RankedTensorType>().getShape();
 }
 
-TensorType TensorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
+TensorType TensorType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
   if (auto unrankedTy = dyn_cast<UnrankedTensorType>()) {
     if (shape)
@@ -344,7 +353,7 @@ ArrayRef<int64_t> BaseMemRefType::getShape() const {
   return cast<MemRefType>().getShape();
 }
 
-BaseMemRefType BaseMemRefType::cloneWith(Optional<ArrayRef<int64_t>> shape,
+BaseMemRefType BaseMemRefType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                          Type elementType) const {
   if (auto unrankedTy = dyn_cast<UnrankedMemRefType>()) {
     if (!shape)
@@ -383,9 +392,9 @@ unsigned BaseMemRefType::getMemorySpaceAsInt() const {
 /// `reducedShape`. The returned mask can be applied as a projection to
 /// `originalShape` to obtain the `reducedShape`. This mask is useful to track
 /// which dimensions must be kept when e.g. compute MemRef strides under
-/// rank-reducing operations. Return None if reducedShape cannot be obtained
-/// by dropping only `1` entries in `originalShape`.
-llvm::Optional<llvm::SmallDenseSet<unsigned>>
+/// rank-reducing operations. Return std::nullopt if reducedShape cannot be
+/// obtained by dropping only `1` entries in `originalShape`.
+std::optional<llvm::SmallDenseSet<unsigned>>
 mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
                                ArrayRef<int64_t> reducedShape) {
   size_t originalRank = originalShape.size(), reducedRank = reducedShape.size();
@@ -403,11 +412,11 @@ mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
     // If no match on `originalIdx`, the `originalShape` at this dimension
     // must be 1, otherwise we bail.
     if (originalShape[originalIdx] != 1)
-      return llvm::None;
+      return std::nullopt;
   }
   // The whole reducedShape must be scanned, otherwise we bail.
   if (reducedIdx != reducedRank)
-    return llvm::None;
+    return std::nullopt;
   return unusedDims;
 }
 
@@ -606,7 +615,7 @@ LogicalResult MemRefType::verify(function_ref<InFlightDiagnostic()> emitError,
   if (!BaseMemRefType::isValidElementType(elementType))
     return emitError() << "invalid memref element type";
 
-  // Negative sizes are not allowed except for `kDynamicSize`.
+  // Negative sizes are not allowed except for `kDynamic`.
   for (int64_t s : shape)
     if (s < 0 && !ShapedType::isDynamic(s))
       return emitError() << "invalid memref size";
@@ -703,7 +712,7 @@ static LogicalResult extractStrides(AffineExpr e,
 }
 
 /// A stride specification is a list of integer values that are either static
-/// or dynamic (encoded with ShapedType::kDynamicStrideOrOffset). Strides encode
+/// or dynamic (encoded with ShapedType::kDynamic). Strides encode
 /// the distance in the number of elements between successive entries along a
 /// particular dimension.
 ///
@@ -792,14 +801,24 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
   if (auto cst = offsetExpr.dyn_cast<AffineConstantExpr>())
     offset = cst.getValue();
   else
-    offset = ShapedType::kDynamicStrideOrOffset;
+    offset = ShapedType::kDynamic;
   for (auto e : strideExprs) {
     if (auto c = e.dyn_cast<AffineConstantExpr>())
       strides.push_back(c.getValue());
     else
-      strides.push_back(ShapedType::kDynamicStrideOrOffset);
+      strides.push_back(ShapedType::kDynamic);
   }
   return success();
+}
+
+std::pair<SmallVector<int64_t>, int64_t>
+mlir::getStridesAndOffset(MemRefType t) {
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  LogicalResult status = getStridesAndOffset(t, strides, offset);
+  (void)status;
+  assert(succeeded(status) && "Invalid use of check-free getStridesAndOffset");
+  return {strides, offset};
 }
 
 //===----------------------------------------------------------------------===//

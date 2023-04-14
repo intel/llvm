@@ -162,6 +162,9 @@ def ext_c99_feature : Extension<
   "'%0' is a C99 extension">, InGroup<C99>;
 def ext_c11_feature : Extension<
   "'%0' is a C11 extension">, InGroup<C11>;
+def warn_c2x_compat_keyword : Warning<
+ "'%0' is incompatible with C standards before C2x">,
+ InGroup<CPre2xCompat>, DefaultIgnore;
 
 def err_c11_noreturn_misplaced : Error<
   "'_Noreturn' keyword must precede function declarator">;
@@ -179,8 +182,6 @@ def ext_gnu_statement_expr_macro : Extension<
   InGroup<GNUStatementExpressionFromMacroExpansion>;
 def ext_gnu_conditional_expr : Extension<
   "use of GNU ?: conditional expression extension, omitting middle operand">, InGroup<GNUConditionalOmittedOperand>;
-def ext_gnu_empty_initializer : Extension<
-  "use of GNU empty initializer extension">, InGroup<GNUEmptyInitializer>;
 def ext_gnu_array_range : Extension<"use of GNU array range extension">,
   InGroup<GNUDesignator>;
 def ext_gnu_missing_equal_designator : ExtWarn<
@@ -371,9 +372,6 @@ def warn_cxx11_compat_decltype_auto_type_specifier : Warning<
 def ext_auto_type : Extension<
   "'__auto_type' is a GNU extension">,
   InGroup<GNUAutoType>;
-def warn_c2x_compat_typeof_type_specifier : Warning<
-  "'%select{typeof|typeof_unqual}0' is incompatible with C standards before "
-  "C2x">, InGroup<CPre2xCompat>, DefaultIgnore;
 def ext_for_range : ExtWarn<
   "range-based for loop is a C++11 extension">, InGroup<CXX11>;
 def warn_cxx98_compat_for_range : Warning<
@@ -704,9 +702,6 @@ def warn_cxx98_compat_nullptr : Warning<
   "'nullptr' is incompatible with C++98">, InGroup<CXX98Compat>, DefaultIgnore;
 def ext_c_nullptr : Extension<
   "'nullptr' is a C2x extension">, InGroup<C2x>;
-def warn_c17_compat_nullptr : Warning<
-  "'nullptr' is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
 
 def warn_wrong_clang_attr_namespace : Warning<
   "'__clang__' is a predefined macro name, not an attribute scope specifier; "
@@ -1052,7 +1047,7 @@ def err_lambda_template_parameter_list_empty : Error<
 // C++2b static lambdas
 def err_static_lambda: ExtWarn<
   "static lambdas are a C++2b extension">, InGroup<CXX2b>;
-def warn_cxx20_compat_static_lambda: ExtWarn<
+def warn_cxx20_compat_static_lambda : Warning<
   "static lambdas are incompatible with C++ standards before C++2b">,
   InGroup<CXXPre2bCompat>, DefaultIgnore;
 def err_static_mutable_lambda : Error<
@@ -1104,7 +1099,7 @@ def err_availability_query_repeated_star : Error<
 
 // External source symbol attribute
 def err_external_source_symbol_expected_keyword : Error<
-  "expected 'language', 'defined_in', or 'generated_declaration'">;
+  "expected 'language', 'defined_in', 'generated_declaration', or 'USR'">;
 def err_external_source_symbol_duplicate_clause : Error<
   "duplicate %0 clause in an 'external_source_symbol' attribute">;
 
@@ -1303,6 +1298,10 @@ def note_pragma_attribute_namespace_on_attribute : Note<
 def warn_no_support_for_eval_method_source_on_m32 : Warning<
   "Setting the floating point evaluation method to `source` on a target"
   " without SSE is not supported.">, InGroup<Pragmas>;
+// - #pragma __debug
+def warn_pragma_debug_dependent_argument : Warning<
+  "%select{value|type}0-dependent expression passed as an argument to debug "
+  "command">, InGroup<IgnoredPragmas>;
 
 // OpenCL EXTENSION pragma (OpenCL 1.1 [9.1])
 def warn_pragma_expected_colon : Warning<
@@ -1316,6 +1315,7 @@ def warn_pragma_unsupported_extension : Warning<
 def warn_pragma_extension_is_core : Warning<
   "OpenCL extension %0 is core feature or supported optional core feature - ignoring">,
   InGroup<OpenCLCoreFeaturesDiagGroup>, DefaultIgnore;
+def err_modifier_expected_colon : Error<"missing ':' after %0 modifier">;
 
 // OpenCL errors.
 def err_opencl_taking_function_address_parser : Error<
@@ -1341,6 +1341,8 @@ def err_omp_unexpected_directive : Error<
   "unexpected OpenMP directive %select{|'#pragma omp %1'}0">;
 def err_omp_expected_punc : Error<
   "expected ',' or ')' in '%0' %select{clause|directive}1">;
+def warn_clause_expected_string : Warning<
+  "expected string literal in 'clause %0' - ignoring">, InGroup<IgnoredPragmas>;
 def err_omp_unexpected_clause : Error<
   "unexpected OpenMP clause '%0' in directive '#pragma omp %1'">;
 def err_omp_immediate_directive : Error<
@@ -1359,13 +1361,16 @@ def err_omp_unknown_map_type : Error<
   "incorrect map type, expected one of 'to', 'from', 'tofrom', 'alloc', 'release', or 'delete'">;
 def err_omp_unknown_map_type_modifier : Error<
   "incorrect map type modifier, expected one of: 'always', 'close', 'mapper'"
-  "%select{|, 'present'}0%select{|, 'ompx_hold'}1">;
+  "%select{|, 'present'|, 'present', 'iterator'}0%select{|, 'ompx_hold'}1">;
 def err_omp_map_type_missing : Error<
   "missing map type">;
 def err_omp_map_type_modifier_missing : Error<
   "missing map type modifier">;
 def err_omp_declare_simd_inbranch_notinbranch : Error<
   "unexpected '%0' clause, '%1' is specified already">;
+def err_omp_expected_clause_argument
+    : Error<"expected '%0' clause with an argument on '#pragma omp %1' "
+            "construct">;
 def err_expected_end_declare_target_or_variant : Error<
   "expected '#pragma omp end declare %select{target|variant}0'">;
 def err_expected_begin_declare_variant
@@ -1383,12 +1388,22 @@ def note_omp_assumption_clause_continue_here
     : Note<"the ignored tokens spans until here">;
 def err_omp_declare_target_unexpected_clause: Error<
   "unexpected '%0' clause, only %select{'device_type'|'to' or 'link'|'to', 'link' or 'device_type'|'device_type', 'indirect'|'to', 'link', 'device_type' or 'indirect'}1 clauses expected">;
+def err_omp_declare_target_unexpected_clause_52: Error<
+  "unexpected '%0' clause, only %select{'device_type'|'enter' or 'link'|'enter', 'link' or 'device_type'|'device_type', 'indirect'|'enter', 'link', 'device_type' or 'indirect'}1 clauses expected">;
 def err_omp_begin_declare_target_unexpected_implicit_to_clause: Error<
   "unexpected '(', only 'to', 'link' or 'device_type' clauses expected for 'begin declare target' directive">;
-def err_omp_declare_target_unexpected_clause_after_implicit_to: Error<
+def err_omp_declare_target_wrong_clause_after_implicit_to: Error<
   "unexpected clause after an implicit 'to' clause">;
+def err_omp_declare_target_wrong_clause_after_implicit_enter: Error<
+  "unexpected clause after an implicit 'enter' clause">;
 def err_omp_declare_target_missing_to_or_link_clause: Error<
   "expected at least one %select{'to' or 'link'|'to', 'link' or 'indirect'}0 clause">;
+def err_omp_declare_target_missing_enter_or_link_clause: Error<
+  "expected at least one %select{'enter' or 'link'|'enter', 'link' or 'indirect'}0 clause">;
+def err_omp_declare_target_unexpected_to_clause: Error<
+  "unexpected 'to' clause, use 'enter' instead">;
+def err_omp_declare_target_unexpected_enter_clause: Error<
+  "unexpected 'enter' clause, use 'to' instead">;
 def err_omp_declare_target_multiple : Error<
   "%0 appears multiple times in clauses on the same declare target directive">;
 def err_omp_declare_target_indirect_device_type: Error<
@@ -1401,6 +1416,8 @@ def err_omp_mapper_expected_declarator : Error<
   "expected declarator on 'omp declare mapper' directive">;
 def err_omp_unexpected_append_op : Error<
   "unexpected operation specified in 'append_args' clause, expected 'interop'">;
+def err_omp_unexpected_execution_modifier : Error<
+  "unexpected 'execution' modifier in non-executable context">;
 def err_omp_declare_variant_wrong_clause : Error<
   "expected %select{'match'|'match', 'adjust_args', or 'append_args'}0 clause "
   "on 'omp declare variant' directive">;
@@ -1556,9 +1573,6 @@ def warn_ext_int_deprecated : Warning<
 def ext_bit_int : Extension<
   "'_BitInt' in %select{C17 and earlier|C++}0 is a Clang extension">,
   InGroup<DiagGroup<"bit-int-extension">>;
-def warn_c17_compat_bit_int : Warning<
-  "'_BitInt' is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
 } // end of Parse Issue category.
 
 let CategoryName = "Modules Issue" in {
@@ -1618,9 +1632,8 @@ def warn_deprecated_for_co_await : Warning<
 let CategoryName = "Concepts Issue" in {
 def err_concept_definition_not_identifier : Error<
   "name defined in concept definition must be an identifier">;
-def ext_concept_legacy_bool_keyword : ExtWarn<
-  "ISO C++20 does not permit the 'bool' keyword after 'concept'">,
-  InGroup<DiagGroup<"concepts-ts-compat">>;
+def err_concept_legacy_bool_keyword : Error<
+  "ISO C++ does not permit the 'bool' keyword after 'concept'">;
 def err_placeholder_expected_auto_or_decltype_auto : Error<
   "expected 'auto' or 'decltype(auto)' after concept name">;
 }

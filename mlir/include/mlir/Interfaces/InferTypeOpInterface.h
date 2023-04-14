@@ -26,7 +26,13 @@
 namespace mlir {
 
 class ShapedTypeComponents;
-using ReifiedRankedShapedTypeDims = SmallVector<SmallVector<Value>>;
+using ReifiedRankedShapedTypeDims = SmallVector<SmallVector<OpFoldResult>>;
+
+/// Reify the shape of the result of an operation (typically in terms of the
+/// shape of its operands).
+LogicalResult
+reifyResultShapes(OpBuilder &b, Operation *op,
+                  ReifiedRankedShapedTypeDims &reifiedReturnShapes);
 
 /// Adaptor class to abstract the differences between whether value is from
 /// a ShapedType or ShapedTypeComponents or DenseIntElementsAttribute.
@@ -94,7 +100,7 @@ private:
 /// The components consist of
 ///  - A ranked or unranked shape with the dimension specification match those
 ///    of ShapeType's getShape() (e.g., dynamic dimension represented using
-///    ShapedType::kDynamicSize)
+///    ShapedType::kDynamic)
 ///  - A element type, may be unset (nullptr)
 ///  - A attribute, may be unset (nullptr)
 /// Used by ShapedType type inferences.
@@ -235,12 +241,13 @@ namespace detail {
 // TODO: Consider generating typedefs for trait member functions if this usage
 // becomes more common.
 LogicalResult inferReturnTensorTypes(
-    function_ref<LogicalResult(
-        MLIRContext *, Optional<Location> location, ValueShapeRange operands,
-        DictionaryAttr attributes, RegionRange regions,
-        SmallVectorImpl<ShapedTypeComponents> &retComponents)>
+    function_ref<
+        LogicalResult(MLIRContext *, std::optional<Location> location,
+                      ValueShapeRange operands, DictionaryAttr attributes,
+                      RegionRange regions,
+                      SmallVectorImpl<ShapedTypeComponents> &retComponents)>
         componentTypeFn,
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes);
 
@@ -272,7 +279,7 @@ template <typename ConcreteType>
 class InferTensorType : public TraitBase<ConcreteType, InferTensorType> {
 public:
   static LogicalResult
-  inferReturnTypes(MLIRContext *context, Optional<Location> location,
+  inferReturnTypes(MLIRContext *context, std::optional<Location> location,
                    ValueRange operands, DictionaryAttr attributes,
                    RegionRange regions,
                    SmallVectorImpl<Type> &inferredReturnTypes) {

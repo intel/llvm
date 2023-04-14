@@ -57,6 +57,8 @@ struct EntryPointGroup {
     SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
     // Whether any of the EPs use large GRF mode.
     bool UsesLargeGRF = false;
+    // front-end opt level for kernel compilation
+    int OptLevel = -1;
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
@@ -67,11 +69,13 @@ struct EntryPointGroup {
                          : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
       Res.UsesLargeGRF = UsesLargeGRF || Other.UsesLargeGRF;
       // Scope remains global
+      // OptLevel is expected to be the same for both merging EPGs
+      assert(OptLevel == Other.OptLevel && "OptLevels are not same");
       return Res;
     }
   };
 
-  StringRef GroupId;
+  std::string GroupId;
   EntryPointSet Functions;
   Properties Props;
 
@@ -92,6 +96,9 @@ struct EntryPointGroup {
   }
   // Tells if some entry points use large GRF mode.
   bool isLargeGRF() const { return Props.UsesLargeGRF; }
+
+  // Returns opt level
+  int getOptLevel() const { return Props.OptLevel; }
 
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
@@ -125,7 +132,7 @@ public:
   ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints,
              const Properties &Props)
       : M(std::move(M)), EntryPoints(std::move(EntryPoints)), Props(Props) {
-    Name = this->EntryPoints.GroupId.str();
+    Name = this->EntryPoints.GroupId;
   }
 
   ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names,
@@ -147,6 +154,7 @@ public:
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }
   bool isLargeGRF() const { return EntryPoints.isLargeGRF(); }
+  int getOptLevel() const { return EntryPoints.getOptLevel(); }
 
   const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
@@ -236,10 +244,12 @@ public:
   // submodule containing these entry points and their dependencies.
   virtual ModuleDesc nextSplit() = 0;
 
-  size_t totalSplits() const { return Groups.size(); }
+  // Returns a number of remaining modules, which can be split out using this
+  // splitter. The value is reduced by 1 each time nextSplit is called.
+  size_t remainingSplits() const { return Groups.size(); }
 
   // Check that there are still submodules to split.
-  bool hasMoreSplits() const { return totalSplits() > 0; }
+  bool hasMoreSplits() const { return remainingSplits() > 0; }
 };
 
 std::unique_ptr<ModuleSplitterBase>
@@ -251,7 +261,8 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
                   bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+getSplitterByOptionalFeatures(ModuleDesc &&MD,
+                              bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);

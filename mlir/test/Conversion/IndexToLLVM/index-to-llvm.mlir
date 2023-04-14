@@ -22,14 +22,24 @@ func.func @trivial_ops(%a: index, %b: index) {
   %7 = index.maxs %a, %b
   // CHECK: llvm.intr.umax
   %8 = index.maxu %a, %b
+  // CHECK: llvm.intr.smin
+  %9 = index.mins %a, %b
+  // CHECK: llvm.intr.umin
+  %10 = index.minu %a, %b
   // CHECK: llvm.shl
-  %9 = index.shl %a, %b
+  %11 = index.shl %a, %b
   // CHECK: llvm.ashr
-  %10 = index.shrs %a, %b
+  %12 = index.shrs %a, %b
   // CHECK: llvm.lshr
-  %11 = index.shru %a, %b
+  %13 = index.shru %a, %b
+  // CHECK: llvm.add
+  %14 = index.add %a, %b
+  // CHECK: llvm.or
+  %15 = index.or %a, %b
+  // CHECK: llvm.xor
+  %16 = index.xor %a, %b
   // CHECK: llvm.mlir.constant(true
-  %12 = index.bool.constant true
+  %17 = index.bool.constant true
   return
 }
 

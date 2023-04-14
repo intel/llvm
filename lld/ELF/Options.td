@@ -554,12 +554,12 @@ def lto_debug_pass_manager: FF<"lto-debug-pass-manager">,
   HelpText<"Debug new pass manager">;
 def lto_emit_asm: FF<"lto-emit-asm">,
   HelpText<"Emit assembly code">;
-def no_lto_legacy_pass_manager: FF<"no-lto-legacy-pass-manager">,
-  HelpText<"Use the new pass manager in LLVM">;
 def lto_newpm_passes: JJ<"lto-newpm-passes=">,
   HelpText<"Passes to run during LTO">;
 def lto_O: JJ<"lto-O">, MetaVarName<"<opt-level>">,
   HelpText<"Optimization level for LTO">;
+def lto_CGO: JJ<"lto-CGO">, MetaVarName<"<cgopt-level>">,
+  HelpText<"Codegen optimization level for LTO">;
 def lto_partitions: JJ<"lto-partitions=">,
   HelpText<"Number of LTO codegen partitions">;
 def lto_cs_profile_generate: FF<"lto-cs-profile-generate">,
@@ -567,7 +567,7 @@ def lto_cs_profile_generate: FF<"lto-cs-profile-generate">,
 def lto_cs_profile_file: JJ<"lto-cs-profile-file=">,
   HelpText<"Context sensitive profile file path">;
 defm lto_pgo_warn_mismatch: BB<"lto-pgo-warn-mismatch",
-  "turn on warnings about profile cfg mismatch (default)>",
+  "turn on warnings about profile cfg mismatch (default)",
   "turn off warnings about profile cfg mismatch">;
 def lto_obj_path_eq: JJ<"lto-obj-path=">;
 def lto_sample_profile: JJ<"lto-sample-profile=">,
@@ -608,12 +608,12 @@ def thinlto_emit_imports_files: FF<"thinlto-emit-imports-files">;
 def thinlto_emit_index_files: FF<"thinlto-emit-index-files">;
 def thinlto_index_only: FF<"thinlto-index-only">;
 def thinlto_index_only_eq: JJ<"thinlto-index-only=">;
-def thinlto_jobs: JJ<"thinlto-jobs=">,
+def thinlto_jobs_eq: JJ<"thinlto-jobs=">,
   HelpText<"Number of ThinLTO jobs. Default to --threads=">;
 def thinlto_object_suffix_replace_eq: JJ<"thinlto-object-suffix-replace=">;
 def thinlto_prefix_replace_eq: JJ<"thinlto-prefix-replace=">;
 def thinlto_single_module_eq: JJ<"thinlto-single-module=">,
-  HelpText<"Specific a single module to compile in ThinLTO mode, for debugging only">;
+  HelpText<"Specify a single module to compile in ThinLTO mode, for debugging only">;
 
 def: J<"plugin-opt=O">, Alias<lto_O>, HelpText<"Alias for --lto-O">;
 def: F<"plugin-opt=debug-pass-manager">,
@@ -624,11 +624,9 @@ def plugin_opt_dwo_dir_eq: J<"plugin-opt=dwo_dir=">,
 def plugin_opt_emit_asm: F<"plugin-opt=emit-asm">,
   Alias<lto_emit_asm>, HelpText<"Alias for --lto-emit-asm">;
 def plugin_opt_emit_llvm: F<"plugin-opt=emit-llvm">;
-def: J<"plugin-opt=jobs=">, Alias<thinlto_jobs>, HelpText<"Alias for --thinlto-jobs">;
+def: J<"plugin-opt=jobs=">, Alias<thinlto_jobs_eq>, HelpText<"Alias for --thinlto-jobs=">;
 def: J<"plugin-opt=lto-partitions=">, Alias<lto_partitions>, HelpText<"Alias for --lto-partitions">;
 def plugin_opt_mcpu_eq: J<"plugin-opt=mcpu=">;
-def: F<"plugin-opt=new-pass-manager">,
-  Alias<no_lto_legacy_pass_manager>, HelpText<"Alias for --no-lto-legacy-pass-manager">;
 def: F<"plugin-opt=cs-profile-generate">,
   Alias<lto_cs_profile_generate>, HelpText<"Alias for --lto-cs-profile-generate">;
 def: J<"plugin-opt=cs-profile-path=">,
@@ -698,7 +696,6 @@ def: J<"plugin-opt=-pass-through=">;
 def plugin_opt_eq : J<"plugin-opt=">;
 
 // Options listed below are silently ignored for now for compatibility.
-def: F<"detect-odr-violations">;
 def: Flag<["-"], "d">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;

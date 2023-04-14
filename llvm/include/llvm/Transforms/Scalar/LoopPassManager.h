@@ -184,11 +184,11 @@ protected:
   std::vector<std::unique_ptr<LoopPassConceptT>> LoopPasses;
   std::vector<std::unique_ptr<LoopNestPassConceptT>> LoopNestPasses;
 
-  /// Run either a loop pass or a loop-nest pass. Returns `None` if
+  /// Run either a loop pass or a loop-nest pass. Returns `std::nullopt` if
   /// PassInstrumentation's BeforePass returns false. Otherwise, returns the
   /// preserved analyses of the pass.
   template <typename IRUnitT, typename PassT>
-  Optional<PreservedAnalyses>
+  std::optional<PreservedAnalyses>
   runSinglePass(IRUnitT &IR, PassT &Pass, LoopAnalysisManager &AM,
                 LoopStandardAnalysisResults &AR, LPMUpdater &U,
                 PassInstrumentation &PI);
@@ -234,7 +234,7 @@ struct RequireAnalysisPass<AnalysisT, Loop, LoopAnalysisManager,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
     auto ClassName = AnalysisT::name();
     auto PassName = MapClassName2PassName(ClassName);
-    OS << "require<" << PassName << ">";
+    OS << "require<" << PassName << '>';
   }
 };
 
@@ -394,7 +394,7 @@ private:
 };
 
 template <typename IRUnitT, typename PassT>
-Optional<PreservedAnalyses> LoopPassManager::runSinglePass(
+std::optional<PreservedAnalyses> LoopPassManager::runSinglePass(
     IRUnitT &IR, PassT &Pass, LoopAnalysisManager &AM,
     LoopStandardAnalysisResults &AR, LPMUpdater &U, PassInstrumentation &PI) {
   // Get the loop in case of Loop pass and outermost loop in case of LoopNest
@@ -403,7 +403,7 @@ Optional<PreservedAnalyses> LoopPassManager::runSinglePass(
   // Check the PassInstrumentation's BeforePass callbacks before running the
   // pass, skip its execution completely if asked to (callback returns false).
   if (!PI.runBeforePass<Loop>(*Pass, L))
-    return None;
+    return std::nullopt;
 
   PreservedAnalyses PA = Pass->run(IR, AM, AR, U);
 
@@ -426,7 +426,7 @@ Optional<PreservedAnalyses> LoopPassManager::runSinglePass(
 /// The adaptor comes with two modes: the loop mode and the loop-nest mode, and
 /// the worklist updater lived inside will be in the same mode as the adaptor
 /// (refer to the documentation of \c LPMUpdater for more detailed explanation).
-/// Specifically, in loop mode, all loops in the funciton will be pushed into
+/// Specifically, in loop mode, all loops in the function will be pushed into
 /// the worklist and processed by \p Pass, while only top-level loops are
 /// processed in loop-nest mode. Please refer to the various specializations of
 /// \fn createLoopFunctionToLoopPassAdaptor to see when loop mode and loop-nest

@@ -115,7 +115,7 @@ Printable printReg(Register Reg, const TargetRegisterInfo *TRI,
       OS << "$noreg";
     else if (Register::isStackSlot(Reg))
       OS << "SS#" << Register::stackSlot2Index(Reg);
-    else if (Register::isVirtualRegister(Reg)) {
+    else if (Reg.isVirtual()) {
       StringRef Name = MRI ? MRI->getVRegName(Reg) : "";
       if (Name != "") {
         OS << '%' << Name;
@@ -281,7 +281,7 @@ const TargetRegisterClass *firstCommonClass(const uint32_t *A,
                                             const TargetRegisterInfo *TRI) {
   for (unsigned I = 0, E = TRI->getNumRegClasses(); I < E; I += 32)
     if (unsigned Common = *A++ & *B++)
-      return TRI->getRegClass(I + countTrailingZeros(Common));
+      return TRI->getRegClass(I + llvm::countr_zero(Common));
   return nullptr;
 }
 
@@ -424,8 +424,8 @@ bool TargetRegisterInfo::getRegAllocationHints(
     SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF,
     const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MachineRegisterInfo &MRI = MF.getRegInfo();
-  const std::pair<Register, SmallVector<Register, 4>> &Hints_MRI =
-    MRI.getRegAllocationHints(VirtReg);
+  const std::pair<unsigned, SmallVector<Register, 4>> &Hints_MRI =
+      MRI.getRegAllocationHints(VirtReg);
 
   SmallSet<Register, 32> HintedRegs;
   // First hint may be a target hint.
@@ -571,10 +571,14 @@ bool TargetRegisterInfo::getCoveringSubRegIndexes(
         break;
       }
 
-      // Try to cover as much of the remaining lanes as possible but
-      // as few of the already covered lanes as possible.
-      int Cover = (SubRegMask & LanesLeft).getNumLanes() -
-                  (SubRegMask & ~LanesLeft).getNumLanes();
+      // Do not cover already-covered lanes to avoid creating cycles
+      // in copy bundles (= bundle contains copies that write to the
+      // registers).
+      if ((SubRegMask & ~LanesLeft).any())
+        continue;
+
+      // Try to cover as many of the remaining lanes as possible.
+      const int Cover = (SubRegMask & LanesLeft).getNumLanes();
       if (Cover > BestCover) {
         BestCover = Cover;
         BestIdx = Idx;

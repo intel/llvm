@@ -23,7 +23,8 @@
 #include "clang/Basic/Visibility.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -109,9 +110,6 @@ public:
 
     /// Compiling a module from a module map.
     CMK_ModuleMap,
-
-    /// Compiling a module from a list of header files.
-    CMK_HeaderModule,
 
     /// Compiling a module header unit.
     CMK_HeaderUnit,
@@ -303,6 +301,8 @@ public:
     FEM_UnsetOnCommandLine = 3
   };
 
+  enum ExcessPrecisionKind { FPP_Standard, FPP_Fast, FPP_None };
+
   /// Possible exception handling behavior.
   enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };
 
@@ -473,7 +473,7 @@ public:
 
   /// C++ ABI to compile with, if specified by the frontend through -fc++-abi=.
   /// This overrides the default ABI used by the target.
-  llvm::Optional<TargetCXXABI::Kind> CXXABI;
+  std::optional<TargetCXXABI::Kind> CXXABI;
 
   /// Indicates whether the front-end is explicitly told that the
   /// input is a header file (i.e. -x c-header).

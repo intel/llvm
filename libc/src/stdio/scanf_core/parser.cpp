@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// #define LLVM_LIBC_SCANF_DISABLE_INDEX_MODE 1 // This will be a compile flag.
+// #define LIBC_COPT_SCANF_DISABLE_INDEX_MODE 1 // This will be a compile flag.
 
 #include "src/stdio/scanf_core/parser.h"
 
@@ -22,11 +22,11 @@
 namespace __llvm_libc {
 namespace scanf_core {
 
-#ifndef LLVM_LIBC_SCANF_DISABLE_INDEX_MODE
+#ifndef LIBC_COPT_SCANF_DISABLE_INDEX_MODE
 #define GET_ARG_VAL_SIMPLEST(arg_type, index) get_arg_value<arg_type>(index)
 #else
 #define GET_ARG_VAL_SIMPLEST(arg_type, _) get_next_arg_value<arg_type>()
-#endif // LLVM_LIBC_SCANF_DISABLE_INDEX_MODE
+#endif // LIBC_COPT_SCANF_DISABLE_INDEX_MODE
 
 FormatSection Parser::get_next_section() {
   FormatSection section;
@@ -38,9 +38,9 @@ FormatSection Parser::get_next_section() {
     ++cur_pos;
     [[maybe_unused]] size_t conv_index = 0;
 
-#ifndef LLVM_LIBC_SCANF_DISABLE_INDEX_MODE
+#ifndef LIBC_COPT_SCANF_DISABLE_INDEX_MODE
     conv_index = parse_index(&cur_pos);
-#endif // LLVM_LIBC_SCANF_DISABLE_INDEX_MODE
+#endif // LIBC_COPT_SCANF_DISABLE_INDEX_MODE
 
     if (str[cur_pos] == '*') {
       ++cur_pos;
@@ -50,10 +50,9 @@ FormatSection Parser::get_next_section() {
     // handle width
     section.max_width = -1;
     if (internal::isdigit(str[cur_pos])) {
-      char *int_end;
-      section.max_width =
-          internal::strtointeger<int>(str + cur_pos, &int_end, 10);
-      cur_pos = int_end - str;
+      auto result = internal::strtointeger<int>(str + cur_pos, 10);
+      section.max_width = result.value;
+      cur_pos = cur_pos + result.parsed_len;
     }
 
     // TODO(michaelrj): add posix allocate flag support.
@@ -192,16 +191,15 @@ LengthModifier Parser::parse_length_modifier(size_t *local_pos) {
 // INDEX MODE ONLY FUNCTIONS AFTER HERE:
 //----------------------------------------------------
 
-#ifndef LLVM_LIBC_SCANF_DISABLE_INDEX_MODE
+#ifndef LIBC_COPT_SCANF_DISABLE_INDEX_MODE
 
 size_t Parser::parse_index(size_t *local_pos) {
   if (internal::isdigit(str[*local_pos])) {
-    char *int_end;
-    size_t index =
-        internal::strtointeger<size_t>(str + *local_pos, &int_end, 10);
-    if (int_end[0] != '$')
+    auto result = internal::strtointeger<int>(str + *local_pos, 10);
+    size_t index = result.value;
+    if (str[*local_pos + result.parsed_len] != '$')
       return 0;
-    *local_pos = 1 + int_end - str;
+    *local_pos = 1 + result.parsed_len + *local_pos;
     return index;
   }
   return 0;
@@ -221,7 +219,7 @@ void Parser::args_to_index(size_t index) {
   }
 }
 
-#endif // LLVM_LIBC_SCANF_DISABLE_INDEX_MODE
+#endif // LIBC_COPT_SCANF_DISABLE_INDEX_MODE
 
 } // namespace scanf_core
 } // namespace __llvm_libc

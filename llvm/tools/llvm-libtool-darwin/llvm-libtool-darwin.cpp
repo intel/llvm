@@ -126,7 +126,8 @@ struct Config {
 
 static Expected<std::string> searchForFile(const Twine &FileName) {
   auto FindLib =
-      [FileName](ArrayRef<std::string> SearchDirs) -> Optional<std::string> {
+      [FileName](
+          ArrayRef<std::string> SearchDirs) -> std::optional<std::string> {
     for (StringRef Dir : SearchDirs) {
       SmallString<128> Path;
       sys::path::append(Path, Dir, FileName);
@@ -136,10 +137,10 @@ static Expected<std::string> searchForFile(const Twine &FileName) {
 
       GlobalDependencyInfo->addMissingInput(Path);
     }
-    return None;
+    return std::nullopt;
   };
 
-  Optional<std::string> Found = FindLib(LibrarySearchDirs);
+  std::optional<std::string> Found = FindLib(LibrarySearchDirs);
   if (!Found)
     Found = FindLib(StandardSearchDirs);
   if (Found)
@@ -256,8 +257,8 @@ public:
       "This test makes sure NewArchiveMemberList is used by MembersData since "
       "the following asserts test invariants required for MembersData.");
   static_assert(
-      !std::is_copy_constructible<
-          decltype(NewArchiveMemberList::Members)::value_type>::value,
+      !std::is_copy_constructible_v<
+          decltype(NewArchiveMemberList::Members)::value_type>,
       "MembersData::MembersPerArchitecture has a dependency on "
       "MembersData::FileBuffers so it should not be able to "
       "be copied on its own without FileBuffers. Unfortunately, "
@@ -265,8 +266,8 @@ public:
       "of a non-copyable type is itself non-copyable so we have to test the "
       "actual type of the stored data (ie, value_type).");
   static_assert(
-      !std::is_copy_assignable<
-          decltype(NewArchiveMemberList::Members)::value_type>::value,
+      !std::is_copy_assignable_v<
+          decltype(NewArchiveMemberList::Members)::value_type>,
       "MembersData::MembersPerArchitecture has a dependency on "
       "MembersData::FileBuffers so it should not be able to "
       "be copied on its own without FileBuffers. Unfortunately, "

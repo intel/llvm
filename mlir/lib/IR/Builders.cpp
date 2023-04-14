@@ -9,9 +9,9 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/SymbolTable.h"
@@ -35,6 +35,22 @@ Location Builder::getFusedLoc(ArrayRef<Location> locs, Attribute metadata) {
 
 FloatType Builder::getFloat8E5M2Type() {
   return FloatType::getFloat8E5M2(context);
+}
+
+FloatType Builder::getFloat8E4M3FNType() {
+  return FloatType::getFloat8E4M3FN(context);
+}
+
+FloatType Builder::getFloat8E5M2FNUZType() {
+  return FloatType::getFloat8E5M2FNUZ(context);
+}
+
+FloatType Builder::getFloat8E4M3FNUZType() {
+  return FloatType::getFloat8E4M3FNUZ(context);
+}
+
+FloatType Builder::getFloat8E4M3B11FNUZType() {
+  return FloatType::getFloat8E4M3B11FNUZ(context);
 }
 
 FloatType Builder::getBF16Type() { return FloatType::getBF16(context); }
@@ -376,8 +392,6 @@ AffineMap Builder::getShiftedAffineMap(AffineMap map, int64_t shift) {
 // OpBuilder
 //===----------------------------------------------------------------------===//
 
-OpBuilder::Listener::~Listener() = default;
-
 /// Insert the given operation at the current insertion point and return it.
 Operation *OpBuilder::insert(Operation *op) {
   if (block)
@@ -503,7 +517,7 @@ LogicalResult OpBuilder::tryFold(Operation *op,
   return success();
 }
 
-Operation *OpBuilder::clone(Operation &op, BlockAndValueMapping &mapper) {
+Operation *OpBuilder::clone(Operation &op, IRMapping &mapper) {
   Operation *newOp = op.clone(mapper);
   // The `insert` call below handles the notification for inserting `newOp`
   // itself. But if `newOp` has any regions, we need to notify the listener
@@ -519,6 +533,6 @@ Operation *OpBuilder::clone(Operation &op, BlockAndValueMapping &mapper) {
 }
 
 Operation *OpBuilder::clone(Operation &op) {
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   return clone(op, mapper);
 }

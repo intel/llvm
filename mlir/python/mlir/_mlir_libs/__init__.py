@@ -54,6 +54,7 @@ def _site_initialize():
   import itertools
   import logging
   from ._mlir import ir
+  logger = logging.getLogger(__name__)
   registry = ir.DialectRegistry()
   post_init_hooks = []
 
@@ -66,14 +67,14 @@ def _site_initialize():
       message = (f"Error importing mlir initializer {module_name}. This may "
       "happen in unclean incremental builds but is likely a real bug if "
       "encountered otherwise and the MLIR Python API may not function.")
-      logging.warning(message, exc_info=True)
+      logger.warning(message, exc_info=True)
 
-    logging.debug("Initializing MLIR with module: %s", module_name)
+    logger.debug("Initializing MLIR with module: %s", module_name)
     if hasattr(m, "register_dialects"):
-      logging.debug("Registering dialects from initializer %r", m)
+      logger.debug("Registering dialects from initializer %r", m)
       m.register_dialects(registry)
     if hasattr(m, "context_init_hook"):
-      logging.debug("Adding context init hook from %r", m)
+      logger.debug("Adding context init hook from %r", m)
       post_init_hooks.append(m.context_init_hook)
     return True
 
@@ -99,8 +100,29 @@ def _site_initialize():
       # all dialects. It is being done here in order to preserve existing
       # behavior. See: https://github.com/llvm/llvm-project/issues/56037
       self.load_all_available_dialects()
-
   ir.Context = Context
+
+  class MLIRError(Exception):
+    """
+    An exception with diagnostic information. Has the following fields:
+      message: str
+      error_diagnostics: List[ir.DiagnosticInfo]
+    """
+    def __init__(self, message, error_diagnostics):
+      self.message = message
+      self.error_diagnostics = error_diagnostics
+      super().__init__(message, error_diagnostics)
+
+    def __str__(self):
+      s = self.message
+      if self.error_diagnostics:
+        s += ':'
+      for diag in self.error_diagnostics:
+        s += "\nerror: "  + str(diag.location)[4:-1] + ": " + diag.message.replace('\n', '\n  ')
+        for note in diag.notes:
+          s += "\n note: "  + str(note.location)[4:-1] + ": " + note.message.replace('\n', '\n  ')
+      return s
+  ir.MLIRError = MLIRError
 
 
 _site_initialize()

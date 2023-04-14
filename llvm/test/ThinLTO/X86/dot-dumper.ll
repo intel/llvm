@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary %s -o %t1.bc -module-summary-dot-file=%t1.dot
 ; RUN: opt -module-summary %p/Inputs/dot-dumper.ll -o %t2.bc -module-summary-dot-file=%t2.dot
-; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t3 \
+; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t3 \
 ; RUN:  -r=%t1.bc,main,px \
 ; RUN:  -r=%t1.bc,main_alias,p \
 ; RUN:  -r=%t1.bc,foo, \
@@ -71,9 +71,9 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: nounwind uwtable
 define i32 @main() local_unnamed_addr {
   %1 = tail call i32 (...) @foo()
-  %2 = load i32, i32* @A, align 4
+  %2 = load i32, ptr @A, align 4
   %3 = add nsw i32 %2, %1
   ret i32 %3
 }
-@main_alias = weak_odr alias i32 (), i32 ()* @main
+@main_alias = weak_odr alias i32 (), ptr @main
 declare i32 @foo(...) local_unnamed_addr

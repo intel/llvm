@@ -16,6 +16,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/Error.h"
 #include <utility>
@@ -36,12 +37,34 @@ buildStmtToBasicBlockMap(const CFG &Cfg) {
       if (!Stmt)
         continue;
 
-      StmtToBlock[Stmt.value().getStmt()] = Block;
+      StmtToBlock[Stmt->getStmt()] = Block;
     }
     if (const Stmt *TerminatorStmt = Block->getTerminatorStmt())
       StmtToBlock[TerminatorStmt] = Block;
   }
   return StmtToBlock;
+}
+
+static llvm::BitVector findReachableBlocks(const CFG &Cfg) {
+  llvm::BitVector BlockReachable(Cfg.getNumBlockIDs(), false);
+
+  llvm::SmallVector<const CFGBlock *> BlocksToVisit;
+  BlocksToVisit.push_back(&Cfg.getEntry());
+  while (!BlocksToVisit.empty()) {
+    const CFGBlock *Block = BlocksToVisit.back();
+    BlocksToVisit.pop_back();
+
+    if (BlockReachable[Block->getBlockID()])
+      continue;
+
+    BlockReachable[Block->getBlockID()] = true;
+
+    for (const CFGBlock *Succ : Block->succs())
+      if (Succ)
+        BlocksToVisit.push_back(Succ);
+  }
+
+  return BlockReachable;
 }
 
 llvm::Expected<ControlFlowContext>
@@ -64,14 +87,11 @@ ControlFlowContext::build(const Decl *D, Stmt &S, ASTContext &C) {
 
   llvm::DenseMap<const Stmt *, const CFGBlock *> StmtToBlock =
       buildStmtToBasicBlockMap(*Cfg);
-  return ControlFlowContext(D, std::move(Cfg), std::move(StmtToBlock));
-}
 
-llvm::Expected<ControlFlowContext>
-ControlFlowContext::build(const Decl *D, Stmt *S, ASTContext *C) {
-  assert(S != nullptr);
-  assert(C != nullptr);
-  return build(D, *S, *C);
+  llvm::BitVector BlockReachable = findReachableBlocks(*Cfg);
+
+  return ControlFlowContext(D, std::move(Cfg), std::move(StmtToBlock),
+                            std::move(BlockReachable));
 }
 
 } // namespace dataflow

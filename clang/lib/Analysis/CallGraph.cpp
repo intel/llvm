@@ -139,7 +139,7 @@ public:
 
   void VisitIfStmt(IfStmt *If) {
     if (G->shouldSkipConstantExpressions()) {
-      if (llvm::Optional<Stmt *> ActiveStmt =
+      if (std::optional<Stmt *> ActiveStmt =
               If->getNondiscardedCase(G->getASTContext())) {
         if (*ActiveStmt)
           this->Visit(*ActiveStmt);

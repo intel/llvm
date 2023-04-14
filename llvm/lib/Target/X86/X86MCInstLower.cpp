@@ -20,7 +20,6 @@
 #include "X86RegisterInfo.h"
 #include "X86ShuffleDecodeConstantPool.h"
 #include "X86Subtarget.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -65,8 +64,8 @@ class X86MCInstLower {
 public:
   X86MCInstLower(const MachineFunction &MF, X86AsmPrinter &asmprinter);
 
-  Optional<MCOperand> LowerMachineOperand(const MachineInstr *MI,
-                                          const MachineOperand &MO) const;
+  std::optional<MCOperand> LowerMachineOperand(const MachineInstr *MI,
+                                               const MachineOperand &MO) const;
   void Lower(const MachineInstr *MI, MCInst &OutMI) const;
 
   MCSymbol *GetSymbolFromOperand(const MachineOperand &MO) const;
@@ -109,8 +108,7 @@ void X86AsmPrinter::StackMapShadowTracker::count(MCInst &Inst,
   if (InShadow) {
     SmallString<256> Code;
     SmallVector<MCFixup, 4> Fixups;
-    raw_svector_ostream VecOS(Code);
-    CodeEmitter->encodeInstruction(Inst, VecOS, Fixups, STI);
+    CodeEmitter->encodeInstruction(Inst, Code, Fixups, STI);
     CurrentShadowSize += Code.size();
     if (CurrentShadowSize >= RequiredShadowSize)
       InShadow = false; // The shadow is big enough. Stop counting.
@@ -428,7 +426,7 @@ static unsigned getRetOpcode(const X86Subtarget &Subtarget) {
   return Subtarget.is64Bit() ? X86::RET64 : X86::RET32;
 }
 
-Optional<MCOperand>
+std::optional<MCOperand>
 X86MCInstLower::LowerMachineOperand(const MachineInstr *MI,
                                     const MachineOperand &MO) const {
   switch (MO.getType()) {
@@ -438,7 +436,7 @@ X86MCInstLower::LowerMachineOperand(const MachineInstr *MI,
   case MachineOperand::MO_Register:
     // Ignore all implicit register operands.
     if (MO.isImplicit())
-      return None;
+      return std::nullopt;
     return MCOperand::createReg(MO.getReg());
   case MachineOperand::MO_Immediate:
     return MCOperand::createImm(MO.getImm());
@@ -457,7 +455,7 @@ X86MCInstLower::LowerMachineOperand(const MachineInstr *MI,
         MO, AsmPrinter.GetBlockAddressSymbol(MO.getBlockAddress()));
   case MachineOperand::MO_RegisterMask:
     // Ignore call clobbers.
-    return None;
+    return std::nullopt;
   }
 }
 
@@ -976,7 +974,7 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
         (TSFlags & X86II::EncodingMask) == X86II::VEX &&
         (TSFlags & X86II::OpMapMask) == X86II::TB &&
         (TSFlags & X86II::FormMask) == X86II::MRMSrcReg &&
-        !(TSFlags & X86II::VEX_W) && (TSFlags & X86II::VEX_4V) &&
+        !(TSFlags & X86II::REX_W) && (TSFlags & X86II::VEX_4V) &&
         OutMI.getNumOperands() == 3) {
       if (!X86II::isX86_64ExtendedReg(OutMI.getOperand(1).getReg()) &&
           X86II::isX86_64ExtendedReg(OutMI.getOperand(2).getReg()))
@@ -1364,14 +1362,17 @@ void X86AsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
   // and thus emitting potential call target gadgets at each indirect call
   // site, load a negated constant to a register and compare that to the
   // expected value at the call target.
+  const Register AddrReg = MI.getOperand(0).getReg();
   const uint32_t Type = MI.getOperand(1).getImm();
-  EmitAndCountInstruction(MCInstBuilder(X86::MOV32ri)
-                              .addReg(X86::R10D)
-                              .addImm(-MaskKCFIType(Type)));
+  // The check is immediately before the call. If the call target is in R10,
+  // we can clobber R11 for the check instead.
+  unsigned TempReg = AddrReg == X86::R10 ? X86::R11D : X86::R10D;
+  EmitAndCountInstruction(
+      MCInstBuilder(X86::MOV32ri).addReg(TempReg).addImm(-MaskKCFIType(Type)));
   EmitAndCountInstruction(MCInstBuilder(X86::ADD32rm)
                               .addReg(X86::NoRegister)
-                              .addReg(X86::R10D)
-                              .addReg(MI.getOperand(0).getReg())
+                              .addReg(TempReg)
+                              .addReg(AddrReg)
                               .addImm(1)
                               .addReg(X86::NoRegister)
                               .addImm(-(PrefixNops + 4))
@@ -1431,6 +1432,9 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
 
   unsigned MinSize = MI.getOperand(0).getImm();
   unsigned Opcode = MI.getOperand(1).getImm();
+  // Opcode PATCHABLE_OP is a special case: there is no instruction to wrap,
+  // simply emit a nop of size MinSize.
+  bool EmptyInst = (Opcode == TargetOpcode::PATCHABLE_OP);
 
   MCInst MCI;
   MCI.setOpcode(Opcode);
@@ -1439,9 +1443,10 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
       MCI.addOperand(*MaybeOperand);
 
   SmallString<256> Code;
-  SmallVector<MCFixup, 4> Fixups;
-  raw_svector_ostream VecOS(Code);
-  CodeEmitter->encodeInstruction(MCI, VecOS, Fixups, getSubtargetInfo());
+  if (!EmptyInst) {
+    SmallVector<MCFixup, 4> Fixups;
+    CodeEmitter->encodeInstruction(MCI, Code, Fixups, getSubtargetInfo());
+  }
 
   if (Code.size() < MinSize) {
     if (MinSize == 2 && Subtarget->is32Bit() &&
@@ -1467,8 +1472,8 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
       (void)NopSize;
     }
   }
-
-  OutStreamer->emitInstruction(MCI, getSubtargetInfo());
+  if (!EmptyInst)
+    OutStreamer->emitInstruction(MCI, getSubtargetInfo());
 }
 
 // Lower a stackmap of the form:
@@ -1577,7 +1582,7 @@ void X86AsmPrinter::LowerPATCHABLE_EVENT_CALL(const MachineInstr &MI,
   // First we emit the label and the jump.
   auto CurSled = OutContext.createTempSymbol("xray_event_sled_", true);
   OutStreamer->AddComment("# XRay Custom Event Log");
-  OutStreamer->emitCodeAlignment(2, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(2), &getSubtargetInfo());
   OutStreamer->emitLabel(CurSled);
 
   // Use a two-byte `jmp`. This version of JMP takes an 8-bit relative offset as
@@ -1601,6 +1606,7 @@ void X86AsmPrinter::LowerPATCHABLE_EVENT_CALL(const MachineInstr &MI,
     if (auto Op = MCIL.LowerMachineOperand(&MI, MI.getOperand(I))) {
       assert(Op->isReg() && "Only support arguments in registers");
       SrcRegs[I] = getX86SubSuperRegister(Op->getReg(), 64);
+      assert(SrcRegs[I].isValid() && "Invalid operand");
       if (SrcRegs[I] != DestRegs[I]) {
         UsedMask[I] = true;
         EmitAndCountInstruction(
@@ -1673,7 +1679,7 @@ void X86AsmPrinter::LowerPATCHABLE_TYPED_EVENT_CALL(const MachineInstr &MI,
   // First we emit the label and the jump.
   auto CurSled = OutContext.createTempSymbol("xray_typed_event_sled_", true);
   OutStreamer->AddComment("# XRay Typed Event Log");
-  OutStreamer->emitCodeAlignment(2, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(2), &getSubtargetInfo());
   OutStreamer->emitLabel(CurSled);
 
   // Use a two-byte `jmp`. This version of JMP takes an 8-bit relative offset as
@@ -1699,6 +1705,7 @@ void X86AsmPrinter::LowerPATCHABLE_TYPED_EVENT_CALL(const MachineInstr &MI,
       // TODO: Is register only support adequate?
       assert(Op->isReg() && "Only supports arguments in registers");
       SrcRegs[I] = getX86SubSuperRegister(Op->getReg(), 64);
+      assert(SrcRegs[I].isValid() && "Invalid operand");
       if (SrcRegs[I] != DestRegs[I]) {
         UsedMask[I] = true;
         EmitAndCountInstruction(
@@ -1775,7 +1782,7 @@ void X86AsmPrinter::LowerPATCHABLE_FUNCTION_ENTER(const MachineInstr &MI,
   //   call <relative offset, 32-bits>   // 5 bytes
   //
   auto CurSled = OutContext.createTempSymbol("xray_sled_", true);
-  OutStreamer->emitCodeAlignment(2, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(2), &getSubtargetInfo());
   OutStreamer->emitLabel(CurSled);
 
   // Use a two-byte `jmp`. This version of JMP takes an 8-bit relative offset as
@@ -1805,7 +1812,7 @@ void X86AsmPrinter::LowerPATCHABLE_RET(const MachineInstr &MI,
   //
   // This just makes sure that the alignment for the next instruction is 2.
   auto CurSled = OutContext.createTempSymbol("xray_sled_", true);
-  OutStreamer->emitCodeAlignment(2, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(2), &getSubtargetInfo());
   OutStreamer->emitLabel(CurSled);
   unsigned OpCode = MI.getOperand(0).getImm();
   MCInst Ret;
@@ -1829,7 +1836,7 @@ void X86AsmPrinter::LowerPATCHABLE_TAIL_CALL(const MachineInstr &MI,
   // the PATCHABLE_FUNCTION_ENTER case, followed by the lowering of the actual
   // tail call much like how we have it in PATCHABLE_RET.
   auto CurSled = OutContext.createTempSymbol("xray_sled_", true);
-  OutStreamer->emitCodeAlignment(2, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(2), &getSubtargetInfo());
   OutStreamer->emitLabel(CurSled);
   auto Target = OutContext.createTempSymbol();
 
@@ -1896,8 +1903,8 @@ static std::string getShuffleComment(const MachineInstr *MI, unsigned SrcOp1Idx,
   // names. Fortunately most people use the ATT style (outside of Windows)
   // and they actually agree on register naming here. Ultimately, this is
   // a comment, and so its OK if it isn't perfect.
-  auto GetRegisterName = [](unsigned RegNum) -> StringRef {
-    return X86ATTInstPrinter::getRegisterName(RegNum);
+  auto GetRegisterName = [](MCRegister Reg) -> StringRef {
+    return X86ATTInstPrinter::getRegisterName(Reg);
   };
 
   const MachineOperand &DstOp = MI->getOperand(0);
@@ -2127,7 +2134,7 @@ static void addConstantComments(const MachineInstr *MI,
 
     const MachineOperand &MaskOp = MI->getOperand(MaskIdx);
     if (auto *C = getConstantFromPool(*MI, MaskOp)) {
-      unsigned Width = getRegisterWidth(MI->getDesc().OpInfo[0]);
+      unsigned Width = getRegisterWidth(MI->getDesc().operands()[0]);
       SmallVector<int, 64> Mask;
       DecodePSHUFBMask(C, Width, Mask);
       if (!Mask.empty())
@@ -2205,7 +2212,7 @@ static void addConstantComments(const MachineInstr *MI,
 
     const MachineOperand &MaskOp = MI->getOperand(MaskIdx);
     if (auto *C = getConstantFromPool(*MI, MaskOp)) {
-      unsigned Width = getRegisterWidth(MI->getDesc().OpInfo[0]);
+      unsigned Width = getRegisterWidth(MI->getDesc().operands()[0]);
       SmallVector<int, 16> Mask;
       DecodeVPERMILPMask(C, ElSize, Width, Mask);
       if (!Mask.empty())
@@ -2234,7 +2241,7 @@ static void addConstantComments(const MachineInstr *MI,
 
     const MachineOperand &MaskOp = MI->getOperand(3 + X86::AddrDisp);
     if (auto *C = getConstantFromPool(*MI, MaskOp)) {
-      unsigned Width = getRegisterWidth(MI->getDesc().OpInfo[0]);
+      unsigned Width = getRegisterWidth(MI->getDesc().operands()[0]);
       SmallVector<int, 16> Mask;
       DecodeVPERMIL2PMask(C, (unsigned)CtrlOp.getImm(), ElSize, Width, Mask);
       if (!Mask.empty())
@@ -2249,7 +2256,7 @@ static void addConstantComments(const MachineInstr *MI,
 
     const MachineOperand &MaskOp = MI->getOperand(3 + X86::AddrDisp);
     if (auto *C = getConstantFromPool(*MI, MaskOp)) {
-      unsigned Width = getRegisterWidth(MI->getDesc().OpInfo[0]);
+      unsigned Width = getRegisterWidth(MI->getDesc().operands()[0]);
       SmallVector<int, 16> Mask;
       DecodeVPPERMMask(C, Width, Mask);
       if (!Mask.empty())
@@ -2499,11 +2506,6 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
   case TargetOpcode::DBG_VALUE:
     llvm_unreachable("Should be handled target independently");
 
-  // Emit nothing here but a comment if we can.
-  case X86::Int_MemBarrier:
-    OutStreamer->emitRawComment("MEMBARRIER");
-    return;
-
   case X86::EH_RETURN:
   case X86::EH_RETURN64: {
     // Lower these as normal, but add some comments.
@@ -2710,9 +2712,10 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
     for (MBBI = PrevCrossBBInst(MBBI);
          MBBI != MachineBasicBlock::const_iterator();
          MBBI = PrevCrossBBInst(MBBI)) {
-      // Conservatively assume that pseudo instructions don't emit code and keep
-      // looking for a call. We may emit an unnecessary nop in some cases.
-      if (!MBBI->isPseudo()) {
+      // Pseudo instructions that aren't a call are assumed to not emit any
+      // code. If they do, we worst case generate unnecessary noops after a
+      // call.
+      if (MBBI->isCall() || !MBBI->isPseudo()) {
         if (MBBI->isCall())
           EmitAndCountInstruction(MCInstBuilder(X86::NOOP));
         break;

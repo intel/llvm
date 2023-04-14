@@ -14,7 +14,6 @@
 #ifndef LLVM_DEBUGINFO_SYMBOLIZE_DIPRINTER_H
 #define LLVM_DEBUGINFO_SYMBOLIZE_DIPRINTER_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/JSON.h"
 #include <memory>
@@ -34,7 +33,7 @@ class SourceCode;
 
 struct Request {
   StringRef ModuleName;
-  Optional<uint64_t> Address;
+  std::optional<uint64_t> Address;
 };
 
 class DIPrinter {
@@ -122,6 +121,8 @@ private:
 public:
   GNUPrinter(raw_ostream &OS, raw_ostream &ES, PrinterConfig &Config)
       : PlainPrinterBase(OS, ES, Config) {}
+
+  void printInvalidCommand(const Request &Request, StringRef Command) override;
 };
 
 class JSONPrinter : public DIPrinter {

@@ -134,7 +134,7 @@ static OptionalParseResult parseOptionalOperandAndType(OpAsmParser &parser,
     return failure(parser.parseLParen() ||
                    parseOperandAndType(parser, result) || parser.parseRParen());
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Parse optional operand and its type wrapped in parenthesis.
@@ -145,7 +145,7 @@ static OptionalParseResult parseOptionalOperandAndType(OpAsmParser &parser,
   if (succeeded(parser.parseOptionalLParen())) {
     return failure(parseOperandAndType(parser, result) || parser.parseRParen());
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Parse optional operand with its type prefixed with prefixKeyword `=`.
@@ -158,7 +158,7 @@ static OptionalParseResult parserOptionalOperandAndTypeWithPrefix(
       return failure();
     return success();
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 static bool isComputeOperation(Operation *op) {
@@ -178,16 +178,15 @@ struct RemoveConstantIfCondition : public OpRewritePattern<OpTy> {
     // Early return if there is no condition.
     Value ifCond = op.getIfCond();
     if (!ifCond)
-      return success();
+      return failure();
 
     IntegerAttr constAttr;
-    if (matchPattern(ifCond, m_Constant(&constAttr))) {
-      if (constAttr.getInt())
-        rewriter.updateRootInPlace(op,
-                                   [&]() { op.getIfCondMutable().erase(0); });
-      else
-        rewriter.eraseOp(op);
-    }
+    if (!matchPattern(ifCond, m_Constant(&constAttr)))
+      return failure();
+    if (constAttr.getInt())
+      rewriter.updateRootInPlace(op, [&]() { op.getIfCondMutable().erase(0); });
+    else
+      rewriter.eraseOp(op);
 
     return success();
   }

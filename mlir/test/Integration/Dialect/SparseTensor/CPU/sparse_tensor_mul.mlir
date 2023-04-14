@@ -1,8 +1,30 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
+// DEFINE: FileCheck %s
+//
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 #ST = #sparse_tensor.encoding<{dimLevelType = ["compressed", "compressed", "compressed"]}>
 
@@ -79,14 +101,17 @@ module {
 
     // Verify results
     //
-    // CHECK:      ( 2.4, 3.5, 2, 8, -1, -1, -1, -1 )
+    // CHECK:      4
+    // CHECK-NEXT: ( 2.4, 3.5, 2, 8 )
     // CHECK-NEXT: ( ( ( 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0 ), ( 2.4, 0, 3.5, 0, 0 ) ),
     // CHECK-SAME: ( ( 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0 ) ),
     // CHECK-SAME: ( ( 2, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0 ), ( 0, 0, 8, 0, 0 ) ) )
     //
+    %n = sparse_tensor.number_of_entries %0 : tensor<?x?x?xf64, #ST>
+    vector.print %n : index
     %m1 = sparse_tensor.values %0  : tensor<?x?x?xf64, #ST> to memref<?xf64>
-    %v1 = vector.transfer_read %m1[%c0], %default_val: memref<?xf64>, vector<8xf64>
-    vector.print %v1 : vector<8xf64>
+    %v1 = vector.transfer_read %m1[%c0], %default_val: memref<?xf64>, vector<4xf64>
+    vector.print %v1 : vector<4xf64>
 
     // Print %0 in dense form.
     %dt = sparse_tensor.convert %0 : tensor<?x?x?xf64, #ST> to tensor<?x?x?xf64>

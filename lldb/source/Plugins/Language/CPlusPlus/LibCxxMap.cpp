@@ -249,7 +249,7 @@ bool lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetDataType() {
   static ConstString g_tree_("__tree_");
   static ConstString g_pair3("__pair3_");
 
-  if (m_element_type.GetOpaqueQualType() && m_element_type.GetTypeSystem())
+  if (m_element_type.IsValid())
     return true;
   m_element_type.Clear();
   ValueObjectSP deref;
@@ -295,8 +295,7 @@ void lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetValueOffset(
       UINT32_MAX) {
     m_skip_size = bit_offset / 8u;
   } else {
-    TypeSystemClang *ast_ctx =
-        llvm::dyn_cast_or_null<TypeSystemClang>(node_type.GetTypeSystem());
+    auto ast_ctx = node_type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
     if (!ast_ctx)
       return;
     CompilerType tree_node_type = ast_ctx->CreateStructForIdentifier(
@@ -398,18 +397,9 @@ lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
   // at this point we have a valid
   // we need to copy current_sp into a new object otherwise we will end up with
   // all items named __value_
-  DataExtractor data;
-  Status error;
-  iterated_sp->GetData(data, error);
-  if (error.Fail()) {
-    m_tree = nullptr;
-    return lldb::ValueObjectSP();
-  }
   StreamString name;
   name.Printf("[%" PRIu64 "]", (uint64_t)idx);
-  auto potential_child_sp = CreateValueObjectFromData(
-      name.GetString(), data, m_backend.GetExecutionContextRef(),
-      m_element_type);
+  auto potential_child_sp = iterated_sp->Clone(ConstString(name.GetString()));
   if (potential_child_sp) {
     switch (potential_child_sp->GetNumChildren()) {
     case 1: {

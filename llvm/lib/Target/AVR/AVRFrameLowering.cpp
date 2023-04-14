@@ -70,23 +70,23 @@ void AVRFrameLowering::emitPrologue(MachineFunction &MF,
   // handlers before saving any other registers.
   if (AFI->isInterruptOrSignalHandler()) {
     BuildMI(MBB, MBBI, DL, TII.get(AVR::PUSHRr))
-        .addReg(AVR::R0, RegState::Kill)
+        .addReg(STI.getTmpRegister(), RegState::Kill)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    BuildMI(MBB, MBBI, DL, TII.get(AVR::INRdA), AVR::R0)
+    BuildMI(MBB, MBBI, DL, TII.get(AVR::INRdA), STI.getTmpRegister())
         .addImm(STI.getIORegSREG())
         .setMIFlag(MachineInstr::FrameSetup);
     BuildMI(MBB, MBBI, DL, TII.get(AVR::PUSHRr))
-        .addReg(AVR::R0, RegState::Kill)
+        .addReg(STI.getTmpRegister(), RegState::Kill)
         .setMIFlag(MachineInstr::FrameSetup);
-    if (!MRI.reg_empty(AVR::R1)) {
+    if (!MRI.reg_empty(STI.getZeroRegister())) {
       BuildMI(MBB, MBBI, DL, TII.get(AVR::PUSHRr))
-          .addReg(AVR::R1, RegState::Kill)
+          .addReg(STI.getZeroRegister(), RegState::Kill)
           .setMIFlag(MachineInstr::FrameSetup);
       BuildMI(MBB, MBBI, DL, TII.get(AVR::EORRdRr))
-          .addReg(AVR::R1, RegState::Define)
-          .addReg(AVR::R1, RegState::Kill)
-          .addReg(AVR::R1, RegState::Kill)
+          .addReg(STI.getZeroRegister(), RegState::Define)
+          .addReg(STI.getZeroRegister(), RegState::Kill)
+          .addReg(STI.getZeroRegister(), RegState::Kill)
           .setMIFlag(MachineInstr::FrameSetup);
     }
   }
@@ -121,7 +121,8 @@ void AVRFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   // Reserve the necessary frame memory by doing FP -= <size>.
-  unsigned Opcode = (isUInt<6>(FrameSize)) ? AVR::SBIWRdK : AVR::SUBIWRdK;
+  unsigned Opcode = (isUInt<6>(FrameSize) && STI.hasADDSUBIW()) ? AVR::SBIWRdK
+                                                                : AVR::SUBIWRdK;
 
   MachineInstr *MI = BuildMI(MBB, MBBI, DL, TII.get(Opcode), AVR::R29R28)
                          .addReg(AVR::R29R28, RegState::Kill)
@@ -149,14 +150,14 @@ static void restoreStatusRegister(MachineFunction &MF, MachineBasicBlock &MBB) {
   // Emit special epilogue code to restore R1, R0 and SREG in interrupt/signal
   // handlers at the very end of the function, just before reti.
   if (AFI->isInterruptOrSignalHandler()) {
-    if (!MRI.reg_empty(AVR::R1)) {
-      BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), AVR::R1);
+    if (!MRI.reg_empty(STI.getZeroRegister())) {
+      BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), STI.getZeroRegister());
     }
-    BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), AVR::R0);
+    BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), STI.getTmpRegister());
     BuildMI(MBB, MBBI, DL, TII.get(AVR::OUTARr))
         .addImm(STI.getIORegSREG())
-        .addReg(AVR::R0, RegState::Kill);
-    BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), AVR::R0);
+        .addReg(STI.getTmpRegister(), RegState::Kill);
+    BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), STI.getTmpRegister());
   }
 }
 
@@ -202,7 +203,7 @@ void AVRFrameLowering::emitEpilogue(MachineFunction &MF,
     unsigned Opcode;
 
     // Select the optimal opcode depending on how big it is.
-    if (isUInt<6>(FrameSize)) {
+    if (isUInt<6>(FrameSize) && STI.hasADDSUBIW()) {
       Opcode = AVR::ADIWRdK;
     } else {
       Opcode = AVR::SUBIWRdK;
@@ -258,6 +259,16 @@ bool AVRFrameLowering::spillCalleeSavedRegisters(
   for (const CalleeSavedInfo &I : llvm::reverse(CSI)) {
     Register Reg = I.getReg();
     bool IsNotLiveIn = !MBB.isLiveIn(Reg);
+
+    // Check if Reg is a sub register of a 16-bit livein register, and then
+    // add it to the livein list.
+    if (IsNotLiveIn)
+      for (const auto &LiveIn : MBB.liveins())
+        if (STI.getRegisterInfo()->isSubRegister(LiveIn.PhysReg, Reg)) {
+          IsNotLiveIn = false;
+          MBB.addLiveIn(Reg);
+          break;
+        }
 
     assert(TRI->getRegSizeInBits(*TRI->getMinimalPhysRegClass(Reg)) == 8 &&
            "Invalid register size");
@@ -384,7 +395,7 @@ MachineBasicBlock::iterator AVRFrameLowering::eliminateCallFramePseudoInstr(
     // Select the best opcode to adjust SP based on the offset size.
     unsigned AddOpcode;
 
-    if (isUInt<6>(Amount)) {
+    if (isUInt<6>(Amount) && STI.hasADDSUBIW()) {
       AddOpcode = AVR::ADIWRdK;
     } else {
       AddOpcode = AVR::SUBIWRdK;
@@ -457,7 +468,8 @@ struct AVRFrameAnalyzer : public MachineFunctionPass {
         int Opcode = MI.getOpcode();
 
         if ((Opcode != AVR::LDDRdPtrQ) && (Opcode != AVR::LDDWRdPtrQ) &&
-            (Opcode != AVR::STDPtrQRr) && (Opcode != AVR::STDWPtrQRr)) {
+            (Opcode != AVR::STDPtrQRr) && (Opcode != AVR::STDWPtrQRr) &&
+            (Opcode != AVR::FRMIDX)) {
           continue;
         }
 

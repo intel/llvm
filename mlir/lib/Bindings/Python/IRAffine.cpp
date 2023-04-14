@@ -15,6 +15,7 @@
 #include "mlir-c/AffineMap.h"
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/IntegerSet.h"
+#include "llvm/ADT/Hashing.h"
 
 namespace py = pybind11;
 using namespace mlir;
@@ -346,7 +347,7 @@ public:
 
 } // namespace
 
-bool PyAffineExpr::operator==(const PyAffineExpr &other) {
+bool PyAffineExpr::operator==(const PyAffineExpr &other) const {
   return mlirAffineExprEqual(affineExpr, other.affineExpr);
 }
 
@@ -405,7 +406,7 @@ private:
 };
 } // namespace
 
-bool PyAffineMap::operator==(const PyAffineMap &other) {
+bool PyAffineMap::operator==(const PyAffineMap &other) const {
   return mlirAffineMapEqual(affineMap, other.affineMap);
 }
 
@@ -482,7 +483,7 @@ private:
 };
 } // namespace
 
-bool PyIntegerSet::operator==(const PyIntegerSet &other) {
+bool PyIntegerSet::operator==(const PyIntegerSet &other) const {
   return mlirIntegerSetEqual(integerSet, other.integerSet);
 }
 

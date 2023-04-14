@@ -38,12 +38,14 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
+#include <optional>
 
 using namespace llvm;
 using namespace lto;
@@ -207,14 +209,14 @@ createTargetMachine(const Config &Conf, const Target *TheTarget, Module &M) {
   for (const std::string &A : Conf.MAttrs)
     Features.AddFeature(A);
 
-  Optional<Reloc::Model> RelocModel;
+  std::optional<Reloc::Model> RelocModel;
   if (Conf.RelocModel)
     RelocModel = *Conf.RelocModel;
   else if (M.getModuleFlag("PIC Level"))
     RelocModel =
         M.getPICLevel() == PICLevel::NotPIC ? Reloc::Static : Reloc::PIC_;
 
-  Optional<CodeModel::Model> CodeModel;
+  std::optional<CodeModel::Model> CodeModel;
   if (Conf.CodeModel)
     CodeModel = *Conf.CodeModel;
   else
@@ -231,21 +233,22 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
                            unsigned OptLevel, bool IsThinLTO,
                            ModuleSummaryIndex *ExportSummary,
                            const ModuleSummaryIndex *ImportSummary) {
-  Optional<PGOOptions> PGOOpt;
+  auto FS = vfs::getRealFileSystem();
+  std::optional<PGOOptions> PGOOpt;
   if (!Conf.SampleProfile.empty())
-    PGOOpt = PGOOptions(Conf.SampleProfile, "", Conf.ProfileRemapping,
+    PGOOpt = PGOOptions(Conf.SampleProfile, "", Conf.ProfileRemapping, FS,
                         PGOOptions::SampleUse, PGOOptions::NoCSAction, true);
   else if (Conf.RunCSIRInstr) {
-    PGOOpt = PGOOptions("", Conf.CSIRProfile, Conf.ProfileRemapping,
+    PGOOpt = PGOOptions("", Conf.CSIRProfile, Conf.ProfileRemapping, FS,
                         PGOOptions::IRUse, PGOOptions::CSIRInstr,
                         Conf.AddFSDiscriminator);
   } else if (!Conf.CSIRProfile.empty()) {
-    PGOOpt = PGOOptions(Conf.CSIRProfile, "", Conf.ProfileRemapping,
+    PGOOpt = PGOOptions(Conf.CSIRProfile, "", Conf.ProfileRemapping, FS,
                         PGOOptions::IRUse, PGOOptions::CSIRUse,
                         Conf.AddFSDiscriminator);
     NoPGOWarnMismatch = !Conf.PGOWarnMismatch;
   } else if (Conf.AddFSDiscriminator) {
-    PGOOpt = PGOOptions("", "", "", PGOOptions::NoAction,
+    PGOOpt = PGOOptions("", "", "", nullptr, PGOOptions::NoAction,
                         PGOOptions::NoCSAction, true);
   }
   TM->setPGOOption(PGOOpt);
@@ -256,8 +259,8 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   ModuleAnalysisManager MAM;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI(Conf.DebugPassManager);
-  SI.registerCallbacks(PIC, &FAM);
+  StandardInstrumentations SI(Mod.getContext(), Conf.DebugPassManager);
+  SI.registerCallbacks(PIC, &MAM);
   PassBuilder PB(TM, Conf.PTO, PGOOpt, &PIC);
 
   RegisterPassPlugins(Conf.PassPlugins, PB);
@@ -391,7 +394,8 @@ static void codegen(const Config &Conf, TargetMachine *TM,
                          EC.message());
   }
 
-  Expected<std::unique_ptr<CachedFileStream>> StreamOrErr = AddStream(Task);
+  Expected<std::unique_ptr<CachedFileStream>> StreamOrErr =
+      AddStream(Task, Mod.getModuleIdentifier());
   if (Error Err = StreamOrErr.takeError())
     report_fatal_error(std::move(Err));
   std::unique_ptr<CachedFileStream> &Stream = *StreamOrErr;

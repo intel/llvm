@@ -8,13 +8,14 @@
 
 #pragma once
 #include <sycl/functional.hpp>
+#include <sycl/half_type.hpp>
 
+#include <complex>
 #include <functional>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -24,8 +25,7 @@ template <typename T = void> using bit_and = std::bit_and<T>;
 template <typename T = void> using maximum = sycl::maximum<T>;
 template <typename T = void> using minimum = sycl::minimum<T>;
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
@@ -33,6 +33,7 @@ namespace detail {
 struct GroupOpISigned {};
 struct GroupOpIUnsigned {};
 struct GroupOpFP {};
+struct GroupOpC {};
 
 template <typename T, typename = void> struct GroupOpTag;
 
@@ -49,6 +50,14 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
 template <typename T>
 struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
   using type = GroupOpFP;
+};
+
+template <typename T>
+struct GroupOpTag<
+    T, detail::enable_if_t<std::is_same<T, std::complex<half>>::value ||
+                           std::is_same<T, std::complex<float>>::value ||
+                           std::is_same<T, std::complex<double>>::value>> {
+  using type = GroupOpC;
 };
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
@@ -85,6 +94,7 @@ __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpISigned, IMulKHR, sycl::multiplies<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulKHR, sycl::multiplies<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpC, CMulINTEL, sycl::multiplies<T>)
 
 __SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrKHR, sycl::bit_or<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrKHR, sycl::bit_or<T>)

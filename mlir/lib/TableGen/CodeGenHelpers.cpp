@@ -77,11 +77,11 @@ StringRef StaticVerifierFunctionEmitter::getTypeConstraintFn(
 }
 
 // Find a uniqued attribute constraint. Since not all attribute constraints can
-// be uniqued, return None if one was not found.
-Optional<StringRef> StaticVerifierFunctionEmitter::getAttrConstraintFn(
+// be uniqued, return std::nullopt if one was not found.
+std::optional<StringRef> StaticVerifierFunctionEmitter::getAttrConstraintFn(
     const Constraint &constraint) const {
   auto it = attrConstraints.find(constraint);
-  return it == attrConstraints.end() ? Optional<StringRef>()
+  return it == attrConstraints.end() ? std::optional<StringRef>()
                                      : StringRef(it->second);
 }
 
@@ -190,7 +190,7 @@ void StaticVerifierFunctionEmitter::emitConstraints(
     const ConstraintMap &constraints, StringRef selfName,
     const char *const codeTemplate) {
   FmtContext ctx;
-  ctx.withOp("*op").withSelf(selfName);
+  ctx.addSubst("_op", "*op").withSelf(selfName);
   for (auto &it : constraints) {
     os << formatv(codeTemplate, it.second,
                   tgfmt(it.first.getConditionTemplate(), &ctx),
@@ -216,7 +216,7 @@ void StaticVerifierFunctionEmitter::emitRegionConstraints() {
 
 void StaticVerifierFunctionEmitter::emitPatternConstraints() {
   FmtContext ctx;
-  ctx.withOp("*op").withBuilder("rewriter").withSelf("type");
+  ctx.addSubst("_op", "*op").withBuilder("rewriter").withSelf("type");
   for (auto &it : typeConstraints) {
     os << formatv(patternAttrOrTypeConstraintCode, it.second,
                   tgfmt(it.first.getConditionTemplate(), &ctx),
@@ -240,9 +240,9 @@ void StaticVerifierFunctionEmitter::emitPatternConstraints() {
 /// because ops use cached identifiers.
 static bool canUniqueAttrConstraint(Attribute attr) {
   FmtContext ctx;
-  auto test =
-      tgfmt(attr.getConditionTemplate(), &ctx.withSelf("attr").withOp("*op"))
-          .str();
+  auto test = tgfmt(attr.getConditionTemplate(),
+                    &ctx.withSelf("attr").addSubst("_op", "*op"))
+                  .str();
   return !StringRef(test).contains("<no-subst-found>");
 }
 

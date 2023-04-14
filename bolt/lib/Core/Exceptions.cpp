@@ -115,7 +115,7 @@ void BinaryFunction::parseLSDA(ArrayRef<uint8_t> LSDASectionData,
   uint8_t LPStartEncoding = Data.getU8(&Offset);
   uint64_t LPStart = 0;
   // Convert to offset if LPStartEncoding is typed absptr DW_EH_PE_absptr
-  if (Optional<uint64_t> MaybeLPStart = Data.getEncodedPointer(
+  if (std::optional<uint64_t> MaybeLPStart = Data.getEncodedPointer(
           &Offset, LPStartEncoding, Offset + LSDASectionAddress))
     LPStart = (LPStartEncoding && 0xFF == 0) ? *MaybeLPStart
                                              : *MaybeLPStart - Address;
@@ -188,12 +188,7 @@ void BinaryFunction::parseLSDA(ArrayRef<uint8_t> LSDASectionData,
              "BOLT-ERROR: cannot find landing pad fragment");
       BC.addInterproceduralReference(this, Fragment->getAddress());
       BC.processInterproceduralReferences();
-      auto isFragmentOf = [](BinaryFunction *Fragment,
-                             BinaryFunction *Parent) -> bool {
-        return (Fragment->isFragment() && Fragment->isParentFragment(Parent));
-      };
-      (void)isFragmentOf;
-      assert((isFragmentOf(this, Fragment) || isFragmentOf(Fragment, this)) &&
+      assert((isChildOf(*Fragment) || Fragment->isChildOf(*this)) &&
              "BOLT-ERROR: cannot have landing pads in different "
              "functions");
       setHasIndirectTargetToSplitFragment(true);
@@ -393,7 +388,7 @@ void BinaryFunction::updateEHRanges() {
         // Extract exception handling information from the instruction.
         const MCSymbol *LP = nullptr;
         uint64_t Action = 0;
-        if (const Optional<MCPlus::MCLandingPad> EHInfo =
+        if (const std::optional<MCPlus::MCLandingPad> EHInfo =
                 BC.MIB->getEHInfo(*II))
           std::tie(LP, Action) = *EHInfo;
 
@@ -406,7 +401,7 @@ void BinaryFunction::updateEHRanges() {
         const MCSymbol *EHSymbol;
         MCInst EHLabel;
         {
-          std::unique_lock<std::shared_timed_mutex> Lock(BC.CtxMutex);
+          std::unique_lock<llvm::sys::RWMutex> Lock(BC.CtxMutex);
           EHSymbol = BC.Ctx->createNamedTempSymbol("EH");
           BC.MIB->createEHLabel(EHLabel, EHSymbol, BC.Ctx.get());
         }
@@ -496,7 +491,7 @@ bool CFIReaderWriter::fillCFIInfoFor(BinaryFunction &Function) const {
     return true;
 
   const FDE &CurFDE = *I->second;
-  Optional<uint64_t> LSDA = CurFDE.getLSDAAddress();
+  std::optional<uint64_t> LSDA = CurFDE.getLSDAAddress();
   Function.setLSDAAddress(LSDA ? *LSDA : 0);
 
   uint64_t Offset = Function.getFirstInstructionOffset();
@@ -626,18 +621,25 @@ bool CFIReaderWriter::fillCFIInfoFor(BinaryFunction &Function) const {
         errs() << "BOLT-WARNING: DW_CFA_MIPS_advance_loc unimplemented\n";
       return false;
     case DW_CFA_GNU_window_save:
+      // DW_CFA_GNU_window_save and DW_CFA_GNU_NegateRAState just use the same
+      // id but mean different things. The latter is used in AArch64.
+      if (Function.getBinaryContext().isAArch64()) {
+        Function.addCFIInstruction(
+            Offset, MCCFIInstruction::createNegateRAState(nullptr));
+        break;
+      }
+      if (opts::Verbosity >= 1)
+        errs() << "BOLT-WARNING: DW_CFA_GNU_window_save unimplemented\n";
+      return false;
     case DW_CFA_lo_user:
     case DW_CFA_hi_user:
-      if (opts::Verbosity >= 1) {
-        errs() << "BOLT-WARNING: DW_CFA_GNU_* and DW_CFA_*_user "
-                  "unimplemented\n";
-      }
+      if (opts::Verbosity >= 1)
+        errs() << "BOLT-WARNING: DW_CFA_*_user unimplemented\n";
       return false;
     default:
-      if (opts::Verbosity >= 1) {
+      if (opts::Verbosity >= 1)
         errs() << "BOLT-WARNING: Unrecognized CFI instruction: " << Instr.Opcode
                << '\n';
-      }
       return false;
     }
 
@@ -785,7 +787,7 @@ Error EHFrameParser::parseCIE(uint64_t StartOffset) {
       break;
     case 'P': {
       uint32_t PersonalityEncoding = Data.getU8(&Offset);
-      Optional<uint64_t> Personality =
+      std::optional<uint64_t> Personality =
           Data.getEncodedPointer(&Offset, PersonalityEncoding,
                                  EHFrameAddress ? EHFrameAddress + Offset : 0);
       // Patch personality address
@@ -817,7 +819,7 @@ Error EHFrameParser::parseCIE(uint64_t StartOffset) {
 
 Error EHFrameParser::parseFDE(uint64_t CIEPointer,
                               uint64_t StartStructureOffset) {
-  Optional<uint64_t> LSDAAddress;
+  std::optional<uint64_t> LSDAAddress;
   CIEInfo *Cie = CIEs[StartStructureOffset - CIEPointer];
 
   // The address size is encoded in the CIE we reference.

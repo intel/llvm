@@ -125,7 +125,9 @@ Constant *getCASLiteral(GlobalVariable *GenericASLiteral) {
     return ExistingGlobal;
 
   StringRef LiteralValue;
-  getConstantStringInfo(GenericASLiteral, LiteralValue);
+  bool HasString = getConstantStringInfo(GenericASLiteral, LiteralValue);
+  if (!HasString)
+    llvm_unreachable("Unexpected string literal in getCASLiteral()");
   IRBuilder<> Builder(M->getContext());
   GlobalVariable *Res = Builder.CreateGlobalString(LiteralValue, CASLiteralName,
                                                    ConstantAddrspaceID, M);

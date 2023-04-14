@@ -11,10 +11,12 @@
 
 #include <__config>
 #include <__random/is_seed_sequence.h>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_convertible.h>
 #include <__utility/move.h>
-#include <climits>
+#include <cstddef>
 #include <iosfwd>
-#include <type_traits>
+#include <limits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -33,7 +35,9 @@ class _LIBCPP_TEMPLATE_VIS discard_block_engine
 
     static_assert(  0 <  __r, "discard_block_engine invalid parameters");
     static_assert(__r <= __p, "discard_block_engine invalid parameters");
-    static_assert(__r <= INT_MAX, "discard_block_engine invalid parameters");
+#ifndef _LIBCPP_CXX03_LANG // numeric_limits::max() is not constexpr in C++03
+    static_assert(__r <= numeric_limits<int>::max(), "discard_block_engine invalid parameters");
+#endif
 public:
     // types
     typedef typename _Engine::result_type result_type;

@@ -83,13 +83,11 @@ public:
   static std::optional<TypeAndShape> Characterize(
       const semantics::Symbol &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
-      const semantics::ProcInterface &, FoldingContext &);
-  static std::optional<TypeAndShape> Characterize(
       const semantics::DeclTypeSpec &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
       const ActualArgument &, FoldingContext &);
 
-  // Handle Expr<T> & Designator<T>
+  // General case for Expr<T>, ActualArgument, &c.
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
       const A &x, FoldingContext &context) {
@@ -112,6 +110,26 @@ public:
     return std::nullopt;
   }
 
+  // Specialization for character designators
+  template <int KIND>
+  static std::optional<TypeAndShape> Characterize(
+      const Designator<Type<TypeCategory::Character, KIND>> &x,
+      FoldingContext &context) {
+    if (const auto *symbol{UnwrapWholeSymbolOrComponentDataRef(x)}) {
+      if (auto result{Characterize(*symbol, context)}) {
+        return result;
+      }
+    }
+    if (auto type{x.GetType()}) {
+      TypeAndShape result{*type, GetShape(context, x)};
+      if (auto length{x.LEN()}) {
+        result.set_LEN(std::move(*length));
+      }
+      return std::move(result.Rewrite(context));
+    }
+    return std::nullopt;
+  }
+
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
       const std::optional<A> &x, FoldingContext &context) {
@@ -123,9 +141,9 @@ public:
   }
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
-      const A *p, FoldingContext &context) {
-    if (p) {
-      return Characterize(*p, context);
+      A *ptr, FoldingContext &context) {
+    if (ptr) {
+      return Characterize(std::as_const(*ptr), context);
     } else {
       return std::nullopt;
     }
@@ -241,6 +259,8 @@ struct DummyArgument {
   bool operator!=(const DummyArgument &that) const { return !(*this == that); }
   static std::optional<DummyArgument> FromActual(
       std::string &&, const Expr<SomeType> &, FoldingContext &);
+  static std::optional<DummyArgument> FromActual(
+      std::string &&, const ActualArgument &, FoldingContext &);
   bool IsOptional() const;
   void SetOptional(bool = true);
   common::Intent GetIntent() const;
@@ -320,6 +340,10 @@ struct Procedure {
       const ProcedureDesignator &, FoldingContext &);
   static std::optional<Procedure> Characterize(
       const ProcedureRef &, FoldingContext &);
+  // Characterizes the procedure being referenced, deducing dummy argument
+  // types from actual arguments in the case of an implicit interface.
+  static std::optional<Procedure> FromActuals(
+      const ProcedureDesignator &, const ActualArguments &, FoldingContext &);
 
   // At most one of these will return true.
   // For "EXTERNAL P" with no type for or calls to P, both will be false.

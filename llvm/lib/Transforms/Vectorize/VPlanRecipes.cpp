@@ -34,7 +34,9 @@ using namespace llvm;
 
 using VectorParts = SmallVector<Value *, 2>;
 
+namespace llvm {
 extern cl::opt<bool> EnableVPlanNativePath;
+}
 
 #define LV_NAME "loop-vectorize"
 #define DEBUG_TYPE LV_NAME
@@ -49,6 +51,8 @@ bool VPRecipeBase::mayWriteToMemory() const {
     return cast<Instruction>(getVPSingleValue()->getUnderlyingValue())
         ->mayWriteToMemory();
   case VPBranchOnMaskSC:
+  case VPScalarIVStepsSC:
+  case VPPredInstPHISC:
     return false;
   case VPWidenIntOrFpInductionSC:
   case VPWidenCanonicalIVSC:
@@ -80,6 +84,8 @@ bool VPRecipeBase::mayReadFromMemory() const {
     return cast<Instruction>(getVPSingleValue()->getUnderlyingValue())
         ->mayReadFromMemory();
   case VPBranchOnMaskSC:
+  case VPScalarIVStepsSC:
+  case VPPredInstPHISC:
     return false;
   case VPWidenIntOrFpInductionSC:
   case VPWidenCanonicalIVSC:
@@ -103,8 +109,12 @@ bool VPRecipeBase::mayReadFromMemory() const {
 
 bool VPRecipeBase::mayHaveSideEffects() const {
   switch (getVPDefID()) {
+  case VPDerivedIVSC:
   case VPPredInstPHISC:
     return false;
+  case VPWidenCallSC:
+    return cast<Instruction>(getVPSingleValue()->getUnderlyingValue())
+        ->mayHaveSideEffects();
   case VPWidenIntOrFpInductionSC:
   case VPWidenPointerInductionSC:
   case VPWidenCanonicalIVSC:
@@ -122,6 +132,13 @@ bool VPRecipeBase::mayHaveSideEffects() const {
            "underlying instruction has side-effects");
     return false;
   }
+  case VPWidenMemoryInstructionSC:
+    assert(cast<VPWidenMemoryInstructionRecipe>(this)
+                   ->getIngredient()
+                   .mayHaveSideEffects() == mayWriteToMemory() &&
+           "mayHaveSideffects result for ingredient differs from this "
+           "implementation");
+    return mayWriteToMemory();
   case VPReplicateSC: {
     auto *R = cast<VPReplicateRecipe>(this);
     return R->getUnderlyingInstr()->mayHaveSideEffects();
@@ -261,6 +278,17 @@ void VPInstruction::generateInstruction(VPTransformState &State,
     }
     break;
   }
+  case VPInstruction::CalculateTripCountMinusVF: {
+    Value *ScalarTC = State.get(getOperand(0), Part);
+    Value *Step =
+        createStepForVF(Builder, ScalarTC->getType(), State.VF, State.UF);
+    Value *Sub = Builder.CreateSub(ScalarTC, Step);
+    Value *Cmp = Builder.CreateICmp(CmpInst::Predicate::ICMP_UGT, ScalarTC, Step);
+    Value *Zero = ConstantInt::get(ScalarTC->getType(), 0);
+    Value *Sel = Builder.CreateSelect(Cmp, Sub, Zero);
+    State.set(this, Sel, Part);
+    break;
+  }
   case VPInstruction::CanonicalIVIncrement:
   case VPInstruction::CanonicalIVIncrementNUW: {
     Value *Next = nullptr;
@@ -397,6 +425,9 @@ void VPInstruction::print(raw_ostream &O, const Twine &Indent,
   case VPInstruction::BranchOnCond:
     O << "branch-on-cond";
     break;
+  case VPInstruction::CalculateTripCountMinusVF:
+    O << "TC > VF ? TC - VF : 0";
+    break;
   case VPInstruction::CanonicalIVIncrementForPart:
     O << "VF * Part + ";
     break;
@@ -440,11 +471,6 @@ void VPWidenCallRecipe::execute(VPTransformState &State) {
          "DbgInfoIntrinsic should have been dropped during VPlan construction");
   State.setDebugLocFromInst(&CI);
 
-  SmallVector<Type *, 4> Tys;
-  for (Value *ArgOperand : CI.args())
-    Tys.push_back(
-        ToVectorTy(ArgOperand->getType(), State.VF.getKnownMinValue()));
-
   for (unsigned Part = 0; Part < State.UF; ++Part) {
     SmallVector<Type *, 2> TysForDecl = {CI.getType()};
     SmallVector<Value *, 4> Args;
@@ -472,14 +498,12 @@ void VPWidenCallRecipe::execute(VPTransformState &State) {
       VectorF = Intrinsic::getDeclaration(M, VectorIntrinsicID, TysForDecl);
       assert(VectorF && "Can't retrieve vector intrinsic.");
     } else {
-      // Use vector version of the function call.
-      const VFShape Shape = VFShape::get(CI, State.VF, false /*HasGlobalPred*/);
 #ifndef NDEBUG
-      assert(VFDatabase(CI).getVectorizedFunction(Shape) != nullptr &&
-             "Can't create vector function.");
+      assert(Variant != nullptr && "Can't create vector function.");
 #endif
-      VectorF = VFDatabase(CI).getVectorizedFunction(Shape);
+      VectorF = Variant;
     }
+
     SmallVector<OperandBundleDef, 1> OpBundles;
     CI.getOperandBundlesAsDefs(OpBundles);
     CallInst *V = State.Builder.CreateCall(VectorF, Args, OpBundles);
@@ -511,8 +535,12 @@ void VPWidenCallRecipe::print(raw_ostream &O, const Twine &Indent,
 
   if (VectorIntrinsicID)
     O << " (using vector intrinsic)";
-  else
-    O << " (using library function)";
+  else {
+    O << " (using library function";
+    if (Variant->hasName())
+      O << ": " << Variant->getName();
+    O << ")";
+  }
 }
 
 void VPWidenSelectRecipe::print(raw_ostream &O, const Twine &Indent,
@@ -525,7 +553,7 @@ void VPWidenSelectRecipe::print(raw_ostream &O, const Twine &Indent,
   getOperand(1)->printAsOperand(O, SlotTracker);
   O << ", ";
   getOperand(2)->printAsOperand(O, SlotTracker);
-  O << (InvariantCond ? " (condition is loop invariant)" : "");
+  O << (isInvariantCond() ? " (condition is loop invariant)" : "");
 }
 #endif
 
@@ -538,10 +566,10 @@ void VPWidenSelectRecipe::execute(VPTransformState &State) {
   // We have to take the 'vectorized' value and pick the first lane.
   // Instcombine will make this a no-op.
   auto *InvarCond =
-      InvariantCond ? State.get(getOperand(0), VPIteration(0, 0)) : nullptr;
+      isInvariantCond() ? State.get(getCond(), VPIteration(0, 0)) : nullptr;
 
   for (unsigned Part = 0; Part < State.UF; ++Part) {
-    Value *Cond = InvarCond ? InvarCond : State.get(getOperand(0), Part);
+    Value *Cond = InvarCond ? InvarCond : State.get(getCond(), Part);
     Value *Op0 = State.get(getOperand(1), Part);
     Value *Op1 = State.get(getOperand(2), Part);
     Value *Sel = State.Builder.CreateSelect(Cond, Op0, Op1);
@@ -686,7 +714,7 @@ void VPWidenRecipe::print(raw_ostream &O, const Twine &Indent,
   const Instruction *UI = getUnderlyingInstr();
   O << " = " << UI->getOpcodeName() << " ";
   if (auto *Cmp = dyn_cast<CmpInst>(UI))
-    O << CmpInst::getPredicateName(Cmp->getPredicate()) << " ";
+    O << Cmp->getPredicate() << " ";
   printOperands(O, SlotTracker);
 }
 
@@ -712,22 +740,22 @@ bool VPWidenIntOrFpInductionRecipe::isCanonical() const {
   return StartC && StartC->isZero() && StepC && StepC->isOne();
 }
 
-VPCanonicalIVPHIRecipe *VPScalarIVStepsRecipe::getCanonicalIV() const {
-  return cast<VPCanonicalIVPHIRecipe>(getOperand(0));
-}
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+void VPDerivedIVRecipe::print(raw_ostream &O, const Twine &Indent,
+                              VPSlotTracker &SlotTracker) const {
+  O << Indent;
+  printAsOperand(O, SlotTracker);
+  O << Indent << "= DERIVED-IV ";
+  getStartValue()->printAsOperand(O, SlotTracker);
+  O << " + ";
+  getCanonicalIV()->printAsOperand(O, SlotTracker);
+  O << " * ";
+  getStepValue()->printAsOperand(O, SlotTracker);
 
-bool VPScalarIVStepsRecipe::isCanonical() const {
-  auto *CanIV = getCanonicalIV();
-  // The start value of the steps-recipe must match the start value of the
-  // canonical induction and it must step by 1.
-  if (CanIV->getStartValue() != getStartValue())
-    return false;
-  auto *StepVPV = getStepValue();
-  if (StepVPV->getDef())
-    return false;
-  auto *StepC = dyn_cast_or_null<ConstantInt>(StepVPV->getLiveInIRValue());
-  return StepC && StepC->isOne();
+  if (IndDesc.getStep()->getType() != ResultTy)
+    O << " (truncated to " << *ResultTy << ")";
 }
+#endif
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void VPScalarIVStepsRecipe::print(raw_ostream &O, const Twine &Indent,
@@ -747,7 +775,7 @@ void VPWidenGEPRecipe::execute(VPTransformState &State) {
   // is vector-typed. Thus, to keep the representation compact, we only use
   // vector-typed operands for loop-varying values.
 
-  if (State.VF.isVector() && IsPtrLoopInvariant && IsIndexLoopInvariant.all()) {
+  if (State.VF.isVector() && areAllOperandsInvariant()) {
     // If we are vectorizing, but the GEP has only loop-invariant operands,
     // the GEP we build (by only using vector-typed operands for
     // loop-varying values) would be a scalar pointer. Thus, to ensure we
@@ -777,7 +805,7 @@ void VPWidenGEPRecipe::execute(VPTransformState &State) {
     for (unsigned Part = 0; Part < State.UF; ++Part) {
       // The pointer operand of the new GEP. If it's loop-invariant, we
       // won't broadcast it.
-      auto *Ptr = IsPtrLoopInvariant
+      auto *Ptr = isPointerLoopInvariant()
                       ? State.get(getOperand(0), VPIteration(0, 0))
                       : State.get(getOperand(0), Part);
 
@@ -786,7 +814,7 @@ void VPWidenGEPRecipe::execute(VPTransformState &State) {
       SmallVector<Value *, 4> Indices;
       for (unsigned I = 1, E = getNumOperands(); I < E; I++) {
         VPValue *Operand = getOperand(I);
-        if (IsIndexLoopInvariant[I - 1])
+        if (isIndexLoopInvariant(I - 1))
           Indices.push_back(State.get(Operand, VPIteration(0, 0)));
         else
           Indices.push_back(State.get(Operand, Part));
@@ -816,10 +844,9 @@ void VPWidenGEPRecipe::execute(VPTransformState &State) {
 void VPWidenGEPRecipe::print(raw_ostream &O, const Twine &Indent,
                              VPSlotTracker &SlotTracker) const {
   O << Indent << "WIDEN-GEP ";
-  O << (IsPtrLoopInvariant ? "Inv" : "Var");
-  size_t IndicesNumber = IsIndexLoopInvariant.size();
-  for (size_t I = 0; I < IndicesNumber; ++I)
-    O << "[" << (IsIndexLoopInvariant[I] ? "Inv" : "Var") << "]";
+  O << (isPointerLoopInvariant() ? "Inv" : "Var");
+  for (size_t I = 0; I < getNumOperands() - 1; ++I)
+    O << "[" << (isIndexLoopInvariant(I) ? "Inv" : "Var") << "]";
 
   O << " ";
   printAsOperand(O, SlotTracker);
@@ -908,7 +935,21 @@ void VPReductionRecipe::print(raw_ostream &O, const Twine &Indent,
     O << " (with final reduction value stored in invariant address sank "
          "outside of loop)";
 }
+#endif
 
+bool VPReplicateRecipe::shouldPack() const {
+  // Find if the recipe is used by a widened recipe via an intervening
+  // VPPredInstPHIRecipe. In this case, also pack the scalar values in a vector.
+  return any_of(users(), [](const VPUser *U) {
+    if (auto *PredR = dyn_cast<VPPredInstPHIRecipe>(U))
+      return any_of(PredR->users(), [PredR](const VPUser *U) {
+        return !U->usesScalars(PredR);
+      });
+    return false;
+  });
+}
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent,
                               VPSlotTracker &SlotTracker) const {
   O << Indent << (IsUniform ? "CLONE " : "REPLICATE ");
@@ -929,7 +970,7 @@ void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent,
     printOperands(O, SlotTracker);
   }
 
-  if (AlsoPack)
+  if (shouldPack())
     O << " (S->V)";
 }
 #endif
@@ -1049,6 +1090,22 @@ void VPCanonicalIVPHIRecipe::print(raw_ostream &O, const Twine &Indent,
   O << " = CANONICAL-INDUCTION";
 }
 #endif
+
+bool VPCanonicalIVPHIRecipe::isCanonical(const InductionDescriptor &ID,
+                                         Type *Ty) const {
+  if (Ty != getScalarType())
+    return false;
+  // The start value of ID must match the start value of this canonical
+  // induction.
+  if (getStartValue()->getLiveInIRValue() != ID.getStartValue())
+    return false;
+
+  ConstantInt *Step = ID.getConstIntStepValue();
+  // ID must also be incremented by one. IK_IntInduction always increment the
+  // induction by Step, but the binary op may not be set.
+  return ID.getKind() == InductionDescriptor::IK_IntInduction && Step &&
+         Step->isOne();
+}
 
 bool VPWidenPointerInductionRecipe::onlyScalarsGenerated(ElementCount VF) {
   return IsScalarAfterVectorization &&

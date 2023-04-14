@@ -288,10 +288,10 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   switch (MDimensions) {
   case 3:
     getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2], Mem);
-    __SYCL_FALLTHROUGH;
+    [[fallthrough]];
   case 2:
     getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1], Mem);
-    __SYCL_FALLTHROUGH;
+    [[fallthrough]];
   case 1:
     getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0], Mem);
   }

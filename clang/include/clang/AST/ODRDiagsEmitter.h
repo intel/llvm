@@ -45,6 +45,28 @@ public:
                    const CXXRecordDecl *SecondRecord,
                    const struct CXXRecordDecl::DefinitionData *SecondDD) const;
 
+  /// Diagnose ODR mismatch between 2 RecordDecl that are not CXXRecordDecl.
+  ///
+  /// Returns true if found a mismatch and diagnosed it.
+  bool diagnoseMismatch(const RecordDecl *FirstRecord,
+                        const RecordDecl *SecondRecord) const;
+
+  /// Diagnose ODR mismatch between 2 ObjCInterfaceDecl.
+  ///
+  /// Returns true if found a mismatch and diagnosed it.
+  bool diagnoseMismatch(
+      const ObjCInterfaceDecl *FirstID, const ObjCInterfaceDecl *SecondID,
+      const struct ObjCInterfaceDecl::DefinitionData *SecondDD) const;
+
+  /// Diagnose ODR mismatch between ObjCInterfaceDecl with different
+  /// definitions.
+  bool diagnoseMismatch(const ObjCInterfaceDecl *FirstID,
+                        const ObjCInterfaceDecl *SecondID) const {
+    assert(FirstID->data().Definition != SecondID->data().Definition &&
+           "Don't diagnose differences when definitions are merged already");
+    return diagnoseMismatch(FirstID, SecondID, &SecondID->data());
+  }
+
   /// Diagnose ODR mismatch between 2 ObjCProtocolDecl.
   ///
   /// Returns true if found a mismatch and diagnosed it.
@@ -54,6 +76,16 @@ public:
       const ObjCProtocolDecl *FirstProtocol,
       const ObjCProtocolDecl *SecondProtocol,
       const struct ObjCProtocolDecl::DefinitionData *SecondDD) const;
+
+  /// Diagnose ODR mismatch between ObjCProtocolDecl with different definitions.
+  bool diagnoseMismatch(const ObjCProtocolDecl *FirstProtocol,
+                        const ObjCProtocolDecl *SecondProtocol) const {
+    assert(FirstProtocol->data().Definition !=
+               SecondProtocol->data().Definition &&
+           "Don't diagnose differences when definitions are merged already");
+    return diagnoseMismatch(FirstProtocol, SecondProtocol,
+                            &SecondProtocol->data());
+  }
 
   /// Get the best name we know for the module that owns the given
   /// declaration, or an empty string if the declaration is not from a module.
@@ -81,6 +113,8 @@ private:
     Friend,
     FunctionTemplate,
     ObjCMethod,
+    ObjCIvar,
+    ObjCProperty,
     Other
   };
 
@@ -148,6 +182,15 @@ private:
                                      StringRef SecondModule,
                                      const ObjCMethodDecl *FirstMethod,
                                      const ObjCMethodDecl *SecondMethod) const;
+
+  /// Check if Objective-C properties are the same and diagnose if different.
+  ///
+  /// Returns true if found a mismatch and diagnosed it.
+  bool
+  diagnoseSubMismatchObjCProperty(const NamedDecl *FirstObjCContainer,
+                                  StringRef FirstModule, StringRef SecondModule,
+                                  const ObjCPropertyDecl *FirstProp,
+                                  const ObjCPropertyDecl *SecondProp) const;
 
 private:
   DiagnosticsEngine &Diags;

@@ -599,6 +599,14 @@ size_t DNBGetAllInfos(std::vector<struct kinfo_proc> &proc_infos) {
   return proc_infos.size();
 }
 
+JSONGenerator::ObjectSP DNBGetDyldProcessState(nub_process_t pid) {
+  MachProcessSP procSP;
+  if (GetProcessSP(pid, procSP)) {
+    return procSP->GetDyldProcessState();
+  }
+  return {};
+}
+
 static size_t
 GetAllInfosMatchingName(const char *full_process_name,
                         std::vector<struct kinfo_proc> &matching_proc_infos) {
@@ -785,6 +793,14 @@ DNBProcessAttachWait(RNBContext *ctx, const char *waitfor_process_name,
   if (waitfor_pid != INVALID_NUB_PROCESS) {
     DNBLogThreadedIf(LOG_PROCESS, "Attaching to %s with pid %i...\n",
                      waitfor_process_name, waitfor_pid);
+    // In some cases, we attempt to attach during the transition from
+    // /usr/lib/dyld to the dyld in the shared cache. If that happens, we may
+    // end up in a state where there is no dyld in the process and from there
+    // the debugging session is doomed.
+    // In an attempt to make this scenario much less likely, we sleep
+    // for an additional `waitfor_interval` number of microseconds before
+    // attaching.
+    ::usleep(waitfor_interval);
     waitfor_pid = DNBProcessAttach(waitfor_pid, timeout_abstime,
                                    ctx->GetIgnoredExceptions(), err_str, 
                                    err_len);

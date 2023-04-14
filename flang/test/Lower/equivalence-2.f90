@@ -75,12 +75,12 @@ subroutine eq_and_entry_foo
   call foo2(x, i)
   ! CHECK: %[[xCast:.*]] = fir.convert %[[x]] : (!fir.ptr<!fir.array<2xf32>>) -> !fir.ref<!fir.array<2xf32>>
   ! CHECK: %[[iCast:.*]] = fir.convert %[[i]] : (!fir.ptr<i32>) -> !fir.ref<i32>
-  ! CHECK: fir.call @_QPfoo1(%[[xCast]], %[[iCast]]) : (!fir.ref<!fir.array<2xf32>>, !fir.ref<i32>) -> ()
+  ! CHECK: fir.call @_QPfoo1(%[[xCast]], %[[iCast]]) {{.*}}: (!fir.ref<!fir.array<2xf32>>, !fir.ref<i32>) -> ()
   entry eq_and_entry_bar
   call foo2(x, i)
   ! CHECK: %[[xCast2:.*]] = fir.convert %[[x]] : (!fir.ptr<!fir.array<2xf32>>) -> !fir.ref<!fir.array<2xf32>>
   ! CHECK: %[[iCast2:.*]] = fir.convert %[[i]] : (!fir.ptr<i32>) -> !fir.ref<i32>
-  ! CHECK: fir.call @_QPfoo2(%[[xCast2]], %[[iCast2]]) : (!fir.ref<!fir.array<2xf32>>, !fir.ref<i32>) -> ()
+  ! CHECK: fir.call @_QPfoo2(%[[xCast2]], %[[iCast2]]) {{.*}}: (!fir.ref<!fir.array<2xf32>>, !fir.ref<i32>) -> ()
 end
 
 ! CHECK-LABEL: @_QPeq_and_entry_bar()
@@ -96,7 +96,7 @@ end
   ! CHECK-NOT: fir.call @_QPfoo1
   ! CHECK: %[[xCast:.*]] = fir.convert %[[x]] : (!fir.ptr<!fir.array<2xf32>>) -> !fir.ref<!fir.array<2xf32>>
   ! CHECK: %[[iCast:.*]] = fir.convert %[[i]] : (!fir.ptr<i32>) -> !fir.ref<i32>
-  ! CHECK: fir.call @_QPfoo2(%[[xCast]], %[[iCast]]) : (!fir.ref<!fir.array<2xf32>>, !fir.ref<i32>) -> ()
+  ! CHECK: fir.call @_QPfoo2(%[[xCast]], %[[iCast]]) {{.*}}: (!fir.ref<!fir.array<2xf32>>, !fir.ref<i32>) -> ()
 
 
 ! Check that cases where equivalenced local variables and common blocks will
@@ -111,7 +111,7 @@ subroutine eq_and_comm_same_offset
   equivalence(arr3,arr4)
 
   ! CHECK: %[[arr4Store:.*]] = fir.alloca !fir.array<70756xi8> {uniq_name = "_QFeq_and_comm_same_offsetEarr3"}
-  ! CHECK: %[[mcbAddr:.*]] = fir.address_of(@_QBmy_common_block) : !fir.ref<!fir.array<1064xi8>>
+  ! CHECK: %[[mcbAddr:.*]] = fir.address_of(@_QCmy_common_block) : !fir.ref<!fir.array<1064xi8>>
   ! CHECK: %[[mcbCast:.*]] = fir.convert %[[mcbAddr]] : (!fir.ref<!fir.array<1064xi8>>) -> !fir.ref<!fir.array<?xi8>>
   ! CHECK: %[[c0:.*]] = arith.constant 0 : index
   ! CHECK: %[[mcbCoor:.*]] = fir.coordinate_of %[[mcbCast]], %[[c0]] : (!fir.ref<!fir.array<?xi8>>, index) -> !fir.ref<i8>

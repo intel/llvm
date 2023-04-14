@@ -648,6 +648,10 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     K = CXCursor_RequiresExpr;
     break;
 
+  case Stmt::CXXParenListInitExprClass:
+    K = CXCursor_CXXParenListInitExpr;
+    break;
+
   case Stmt::MSDependentExistsStmtClass:
     K = CXCursor_UnexposedStmt;
     break;

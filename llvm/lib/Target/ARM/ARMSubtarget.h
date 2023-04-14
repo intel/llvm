@@ -20,7 +20,6 @@
 #include "ARMISelLowering.h"
 #include "ARMMachineFunctionInfo.h"
 #include "ARMSelectionDAGInfo.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
@@ -32,6 +31,7 @@
 #include "llvm/MC/MCSchedule.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 #include <memory>
 #include <string>
 
@@ -119,6 +119,7 @@ protected:
     ARMv86a,
     ARMv87a,
     ARMv88a,
+    ARMv89a,
     ARMv8a,
     ARMv8mBaseline,
     ARMv8mMainline,
@@ -128,6 +129,7 @@ protected:
     ARMv91a,
     ARMv92a,
     ARMv93a,
+    ARMv94a,
   };
 
 public:
@@ -389,7 +391,8 @@ public:
   }
   bool isTargetMuslAEABI() const {
     return (TargetTriple.getEnvironment() == Triple::MuslEABI ||
-            TargetTriple.getEnvironment() == Triple::MuslEABIHF) &&
+            TargetTriple.getEnvironment() == Triple::MuslEABIHF ||
+            TargetTriple.getEnvironment() == Triple::OpenHOS) &&
            !isTargetDarwin() && !isTargetWindows();
   }
 

@@ -106,6 +106,12 @@ def G_GLOBAL_VALUE : GenericInstruction {
   let hasSideEffects = false;
 }
 
+def G_CONSTANT_POOL : GenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins unknown:$src);
+  let hasSideEffects = false;
+}
+
 def G_INTTOPTR : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type1:$src);
@@ -748,7 +754,7 @@ def G_FCANONICALIZE : GenericInstruction {
 // Generic opcode equivalent to the llvm.is_fpclass intrinsic.
 def G_IS_FPCLASS: GenericInstruction {
   let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins type1:$src, unknown:$test, unknown:$fpsem);
+  let InOperandList = (ins type1:$src, unknown:$test);
   let hasSideEffects = false;
 }
 
@@ -1128,6 +1134,8 @@ def G_ATOMICRMW_FADD : G_ATOMICRMW_OP;
 def G_ATOMICRMW_FSUB : G_ATOMICRMW_OP;
 def G_ATOMICRMW_FMAX : G_ATOMICRMW_OP;
 def G_ATOMICRMW_FMIN : G_ATOMICRMW_OP;
+def G_ATOMICRMW_UINC_WRAP : G_ATOMICRMW_OP;
+def G_ATOMICRMW_UDEC_WRAP : G_ATOMICRMW_OP;
 
 def G_FENCE : GenericInstruction {
   let OutOperandList = (outs);
@@ -1268,6 +1276,15 @@ def G_BRJT : GenericInstruction {
   let isTerminator = true;
   let isBarrier = true;
   let isIndirectBranch = true;
+}
+
+// A marker to signal the following code is an invoke region, that may throw
+// an exception and therefore not return.
+def G_INVOKE_REGION_START : GenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins);
+  let isTerminator = true; // This must be a terminator.
+  let hasSideEffects = false;
 }
 
 def G_READ_REGISTER : GenericInstruction {

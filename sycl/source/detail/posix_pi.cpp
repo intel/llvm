@@ -14,10 +14,9 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-namespace pi {
+namespace detail::pi {
 
-void *loadOsLibrary(const std::string &PluginPath) {
+void *loadOsPluginLibrary(const std::string &PluginPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
   void *so = dlopen(PluginPath.c_str(), RTLD_NOW);
@@ -29,7 +28,7 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return so;
 }
 
-int unloadOsLibrary(void *Library) {
+int unloadOsPluginLibrary(void *Library) {
   // The mock plugin does not have an associated library, so we allow nullptr
   // here to avoid it trying to free a non-existent library.
   if (!Library)
@@ -41,7 +40,6 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
-} // namespace pi
-} // namespace detail
+} // namespace detail::pi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

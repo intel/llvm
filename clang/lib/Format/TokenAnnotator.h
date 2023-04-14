@@ -34,10 +34,20 @@ enum LineType {
   LT_CommentAbovePPDirective,
 };
 
+enum ScopeType {
+  // Contained in class declaration/definition.
+  ST_Class,
+  // Contained within function definition.
+  ST_Function,
+  // Contained within other scope block (loop, if/else, etc).
+  ST_Other,
+};
+
 class AnnotatedLine {
 public:
   AnnotatedLine(const UnwrappedLine &Line)
       : First(Line.Tokens.front().Tok), Level(Line.Level),
+        PPLevel(Line.PPLevel),
         MatchingOpeningBlockLineIndex(Line.MatchingOpeningBlockLineIndex),
         MatchingClosingBlockLineIndex(Line.MatchingClosingBlockLineIndex),
         InPPDirective(Line.InPPDirective),
@@ -46,7 +56,7 @@ public:
         MustBeDeclaration(Line.MustBeDeclaration), MightBeFunctionDecl(false),
         IsMultiVariableDeclStmt(false), Affected(false),
         LeadingEmptyLinesAffected(false), ChildrenAffected(false),
-        IsContinuation(Line.IsContinuation),
+        ReturnTypeWrapped(false), IsContinuation(Line.IsContinuation),
         FirstStartColumn(Line.FirstStartColumn) {
     assert(!Line.Tokens.empty());
 
@@ -55,18 +65,30 @@ public:
     // left them in a different state.
     First->Previous = nullptr;
     FormatToken *Current = First;
+    addChildren(Line.Tokens.front(), Current);
     for (const UnwrappedLineNode &Node : llvm::drop_begin(Line.Tokens)) {
+      if (Node.Tok->MacroParent)
+        ContainsMacroCall = true;
       Current->Next = Node.Tok;
       Node.Tok->Previous = Current;
       Current = Current->Next;
-      Current->Children.clear();
-      for (const auto &Child : Node.Children) {
-        Children.push_back(new AnnotatedLine(Child));
-        Current->Children.push_back(Children.back());
-      }
+      addChildren(Node, Current);
+      // FIXME: if we add children, previous will point to the token before
+      // the children; changing this requires significant changes across
+      // clang-format.
     }
     Last = Current;
     Last->Next = nullptr;
+  }
+
+  void addChildren(const UnwrappedLineNode &Node, FormatToken *Current) {
+    Current->Children.clear();
+    for (const auto &Child : Node.Children) {
+      Children.push_back(new AnnotatedLine(Child));
+      if (Children.back()->ContainsMacroCall)
+        ContainsMacroCall = true;
+      Current->Children.push_back(Children.back());
+    }
   }
 
   ~AnnotatedLine() {
@@ -129,6 +151,7 @@ public:
 
   LineType Type;
   unsigned Level;
+  unsigned PPLevel;
   size_t MatchingOpeningBlockLineIndex;
   size_t MatchingClosingBlockLineIndex;
   bool InPPDirective;
@@ -137,6 +160,9 @@ public:
   bool MustBeDeclaration;
   bool MightBeFunctionDecl;
   bool IsMultiVariableDeclStmt;
+
+  /// \c True if this line contains a macro call for which an expansion exists.
+  bool ContainsMacroCall = false;
 
   /// \c True if this line should be formatted, i.e. intersects directly or
   /// indirectly with one of the input ranges.
@@ -148,6 +174,9 @@ public:
 
   /// \c True if one of this line's children intersects with an input range.
   bool ChildrenAffected;
+
+  /// \c True if breaking after last attribute group in function return type.
+  bool ReturnTypeWrapped;
 
   /// \c True if this line should be indented by ContinuationIndent in addition
   /// to the normal indention level.
@@ -173,7 +202,7 @@ public:
   // FIXME: Can/should this be done in the UnwrappedLineParser?
   void setCommentLineLevels(SmallVectorImpl<AnnotatedLine *> &Lines) const;
 
-  void annotate(AnnotatedLine &Line) const;
+  void annotate(AnnotatedLine &Line);
   void calculateFormattingInformation(AnnotatedLine &Line) const;
 
 private:
@@ -215,6 +244,8 @@ private:
   const FormatStyle &Style;
 
   const AdditionalKeywords &Keywords;
+
+  SmallVector<ScopeType> Scopes;
 };
 
 } // end namespace format

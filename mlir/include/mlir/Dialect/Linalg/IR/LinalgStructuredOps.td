@@ -47,7 +47,7 @@ class LinalgStructuredBase_Op<string mnemonic, list<Trait> props>
     }
 
     void getSuccessorRegions(
-        Optional<unsigned> index, ArrayRef<Attribute> operands,
+        std::optional<unsigned> index, ArrayRef<Attribute> operands,
         SmallVectorImpl<RegionSuccessor> &regions) {
       // Op has a region, but conceptually the control flow does not enter the
       // region.
@@ -163,7 +163,7 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [
   let arguments = (ins Variadic<AnyType>:$inputs,
                        Variadic<AnyShaped>:$outputs,
                        AffineMapArrayAttr:$indexing_maps,
-                       ArrayAttr:$iterator_types,
+                       IteratorTypeArrayAttr:$iterator_types,
                        OptionalAttr<StrAttr>:$doc,
                        OptionalAttr<StrAttr>:$library_call);
   let results = (outs Variadic<AnyRankedTensor>:$result_tensors);
@@ -178,22 +178,22 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
-      "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
+      "ArrayRef<utils::IteratorType>":$iteratorTypes, "StringRef":$doc,
       "StringRef":$libraryCall,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
-      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
+      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<utils::IteratorType>":$iteratorTypes,
       "StringRef":$doc, "StringRef":$libraryCall,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
-      "ArrayRef<StringRef>":$iteratorTypes,
+      "ArrayRef<utils::IteratorType>":$iteratorTypes,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
-      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
+      "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<utils::IteratorType>":$iteratorTypes,
       CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
@@ -255,6 +255,16 @@ def MapOp : LinalgStructuredBase_Op<"map", [
             linalg.yield %0: f32
           }
     ```
+
+    Shortened print form is available. Applies to simple maps with one 
+    non-yield operation inside the body.
+
+    The example above will be printed as:
+    ```
+      %add = linalg.map { arith.addf }
+          ins(%lhs, %rhs : tensor<64xf32>, tensor<64xf32>)
+          outs(%init: tensor<64xf32>)
+    ```
   }];
 
   let arguments = (ins
@@ -275,7 +285,7 @@ def MapOp : LinalgStructuredBase_Op<"map", [
 
   let extraClassDeclaration = structuredOpsBaseDecls # [{
     // Implement functions necessary for LinalgStructuredInterface.
-    SmallVector<StringRef> getIteratorTypesArray();
+    SmallVector<utils::IteratorType> getIteratorTypesArray();
     ArrayAttr getIndexingMaps();
     std::string getLibraryCallName() {
       return "op_has_no_registered_library_name";
@@ -329,9 +339,21 @@ def ReduceOp : LinalgStructuredBase_Op<"reduce", [
           outs(%init:tensor<16x64xf32>)
           dimensions = [1]
           (%in: f32, %out: f32) {
-            %0 = arith.addf %in, %out: f32
+            %0 = arith.addf %out, %in: f32
             linalg.yield %0: f32
           }
+    ```
+
+    Shortened print form is available. Applies to simple (not variadic) reduces
+    with one non-yield operation inside the body. Applies only if the operation
+    takes `%out` as the first argument.
+
+    The example above will be printed as:
+    ```
+          %reduce = linalg.reduce { arith.addf }
+          ins(%input:tensor<16x32x64xf32>)
+          outs(%init:tensor<16x64xf32>)
+          dimensions = [1]
     ```
   }];
 
@@ -356,7 +378,7 @@ def ReduceOp : LinalgStructuredBase_Op<"reduce", [
 
   let extraClassDeclaration = structuredOpsBaseDecls # [{
     // Declare functions necessary for LinalgStructuredInterface.
-    SmallVector<StringRef> getIteratorTypesArray();
+    SmallVector<utils::IteratorType> getIteratorTypesArray();
     ArrayAttr getIndexingMaps();
     std::string getLibraryCallName() {
       return "op_has_no_registered_library_name";
@@ -426,7 +448,7 @@ def TransposeOp : LinalgStructuredBase_Op<"transpose", [
 
   let extraClassDeclaration = structuredOpsBaseDecls # [{
     // Declare functions necessary for LinalgStructuredInterface.
-    SmallVector<StringRef> getIteratorTypesArray();
+    SmallVector<utils::IteratorType> getIteratorTypesArray();
     ArrayAttr getIndexingMaps();
     std::string getLibraryCallName() {
       return "op_has_no_registered_library_name";
@@ -463,19 +485,14 @@ def BroadcastOp : LinalgStructuredBase_Op<"broadcast", [
     SingleBlockImplicitTerminator<"YieldOp">]> {
   let summary = "Static broadcast operator";
   let description = [{
-    Broadcast the input into the given shape by adding dimensions.
-
-    Each index in `dimensions` attribute maps input dimension into the
-    corresponding target dimension. The length of the `dimensions` list should
-    match the `input` rank and dimensions should be in sorted order. There is no
-    ambiguity at compile-time about shape information.
+    Broadcast the input into the given shape by adding `dimensions`.
 
     Example:
     ```
       %bcast = linalg.broadcast
           ins(%input:tensor<16xf32>)
           inits(%init:tensor<16x64xf32>)
-          dimensions = [0]
+          dimensions = [1]
     ```
   }];
 
@@ -502,7 +519,7 @@ def BroadcastOp : LinalgStructuredBase_Op<"broadcast", [
 
   let extraClassDeclaration = structuredOpsBaseDecls # [{
     // Declare functions necessary for LinalgStructuredInterface.
-    SmallVector<StringRef> getIteratorTypesArray();
+    SmallVector<utils::IteratorType> getIteratorTypesArray();
     ArrayAttr getIndexingMaps();
     std::string getLibraryCallName() {
       return "op_has_no_registered_library_name";

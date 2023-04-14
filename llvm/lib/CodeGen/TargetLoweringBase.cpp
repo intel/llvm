@@ -15,7 +15,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -53,6 +52,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
@@ -724,7 +724,11 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
   // with the Target-specific changes necessary.
   MaxAtomicSizeInBitsSupported = 1024;
 
-  MaxDivRemBitWidthSupported = llvm::IntegerType::MAX_INT_BITS;
+  // Assume that even with libcalls, no target supports wider than 128 bit
+  // division.
+  MaxDivRemBitWidthSupported = 128;
+
+  MaxLargeFPConvertBitWidthSupported = llvm::IntegerType::MAX_INT_BITS;
 
   MinCmpXchgSizeInBits = 0;
   SupportsUnalignedAtomics = false;
@@ -871,10 +875,10 @@ void TargetLoweringBase::initActions() {
     // Named vector shuffles default to expand.
     setOperationAction(ISD::VECTOR_SPLICE, VT, Expand);
 
-    // VP_SREM/UREM default to expand.
-    // TODO: Expand all VP intrinsics.
-    setOperationAction(ISD::VP_SREM, VT, Expand);
-    setOperationAction(ISD::VP_UREM, VT, Expand);
+    // VP operations default to expand.
+#define BEGIN_REGISTER_VP_SDNODE(SDOPC, ...)                                   \
+    setOperationAction(ISD::SDOPC, VT, Expand);
+#include "llvm/IR/VPIntrinsics.def"
   }
 
   // Most targets ignore the @llvm.prefetch intrinsic.
@@ -1135,8 +1139,7 @@ static unsigned getVectorTypeBreakdownMVT(MVT VT, MVT &IntermediateVT,
   unsigned LaneSizeInBits = NewVT.getScalarSizeInBits();
 
   // Convert sizes such as i33 to i64.
-  if (!isPowerOf2_32(LaneSizeInBits))
-    LaneSizeInBits = NextPowerOf2(LaneSizeInBits);
+  LaneSizeInBits = llvm::bit_ceil(LaneSizeInBits);
 
   MVT DestVT = TLI->getRegisterType(NewVT);
   RegisterVT = DestVT;
@@ -1347,6 +1350,15 @@ void TargetLoweringBase::computeRegisterProperties(
     RegisterTypeForVT[MVT::f128] = RegisterTypeForVT[MVT::i128];
     TransformToType[MVT::f128] = MVT::i128;
     ValueTypeActions.setTypeAction(MVT::f128, TypeSoftenFloat);
+  }
+
+  // Decide how to handle f80. If the target does not have native f80 support,
+  // expand it to i96 and we will be generating soft float library calls.
+  if (!isTypeLegal(MVT::f80)) {
+    NumRegistersForVT[MVT::f80] = 3*NumRegistersForVT[MVT::i32];
+    RegisterTypeForVT[MVT::f80] = RegisterTypeForVT[MVT::i32];
+    TransformToType[MVT::f80] = MVT::i32;
+    ValueTypeActions.setTypeAction(MVT::f80, TypeSoftenFloat);
   }
 
   // Decide how to handle f64. If the target does not have native f64 support,
@@ -1616,7 +1628,7 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context,
   if (EVT(DestVT).bitsLT(NewVT)) {  // Value is expanded, e.g. i64 -> i16.
     TypeSize NewVTSize = NewVT.getSizeInBits();
     // Convert sizes such as i33 to i64.
-    if (!isPowerOf2_32(NewVTSize.getKnownMinSize()))
+    if (!llvm::has_single_bit<uint32_t>(NewVTSize.getKnownMinValue()))
       NewVTSize = NewVTSize.coefficientNextPowerOf2();
     return NumVectorRegs*(NewVTSize/DestVT.getSizeInBits());
   }
@@ -1680,7 +1692,7 @@ void llvm::GetReturnInfo(CallingConv::ID CC, Type *ReturnType,
     // conventions. The frontend should mark functions whose return values
     // require promoting with signext or zeroext attributes.
     if (ExtendKind != ISD::ANY_EXTEND && VT.isInteger()) {
-      MVT MinVT = TLI.getRegisterType(ReturnType->getContext(), MVT::i32);
+      MVT MinVT = TLI.getRegisterType(MVT::i32);
       if (VT.bitsLT(MinVT))
         VT = MinVT;
     }
@@ -1716,7 +1728,7 @@ uint64_t TargetLoweringBase::getByValTypeAlignment(Type *Ty,
 
 bool TargetLoweringBase::allowsMemoryAccessForAlignment(
     LLVMContext &Context, const DataLayout &DL, EVT VT, unsigned AddrSpace,
-    Align Alignment, MachineMemOperand::Flags Flags, bool *Fast) const {
+    Align Alignment, MachineMemOperand::Flags Flags, unsigned *Fast) const {
   // Check if the specified alignment is sufficient based on the data layout.
   // TODO: While using the data layout works in practice, a better solution
   // would be to implement this check directly (make this a virtual function).
@@ -1726,7 +1738,7 @@ bool TargetLoweringBase::allowsMemoryAccessForAlignment(
   if (VT.isZeroSized() || Alignment >= DL.getABITypeAlign(Ty)) {
     // Assume that an access that meets the ABI-specified alignment is fast.
     if (Fast != nullptr)
-      *Fast = true;
+      *Fast = 1;
     return true;
   }
 
@@ -1736,7 +1748,7 @@ bool TargetLoweringBase::allowsMemoryAccessForAlignment(
 
 bool TargetLoweringBase::allowsMemoryAccessForAlignment(
     LLVMContext &Context, const DataLayout &DL, EVT VT,
-    const MachineMemOperand &MMO, bool *Fast) const {
+    const MachineMemOperand &MMO, unsigned *Fast) const {
   return allowsMemoryAccessForAlignment(Context, DL, VT, MMO.getAddrSpace(),
                                         MMO.getAlign(), MMO.getFlags(), Fast);
 }
@@ -1745,7 +1757,7 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
                                             const DataLayout &DL, EVT VT,
                                             unsigned AddrSpace, Align Alignment,
                                             MachineMemOperand::Flags Flags,
-                                            bool *Fast) const {
+                                            unsigned *Fast) const {
   return allowsMemoryAccessForAlignment(Context, DL, VT, AddrSpace, Alignment,
                                         Flags, Fast);
 }
@@ -1753,7 +1765,7 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
 bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
                                             const DataLayout &DL, EVT VT,
                                             const MachineMemOperand &MMO,
-                                            bool *Fast) const {
+                                            unsigned *Fast) const {
   return allowsMemoryAccess(Context, DL, VT, MMO.getAddrSpace(), MMO.getAlign(),
                             MMO.getFlags(), Fast);
 }
@@ -1761,7 +1773,7 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
 bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
                                             const DataLayout &DL, LLT Ty,
                                             const MachineMemOperand &MMO,
-                                            bool *Fast) const {
+                                            unsigned *Fast) const {
   EVT VT = getApproximateEVTForLLT(Ty, DL, Context);
   return allowsMemoryAccess(Context, DL, VT, MMO.getAddrSpace(), MMO.getAlign(),
                             MMO.getFlags(), Fast);
@@ -2203,13 +2215,41 @@ int TargetLoweringBase::getDivRefinementSteps(EVT VT,
   return getOpRefinementSteps(false, VT, getRecipEstimateForFunc(MF));
 }
 
+bool TargetLoweringBase::isLoadBitCastBeneficial(
+    EVT LoadVT, EVT BitcastVT, const SelectionDAG &DAG,
+    const MachineMemOperand &MMO) const {
+  // Single-element vectors are scalarized, so we should generally avoid having
+  // any memory operations on such types, as they would get scalarized too.
+  if (LoadVT.isFixedLengthVector() && BitcastVT.isFixedLengthVector() &&
+      BitcastVT.getVectorNumElements() == 1)
+    return false;
+
+  // Don't do if we could do an indexed load on the original type, but not on
+  // the new one.
+  if (!LoadVT.isSimple() || !BitcastVT.isSimple())
+    return true;
+
+  MVT LoadMVT = LoadVT.getSimpleVT();
+
+  // Don't bother doing this if it's just going to be promoted again later, as
+  // doing so might interfere with other combines.
+  if (getOperationAction(ISD::LOAD, LoadMVT) == Promote &&
+      getTypeToPromoteTo(ISD::LOAD, LoadMVT) == BitcastVT.getSimpleVT())
+    return false;
+
+  unsigned Fast = 0;
+  return allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), BitcastVT,
+                            MMO, &Fast) &&
+         Fast;
+}
+
 void TargetLoweringBase::finalizeLowering(MachineFunction &MF) const {
   MF.getRegInfo().freezeReservedRegs(MF);
 }
 
-MachineMemOperand::Flags
-TargetLoweringBase::getLoadMemOperandFlags(const LoadInst &LI,
-                                           const DataLayout &DL) const {
+MachineMemOperand::Flags TargetLoweringBase::getLoadMemOperandFlags(
+    const LoadInst &LI, const DataLayout &DL, AssumptionCache *AC,
+    const TargetLibraryInfo *LibInfo) const {
   MachineMemOperand::Flags Flags = MachineMemOperand::MOLoad;
   if (LI.isVolatile())
     Flags |= MachineMemOperand::MOVolatile;
@@ -2220,7 +2260,9 @@ TargetLoweringBase::getLoadMemOperandFlags(const LoadInst &LI,
   if (LI.hasMetadata(LLVMContext::MD_invariant_load))
     Flags |= MachineMemOperand::MOInvariant;
 
-  if (isDereferenceablePointer(LI.getPointerOperand(), LI.getType(), DL))
+  if (isDereferenceableAndAlignedPointer(LI.getPointerOperand(), LI.getType(),
+                                         LI.getAlign(), DL, &LI, AC,
+                                         /*DT=*/nullptr, LibInfo))
     Flags |= MachineMemOperand::MODereferenceable;
 
   Flags |= getTargetMMOFlags(LI);

@@ -19,6 +19,7 @@
 #include "lldb/Utility/Status.h"
 #include <cpuid.h>
 #include <linux/elf.h>
+#include <optional>
 
 // Newer toolchains define __get_cpuid_count in cpuid.h, but some
 // older-but-still-supported ones (e.g. gcc 5.4.0) don't, so we
@@ -262,17 +263,17 @@ NativeRegisterContextLinux::DetermineArchitecture(lldb::tid_t tid) {
 
 // NativeRegisterContextLinux_x86_64 members.
 
-static RegisterInfoInterface *
+static std::unique_ptr<RegisterContextLinux_x86>
 CreateRegisterInfoInterface(const ArchSpec &target_arch) {
   if (HostInfo::GetArchitecture().GetAddressByteSize() == 4) {
     // 32-bit hosts run with a RegisterContextLinux_i386 context.
-    return new RegisterContextLinux_i386(target_arch);
+    return std::make_unique<RegisterContextLinux_i386>(target_arch);
   } else {
     assert((HostInfo::GetArchitecture().GetAddressByteSize() == 8) &&
            "Register setting path assumes this is a 64-bit host");
     // X86_64 hosts know how to work with 64-bit and 32-bit EXEs using the
     // x86_64 register context.
-    return new RegisterContextLinux_x86_64(target_arch);
+    return std::make_unique<RegisterContextLinux_x86_64>(target_arch);
   }
 }
 
@@ -296,7 +297,7 @@ static std::size_t GetXSTATESize() {
 NativeRegisterContextLinux_x86_64::NativeRegisterContextLinux_x86_64(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextRegisterInfo(
-          native_thread, CreateRegisterInfoInterface(target_arch)),
+          native_thread, CreateRegisterInfoInterface(target_arch).release()),
       NativeRegisterContextLinux(native_thread),
       NativeRegisterContextDBReg_x86(native_thread),
       m_xstate_type(XStateType::Invalid), m_ymm_set(), m_mpx_set(),
@@ -756,13 +757,8 @@ Status NativeRegisterContextLinux_x86_64::ReadAllRegisterValues(
    * **/
 
   RegisterValue value((uint64_t)-1);
-  const RegisterInfo *reg_info =
-      GetRegisterInfoInterface().GetDynamicRegisterInfo("orig_eax");
-  if (reg_info == nullptr)
-    reg_info = GetRegisterInfoInterface().GetDynamicRegisterInfo("orig_rax");
-
-  if (reg_info != nullptr)
-    return DoWriteRegisterValue(reg_info->byte_offset, reg_info->name, value);
+  const RegisterInfo &info = GetRegisterInfo().GetOrigAxInfo();
+  return DoWriteRegisterValue(info.byte_offset, info.name, value);
 
   return error;
 }
@@ -1039,7 +1035,7 @@ NativeRegisterContextLinux_x86_64::GetPtraceOffset(uint32_t reg_index) {
          (IsMPX(reg_index) ? 128 : 0);
 }
 
-llvm::Optional<NativeRegisterContextLinux::SyscallData>
+std::optional<NativeRegisterContextLinux::SyscallData>
 NativeRegisterContextLinux_x86_64::GetSyscallData() {
   switch (GetRegisterInfoInterface().GetTargetArchitecture().GetMachine()) {
   case llvm::Triple::x86: {
@@ -1061,7 +1057,7 @@ NativeRegisterContextLinux_x86_64::GetSyscallData() {
   }
 }
 
-llvm::Optional<NativeRegisterContextLinux::MmapData>
+std::optional<NativeRegisterContextLinux::MmapData>
 NativeRegisterContextLinux_x86_64::GetMmapData() {
   switch (GetRegisterInfoInterface().GetTargetArchitecture().GetMachine()) {
   case llvm::Triple::x86:

@@ -18,7 +18,7 @@ func.func @vectorize_matmul(%arg0: tensor<24x12xf32>,
 
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!pdl.operation) -> !pdl.operation
   %1 = get_closest_isolated_parent %0 : (!pdl.operation) -> !pdl.operation
   %2 = transform.structured.vectorize %1
 }
@@ -64,7 +64,7 @@ func.func @vectorize_keep_pad(
 
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!pdl.operation) -> !pdl.operation
   %1 = get_closest_isolated_parent %0 : (!pdl.operation) -> !pdl.operation
   %2 = transform.structured.vectorize %1
 }
@@ -81,7 +81,7 @@ transform.sequence failures(propagate) {
 func.func @vectorize_pad(
     %arg0: tensor<24x12xf32>, %arg1: tensor<12x25xf32>,
     %arg2: tensor<24x25xf32>, %arg3: index, %arg4: index,
-    %arg5: index) -> tensor<24x25xf32> {    
+    %arg5: index) -> tensor<24x25xf32> {
   %c0 = arith.constant 0 : index
   %cst = arith.constant 0.000000e+00 : f32
   %0 = affine.min #map0()[%arg5]
@@ -112,7 +112,7 @@ func.func @vectorize_pad(
 
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!pdl.operation) -> !pdl.operation
   %1 = get_closest_isolated_parent %0 : (!pdl.operation) -> !pdl.operation
   %2 = transform.structured.vectorize %1 {vectorize_padding}
 }
@@ -129,7 +129,7 @@ func.func @vectorize(%arg0: tensor<24x12xf32>,
 
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!pdl.operation) -> !pdl.operation
   // expected-error @below {{op requires isolated-from-above targets}}
   %2 = transform.structured.vectorize %0
 }

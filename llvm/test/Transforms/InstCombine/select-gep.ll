@@ -59,8 +59,8 @@ define ptr @test1d(ptr %p, ptr %q) {
 
 define ptr @test2(ptr %p, i64 %x, i64 %y) {
 ; CHECK-LABEL: @test2(
-; CHECK-NEXT:    [[TMP1:%.*]] = call i64 @llvm.umax.i64(i64 [[X:%.*]], i64 [[Y:%.*]])
-; CHECK-NEXT:    [[SELECT:%.*]] = getelementptr inbounds i32, ptr [[P:%.*]], i64 [[TMP1]]
+; CHECK-NEXT:    [[SELECT_V:%.*]] = call i64 @llvm.umax.i64(i64 [[X:%.*]], i64 [[Y:%.*]])
+; CHECK-NEXT:    [[SELECT:%.*]] = getelementptr inbounds i32, ptr [[P:%.*]], i64 [[SELECT_V]]
 ; CHECK-NEXT:    ret ptr [[SELECT]]
 ;
   %gep1 = getelementptr inbounds i32, ptr %p, i64 %x
@@ -248,8 +248,8 @@ declare void @use_i32p(ptr)
 
 define <2 x ptr> @test7(<2 x ptr> %p1, i64 %idx, <2 x i1> %cc) {
 ; CHECK-LABEL: @test7(
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i64, <2 x ptr> [[P1:%.*]], i64 [[IDX]]
-; CHECK-NEXT:    [[SELECT:%.*]] = select <2 x i1> [[CC:%.*]], <2 x ptr> [[P1:%.*]], <2 x ptr> [[GEP]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i64, <2 x ptr> [[P1:%.*]], i64 [[IDX:%.*]]
+; CHECK-NEXT:    [[SELECT:%.*]] = select <2 x i1> [[CC:%.*]], <2 x ptr> [[P1]], <2 x ptr> [[GEP]]
 ; CHECK-NEXT:    ret <2 x ptr> [[SELECT]]
 ;
   %gep = getelementptr i64, <2 x ptr> %p1, i64 %idx

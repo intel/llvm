@@ -25,6 +25,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -118,8 +119,8 @@ static unsigned int adjustColumnPos(FullSourceLoc Loc,
                                     unsigned int TokenLen = 0) {
   assert(!Loc.isInvalid() && "invalid Loc when adjusting column position");
 
-  std::pair<FileID, unsigned> LocInfo = Loc.getDecomposedLoc();
-  Optional<MemoryBufferRef> Buf =
+  std::pair<FileID, unsigned> LocInfo = Loc.getDecomposedExpansionLoc();
+  std::optional<MemoryBufferRef> Buf =
       Loc.getManager().getBufferOrNone(LocInfo.first);
   assert(Buf && "got an invalid buffer for the location's file");
   assert(Buf->getBufferSize() >= (LocInfo.second + TokenLen) &&
@@ -149,13 +150,16 @@ json::Object createMessage(StringRef Text) {
 /// \pre CharSourceRange must be a token range
 static json::Object createTextRegion(const SourceManager &SM,
                                      const CharSourceRange &R) {
-  FullSourceLoc FirstTokenLoc{R.getBegin(), SM};
-  FullSourceLoc LastTokenLoc{R.getEnd(), SM};
-  json::Object Region{{"startLine", FirstTokenLoc.getExpansionLineNumber()},
-                      {"startColumn", adjustColumnPos(FirstTokenLoc)},
-                      {"endColumn", adjustColumnPos(LastTokenLoc)}};
-  if (FirstTokenLoc != LastTokenLoc) {
-    Region["endLine"] = LastTokenLoc.getExpansionLineNumber();
+  FullSourceLoc BeginCharLoc{R.getBegin(), SM};
+  FullSourceLoc EndCharLoc{R.getEnd(), SM};
+  json::Object Region{{"startLine", BeginCharLoc.getExpansionLineNumber()},
+                      {"startColumn", adjustColumnPos(BeginCharLoc)}};
+
+  if (BeginCharLoc == EndCharLoc) {
+    Region["endColumn"] = adjustColumnPos(BeginCharLoc);
+  } else {
+    Region["endLine"] = EndCharLoc.getExpansionLineNumber();
+    Region["endColumn"] = adjustColumnPos(EndCharLoc);
   }
   return Region;
 }
@@ -232,8 +236,10 @@ SarifDocumentWriter::createPhysicalLocation(const CharSourceRange &R) {
   }
   assert(I != CurrentArtifacts.end() && "Failed to insert new artifact");
   const SarifArtifactLocation &Location = I->second.Location;
-  uint32_t Idx = Location.Index.value();
-  return json::Object{{{"artifactLocation", json::Object{{{"index", Idx}}}},
+  json::Object ArtifactLocationObject{{"uri", Location.URI}};
+  if (Location.Index.has_value())
+    ArtifactLocationObject["index"] = *Location.Index;
+  return json::Object{{{"artifactLocation", std::move(ArtifactLocationObject)},
                        {"region", createTextRegion(SourceMgr, R)}}};
 }
 
@@ -291,18 +297,18 @@ void SarifDocumentWriter::endRun() {
     const SarifArtifact &A = Pair.getValue();
     json::Object Loc{{"uri", A.Location.URI}};
     if (A.Location.Index.has_value()) {
-      Loc["index"] = static_cast<int64_t>(A.Location.Index.value());
+      Loc["index"] = static_cast<int64_t>(*A.Location.Index);
     }
     json::Object Artifact;
     Artifact["location"] = std::move(Loc);
     if (A.Length.has_value())
-      Artifact["length"] = static_cast<int64_t>(A.Length.value());
+      Artifact["length"] = static_cast<int64_t>(*A.Length);
     if (!A.Roles.empty())
       Artifact["roles"] = json::Array(A.Roles);
     if (!A.MimeType.empty())
       Artifact["mimeType"] = A.MimeType;
     if (A.Offset.has_value())
-      Artifact["offset"] = A.Offset;
+      Artifact["offset"] = *A.Offset;
     Artifacts->push_back(json::Value(std::move(Artifact)));
   }
 

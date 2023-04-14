@@ -1,5 +1,5 @@
-Experimental CUDA backend for DPC++
-===================================
+CUDA backend for DPC++
+======================
 
 .. toctree::
    :maxdepth: 1

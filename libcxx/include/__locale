@@ -14,6 +14,7 @@
 #include <__config>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <locale.h>
 #include <mutex>
 #include <string>
@@ -512,7 +513,8 @@ public:
     static const mask punct  = _P;
     static const mask xdigit = _X | _N;
     static const mask blank  = _B;
-    static const mask __regex_word = 0x80;
+    // mask is already fully saturated, use a different type in regex_type_traits.
+    static const unsigned short __regex_word = 0x100;
 # define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_PRINT
 # define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_ALPHA
 # define _LIBCPP_CTYPE_MASK_IS_COMPOSITE_XDIGIT
@@ -551,7 +553,8 @@ public:
 
     _LIBCPP_INLINE_VISIBILITY ctype_base() {}
 
-    static_assert((__regex_word & ~(space | print | cntrl | upper | lower | alpha | digit | punct | xdigit | blank)) == __regex_word,
+    static_assert((__regex_word & ~(std::make_unsigned<mask>::type)(space | print | cntrl | upper | lower | alpha |
+                                                                    digit | punct | xdigit | blank)) == __regex_word,
                   "__regex_word can't overlap other bits");
 };
 
@@ -699,7 +702,7 @@ public:
     const char_type* scan_not(mask __m, const char_type* __low, const char_type* __high) const
     {
         for (; __low != __high; ++__low)
-            if (!(isascii(*__low) && (__tab_[static_cast<int>(*__low)] & __m)))
+            if (!isascii(*__low) || !(__tab_[static_cast<int>(*__low)] & __m))
                 break;
         return __low;
     }
@@ -841,7 +844,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isspace(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::space, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::space, __c);
 }
 
 template <class _CharT>
@@ -849,7 +852,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isprint(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::print, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::print, __c);
 }
 
 template <class _CharT>
@@ -857,7 +860,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 iscntrl(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::cntrl, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::cntrl, __c);
 }
 
 template <class _CharT>
@@ -865,7 +868,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isupper(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::upper, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::upper, __c);
 }
 
 template <class _CharT>
@@ -873,7 +876,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 islower(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::lower, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::lower, __c);
 }
 
 template <class _CharT>
@@ -881,7 +884,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isalpha(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::alpha, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::alpha, __c);
 }
 
 template <class _CharT>
@@ -889,7 +892,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isdigit(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::digit, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::digit, __c);
 }
 
 template <class _CharT>
@@ -897,7 +900,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 ispunct(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::punct, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::punct, __c);
 }
 
 template <class _CharT>
@@ -905,7 +908,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isxdigit(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::xdigit, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::xdigit, __c);
 }
 
 template <class _CharT>
@@ -913,7 +916,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isalnum(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::alnum, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::alnum, __c);
 }
 
 template <class _CharT>
@@ -921,7 +924,12 @@ inline _LIBCPP_INLINE_VISIBILITY
 bool
 isgraph(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).is(ctype_base::graph, __c);
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::graph, __c);
+}
+
+template <class _CharT>
+_LIBCPP_HIDE_FROM_ABI bool isblank(_CharT __c, const locale& __loc) {
+    return std::use_facet<ctype<_CharT> >(__loc).is(ctype_base::blank, __c);
 }
 
 template <class _CharT>
@@ -929,7 +937,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 _CharT
 toupper(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).toupper(__c);
+    return std::use_facet<ctype<_CharT> >(__loc).toupper(__c);
 }
 
 template <class _CharT>
@@ -937,7 +945,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 _CharT
 tolower(_CharT __c, const locale& __loc)
 {
-    return use_facet<ctype<_CharT> >(__loc).tolower(__c);
+    return std::use_facet<ctype<_CharT> >(__loc).tolower(__c);
 }
 
 // codecvt_base

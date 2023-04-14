@@ -29,10 +29,10 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CSKYAttributes.h"
-#include "llvm/Support/CSKYTargetParser.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/TargetParser/CSKYTargetParser.h"
 
 using namespace llvm;
 
@@ -70,7 +70,8 @@ class CSKYAsmParser : public MCTargetAsmParser {
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
 
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -81,7 +82,7 @@ class CSKYAsmParser : public MCTargetAsmParser {
   // possible, compression of the instruction is performed.
   void emitToStreamer(MCStreamer &S, const MCInst &Inst);
 
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
 
   bool processInstruction(MCInst &Inst, SMLoc IDLoc, OperandVector &Operands,
@@ -429,7 +430,7 @@ public:
   }
 
   void print(raw_ostream &OS) const override {
-    auto RegName = [](unsigned Reg) {
+    auto RegName = [](MCRegister Reg) {
       if (Reg)
         return CSKYInstPrinter::getRegisterName(Reg);
       else
@@ -834,7 +835,7 @@ bool CSKYAsmParser::processLRW(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out) {
     if (isUInt<8>(Inst.getOperand(1).getImm()) &&
         Inst.getOperand(0).getReg() <= CSKY::R7) {
       Opcode = CSKY::MOVI16;
-    } else if (getSTI().getFeatureBits()[CSKY::HasE2] &&
+    } else if (getSTI().hasFeature(CSKY::HasE2) &&
                isUInt<16>(Inst.getOperand(1).getImm())) {
       Opcode = CSKY::MOVI32;
     } else {
@@ -1008,7 +1009,7 @@ static bool matchRegisterNameHelper(const MCSubtargetInfo &STI,
   return RegNo == CSKY::NoRegister;
 }
 
-bool CSKYAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool CSKYAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                   SMLoc &EndLoc) {
   const AsmToken &Tok = getParser().getTok();
   StartLoc = Tok.getLoc();
@@ -1599,7 +1600,7 @@ bool CSKYAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   return false;
 }
 
-OperandMatchResultTy CSKYAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy CSKYAsmParser::tryParseRegister(MCRegister &RegNo,
                                                      SMLoc &StartLoc,
                                                      SMLoc &EndLoc) {
   const AsmToken &Tok = getParser().getTok();
@@ -1637,7 +1638,7 @@ bool CSKYAsmParser::parseDirectiveAttribute() {
   TagLoc = Parser.getTok().getLoc();
   if (Parser.getTok().is(AsmToken::Identifier)) {
     StringRef Name = Parser.getTok().getIdentifier();
-    Optional<unsigned> Ret =
+    std::optional<unsigned> Ret =
         ELFAttrs::attrTypeFromString(Name, CSKYAttrs::getCSKYAttributeTags());
     if (!Ret) {
       Error(TagLoc, "attribute name not recognised: " + Name);
@@ -1659,7 +1660,7 @@ bool CSKYAsmParser::parseDirectiveAttribute() {
     Tag = CE->getValue();
   }
 
-  if (Parser.parseToken(AsmToken::Comma, "comma expected"))
+  if (Parser.parseComma())
     return true;
 
   StringRef StringValue;
@@ -1746,7 +1747,7 @@ void CSKYAsmParser::emitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;
   bool Res = false;
   if (EnableCompressedInst)
-    Res = compressInst(CInst, Inst, getSTI(), S.getContext());
+    Res = compressInst(CInst, Inst, getSTI());
   if (Res)
     ++CSKYNumInstrsCompressed;
   S.emitInstruction((Res ? CInst : Inst), getSTI());

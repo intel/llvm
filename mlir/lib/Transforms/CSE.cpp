@@ -49,8 +49,6 @@ struct SimpleOperationInfo : public llvm::DenseMapInfo<Operation *> {
       return false;
     return OperationEquivalence::isEquivalentTo(
         const_cast<Operation *>(lhsC), const_cast<Operation *>(rhsC),
-        /*mapOperands=*/OperationEquivalence::exactValueMatch,
-        /*mapResults=*/OperationEquivalence::ignoreValueEquivalence,
         OperationEquivalence::IgnoreLocations);
   }
 };
@@ -126,12 +124,9 @@ void CSE::replaceUsesAndDelete(ScopedMapTy &knownValues, Operation *op,
   } else {
     // When the region does not have SSA dominance, we need to check if we
     // have visited a use before replacing any use.
-    for (auto it : llvm::zip(op->getResults(), existing->getResults())) {
-      std::get<0>(it).replaceUsesWithIf(
-          std::get<1>(it), [&](OpOperand &operand) {
-            return !knownValues.count(operand.getOwner());
-          });
-    }
+    op->replaceUsesWithIf(existing->getResults(), [&](OpOperand &operand) {
+      return !knownValues.count(operand.getOwner());
+    });
 
     // There may be some remaining uses of the operation.
     if (op->use_empty())
@@ -201,15 +196,16 @@ LogicalResult CSE::simplifyOperation(ScopedMapTy &knownValues, Operation *op,
     return success();
   }
 
-  // Don't simplify operations with nested blocks. We don't currently model
-  // equality comparisons correctly among other things. It is also unclear
-  // whether we would want to CSE such operations.
-  if (op->getNumRegions() != 0)
+  // Don't simplify operations with regions that have multiple blocks.
+  // TODO: We need additional tests to verify that we handle such IR correctly.
+  if (!llvm::all_of(op->getRegions(), [](Region &r) {
+        return r.getBlocks().empty() || llvm::hasSingleElement(r.getBlocks());
+      }))
     return failure();
 
   // Some simple use case of operation with memory side-effect are dealt with
   // here. Operations with no side-effect are done after.
-  if (!MemoryEffectOpInterface::hasNoEffect(op)) {
+  if (!isMemoryEffectFree(op)) {
     auto memEffects = dyn_cast<MemoryEffectOpInterface>(op);
     // TODO: Only basic use case for operations with MemoryEffects::Read can be
     // eleminated now. More work needs to be done for more complicated patterns
@@ -247,27 +243,25 @@ LogicalResult CSE::simplifyOperation(ScopedMapTy &knownValues, Operation *op,
 void CSE::simplifyBlock(ScopedMapTy &knownValues, Block *bb,
                         bool hasSSADominance) {
   for (auto &op : *bb) {
+    // Most operations don't have regions, so fast path that case.
+    if (op.getNumRegions() != 0) {
+      // If this operation is isolated above, we can't process nested regions
+      // with the given 'knownValues' map. This would cause the insertion of
+      // implicit captures in explicit capture only regions.
+      if (op.mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
+        ScopedMapTy nestedKnownValues;
+        for (auto &region : op.getRegions())
+          simplifyRegion(nestedKnownValues, region);
+      } else {
+        // Otherwise, process nested regions normally.
+        for (auto &region : op.getRegions())
+          simplifyRegion(knownValues, region);
+      }
+    }
+
     // If the operation is simplified, we don't process any held regions.
     if (succeeded(simplifyOperation(knownValues, &op, hasSSADominance)))
       continue;
-
-    // Most operations don't have regions, so fast path that case.
-    if (op.getNumRegions() == 0)
-      continue;
-
-    // If this operation is isolated above, we can't process nested regions with
-    // the given 'knownValues' map. This would cause the insertion of implicit
-    // captures in explicit capture only regions.
-    if (op.mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
-      ScopedMapTy nestedKnownValues;
-      for (auto &region : op.getRegions())
-        simplifyRegion(nestedKnownValues, region);
-      continue;
-    }
-
-    // Otherwise, process nested regions normally.
-    for (auto &region : op.getRegions())
-      simplifyRegion(knownValues, region);
   }
   // Clear the MemoryEffects cache since its usage is by block only.
   memEffectsCache.clear();

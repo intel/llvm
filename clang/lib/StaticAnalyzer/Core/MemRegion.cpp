@@ -35,7 +35,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -51,6 +50,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -790,22 +790,30 @@ DefinedOrUnknownSVal MemRegionManager::getStaticSize(const MemRegion *MR,
         return true;
 
       if (const auto *CAT = dyn_cast<ConstantArrayType>(AT)) {
-        const llvm::APInt &Size = CAT->getSize();
-        if (Size.isZero())
-          return true;
-
         using FAMKind = LangOptions::StrictFlexArraysLevelKind;
         const FAMKind StrictFlexArraysLevel =
           Ctx.getLangOpts().getStrictFlexArraysLevel();
-        if (StrictFlexArraysLevel == FAMKind::ZeroOrIncomplete ||
-            StrictFlexArraysLevel == FAMKind::IncompleteOnly)
-          return false;
-
         const AnalyzerOptions &Opts = SVB.getAnalyzerOptions();
-        // FIXME: this option is probably redundant with -fstrict-flex-arrays=1.
-        if (Opts.ShouldConsiderSingleElementArraysAsFlexibleArrayMembers &&
-            Size.isOne())
+        const llvm::APInt &Size = CAT->getSize();
+
+        if (StrictFlexArraysLevel <= FAMKind::ZeroOrIncomplete && Size.isZero())
           return true;
+
+        // The "-fstrict-flex-arrays" should have precedence over
+        // consider-single-element-arrays-as-flexible-array-members
+        // analyzer-config when checking single element arrays.
+        if (StrictFlexArraysLevel == FAMKind::Default) {
+          // FIXME: After clang-17 released, we should remove this branch.
+          if (Opts.ShouldConsiderSingleElementArraysAsFlexibleArrayMembers &&
+              Size.isOne())
+            return true;
+        } else {
+          // -fstrict-flex-arrays was specified, since it's not the default, so
+          // ignore analyzer-config.
+          if (StrictFlexArraysLevel <= FAMKind::OneZeroOrIncomplete &&
+              Size.isOne())
+            return true;
+        }
       }
       return false;
     };
@@ -1033,7 +1041,7 @@ const VarRegion *MemRegionManager::getVarRegion(const VarDecl *D,
             T = getContext().VoidTy;
           if (!T->getAs<FunctionType>()) {
             FunctionProtoType::ExtProtoInfo Ext;
-            T = getContext().getFunctionType(T, None, Ext);
+            T = getContext().getFunctionType(T, std::nullopt, Ext);
           }
           T = getContext().getBlockPointerType(T);
 
@@ -1546,7 +1554,7 @@ static RegionOffset calculateOffset(const MemRegion *R) {
       }
 
       SVal Index = ER->getIndex();
-      if (Optional<nonloc::ConcreteInt> CI =
+      if (std::optional<nonloc::ConcreteInt> CI =
               Index.getAs<nonloc::ConcreteInt>()) {
         // Don't bother calculating precise offsets if we already have a
         // symbolic offset somewhere in the chain.

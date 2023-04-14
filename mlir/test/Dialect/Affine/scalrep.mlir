@@ -788,3 +788,103 @@ func.func @no_forwarding_across_scopes() -> memref<1xf32> {
   }
   return %A : memref<1xf32>
 }
+
+// CHECK-LABEL: func @parallel_store_load() {
+func.func @parallel_store_load() {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10xf32>
+  affine.parallel (%i0) = (0) to (10) {
+    affine.store %cf7, %m[%i0] : memref<10xf32>
+    %v0 = affine.load %m[%i0] : memref<10xf32>
+    %v1 = arith.addf %v0, %v0 : f32
+  }
+  memref.dealloc %m : memref<10xf32>
+  return
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (10) {
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+}
+
+func.func @non_constant_parallel_store_load(%N : index) {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10xf32>
+  affine.parallel (%i0) = (0) to (%N) {
+    affine.store %cf7, %m[%i0] : memref<10xf32>
+    %v0 = affine.load %m[%i0] : memref<10xf32>
+    %v1 = arith.addf %v0, %v0 : f32
+  }
+  memref.dealloc %m : memref<10xf32>
+  return
+}
+// CHECK: func.func @non_constant_parallel_store_load(%[[ARG0:.*]]: index) {
+// CHECK-NEXT:  %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (%[[ARG0]]) {
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+
+// CHECK-LABEL: func @parallel_surrounding_for() {
+func.func @parallel_surrounding_for() {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10x10xf32>
+  affine.parallel (%i0) = (0) to (10) {
+    affine.for %i1 = 0 to 10 {
+      affine.store %cf7, %m[%i0,%i1] : memref<10x10xf32>
+      %v0 = affine.load %m[%i0,%i1] : memref<10x10xf32>
+      %v1 = arith.addf %v0, %v0 : f32
+    }
+  }
+  memref.dealloc %m : memref<10x10xf32>
+  return
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (10) {
+// CHECK-NEXT:    affine.for %{{.*}} = 0 to 10 {
+// CHECK-NEXT:      arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:    }
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+}
+
+// CHECK-LABEL: func.func @dead_affine_region_op
+func.func @dead_affine_region_op() {
+  %c1 = arith.constant 1 : index
+  %alloc = memref.alloc() : memref<15xi1>
+  %true = arith.constant true
+  affine.store %true, %alloc[%c1] : memref<15xi1>
+  // Dead store.
+  affine.store %true, %alloc[%c1] : memref<15xi1>
+  // This affine.if is dead.
+  affine.if affine_set<(d0, d1, d2, d3) : ((d0 + 1) mod 8 >= 0, d0 * -8 >= 0)>(%c1, %c1, %c1, %c1){
+    // No forwarding will happen.
+    affine.load %alloc[%c1] : memref<15xi1>
+  }
+  // CHECK-NEXT: arith.constant
+  // CHECK-NEXT: memref.alloc
+  // CHECK-NEXT: arith.constant
+  // CHECK-NEXT: affine.store
+  // CHECK-NEXT: affine.if
+  // CHECK-NEXT:   affine.load
+  return
+}
+
+// We perform no scalar replacement here since we don't depend on dominance
+// info, which would be needed in such cases when ops fall in different blocks
+// of a CFG region.
+
+// CHECK-LABEL: func @cross_block
+func.func @cross_block() {
+  %c10 = arith.constant 10 : index
+  %alloc_83 = memref.alloc() : memref<1x13xf32>
+  %alloc_99 = memref.alloc() : memref<13xi1>
+  %true_110 = arith.constant true
+  affine.store %true_110, %alloc_99[%c10] : memref<13xi1>
+  %true = arith.constant true
+  affine.store %true, %alloc_99[%c10] : memref<13xi1>
+  cf.br ^bb1(%alloc_83 : memref<1x13xf32>)
+^bb1(%35: memref<1x13xf32>):
+  // CHECK: affine.load
+  %69 = affine.load %alloc_99[%c10] : memref<13xi1>
+  return
+}

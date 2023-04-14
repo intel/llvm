@@ -56,6 +56,9 @@ RelExpr AVR::getRelExpr(RelType type, const Symbol &s,
   case R_AVR_6:
   case R_AVR_6_ADIW:
   case R_AVR_8:
+  case R_AVR_8_LO8:
+  case R_AVR_8_HI8:
+  case R_AVR_8_HLO8:
   case R_AVR_16:
   case R_AVR_16_PM:
   case R_AVR_32:
@@ -74,6 +77,7 @@ RelExpr AVR::getRelExpr(RelType type, const Symbol &s,
   case R_AVR_HI8_LDI_PM_NEG:
   case R_AVR_HH8_LDI_PM:
   case R_AVR_HH8_LDI_PM_NEG:
+  case R_AVR_LDS_STS_16:
   case R_AVR_PORT5:
   case R_AVR_PORT6:
   case R_AVR_CALL:
@@ -97,6 +101,18 @@ void AVR::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_AVR_8:
     checkUInt(loc, val, 8, rel);
     *loc = val;
+    break;
+  case R_AVR_8_LO8:
+    checkUInt(loc, val, 32, rel);
+    *loc = val & 0xff;
+    break;
+  case R_AVR_8_HI8:
+    checkUInt(loc, val, 32, rel);
+    *loc = (val >> 8) & 0xff;
+    break;
+  case R_AVR_8_HLO8:
+    checkUInt(loc, val, 32, rel);
+    *loc = (val >> 16) & 0xff;
     break;
   case R_AVR_16:
     // Note: this relocation is often used between code and data space, which
@@ -170,6 +186,14 @@ void AVR::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     writeLDI(loc, (-val >> 17) & 0xff);
     break;
 
+  case R_AVR_LDS_STS_16: {
+    checkUInt(loc, val, 7, rel);
+    const uint16_t hi = val >> 4;
+    const uint16_t lo = val & 0xf;
+    write16le(loc, (read16le(loc) & 0xf8f0) | ((hi << 8) | lo));
+    break;
+  }
+
   case R_AVR_PORT5:
     checkUInt(loc, val, 5, rel);
     write16le(loc, (read16le(loc) & 0xff07) | (val << 3));
@@ -231,7 +255,7 @@ uint32_t AVR::calcEFlags() const {
   uint32_t flags = getEFlags(ctx.objectFiles[0]);
   bool hasLinkRelaxFlag = flags & EF_AVR_LINKRELAX_PREPARED;
 
-  for (InputFile *f : makeArrayRef(ctx.objectFiles).slice(1)) {
+  for (InputFile *f : ArrayRef(ctx.objectFiles).slice(1)) {
     uint32_t objFlags = getEFlags(f);
     if ((objFlags & EF_AVR_ARCH_MASK) != (flags & EF_AVR_ARCH_MASK))
       error(toString(f) +

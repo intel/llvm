@@ -75,7 +75,7 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "riscv-make-compressible"
-#define RISCV_COMPRESS_INSTRS_NAME "RISCV Make Compressible"
+#define RISCV_COMPRESS_INSTRS_NAME "RISC-V Make Compressible"
 
 namespace {
 
@@ -332,6 +332,7 @@ bool RISCVMakeCompressibleOpt::runOnMachineFunction(MachineFunction &Fn) {
   const RISCVInstrInfo &TII = *STI.getInstrInfo();
 
   // This optimization only makes sense if compressed instructions are emitted.
+  // FIXME: Support Zca, Zcf, Zcd granularity.
   if (!STI.hasStdExtC())
     return false;
 

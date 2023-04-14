@@ -1,9 +1,32 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: TENSOR0="%mlir_src_dir/test/Integration/data/mttkrp_b.tns" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/mttkrp_b.tns"  \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils,%mlir_runner_utils | \
+// DEFINE: FileCheck %s
+//
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4  enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/mttkrp_b.tns" \
+// REDEFINE: %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext -dlopen=%mlir_runner_utils| \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 !Filename = !llvm.ptr<i8>
 
@@ -28,6 +51,8 @@
 // from file, and runs the resulting code with the JIT compiler.
 //
 module {
+  func.func private @printMemrefF64(%ptr : tensor<*xf64>)
+
   //
   // Computes Matricized Tensor Times Khatri-Rao Product (MTTKRP) kernel. See
   // http://tensor-compiler.org/docs/data_analytics/index.html.
@@ -36,7 +61,7 @@ module {
                            %argc: tensor<?x?xf64>,
                            %argd: tensor<?x?xf64>,
                            %arga: tensor<?x?xf64>)
-		      -> tensor<?x?xf64> {
+                               -> tensor<?x?xf64> {
     %0 = linalg.generic #mttkrp
       ins(%argb, %argc, %argd:
             tensor<?x?x?xf64, #SparseTensor>, tensor<?x?xf64>, tensor<?x?xf64>)
@@ -105,12 +130,11 @@ module {
 
     // Print the result for verification.
     //
-    // CHECK: ( ( 16075, 21930, 28505, 35800, 43815 ),
-    // CHECK:   ( 10000, 14225, 19180, 24865, 31280 ) )
+    // CHECK:      {{\[}}[16075,   21930,   28505,   35800,   43815],
+    // CHECK-NEXT: [10000,   14225,   19180,   24865,   31280]]
     //
-    %v = vector.transfer_read %0[%cst0, %cst0], %f0
-          : tensor<?x?xf64>, vector<2x5xf64>
-    vector.print %v : vector<2x5xf64>
+    %u = tensor.cast %0: tensor<?x?xf64> to tensor<*xf64>
+    call @printMemrefF64(%u) : (tensor<*xf64>) -> ()
 
     // Release the resources.
     bufferization.dealloc_tensor %b : tensor<?x?x?xf64, #SparseTensor>

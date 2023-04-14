@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_level_zero.so
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_level_zero.so
 # REQUIRES: linux
 # UNSUPPORTED: libcxx
 
@@ -41,6 +41,7 @@ piEventRetain
 piEventSetCallback
 piEventSetStatus
 piEventsWait
+piGetDeviceAndHostTimer
 piKernelCreate
 piKernelGetGroupInfo
 piKernelGetInfo
@@ -58,6 +59,8 @@ piMemRelease
 piMemRetain
 piPlatformGetInfo
 piPlatformsGet
+piPluginGetBackendOption
+piPluginGetLastError
 piPluginInit
 piProgramBuild
 piProgramCompile
@@ -78,7 +81,6 @@ piSamplerCreate
 piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
-piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
@@ -87,6 +89,8 @@ piextContextSetExtendedDeleter
 piextDeviceCreateWithNativeHandle
 piextDeviceGetNativeHandle
 piextDeviceSelectBinary
+piextEnqueueReadHostPipe
+piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
@@ -103,12 +107,19 @@ piextPluginGetOpaqueData
 piextProgramCreateWithNativeHandle
 piextProgramGetNativeHandle
 piextProgramSetSpecializationConstant
+piextQueueCreate
+piextQueueCreate2
 piextQueueCreateWithNativeHandle
+piextQueueCreateWithNativeHandle2
 piextQueueGetNativeHandle
+piextQueueGetNativeHandle2
 piextUSMDeviceAlloc
+piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
+piextUSMEnqueueMemcpy2D
 piextUSMEnqueueMemset
+piextUSMEnqueueMemset2D
 piextUSMEnqueuePrefetch
 piextUSMFree
 piextUSMGetMemAllocInfo

@@ -355,7 +355,7 @@ def AMDGPUendpgm : SDNode<"AMDGPUISD::ENDPGM", SDTNone,
 def AMDGPUreturn_to_epilog : SDNode<"AMDGPUISD::RETURN_TO_EPILOG", SDTNone,
     [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
-def AMDGPUret_flag : SDNode<"AMDGPUISD::RET_FLAG", SDTNone,
+def AMDGPUret_glue : SDNode<"AMDGPUISD::RET_GLUE", SDTNone,
   [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]
 >;
 
@@ -388,7 +388,7 @@ def AMDGPUldexp : PatFrags<(ops node:$src0, node:$src1),
 
 def AMDGPUfp_class : PatFrags<(ops node:$src0, node:$src1),
   [(int_amdgcn_class node:$src0, node:$src1),
-  (AMDGPUfp_class_impl node:$src0, node:$src1)]>;
+   (AMDGPUfp_class_impl node:$src0, node:$src1)]>;
 
 def AMDGPUfmed3 : PatFrags<(ops node:$src0, node:$src1, node:$src2),
   [(int_amdgcn_fmed3 node:$src0, node:$src1, node:$src2),

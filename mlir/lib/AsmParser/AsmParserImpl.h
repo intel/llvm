@@ -13,6 +13,8 @@
 #include "mlir/AsmParser/AsmParserState.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/Support/Base64.h"
+#include <optional>
 
 namespace mlir {
 namespace detail {
@@ -245,6 +247,28 @@ public:
     return success();
   }
 
+  /// Parses a Base64 encoded string of bytes.
+  ParseResult parseBase64Bytes(std::vector<char> *bytes) override {
+    auto loc = getCurrentLocation();
+    if (!parser.getToken().is(Token::string))
+      return emitError(loc, "expected string");
+
+    if (bytes) {
+      // decodeBase64 doesn't modify its input so we can use the token spelling
+      // and just slice off the quotes/whitespaces if there are any. Whitespace
+      // and quotes cannot appear as part of a (standard) base64 encoded string,
+      // so this is safe to do.
+      StringRef b64QuotedString = parser.getTokenSpelling();
+      StringRef b64String =
+          b64QuotedString.ltrim("\"  \t\n\v\f\r").rtrim("\" \t\n\v\f\r");
+      if (auto err = llvm::decodeBase64(b64String, *bytes))
+        return emitError(loc, toString(std::move(err)));
+    }
+
+    parser.consumeToken();
+    return success();
+  }
+
   /// Parse a floating point value from the stream.
   ParseResult parseFloat(double &result) override {
     bool isNegative = parser.consumeIf(Token::minus);
@@ -263,7 +287,7 @@ public:
 
     // Check for a hexadecimal float value.
     if (curTok.is(Token::integer)) {
-      Optional<APFloat> apResult;
+      std::optional<APFloat> apResult;
       if (failed(parser.parseFloatFromIntegerLiteral(
               apResult, curTok, isNegative, APFloat::IEEEdouble(),
               /*typeSizeInBits=*/64)))
@@ -404,6 +428,10 @@ public:
     return parser.parseOptionalAttribute(result, type);
   }
   OptionalParseResult parseOptionalAttribute(StringAttr &result,
+                                             Type type) override {
+    return parser.parseOptionalAttribute(result, type);
+  }
+  OptionalParseResult parseOptionalAttribute(SymbolRefAttr &result,
                                              Type type) override {
     return parser.parseOptionalAttribute(result, type);
   }

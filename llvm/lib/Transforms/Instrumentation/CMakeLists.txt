@@ -5,12 +5,14 @@ add_llvm_component_library(LLVMInstrumentation
   ControlHeightReduction.cpp
   DataFlowSanitizer.cpp
   GCOVProfiling.cpp
+  BlockCoverageInference.cpp
   MemProfiler.cpp
   MemorySanitizer.cpp
   IndirectCallPromotion.cpp
   Instrumentation.cpp
   InstrOrderFile.cpp
   InstrProfiling.cpp
+  KCFI.cpp
   PGOInstrumentation.cpp
   PGOMemOPSizeOpt.cpp
   PoisonChecking.cpp
@@ -33,6 +35,7 @@ add_llvm_component_library(LLVMInstrumentation
   Demangle
   MC
   Support
+  TargetParser
   TransformUtils
   ProfileData
   )

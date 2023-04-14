@@ -28,6 +28,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -77,8 +78,8 @@ class MemCmpExpansion {
   uint64_t NumLoadsNonOneByte = 0;
   const uint64_t NumLoadsPerBlockForZeroCmp;
   std::vector<BasicBlock *> LoadCmpBlocks;
-  BasicBlock *EndBlock;
-  PHINode *PhiRes;
+  BasicBlock *EndBlock = nullptr;
+  PHINode *PhiRes = nullptr;
   const bool IsUsedForZeroCmp;
   const DataLayout &DL;
   DomTreeUpdater *DTU;
@@ -877,15 +878,14 @@ ExpandMemCmpPass::runImpl(Function &F, const TargetLibraryInfo *TLI,
                           const TargetTransformInfo *TTI,
                           const TargetLowering *TL, ProfileSummaryInfo *PSI,
                           BlockFrequencyInfo *BFI, DominatorTree *DT) {
-  Optional<DomTreeUpdater> DTU;
+  std::optional<DomTreeUpdater> DTU;
   if (DT)
     DTU.emplace(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 
   const DataLayout& DL = F.getParent()->getDataLayout();
   bool MadeChanges = false;
   for (auto BBIt = F.begin(); BBIt != F.end();) {
-    if (runOnBlock(*BBIt, TLI, TTI, TL, DL, PSI, BFI,
-                   DTU ? DTU.getPointer() : nullptr)) {
+    if (runOnBlock(*BBIt, TLI, TTI, TL, DL, PSI, BFI, DTU ? &*DTU : nullptr)) {
       MadeChanges = true;
       // If changes were made, restart the function from the beginning, since
       // the structure of the function was changed.

@@ -99,7 +99,15 @@ namespace {
           ID.AddInteger(NTTP->getDepth());
           ID.AddInteger(NTTP->getIndex());
           ID.AddBoolean(NTTP->isParameterPack());
-          VisitType(NTTP->getType());
+          // C++20 [temp.over.link]p6:
+          //   Two template-parameters are equivalent under the following
+          //   conditions: [...] if they declare non-type template parameters,
+          //   they have equivalent types ignoring the use of type-constraints
+          //   for placeholder types
+          //
+          // TODO: Why do we need to include the type in the profile? It's not
+          // part of the mangling.
+          VisitType(Context.getUnconstrainedType(NTTP->getType()));
           return;
         }
 
@@ -111,6 +119,9 @@ namespace {
           // definition of "equivalent" (per C++ [temp.over.link]) is at
           // least as strong as the definition of "equivalent" used for
           // name mangling.
+          //
+          // TODO: The Itanium C++ ABI only uses the top-level cv-qualifiers,
+          // not the entirety of the type.
           VisitType(Parm->getType());
           ID.AddInteger(Parm->getFunctionScopeDepth());
           ID.AddInteger(Parm->getFunctionScopeIndex());
@@ -530,6 +541,15 @@ void OMPClauseProfiler::VisitOMPDynamicAllocatorsClause(
 void OMPClauseProfiler::VisitOMPAtomicDefaultMemOrderClause(
     const OMPAtomicDefaultMemOrderClause *C) {}
 
+void OMPClauseProfiler::VisitOMPAtClause(const OMPAtClause *C) {}
+
+void OMPClauseProfiler::VisitOMPSeverityClause(const OMPSeverityClause *C) {}
+
+void OMPClauseProfiler::VisitOMPMessageClause(const OMPMessageClause *C) {
+  if (C->getMessageString())
+    Profiler->VisitStmt(C->getMessageString());
+}
+
 void OMPClauseProfiler::VisitOMPScheduleClause(const OMPScheduleClause *C) {
   VistOMPClauseWithPreInit(C);
   if (auto *S = C->getChunkSize())
@@ -894,6 +914,12 @@ void OMPClauseProfiler::VisitOMPAffinityClause(const OMPAffinityClause *C) {
 }
 void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
 void OMPClauseProfiler::VisitOMPBindClause(const OMPBindClause *C) {}
+void OMPClauseProfiler::VisitOMPXDynCGroupMemClause(
+    const OMPXDynCGroupMemClause *C) {
+  VistOMPClauseWithPreInit(C);
+  if (Expr *Size = C->getSize())
+    Profiler->VisitStmt(Size);
+}
 } // namespace
 
 void
@@ -1509,7 +1535,7 @@ void StmtProfiler::VisitDesignatedInitExpr(const DesignatedInitExpr *S) {
       assert(D.isArrayRangeDesignator());
       ID.AddInteger(2);
     }
-    ID.AddInteger(D.getFirstExprIndex());
+    ID.AddInteger(D.getArrayIndex());
   }
 }
 
@@ -1618,8 +1644,8 @@ void StmtProfiler::VisitRequiresExpr(const RequiresExpr *S) {
     } else {
       ID.AddInteger(concepts::Requirement::RK_Nested);
       auto *NestedReq = cast<concepts::NestedRequirement>(Req);
-      ID.AddBoolean(NestedReq->isSubstitutionFailure());
-      if (!NestedReq->isSubstitutionFailure())
+      ID.AddBoolean(NestedReq->hasInvalidConstraint());
+      if (!NestedReq->hasInvalidConstraint())
         Visit(NestedReq->getConstraintExpr());
     }
   }
@@ -2209,6 +2235,10 @@ void StmtProfiler::VisitMaterializeTemporaryExpr(
 void StmtProfiler::VisitCXXFoldExpr(const CXXFoldExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getOperator());
+}
+
+void StmtProfiler::VisitCXXParenListInitExpr(const CXXParenListInitExpr *S) {
+  VisitExpr(S);
 }
 
 void StmtProfiler::VisitCoroutineBodyStmt(const CoroutineBodyStmt *S) {

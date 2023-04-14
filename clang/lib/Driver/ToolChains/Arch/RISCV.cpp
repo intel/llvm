@@ -1,4 +1,4 @@
-//===--- RISCV.cpp - RISCV Helpers for Tools --------------------*- C++ -*-===//
+//===--- RISCV.cpp - RISC-V Helpers for Tools -------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,13 +13,12 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/RISCVISAInfo.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/RISCVTargetParser.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -44,7 +43,8 @@ static bool getArchFeatures(const Driver &D, StringRef Arch,
   }
 
   (*ISAInfo)->toFeatures(
-      Features, [&Args](const Twine &Str) { return Args.MakeArgString(Str); });
+      Features, [&Args](const Twine &Str) { return Args.MakeArgString(Str); },
+      /*AddAllExtensions=*/true);
   return true;
 }
 
@@ -73,7 +73,7 @@ void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
       CPU = llvm::sys::getHostCPUName();
     if (!getRISCFeaturesFromMcpu(Triple, CPU, Features))
       D.Diag(clang::diag::err_drv_unsupported_option_argument)
-          << A->getOption().getName() << CPU;
+          << A->getSpelling() << CPU;
   }
 
   // Handle features corresponding to "-ffixed-X" options

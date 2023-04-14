@@ -7,8 +7,28 @@ add_header_library(
   DEPENDS
     libc.include.stdlib
     libc.src.__support.CPP.bitset
+    libc.src.__support.common
     .memory_utils.memcpy_implementation
     .memory_utils.bzero_implementation
+)
+
+add_header_library(
+  allocating_string_utils
+  HDRS
+    allocating_string_utils.h
+  DEPENDS
+    .memory_utils.memcpy_implementation
+    libc.include.stdlib
+    libc.src.__support.CPP.optional
+    libc.src.__support.macros.config
+)
+
+add_entrypoint_object(
+  bcopy
+  SRCS
+    bcopy.cpp
+  HDRS
+    bcopy.h
 )
 
 add_entrypoint_object(
@@ -18,7 +38,6 @@ add_entrypoint_object(
   HDRS
     memccpy.h
 )
-
 
 add_entrypoint_object(
   mempcpy
@@ -89,11 +108,45 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strchrnul
+  SRCS
+    strchrnul.cpp
+  HDRS
+    strchrnul.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
   strcmp
   SRCS
     strcmp.cpp
   HDRS
     strcmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strcasecmp
+  SRCS
+    strcasecmp.cpp
+  HDRS
+    strcasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
+)
+
+add_entrypoint_object(
+  strcasestr
+  SRCS
+    strcasestr.cpp
+  HDRS
+    strcasestr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -135,6 +188,7 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.errno.errno
 )
 
 add_entrypoint_object(
@@ -186,6 +240,7 @@ add_entrypoint_object(
   HDRS
     strlen.h
   DEPENDS
+    .string_utils
     libc.include.string
 )
 
@@ -206,6 +261,19 @@ add_entrypoint_object(
     strncmp.cpp
   HDRS
     strncmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strncasecmp
+  SRCS
+    strncasecmp.cpp
+  HDRS
+    strncasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -226,6 +294,7 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.__support.CPP.new
 )
 
 add_entrypoint_object(
@@ -257,6 +326,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strsep
+  SRCS
+    strsep.cpp
+  HDRS
+    strsep.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
   strsignal
   SRCS
     strsignal.cpp
@@ -282,6 +361,8 @@ add_entrypoint_object(
     strstr.cpp
   HDRS
     strstr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
 )
 
 add_entrypoint_object(
@@ -302,6 +383,17 @@ add_entrypoint_object(
     strtok_r.h
   DEPENDS
     .string_utils
+)
+
+add_entrypoint_object(
+  strxfrm
+  SRCS
+    strxfrm.cpp
+  HDRS
+    strxfrm.h
+  DEPENDS
+    .string_utils
+    .memory_utils.memcpy_implementation
 )
 
 # Helper to define a function with multiple implementations
@@ -355,7 +447,7 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_bcmp(bcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
   add_bcmp(bcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
   add_bcmp(bcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
-  add_bcmp(bcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_bcmp(bcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512BW)
   add_bcmp(bcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_bcmp(bcmp)
 else()
@@ -409,7 +501,7 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memcmp(memcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
   add_memcmp(memcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
   add_memcmp(memcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
-  add_memcmp(memcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_memcmp(memcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512BW)
   add_memcmp(memcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memcmp(memcmp)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
@@ -461,7 +553,7 @@ function(add_memmove memmove_name)
     SRCS ${LIBC_SOURCE_DIR}/src/string/memmove.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/memmove.h
     DEPENDS
-      .memory_utils.memory_utils
+      .memory_utils.memcpy_implementation
       libc.include.string
     ${ARGN}
   )

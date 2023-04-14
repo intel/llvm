@@ -201,7 +201,7 @@ many ways to go about this, each with their own tradeoffs:
     that operates on the lowered type. The benefit of this option is that there
     is no hidden, unnecessary copy to the optimizer. The downside is that
     another operation definition is needed that may duplicate many aspects of
-    the first. Defining a base class in [ODS](../../OpDefinitions.md) may
+    the first. Defining a base class in [ODS](../../DefiningDialects/Operations.md) may
     simplify this, but you still need to treat these operations separately.
 
 *   Update `toy.print` to allow for operating on the lowered type
@@ -297,8 +297,8 @@ func.func @main() {
 Our naive lowering is correct, but it leaves a lot to be desired with regards to
 efficiency. For example, the lowering of `toy.mul` has generated some redundant
 loads. Let's look at how adding a few existing optimizations to the pipeline can
-help clean this up. Adding the `LoopFusion` and `MemRefDataFlowOpt` passes to
-the pipeline gives the following result:
+help clean this up. Adding the `LoopFusion` and `AffineScalarReplacement` passes
+to the pipeline gives the following result:
 
 ```mlir
 func.func @main() {

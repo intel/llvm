@@ -8,6 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG compute_runtime_tag=latest
 ARG igc_tag=latest
 ARG cm_tag=latest
+ARG level_zero_tag=latest
 ARG tbb_tag=latest
 ARG fpgaemu_tag=latest
 ARG cpu_tag=latest

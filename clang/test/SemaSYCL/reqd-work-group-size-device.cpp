@@ -18,22 +18,26 @@ queue q;
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 // No diagnostic because the attributes are synonyms with identical behavior.
-[[sycl::reqd_work_group_size(4, 4, 4)]] void four();
-[[sycl::reqd_work_group_size(4, 4, 4)]] void four(); // OK
+[[sycl::reqd_work_group_size(4, 4, 4)]] void four1();
+[[sycl::reqd_work_group_size(4, 4, 4)]] void four1(); // OK
+[[sycl::reqd_work_group_size(4, 4)]] void four2();
+[[sycl::reqd_work_group_size(4, 4)]] void four2(); // OK
+[[sycl::reqd_work_group_size(4)]] void four3();
+[[sycl::reqd_work_group_size(4)]] void four3(); // OK
 
-// Same for the default values.
-// FIXME: This turns out to be wrong as there aren't really default values
-// (that is an implementation detail we use but shouldn't expose to the user).
-// Instead, the dimensionality of the attribute needs to match that of the
-// kernel, so the one, two, and three arg forms of the attribute are actually
-// *different* attributes. This means that you should not be able to redeclare
-// the function with a different dimensionality.
-[[sycl::reqd_work_group_size(4)]] void four_again();
-[[sycl::reqd_work_group_size(4)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
+#ifdef TRIGGER_ERROR
+// Althrough optional values are effectively representing 1's, the attributes
+// should be considered different when there is a different in the arguments
+// given.
+[[sycl::reqd_work_group_size(4)]] void four4(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(4, 1)]] void four4(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four5(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(4, 1, 1)]] void four5(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four6(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 4)]] void four6(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four7(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 4)]] void four7(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+#endif
 
 // Make sure there's at least one argument passed for the SYCL spelling.
 #ifdef TRIGGER_ERROR
@@ -124,7 +128,7 @@ int main() {
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -135,7 +139,7 @@ int main() {
 // CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -146,7 +150,7 @@ int main() {
 // CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -157,7 +161,7 @@ int main() {
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
@@ -169,7 +173,7 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 //
 // CHECK: FunctionDecl {{.*}}test_kernel11
-// CHECK: ReqdWorkGroupSizeAttr
+// CHECK: SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 2
 // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
@@ -179,4 +183,4 @@ int main() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 2
 // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-// CHECK-NOT:   ReqdWorkGroupSizeAttr
+// CHECK-NOT:   SYCLReqdWorkGroupSizeAttr

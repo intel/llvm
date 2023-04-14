@@ -15,7 +15,6 @@ namespace llvm {
 
 struct Align;
 class AAResults;
-class ConstantExpr;
 class DataLayout;
 class Function;
 class GlobalVariable;
@@ -29,9 +28,8 @@ namespace AMDGPU {
 
 Align getAlign(DataLayout const &DL, const GlobalVariable *GV);
 
+bool isDynamicLDS(const GlobalVariable &GV);
 bool isLDSVariableToLower(const GlobalVariable &GV);
-std::vector<GlobalVariable *> findLDSVariablesToLower(Module &M,
-                                                      const Function *F);
 
 /// Given a \p Def clobbering a load from \p Ptr according to the MSSA check
 /// if this is actually a memory update or an artificial clobber to facilitate

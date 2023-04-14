@@ -36,6 +36,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/WorkList.h"
 #include "llvm/ADT/ArrayRef.h"
 #include <cassert>
+#include <optional>
 #include <utility>
 
 namespace clang {
@@ -233,6 +234,11 @@ public:
     return (*G.roots_begin())->getLocation().getLocationContext();
   }
 
+  CFGBlock::ConstCFGElementRef getCFGElementRef() const {
+    const CFGBlock *blockPtr = currBldrCtx ? currBldrCtx->getBlock() : nullptr;
+    return {blockPtr, currStmtIdx};
+  }
+
   void GenerateAutoTransition(ExplodedNode *N);
   void enqueueEndOfPath(ExplodedNodeSet &S);
   void GenerateCallExitNode(ExplodedNode *N);
@@ -360,13 +366,13 @@ public:
   void processSwitch(SwitchNodeBuilder& builder);
 
   /// Called by CoreEngine.  Used to notify checkers that processing a
-  /// function has begun. Called for both inlined and and top-level functions.
+  /// function has begun. Called for both inlined and top-level functions.
   void processBeginOfFunction(NodeBuilderContext &BC,
                               ExplodedNode *Pred, ExplodedNodeSet &Dst,
                               const BlockEdge &L);
 
   /// Called by CoreEngine.  Used to notify checkers that processing a
-  /// function has ended. Called for both inlined and and top-level functions.
+  /// function has ended. Called for both inlined and top-level functions.
   void processEndOfFunction(NodeBuilderContext& BC,
                             ExplodedNode *Pred,
                             const ReturnStmt *RS = nullptr);
@@ -618,24 +624,24 @@ public:
   }
 
   /// Retreives which element is being constructed in a non-POD type array.
-  static Optional<unsigned>
+  static std::optional<unsigned>
   getIndexOfElementToConstruct(ProgramStateRef State, const CXXConstructExpr *E,
                                const LocationContext *LCtx);
 
   /// Retreives which element is being destructed in a non-POD type array.
-  static Optional<unsigned>
+  static std::optional<unsigned>
   getPendingArrayDestruction(ProgramStateRef State,
                              const LocationContext *LCtx);
 
   /// Retreives the size of the array in the pending ArrayInitLoopExpr.
-  static Optional<unsigned> getPendingInitLoop(ProgramStateRef State,
-                                               const CXXConstructExpr *E,
-                                               const LocationContext *LCtx);
+  static std::optional<unsigned>
+  getPendingInitLoop(ProgramStateRef State, const CXXConstructExpr *E,
+                     const LocationContext *LCtx);
 
   /// By looking at a certain item that may be potentially part of an object's
   /// ConstructionContext, retrieve such object's location. A particular
   /// statement can be transparently passed as \p Item in most cases.
-  static Optional<SVal>
+  static std::optional<SVal>
   getObjectUnderConstruction(ProgramStateRef State,
                              const ConstructionContextItem &Item,
                              const LocationContext *LC);

@@ -24,36 +24,40 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/bit.h"
+#include "llvm/Support/FormatVariadic.h"
+#include <cassert>
 #include <numeric>
 
 using namespace mlir;
 
 // TODO: generate these strings using ODS.
-constexpr char kMemoryAccessAttrName[] = "memory_access";
-constexpr char kSourceMemoryAccessAttrName[] = "source_memory_access";
 constexpr char kAlignmentAttrName[] = "alignment";
-constexpr char kSourceAlignmentAttrName[] = "source_alignment";
 constexpr char kBranchWeightAttrName[] = "branch_weights";
 constexpr char kCallee[] = "callee";
 constexpr char kClusterSize[] = "cluster_size";
 constexpr char kControl[] = "control";
 constexpr char kDefaultValueAttrName[] = "default_value";
-constexpr char kExecutionScopeAttrName[] = "execution_scope";
 constexpr char kEqualSemanticsAttrName[] = "equal_semantics";
+constexpr char kExecutionScopeAttrName[] = "execution_scope";
 constexpr char kFnNameAttrName[] = "fn";
 constexpr char kGroupOperationAttrName[] = "group_operation";
 constexpr char kIndicesAttrName[] = "indices";
 constexpr char kInitializerAttrName[] = "initializer";
 constexpr char kInterfaceAttrName[] = "interface";
+constexpr char kMemoryAccessAttrName[] = "memory_access";
 constexpr char kMemoryScopeAttrName[] = "memory_scope";
+constexpr char kPackedVectorFormatAttrName[] = "format";
 constexpr char kSemanticsAttrName[] = "semantics";
+constexpr char kSourceAlignmentAttrName[] = "source_alignment";
+constexpr char kSourceMemoryAccessAttrName[] = "source_memory_access";
 constexpr char kSpecIdAttrName[] = "spec_id";
 constexpr char kTypeAttrName[] = "type";
 constexpr char kUnequalSemanticsAttrName[] = "unequal_semantics";
@@ -309,8 +313,8 @@ template <typename MemoryOpTy>
 static void printMemoryAccessAttribute(
     MemoryOpTy memoryOp, OpAsmPrinter &printer,
     SmallVectorImpl<StringRef> &elidedAttrs,
-    Optional<spirv::MemoryAccess> memoryAccessAtrrValue = None,
-    Optional<uint32_t> alignmentAttrValue = None) {
+    std::optional<spirv::MemoryAccess> memoryAccessAtrrValue = std::nullopt,
+    std::optional<uint32_t> alignmentAttrValue = std::nullopt) {
   // Print optional memory access attribute.
   if (auto memAccess = (memoryAccessAtrrValue ? memoryAccessAtrrValue
                                               : memoryOp.getMemoryAccess())) {
@@ -323,7 +327,7 @@ static void printMemoryAccessAttribute(
       if (auto alignment = (alignmentAttrValue ? alignmentAttrValue
                                                : memoryOp.getAlignment())) {
         elidedAttrs.push_back(kAlignmentAttrName);
-        printer << ", " << alignment;
+        printer << ", " << *alignment;
       }
     }
     printer << "]";
@@ -339,8 +343,8 @@ template <typename MemoryOpTy>
 static void printSourceMemoryAccessAttribute(
     MemoryOpTy memoryOp, OpAsmPrinter &printer,
     SmallVectorImpl<StringRef> &elidedAttrs,
-    Optional<spirv::MemoryAccess> memoryAccessAtrrValue = None,
-    Optional<uint32_t> alignmentAttrValue = None) {
+    std::optional<spirv::MemoryAccess> memoryAccessAtrrValue = std::nullopt,
+    std::optional<uint32_t> alignmentAttrValue = std::nullopt) {
 
   printer << ", ";
 
@@ -356,7 +360,7 @@ static void printSourceMemoryAccessAttribute(
       if (auto alignment = (alignmentAttrValue ? alignmentAttrValue
                                                : memoryOp.getAlignment())) {
         elidedAttrs.push_back(kSourceAlignmentAttrName);
-        printer << ", " << alignment;
+        printer << ", " << *alignment;
       }
     }
     printer << "]";
@@ -565,8 +569,8 @@ verifyMemorySemantics(Operation *op, spirv::MemorySemantics memorySemantics) {
                         spirv::MemorySemantics::AcquireRelease |
                         spirv::MemorySemantics::SequentiallyConsistent;
 
-  auto bitCount = llvm::countPopulation(
-      static_cast<uint32_t>(memorySemantics & atMostOneInSet));
+  auto bitCount =
+      llvm::popcount(static_cast<uint32_t>(memorySemantics & atMostOneInSet));
   if (bitCount > 1) {
     return op->emitError(
         "expected at most one of these four memory constraints "
@@ -763,6 +767,53 @@ static inline bool isMergeBlock(Block &block) {
          isa<spirv::MergeOp>(block.front());
 }
 
+template <typename ExtendedBinaryOp>
+static LogicalResult verifyArithmeticExtendedBinaryOp(ExtendedBinaryOp op) {
+  auto resultType = op.getType().template cast<spirv::StructType>();
+  if (resultType.getNumElements() != 2)
+    return op.emitOpError("expected result struct type containing two members");
+
+  if (!llvm::all_equal({op.getOperand1().getType(), op.getOperand2().getType(),
+                        resultType.getElementType(0),
+                        resultType.getElementType(1)}))
+    return op.emitOpError(
+        "expected all operand types and struct member types are the same");
+
+  return success();
+}
+
+static ParseResult parseArithmeticExtendedBinaryOp(OpAsmParser &parser,
+                                                   OperationState &result) {
+  SmallVector<OpAsmParser::UnresolvedOperand, 2> operands;
+  if (parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseOperandList(operands) || parser.parseColon())
+    return failure();
+
+  Type resultType;
+  SMLoc loc = parser.getCurrentLocation();
+  if (parser.parseType(resultType))
+    return failure();
+
+  auto structType = resultType.dyn_cast<spirv::StructType>();
+  if (!structType || structType.getNumElements() != 2)
+    return parser.emitError(loc, "expected spirv.struct type with two members");
+
+  SmallVector<Type, 2> operandTypes(2, structType.getElementType(0));
+  if (parser.resolveOperands(operands, operandTypes, loc, result.operands))
+    return failure();
+
+  result.addTypes(resultType);
+  return success();
+}
+
+static void printArithmeticExtendedBinaryOp(Operation *op,
+                                            OpAsmPrinter &printer) {
+  printer << ' ';
+  printer.printOptionalAttrDict(op->getAttrs());
+  printer.printOperands(op->getOperands());
+  printer << " : " << op->getResultTypes().front();
+}
+
 //===----------------------------------------------------------------------===//
 // Common parsers and printers
 //===----------------------------------------------------------------------===//
@@ -861,7 +912,7 @@ static ParseResult parseGroupNonUniformArithmeticOp(OpAsmParser &parser,
       parser.parseOperand(valueInfo))
     return failure();
 
-  Optional<OpAsmParser::UnresolvedOperand> clusterSizeInfo;
+  std::optional<OpAsmParser::UnresolvedOperand> clusterSizeInfo;
   if (succeeded(parser.parseOptionalKeyword(kClusterSize))) {
     clusterSizeInfo = OpAsmParser::UnresolvedOperand();
     if (parser.parseLParen() || parser.parseOperand(*clusterSizeInfo) ||
@@ -952,28 +1003,6 @@ static LogicalResult verifyShiftOp(Operation *op) {
            << op->getResult(0).getType();
   }
   return success();
-}
-
-static void buildLogicalBinaryOp(OpBuilder &builder, OperationState &state,
-                                 Value lhs, Value rhs) {
-  assert(lhs.getType() == rhs.getType());
-
-  Type boolType = builder.getI1Type();
-  if (auto vecType = lhs.getType().dyn_cast<VectorType>())
-    boolType = VectorType::get(vecType.getShape(), boolType);
-  state.addTypes(boolType);
-
-  state.addOperands({lhs, rhs});
-}
-
-static void buildLogicalUnaryOp(OpBuilder &builder, OperationState &state,
-                                Value value) {
-  Type boolType = builder.getI1Type();
-  if (auto vecType = value.getType().dyn_cast<VectorType>())
-    boolType = VectorType::get(vecType.getShape(), boolType);
-  state.addTypes(boolType);
-
-  state.addOperands(value);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1078,7 +1107,7 @@ ParseResult spirv::AccessChainOp::parse(OpAsmParser &parser,
     return failure();
 
   auto resultType = getElementPtrType(
-      type, llvm::makeArrayRef(result.operands).drop_front(), result.location);
+      type, llvm::ArrayRef(result.operands).drop_front(), result.location);
   if (!resultType) {
     return failure();
   }
@@ -1707,7 +1736,7 @@ LogicalResult spirv::BranchConditionalOp::verify() {
       return emitOpError("must have exactly two branch weights");
     }
     if (llvm::all_of(*weights, [](Attribute attr) {
-          return attr.cast<IntegerAttr>().getValue().isNullValue();
+          return attr.cast<IntegerAttr>().getValue().isZero();
         }))
       return emitOpError("branch weights cannot both be zero");
   }
@@ -2032,7 +2061,7 @@ spirv::ConstantOp spirv::ConstantOp::getZero(Type type, Location loc,
       return builder.create<spirv::ConstantOp>(
           loc, type,
           DenseElementsAttr::get(vectorType,
-                                 IntegerAttr::get(elemType, 0.0).getValue()));
+                                 IntegerAttr::get(elemType, 0).getValue()));
     }
     if (elemType.isa<FloatType>()) {
       return builder.create<spirv::ConstantOp>(
@@ -2065,7 +2094,7 @@ spirv::ConstantOp spirv::ConstantOp::getOne(Type type, Location loc,
       return builder.create<spirv::ConstantOp>(
           loc, type,
           DenseElementsAttr::get(vectorType,
-                                 IntegerAttr::get(elemType, 1.0).getValue()));
+                                 IntegerAttr::get(elemType, 1).getValue()));
     }
     if (elemType.isa<FloatType>()) {
       return builder.create<spirv::ConstantOp>(
@@ -2095,6 +2124,8 @@ void mlir::spirv::ConstantOp::getAsmResultNames(
 
     if (intTy.isSignless()) {
       specialName << intCst.getInt();
+    } else if (intTy.isUnsigned()) {
+      specialName << intCst.getUInt();
     } else {
       specialName << intCst.getSInt();
     }
@@ -2168,6 +2199,46 @@ LogicalResult spirv::ConvertSToFOp::verify() {
 LogicalResult spirv::ConvertUToFOp::verify() {
   return verifyCastOp(*this, /*requireSameBitWidth=*/false,
                       /*skipBitWidthCheck=*/true);
+}
+
+//===----------------------------------------------------------------------===//
+// spirv.INTELConvertBF16ToFOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::INTELConvertBF16ToFOp::verify() {
+  auto operandType = getOperand().getType();
+  auto resultType = getResult().getType();
+  // ODS checks that vector result type and vector operand type have the same
+  // shape.
+  if (auto vectorType = operandType.dyn_cast<VectorType>()) {
+    unsigned operandNumElements = vectorType.getNumElements();
+    unsigned resultNumElements = resultType.cast<VectorType>().getNumElements();
+    if (operandNumElements != resultNumElements) {
+      return emitOpError(
+          "operand and result must have same number of elements");
+    }
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spirv.INTELConvertFToBF16Op
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::INTELConvertFToBF16Op::verify() {
+  auto operandType = getOperand().getType();
+  auto resultType = getResult().getType();
+  // ODS checks that vector result type and vector operand type have the same
+  // shape.
+  if (auto vectorType = operandType.dyn_cast<VectorType>()) {
+    unsigned operandNumElements = vectorType.getNumElements();
+    unsigned resultNumElements = resultType.cast<VectorType>().getNumElements();
+    if (operandNumElements != resultNumElements) {
+      return emitOpError(
+          "operand and result must have same number of elements");
+    }
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -2331,7 +2402,7 @@ ParseResult spirv::FuncOp::parse(OpAsmParser &parser, OperationState &result) {
   for (auto &arg : entryArgs)
     argTypes.push_back(arg.type);
   auto fnType = builder.getFunctionType(argTypes, resultTypes);
-  result.addAttribute(FunctionOpInterface::getTypeAttrName(),
+  result.addAttribute(getFunctionTypeAttrName(result.name),
                       TypeAttr::get(fnType));
 
   // Parse the optional function control keyword.
@@ -2345,8 +2416,9 @@ ParseResult spirv::FuncOp::parse(OpAsmParser &parser, OperationState &result) {
 
   // Add the attributes to the function arguments.
   assert(resultAttrs.size() == resultTypes.size());
-  function_interface_impl::addArgAndResultAttrs(builder, result, entryArgs,
-                                                resultAttrs);
+  function_interface_impl::addArgAndResultAttrs(
+      builder, result, entryArgs, resultAttrs, getArgAttrsAttrName(result.name),
+      getResAttrsAttrName(result.name));
 
   // Parse the optional function body.
   auto *body = result.addRegion();
@@ -2366,8 +2438,10 @@ void spirv::FuncOp::print(OpAsmPrinter &printer) {
   printer << " \"" << spirv::stringifyFunctionControl(getFunctionControl())
           << "\"";
   function_interface_impl::printFunctionAttributes(
-      printer, *this, fnType.getNumInputs(), fnType.getNumResults(),
-      {spirv::attributeName<spirv::FunctionControl>()});
+      printer, *this,
+      {spirv::attributeName<spirv::FunctionControl>(),
+       getFunctionTypeAttrName(), getArgAttrsAttrName(), getResAttrsAttrName(),
+       getFunctionControlAttrName()});
 
   // Print the body if this is not an external function.
   Region &body = this->getBody();
@@ -2379,10 +2453,6 @@ void spirv::FuncOp::print(OpAsmPrinter &printer) {
 }
 
 LogicalResult spirv::FuncOp::verifyType() {
-  auto type = getFunctionTypeAttr().getValue();
-  if (!type.isa<FunctionType>())
-    return emitOpError("requires '" + getTypeAttrName() +
-                       "' attribute of function type");
   if (getFunctionType().getNumResults() > 1)
     return emitOpError("cannot have more than one result");
   return success();
@@ -2422,7 +2492,7 @@ void spirv::FuncOp::build(OpBuilder &builder, OperationState &state,
                           ArrayRef<NamedAttribute> attrs) {
   state.addAttribute(SymbolTable::getSymbolAttrName(),
                      builder.getStringAttr(name));
-  state.addAttribute(getTypeAttrName(), TypeAttr::get(type));
+  state.addAttribute(getFunctionTypeAttrName(state.name), TypeAttr::get(type));
   state.addAttribute(spirv::attributeName<spirv::FunctionControl>(),
                      builder.getAttr<spirv::FunctionControlAttr>(control));
   state.attributes.append(attrs.begin(), attrs.end());
@@ -2437,6 +2507,16 @@ Region *spirv::FuncOp::getCallableRegion() {
 // CallableOpInterface
 ArrayRef<Type> spirv::FuncOp::getCallableResults() {
   return getFunctionType().getResults();
+}
+
+// CallableOpInterface
+::mlir::ArrayAttr spirv::FuncOp::getCallableArgAttrs() {
+  return getArgAttrs().value_or(nullptr);
+}
+
+// CallableOpInterface
+::mlir::ArrayAttr spirv::FuncOp::getCallableResAttrs() {
+  return getResAttrs().value_or(nullptr);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2623,6 +2703,9 @@ void spirv::GlobalVariableOp::print(OpAsmPrinter &printer) {
 }
 
 LogicalResult spirv::GlobalVariableOp::verify() {
+  if (!getType().isa<spirv::PointerType>())
+    return emitOpError("result must be of a !spv.ptr type");
+
   // SPIR-V spec: "Storage Class is the Storage Class of the memory holding the
   // object. It cannot be Generic. It must be the same as the Storage Class
   // operand of the Result Type."
@@ -2990,48 +3073,16 @@ void spirv::GroupNonUniformUMinOp::print(OpAsmPrinter &p) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult spirv::IAddCarryOp::verify() {
-  auto resultType = getType().cast<spirv::StructType>();
-  if (resultType.getNumElements() != 2)
-    return emitOpError("expected result struct type containing two members");
-
-  if (!llvm::all_equal({getOperand1().getType(), getOperand2().getType(),
-                        resultType.getElementType(0),
-                        resultType.getElementType(1)}))
-    return emitOpError(
-        "expected all operand types and struct member types are the same");
-
-  return success();
+  return ::verifyArithmeticExtendedBinaryOp(*this);
 }
 
 ParseResult spirv::IAddCarryOp::parse(OpAsmParser &parser,
                                       OperationState &result) {
-  SmallVector<OpAsmParser::UnresolvedOperand, 2> operands;
-  if (parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseOperandList(operands) || parser.parseColon())
-    return failure();
-
-  Type resultType;
-  SMLoc loc = parser.getCurrentLocation();
-  if (parser.parseType(resultType))
-    return failure();
-
-  auto structType = resultType.dyn_cast<spirv::StructType>();
-  if (!structType || structType.getNumElements() != 2)
-    return parser.emitError(loc, "expected spirv.struct type with two members");
-
-  SmallVector<Type, 2> operandTypes(2, structType.getElementType(0));
-  if (parser.resolveOperands(operands, operandTypes, loc, result.operands))
-    return failure();
-
-  result.addTypes(resultType);
-  return success();
+  return ::parseArithmeticExtendedBinaryOp(parser, result);
 }
 
 void spirv::IAddCarryOp::print(OpAsmPrinter &printer) {
-  printer << ' ';
-  printer.printOptionalAttrDict((*this)->getAttrs());
-  printer.printOperands((*this)->getOperands());
-  printer << " : " << getType();
+  ::printArithmeticExtendedBinaryOp(*this, printer);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3039,48 +3090,50 @@ void spirv::IAddCarryOp::print(OpAsmPrinter &printer) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult spirv::ISubBorrowOp::verify() {
-  auto resultType = getType().cast<spirv::StructType>();
-  if (resultType.getNumElements() != 2)
-    return emitOpError("expected result struct type containing two members");
-
-  if (!llvm::all_equal({getOperand1().getType(), getOperand2().getType(),
-                        resultType.getElementType(0),
-                        resultType.getElementType(1)}))
-    return emitOpError(
-        "expected all operand types and struct member types are the same");
-
-  return success();
+  return ::verifyArithmeticExtendedBinaryOp(*this);
 }
 
 ParseResult spirv::ISubBorrowOp::parse(OpAsmParser &parser,
                                        OperationState &result) {
-  SmallVector<OpAsmParser::UnresolvedOperand, 2> operands;
-  if (parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseOperandList(operands) || parser.parseColon())
-    return failure();
-
-  Type resultType;
-  auto loc = parser.getCurrentLocation();
-  if (parser.parseType(resultType))
-    return failure();
-
-  auto structType = resultType.dyn_cast<spirv::StructType>();
-  if (!structType || structType.getNumElements() != 2)
-    return parser.emitError(loc, "expected spirv.struct type with two members");
-
-  SmallVector<Type, 2> operandTypes(2, structType.getElementType(0));
-  if (parser.resolveOperands(operands, operandTypes, loc, result.operands))
-    return failure();
-
-  result.addTypes(resultType);
-  return success();
+  return ::parseArithmeticExtendedBinaryOp(parser, result);
 }
 
 void spirv::ISubBorrowOp::print(OpAsmPrinter &printer) {
-  printer << ' ';
-  printer.printOptionalAttrDict((*this)->getAttrs());
-  printer.printOperands((*this)->getOperands());
-  printer << " : " << getType();
+  ::printArithmeticExtendedBinaryOp(*this, printer);
+}
+
+//===----------------------------------------------------------------------===//
+// spirv.SMulExtended
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::SMulExtendedOp::verify() {
+  return ::verifyArithmeticExtendedBinaryOp(*this);
+}
+
+ParseResult spirv::SMulExtendedOp::parse(OpAsmParser &parser,
+                                         OperationState &result) {
+  return ::parseArithmeticExtendedBinaryOp(parser, result);
+}
+
+void spirv::SMulExtendedOp::print(OpAsmPrinter &printer) {
+  ::printArithmeticExtendedBinaryOp(*this, printer);
+}
+
+//===----------------------------------------------------------------------===//
+// spirv.UMulExtended
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::UMulExtendedOp::verify() {
+  return ::verifyArithmeticExtendedBinaryOp(*this);
+}
+
+ParseResult spirv::UMulExtendedOp::parse(OpAsmParser &parser,
+                                         OperationState &result) {
+  return ::parseArithmeticExtendedBinaryOp(parser, result);
+}
+
+void spirv::UMulExtendedOp::print(OpAsmPrinter &printer) {
+  ::printArithmeticExtendedBinaryOp(*this, printer);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3325,7 +3378,7 @@ LogicalResult spirv::MergeOp::verify() {
 //===----------------------------------------------------------------------===//
 
 void spirv::ModuleOp::build(OpBuilder &builder, OperationState &state,
-                            Optional<StringRef> name) {
+                            std::optional<StringRef> name) {
   OpBuilder::InsertionGuard guard(builder);
   builder.createBlock(state.addRegion());
   if (name) {
@@ -3337,8 +3390,8 @@ void spirv::ModuleOp::build(OpBuilder &builder, OperationState &state,
 void spirv::ModuleOp::build(OpBuilder &builder, OperationState &state,
                             spirv::AddressingModel addressingModel,
                             spirv::MemoryModel memoryModel,
-                            Optional<VerCapExtAttr> vceTriple,
-                            Optional<StringRef> name) {
+                            std::optional<VerCapExtAttr> vceTriple,
+                            std::optional<StringRef> name) {
   state.addAttribute(
       "addressing_model",
       builder.getAttr<spirv::AddressingModelAttr>(addressingModel));
@@ -3391,7 +3444,7 @@ ParseResult spirv::ModuleOp::parse(OpAsmParser &parser,
 }
 
 void spirv::ModuleOp::print(OpAsmPrinter &printer) {
-  if (Optional<StringRef> name = getName()) {
+  if (std::optional<StringRef> name = getName()) {
     printer << ' ';
     printer.printSymbolName(*name);
   }
@@ -3405,7 +3458,7 @@ void spirv::ModuleOp::print(OpAsmPrinter &printer) {
   elidedAttrs.assign({addressingModelAttrName, memoryModelAttrName,
                       mlir::SymbolTable::getSymbolAttrName()});
 
-  if (Optional<spirv::VerCapExtAttr> triple = getVceTriple()) {
+  if (std::optional<spirv::VerCapExtAttr> triple = getVceTriple()) {
     printer << " requires " << *triple;
     elidedAttrs.push_back(spirv::ModuleOp::getVCETripleAttrName());
   }
@@ -3783,7 +3836,7 @@ LogicalResult spirv::UnreachableOp::verify() {
 ParseResult spirv::VariableOp::parse(OpAsmParser &parser,
                                      OperationState &result) {
   // Parse optional initializer
-  Optional<OpAsmParser::UnresolvedOperand> initInfo;
+  std::optional<OpAsmParser::UnresolvedOperand> initInfo;
   if (succeeded(parser.parseOptionalKeyword("init"))) {
     initInfo = OpAsmParser::UnresolvedOperand();
     if (parser.parseLParen() || parser.parseOperand(*initInfo) ||
@@ -4025,9 +4078,19 @@ verifyCoopMatrixMulAdd(spirv::NVCooperativeMatrixMulAddOp op) {
       typeR.getScope() != typeB.getScope() ||
       typeR.getScope() != typeC.getScope())
     return op.emitOpError("matrix scope must match");
-  if (typeA.getElementType() != typeB.getElementType() ||
-      typeR.getElementType() != typeC.getElementType())
-    return op.emitOpError("matrix element type must match");
+  auto elementTypeA = typeA.getElementType();
+  auto elementTypeB = typeB.getElementType();
+  if (isa<IntegerType>(elementTypeA) && isa<IntegerType>(elementTypeB)) {
+    if (elementTypeA.cast<IntegerType>().getWidth() !=
+        elementTypeB.cast<IntegerType>().getWidth())
+      return op.emitOpError(
+          "matrix A and B integer element types must be the same bit width");
+  } else if (elementTypeA != elementTypeB) {
+    return op.emitOpError(
+        "matrix A and B non-integer element types must match");
+  }
+  if (typeR.getElementType() != typeC.getElementType())
+    return op.emitOpError("matrix accumulator element type must match");
   return success();
 }
 
@@ -4106,34 +4169,19 @@ LogicalResult spirv::INTELJointMatrixMadOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult spirv::MatrixTimesScalarOp::verify() {
-  // We already checked that result and matrix are both of matrix type in the
-  // auto-generated verify method.
-
-  auto inputMatrix = getMatrix().getType().cast<spirv::MatrixType>();
-  auto resultMatrix = getResult().getType().cast<spirv::MatrixType>();
+  if (auto inputCoopmat =
+          getMatrix().getType().dyn_cast<spirv::CooperativeMatrixNVType>()) {
+    if (inputCoopmat.getElementType() != getScalar().getType())
+      return emitError("input matrix components' type and scaling value must "
+                       "have the same type");
+    return success();
+  }
 
   // Check that the scalar type is the same as the matrix element type.
+  auto inputMatrix = getMatrix().getType().cast<spirv::MatrixType>();
   if (getScalar().getType() != inputMatrix.getElementType())
     return emitError("input matrix components' type and scaling value must "
                      "have the same type");
-
-  // Note that the next three checks could be done using the AllTypesMatch
-  // trait in the Op definition file but it generates a vague error message.
-
-  // Check that the input and result matrices have the same columns' count
-  if (inputMatrix.getNumColumns() != resultMatrix.getNumColumns())
-    return emitError("input and result matrices must have the same "
-                     "number of columns");
-
-  // Check that the input and result matrices' have the same rows count
-  if (inputMatrix.getNumRows() != resultMatrix.getNumRows())
-    return emitError("input and result matrices' columns must have "
-                     "the same size");
-
-  // Check that the input and result matrices' have the same component type
-  if (inputMatrix.getElementType() != resultMatrix.getElementType())
-    return emitError("input and result matrices' columns must have "
-                     "the same component type");
 
   return success();
 }
@@ -4669,7 +4717,7 @@ static ParseResult parsePtrAccessChainOpImpl(StringRef opName,
     return failure();
 
   auto resultType = getElementPtrType(
-      type, llvm::makeArrayRef(state.operands).drop_front(2), state.location);
+      type, llvm::ArrayRef(state.operands).drop_front(2), state.location);
   if (!resultType)
     return failure();
 
@@ -4750,6 +4798,173 @@ LogicalResult spirv::VectorTimesScalarOp::verify() {
     return emitOpError("scalar operand and result element type match");
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// Group ops
+//===----------------------------------------------------------------------===//
+
+template <typename Op>
+static LogicalResult verifyGroupOp(Op op) {
+  spirv::Scope scope = op.getExecutionScope();
+  if (scope != spirv::Scope::Workgroup && scope != spirv::Scope::Subgroup)
+    return op.emitOpError("execution scope must be 'Workgroup' or 'Subgroup'");
+
+  return success();
+}
+
+LogicalResult spirv::GroupIAddOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupFAddOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupFMinOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupUMinOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupSMinOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupFMaxOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupUMaxOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupSMaxOp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupIMulKHROp::verify() { return verifyGroupOp(*this); }
+
+LogicalResult spirv::GroupFMulKHROp::verify() { return verifyGroupOp(*this); }
+
+//===----------------------------------------------------------------------===//
+// Integer Dot Product ops
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verifyIntegerDotProduct(Operation *op) {
+  assert(llvm::is_contained({2u, 3u}, op->getNumOperands()) &&
+         "Not an integer dot product op?");
+  assert(op->getNumResults() == 1 && "Expected a single result");
+
+  Type factorTy = op->getOperand(0).getType();
+  if (op->getOperand(1).getType() != factorTy)
+    return op->emitOpError("requires the same type for both vector operands");
+
+  unsigned expectedNumAttrs = 0;
+  if (auto intTy = factorTy.dyn_cast<IntegerType>()) {
+    ++expectedNumAttrs;
+    auto packedVectorFormat =
+        op->getAttr(kPackedVectorFormatAttrName)
+            .dyn_cast_or_null<spirv::PackedVectorFormatAttr>();
+    if (!packedVectorFormat)
+      return op->emitOpError("requires Packed Vector Format attribute for "
+                             "integer vector operands");
+
+    assert(packedVectorFormat.getValue() ==
+               spirv::PackedVectorFormat::PackedVectorFormat4x8Bit &&
+           "Unknown Packed Vector Format");
+    if (intTy.getWidth() != 32)
+      return op->emitOpError(
+          llvm::formatv("with specified Packed Vector Format ({0}) requires "
+                        "integer vector operands to be 32-bits wide",
+                        packedVectorFormat.getValue()));
+  } else {
+    if (op->hasAttr(kPackedVectorFormatAttrName))
+      return op->emitOpError(llvm::formatv(
+          "with invalid format attribute for vector operands of type '{0}'",
+          factorTy));
+  }
+
+  if (op->getAttrs().size() > expectedNumAttrs)
+    return op->emitError(
+        "op only supports the 'format' #spirv.packed_vector_format attribute");
+
+  Type resultTy = op->getResultTypes().front();
+  bool hasAccumulator = op->getNumOperands() == 3;
+  if (hasAccumulator && op->getOperand(2).getType() != resultTy)
+    return op->emitOpError(
+        "requires the same accumulator operand and result types");
+
+  unsigned factorBitWidth = getBitWidth(factorTy);
+  unsigned resultBitWidth = getBitWidth(resultTy);
+  if (factorBitWidth > resultBitWidth)
+    return op->emitOpError(
+        llvm::formatv("result type has insufficient bit-width ({0} bits) "
+                      "for the specified vector operand type ({1} bits)",
+                      resultBitWidth, factorBitWidth));
+
+  return success();
+}
+
+static std::optional<spirv::Version> getIntegerDotProductMinVersion() {
+  return spirv::Version::V_1_0; // Available in SPIR-V >= 1.0.
+}
+
+static std::optional<spirv::Version> getIntegerDotProductMaxVersion() {
+  return spirv::Version::V_1_6; // Available in SPIR-V <= 1.6.
+}
+
+static SmallVector<ArrayRef<spirv::Extension>, 1>
+getIntegerDotProductExtensions() {
+  // Requires the SPV_KHR_integer_dot_product extension, specified either
+  // explicitly or implied by target env's SPIR-V version >= 1.6.
+  static const auto extension = spirv::Extension::SPV_KHR_integer_dot_product;
+  return {extension};
+}
+
+static SmallVector<ArrayRef<spirv::Capability>, 1>
+getIntegerDotProductCapabilities(Operation *op) {
+  // Requires the the DotProduct capability and capabilities that depend on
+  // exact op types.
+  static const auto dotProductCap = spirv::Capability::DotProduct;
+  static const auto dotProductInput4x8BitPackedCap =
+      spirv::Capability::DotProductInput4x8BitPacked;
+  static const auto dotProductInput4x8BitCap =
+      spirv::Capability::DotProductInput4x8Bit;
+  static const auto dotProductInputAllCap =
+      spirv::Capability::DotProductInputAll;
+
+  SmallVector<ArrayRef<spirv::Capability>, 1> capabilities = {dotProductCap};
+
+  Type factorTy = op->getOperand(0).getType();
+  if (auto intTy = factorTy.dyn_cast<IntegerType>()) {
+    auto formatAttr = op->getAttr(kPackedVectorFormatAttrName)
+                          .cast<spirv::PackedVectorFormatAttr>();
+    if (formatAttr.getValue() ==
+        spirv::PackedVectorFormat::PackedVectorFormat4x8Bit)
+      capabilities.push_back(dotProductInput4x8BitPackedCap);
+
+    return capabilities;
+  }
+
+  auto vecTy = factorTy.cast<VectorType>();
+  if (vecTy.getElementTypeBitWidth() == 8) {
+    capabilities.push_back(dotProductInput4x8BitCap);
+    return capabilities;
+  }
+
+  capabilities.push_back(dotProductInputAllCap);
+  return capabilities;
+}
+
+#define SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(OpName)                              \
+  LogicalResult OpName::verify() { return verifyIntegerDotProduct(*this); }    \
+  SmallVector<ArrayRef<spirv::Extension>, 1> OpName::getExtensions() {         \
+    return getIntegerDotProductExtensions();                                   \
+  }                                                                            \
+  SmallVector<ArrayRef<spirv::Capability>, 1> OpName::getCapabilities() {      \
+    return getIntegerDotProductCapabilities(*this);                            \
+  }                                                                            \
+  std::optional<spirv::Version> OpName::getMinVersion() {                      \
+    return getIntegerDotProductMinVersion();                                   \
+  }                                                                            \
+  std::optional<spirv::Version> OpName::getMaxVersion() {                      \
+    return getIntegerDotProductMaxVersion();                                   \
+  }
+
+SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(spirv::SDotOp)
+SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(spirv::SUDotOp)
+SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(spirv::UDotOp)
+SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(spirv::SDotAccSatOp)
+SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(spirv::SUDotAccSatOp)
+SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP(spirv::UDotAccSatOp)
+
+#undef SPIRV_IMPL_INTEGER_DOT_PRODUCT_OP
 
 // TableGen'erated operation interfaces for querying versions, extensions, and
 // capabilities.

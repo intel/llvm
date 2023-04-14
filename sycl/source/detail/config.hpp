@@ -287,7 +287,7 @@ public:
     if (ValStr) {
 
       std::cerr
-          << "\nWARNING: The enviroment variable SYCL_DEVICE_FITLER"
+          << "\nWARNING: The enviroment variable SYCL_DEVICE_FILTER"
              " is deprecated. Please use ONEAPI_DEVICE_SELECTOR instead.\n"
              "For more details, please refer to:\n"
              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
@@ -576,6 +576,34 @@ private:
     if (ResetCache)
       Val = parseValue();
     return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_ENABLE_FUSION_CACHING> {
+  using BaseT = SYCLConfigBase<SYCL_ENABLE_FUSION_CACHING>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = true;
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
   }
 };
 

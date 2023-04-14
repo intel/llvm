@@ -88,17 +88,35 @@ void DebugTranslation::translate(LLVMFuncOp func, llvm::Function &llvmFunc) {
 // Attributes
 //===----------------------------------------------------------------------===//
 
+llvm::DIType *DebugTranslation::translateImpl(DINullTypeAttr attr) {
+  // A DINullTypeAttr at the beginning of the subroutine types list models
+  // a void result type. If it is at the end, it models a variadic function.
+  // Translate the explicit DINullTypeAttr to a nullptr since LLVM IR metadata
+  // does not have an explicit void result type nor a variadic type
+  // representation.
+  return nullptr;
+}
+
+llvm::MDString *DebugTranslation::getMDStringOrNull(StringAttr stringAttr) {
+  if (!stringAttr || stringAttr.getValue().empty())
+    return nullptr;
+  return llvm::MDString::get(llvmCtx, stringAttr);
+}
+
 llvm::DIBasicType *DebugTranslation::translateImpl(DIBasicTypeAttr attr) {
   return llvm::DIBasicType::get(
-      llvmCtx, attr.getTag(), attr.getName(), attr.getSizeInBits(),
+      llvmCtx, attr.getTag(), getMDStringOrNull(attr.getName()),
+      attr.getSizeInBits(),
       /*AlignInBits=*/0, attr.getEncoding(), llvm::DINode::FlagZero);
 }
 
 llvm::DICompileUnit *DebugTranslation::translateImpl(DICompileUnitAttr attr) {
   llvm::DIBuilder builder(llvmModule);
   return builder.createCompileUnit(
-      attr.getSourceLanguage(), translate(attr.getFile()), attr.getProducer(),
-      attr.getIsOptimized(), /*Flags=*/"", /*RV=*/0);
+      attr.getSourceLanguage(), translate(attr.getFile()),
+      attr.getProducer() ? attr.getProducer().getValue() : "",
+      attr.getIsOptimized(),
+      /*Flags=*/"", /*RV=*/0);
 }
 
 llvm::DICompositeType *
@@ -107,24 +125,28 @@ DebugTranslation::translateImpl(DICompositeTypeAttr attr) {
   for (auto member : attr.getElements())
     elements.push_back(translate(member));
   return llvm::DICompositeType::get(
-      llvmCtx, attr.getTag(), attr.getName(), translate(attr.getFile()),
-      attr.getLine(), translate(attr.getScope()), /*BaseType=*/nullptr,
-      attr.getSizeInBits(), attr.getAlignInBits(),
-      /*OffsetInBits=*/0, /*Flags=*/llvm::DINode::FlagZero,
+      llvmCtx, attr.getTag(), getMDStringOrNull(attr.getName()),
+      translate(attr.getFile()), attr.getLine(), translate(attr.getScope()),
+      translate(attr.getBaseType()), attr.getSizeInBits(),
+      attr.getAlignInBits(),
+      /*OffsetInBits=*/0,
+      /*Flags=*/static_cast<llvm::DINode::DIFlags>(attr.getFlags()),
       llvm::MDNode::get(llvmCtx, elements),
       /*RuntimeLang=*/0, /*VTableHolder=*/nullptr);
 }
 
 llvm::DIDerivedType *DebugTranslation::translateImpl(DIDerivedTypeAttr attr) {
   return llvm::DIDerivedType::get(
-      llvmCtx, attr.getTag(), attr.getName(), /*File=*/nullptr, /*Line=*/0,
+      llvmCtx, attr.getTag(), getMDStringOrNull(attr.getName()),
+      /*File=*/nullptr, /*Line=*/0,
       /*Scope=*/nullptr, translate(attr.getBaseType()), attr.getSizeInBits(),
       attr.getAlignInBits(), attr.getOffsetInBits(),
-      /*DWARFAddressSpace=*/llvm::None, /*Flags=*/llvm::DINode::FlagZero);
+      /*DWARFAddressSpace=*/std::nullopt, /*Flags=*/llvm::DINode::FlagZero);
 }
 
 llvm::DIFile *DebugTranslation::translateImpl(DIFileAttr attr) {
-  return llvm::DIFile::get(llvmCtx, attr.getName(), attr.getDirectory());
+  return llvm::DIFile::get(llvmCtx, getMDStringOrNull(attr.getName()),
+                           getMDStringOrNull(attr.getDirectory()));
 }
 
 llvm::DILexicalBlock *DebugTranslation::translateImpl(DILexicalBlockAttr attr) {
@@ -137,15 +159,19 @@ llvm::DILexicalBlockFile *
 DebugTranslation::translateImpl(DILexicalBlockFileAttr attr) {
   return llvm::DILexicalBlockFile::getDistinct(
       llvmCtx, translate(attr.getScope()), translate(attr.getFile()),
-      attr.getDescriminator());
+      attr.getDiscriminator());
+}
+
+llvm::DILocalScope *DebugTranslation::translateImpl(DILocalScopeAttr attr) {
+  return cast<llvm::DILocalScope>(translate(DINodeAttr(attr)));
 }
 
 llvm::DILocalVariable *
 DebugTranslation::translateImpl(DILocalVariableAttr attr) {
   return llvm::DILocalVariable::get(
-      llvmCtx, translate(attr.getScope()),
-      llvm::MDString::get(llvmCtx, attr.getName()), translate(attr.getFile()),
-      attr.getLine(), translate(attr.getType()), attr.getArg(),
+      llvmCtx, translate(attr.getScope()), getMDStringOrNull(attr.getName()),
+      translate(attr.getFile()), attr.getLine(), translate(attr.getType()),
+      attr.getArg(),
       /*Flags=*/llvm::DINode::FlagZero, attr.getAlignInBits(),
       /*Annotations=*/nullptr);
 }
@@ -168,13 +194,19 @@ llvm::DISubprogram *DebugTranslation::translateImpl(DISubprogramAttr attr) {
                                         LLVM::DISubprogramFlags::Definition);
   return getSubprogram(
       isDefinition, llvmCtx, translate(attr.getScope()),
-      llvm::MDString::get(llvmCtx, attr.getName()),
-      llvm::MDString::get(llvmCtx, attr.getLinkageName()),
-      translate(attr.getFile()), attr.getLine(), translate(attr.getType()),
-      attr.getScopeLine(), /*ContainingType=*/nullptr, /*VirtualIndex=*/0,
+      getMDStringOrNull(attr.getName()),
+      getMDStringOrNull(attr.getLinkageName()), translate(attr.getFile()),
+      attr.getLine(), translate(attr.getType()), attr.getScopeLine(),
+      /*ContainingType=*/nullptr, /*VirtualIndex=*/0,
       /*ThisAdjustment=*/0, llvm::DINode::FlagZero,
       static_cast<llvm::DISubprogram::DISPFlags>(attr.getSubprogramFlags()),
       translate(attr.getCompileUnit()));
+}
+
+llvm::DINamespace *DebugTranslation::translateImpl(DINamespaceAttr attr) {
+  return llvm::DINamespace::get(llvmCtx, translate(attr.getScope()),
+                                getMDStringOrNull(attr.getName()),
+                                attr.getExportSymbols());
 }
 
 llvm::DISubrange *DebugTranslation::translateImpl(DISubrangeAttr attr) {
@@ -192,8 +224,9 @@ llvm::DISubrange *DebugTranslation::translateImpl(DISubrangeAttr attr) {
 
 llvm::DISubroutineType *
 DebugTranslation::translateImpl(DISubroutineTypeAttr attr) {
+  // Concatenate the result and argument types into a single array.
   SmallVector<llvm::Metadata *> types;
-  for (auto type : attr.getTypes())
+  for (DITypeAttr type : attr.getTypes())
     types.push_back(translate(type));
   return llvm::DISubroutineType::get(
       llvmCtx, llvm::DINode::FlagZero, attr.getCallingConvention(),
@@ -215,8 +248,9 @@ llvm::DINode *DebugTranslation::translate(DINodeAttr attr) {
       TypeSwitch<DINodeAttr, llvm::DINode *>(attr)
           .Case<DIBasicTypeAttr, DICompileUnitAttr, DICompositeTypeAttr,
                 DIDerivedTypeAttr, DIFileAttr, DILexicalBlockAttr,
-                DILexicalBlockFileAttr, DILocalVariableAttr, DISubprogramAttr,
-                DISubrangeAttr, DISubroutineTypeAttr>(
+                DILexicalBlockFileAttr, DILocalVariableAttr, DINamespaceAttr,
+                DINullTypeAttr, DISubprogramAttr, DISubrangeAttr,
+                DISubroutineTypeAttr>(
               [&](auto attr) { return translateImpl(attr); });
   attrToNode.insert({attr, node});
   return node;
@@ -231,10 +265,6 @@ const llvm::DILocation *
 DebugTranslation::translateLoc(Location loc, llvm::DILocalScope *scope) {
   if (!debugEmissionIsEnabled)
     return nullptr;
-
-  // Check for a scope encoded with the location.
-  if (auto scopedLoc = loc->findInstanceOf<FusedLocWith<LLVM::DIScopeAttr>>())
-    scope = cast<llvm::DILocalScope>(translate(scopedLoc.getMetadata()));
   return translateLoc(loc, scope, /*inlinedAt=*/nullptr);
 }
 
@@ -247,7 +277,7 @@ DebugTranslation::translateLoc(Location loc, llvm::DILocalScope *scope,
     return nullptr;
 
   // Check for a cached instance.
-  auto existingIt = locationToLoc.find(std::make_pair(loc, scope));
+  auto existingIt = locationToLoc.find(std::make_tuple(loc, scope, inlinedAt));
   if (existingIt != locationToLoc.end())
     return existingIt->second;
 
@@ -258,15 +288,25 @@ DebugTranslation::translateLoc(Location loc, llvm::DILocalScope *scope,
     llvmLoc = translateLoc(callLoc.getCallee(), scope, callerLoc);
 
   } else if (auto fileLoc = loc.dyn_cast<FileLineColLoc>()) {
-    auto *file = translateFile(fileLoc.getFilename());
-    auto *fileScope = llvm::DILexicalBlockFile::get(llvmCtx, scope, file,
+    llvm::DILocalScope *locationScope = scope;
+    // Only construct a new DIFile when no local scope is present. This
+    // prioritizes existing DI information when it's present.
+    if (!locationScope) {
+      auto *file = translateFile(fileLoc.getFilename());
+      locationScope = llvm::DILexicalBlockFile::get(llvmCtx, scope, file,
                                                     /*Discriminator=*/0);
+    }
     llvmLoc = llvm::DILocation::get(llvmCtx, fileLoc.getLine(),
-                                    fileLoc.getColumn(), fileScope,
+                                    fileLoc.getColumn(), locationScope,
                                     const_cast<llvm::DILocation *>(inlinedAt));
 
   } else if (auto fusedLoc = loc.dyn_cast<FusedLoc>()) {
     ArrayRef<Location> locations = fusedLoc.getLocations();
+
+    // Check for a scope encoded with the location.
+    if (auto scopedAttr =
+            fusedLoc.getMetadata().dyn_cast_or_null<LLVM::DILocalScopeAttr>())
+      scope = translate(scopedAttr);
 
     // For fused locations, merge each of the nodes.
     llvmLoc = translateLoc(locations.front(), scope, inlinedAt);
@@ -276,16 +316,15 @@ DebugTranslation::translateLoc(Location loc, llvm::DILocalScope *scope,
     }
 
   } else if (auto nameLoc = loc.dyn_cast<NameLoc>()) {
-    llvmLoc = translateLoc(loc.cast<NameLoc>().getChildLoc(), scope, inlinedAt);
+    llvmLoc = translateLoc(nameLoc.getChildLoc(), scope, inlinedAt);
 
   } else if (auto opaqueLoc = loc.dyn_cast<OpaqueLoc>()) {
-    llvmLoc = translateLoc(loc.cast<OpaqueLoc>().getFallbackLocation(), scope,
-                           inlinedAt);
+    llvmLoc = translateLoc(opaqueLoc.getFallbackLocation(), scope, inlinedAt);
   } else {
     llvm_unreachable("unknown location kind");
   }
 
-  locationToLoc.try_emplace(std::make_pair(loc, scope), llvmLoc);
+  locationToLoc.try_emplace(std::make_tuple(loc, scope, inlinedAt), llvmLoc);
   return llvmLoc;
 }
 

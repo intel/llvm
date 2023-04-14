@@ -240,14 +240,18 @@ define float @sin_f32(float %a) nounwind {
 ; F-ABI-ALL:       # %bb.0:
 ; F-ABI-ALL-NEXT:    tail sinf@plt
 ;
-; RV32-ILP32-ALL-LABEL: sin_f32:
-; RV32-ILP32-ALL:       # %bb.0:
-; RV32-ILP32-ALL-NEXT:    addi sp, sp, -16
-; RV32-ILP32-ALL-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
-; RV32-ILP32-ALL-NEXT:    call sinf@plt
-; RV32-ILP32-ALL-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
-; RV32-ILP32-ALL-NEXT:    addi sp, sp, 16
-; RV32-ILP32-ALL-NEXT:    ret
+; RV32IFD-ILP32-LABEL: sin_f32:
+; RV32IFD-ILP32:       # %bb.0:
+; RV32IFD-ILP32-NEXT:    tail sinf@plt
+;
+; RV32I-ILP32-LABEL: sin_f32:
+; RV32I-ILP32:       # %bb.0:
+; RV32I-ILP32-NEXT:    addi sp, sp, -16
+; RV32I-ILP32-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32I-ILP32-NEXT:    call sinf@plt
+; RV32I-ILP32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32I-ILP32-NEXT:    addi sp, sp, 16
+; RV32I-ILP32-NEXT:    ret
 ;
 ; RV64-LP64-ALL-LABEL: sin_f32:
 ; RV64-LP64-ALL:       # %bb.0:
@@ -272,14 +276,18 @@ define float @powi_f32(float %a, i32 %b) nounwind {
 ; RV32IF-ILP32F:       # %bb.0:
 ; RV32IF-ILP32F-NEXT:    tail __powisf2@plt
 ;
-; RV32-ILP32-ALL-LABEL: powi_f32:
-; RV32-ILP32-ALL:       # %bb.0:
-; RV32-ILP32-ALL-NEXT:    addi sp, sp, -16
-; RV32-ILP32-ALL-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
-; RV32-ILP32-ALL-NEXT:    call __powisf2@plt
-; RV32-ILP32-ALL-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
-; RV32-ILP32-ALL-NEXT:    addi sp, sp, 16
-; RV32-ILP32-ALL-NEXT:    ret
+; RV32IFD-ILP32-LABEL: powi_f32:
+; RV32IFD-ILP32:       # %bb.0:
+; RV32IFD-ILP32-NEXT:    tail __powisf2@plt
+;
+; RV32I-ILP32-LABEL: powi_f32:
+; RV32I-ILP32:       # %bb.0:
+; RV32I-ILP32-NEXT:    addi sp, sp, -16
+; RV32I-ILP32-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32I-ILP32-NEXT:    call __powisf2@plt
+; RV32I-ILP32-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32I-ILP32-NEXT:    addi sp, sp, 16
+; RV32I-ILP32-NEXT:    ret
 ;
 ; RV64IFD-LP64D-LABEL: powi_f32:
 ; RV64IFD-LP64D:       # %bb.0:
@@ -338,8 +346,8 @@ define i64 @llround_f32(float %a) nounwind {
 ;
 ; RV64IFD-LP64-LABEL: llround_f32:
 ; RV64IFD-LP64:       # %bb.0:
-; RV64IFD-LP64-NEXT:    fmv.w.x ft0, a0
-; RV64IFD-LP64-NEXT:    fcvt.l.s a0, ft0, rmm
+; RV64IFD-LP64-NEXT:    fmv.w.x fa5, a0
+; RV64IFD-LP64-NEXT:    fcvt.l.s a0, fa5, rmm
 ; RV64IFD-LP64-NEXT:    ret
 ;
 ; RV64I-LP64-LABEL: llround_f32:
@@ -390,14 +398,18 @@ define double @sin_f64(double %a) nounwind {
 ; RV64IF-LP64F-NEXT:    addi sp, sp, 16
 ; RV64IF-LP64F-NEXT:    ret
 ;
-; RV64-LP64-ALL-LABEL: sin_f64:
-; RV64-LP64-ALL:       # %bb.0:
-; RV64-LP64-ALL-NEXT:    addi sp, sp, -16
-; RV64-LP64-ALL-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
-; RV64-LP64-ALL-NEXT:    call sin@plt
-; RV64-LP64-ALL-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
-; RV64-LP64-ALL-NEXT:    addi sp, sp, 16
-; RV64-LP64-ALL-NEXT:    ret
+; RV64IFD-LP64-LABEL: sin_f64:
+; RV64IFD-LP64:       # %bb.0:
+; RV64IFD-LP64-NEXT:    tail sin@plt
+;
+; RV64I-LP64-LABEL: sin_f64:
+; RV64I-LP64:       # %bb.0:
+; RV64I-LP64-NEXT:    addi sp, sp, -16
+; RV64I-LP64-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64I-LP64-NEXT:    call sin@plt
+; RV64I-LP64-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64I-LP64-NEXT:    addi sp, sp, 16
+; RV64I-LP64-NEXT:    ret
   %1 = call double @llvm.sin.f64(double %a)
   ret double %1
 }
@@ -488,8 +500,8 @@ define i64 @llround_f64(double %a) nounwind {
 ;
 ; RV64IFD-LP64-LABEL: llround_f64:
 ; RV64IFD-LP64:       # %bb.0:
-; RV64IFD-LP64-NEXT:    fmv.d.x ft0, a0
-; RV64IFD-LP64-NEXT:    fcvt.l.d a0, ft0, rmm
+; RV64IFD-LP64-NEXT:    fmv.d.x fa5, a0
+; RV64IFD-LP64-NEXT:    fcvt.l.d a0, fa5, rmm
 ; RV64IFD-LP64-NEXT:    ret
 ;
 ; RV64I-LP64-LABEL: llround_f64:
@@ -506,7 +518,7 @@ define i64 @llround_f64(double %a) nounwind {
 
 ; Atomics libcalls:
 
-define i8 @atomic_load_i8_unordered(i8 *%a) nounwind {
+define i8 @atomic_load_i8_unordered(ptr %a) nounwind {
 ; RV32-ALL-LABEL: atomic_load_i8_unordered:
 ; RV32-ALL:       # %bb.0:
 ; RV32-ALL-NEXT:    addi sp, sp, -16
@@ -526,11 +538,11 @@ define i8 @atomic_load_i8_unordered(i8 *%a) nounwind {
 ; RV64-ALL-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64-ALL-NEXT:    addi sp, sp, 16
 ; RV64-ALL-NEXT:    ret
-  %1 = load atomic i8, i8* %a unordered, align 1
+  %1 = load atomic i8, ptr %a unordered, align 1
   ret i8 %1
 }
 
-define i16 @atomicrmw_add_i16_release(i16 *%a, i16 %b) nounwind {
+define i16 @atomicrmw_add_i16_release(ptr %a, i16 %b) nounwind {
 ; RV32-ALL-LABEL: atomicrmw_add_i16_release:
 ; RV32-ALL:       # %bb.0:
 ; RV32-ALL-NEXT:    addi sp, sp, -16
@@ -550,11 +562,11 @@ define i16 @atomicrmw_add_i16_release(i16 *%a, i16 %b) nounwind {
 ; RV64-ALL-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64-ALL-NEXT:    addi sp, sp, 16
 ; RV64-ALL-NEXT:    ret
-  %1 = atomicrmw add i16* %a, i16 %b release
+  %1 = atomicrmw add ptr %a, i16 %b release
   ret i16 %1
 }
 
-define i32 @atomicrmw_xor_i32_acq_rel(i32 *%a, i32 %b) nounwind {
+define i32 @atomicrmw_xor_i32_acq_rel(ptr %a, i32 %b) nounwind {
 ; RV32-ALL-LABEL: atomicrmw_xor_i32_acq_rel:
 ; RV32-ALL:       # %bb.0:
 ; RV32-ALL-NEXT:    addi sp, sp, -16
@@ -574,11 +586,11 @@ define i32 @atomicrmw_xor_i32_acq_rel(i32 *%a, i32 %b) nounwind {
 ; RV64-ALL-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64-ALL-NEXT:    addi sp, sp, 16
 ; RV64-ALL-NEXT:    ret
-  %1 = atomicrmw xor i32* %a, i32 %b acq_rel
+  %1 = atomicrmw xor ptr %a, i32 %b acq_rel
   ret i32 %1
 }
 
-define i64 @atomicrmw_nand_i64_seq_cst(i64* %a, i64 %b) nounwind {
+define i64 @atomicrmw_nand_i64_seq_cst(ptr %a, i64 %b) nounwind {
 ; RV32-ALL-LABEL: atomicrmw_nand_i64_seq_cst:
 ; RV32-ALL:       # %bb.0:
 ; RV32-ALL-NEXT:    addi sp, sp, -16
@@ -598,7 +610,7 @@ define i64 @atomicrmw_nand_i64_seq_cst(i64* %a, i64 %b) nounwind {
 ; RV64-ALL-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64-ALL-NEXT:    addi sp, sp, 16
 ; RV64-ALL-NEXT:    ret
-  %1 = atomicrmw nand i64* %a, i64 %b seq_cst
+  %1 = atomicrmw nand ptr %a, i64 %b seq_cst
   ret i64 %1
 }
 ;; NOTE: These prefixes are unused and the list is autogenerated. Do not add tests below this line:

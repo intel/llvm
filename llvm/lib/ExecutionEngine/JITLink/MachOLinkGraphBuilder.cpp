@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MachOLinkGraphBuilder.h"
+#include <optional>
 
 #define DEBUG_TYPE "jitlink"
 
@@ -184,9 +185,13 @@ Error MachOLinkGraphBuilder::createNormalizedSections() {
       Prot = orc::MemProt::Read | orc::MemProt::Write;
 
     auto FullyQualifiedName =
-        G->allocateString(StringRef(NSec.SegName) + "," + NSec.SectName);
+        G->allocateContent(StringRef(NSec.SegName) + "," + NSec.SectName);
     NSec.GraphSection = &G->createSection(
         StringRef(FullyQualifiedName.data(), FullyQualifiedName.size()), Prot);
+
+    // TODO: Are there any other criteria for NoAlloc lifetime?
+    if (NSec.Flags & MachO::S_ATTR_DEBUG)
+      NSec.GraphSection->setMemLifetimePolicy(orc::MemLifetimePolicy::NoAlloc);
 
     IndexToSection.insert(std::make_pair(SecIndex, std::move(NSec)));
   }
@@ -260,13 +265,17 @@ Error MachOLinkGraphBuilder::createNormalizedSymbols() {
     if (Type & MachO::N_STAB)
       continue;
 
-    Optional<StringRef> Name;
+    std::optional<StringRef> Name;
     if (NStrX) {
       if (auto NameOrErr = SymRef.getName())
         Name = *NameOrErr;
       else
         return NameOrErr.takeError();
-    }
+    } else if (Type & MachO::N_EXT)
+      return make_error<JITLinkError>("Symbol at index " +
+                                      formatv("{0}", SymbolIndex) +
+                                      " has no name (string table index 0), "
+                                      "but N_EXT bit is set");
 
     LLVM_DEBUG({
       dbgs() << "  ";
@@ -537,7 +546,7 @@ Error MachOLinkGraphBuilder::graphifyRegularSymbols() {
                                        BlockStart, NSec.Alignment,
                                        BlockStart % NSec.Alignment);
 
-      Optional<orc::ExecutorAddr> LastCanonicalAddr;
+      std::optional<orc::ExecutorAddr> LastCanonicalAddr;
       auto SymEnd = BlockEnd;
       while (!BlockSyms.empty()) {
         auto &NSym = *BlockSyms.back();
@@ -655,7 +664,7 @@ Error MachOLinkGraphBuilder::graphifyCStringSection(
   orc::ExecutorAddrDiff BlockStart = 0;
 
   // Scan section for null characters.
-  for (size_t I = 0; I != NSec.Size; ++I)
+  for (size_t I = 0; I != NSec.Size; ++I) {
     if (NSec.Data[I] == '\0') {
       size_t BlockSize = I + 1 - BlockStart;
       // Create a block for this null terminated string.
@@ -722,6 +731,11 @@ Error MachOLinkGraphBuilder::graphifyCStringSection(
 
       BlockStart += BlockSize;
     }
+  }
+
+  assert(llvm::all_of(NSec.GraphSection->blocks(),
+                      [](Block *B) { return isCStringBlock(*B); }) &&
+         "All blocks in section should hold single c-strings");
 
   return Error::success();
 }

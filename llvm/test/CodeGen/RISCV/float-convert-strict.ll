@@ -72,14 +72,12 @@ declare i32 @llvm.experimental.constrained.fptoui.i32.f32(float, metadata)
 
 ; Test where the fptoui has multiple uses, one of which causes a sext to be
 ; inserted on RV64.
-define i32 @fcvt_wu_s_multiple_use(float %x, i32* %y) nounwind {
+define i32 @fcvt_wu_s_multiple_use(float %x, ptr %y) nounwind {
 ; CHECKIF-LABEL: fcvt_wu_s_multiple_use:
 ; CHECKIF:       # %bb.0:
 ; CHECKIF-NEXT:    fcvt.wu.s a0, fa0, rtz
-; CHECKIF-NEXT:    bnez a0, .LBB2_2
-; CHECKIF-NEXT:  # %bb.1:
-; CHECKIF-NEXT:    li a0, 1
-; CHECKIF-NEXT:  .LBB2_2:
+; CHECKIF-NEXT:    seqz a1, a0
+; CHECKIF-NEXT:    add a0, a0, a1
 ; CHECKIF-NEXT:    ret
 ;
 ; RV32I-LABEL: fcvt_wu_s_multiple_use:
@@ -87,10 +85,8 @@ define i32 @fcvt_wu_s_multiple_use(float %x, i32* %y) nounwind {
 ; RV32I-NEXT:    addi sp, sp, -16
 ; RV32I-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
 ; RV32I-NEXT:    call __fixunssfsi@plt
-; RV32I-NEXT:    bnez a0, .LBB2_2
-; RV32I-NEXT:  # %bb.1:
-; RV32I-NEXT:    li a0, 1
-; RV32I-NEXT:  .LBB2_2:
+; RV32I-NEXT:    seqz a1, a0
+; RV32I-NEXT:    add a0, a0, a1
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    addi sp, sp, 16
 ; RV32I-NEXT:    ret
@@ -100,10 +96,8 @@ define i32 @fcvt_wu_s_multiple_use(float %x, i32* %y) nounwind {
 ; RV64I-NEXT:    addi sp, sp, -16
 ; RV64I-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
 ; RV64I-NEXT:    call __fixunssfsi@plt
-; RV64I-NEXT:    bnez a0, .LBB2_2
-; RV64I-NEXT:  # %bb.1:
-; RV64I-NEXT:    li a0, 1
-; RV64I-NEXT:  .LBB2_2:
+; RV64I-NEXT:    seqz a1, a0
+; RV64I-NEXT:    add a0, a0, a1
 ; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    addi sp, sp, 16
 ; RV64I-NEXT:    ret
@@ -142,7 +136,7 @@ define float @fcvt_s_w(i32 %a) nounwind strictfp {
 }
 declare float @llvm.experimental.constrained.sitofp.f32.i32(i32, metadata, metadata)
 
-define float @fcvt_s_w_load(i32* %p) nounwind strictfp {
+define float @fcvt_s_w_load(ptr %p) nounwind strictfp {
 ; CHECKIF-LABEL: fcvt_s_w_load:
 ; CHECKIF:       # %bb.0:
 ; CHECKIF-NEXT:    lw a0, 0(a0)
@@ -168,7 +162,7 @@ define float @fcvt_s_w_load(i32* %p) nounwind strictfp {
 ; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    addi sp, sp, 16
 ; RV64I-NEXT:    ret
-  %a = load i32, i32* %p
+  %a = load i32, ptr %p
   %1 = call float @llvm.experimental.constrained.sitofp.f32.i32(i32 %a, metadata !"round.dynamic", metadata !"fpexcept.strict") strictfp
   ret float %1
 }
@@ -202,7 +196,7 @@ define float @fcvt_s_wu(i32 %a) nounwind strictfp {
 }
 declare float @llvm.experimental.constrained.uitofp.f32.i32(i32 %a, metadata, metadata)
 
-define float @fcvt_s_wu_load(i32* %p) nounwind strictfp {
+define float @fcvt_s_wu_load(ptr %p) nounwind strictfp {
 ; RV32IF-LABEL: fcvt_s_wu_load:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lw a0, 0(a0)
@@ -234,7 +228,7 @@ define float @fcvt_s_wu_load(i32* %p) nounwind strictfp {
 ; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    addi sp, sp, 16
 ; RV64I-NEXT:    ret
-  %a = load i32, i32* %p
+  %a = load i32, ptr %p
   %1 = call float @llvm.experimental.constrained.uitofp.f32.i32(i32 %a, metadata !"round.dynamic", metadata !"fpexcept.strict") strictfp
   ret float %1
 }
@@ -500,19 +494,19 @@ define float @fcvt_s_wu_i16(i16 zeroext %a) nounwind strictfp {
 declare float @llvm.experimental.constrained.uitofp.f32.i16(i16, metadata, metadata)
 
 ; Make sure we select W version of addi on RV64.
-define signext i32 @fcvt_s_w_demanded_bits(i32 signext %0, float* %1) nounwind {
+define signext i32 @fcvt_s_w_demanded_bits(i32 signext %0, ptr %1) nounwind {
 ; RV32IF-LABEL: fcvt_s_w_demanded_bits:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    addi a0, a0, 1
-; RV32IF-NEXT:    fcvt.s.w ft0, a0
-; RV32IF-NEXT:    fsw ft0, 0(a1)
+; RV32IF-NEXT:    fcvt.s.w fa5, a0
+; RV32IF-NEXT:    fsw fa5, 0(a1)
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: fcvt_s_w_demanded_bits:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    addiw a0, a0, 1
-; RV64IF-NEXT:    fcvt.s.w ft0, a0
-; RV64IF-NEXT:    fsw ft0, 0(a1)
+; RV64IF-NEXT:    fcvt.s.w fa5, a0
+; RV64IF-NEXT:    fsw fa5, 0(a1)
 ; RV64IF-NEXT:    ret
 ;
 ; RV32I-LABEL: fcvt_s_w_demanded_bits:
@@ -552,24 +546,24 @@ define signext i32 @fcvt_s_w_demanded_bits(i32 signext %0, float* %1) nounwind {
 ; RV64I-NEXT:    ret
   %3 = add i32 %0, 1
   %4 = call float @llvm.experimental.constrained.sitofp.f32.i32(i32 %3, metadata !"round.dynamic", metadata !"fpexcept.strict") strictfp
-  store float %4, float* %1, align 4
+  store float %4, ptr %1, align 4
   ret i32 %3
 }
 
 ; Make sure we select W version of addi on RV64.
-define signext i32 @fcvt_s_wu_demanded_bits(i32 signext %0, float* %1) nounwind {
+define signext i32 @fcvt_s_wu_demanded_bits(i32 signext %0, ptr %1) nounwind {
 ; RV32IF-LABEL: fcvt_s_wu_demanded_bits:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    addi a0, a0, 1
-; RV32IF-NEXT:    fcvt.s.wu ft0, a0
-; RV32IF-NEXT:    fsw ft0, 0(a1)
+; RV32IF-NEXT:    fcvt.s.wu fa5, a0
+; RV32IF-NEXT:    fsw fa5, 0(a1)
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: fcvt_s_wu_demanded_bits:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    addiw a0, a0, 1
-; RV64IF-NEXT:    fcvt.s.wu ft0, a0
-; RV64IF-NEXT:    fsw ft0, 0(a1)
+; RV64IF-NEXT:    fcvt.s.wu fa5, a0
+; RV64IF-NEXT:    fsw fa5, 0(a1)
 ; RV64IF-NEXT:    ret
 ;
 ; RV32I-LABEL: fcvt_s_wu_demanded_bits:
@@ -609,6 +603,6 @@ define signext i32 @fcvt_s_wu_demanded_bits(i32 signext %0, float* %1) nounwind 
 ; RV64I-NEXT:    ret
   %3 = add i32 %0, 1
   %4 = call float @llvm.experimental.constrained.uitofp.f32.i32(i32 %3, metadata !"round.dynamic", metadata !"fpexcept.strict") strictfp
-  store float %4, float* %1, align 4
+  store float %4, ptr %1, align 4
   ret i32 %3
 }

@@ -18,7 +18,6 @@
 #include "bolt/Core/Relocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCDisassembler/MCSymbolizer.h"
@@ -33,6 +32,7 @@
 #include <cassert>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <system_error>
 #include <unordered_map>
 #include <unordered_set>
@@ -110,6 +110,13 @@ private:
     return AnnotationInst;
   }
 
+  void removeAnnotationInst(MCInst &Inst) const {
+    assert(getAnnotationInst(Inst) && "Expected annotation instruction.");
+    Inst.erase(std::prev(Inst.end()));
+    assert(!getAnnotationInst(Inst) &&
+           "More than one annotation instruction detected.");
+  }
+
   void setAnnotationOpValue(MCInst &Inst, unsigned Index, int64_t Value,
                             AllocatorIdTy AllocatorId = 0) {
     MCInst *AnnotationInst = getAnnotationInst(Inst);
@@ -132,11 +139,11 @@ private:
     AnnotationInst->addOperand(MCOperand::createImm(AnnotationValue));
   }
 
-  Optional<int64_t> getAnnotationOpValue(const MCInst &Inst,
-                                         unsigned Index) const {
+  std::optional<int64_t> getAnnotationOpValue(const MCInst &Inst,
+                                              unsigned Index) const {
     const MCInst *AnnotationInst = getAnnotationInst(Inst);
     if (!AnnotationInst)
-      return NoneType();
+      return std::nullopt;
 
     for (int I = AnnotationInst->getNumOperands() - 1; I >= 0; --I) {
       int64_t ImmValue = AnnotationInst->getOperand(I).getImm();
@@ -145,7 +152,7 @@ private:
       }
     }
 
-    return NoneType();
+    return std::nullopt;
   }
 
 protected:
@@ -162,6 +169,18 @@ protected:
   /// Allocate the TailCall annotation value. Clients of the target-specific
   /// MCPlusBuilder classes must use convert/lower/create* interfaces instead.
   void setTailCall(MCInst &Inst);
+
+  /// Transfer annotations from \p SrcInst to \p DstInst.
+  void moveAnnotations(MCInst &&SrcInst, MCInst &DstInst) const {
+    assert(!getAnnotationInst(DstInst) &&
+           "Destination instruction should not have annotations.");
+    const MCInst *AnnotationInst = getAnnotationInst(SrcInst);
+    if (!AnnotationInst)
+      return;
+
+    DstInst.addOperand(MCOperand::createInst(AnnotationInst));
+    removeAnnotationInst(SrcInst);
+  }
 
 public:
   class InstructionIterator {
@@ -291,6 +310,7 @@ public:
     MaxAllocatorId++;
     // Build alias map
     initAliases();
+    initSizeMap();
   }
 
   /// Create and return target-specific MC symbolizer for the \p Function.
@@ -395,6 +415,22 @@ public:
     return Info->get(Inst.getOpcode()).isPseudo();
   }
 
+  /// Return true if the relocation type needs to be registered in the function.
+  /// These code relocations are used in disassembly to better understand code.
+  ///
+  /// For ARM, they help us decode instruction operands unambiguously, but
+  /// sometimes we might discard them because we already have the necessary
+  /// information in the instruction itself (e.g. we don't need to record CALL
+  /// relocs in ARM because we can fully decode the target from the call
+  /// operand).
+  ///
+  /// For X86, they might be used in scanExternalRefs when we want to skip
+  /// a function but still patch references inside it.
+  virtual bool shouldRecordCodeRelocation(uint64_t RelType) const {
+    llvm_unreachable("not implemented");
+    return false;
+  }
+
   /// Creates x86 pause instruction.
   virtual void createPause(MCInst &Inst) const {
     llvm_unreachable("not implemented");
@@ -431,10 +467,11 @@ public:
   virtual MCPhysReg getX86R11() const { llvm_unreachable("not implemented"); }
 
   /// Create increment contents of target by 1 for Instrumentation
-  virtual void createInstrIncMemory(InstructionListType &Instrs,
-                                    const MCSymbol *Target, MCContext *Ctx,
-                                    bool IsLeaf) const {
+  virtual InstructionListType createInstrIncMemory(const MCSymbol *Target,
+                                                   MCContext *Ctx,
+                                                   bool IsLeaf) const {
     llvm_unreachable("not implemented");
+    return InstructionListType();
   }
 
   /// Return a register number that is guaranteed to not match with
@@ -477,15 +514,9 @@ public:
     return false;
   }
 
-  virtual bool isPrefix(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
+  virtual bool isPrefix(const MCInst &Inst) const { return false; }
 
-  virtual bool isRep(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
+  virtual bool isRep(const MCInst &Inst) const { return false; }
 
   virtual bool deleteREPPrefix(MCInst &Inst) const {
     llvm_unreachable("not implemented");
@@ -496,10 +527,7 @@ public:
     return Inst.getOpcode() == TargetOpcode::EH_LABEL;
   }
 
-  virtual bool isPop(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
+  virtual bool isPop(const MCInst &Inst) const { return false; }
 
   /// Return true if the instruction is used to terminate an indirect branch.
   virtual bool isTerminateBranch(const MCInst &Inst) const {
@@ -536,10 +564,7 @@ public:
     return false;
   }
 
-  virtual bool isLeave(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
+  virtual bool isLeave(const MCInst &Inst) const { return false; }
 
   virtual bool isADRP(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
@@ -555,10 +580,7 @@ public:
     llvm_unreachable("not implemented");
   }
 
-  virtual bool isMoveMem2Reg(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
+  virtual bool isMoveMem2Reg(const MCInst &Inst) const { return false; }
 
   virtual bool isLoad(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
@@ -822,7 +844,9 @@ public:
   /// \brief Given a branch instruction try to get the address the branch
   /// targets. Return true on success, and the address in Target.
   virtual bool evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
-                              uint64_t &Target) const;
+                              uint64_t &Target) const {
+    return Analysis->evaluateBranch(Inst, Addr, Size, Target);
+  }
 
   /// Return true if one of the operands of the \p Inst instruction uses
   /// PC-relative addressing.
@@ -840,10 +864,7 @@ public:
   }
 
   /// Return true if the instruction is encoded using EVEX (AVX-512).
-  virtual bool hasEVEXEncoding(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
-  }
+  virtual bool hasEVEXEncoding(const MCInst &Inst) const { return false; }
 
   /// Return true if a pair of instructions represented by \p Insts
   /// could be fused into a single uop.
@@ -851,6 +872,15 @@ public:
     llvm_unreachable("not implemented");
     return false;
   }
+
+  struct X86MemOperand {
+    unsigned BaseRegNum;
+    int64_t ScaleImm;
+    unsigned IndexRegNum;
+    int64_t DispImm;
+    unsigned SegRegNum;
+    const MCExpr *DispExpr = nullptr;
+  };
 
   /// Given an instruction with (compound) memory operand, evaluate and return
   /// the corresponding values. Note that the operand could be in any position,
@@ -860,13 +890,10 @@ public:
   ///
   /// Since a Displacement field could be either an immediate or an expression,
   /// the function sets either \p DispImm or \p DispExpr value.
-  virtual bool
-  evaluateX86MemoryOperand(const MCInst &Inst, unsigned *BaseRegNum,
-                           int64_t *ScaleImm, unsigned *IndexRegNum,
-                           int64_t *DispImm, unsigned *SegmentRegNum,
-                           const MCExpr **DispExpr = nullptr) const {
+  virtual std::optional<X86MemOperand>
+  evaluateX86MemoryOperand(const MCInst &Inst) const {
     llvm_unreachable("not implemented");
-    return false;
+    return std::nullopt;
   }
 
   /// Given an instruction with memory addressing attempt to statically compute
@@ -1049,7 +1076,7 @@ public:
   }
 
   /// Return handler and action info for invoke instruction if present.
-  Optional<MCPlus::MCLandingPad> getEHInfo(const MCInst &Inst) const;
+  std::optional<MCPlus::MCLandingPad> getEHInfo(const MCInst &Inst) const;
 
   /// Add handler and action info for call instruction.
   void addEHInfo(MCInst &Inst, const MCPlus::MCLandingPad &LP);
@@ -1081,7 +1108,7 @@ public:
   bool unsetJumpTable(MCInst &Inst);
 
   /// Return destination of conditional tail call instruction if \p Inst is one.
-  Optional<uint64_t> getConditionalTailCall(const MCInst &Inst) const;
+  std::optional<uint64_t> getConditionalTailCall(const MCInst &Inst) const;
 
   /// Mark the \p Instruction as a conditional tail call, and set its
   /// destination address if it is known. If \p Instruction was already marked,
@@ -1093,7 +1120,7 @@ public:
   bool unsetConditionalTailCall(MCInst &Inst);
 
   /// Return offset of \p Inst in the original function, if available.
-  Optional<uint32_t> getOffset(const MCInst &Inst) const;
+  std::optional<uint32_t> getOffset(const MCInst &Inst) const;
 
   /// Return the offset if the annotation is present, or \p Default otherwise.
   uint32_t getOffsetWithDefault(const MCInst &Inst, uint32_t Default) const;
@@ -1166,7 +1193,10 @@ public:
                                       bool OnlySmaller = false) const;
 
   /// Initialize aliases tables.
-  virtual void initAliases();
+  void initAliases();
+
+  /// Initialize register size table.
+  void initSizeMap();
 
   /// Change \p Regs setting all registers used to pass parameters according
   /// to the host abi. Do nothing if not implemented.
@@ -1209,7 +1239,7 @@ public:
   }
 
   /// Return the register width in bytes (1, 2, 4 or 8)
-  virtual uint8_t getRegSize(MCPhysReg Reg) const;
+  uint8_t getRegSize(MCPhysReg Reg) const { return SizeMap[Reg]; }
 
   /// For aliased registers, return an alias of \p Reg that has the width of
   /// \p Size bytes
@@ -1420,6 +1450,11 @@ public:
     llvm_unreachable("not implemented");
   }
 
+  virtual bool matchAdrpAddPair(const MCInst &Adrp, const MCInst &Add) const {
+    llvm_unreachable("not implemented");
+    return false;
+  }
+
   virtual int getShortJmpEncodingSize() const {
     llvm_unreachable("not implemented");
   }
@@ -1591,8 +1626,8 @@ public:
 
   /// Create a target-specific relocation out of the \p Fixup.
   /// Note that not every fixup could be converted into a relocation.
-  virtual Optional<Relocation> createRelocation(const MCFixup &Fixup,
-                                                const MCAsmBackend &MAB) const {
+  virtual std::optional<Relocation>
+  createRelocation(const MCFixup &Fixup, const MCAsmBackend &MAB) const {
     llvm_unreachable("not implemented");
     return Relocation();
   }
@@ -1666,11 +1701,11 @@ public:
   }
 
   /// Return annotation index matching the \p Name.
-  Optional<unsigned> getAnnotationIndex(StringRef Name) const {
+  std::optional<unsigned> getAnnotationIndex(StringRef Name) const {
     auto AI = AnnotationNameIndexMap.find(Name);
     if (AI != AnnotationNameIndexMap.end())
       return AI->second;
-    return NoneType();
+    return std::nullopt;
   }
 
   /// Return annotation index matching the \p Name. Create a new index if the
@@ -1744,7 +1779,7 @@ public:
   /// Use hasAnnotation() if the annotation may not exist.
   template <typename ValueType>
   ValueType &getAnnotationAs(const MCInst &Inst, unsigned Index) const {
-    Optional<int64_t> Value = getAnnotationOpValue(Inst, Index);
+    std::optional<int64_t> Value = getAnnotationOpValue(Inst, Index);
     assert(Value && "annotation should exist");
     return reinterpret_cast<MCPlus::MCSimpleAnnotation<ValueType> *>(*Value)
         ->getValue();
@@ -1851,9 +1886,8 @@ public:
   void stripAnnotations(MCInst &Inst, bool KeepTC = false);
 
   virtual InstructionListType
-  createInstrumentedIndirectCall(const MCInst &CallInst, bool TailCall,
-                                 MCSymbol *HandlerFuncAddr, int CallSiteID,
-                                 MCContext *Ctx) {
+  createInstrumentedIndirectCall(MCInst &&CallInst, MCSymbol *HandlerFuncAddr,
+                                 int CallSiteID, MCContext *Ctx) {
     llvm_unreachable("not implemented");
     return InstructionListType();
   }
@@ -1955,6 +1989,8 @@ public:
   // alias (are sub or superregs of itself, including itself).
   std::vector<BitVector> AliasMap;
   std::vector<BitVector> SmallerAliasMap;
+  // SizeMap caches a mapping of registers to their sizes.
+  std::vector<uint8_t> SizeMap;
 };
 
 MCPlusBuilder *createX86MCPlusBuilder(const MCInstrAnalysis *,

@@ -14,11 +14,15 @@
 #include <__concepts/common_reference_with.h>
 #include <__concepts/constructible.h>
 #include <__config>
+#include <__type_traits/extent.h>
+#include <__type_traits/is_nothrow_move_assignable.h>
+#include <__type_traits/is_nothrow_move_constructible.h>
+#include <__type_traits/remove_cvref.h>
 #include <__utility/exchange.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/swap.h>
-#include <type_traits>
+#include <cstddef>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -26,7 +30,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // [concept.swappable]
 
@@ -110,7 +114,7 @@ concept swappable_with =
     ranges::swap(_VSTD::forward<_Up>(__u), _VSTD::forward<_Tp>(__t));
   };
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

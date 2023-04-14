@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/errno/libc_errno.h"
 #include "src/sys/mman/mmap.h"
 #include "src/sys/mman/mprotect.h"
 #include "src/sys/mman/munmap.h"
 #include "test/ErrnoSetterMatcher.h"
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
-#include <errno.h>
 #include <signal.h>
 #include <sys/mman.h>
 
@@ -21,10 +21,10 @@ using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
 
 TEST(LlvmLibcMProtectTest, NoError) {
   size_t alloc_size = 128;
-  errno = 0;
+  libc_errno = 0;
   void *addr = __llvm_libc::mmap(nullptr, alloc_size, PROT_READ,
                                  MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  EXPECT_EQ(0, errno);
+  EXPECT_EQ(0, libc_errno);
   EXPECT_NE(addr, MAP_FAILED);
 
   int *array = reinterpret_cast<int *>(addr);
@@ -43,6 +43,9 @@ TEST(LlvmLibcMProtectTest, NoError) {
   EXPECT_THAT(__llvm_libc::munmap(addr, alloc_size), Succeeds());
 }
 
+// This test is disabled currently due to flakeyness. It will be re-enabled once
+// it is less flakey.
+/*
 TEST(LlvmLibcMProtectTest, Error_InvalidWrite) {
   // attempting to write to a read-only protected part of memory should cause a
   // segfault.
@@ -60,3 +63,4 @@ TEST(LlvmLibcMProtectTest, Error_InvalidWrite) {
   // Reading from a write only segment may succeed on some platforms, so there's
   // no test to check that.
 }
+*/

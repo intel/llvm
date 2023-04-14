@@ -10,17 +10,25 @@
 #ifndef _LIBCPP___CHRONO_FORMATTER_H
 #define _LIBCPP___CHRONO_FORMATTER_H
 
+#include <__chrono/calendar.h>
+#include <__chrono/concepts.h>
 #include <__chrono/convert_to_tm.h>
 #include <__chrono/day.h>
 #include <__chrono/duration.h>
 #include <__chrono/hh_mm_ss.h>
 #include <__chrono/month.h>
+#include <__chrono/month_weekday.h>
+#include <__chrono/monthday.h>
 #include <__chrono/ostream.h>
 #include <__chrono/parser_std_format_spec.h>
 #include <__chrono/statically_widen.h>
+#include <__chrono/system_clock.h>
 #include <__chrono/time_point.h>
 #include <__chrono/weekday.h>
 #include <__chrono/year.h>
+#include <__chrono/year_month.h>
+#include <__chrono/year_month_day.h>
+#include <__chrono/year_month_weekday.h>
 #include <__concepts/arithmetic.h>
 #include <__concepts/same_as.h>
 #include <__config>
@@ -44,7 +52,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+#if _LIBCPP_STD_VER >= 20 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
 namespace __formatter {
 
@@ -69,13 +77,15 @@ namespace __formatter {
 // For tiny ratios it's not possible to convert a duration to a hh_mm_ss. This
 // fails compile-time due to the limited precision of the ratio (64-bit is too
 // small). Therefore a duration uses its own conversion.
-template <class _CharT, class _Tp>
-  requires(chrono::__is_duration<_Tp>::value)
-_LIBCPP_HIDE_FROM_ABI void __format_sub_seconds(const _Tp& __value, basic_stringstream<_CharT>& __sstr) {
+template <class _CharT, class _Rep, class _Period>
+_LIBCPP_HIDE_FROM_ABI void
+__format_sub_seconds(const chrono::duration<_Rep, _Period>& __value, basic_stringstream<_CharT>& __sstr) {
   __sstr << std::use_facet<numpunct<_CharT>>(__sstr.getloc()).decimal_point();
 
+  using __duration = chrono::duration<_Rep, _Period>;
+
   auto __fraction = __value - chrono::duration_cast<chrono::seconds>(__value);
-  if constexpr (chrono::treat_as_floating_point_v<typename _Tp::rep>)
+  if constexpr (chrono::treat_as_floating_point_v<_Rep>)
     // When the floating-point value has digits itself they are ignored based
     // on the wording in [tab:time.format.spec]
     //   If the precision of the input cannot be exactly represented with
@@ -91,18 +101,43 @@ _LIBCPP_HIDE_FROM_ABI void __format_sub_seconds(const _Tp& __value, basic_string
     std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
                    _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}.0f}"),
                    __fraction.count(),
-                   chrono::hh_mm_ss<_Tp>::fractional_width);
+                   chrono::hh_mm_ss<__duration>::fractional_width);
   else
     std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
                    _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}}"),
                    __fraction.count(),
-                   chrono::hh_mm_ss<_Tp>::fractional_width);
+                   chrono::hh_mm_ss<__duration>::fractional_width);
+}
+
+template <class _CharT, __is_time_point _Tp>
+_LIBCPP_HIDE_FROM_ABI void __format_sub_seconds(const _Tp& __value, basic_stringstream<_CharT>& __sstr) {
+  __formatter::__format_sub_seconds(__value.time_since_epoch(), __sstr);
+}
+
+template <class _CharT, class _Duration>
+_LIBCPP_HIDE_FROM_ABI void
+__format_sub_seconds(const chrono::hh_mm_ss<_Duration>& __value, basic_stringstream<_CharT>& __sstr) {
+  __sstr << std::use_facet<numpunct<_CharT>>(__sstr.getloc()).decimal_point();
+  if constexpr (chrono::treat_as_floating_point_v<typename _Duration::rep>)
+    std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
+                   _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}.0f}"),
+                   __value.subseconds().count(),
+                   __value.fractional_width);
+  else
+    std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
+                   _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}}"),
+                   __value.subseconds().count(),
+                   __value.fractional_width);
 }
 
 template <class _Tp>
 consteval bool __use_fraction() {
-  if constexpr (chrono::__is_duration<_Tp>::value)
+  if constexpr (__is_time_point<_Tp>)
+    return chrono::hh_mm_ss<typename _Tp::duration>::fractional_width;
+  else if constexpr (chrono::__is_duration<_Tp>::value)
     return chrono::hh_mm_ss<_Tp>::fractional_width;
+  else if constexpr (__is_hh_mm_ss<_Tp>)
+    return _Tp::fractional_width;
   else
     return false;
 }
@@ -163,7 +198,7 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
         if (__year < 1000 || __year > 9999)
           __formatter::__format_century(__year, __sstr);
         else
-          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), __s, __it + 1);
+          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
       } break;
 
       case _CharT('j'):
@@ -174,7 +209,7 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
           // an intemediate step.
           __sstr << chrono::duration_cast<chrono::days>(chrono::duration_cast<chrono::seconds>(__value)).count();
         else
-          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), __s, __it + 1);
+          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
         break;
 
       case _CharT('q'):
@@ -195,14 +230,14 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
         // FMT honours precision and has a bug for separator
         // https://godbolt.org/z/78b7sMxns
         if constexpr (chrono::__is_duration<_Tp>::value) {
-          __sstr << format(_LIBCPP_STATICALLY_WIDEN(_CharT, "{}"), __value.count());
+          __sstr << std::format(_LIBCPP_STATICALLY_WIDEN(_CharT, "{}"), __value.count());
           break;
         }
         __builtin_unreachable();
 
       case _CharT('S'):
       case _CharT('T'):
-        __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), __s, __it + 1);
+        __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
         if constexpr (__use_fraction<_Tp>())
           __formatter::__format_sub_seconds(__value, __sstr);
         break;
@@ -246,8 +281,22 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
         if (__year < 1000)
           __formatter::__format_year(__year, __sstr);
         else
-          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), __s, __it + 1);
+          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
       } break;
+
+      case _CharT('F'): {
+        int __year = __t.tm_year + 1900;
+        if (__year < 1000) {
+          __formatter::__format_year(__year, __sstr);
+          __sstr << std::format(_LIBCPP_STATICALLY_WIDEN(_CharT, "-{:02}-{:02}"), __t.tm_mon + 1, __t.tm_mday);
+        } else
+          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
+      } break;
+
+      case _CharT('Z'):
+        // TODO FMT Add proper timezone support.
+        __sstr << _LIBCPP_STATICALLY_WIDEN(_CharT, "UTC");
+        break;
 
       case _CharT('O'):
         if constexpr (__use_fraction<_Tp>()) {
@@ -256,7 +305,7 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
           // fractional part should be formatted.
           if (*(__it + 1) == 'S') {
             ++__it;
-            __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), __s, __it + 1);
+            __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
             __formatter::__format_sub_seconds(__value, __sstr);
             break;
           }
@@ -266,7 +315,7 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
         ++__it;
         [[fallthrough]];
       default:
-        __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), __s, __it + 1);
+        __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
         break;
       }
     } else {
@@ -276,14 +325,40 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
 }
 
 template <class _Tp>
-_LIBCPP_HIDE_FROM_ABI constexpr bool __month_name_ok(const _Tp& __value) {
-  if constexpr (same_as<_Tp, chrono::day>)
+_LIBCPP_HIDE_FROM_ABI constexpr bool __weekday_ok(const _Tp& __value) {
+  if constexpr (__is_time_point<_Tp>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::day>)
     return true;
   else if constexpr (same_as<_Tp, chrono::month>)
     return __value.ok();
   else if constexpr (same_as<_Tp, chrono::year>)
     return true;
   else if constexpr (same_as<_Tp, chrono::weekday>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday_indexed>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_day>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_day_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_weekday>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_weekday_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::year_month>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::year_month_day>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_day_last>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday>)
+    return __value.weekday().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday_last>)
+    return __value.weekday().ok();
+  else if constexpr (__is_hh_mm_ss<_Tp>)
     return true;
   else
     static_assert(sizeof(_Tp) == 0, "Add the missing type specialization");
@@ -291,7 +366,9 @@ _LIBCPP_HIDE_FROM_ABI constexpr bool __month_name_ok(const _Tp& __value) {
 
 template <class _Tp>
 _LIBCPP_HIDE_FROM_ABI constexpr bool __weekday_name_ok(const _Tp& __value) {
-  if constexpr (same_as<_Tp, chrono::day>)
+  if constexpr (__is_time_point<_Tp>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::day>)
     return true;
   else if constexpr (same_as<_Tp, chrono::month>)
     return __value.ok();
@@ -299,6 +376,110 @@ _LIBCPP_HIDE_FROM_ABI constexpr bool __weekday_name_ok(const _Tp& __value) {
     return true;
   else if constexpr (same_as<_Tp, chrono::weekday>)
     return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::weekday_indexed>)
+    return __value.weekday().ok();
+  else if constexpr (same_as<_Tp, chrono::weekday_last>)
+    return __value.weekday().ok();
+  else if constexpr (same_as<_Tp, chrono::month_day>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_day_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_weekday>)
+    return __value.weekday_indexed().ok();
+  else if constexpr (same_as<_Tp, chrono::month_weekday_last>)
+    return __value.weekday_indexed().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::year_month_day>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_day_last>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday>)
+    return __value.weekday().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday_last>)
+    return __value.weekday().ok();
+  else if constexpr (__is_hh_mm_ss<_Tp>)
+    return true;
+  else
+    static_assert(sizeof(_Tp) == 0, "Add the missing type specialization");
+}
+
+template <class _Tp>
+_LIBCPP_HIDE_FROM_ABI constexpr bool __date_ok(const _Tp& __value) {
+  if constexpr (__is_time_point<_Tp>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::day>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday_indexed>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_day>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_day_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_weekday>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_weekday_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::year_month>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::year_month_day>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_day_last>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday_last>)
+    return __value.ok();
+  else if constexpr (__is_hh_mm_ss<_Tp>)
+    return true;
+  else
+    static_assert(sizeof(_Tp) == 0, "Add the missing type specialization");
+}
+
+template <class _Tp>
+_LIBCPP_HIDE_FROM_ABI constexpr bool __month_name_ok(const _Tp& __value) {
+  if constexpr (__is_time_point<_Tp>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::day>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month>)
+    return __value.ok();
+  else if constexpr (same_as<_Tp, chrono::year>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday_indexed>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::weekday_last>)
+    return true;
+  else if constexpr (same_as<_Tp, chrono::month_day>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::month_day_last>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::month_weekday>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::month_weekday_last>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_day>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_day_last>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday>)
+    return __value.month().ok();
+  else if constexpr (same_as<_Tp, chrono::year_month_weekday_last>)
+    return __value.month().ok();
+  else if constexpr (__is_hh_mm_ss<_Tp>)
+    return true;
   else
     static_assert(sizeof(_Tp) == 0, "Add the missing type specialization");
 }
@@ -331,11 +512,44 @@ __format_chrono(const _Tp& __value,
       // Note that the behaviour what the precision does isn't specified.
       __specs.__precision_ = -1;
     } else {
+      // Test __weekday_name_ before __weekday_ to give a better error.
       if (__specs.__chrono_.__weekday_name_ && !__formatter::__weekday_name_ok(__value))
         std::__throw_format_error("formatting a weekday name needs a valid weekday");
 
+      if (__specs.__chrono_.__weekday_ && !__formatter::__weekday_ok(__value))
+        std::__throw_format_error("formatting a weekday needs a valid weekday");
+
+      if (__specs.__chrono_.__day_of_year_ && !__formatter::__date_ok(__value))
+        std::__throw_format_error("formatting a day of year needs a valid date");
+
+      if (__specs.__chrono_.__week_of_year_ && !__formatter::__date_ok(__value))
+        std::__throw_format_error("formatting a week of year needs a valid date");
+
       if (__specs.__chrono_.__month_name_ && !__formatter::__month_name_ok(__value))
         std::__throw_format_error("formatting a month name from an invalid month number");
+
+      if constexpr (__is_hh_mm_ss<_Tp>) {
+        // Note this is a pedantic intepretation of the Standard. A hh_mm_ss
+        // is no longer a time_of_day and can store an arbitrary number of
+        // hours. A number of hours in a 12 or 24 hour clock can't represent
+        // 24 hours or more. The functions std::chrono::make12 and
+        // std::chrono::make24 reaffirm this view point.
+        //
+        // Interestingly this will be the only output stream function that
+        // throws.
+        //
+        // TODO FMT The wording probably needs to be adapted to
+        // - The displayed hours is hh_mm_ss.hours() % 24
+        // - It should probably allow %j in the same fashion as duration.
+        // - The stream formatter should change its output when hours >= 24
+        //   - Write it as not valid,
+        //   - or write the number of days.
+        if (__specs.__chrono_.__hour_ && __value.hours().count() > 23)
+          std::__throw_format_error("formatting a hour needs a valid value");
+
+        if (__value.is_negative())
+          __sstr << _CharT('-');
+      }
 
       __formatter::__format_chrono_using_chrono_specs(__value, __sstr, __chrono_specs);
     }
@@ -349,7 +563,7 @@ __format_chrono(const _Tp& __value,
 } // namespace __formatter
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __formatter_chrono {
+struct _LIBCPP_TEMPLATE_VIS __formatter_chrono {
 public:
   _LIBCPP_HIDE_FROM_ABI constexpr auto __parse(
       basic_format_parse_context<_CharT>& __parse_ctx, __format_spec::__fields __fields, __format_spec::__flags __flags)
@@ -364,6 +578,17 @@ public:
   }
 
   __format_spec::__parser_chrono<_CharT> __parser_;
+};
+
+template <class _Duration, __fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::sys_time<_Duration>, _CharT> : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__clock);
+  }
 };
 
 template <class _Rep, class _Period, __fmt_char_type _CharT>
@@ -389,7 +614,7 @@ public:
 };
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<chrono::day, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::day, _CharT>
     : public __formatter_chrono<_CharT> {
 public:
   using _Base = __formatter_chrono<_CharT>;
@@ -401,7 +626,7 @@ public:
 };
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<chrono::month, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::month, _CharT>
     : public __formatter_chrono<_CharT> {
 public:
   using _Base = __formatter_chrono<_CharT>;
@@ -413,7 +638,7 @@ public:
 };
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<chrono::year, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::year, _CharT>
     : public __formatter_chrono<_CharT> {
 public:
   using _Base = __formatter_chrono<_CharT>;
@@ -425,7 +650,7 @@ public:
 };
 
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<chrono::weekday, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::weekday, _CharT>
     : public __formatter_chrono<_CharT> {
 public:
   using _Base = __formatter_chrono<_CharT>;
@@ -436,7 +661,149 @@ public:
   }
 };
 
-#endif // if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::weekday_indexed, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__weekday);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::weekday_last, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__weekday);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::month_day, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__month_day);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::month_day_last, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__month);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::month_weekday, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__month_weekday);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::month_weekday_last, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__month_weekday);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::year_month, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__year_month);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::year_month_day, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__date);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::year_month_day_last, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__date);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::year_month_weekday, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__date);
+  }
+};
+
+template <__fmt_char_type _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<chrono::year_month_weekday_last, _CharT>
+    : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__date);
+  }
+};
+
+template <class _Duration, __fmt_char_type _CharT>
+struct formatter<chrono::hh_mm_ss<_Duration>, _CharT> : public __formatter_chrono<_CharT> {
+public:
+  using _Base = __formatter_chrono<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI constexpr auto parse(basic_format_parse_context<_CharT>& __parse_ctx)
+      -> decltype(__parse_ctx.begin()) {
+    return _Base::__parse(__parse_ctx, __format_spec::__fields_chrono, __format_spec::__flags::__time);
+  }
+};
+#endif // if _LIBCPP_STD_VER >= 20 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
 _LIBCPP_END_NAMESPACE_STD
 
