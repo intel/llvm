@@ -8,8 +8,8 @@
 
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/Support/Debug.h"
 

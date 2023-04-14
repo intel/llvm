@@ -9,8 +9,8 @@
 #ifndef MLIR_SYCL_OPS_H_
 #define MLIR_SYCL_OPS_H_
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpTraits.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTraits.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 

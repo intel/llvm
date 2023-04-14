@@ -11,8 +11,8 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -42,6 +42,6 @@ llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 } // namespace mlir
 
 #define GET_TYPEDEF_CLASSES
-#include "mlir/Dialect/SYCL/IR/SYCLTypes.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h.inc"
 
 #endif // MLIR_SYCL_OPS_DIALECT_H_

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
+
 #include "llvm/ADT/TypeSwitch.h"
 
 llvm::SmallVector<mlir::TypeID>

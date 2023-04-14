@@ -12,7 +12,7 @@
 
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/SYCLPasses.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Dialect.h"
