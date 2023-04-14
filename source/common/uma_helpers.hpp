@@ -14,6 +14,7 @@
 #include <uma/memory_provider.h>
 #include <uma/memory_provider_ops.h>
 
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <tuple>
@@ -22,9 +23,11 @@
 namespace uma {
 
 using pool_unique_handle_t =
-    std::unique_ptr<uma_memory_pool_t, decltype(&umaPoolDestroy)>;
+    std::unique_ptr<uma_memory_pool_t,
+                    std::function<void(uma_memory_pool_handle_t)>>;
 using provider_unique_handle_t =
-    std::unique_ptr<uma_memory_provider_t, decltype(&umaMemoryProviderDestroy)>;
+    std::unique_ptr<uma_memory_provider_t,
+                    std::function<void(uma_memory_provider_handle_t)>>;
 
 /// @brief creates UMA memory provider based on given T type.
 /// T should implement all functions defined by
@@ -45,7 +48,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
         auto provider = new T;
         *obj = provider;
         return std::apply(&T::initialize,
-                          std::tuple_cat(std::make_tuple(*provider), *tuple));
+                          std::tuple_cat(std::make_tuple(provider), *tuple));
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
     ops.alloc = [](void *obj, auto... args) {
@@ -74,24 +77,33 @@ auto memoryProviderMakeUnique(Args &&...args) {
 /// replaced by dtor). All arguments passed to this function are
 /// forwarded to T::initialize(). All functions of T
 /// should be noexcept.
-template <typename T, typename... Args> auto poolMakeUnique(Args &&...args) {
+template <typename T, typename... Args>
+auto poolMakeUnique(uma_memory_provider_handle_t *providers,
+                    size_t numProviders, Args &&...args) {
     uma_memory_pool_ops_t ops;
     auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
-    static_assert(
-        noexcept(std::declval<T>().initialize(std::forward<Args>(args)...)));
+    static_assert(noexcept(std::declval<T>().initialize(
+        providers, numProviders, std::forward<Args>(args)...)));
 
     ops.version = UMA_VERSION_CURRENT;
-    ops.initialize = [](void *params, void **obj) {
+    ops.initialize = [](uma_memory_provider_handle_t *providers,
+                        size_t numProviders, void *params, void **obj) {
         auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
         auto pool = new T;
         *obj = pool;
-        return std::apply(&T::initialize,
-                          std::tuple_cat(std::make_tuple(*pool), *tuple));
+        return std::apply(
+            &T::initialize,
+            std::tuple_cat(std::make_tuple(pool, providers, numProviders),
+                           *tuple));
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
     ops.malloc = [](void *obj, auto... args) {
         static_assert(noexcept(reinterpret_cast<T *>(obj)->malloc(args...)));
         return reinterpret_cast<T *>(obj)->malloc(args...);
+    };
+    ops.calloc = [](void *obj, auto... args) {
+        static_assert(noexcept(reinterpret_cast<T *>(obj)->calloc(args...)));
+        return reinterpret_cast<T *>(obj)->calloc(args...);
     };
     ops.aligned_malloc = [](void *obj, auto... args) {
         static_assert(
@@ -118,7 +130,7 @@ template <typename T, typename... Args> auto poolMakeUnique(Args &&...args) {
     };
 
     uma_memory_pool_handle_t hPool = nullptr;
-    auto ret = umaPoolCreate(&ops, &argsTuple, &hPool);
+    auto ret = umaPoolCreate(&ops, providers, numProviders, &argsTuple, &hPool);
     return std::pair<uma_result_t, pool_unique_handle_t>{
         ret, pool_unique_handle_t(hPool, &umaPoolDestroy)};
 }
