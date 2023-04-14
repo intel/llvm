@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/WithColor.h"
 
@@ -1159,8 +1160,8 @@ Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
   LLVM_DEBUG(llvm::dbgs() << "Trying to replace call to " << BuiltinName
                           << "with a sycl operation.\n";);
 
-  const auto *Iter = std::lower_bound(
-      BuiltinToOpNameMap.begin(), BuiltinToOpNameMap.end(), BuiltinName,
+  const auto *Iter = llvm::lower_bound(
+      BuiltinToOpNameMap, BuiltinName,
       [](const auto &el, auto name) { return el.first < name; });
   if (Iter == BuiltinToOpNameMap.end() || Iter->first != BuiltinName) {
     LLVM_DEBUG(llvm::dbgs()
