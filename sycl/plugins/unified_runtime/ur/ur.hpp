@@ -226,6 +226,10 @@ struct _pi_object {
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   ur_shared_mutex Mutex;
+
+  // Indicates if we own the native handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnNativeHandle = false;
 };
 
 // Helper for one-liner validation

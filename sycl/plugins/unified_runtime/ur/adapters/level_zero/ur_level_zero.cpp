@@ -32,7 +32,7 @@ static const bool ExposeCSliceInAffinityPartitioning = [] {
   return Flag ? std::atoi(Flag) != 0 : false;
 }();
 
-ur_result_t _ur_platform_handle_t::initialize() {
+ur_result_t ur_platform_handle_t_::initialize() {
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
   ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
@@ -1281,7 +1281,7 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
 // Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 ur_device_handle_t
-_ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
+ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
   ur_result_t Res = populateDeviceCacheIfNeeded();
   if (Res != UR_RESULT_SUCCESS) {
@@ -1307,7 +1307,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 }
 
 // Check the device cache and load it if necessary.
-ur_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
+ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   std::scoped_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
@@ -1448,7 +1448,7 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   return UR_RESULT_SUCCESS;
 }
 
-void ZeUSMImportExtension::setZeUSMImport(_ur_platform_handle_t *Platform) {
+void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
   // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
   // host ptr import during buffer creation.
   const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");

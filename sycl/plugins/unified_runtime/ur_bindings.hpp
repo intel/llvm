@@ -12,9 +12,6 @@
 
 // Make the Unified Runtime handles definition complete.
 // This is used in various "create" API where new handles are allocated.
-struct ur_platform_handle_t_ : public _ur_platform_handle_t {
-  using _ur_platform_handle_t::_ur_platform_handle_t;
-};
 struct ur_device_handle_t_ : public _ur_device_handle_t {
   using _ur_device_handle_t::_ur_device_handle_t;
 };

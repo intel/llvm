@@ -208,7 +208,9 @@ static const std::pair<int, int> getRangeOfAllowedComputeEngines() {
   return std::pair<int, int>(0, INT_MAX);
 }
 
-pi_platform _pi_context::getPlatform() const { return Devices[0]->Platform; }
+pi_platform _pi_context::getPlatform() const {
+  return reinterpret_cast<pi_platform>(Devices[0]->Platform);
+}
 
 bool _pi_context::isValidDevice(pi_device Device) const {
   while (Device) {
@@ -1423,7 +1425,7 @@ void _pi_queue::CaptureIndirectAccesses() {
     if (!Kernel->hasIndirectAccess())
       continue;
 
-    auto &Contexts = Device->Platform->Contexts;
+    auto &Contexts = reinterpret_cast<pi_platform>(Device->Platform)->Contexts;
     for (auto &Ctx : Contexts) {
       for (auto &Elem : Ctx->MemAllocs) {
         const auto &Pair = Kernel->MemAllocs.insert(&Elem);
@@ -1520,7 +1522,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // if it was locked (which happens only if IndirectAccessTrackingEnabled is
   // true).
   std::unique_lock<ur_shared_mutex> ContextsLock(
-      Device->Platform->ContextsMutex, std::defer_lock);
+      reinterpret_cast<pi_platform>(Device->Platform)->ContextsMutex,
+      std::defer_lock);
 
   if (IndirectAccessTrackingEnabled) {
     // We are going to submit kernels for execution. If indirect access flag is
@@ -2337,7 +2340,8 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   const std::lock_guard<SpinLock> Lock{*PiPlatformsCacheMutex};
 
   pi_device Dev = nullptr;
-  for (pi_platform ThePlatform : *PiPlatformsCache) {
+  for (auto UrPlatform : *PiPlatformsCache) {
+    auto ThePlatform = reinterpret_cast<pi_platform>(UrPlatform);
     Dev = ThePlatform->getDeviceFromNativeHandle(ZeDevice);
     if (Dev) {
       // Check that the input Platform, if was given, matches the found one.
@@ -2367,7 +2371,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   PI_ASSERT(Devices, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_ERROR_INVALID_VALUE);
 
-  pi_platform Platform = (*Devices)->Platform;
+  pi_platform Platform = reinterpret_cast<pi_platform>((*Devices)->Platform);
   ZeStruct<ze_context_desc_t> ContextDesc;
   ContextDesc.flags = 0;
 
@@ -3072,7 +3076,7 @@ pi_result piextQueueCreateWithNativeHandle2(
 // otherwise just calls zeMemAllocDevice.
 static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
                                         pi_device Device, size_t Size) {
-  pi_platform Plt = Device->Platform;
+  pi_platform Plt = reinterpret_cast<pi_platform>(Device->Platform);
   std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                  std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
@@ -4729,7 +4733,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     // references and appending to the queue (which means submission)
     // must be done together.
     std::unique_lock<ur_shared_mutex> ContextsLock(
-        Queue->Device->Platform->ContextsMutex, std::defer_lock);
+        reinterpret_cast<pi_platform>(Queue->Device->Platform)->ContextsMutex,
+        std::defer_lock);
     // We are going to submit kernels for execution. If indirect access flag is
     // set for a kernel then we need to make a snapshot of existing memory
     // allocations in all contexts in the platform. We need to lock the mutex
@@ -7363,7 +7368,7 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   if (Alignment > 65536)
     return PI_ERROR_INVALID_VALUE;
 
-  pi_platform Plt = Device->Platform;
+  pi_platform Plt = reinterpret_cast<pi_platform>(Device->Platform);
 
   // If indirect access tracking is enabled then lock the mutex which is
   // guarding contexts container in the platform. This prevents new kernels from
@@ -7443,7 +7448,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   if (Alignment > 65536)
     return PI_ERROR_INVALID_VALUE;
 
-  pi_platform Plt = Device->Platform;
+  pi_platform Plt = reinterpret_cast<pi_platform>(Device->Platform);
 
   // If indirect access tracking is enabled then lock the mutex which is
   // guarding contexts container in the platform. This prevents new kernels from
@@ -8369,7 +8374,7 @@ pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
   bool LeakFound = false;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
-  for (pi_platform Platform : *PiPlatformsCache) {
+  for (auto Platform : *PiPlatformsCache) {
     delete Platform;
   }
   delete PiPlatformsCache;
