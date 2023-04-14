@@ -93,6 +93,18 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+bool kernel_impl::isBuiltInKernel(const device &Device) const {
+  std::string KernelName = get_info<info::kernel::function_name>();
+  auto BuiltInKernles = Device.get_info<info::device::built_in_kernel_ids>();
+  if (BuiltInKernles.empty())
+    return false;
+  if (std::any_of(
+          BuiltInKernles.begin(), BuiltInKernles.end(),
+          [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }))
+    return true;
+  return false;
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
