@@ -205,7 +205,5 @@ void SYCLConstructorOp::getEffects(
   }
 }
 
-#include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.cpp.inc"
-
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
