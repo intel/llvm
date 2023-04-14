@@ -25,6 +25,7 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <string_view>
 
 // Forward declarations
 void enableCUDATracing();
@@ -78,6 +79,25 @@ static void setErrorMessage(const char *message, pi_result error_code) {
 pi_result cuda_piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for cuda.
+// TODO: Determine correct string to be passed.
+pi_result cuda_piPluginGetBackendOption(pi_platform,
+                                        const char *frontend_option,
+                                        const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -5861,6 +5881,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, cuda_piPluginGetBackendOption)
 
 #undef _PI_CL
 

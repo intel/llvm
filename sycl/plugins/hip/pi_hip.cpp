@@ -25,6 +25,7 @@
 #include <mutex>
 #include <regex>
 #include <string.h>
+#include <string_view>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
@@ -130,6 +131,24 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result hip_piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for hip.
+// TODO: Determine correct string to be passed.
+pi_result hip_piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                       const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -5674,6 +5693,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
 
 #undef _PI_CL
 
