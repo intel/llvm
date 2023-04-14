@@ -8,4 +8,5 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLEnums.cpp.inc"
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.cpp.inc"

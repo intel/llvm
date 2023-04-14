@@ -12,6 +12,10 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLEnums.h.inc"
+
+#define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h.inc"
+#undef GET_ATTRDEF_CLASSES
 
 #endif // MLIR_DIALECT_SYCL_IR_SYCLATTRIBUTES_H

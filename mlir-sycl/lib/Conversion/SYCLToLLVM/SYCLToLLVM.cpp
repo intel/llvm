@@ -33,6 +33,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
@@ -2325,6 +2326,13 @@ protected:
 //===----------------------------------------------------------------------===//
 
 void mlir::populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
+  typeConverter.addTypeAttributeConversion(
+      [](BaseMemRefType, AccessAddrSpaceAttr addrSpace)
+          -> TypeConverter::AttributeConversionResult {
+        return IntegerAttr::get(IntegerType::get(addrSpace.getContext(), 64),
+                                static_cast<int64_t>(addrSpace.getValue()));
+      });
+
   // Same order as in SYCLOps.td
   typeConverter.addConversion([&](sycl::AccessorCommonType type) {
     return convertAccessorCommonType(type, typeConverter);

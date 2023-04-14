@@ -22,6 +22,7 @@ include "mlir/IR/OpBase.td"
 def SYCL_Dialect : Dialect {
   let name = "sycl";
   let cppNamespace = "::mlir::sycl";
+  let useDefaultAttributePrinterParser = 1;
   let useDefaultTypePrinterParser = 1;
   let extraClassDeclaration = [{
     MethodRegistry methods;
