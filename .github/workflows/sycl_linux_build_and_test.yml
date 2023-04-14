@@ -36,19 +36,19 @@ on:
       build_artifact_suffix:
         type: string
         required: true
-      lts_matrix:
+      e2e_matrix:
         type: string
         required: false
         default: "[]"
-      lts_aws_matrix:
+      e2e_aws_matrix:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
+      e2e_cmake_extra_args:
         type: string
         required: false
         default: ""
-      lts_ref:
+      e2e_ref:
         type: string
         required: false
         default: 'intel'
@@ -163,7 +163,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ inputs.lts_aws_matrix != '[]' }}
+    if: ${{ inputs.e2e_aws_matrix != '[]' }}
     runs-on: ubuntu-20.04
     environment: aws
     steps:
@@ -177,7 +177,7 @@ jobs:
       - name: Start AWS EC2 runners
         uses: ./aws-ec2
         with:
-          runs-on-list: ${{ inputs.lts_aws_matrix }}
+          runs-on-list: ${{ inputs.e2e_aws_matrix }}
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
@@ -186,11 +186,11 @@ jobs:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.result == 'success' && inputs.e2e_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
+        include: ${{ fromJSON(inputs.e2e_matrix) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
     env: ${{ matrix.env }}
@@ -228,7 +228,7 @@ jobs:
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
         targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.e2e_cmake_extra_args }}'
 
   khronos_sycl_cts:
     needs: build
@@ -281,7 +281,7 @@ jobs:
     needs: [ aws-start, e2e-tests ]
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
-    if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && inputs.e2e_aws_matrix != '[]' }}
     runs-on: ubuntu-20.04
     environment: aws
     steps:
@@ -295,7 +295,7 @@ jobs:
       - name: Stop AWS EC2 runners
         uses: ./aws-ec2
         with:
-          runs-on-list: ${{ inputs.lts_aws_matrix }}
+          runs-on-list: ${{ inputs.e2e_aws_matrix }}
           mode: stop
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}

@@ -22,7 +22,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "l0_gen9;win_l0_gen12"
+      e2e_config: "l0_gen9;win_l0_gen12"
   linux_default:
     name: Linux Default
     if: github.repository == 'intel/llvm'
@@ -32,9 +32,9 @@ jobs:
     with:
       build_cache_root: "/__w/llvm"
       build_artifact_suffix: "post_commit"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
+      e2e_matrix: ${{ needs.test_matrix.outputs.e2e_lx_matrix }}
       cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      e2e_aws_matrix: ${{ needs.test_matrix.outputs.e2e_aws_matrix }}
       build_configure_extra_args: --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
   linux_no_assert:
     name: Linux (no assert)
@@ -66,7 +66,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
+      e2e_matrix: ${{ needs.test_matrix.outputs.e2e_wn_matrix }}
 
   macos_default:
     name: macOS

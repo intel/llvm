@@ -1,5 +1,5 @@
 {
-  "lts": [
+  "e2e": [
     {
       "config": "l0_gen9",
       "name": "L0 GEN9 LLVM Test Suite",

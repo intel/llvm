@@ -26,16 +26,16 @@ module.exports = ({core, process}) => {
           driverNew["linux"]["fpgaemu"]["version"] !==
               driverOld["linux"]["fpgaemu"]["version"];
 
-      const ltsConfigs = inputs.lts_config.split(';');
+      const e2eConfigs = inputs.e2e_config.split(';');
 
-      const enabledLTSLxConfigs = [];
-      const enabledLTSWnConfigs = [];
-      const enabledLTSAWSConfigs = [];
+      const enabledE2ELxConfigs = [];
+      const enabledE2EWnConfigs = [];
+      const enabledE2EAWSConfigs = [];
 
-      // Process LTS (LLVM Test Suite)
+      // Process E2E (SYCL End-to-End tests)
 
-      testConfigs.lts.forEach(v => {
-        if (ltsConfigs.includes(v.config)) {
+      testConfigs.e2e.forEach(v => {
+        if (e2eConfigs.includes(v.config)) {
           if (needsDrivers) {
             v["env"] = {
               "compute_runtime_tag" :
@@ -51,43 +51,43 @@ module.exports = ({core, process}) => {
             v["env"] = {};
           }
           if (v["runs-on"].includes("Windows"))
-            enabledLTSWnConfigs.push(v);
+            enabledE2EWnConfigs.push(v);
           else if (v["runs-on"].includes("Linux"))
-            enabledLTSLxConfigs.push(v);
+            enabledE2ELxConfigs.push(v);
           else
             console.error("runs-on OS is not recognized");
-          if (v["aws-type"]) enabledLTSAWSConfigs.push(v);
+          if (v["aws-type"]) enabledE2EAWSConfigs.push(v);
         }
       });
 
-      let ltsLxString = JSON.stringify(enabledLTSLxConfigs);
-      let ltsWnString = JSON.stringify(enabledLTSWnConfigs);
-      let ltsAWSString = JSON.stringify(enabledLTSAWSConfigs);
-      console.log("Linux LTS config:")
-      console.log(ltsLxString);
-      console.log("Windows LTS config:")
-      console.log(ltsWnString);
-      console.log("Linux AWS LTS config:")
-      console.log(ltsAWSString)
+      let e2eLxString = JSON.stringify(enabledE2ELxConfigs);
+      let e2eWnString = JSON.stringify(enabledE2EWnConfigs);
+      let e2eAWSString = JSON.stringify(enabledE2EAWSConfigs);
+      console.log("Linux E2E config:")
+      console.log(e2eLxString);
+      console.log("Windows E2E config:")
+      console.log(e2eWnString);
+      console.log("Linux AWS E2E config:")
+      console.log(e2eAWSString)
 
       // drivers update is supported on Linux only
       for (let [key, value] of Object.entries(inputs)) {
-        ltsLxString =
-            ltsLxString.replaceAll("${{ inputs." + key + " }}", value);
-        ltsAWSString = ltsAWSString.replaceAll("${{ inputs." + key + " }}", value);
+        e2eLxString =
+            e2eLxString.replaceAll("${{ inputs." + key + " }}", value);
+        e2eAWSString = e2eAWSString.replaceAll("${{ inputs." + key + " }}", value);
       }
       if (needsDrivers) {
-        ltsLxString = ltsLxString.replaceAll(
+        e2eLxString = e2eLxString.replaceAll(
             "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest",
             "ghcr.io/intel/llvm/ubuntu2204_base:latest");
-        ltsAWSString = ltsAWSString.replaceAll(
+        e2eAWSString = e2eAWSString.replaceAll(
             "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest",
             "ghcr.io/intel/llvm/ubuntu2204_base:latest");
       }
 
-      core.setOutput('lts_lx_matrix', ltsLxString);
-      core.setOutput('lts_wn_matrix', ltsWnString);
-      core.setOutput('lts_aws_matrix', ltsAWSString);
+      core.setOutput('e2e_lx_matrix', e2eLxString);
+      core.setOutput('e2e_wn_matrix', e2eWnString);
+      core.setOutput('e2e_aws_matrix', e2eAWSString);
 
       // Process CTS (Conformance Test Suite)
 

@@ -14,7 +14,7 @@ jobs:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "ocl_gen9;ocl_x64"
+      e2e_config: "ocl_gen9;ocl_x64"
 
   ubuntu2204_build_test:
     if: github.repository == 'intel/llvm'

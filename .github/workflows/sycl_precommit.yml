@@ -48,7 +48,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda_aws;win_l0_gen12"
+      e2e_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda_aws;win_l0_gen12"
 
   linux_default:
     name: Linux
@@ -64,8 +64,8 @@ jobs:
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      e2e_matrix: ${{ needs.test_matrix.outputs.e2e_lx_matrix }}
+      e2e_aws_matrix: ${{ needs.test_matrix.outputs.e2e_aws_matrix }}
 
   windows_default:
     name: Windows
@@ -73,5 +73,5 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
+      e2e_matrix: ${{ needs.test_matrix.outputs.e2e_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}

@@ -15,7 +15,7 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
-      lts_config:
+      e2e_config:
         type: string
         required: true
         default: ""
@@ -34,27 +34,27 @@ on:
         required: false
         default: ${{ github.sha }}
     outputs:
-      lts_lx_matrix:
-        description: "Linux LTS"
-        value: ${{ jobs.test_matrix.outputs.lts_lx_matrix }}
-      lts_wn_matrix:
-        description: "Windows LTS"
-        value: ${{ jobs.test_matrix.outputs.lts_wn_matrix }}
+      e2e_lx_matrix:
+        description: "Linux E2E"
+        value: ${{ jobs.test_matrix.outputs.e2e_lx_matrix }}
+      e2e_wn_matrix:
+        description: "Windows E2E"
+        value: ${{ jobs.test_matrix.outputs.e2e_wn_matrix }}
       cts_matrix:
         description: "SYCL CTS"
         value: ${{ jobs.test_matrix.outputs.cts_matrix }}
-      lts_aws_matrix:
+      e2e_aws_matrix:
         description: "Linux AWS"
-        value: ${{ jobs.test_matrix.outputs.lts_aws_matrix }}
+        value: ${{ jobs.test_matrix.outputs.e2e_aws_matrix }}
 jobs:
   test_matrix:
     name: Generate Test Matrix
     runs-on: ubuntu-20.04
     outputs:
-      lts_lx_matrix: ${{ steps.work.outputs.lts_lx_matrix }}
-      lts_wn_matrix: ${{ steps.work.outputs.lts_wn_matrix }}
+      e2e_lx_matrix: ${{ steps.work.outputs.e2e_lx_matrix }}
+      e2e_wn_matrix: ${{ steps.work.outputs.e2e_wn_matrix }}
       cts_matrix: ${{ steps.work.outputs.cts_matrix }}
-      lts_aws_matrix: ${{ steps.work.outputs.lts_aws_matrix }}
+      e2e_aws_matrix: ${{ steps.work.outputs.e2e_aws_matrix }}
     steps:
     - name: Download scripts and configs
       shell: bash

@@ -10,11 +10,11 @@ on:
       build_ref:
         type: string
         required: false
-      lts_matrix:
+      e2e_matrix:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
+      e2e_cmake_extra_args:
         type: string
         required: false
         default: ""
@@ -25,7 +25,7 @@ jobs:
     runs-on: [Windows, build]
     strategy:
       matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
+        include: ${{ fromJSON(inputs.e2e_matrix) }}
     # TODO use cached checkout
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
@@ -119,11 +119,11 @@ jobs:
 
   e2e-tests:
     needs: build
-    if: ${{ inputs.lts_matrix != '[]' }}
+    if: ${{ inputs.e2e_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
+        include: ${{ fromJSON(inputs.e2e_matrix) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
     env: ${{ matrix.env }}
@@ -149,4 +149,4 @@ jobs:
       with:
         sycl_artifact: sycl_windows_default
         targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.e2e_cmake_extra_args }}'
