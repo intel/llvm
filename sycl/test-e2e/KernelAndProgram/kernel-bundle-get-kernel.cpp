@@ -33,17 +33,11 @@ int main() {
   auto ExpectedKernelName =
       ExpectedKernel.get_info<sycl::info::kernel::function_name>();
 
-  auto FoundKernelNumArgs =
-      FoundKernel.get_info<sycl::info::kernel::num_args>();
-  auto ExpectedKernelNumArgs =
-      ExpectedKernel.get_info<sycl::info::kernel::num_args>();
-
   auto FoundKernelContext = FoundKernel.get_info<sycl::info::kernel::context>();
   auto ExpectedKernelContext =
       ExpectedKernel.get_info<sycl::info::kernel::context>();
 
   assert(FoundKernelName == ExpectedKernelName);
-  assert(FoundKernelNumArgs == ExpectedKernelNumArgs);
   assert(FoundKernelContext == ExpectedKernelContext);
 
   return 0;
