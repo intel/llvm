@@ -4,9 +4,11 @@ on:
   push:
     branches:
     - sycl
+    - rename_lts_e2e
   pull_request:
     branches:
     - sycl
+    - rename_lts_e2e
     paths:
     - .github/workflows/sycl_post_commit.yml
     - .github/workflows/sycl_gen_test_matrix.yml
