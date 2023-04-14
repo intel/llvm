@@ -1014,8 +1014,14 @@ LLVMToSPIRVDbgTran::transDbgTemplateParameter(const DITemplateParameter *TP) {
   Ops[ValueIdx] = getDebugInfoNoneId();
   if (TP->getTag() == dwarf::DW_TAG_template_value_parameter) {
     const DITemplateValueParameter *TVP = cast<DITemplateValueParameter>(TP);
-    Constant *C = cast<ConstantAsMetadata>(TVP->getValue())->getValue();
-    Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
+    if (auto *TVVal = TVP->getValue()) {
+      Constant *C = cast<ConstantAsMetadata>(TVVal)->getValue();
+      Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
+    } else {
+      SPIRVType *TyPtr =
+          SPIRVWriter->transType(PointerType::get(M->getContext(), 0));
+      Ops[ValueIdx] = BM->addNullConstant(TyPtr)->getId();
+    }
   }
   Ops[SourceIdx] = getDebugInfoNoneId();
   Ops[LineIdx] = 0;   // This version of DITemplateParameter has no line number
