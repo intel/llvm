@@ -228,6 +228,27 @@ via the `-Xsycl-target-backend=spir64_gen <opts>` command as well as the
 implied options set via target options such as `-fsycl-targets=intel_gpu_skl`
 will be processed by a new options to the wrapper, `--gen-tool-arg=<arg>`
 
+To support multiple target specifications, for instance:
+`-fsycl-targets=intel_gpu_skl,intel_gpu_pvc`, multiple `--gen-tool-arg`
+options can be passed on the command line.  Each instance will be considered
+a separate OCLOC call passing along the `<args>` as options to the OCLOC call.
+The compiler driver will be responsible for putting together the full option
+list to be passed along.
+
+> -fsycl -fsycl-targets=spir64_gen,intel_gpu_skl
+-Xsycl-target-backend=spir64_gen "-device pvc -options -extraopt_pvc"
+-Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl"
+
+*Example: spir64_gen enabling options*
+
+> --gen-tool-arg="-device pvc -options extraopt_pvc"
+--gen-tool-arg="-device skl -options -extraopt_skl"
+
+*Example: clang-linker-wrapper options*
+
+Each OCLOC call will be represented as a separate device binary that is
+individually wrapped and linked into the final executable.
+
 #### spir64_fpga support
 
 Compilation behaviors involving AOT for FPGA involve an additional call to
@@ -259,8 +280,6 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 `sycl-post-link`.  Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
 option to the wrapper, `--cpu-tool-arg=<arg>`
-
-### Integration of the sycl-aspect-filter
 
 ### Wrapping of device image
 
