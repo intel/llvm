@@ -654,6 +654,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
       if (PropSizeRet) {
         *PropSizeRet = LogSize;
       }
+      if (PropValue) {
+        // When the program build fails in piProgramBuild(), we delayed cleaning
+        // up the build log because RT later calls this routine to get the
+        // failed build log.
+        // To avoid memory leaks, we should clean up the failed build log here
+        // because RT does not create sycl::program when piProgramBuild() fails,
+        // thus it won't call piProgramRelease() to clean up the build log.
+        if (Program->State == ur_program_handle_t_::Invalid) {
+          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+          Program->ZeBuildLog = nullptr;
+        }
+      }
       return UR_RESULT_SUCCESS;
     }
 
