@@ -632,7 +632,7 @@ public:
         dimensions, MemRefType::get(dimensions, indexType));
     const auto idType = rewriter.getType<IDType>(dimensions, arrayType);
     const auto loc = op.getLoc();
-    Value idVal = rewriter.create<GridOp>(loc, idType, Value{});
+    Value idVal = rewriter.create<GridOp>(loc, idType);
     Value id =
         rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, idType));
     rewriter.create<memref::StoreOp>(loc, idVal, id);
@@ -2234,8 +2234,7 @@ public:
         dimension, MemRefType::get(dimension, indexType));
     const auto idType = rewriter.getType<IDType>(dimension, arrayType);
     // Obtain the local ID (already mirrored)
-    Value localIDVal =
-        rewriter.create<SYCLLocalIDOp>(loc, idType, /*dimension=*/Value{});
+    Value localIDVal = rewriter.create<SYCLLocalIDOp>(loc, idType);
     // Store it in a memref to access its elements
     Value localID =
         rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, idType));

@@ -105,29 +105,6 @@ Value getDimension(OpBuilder &builder, Location loc, StringRef opName,
 }
 
 /// Replace \p op with a sequence of operations that:
-/// 1. Allocate a new array of the result type in the stack
-/// 2. Initialize the dimensions of the array with the expected results using
-/// the operation with name \p opName from the GPU dialect
-/// 3. Load the value in position \p index (assumed to be inbounds)
-void convertWithIndexArg(ConversionPatternRewriter &rewriter, StringRef opName,
-                         StringRef dimensionAttrname, Operation *op,
-                         Value index) {
-  constexpr int64_t dimensions{3};
-  constexpr std::array<int64_t, dimensions> vecInit{0, 0, 0};
-
-  const auto loc = op->getLoc();
-  const auto indexTy = rewriter.getIndexType();
-  const auto vecTy = VectorType::get(dimensions, indexTy);
-  Value vec = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIndexVectorAttr(vecInit), vecTy);
-  for (int64_t i = 0; i < dimensions; ++i) {
-    const auto val = getDimension(rewriter, loc, opName, dimensionAttrname, i);
-    vec = rewriter.create<vector::InsertOp>(loc, val, vec, i);
-  }
-  rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, vec, index);
-}
-
-/// Replace \p op with a sequence of operations that:
 /// 1. Allocate a new object of the result type in the stack
 /// 2. Load the object
 /// 3. Initialize the dimensions of the object with the expected results using
@@ -178,44 +155,20 @@ protected:
 /// Converts n-dimensional operations of type \tparam OpTy not being passed an
 /// argument to operations of type \tparam GPUOpTy.
 template <typename OpTy>
-class GridOpPatternNoIndex final : public GridOpPattern<OpTy> {
+class NDGridOpPattern final : public GridOpPattern<OpTy> {
 public:
   using GridOpPattern<OpTy>::GridOpPattern;
 
-  LogicalResult match(OpTy op) const override {
-    return success(op.getNumOperands() == 0);
-  }
-
-  void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
-               ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     constexpr auto opName = GridOpPattern<OpTy>::GPUOpType::getOperationName();
     const auto dimensions = getDimensions(op->getResultTypes()[0]);
     const auto dimensionAttrName =
         GridOpPattern<OpTy>::GPUOpType::getDimensionAttrName(
             {opName, rewriter.getContext()});
     convertToFullObject(rewriter, opName, dimensionAttrName, op, dimensions);
-  }
-};
-
-/// Converts n-dimensional operations of type \tparam OpTy being passed an
-/// argument to operations of type \tparam GPUOpTy.
-template <typename OpTy>
-class GridOpPatternIndex final : public GridOpPattern<OpTy> {
-public:
-  using GridOpPattern<OpTy>::GridOpPattern;
-
-  LogicalResult match(OpTy op) const override {
-    return success(op.getNumOperands() == 1);
-  }
-
-  void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
-               ConversionPatternRewriter &rewriter) const override {
-    constexpr auto opName = GridOpPattern<OpTy>::GPUOpType::getOperationName();
-    const auto dimension = opAdaptor.getDimension();
-    const auto dimensionAttrName =
-        GridOpPattern<OpTy>::GPUOpType::getDimensionAttrName(
-            {opName, rewriter.getContext()});
-    convertWithIndexArg(rewriter, opName, dimensionAttrName, op, dimension);
+    return success();
   }
 };
 
@@ -240,20 +193,14 @@ public:
     return success();
   }
 };
-
-template <typename... OpTys>
-void addGridOpPatterns(RewritePatternSet &patterns, MLIRContext *context) {
-  (patterns.add<GridOpPatternIndex<OpTys>, GridOpPatternNoIndex<OpTys>>(
-       context),
-   ...);
-}
 } // namespace
 
 void mlir::populateSYCLToGPUConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  addGridOpPatterns<SYCLWorkGroupIDOp, SYCLWorkGroupSizeOp, SYCLLocalIDOp,
-                    SYCLGlobalIDOp>(patterns, context);
-  patterns.add<SingleDimGridOpPattern<SYCLSubGroupIDOp>,
+  patterns.add<NDGridOpPattern<SYCLWorkGroupIDOp>,
+               NDGridOpPattern<SYCLWorkGroupSizeOp>,
+               NDGridOpPattern<SYCLLocalIDOp>, NDGridOpPattern<SYCLGlobalIDOp>,
+               SingleDimGridOpPattern<SYCLSubGroupIDOp>,
                SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
                SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(context);
 }

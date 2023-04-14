@@ -40,29 +40,6 @@ module attributes {gpu.container_module} {
       gpu.return
     }
 
-    // CHECK-LABEL:         gpu.func @test_global_offset_dim(
-    // CHECK-SAME:                                           %[[VAL_9:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_10:.*]] = spirv.mlir.addressof @[[GO]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_12:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_14:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_12]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_17:.*]] = spirv.CompositeExtract %[[VAL_11]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_18:.*]] = arith.index_cast %[[VAL_17]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_19:.*]] = vector.insert %[[VAL_18]], %[[VAL_16]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_20:.*]] = spirv.CompositeExtract %[[VAL_11]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_22:.*]] = vector.insert %[[VAL_21]], %[[VAL_19]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_23:.*]] = vector.extractelement %[[VAL_22]]{{\[}}%[[VAL_9]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_global_offset_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.global_offset %i : index
-      gpu.return
-    }
-
     // CHECK-LABEL:         gpu.func @test_num_work_groups() kernel
     // CHECK-NEXT:            %[[VAL_24:.*]] = spirv.mlir.addressof @[[NW]] : !spirv.ptr<vector<3xi32>, Input>
     // CHECK-NEXT:            %[[VAL_25:.*]] = spirv.Load "Input" %[[VAL_24]] : vector<3xi32>
@@ -87,29 +64,6 @@ module attributes {gpu.container_module} {
       gpu.return
     }
 
-    // CHECK-LABEL:         gpu.func @test_num_work_groups_dim(
-    // CHECK-SAME:                                             %[[VAL_37:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_38:.*]] = spirv.mlir.addressof @[[NW]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_39:.*]] = spirv.Load "Input" %[[VAL_38]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_40:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_42:.*]] = spirv.CompositeExtract %[[VAL_39]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_43:.*]] = arith.index_cast %[[VAL_42]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_44:.*]] = vector.insert %[[VAL_43]], %[[VAL_40]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_45:.*]] = spirv.CompositeExtract %[[VAL_39]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_46:.*]] = arith.index_cast %[[VAL_45]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_47:.*]] = vector.insert %[[VAL_46]], %[[VAL_44]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_48:.*]] = spirv.CompositeExtract %[[VAL_39]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_49:.*]] = arith.index_cast %[[VAL_48]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_50:.*]] = vector.insert %[[VAL_49]], %[[VAL_47]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_51:.*]] = vector.extractelement %[[VAL_50]]{{\[}}%[[VAL_37]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_num_work_groups_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.num_work_groups %i : index
-      gpu.return
-    }
-
     // CHECK-LABEL:         gpu.func @test_work_group_id() kernel
     // CHECK-NEXT:            %[[VAL_0:.*]] = spirv.mlir.addressof @[[WI]] : !spirv.ptr<vector<3xi32>, Input>
     // CHECK-NEXT:            %[[VAL_1:.*]] = spirv.Load "Input" %[[VAL_0]] : vector<3xi32>
@@ -129,29 +83,6 @@ module attributes {gpu.container_module} {
       gpu.return
     }
 
-    // CHECK-LABEL:         gpu.func @test_work_group_id_dim(
-    // CHECK-SAME:                                           %[[VAL_9:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_10:.*]] = spirv.mlir.addressof @[[WI]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_12:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_14:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_12]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_17:.*]] = spirv.CompositeExtract %[[VAL_11]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_18:.*]] = arith.index_cast %[[VAL_17]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_19:.*]] = vector.insert %[[VAL_18]], %[[VAL_16]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_20:.*]] = spirv.CompositeExtract %[[VAL_11]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_22:.*]] = vector.insert %[[VAL_21]], %[[VAL_19]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_23:.*]] = vector.extractelement %[[VAL_22]]{{\[}}%[[VAL_9]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_work_group_id_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.work_group_id %i : index
-      gpu.return
-    }
-
     // CHECK-LABEL:         gpu.func @test_num_work_items() kernel
     // CHECK-NEXT:            %[[VAL_0:.*]] = spirv.mlir.addressof @[[NWI]] : !spirv.ptr<vector<3xi32>, Input>
     // CHECK-NEXT:            %[[VAL_1:.*]] = spirv.Load "Input" %[[VAL_0]] : vector<3xi32>
@@ -168,29 +99,6 @@ module attributes {gpu.container_module} {
     gpu.func @test_num_work_items() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
       %0 = sycl.num_work_items : !sycl_range_1_
-      gpu.return
-    }
-
-    // CHECK-LABEL:         gpu.func @test_num_work_items_dim(
-    // CHECK-SAME:                                           %[[VAL_9:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_10:.*]] = spirv.mlir.addressof @[[NWI]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_12:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_14:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_12]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_17:.*]] = spirv.CompositeExtract %[[VAL_11]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_18:.*]] = arith.index_cast %[[VAL_17]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_19:.*]] = vector.insert %[[VAL_18]], %[[VAL_16]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_20:.*]] = spirv.CompositeExtract %[[VAL_11]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_22:.*]] = vector.insert %[[VAL_21]], %[[VAL_19]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_23:.*]] = vector.extractelement %[[VAL_22]]{{\[}}%[[VAL_9]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_num_work_items_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.num_work_items %i : index
       gpu.return
     }
 
@@ -242,29 +150,6 @@ module attributes {gpu.container_module} {
       gpu.return
     }
 
-    // CHECK-LABEL:         gpu.func @test_work_group_size_dim(
-    // CHECK-SAME:                                           %[[VAL_9:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_10:.*]] = spirv.mlir.addressof @[[WGS]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_12:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_14:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_12]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_17:.*]] = spirv.CompositeExtract %[[VAL_11]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_18:.*]] = arith.index_cast %[[VAL_17]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_19:.*]] = vector.insert %[[VAL_18]], %[[VAL_16]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_20:.*]] = spirv.CompositeExtract %[[VAL_11]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_22:.*]] = vector.insert %[[VAL_21]], %[[VAL_19]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_23:.*]] = vector.extractelement %[[VAL_22]]{{\[}}%[[VAL_9]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_work_group_size_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.work_group_size %i : index
-      gpu.return
-    }
-
     // CHECK-LABEL:         gpu.func @test_local_id() kernel
     // CHECK-NEXT:            %[[VAL_0:.*]] = spirv.mlir.addressof @[[LII]] : !spirv.ptr<vector<3xi32>, Input>
     // CHECK-NEXT:            %[[VAL_1:.*]] = spirv.Load "Input" %[[VAL_0]] : vector<3xi32>
@@ -284,29 +169,6 @@ module attributes {gpu.container_module} {
       gpu.return
     }
 
-    // CHECK-LABEL:         gpu.func @test_local_id_dim(
-    // CHECK-SAME:                                           %[[VAL_9:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_10:.*]] = spirv.mlir.addressof @[[LII]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_12:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_14:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_12]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_17:.*]] = spirv.CompositeExtract %[[VAL_11]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_18:.*]] = arith.index_cast %[[VAL_17]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_19:.*]] = vector.insert %[[VAL_18]], %[[VAL_16]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_20:.*]] = spirv.CompositeExtract %[[VAL_11]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_22:.*]] = vector.insert %[[VAL_21]], %[[VAL_19]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_23:.*]] = vector.extractelement %[[VAL_22]]{{\[}}%[[VAL_9]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_local_id_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.local_id %i : index
-      gpu.return
-    }
-
     // CHECK-LABEL:         gpu.func @test_global_id() kernel
     // CHECK-NEXT:            %[[VAL_0:.*]] = spirv.mlir.addressof @[[GII]] : !spirv.ptr<vector<3xi32>, Input>
     // CHECK-NEXT:            %[[VAL_1:.*]] = spirv.Load "Input" %[[VAL_0]] : vector<3xi32>
@@ -323,29 +185,6 @@ module attributes {gpu.container_module} {
     gpu.func @test_global_id() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
       %0 = sycl.global_id : !sycl_id_1_
-      gpu.return
-    }
-
-    // CHECK-LABEL:         gpu.func @test_global_id_dim(
-    // CHECK-SAME:                                           %[[VAL_9:.*]]: i32) kernel
-    // CHECK-NEXT:            %[[VAL_10:.*]] = spirv.mlir.addressof @[[GII]] : !spirv.ptr<vector<3xi32>, Input>
-    // CHECK-NEXT:            %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_12:.*]] = arith.constant dense<0> : vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_14:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_12]] [0] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_17:.*]] = spirv.CompositeExtract %[[VAL_11]][1 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_18:.*]] = arith.index_cast %[[VAL_17]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_19:.*]] = vector.insert %[[VAL_18]], %[[VAL_16]] [1] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_20:.*]] = spirv.CompositeExtract %[[VAL_11]][2 : i32] : vector<3xi32>
-    // CHECK-NEXT:            %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : i32 to index
-    // CHECK-NEXT:            %[[VAL_22:.*]] = vector.insert %[[VAL_21]], %[[VAL_19]] [2] : index into vector<3xindex>
-    // CHECK-NEXT:            %[[VAL_23:.*]] = vector.extractelement %[[VAL_22]]{{\[}}%[[VAL_9]] : i32] : vector<3xindex>
-    // CHECK-NEXT:            gpu.return
-    // CHECK-NEXT:          }
-    gpu.func @test_global_id_dim(%i: i32) kernel
-      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
-      %0 = sycl.global_id %i : index
       gpu.return
     }
 
