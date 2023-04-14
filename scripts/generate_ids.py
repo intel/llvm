@@ -52,6 +52,7 @@ def generate_registry(path, specs):
     print("Updating registry %s"%path)
 
     ids = new_registry
+    ids = sorted(ids, key=lambda x: int(x['value']))
     wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': ids}
     header = {'type': 'header', 'desc': quoted('Intel$OneApi Unified Rutime function registry'), 'ordinal': quoted(9)}
 

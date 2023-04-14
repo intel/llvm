@@ -212,6 +212,42 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPlatformGetBackendOption
+__urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
+    const char
+        *pFrontendOption, ///< [in] string containing the frontend option.
+    const char **
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
+) {
+    auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
+
+    if (nullptr == pfnGetBackendOption) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hPlatform) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pFrontendOption) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == ppPlatformOption) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGetLastResult
 __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
@@ -4982,6 +5018,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_validation_layer::urPlatformGetApiVersion;
+
+    dditable.pfnGetBackendOption = pDdiTable->pfnGetBackendOption;
+    pDdiTable->pfnGetBackendOption =
+        ur_validation_layer::urPlatformGetBackendOption;
 
     return result;
 }

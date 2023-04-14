@@ -54,6 +54,13 @@ typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetApiVersion_t)(
     ur_api_version_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urPlatformGetBackendOption
+typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetBackendOption_t)(
+    ur_platform_handle_t,
+    const char *,
+    const char **);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Platform functions pointers
 typedef struct ur_platform_dditable_t {
     ur_pfnPlatformGet_t pfnGet;
@@ -61,6 +68,7 @@ typedef struct ur_platform_dditable_t {
     ur_pfnPlatformGetNativeHandle_t pfnGetNativeHandle;
     ur_pfnPlatformCreateWithNativeHandle_t pfnCreateWithNativeHandle;
     ur_pfnPlatformGetApiVersion_t pfnGetApiVersion;
+    ur_pfnPlatformGetBackendOption_t pfnGetBackendOption;
 } ur_platform_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

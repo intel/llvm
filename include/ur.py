@@ -1591,6 +1591,7 @@ class ur_function_v(IntEnum):
     USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
     USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
     USM_POOL_DESTROY = 113                          ## Enumerator for ::urUSMPoolDestroy
+    PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -1656,6 +1657,13 @@ if __use_win_types:
 else:
     _urPlatformGetApiVersion_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(ur_api_version_t) )
 
+###############################################################################
+## @brief Function-pointer for urPlatformGetBackendOption
+if __use_win_types:
+    _urPlatformGetBackendOption_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, c_char_p, POINTER(c_char_p) )
+else:
+    _urPlatformGetBackendOption_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, c_char_p, POINTER(c_char_p) )
+
 
 ###############################################################################
 ## @brief Table of Platform functions pointers
@@ -1665,7 +1673,8 @@ class ur_platform_dditable_t(Structure):
         ("pfnGetInfo", c_void_p),                                       ## _urPlatformGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urPlatformGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urPlatformCreateWithNativeHandle_t
-        ("pfnGetApiVersion", c_void_p)                                  ## _urPlatformGetApiVersion_t
+        ("pfnGetApiVersion", c_void_p),                                 ## _urPlatformGetApiVersion_t
+        ("pfnGetBackendOption", c_void_p)                               ## _urPlatformGetBackendOption_t
     ]
 
 ###############################################################################
@@ -2655,6 +2664,7 @@ class UR_DDI:
         self.urPlatformGetNativeHandle = _urPlatformGetNativeHandle_t(self.__dditable.Platform.pfnGetNativeHandle)
         self.urPlatformCreateWithNativeHandle = _urPlatformCreateWithNativeHandle_t(self.__dditable.Platform.pfnCreateWithNativeHandle)
         self.urPlatformGetApiVersion = _urPlatformGetApiVersion_t(self.__dditable.Platform.pfnGetApiVersion)
+        self.urPlatformGetBackendOption = _urPlatformGetBackendOption_t(self.__dditable.Platform.pfnGetBackendOption)
 
         # call driver to get function pointers
         Context = ur_context_dditable_t()
