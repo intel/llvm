@@ -2632,7 +2632,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
       else
         return Delegate(Impl<Strat::basic>{});
     } else if constexpr (Reduction::has_fast_atomics) {
-      if (sizeof(typename Reduction::result_type) == 8) {
+      if constexpr (sizeof(typename Reduction::result_type) == 8) {
         // Both group_reduce_and_atomic_cross_wg and
         // local_mem_tree_and_atomic_cross_wg implicitly require
         // aspect::atomic64 if the result type of the reduction is 64-bit. If
