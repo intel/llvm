@@ -209,6 +209,38 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPlatformGetBackendOption
+__urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance.
+    const char
+        *pFrontendOption, ///< [in] string containing the frontend option.
+    const char **
+        ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
+                         ///< the frontend option.
+) {
+    auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
+
+    if (nullptr == pfnGetBackendOption) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_platform_get_backend_option_params_t params = {
+        &hPlatform, &pFrontendOption, &ppPlatformOption};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
+                             "urPlatformGetBackendOption", &params);
+
+    ur_result_t result =
+        pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
+
+    context.notify_end(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
+                       "urPlatformGetBackendOption", &params, &result,
+                       instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGetLastResult
 __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
@@ -4111,6 +4143,10 @@ __urdlllocal ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_tracing_layer::urPlatformGetApiVersion;
+
+    dditable.pfnGetBackendOption = pDdiTable->pfnGetBackendOption;
+    pDdiTable->pfnGetBackendOption =
+        ur_tracing_layer::urPlatformGetBackendOption;
 
     return result;
 }
