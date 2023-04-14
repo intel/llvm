@@ -15,6 +15,9 @@
 #include <cuda.h>
 #include <sstream>
 
+void enableCUDATracing();
+void disableCUDATracing();
+
 ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
                               ur_platform_info_t PlatformInfoType, size_t Size,
                               void *pPlatformInfo, size_t *pSizeRet) {
@@ -169,6 +172,13 @@ ur_result_t urPlatformGetApiVersion(ur_platform_handle_t hDriver,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urInit(ur_device_init_flags_t) { return UR_RESULT_SUCCESS; }
+ur_result_t urInit(ur_device_init_flags_t) {
+  enableCUDATracing();
+  return UR_RESULT_SUCCESS;
+}
 
-ur_result_t urTearDown(void *) { return UR_RESULT_SUCCESS; }
+ur_result_t urTearDown(void *) {
+  disableCUDATracing();
+  return UR_RESULT_SUCCESS;
+}
+

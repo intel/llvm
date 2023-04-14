@@ -1117,3 +1117,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // existing device return error
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
+
+ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
+                                                   uint64_t *pDeviceTimestamp,
+                                                   uint64_t *pHostTimestamp) {
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  CUevent event;
+  ScopedContext active(hDevice->get_context());
+
+  if (pDeviceTimestamp) {
+    UR_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
+    UR_CHECK_ERROR(cuEventRecord(event, 0));
+  }
+  if (pHostTimestamp) {
+
+    using namespace std::chrono;
+    *pHostTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+
+  if (pDeviceTimestamp) {
+    UR_CHECK_ERROR(cuEventSynchronize(event));
+    *pDeviceTimestamp = hDevice->get_elapsed_time(event);
+  }
+
+  return UR_RESULT_SUCCESS;
+}

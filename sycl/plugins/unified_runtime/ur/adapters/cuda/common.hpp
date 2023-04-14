@@ -28,6 +28,14 @@ ur_result_t check_error_ur(CUresult result, const char *function, int line,
 
 std::string getCudaVersionString();
 
+constexpr size_t MaxMessageSize = 256;
+extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] void setErrorMessage(const char *message,
+                                      ur_result_t error_code);
+
 /// ------ Error handling, matching OpenCL plugin semantics.
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

@@ -54,24 +54,6 @@ pi_result map_error(CUresult result) {
   }
 }
 
-// Global variables for PI_ERROR_PLUGIN_SPECIFIC_ERROR
-constexpr size_t MaxMessageSize = 256;
-thread_local pi_result ErrorMessageCode = PI_SUCCESS;
-thread_local char ErrorMessage[MaxMessageSize];
-
-// Utility function for setting a message and warning
-static void setErrorMessage(const char *message, pi_result error_code) {
-  assert(strlen(message) <= MaxMessageSize);
-  strcpy(ErrorMessage, message);
-  ErrorMessageCode = error_code;
-}
-
-// Returns plugin specific error and warning messages
-pi_result cuda_piPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
-}
-
 // Returns plugin specific backend option.
 // Current support is only for optimization options.
 // Return empty string for cuda.
@@ -713,7 +695,7 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     // These queries should be dealt with in context_impl.cpp by calling the
     // queries of each device separately and building the intersection set.
     setErrorMessage("These queries should have never come here.",
-                    PI_ERROR_INVALID_ARG_VALUE);
+                    UR_RESULT_ERROR_INVALID_ARGUMENT);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
@@ -1448,7 +1430,7 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
           arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
         setErrorMessage("PI CUDA kernels only support images with channel "
                         "types int32, uint32, float, and half.",
-                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
       }
       CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
@@ -1618,7 +1600,7 @@ pi_result cuda_piEnqueueKernelLaunch(
       if (env_val <= 0 || env_val > device_max_local_mem) {
         setErrorMessage("Invalid value specified for "
                         "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
       }
       PI_CHECK_ERROR(cuFuncSetAttribute(
@@ -3182,7 +3164,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
     setErrorMessage("Prefetch hint ignored as device does not support "
                     "concurrent managed access",
-                    PI_SUCCESS);
+                    UR_RESULT_SUCCESS);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -3191,7 +3173,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
       &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
   if (!is_managed) {
     setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
-                    PI_SUCCESS);
+                    UR_RESULT_SUCCESS);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -3248,7 +3230,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
       setErrorMessage("Mem advise ignored as device does not support "
                       "concurrent managed access",
-                      PI_SUCCESS);
+                      UR_RESULT_SUCCESS);
       return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
 
@@ -3263,7 +3245,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   if (!is_managed) {
     setErrorMessage(
         "Memory advice ignored as memory advices only works with USM",
-        PI_SUCCESS);
+        UR_RESULT_SUCCESS);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -3641,43 +3623,6 @@ pi_result cuda_piextEnqueueWriteHostPipe(
   return {};
 }
 
-// This API is called by Sycl RT to notify the end of the plugin lifetime.
-// Windows: dynamically loaded plugins might have been unloaded already
-// when this is called. Sycl RT holds onto the PI plugin so it can be
-// called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded.
-// TODO: add a global variable lifetime management code here (see
-// pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result cuda_piTearDown(void *) {
-  disableCUDATracing();
-  return PI_SUCCESS;
-}
-
-pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
-                                       uint64_t *HostTime) {
-  _pi_event::native_type event;
-  ScopedContext active(Device->get_context());
-
-  if (DeviceTime) {
-    PI_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
-    PI_CHECK_ERROR(cuEventRecord(event, 0));
-  }
-  if (HostTime) {
-
-    using namespace std::chrono;
-    *HostTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
-  }
-
-  if (DeviceTime) {
-    PI_CHECK_ERROR(cuEventSynchronize(event));
-    *DeviceTime = Device->get_elapsed_time(event);
-  }
-
-  return PI_SUCCESS;
-}
-
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -3835,9 +3780,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
-  _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
-  _PI_CL(piTearDown, cuda_piTearDown)
-  _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
+  _PI_CL(piTearDown, pi2ur::piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
   _PI_CL(piPluginGetBackendOption, cuda_piPluginGetBackendOption)
 
 #undef _PI_CL

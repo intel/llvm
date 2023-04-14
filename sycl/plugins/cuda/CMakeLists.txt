@@ -68,12 +68,12 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/kernel.cpp"
     "../unified_runtime/ur/adapters/cuda/kernel.hpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
+    "../unified_runtime/ur/adapters/cuda/tracing.cpp"
     # --- 
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
     "pi_cuda.cpp"
-    "tracing.cpp"
     ${XPTI_PROXY_SRC}
   INCLUDE_DIRS
     ${sycl_inc_dir}
