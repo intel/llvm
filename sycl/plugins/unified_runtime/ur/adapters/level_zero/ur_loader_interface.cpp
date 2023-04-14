@@ -180,6 +180,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
+  pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
 
   return retVal;
 }

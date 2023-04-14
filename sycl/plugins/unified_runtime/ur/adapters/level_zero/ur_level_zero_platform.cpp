@@ -536,3 +536,33 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   DeviceCachePopulated = true;
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
+    const char *FrontendOption, ///< [in] string containing the frontend option.
+    const char *
+        *PlatformOption ///< [out] returns the correct platform specific
+                        ///< compiler option based on the frontend option.
+) {
+  using namespace std::literals;
+  if (FrontendOption == nullptr) {
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == ""sv) {
+    *PlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O0"sv) {
+    *PlatformOption = "-ze-opt-disable";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv) {
+    *PlatformOption = "-ze-opt-level=1";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O3"sv) {
+    *PlatformOption = "-ze-opt-level=2";
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
+}

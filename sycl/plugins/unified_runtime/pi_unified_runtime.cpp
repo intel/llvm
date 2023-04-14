@@ -981,6 +981,13 @@ __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
   return pi2ur::piGetDeviceAndHostTimer(Device, DeviceTime, HostTime);
 }
 
+__SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
+                                                 const char *frontend_option,
+                                                 const char **backend_option) {
+  return pi2ur::piPluginGetBackendOption(platform, frontend_option,
+                                         backend_option);
+}
+
 // This interface is not in Unified Runtime currently
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter) {
   return pi2ur::piTearDown(PluginParameter);
@@ -1025,6 +1032,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextPlatformCreateWithNativeHandle)
   _PI_API(piextDeviceGetNativeHandle)
   _PI_API(piextDeviceCreateWithNativeHandle)
+  _PI_API(piPluginGetBackendOption)
 
   _PI_API(piContextCreate)
   _PI_API(piContextRelease)

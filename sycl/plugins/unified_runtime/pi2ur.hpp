@@ -506,6 +506,22 @@ inline pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
+// Return '-ze-opt-level=2' for frontend_option = -O3.
+inline pi_result piPluginGetBackendOption(pi_platform Platform,
+                                          const char *FrontendOption,
+                                          const char **PlatformOption) {
+
+  auto UrPlatform = reinterpret_cast<ur_platform_handle_t>(Platform);
+  HANDLE_ERRORS(
+      urPlatformGetBackendOption(UrPlatform, FrontendOption, PlatformOption));
+
+  return PI_SUCCESS;
+}
+
 // Platform
 ///////////////////////////////////////////////////////////////////////////////
 

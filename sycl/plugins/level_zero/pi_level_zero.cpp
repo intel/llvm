@@ -53,6 +53,25 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 }
 
 pi_result piPluginGetLastError(char **message) {
+  return pi2ur::piPluginGetLastError(message);
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
+// Return '-ze-opt-level=2' for frontend_option = -O3.
+pi_result piPluginGetBackendOption(pi_platform platform,
+                                   const char *frontend_option,
+                                   const char **backend_option) {
+  return pi2ur::piPluginGetBackendOption(platform, frontend_option,
+                                         backend_option);
+}
+
+pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
+                       pi_uint32 NumEntries, pi_device *Devices,
+                       pi_uint32 *NumDevices) {
+  return pi2ur::piDevicesGet(Platform, DeviceType, NumEntries, Devices,
                              NumDevices);
 }
 
