@@ -14,9 +14,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
-/// Include the header file containing the declaration of the sycl operation
-/// interfaces.
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.h"
 
 namespace mlir {
 namespace sycl {
@@ -27,9 +25,6 @@ inline bool isSYCLOperation(Operation *op) {
     return false;
   return isa<sycl::SYCLDialect>(op->getDialect());
 }
-
-template <typename T>
-using isSYCLMethod = std::is_base_of<SYCLMethodOpInterface::Trait<T>, T>;
 
 } // namespace sycl
 } // namespace mlir
