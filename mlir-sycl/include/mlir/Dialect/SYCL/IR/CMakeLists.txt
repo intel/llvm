@@ -3,8 +3,8 @@ add_mlir_doc(SYCLBase SYCLBase Dialects/ -gen-dialect-doc)
 add_mlir_doc(SYCLOps SYCLOps Dialects/ -gen-op-doc)
 add_mlir_doc(SYCLTypes SYCLTypes Dialects/ -gen-typedef-doc)
 
-add_mlir_interface(SYCLOpInterfaces)
-add_mlir_doc(SYCLOpInterfaces SYCLOpInterfaces Dialects/ -gen-op-interface-docs)
+add_mlir_interface(SYCLMethodOpInterface)
+add_mlir_doc(SYCLMethodOpInterface SYCLMethodOpInterface Dialects/ -gen-op-interface-docs)
 
 set(LLVM_TARGET_DEFINITIONS SYCLOpAttributes.td)
 mlir_tablegen(SYCLOpAttributes.h.inc -gen-enum-decls)

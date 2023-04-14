@@ -18,7 +18,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/Dialect/SYCL/IR/SYCLBase.td"
 include "mlir/Dialect/SYCL/IR/SYCLTypes.td"
 include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.td"
-include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
+include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -30,6 +30,10 @@ include "mlir/Interfaces/ViewLikeInterface.td"
 
 class SYCL_Op<string mnemonic, list<Trait> traits = []>
     : Op<SYCL_Dialect, mnemonic, traits>;
+
+class SYCLOpTrait<string name> : NativeOpTrait<name> {
+  let cppNamespace = "::mlir::sycl";
+}
 
 class SYCLMethodOpInterfaceImpl<
     string mnemonic, string type, list<string> methodNames, list<Trait> traits = []>
@@ -54,6 +58,17 @@ class SYCLMethodOpInterfaceImpl<
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// TRAIT DECLARATIONS
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGetID : SYCLOpTrait<"SYCLGetID">;
+def SYCLGetComponent : SYCLOpTrait<"SYCLGetComponent">;
+def SYCLGetRange : SYCLOpTrait<"SYCLGetRange">;
+def SYCLGetGroup : SYCLOpTrait<"SYCLGetGroup">;
+def SYCLIndexSpaceGetID : SYCLOpTrait<"SYCLIndexSpaceGetID">;
+def SYCLIndexSpaceGetRange : SYCLOpTrait<"SYCLIndexSpaceGetRange">;
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES DECLARATIONS
