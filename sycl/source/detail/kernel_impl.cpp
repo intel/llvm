@@ -109,9 +109,8 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
   if (MKernelBundleImpl->isInterop())
     return;
   auto Devices = MKernelBundleImpl->get_devices();
-  if (std::any_of(Devices.begin(), Devices.end(), [](device &Device) {
-    return isBuiltInKernel(Device);
-  }))
+  if (std::any_of(Devices.begin(), Devices.end(),
+                  [this](device &Device) { return isBuiltInKernel(Device); }))
     return;
 
   throw sycl::exception(
