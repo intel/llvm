@@ -41,7 +41,7 @@ void umaMemoryProviderDestroy(uma_memory_provider_handle_t hProvider);
 /// \param hProvider handle to the memory provider
 /// \param size number of bytes to allocate
 /// \param alignment alignment of the allocation
-/// \param ptr returns pointer to the allocated memory
+/// \param ptr will be updated with pointer to the allocated memory
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
 ///
 enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider,
