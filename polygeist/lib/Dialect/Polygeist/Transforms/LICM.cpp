@@ -366,32 +366,16 @@ public:
   using SCFCondition = LoopVersionCondition::SCFCondition;
   using AffineCondition = LoopVersionCondition::AffineCondition;
 
-  /// The kind of condition to create.
-  enum class ConditionKind { SCF, Affine };
-
-  std::unique_ptr<LoopVersionCondition>
-  createCondition(ConditionKind condKind) const {
+  std::unique_ptr<LoopVersionCondition> createCondition() const {
     OpBuilder builder(loop);
     Location loc = loop.getLoc();
-
-    switch (condKind) {
-    case ConditionKind::SCF: {
-      SCFCondition scfCond = createConditionForSCFLoop(builder, loc);
-      return std::make_unique<LoopVersionCondition>(scfCond);
-    }
-    case ConditionKind::Affine: {
-      AffineCondition affineCond = createConditionForAffineLoop(builder, loc);
-      return std::make_unique<LoopVersionCondition>(affineCond);
-    }
-
-      return nullptr;
-    }
+    SCFCondition scfCond = createSCFCondition(builder, loc);
+    return std::make_unique<LoopVersionCondition>(scfCond);
   }
 
 private:
-  /// Create a loop versioning condition suitable for versioning an SCF loop.
-  SCFCondition createConditionForSCFLoop(OpBuilder builder,
-                                         Location loc) const {
+  /// Create a loop versioning condition suitable for scf::IfOp.
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const {
     auto GetMemref2PointerOp = [&](Value op) {
       auto MT = cast<MemRefType>(op.getType());
       return builder.create<polygeist::Memref2PointerOp>(
@@ -419,12 +403,6 @@ private:
                       : orOp;
     }
     return condition;
-  }
-
-  /// Create a loop versioning condition suitable for versioning an affine loop.
-  AffineCondition createConditionForAffineLoop(OpBuilder builder,
-                                               Location loc) const {
-    llvm_unreachable("TODO");
   }
 
   template <typename OpTy>
@@ -802,8 +780,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
       std::unique_ptr<LoopVersionCondition> condition =
-          VersionConditionBuilder(loop, accessorPairs)
-              .createCondition(VersionConditionBuilder::ConditionKind::SCF);
+          VersionConditionBuilder(loop, accessorPairs).createCondition();
       loopTools.versionLoop(loop, *condition);
     }
 
