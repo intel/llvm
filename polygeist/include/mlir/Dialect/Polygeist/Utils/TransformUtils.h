@@ -13,12 +13,14 @@
 #ifndef MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 #define MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include <variant>
 
 namespace mlir {
 class AffineForOp;
+class AffineIfOp;
 class AffineParallelOp;
 class DominanceInfo;
 class LoopLikeOpInterface;
@@ -27,6 +29,7 @@ class RegionBranchOpInterface;
 
 namespace scf {
 class ForOp;
+class IfOp;
 class ParallelOp;
 } // namespace scf
 
@@ -39,16 +42,6 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        SmallVectorImpl<Value> *operands,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
-
-//===----------------------------------------------------------------------===//
-// Interface classes
-//===----------------------------------------------------------------------===//
-class IfThenElseBodyInterface {
-protected:
-  virtual ~IfThenElseBodyInterface() = default;
-  virtual void createThenBody(RegionBranchOpInterface) const = 0;
-  virtual void createElseBody(RegionBranchOpInterface) const = 0;
-};
 
 //===----------------------------------------------------------------------===//
 // Loop Versioning Utilities
@@ -70,14 +63,21 @@ public:
   LoopVersionCondition(AffineCondition affineCond)
       : versionCondition(affineCond) {}
 
+  bool hasSCFCondition() const {
+    return std::holds_alternative<SCFCondition>(versionCondition);
+  }
+
   SCFCondition getSCFCondition() const {
-    assert(std::holds_alternative<SCFCondition>(versionCondition) &&
-           "expecting valid SCF condition");
+    assert(hasSCFCondition() && "expecting valid SCF condition");
     return std::get<SCFCondition>(versionCondition);
   }
+
+  bool hasAffineCondition() const {
+    return std::holds_alternative<AffineCondition>(versionCondition);
+  }
+
   AffineCondition getAffineCondition() const {
-    assert(std::holds_alternative<AffineCondition>(versionCondition) &&
-           "expecting valid affine condition");
+    assert(hasAffineCondition() && "expecting valid affine condition");
     return std::get<AffineCondition>(versionCondition);
   }
 
@@ -85,44 +85,18 @@ private:
   std::variant<SCFCondition, AffineCondition> versionCondition;
 };
 
-/// Abstract base class to version a loop like operation.
-class LoopVersionBuilder : public IfThenElseBodyInterface {
+/// Version a loop like operation.
+class LoopVersionBuilder {
 public:
-  static std::unique_ptr<LoopVersionBuilder> create(LoopLikeOpInterface);
-
-  virtual void versionLoop(const LoopVersionCondition &) const;
-
-protected:
   LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
 
-  void versionLoop(RegionBranchOpInterface) const;
+  void versionLoop(const LoopVersionCondition &) const;
+
+protected:
+  void createElseBody(scf::IfOp) const;
+  void createElseBody(AffineIfOp) const;
 
   mutable LoopLikeOpInterface loop; /// The loop to version.
-};
-
-/// Concrete class to version a SCF loop operation.
-class SCFLoopVersionBuilder : public LoopVersionBuilder {
-public:
-  SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
-
-  void versionLoop(const LoopVersionCondition &) const final;
-
-private:
-  void createThenBody(RegionBranchOpInterface) const final;
-  void createElseBody(RegionBranchOpInterface) const final;
-};
-
-/// Concrete class to version an affine loop operation.
-class AffineLoopVersionBuilder : public LoopVersionBuilder {
-public:
-  AffineLoopVersionBuilder(LoopLikeOpInterface loop)
-      : LoopVersionBuilder(loop) {}
-
-  void versionLoop(const LoopVersionCondition &) const final;
-
-private:
-  void createThenBody(RegionBranchOpInterface) const final;
-  void createElseBody(RegionBranchOpInterface) const final;
 };
 
 //===----------------------------------------------------------------------===//
@@ -130,9 +104,10 @@ private:
 //===----------------------------------------------------------------------===//
 
 /// Abstract base class to guard a loop like operation.
-class LoopGuardBuilder : public IfThenElseBodyInterface {
+class LoopGuardBuilder {
 public:
   static std::unique_ptr<LoopGuardBuilder> create(LoopLikeOpInterface);
+  virtual ~LoopGuardBuilder() = default;
 
   virtual void guardLoop() const = 0;
 
@@ -140,6 +115,9 @@ protected:
   LoopGuardBuilder(LoopLikeOpInterface loop) : loop(loop) {}
 
   virtual OperandRange getInitVals() const = 0;
+  virtual void createThenBody(RegionBranchOpInterface) const = 0;
+  virtual void createElseBody(RegionBranchOpInterface) const = 0;
+
   void guardLoop(RegionBranchOpInterface) const;
 
   mutable LoopLikeOpInterface loop; /// The loop to guard.

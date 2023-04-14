@@ -61,9 +61,6 @@ struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
   using LICMBase<LICM>::LICMBase;
 
   void runOnOperation() override;
-
-private:
-  LoopTools loopTools;
 };
 
 /// Represents the side effects associated with an operation.
@@ -372,23 +369,13 @@ public:
   std::unique_ptr<LoopVersionCondition> createCondition() const {
     OpBuilder builder(loop);
     Location loc = loop.getLoc();
-
-    return TypeSwitch<Operation *, std::unique_ptr<LoopVersionCondition>>(loop)
-        .Case<scf::ForOp, scf::ParallelOp>([&](auto) {
-          SCFCondition scfCond = createConditionForSCFLoop(builder, loc);
-          return std::make_unique<LoopVersionCondition>(scfCond);
-        })
-        .Case<AffineForOp, AffineParallelOp>([&](auto) {
-          AffineCondition affineCond =
-              createConditionForAffineLoop(builder, loc);
-          return std::make_unique<LoopVersionCondition>(affineCond);
-        });
+    SCFCondition scfCond = createSCFCondition(builder, loc);
+    return std::make_unique<LoopVersionCondition>(scfCond);
   }
 
 private:
-  /// Create a loop versioning condition suitable for versioning an SCF loop.
-  SCFCondition createConditionForSCFLoop(OpBuilder builder,
-                                         Location loc) const {
+  /// Create a loop versioning condition suitable for scf::IfOp.
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const {
     auto GetMemref2PointerOp = [&](Value op) {
       auto MT = cast<MemRefType>(op.getType());
       return builder.create<polygeist::Memref2PointerOp>(
@@ -416,12 +403,6 @@ private:
                       : orOp;
     }
     return condition;
-  }
-
-  /// Create a loop versioning condition suitable for versioning an affine loop.
-  AffineCondition createConditionForAffineLoop(OpBuilder &builder,
-                                               Location loc) const {
-    llvm_unreachable("TODO");
   }
 
   template <typename OpTy>
@@ -777,7 +758,6 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 }
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
-                                    LoopTools loopTools,
                                     const AliasAnalysis &aliasAnalysis,
                                     const DominanceInfo &domInfo) {
   Operation *loopOp = loop;
@@ -789,6 +769,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
+  LoopTools loopTools;
   loopTools.guardLoop(loop);
 
   size_t numOpsHoisted = 0;
@@ -843,8 +824,7 @@ void LICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      size_t OpHoisted =
-          moveLoopInvariantCode(loop, loopTools, aliasAnalysis, domInfo);
+      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo);
       numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({
