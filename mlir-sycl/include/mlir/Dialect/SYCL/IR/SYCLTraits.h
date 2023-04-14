@@ -1,4 +1,4 @@
-//===--- SYCLOpTraits.h ---------------------------------------------------===//
+//===--- SYCLTraits.h -----------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_OPS_TRAITS_H_
-#define MLIR_SYCL_OPS_TRAITS_H_
+#ifndef MLIR_SYCL_TRAITS_H_
+#define MLIR_SYCL_TRAITS_H_
 
 #include "mlir/IR/OpDefinition.h"
 
@@ -67,4 +67,4 @@ public:
 } // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_SYCL_OPS_TRAITS_H_
+#endif // MLIR_SYCL_TRAITS_H_

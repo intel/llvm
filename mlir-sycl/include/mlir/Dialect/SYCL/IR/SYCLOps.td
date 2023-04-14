@@ -17,7 +17,7 @@ include "mlir/IR/OpBase.td"
 
 include "mlir/Dialect/SYCL/IR/SYCLBase.td"
 include "mlir/Dialect/SYCL/IR/SYCLTypes.td"
-include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.td"
+include "mlir/Dialect/SYCL/IR/SYCLAttributes.td"
 include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"

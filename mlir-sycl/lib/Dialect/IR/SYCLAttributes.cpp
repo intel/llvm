@@ -6,6 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.cpp.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.cpp.inc"

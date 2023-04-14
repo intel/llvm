@@ -1,4 +1,4 @@
-//===--- SYCLOpsTypes.h ---------------------------------------------------===//
+//===--- SYCLTypes.h ------------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_OPS_TYPES_H_
-#define MLIR_SYCL_OPS_TYPES_H_
+#ifndef MLIR_SYCL_TYPES_H_
+#define MLIR_SYCL_TYPES_H_
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -42,6 +42,6 @@ llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 } // namespace mlir
 
 #define GET_TYPEDEF_CLASSES
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h.inc"
 
 #endif // MLIR_SYCL_OPS_DIALECT_H_

@@ -1,6 +1,4 @@
-// Copyright (C) Codeplay Software Limited
-
-//===--- SYCLOpsTypes.cpp -------------------------------------------------===//
+//===--- SYCLTypes.cpp ----------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 llvm::SmallVector<mlir::TypeID>

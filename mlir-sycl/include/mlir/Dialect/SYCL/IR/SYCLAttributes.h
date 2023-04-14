@@ -1,4 +1,4 @@
-//===--- SYCLOpAttributes.h -----------------------------------------------===//
+//===--- SYCLAttributes.h -------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,6 +12,6 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h.inc"
 
 #endif // MLIR_SYCL_ATTRIBUTES_H_

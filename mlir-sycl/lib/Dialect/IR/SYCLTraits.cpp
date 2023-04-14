@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===--- SYCLTraits.cpp ---------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
@@ -8,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpTraits.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTraits.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"

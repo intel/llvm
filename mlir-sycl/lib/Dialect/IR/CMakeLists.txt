@@ -31,9 +31,9 @@ endif()
 add_mlir_dialect_library(MLIRSYCLDialect
   SYCLTraits.cpp
   SYCLOps.cpp
-  SYCLOpsAttributes.cpp
-  SYCLOpsDialect.cpp
-  SYCLOpsTypes.cpp
+  SYCLAttributes.cpp
+  SYCLDialect.cpp
+  SYCLTypes.cpp
   MethodUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
