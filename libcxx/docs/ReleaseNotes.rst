@@ -39,6 +39,7 @@ Implemented Papers
 ------------------
 - P2520R0 - ``move_iterator<T*>`` should be a random access iterator
 - P1328R1 - ``constexpr type_info::operator==()``
+- P1413R3 - Formatting ``thread::id`` (the ``stacktrace`` is not done yet)
 
 Improvements and New Features
 -----------------------------
@@ -62,8 +63,8 @@ Deprecations and Removals
   includes are removed based on the language version used. Incidental transitive
   inclusions of the following headers have been removed:
 
-  - C++2b: ``atomic``, ``bit``, ``cstdint``, ``cstdlib``, ``cstring``, ``initializer_list``, ``new``, ``stdexcept``,
-           ``type_traits``, ``typeinfo``
+  - C++2b: ``atomic``, ``bit``, ``cstdint``, ``cstdlib``, ``cstring``, ``initializer_list``, ``limits``, ``new``,
+           ``stdexcept``, ``system_error``, ``type_traits``, ``typeinfo``
 
 - The headers ``<experimental/algorithm>`` and ``<experimental/functional>`` have been removed, since all the contents
   have been implemented in namespace ``std`` for at least two releases.

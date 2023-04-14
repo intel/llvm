@@ -108,8 +108,7 @@ void X86AsmPrinter::StackMapShadowTracker::count(MCInst &Inst,
   if (InShadow) {
     SmallString<256> Code;
     SmallVector<MCFixup, 4> Fixups;
-    raw_svector_ostream VecOS(Code);
-    CodeEmitter->encodeInstruction(Inst, VecOS, Fixups, STI);
+    CodeEmitter->encodeInstruction(Inst, Code, Fixups, STI);
     CurrentShadowSize += Code.size();
     if (CurrentShadowSize >= RequiredShadowSize)
       InShadow = false; // The shadow is big enough. Stop counting.
@@ -975,7 +974,7 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
         (TSFlags & X86II::EncodingMask) == X86II::VEX &&
         (TSFlags & X86II::OpMapMask) == X86II::TB &&
         (TSFlags & X86II::FormMask) == X86II::MRMSrcReg &&
-        !(TSFlags & X86II::VEX_W) && (TSFlags & X86II::VEX_4V) &&
+        !(TSFlags & X86II::REX_W) && (TSFlags & X86II::VEX_4V) &&
         OutMI.getNumOperands() == 3) {
       if (!X86II::isX86_64ExtendedReg(OutMI.getOperand(1).getReg()) &&
           X86II::isX86_64ExtendedReg(OutMI.getOperand(2).getReg()))
@@ -1446,8 +1445,7 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
   SmallString<256> Code;
   if (!EmptyInst) {
     SmallVector<MCFixup, 4> Fixups;
-    raw_svector_ostream VecOS(Code);
-    CodeEmitter->encodeInstruction(MCI, VecOS, Fixups, getSubtargetInfo());
+    CodeEmitter->encodeInstruction(MCI, Code, Fixups, getSubtargetInfo());
   }
 
   if (Code.size() < MinSize) {
