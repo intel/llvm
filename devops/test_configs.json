@@ -13,6 +13,16 @@
       "cmake_args": ""
     },
     {
+      "config": "win_l0_gen12",
+      "name": "L0 GEN12 LLVM Test Suite",
+      "runs-on": [
+        "Windows",
+        "gen12"
+      ],
+      "targets": "level_zero:gpu",
+      "cmake_args": ""
+    },
+    {
       "config": "ocl_gen9",
       "name": "OCL GEN9 LLVM Test Suite",
       "runs-on": [

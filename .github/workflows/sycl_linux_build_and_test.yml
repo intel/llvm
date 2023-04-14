@@ -14,7 +14,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
       build_ref:
         type: string
         required: false
@@ -55,7 +55,7 @@ on:
       cts_matrix:
         type: string
         required: false
-        default: ""
+        default: "[]"
       cts_cmake_extra_args:
         type: string
         required: false
@@ -232,7 +232,7 @@ jobs:
 
   khronos_sycl_cts:
     needs: build
-    if: ${{ inputs.cts_matrix != '' }}
+    if: ${{ inputs.cts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
