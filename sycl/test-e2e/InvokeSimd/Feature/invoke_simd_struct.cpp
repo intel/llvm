@@ -153,7 +153,8 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < Size; ++i)
-    if (A[i] * (-1.0) != C[i]) err_cnt++;
+    if (A[i] * (-1.0) != C[i])
+      err_cnt++;
 
   if (err_cnt > 0) {
     std::cout << "  pass rate: "

@@ -122,14 +122,17 @@ int main(void) {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < Size; ++i)
-    if (A[i] + B[i] * scalars->x * scalars->y != C[i]) err_cnt++;
+    if (A[i] + B[i] * scalars->x * scalars->y != C[i])
+      err_cnt++;
 
   if (err_cnt > 0) {
     std::cout << "  pass rate: "
               << ((float)(Size - err_cnt) / (float)Size) * 100.0f << "% ("
               << (Size - err_cnt) << "/" << Size << ")\n";
     for (unsigned i = 0; i < Size; ++i)
-      std::cout << "  data: " << C[i] << ", reference: " << A[i] + B[i] * scalars->x * scalars->y << "\n";
+      std::cout << "  data: " << C[i]
+                << ", reference: " << A[i] + B[i] * scalars->x * scalars->y
+                << "\n";
   }
 
   sycl::free(scalars, q);

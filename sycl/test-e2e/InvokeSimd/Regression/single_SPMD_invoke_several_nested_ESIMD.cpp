@@ -120,14 +120,16 @@ int main() {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < Size; ++i)
-    if (1 + 2 * A[i] != B[i]) err_cnt++;
+    if (1 + 2 * A[i] != B[i])
+      err_cnt++;
 
   if (err_cnt > 0) {
     std::cout << "  pass rate: "
               << ((float)(Size - err_cnt) / (float)Size) * 100.0f << "% ("
               << (Size - err_cnt) << "/" << Size << ")\n";
     for (unsigned i = 0; i < Size; ++i)
-      std::cout << "  data: " << B[i] << ", reference: " << 1 + 2 * A[i] << "\n";
+      std::cout << "  data: " << B[i] << ", reference: " << 1 + 2 * A[i]
+                << "\n";
   }
 
   sycl::free(A, q);
