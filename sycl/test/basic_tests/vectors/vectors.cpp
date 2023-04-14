@@ -71,6 +71,14 @@ template <typename T, typename OpT> void check_ops(OpT op, T c1, T c2) {
   check(op(v1, v2.template swizzle<0, 1>()));
   check(op(v1, v2));
   check(op(v1, c2));
+
+  sycl::vec<T, 2> v3 = {c1, c2};
+  sycl::vec<T, 2> v4 = op(v3, v3.template swizzle<1, 0>());
+  assert(v4[0] == op(c1, c2) && v4[1] == op(c2, c1));
+  sycl::vec<T, 2> v5 = op(v3.template swizzle<1, 1>(), v3);
+  assert(v5[0] == op(c2, c1) && v5[1] == op(c2, c2));
+  sycl::vec<T, 2> v6 = op(v3.template swizzle<1, 1>(), v3.template swizzle<0, 0>());
+  assert(v6[0] == op(c2, c1) && v6[1] == op(c2, c1));
 }
 
 int main() {
