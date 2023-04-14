@@ -129,6 +129,18 @@ enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
 /// \return handle to a memory pool that contains ptr or NULL if pointer does not belong to any UMA pool
 uma_memory_pool_handle_t umaPoolByPtr(const void *ptr);
 
+///
+/// \brief Retrieve memory providers associated with a given pool.
+/// \param hPool specified memory pool
+/// \param hProviders [out] pointer to an array of memory providers. If numProviders is not equal to or
+///        greater than the real number of providers, UMA_RESULT_ERROR_INVALID_ARGUMENT is returned.
+/// \param numProviders [in] number of memory providers to return
+/// \param numProvidersRet pointer to the actual number of memory providers.
+enum uma_result_t
+umaPoolGetMemoryProviders(uma_memory_pool_handle_t hPool, size_t numProviders,
+                          uma_memory_provider_handle_t *hProviders,
+                          size_t *numProvidersRet);
+
 #ifdef __cplusplus
 }
 #endif

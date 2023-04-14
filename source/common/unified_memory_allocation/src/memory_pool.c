@@ -6,7 +6,9 @@
  *
  */
 
+#include "memory_provider_internal.h"
 #include "memory_tracker.h"
+
 #include <uma/memory_pool.h>
 #include <uma/memory_pool_ops.h>
 
@@ -133,4 +135,26 @@ enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
 
 uma_memory_pool_handle_t umaPoolByPtr(const void *ptr) {
     return umaMemoryTrackerGetPool(umaMemoryTrackerGet(), ptr);
+}
+
+enum uma_result_t
+umaPoolGetMemoryProviders(uma_memory_pool_handle_t hPool, size_t numProviders,
+                          uma_memory_provider_handle_t *hProviders,
+                          size_t *numProvidersRet) {
+    if (hProviders && numProviders < hPool->numProviders) {
+        return UMA_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (numProvidersRet) {
+        *numProvidersRet = hPool->numProviders;
+    }
+
+    if (hProviders) {
+        for (size_t i = 0; i < hPool->numProviders; i++) {
+            umaTrackingMemoryProviderGetUpstreamProvider(
+                umaMemoryProviderGetPriv(hPool->providers[i]), hProviders + i);
+        }
+    }
+
+    return UMA_RESULT_SUCCESS;
 }

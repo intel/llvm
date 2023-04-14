@@ -10,6 +10,7 @@
 #include <uma/memory_provider.h>
 #include <uma/memory_provider_ops.h>
 
+#include <cassert>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
@@ -171,7 +172,8 @@ enum uma_result_t umaTrackingMemoryProviderCreate(
     uma_memory_provider_handle_t hUpstream, uma_memory_pool_handle_t hPool,
     uma_memory_provider_handle_t *hTrackingProvider) {
     uma_tracking_memory_provider_t params;
-    params.hUpstream = hUpstream, params.hTracker = umaMemoryTrackerGet(),
+    params.hUpstream = hUpstream;
+    params.hTracker = umaMemoryTrackerGet();
     params.pool = hPool;
 
     struct uma_memory_provider_ops_t trackingMemoryProviderOps;
@@ -184,5 +186,14 @@ enum uma_result_t umaTrackingMemoryProviderCreate(
 
     return umaMemoryProviderCreate(&trackingMemoryProviderOps, &params,
                                    hTrackingProvider);
+}
+
+void umaTrackingMemoryProviderGetUpstreamProvider(
+    uma_memory_provider_handle_t hTrackingProvider,
+    uma_memory_provider_handle_t *hUpstream) {
+    assert(hUpstream);
+    uma_tracking_memory_provider_t *p =
+        (uma_tracking_memory_provider_t *)hTrackingProvider;
+    *hUpstream = p->hUpstream;
 }
 }
