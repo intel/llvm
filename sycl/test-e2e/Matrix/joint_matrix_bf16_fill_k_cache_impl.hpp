@@ -1,0 +1,267 @@
+//==---------
+//------------------------------------------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===-------------------------------------------------------------------------===//
+
+// number of test iterations
+constexpr unsigned int testIterations = 100;
+// start recording time after X iterations
+constexpr unsigned int recordThresh = 10;
+
+#ifndef MATRIX_SIZE
+#define MATRIX_SIZE 256
+#endif
+
+#define MATRIX_M MATRIX_SIZE
+#define MATRIX_N MATRIX_SIZE
+#define MATRIX_K MATRIX_SIZE
+
+#define tM 8
+#define tN 16
+#define tK 16
+
+#ifndef MCACHE1
+#define MCACHE1 32
+#endif
+#ifndef NCACHE1
+#define NCACHE1 64
+#endif
+#ifndef KCACHE1
+#define KCACHE1 16
+#endif
+
+#ifndef MCACHE2
+#define MCACHE2 256
+#endif
+#ifndef NCACHE2
+#define NCACHE2 256
+#endif
+#ifndef KCACHE2
+#define KCACHE2 32
+#endif
+
+#define BF16_EPSILON 0.00781250
+
+#if ((MATRIX_M < tM) || (MATRIX_K < tK) || (MATRIX_N < tN))
+#error AMX test: invalid matrix size
+#endif
+
+#if ((MATRIX_M % tM) || (MATRIX_N % tN) || (MATRIX_K % tK))
+#error AMX test: invalid matrix size detected: not a multiple of <tM,tN,tK>
+#endif
+
+float make_fp32(bfloat16 x) {
+  unsigned int y = *((int *)&x);
+  y = y << 16;
+  return *(reinterpret_cast<float *>(&y));
+}
+
+bfloat16 *A, *A2, *B, *vnniB, *vnniB2;
+float *C, *refC;
+
+template <unsigned int rowsA, unsigned int colsA, unsigned int rowsB,
+          unsigned int colsB, unsigned int vnniFactor, typename TOperand,
+          typename TResult, unsigned int sgSize = 16>
+double joint_matmul(TOperand *A, TOperand *A2, TOperand *B, TOperand *B2,
+                    TResult *C, queue &q, int i) {
+  range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * sgSize}; // X/128,Y/128
+  range<2> cachelocal{MCACHE2 / MCACHE1, NCACHE2 / NCACHE1 * sgSize};
+  // 4x4SGs
+  // each SG 32x64x32 iterations --> 32 DPAS
+  // SG size = 16
+
+  // throw error if padding needed
+  assert(colsA == rowsB);
+  assert(rowsA % tM == 0);
+  assert(colsA % tK == 0);
+  assert(colsB % tN == 0);
+
+  auto pA = multi_ptr<TOperand, sycl::access::address_space::global_space>(A);
+  auto pB = multi_ptr<TOperand, sycl::access::address_space::global_space>(B);
+  auto pC = multi_ptr<TResult, sycl::access::address_space::global_space>(C);
+
+  // submit main kernel
+  std::chrono::high_resolution_clock::time_point start =
+      std::chrono::high_resolution_clock::now();
+
+  auto mk = q.submit([&](handler &h) {
+    h.parallel_for( // cache layer#1
+        nd_range<2>{global, cachelocal},
+        // loop global
+        // loop localrange
+        [=](nd_item<2> it) [[intel::reqd_sub_group_size(sgSize)]] {
+          auto m2 = it.get_group(0);
+          auto n2 = it.get_group(1);
+          auto m1 = it.get_local_id(0);
+          auto n1 = it.get_local_id(1) / sgSize;
+          auto sg = it.get_sub_group();
+          joint_matrix<sub_group, TResult, use::accumulator, tM, tN>
+              tC[MCACHE1 / tM][NCACHE1 / tN];
+          for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
+            for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
+              joint_matrix_fill(sg, tC[m][n], 0);
+            }
+          }
+
+          for (unsigned int k2 = 0; k2 < colsA / KCACHE2; k2++) {
+            joint_matrix<sub_group, TOperand, use::a, tM, tK, layout::row_major>
+                tA[MCACHE1 / tM][KCACHE2 / KCACHE1];
+
+            joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                         ext::intel::experimental::matrix::layout::packed>
+                tB[NCACHE1 / tN][KCACHE2 / KCACHE1];
+            for (unsigned int k1 = 0; k1 < KCACHE2 / KCACHE1; k1++) {
+              //  physical layer
+              unsigned int k = (k2 * KCACHE2 + k1 * KCACHE1) / tK;
+              for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
+                joint_matrix_load(
+                    sg, tA[m][k1],
+                    pA + (m2 * MCACHE2 + m1 * MCACHE1 + m * tM) * colsA +
+                        k * tK,
+                    colsA);
+              }
+
+              for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
+                joint_matrix_load(
+                    sg, tB[n][k1],
+                    pB + (k * tK / vnniFactor) * (colsB * vnniFactor) +
+                        (n2 * NCACHE2 + n1 * NCACHE1 + n * tN) * vnniFactor,
+                    colsB * vnniFactor);
+              }
+              for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
+                for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
+                  tC[m][n] = joint_matrix_mad(sg, tA[m][k1], tB[n][k1],
+                                              tC[m][n]); // 32 DPAS
+                }
+              }
+            }
+          } // for k2
+          for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
+            for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
+              joint_matrix_store(
+                  sg, tC[m][n],
+                  pC + (m2 * MCACHE2 + m1 * MCACHE1 + m * tM) * colsB +
+                      (n2 * NCACHE2 + n1 * NCACHE1 + n * tN),
+                  colsB, layout::row_major);
+            }
+          }
+        });
+  });
+  if (i == testIterations - 1)
+    q.wait();
+  std::chrono::duration<double, std::milli> duration =
+      std::chrono::high_resolution_clock::now() - start;
+
+  return duration.count();
+}
+
+void fill_matrix(bfloat16 *M) {
+  std::random_device dev;
+  std::uniform_real_distribution<float> fdistr(-1.0, 1.0);
+  for (unsigned int i = 0; i < MATRIX_SIZE; i++) {
+    for (unsigned int j = 0; j < MATRIX_SIZE; j++) {
+      M[i * MATRIX_SIZE + j] = bfloat16(fdistr(dev));
+    }
+  }
+}
+
+void native_matmul(bfloat16 *A, bfloat16 *B, float *C) {
+  memset(C, 0, sizeof(float) * MATRIX_SIZE * MATRIX_SIZE);
+  for (unsigned int i = 0; i < MATRIX_SIZE; i++) {
+    for (unsigned int k = 0; k < MATRIX_SIZE; k++) {
+      for (unsigned int j = 0; j < MATRIX_SIZE; j++) {
+        C[i * MATRIX_SIZE + j] += make_fp32(A[i * MATRIX_SIZE + k]) *
+                                  make_fp32(B[k * MATRIX_SIZE + j]);
+      }
+    }
+  }
+}
+
+int verify_result(float *result, float *ref, float floatTol = BF16_EPSILON) {
+  for (unsigned int i = 0; i < MATRIX_M; i++) {
+    for (unsigned int j = 0; j < MATRIX_N; j++) {
+      float a = result[i * MATRIX_N + j];
+      float b = ref[i * MATRIX_N + j];
+      if ((fabs(a - b)) > floatTol) {
+        std::cout << "failed at index " << i << ", " << j << ", res " << a
+                  << " != ref " << b << " difference is " << a - b << "\n";
+        return 1;
+      }
+      // assert((fabs(a) - fabs(b)) <= floatTol);
+    }
+  }
+
+  return 0;
+}
+
+template <typename T>
+void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
+                 unsigned int vnniFactor = 2) {
+  for (unsigned int i = 0; i < rows / vnniFactor; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      for (unsigned int k = 0; k < vnniFactor; k++) {
+        dest[i * cols * vnniFactor + j * vnniFactor + k] =
+            src[(i * vnniFactor + k) * cols + j];
+      }
+    }
+  }
+}
+
+double run(queue &q, int i) {
+  // run and time
+  double ret = joint_matmul<MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE,
+                            2, bfloat16, float>(A, A2, vnniB, vnniB2, C, q, i);
+  return ret;
+}
+
+int main(void) {
+  queue q;
+  A = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
+  A2 = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
+  B = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
+  vnniB = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
+  vnniB2 = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
+  C = malloc_shared<float>(MATRIX_SIZE * MATRIX_SIZE, q);
+  refC = malloc_shared<float>(MATRIX_SIZE * MATRIX_SIZE, q);
+  
+  // Initialize; fill matrices
+  fill_matrix(A);
+  fill_matrix(B);
+  matrix_vnni<bfloat16>(MATRIX_SIZE, MATRIX_SIZE, B, vnniB, 2);
+  native_matmul(A, B, refC);
+
+  std::cout << "Running tests...";
+
+  // run testIterations time, aggregate and calculate average run time,
+  // does not check for correctness of operation in this example
+  double totalDuration = 0;
+  for (unsigned int i = 0; i < testIterations; i++) {
+    double duration = run(q, i);
+    if (i >= recordThresh) {
+      totalDuration += duration;
+    }
+  }
+
+  int ret = verify_result(C, refC);
+
+  double msecPerMatrixMul =
+      totalDuration / static_cast<double>(testIterations - recordThresh);
+  double gflops = (2.f * MATRIX_SIZE * MATRIX_SIZE * MATRIX_SIZE * 1.0e-9f) /
+                  (msecPerMatrixMul / 1000.f);
+
+  std::cout << "DONE for size " << MATRIX_SIZE << std::endl;
+  std::cout << "Average test time is " << msecPerMatrixMul << " ms"
+            << std::endl;
+
+  std::cout << "GOPS is " << gflops << " Gop/s" << std::endl;
+
+  free(A, q);
+  free(vnniB, q);
+  free(C, q);
+
+  return ret;
+}
