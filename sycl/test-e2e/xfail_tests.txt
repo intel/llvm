@@ -169,8 +169,11 @@ HierPar/hier_par_wgscope.cpp
 HierPar/hier_par_wgscope_O0.cpp
 InorderQueue/in_order_kernels.cpp
 KernelAndProgram/spec_constants_after_link.cpp
+KernelFusion/abort_internalization.cpp
 KernelFusion/abort_internalization_stored_ptr.cpp
+KernelFusion/barrier_local_internalization.cpp
 KernelFusion/different_nd_ranges.cpp
+KernelFusion/local_internalization.cpp
 KernelFusion/struct_with_array.cpp
 KernelParams/array-kernel-param-nested-run.cpp
 KernelParams/array-kernel-param-run.cpp
