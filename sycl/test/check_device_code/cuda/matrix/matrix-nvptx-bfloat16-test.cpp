@@ -50,20 +50,20 @@ int main() {
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               stride, layout::row_major);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.bf16.p0i32(i32* %11, i32 16
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.bf16.p0i32(i32* %10, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.bf16.p0(ptr %10, i32 16
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.bf16.p0i32(i32* %18, i32 16
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.bf16.p0i32(i32* %16, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.bf16.p0(ptr %16, i32 16
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.row.row.bf16(i32 %13, i32 %14, i32 %15, i32 %16, i32 %20, i32 %21, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
+          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.row.row.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %18, i32 %19, i32 %20, i32 %21, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.row.row.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %18, i32 %19, i32 %20, i32 %21, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p0f32(float* %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
+          // CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p0f32(float* %31, float %23, float %24, float %25, float %26, float %27, float %28, float %29, float %30, i32 16
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p0(ptr %31, float %23, float %24, float %25, float %26, float %27, float %28, float %29, float %30, i32 16
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
@@ -86,20 +86,20 @@ int main() {
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               stride, layout::col_major);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.bf16.p0i32(i32* %11, i32 16
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.bf16.p0i32(i32* %10, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.bf16.p0(ptr %10, i32 16
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.bf16.p0i32(i32* %18, i32 16
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.bf16.p0i32(i32* %16, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.bf16.p0(ptr %16, i32 16
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.col.col.bf16(i32 %13, i32 %14, i32 %15, i32 %16, i32 %20, i32 %21, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
+          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.col.col.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %18, i32 %19, i32 %20, i32 %21, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.col.col.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %18, i32 %19, i32 %20, i32 %21, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p0f32(float* %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
+          // CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p0f32(float* %31, float %23, float %24, float %25, float %26, float %27, float %28, float %29, float %30, i32 16
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p0(ptr %31, float %23, float %24, float %25, float %26, float %27, float %28, float %29, float %30, i32 16
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
@@ -122,20 +122,20 @@ int main() {
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               stride, layout::row_major);
-          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.bf16.p0i32(i32* %11, i32 16
+          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.bf16.p0i32(i32* %10, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.bf16.p0(ptr %10, i32 16
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.bf16.p0i32(i32* %22, i32 16
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.bf16.p0i32(i32* %20, i32 16
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.bf16.p0(ptr %20, i32 16
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.row.row.bf16(i32 %13, i32 %14, i32 %15, i32 %16, i32 %17, i32 %18, i32 %19, i32 %20, i32 %24, i32 %25, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
+          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.row.row.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %16, i32 %17, i32 %18, i32 %19, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.row.row.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %16, i32 %17, i32 %18, i32 %19, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.row.stride.f32.p0f32(float* %35, float %27, float %28, float %29, float %30, float %31, float %32, float %33, float %34, i32 16
+          // CHECK: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.row.stride.f32.p0f32(float* %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.row.stride.f32.p0(ptr %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
@@ -158,20 +158,20 @@ int main() {
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               stride, layout::col_major);
-          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.bf16.p0i32(i32* %11, i32 16
+          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.bf16.p0i32(i32* %10, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.bf16.p0(ptr %10, i32 16
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.bf16.p0i32(i32* %22, i32 16
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.bf16.p0i32(i32* %20, i32 16
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.bf16.p0(ptr %20, i32 16
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.col.col.bf16(i32 %13, i32 %14, i32 %15, i32 %16, i32 %17, i32 %18, i32 %19, i32 %20, i32 %24, i32 %25, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
+          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.col.col.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %16, i32 %17, i32 %18, i32 %19, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.col.col.bf16(i32 %12, i32 %13, i32 %14, i32 %15, i32 %16, i32 %17, i32 %18, i32 %19, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.col.stride.f32.p0f32(float* %35, float %27, float %28, float %29, float %30, float %31, float %32, float %33, float %34, i32 16
+          // CHECK: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.col.stride.f32.p0f32(float* %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.col.stride.f32.p0(ptr %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
@@ -194,20 +194,20 @@ int main() {
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               stride, layout::row_major);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.bf16.p0i32(i32* %11, i32 16
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.bf16.p0i32(i32* %10, i32 16
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.bf16.p0(ptr %10, i32 16
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.bf16.p0i32(i32* %16, i32 16
+          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.bf16.p0i32(i32* %14, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.bf16.p0(ptr %14, i32 16
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.row.row.bf16(i32 %13, i32 %14, i32 %18, i32 %19, i32 %20, i32 %21, i32 %22, i32 %23, i32 %24, i32 %25, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
+          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.row.row.bf16(i32 %12, i32 %13, i32 %16, i32 %17, i32 %18, i32 %19, i32 %20, i32 %21, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.row.row.bf16(i32 %12, i32 %13, i32 %16, i32 %17, i32 %18, i32 %19, i32 %20, i32 %21, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.row.stride.f32.p0f32(float* %35, float %27, float %28, float %29, float %30, float %31, float %32, float %33, float %34, i32 16
+          // CHECK: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.row.stride.f32.p0f32(float* %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.row.stride.f32.p0(ptr %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
@@ -230,20 +230,20 @@ int main() {
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               stride, layout::col_major);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.bf16.p0i32(i32* %11, i32 16
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.bf16.p0i32(i32* %10, i32 16
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.bf16.p0(ptr %10, i32 16
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.bf16.p0i32(i32* %16, i32 16
+          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.bf16.p0i32(i32* %14, i32 16
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.bf16.p0(ptr %14, i32 16
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               stride);
-          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.col.col.bf16(i32 %13, i32 %14, i32 %18, i32 %19, i32 %20, i32 %21, i32 %22, i32 %23, i32 %24, i32 %25, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
+          // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.col.col.bf16(i32 %12, i32 %13, i32 %16, i32 %17, i32 %18, i32 %19, i32 %20, i32 %21, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.col.col.bf16(i32 %12, i32 %13, i32 %16, i32 %17, i32 %18, i32 %19, i32 %20, i32 %21, i32 %22, i32 %23, float %2, float %3, float %4, float %5, float %6, float %7, float %8, float %9
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.col.stride.f32.p0f32(float* %35, float %27, float %28, float %29, float %30, float %31, float %32, float %33, float %34, i32 16
+          // CHECK: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.col.stride.f32.p0f32(float* %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.col.stride.f32.p0(ptr %33, float %25, float %26, float %27, float %28, float %29, float %30, float %31, float %32, i32 16
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
