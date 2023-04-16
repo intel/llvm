@@ -49,14 +49,14 @@ int main() {
         size_t offset = i;
         vec<int, VEC> in1;
         in1.load(offset,
-                 accIn1.template get_multi_ptr<access::decorated::no>());
+                 accIn1.template get_multi_ptr<access::decorated::legacy>());
         vec<int, VEC> in2;
         in2.load(offset,
-                 accIn2.template get_multi_ptr<access::decorated::no>());
+                 accIn2.template get_multi_ptr<access::decorated::legacy>());
         auto tmp = in1 + in2;
         tmp.store(
             offset,
-            accTmp.template get_multi_ptr<sycl::access::decorated::yes>());
+            accTmp.template get_multi_ptr<sycl::access::decorated::legacy>());
       });
     });
 
@@ -68,14 +68,15 @@ int main() {
       cgh.parallel_for<class KernelTwo>(numVec, [=](id<1> i) {
         size_t offset = i;
         vec<int, VEC> tmp;
-        tmp.load(offset,
-                 accTmp.template get_multi_ptr<sycl::access::decorated::yes>());
+        tmp.load(
+            offset,
+            accTmp.template get_multi_ptr<sycl::access::decorated::legacy>());
         vec<int, VEC> in3;
         in3.load(offset,
-                 accIn3.template get_multi_ptr<access::decorated::no>());
+                 accIn3.template get_multi_ptr<access::decorated::legacy>());
         auto out = tmp * in3;
         out.store(offset,
-                  accOut.template get_multi_ptr<access::decorated::no>());
+                  accOut.template get_multi_ptr<access::decorated::legacy>());
       });
     });
 
