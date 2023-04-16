@@ -2063,6 +2063,17 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
+/// API to get backend specific option.
+/// \param frontend_option is a string that contains frontend option.
+/// \param backend_option is used to return the backend option corresponding to
+/// frontend option.
+///
+/// \return PI_SUCCESS is returned for valid frontend_option. If a valid backend
+/// option is not available, an empty string is returned.
+__SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
+                                                 const char *frontend_option,
+                                                 const char **backend_option);
+
 /// Queries  device for it's global timestamp in nanoseconds, and updates
 /// HostTime  with the value of the host timer at the closest possible point in
 /// time to that at which DeviceTime was returned.
