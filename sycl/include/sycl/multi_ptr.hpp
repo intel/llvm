@@ -113,6 +113,7 @@ public:
       : m_Pointer(ptr) {}
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
 
+  // Implicit conversion from multi_ptr<T> to multi_ptr<const T>
   template <
       typename _ElementType,
       typename = typename detail::enable_if_t<
