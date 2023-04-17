@@ -8,10 +8,12 @@
 
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -19,6 +21,59 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
+
+/// Returns true if the function \p func has linkonce_odr linkage, and false
+/// otherwise.
+static constexpr StringRef linkageAttrName = "llvm.linkage";
+static bool isLinkonceODR(FunctionOpInterface func) {
+  if (!func->hasAttr(linkageAttrName))
+    return false;
+  auto attr = dyn_cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
+  assert(attr && "Expecting LLVM::LinkageAttr");
+  return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
+}
+
+bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+  // The function must be defined, and private or with linkonce_odr linkage.
+  if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
+    return false;
+
+  ModuleOp module = func->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+
+  // Ensure all the call sites for this function are tail calls.
+  if (any_of(userMap.getUsers(func), [](Operation *call) {
+        if (!call->getBlock()->hasNoSuccessors())
+          return true;
+        Operation *op = call->getNextNode();
+        while (op) {
+          if (!isMemoryEffectFree(op))
+            return true;
+          op = op->getNextNode();
+        }
+        return false;
+      }))
+    return false;
+
+  // Ensure all the call sites for this function are from a GPU kernel.
+  // Return true if \p func only called from GPU kernel, return false otherwise.
+  std::function<bool(FunctionOpInterface)> isOnlyCalledFromGPUKernel =
+      [&](FunctionOpInterface func) {
+        return all_of(userMap.getUsers(func), [&](Operation *call) {
+          if (auto gpuFunc = call->getParentOfType<gpu::GPUFuncOp>())
+            if (gpuFunc.isKernel())
+              return true;
+          if (auto callerFunc = call->getParentOfType<FunctionOpInterface>())
+            return isOnlyCalledFromGPUKernel(callerFunc);
+          return false;
+        });
+      };
+  if (!isOnlyCalledFromGPUKernel)
+    return false;
+
+  return true;
+}
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(0).front();

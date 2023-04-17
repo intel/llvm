@@ -48,7 +48,7 @@ gpu.module @device_func {
     gpu.return
   }
 
-  // COM: Ensure that the peelable argument is peeled if there is a non-aliased instruction after the call.
+  // COM: Ensure that the peelable argument is peeled if it is called from a GPU kernel.
   func.func private @callee1_wrapper(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 {
     // CHECK-LABEL: func.func private @callee1_wrapper
     // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64
@@ -57,11 +57,8 @@ gpu.module @device_func {
     // CHECK-NEXT:    %c1 = arith.constant 1 : index
     // CHECK-NEXT:    [[ARG1:%.*]] = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi64>
     // CHECK-NEXT:    {{.*}} = call @callee1([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xi64>) -> i64
-    %alloca = memref.alloca() : memref<i64>        
     %0 = func.call @callee1(%arg0) : (memref<?x!llvm.struct<(i32, i64)>>) -> i64
-    %1 = memref.load %alloca[] : memref<i64>
-    %add = arith.addi %0, %1 : i64
-    func.return %add : i64
+    func.return %0 : i64
   }
 
   // COM: Test that multiple peelable arguments are peeled correctly.

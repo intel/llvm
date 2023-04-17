@@ -23,6 +23,7 @@ class AffineForOp;
 class AffineIfOp;
 class AffineParallelOp;
 class DominanceInfo;
+class FunctionOpInterface;
 class LoopLikeOpInterface;
 class PatternRewriter;
 class RegionBranchOpInterface;
@@ -42,6 +43,10 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        SmallVectorImpl<Value> *operands,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
+
+/// Return true if the given function is potentially a SYCL kernel body
+/// function.
+bool isPotentialKernelBodyFunc(FunctionOpInterface);
 
 //===----------------------------------------------------------------------===//
 // Loop Versioning Utilities
