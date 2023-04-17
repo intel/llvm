@@ -27,6 +27,9 @@ namespace ur_validation_layer
         func_name=th.make_func_name(n, tags, obj)
         object_param=th.make_param_lines(n, tags, obj, format=["name"])[-1]
         object_param_type=th.make_param_lines(n, tags, obj, format=["type"])[-1]
+        param_checks=th.make_param_checks(n, tags, obj, meta=meta).items()
+        first_errors = [X + "_RESULT_ERROR_INVALID_NULL_POINTER", X + "_RESULT_ERROR_INVALID_NULL_HANDLE"]
+        sorted_param_checks = sorted(param_checks, key=lambda pair: False if pair[0] in first_errors else True)
     %>
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
@@ -47,7 +50,7 @@ namespace ur_validation_layer
 
         if( context.enableParameterValidation )
         {
-            %for key, values in th.make_param_checks(n, tags, obj, meta=meta).items():
+            %for key, values in sorted_param_checks:
             %for val in values:
             if( ${val} )
                 return ${key};
