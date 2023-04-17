@@ -239,74 +239,6 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 }
 /// \endcond
 
-// Determine local work sizes that result in uniform work groups.
-// The default threadsPerBlock only require handling the first work_dim
-// dimension.
-void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
-                        const size_t *global_work_size,
-                        const size_t maxThreadsPerBlock[3], pi_kernel kernel,
-                        pi_uint32 local_size) {
-  assert(threadsPerBlock != nullptr);
-  assert(global_work_size != nullptr);
-  assert(kernel != nullptr);
-  int minGrid, maxBlockSize, maxBlockDim[3];
-
-  static auto isPrime = [](size_t number) -> bool {
-    auto lastNumToCheck = ceil(sqrt(number));
-    if (number < 2)
-      return false;
-    if (number == 2)
-      return true;
-    if (number % 2 == 0)
-      return false;
-    for (int i = 3; i <= lastNumToCheck; i += 2) {
-      if (number % i == 0)
-        return false;
-    }
-    return true;
-  };
-
-  cuDeviceGetAttribute(&maxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                       device->get());
-  cuDeviceGetAttribute(&maxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                       device->get());
-
-  PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &maxBlockSize, kernel->get(), NULL, local_size,
-      maxThreadsPerBlock[0]));
-
-  threadsPerBlock[2] = std::min(global_work_size[2], size_t(maxBlockDim[2]));
-  threadsPerBlock[1] =
-      std::min(global_work_size[1], std::min(maxBlockSize / threadsPerBlock[2],
-                                             size_t(maxBlockDim[1])));
-  maxBlockDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
-  threadsPerBlock[0] =
-      std::min(maxThreadsPerBlock[0],
-               std::min(global_work_size[0], size_t(maxBlockDim[0])));
-
-  // When global_work_size[0] is prime threadPerBlock[0] will later computed as
-  // 1, which is not efficient configuration. In such case we use
-  // global_work_size[0] + 1 to compute threadPerBlock[0].
-  int adjusted_0_dim_global_work_size =
-      (isPrime(global_work_size[0]) &&
-       (threadsPerBlock[0] != global_work_size[0]))
-          ? global_work_size[0] + 1
-          : global_work_size[0];
-
-  static auto isPowerOf2 = [](size_t value) -> bool {
-    return value && !(value & (value - 1));
-  };
-
-  // Find a local work group size that is a divisor of the global
-  // work group size to produce uniform work groups.
-  // Additionally, for best compute utilisation, the local size has
-  // to be a power of two.
-  while (0u != (adjusted_0_dim_global_work_size % threadsPerBlock[0]) ||
-         !isPowerOf2(threadsPerBlock[0])) {
-    --threadsPerBlock[0];
-  }
-}
-
 pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list) {
@@ -365,27 +297,6 @@ void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
   }
 }
 
-// Helper to verify out-of-registers case (exceeded block max registers).
-// If the kernel requires a number of registers for the entire thread
-// block exceeds the hardware limitations, then the cuLaunchKernel call
-// will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
-bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
-                                     size_t blockSize) {
-  assert(device);
-  assert(kernel);
-
-  int maxRegsPerBlock{0};
-  PI_CHECK_ERROR(cuDeviceGetAttribute(
-      &maxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
-      device->get()));
-
-  int regsPerThread{0};
-  PI_CHECK_ERROR(cuFuncGetAttribute(&regsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                                    kernel->get()));
-
-  return blockSize * regsPerThread > size_t(maxRegsPerBlock);
-}
-
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -420,20 +331,6 @@ void assertion(bool Condition, const char *Message) {
 
 //--------------
 // PI object implementation
-
-extern "C" {
-
-// Required in a number of functions, so forward declare here
-pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
-                                   pi_uint32 num_events_in_wait_list,
-                                   const pi_event *event_wait_list,
-                                   pi_event *event);
-pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
-                                              pi_uint32 num_events_in_wait_list,
-                                              const pi_event *event_wait_list,
-                                              pi_event *event);
-
-} // extern "C"
 
 /// \endcond
 
@@ -953,172 +850,6 @@ pi_result cuda_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
-pi_result cuda_piEnqueueKernelLaunch(
-    pi_queue command_queue, pi_kernel kernel, pi_uint32 work_dim,
-    const size_t *global_work_offset, const size_t *global_work_size,
-    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-
-  // Preconditions
-  assert(command_queue != nullptr);
-  assert(command_queue->get_context() == kernel->get_context());
-  assert(kernel != nullptr);
-  assert(global_work_offset != nullptr);
-  assert(work_dim > 0);
-  assert(work_dim < 4);
-
-  if (*global_work_size == 0) {
-    return cuda_piEnqueueEventsWaitWithBarrier(
-        command_queue, num_events_in_wait_list, event_wait_list, event);
-  }
-
-  // Set the number of threads per block to the number of threads per warp
-  // by default unless user has provided a better number
-  size_t threadsPerBlock[3] = {32u, 1u, 1u};
-  size_t maxWorkGroupSize = 0u;
-  size_t maxThreadsPerBlock[3] = {};
-  bool providedLocalWorkGroupSize = (local_work_size != nullptr);
-  pi_uint32 local_size = kernel->get_local_size();
-  pi_result retError = PI_SUCCESS;
-
-  try {
-    // Set the active context here as guessLocalWorkSize needs an active context
-    ScopedContext active(command_queue->get_context());
-    {
-      size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
-      maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
-      command_queue->device_->get_max_work_item_sizes(
-          sizeof(maxThreadsPerBlock), maxThreadsPerBlock);
-
-      if (providedLocalWorkGroupSize) {
-        auto isValid = [&](int dim) {
-          if (reqdThreadsPerBlock[dim] != 0 &&
-              local_work_size[dim] != reqdThreadsPerBlock[dim])
-            return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-
-          if (local_work_size[dim] > maxThreadsPerBlock[dim])
-            return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-          // Checks that local work sizes are a divisor of the global work sizes
-          // which includes that the local work sizes are neither larger than
-          // the global work sizes and not 0.
-          if (0u == local_work_size[dim])
-            return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-          if (0u != (global_work_size[dim] % local_work_size[dim]))
-            return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-          threadsPerBlock[dim] = local_work_size[dim];
-          return PI_SUCCESS;
-        };
-
-        size_t kernelLocalWorkGroupSize = 0;
-        for (size_t dim = 0; dim < work_dim; dim++) {
-          auto err = isValid(dim);
-          if (err != PI_SUCCESS)
-            return err;
-          // If no error then sum the total local work size per dim.
-          kernelLocalWorkGroupSize += local_work_size[dim];
-        }
-
-        if (hasExceededMaxRegistersPerBlock(
-                reinterpret_cast<pi_device>(command_queue->device_), kernel,
-                kernelLocalWorkGroupSize)) {
-          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
-      } else {
-        guessLocalWorkSize(reinterpret_cast<pi_device>(command_queue->device_),
-                           threadsPerBlock, global_work_size,
-                           maxThreadsPerBlock, kernel, local_size);
-      }
-    }
-
-    if (maxWorkGroupSize <
-        size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
-      return PI_ERROR_INVALID_WORK_GROUP_SIZE;
-    }
-
-    size_t blocksPerGrid[3] = {1u, 1u, 1u};
-
-    for (size_t i = 0; i < work_dim; i++) {
-      blocksPerGrid[i] =
-          (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
-    }
-
-    std::unique_ptr<_pi_event> retImplEv{nullptr};
-
-    pi_uint32 stream_token;
-    _pi_stream_guard guard;
-    CUstream cuStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list,
-        reinterpret_cast<const ur_event_handle_t *>(event_wait_list), guard,
-        &stream_token);
-    CUfunction cuFunc = kernel->get();
-
-    retError = enqueueEventsWait(command_queue, cuStream,
-                                 num_events_in_wait_list, event_wait_list);
-
-    // Set the implicit global offset parameter if kernel has offset variant
-    if (kernel->get_with_offset_parameter()) {
-      std::uint32_t cuda_implicit_offset[3] = {0, 0, 0};
-      if (global_work_offset) {
-        for (size_t i = 0; i < work_dim; i++) {
-          cuda_implicit_offset[i] =
-              static_cast<std::uint32_t>(global_work_offset[i]);
-          if (global_work_offset[i] != 0) {
-            cuFunc = kernel->get_with_offset_parameter();
-          }
-        }
-      }
-      kernel->set_implicit_offset_arg(sizeof(cuda_implicit_offset),
-                                      cuda_implicit_offset);
-    }
-
-    auto &argIndices = kernel->get_arg_indices();
-
-    if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
-                                 cuStream, stream_token));
-      retImplEv->start();
-    }
-
-    // Set local mem max size if env var is present
-    static const char *local_mem_sz_ptr =
-        std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
-
-    if (local_mem_sz_ptr) {
-      int device_max_local_mem = 0;
-      cuDeviceGetAttribute(
-          &device_max_local_mem,
-          CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
-          command_queue->get_device()->get());
-
-      static const int env_val = std::atoi(local_mem_sz_ptr);
-      if (env_val <= 0 || env_val > device_max_local_mem) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-      }
-      PI_CHECK_ERROR(cuFuncSetAttribute(
-          cuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, env_val));
-    }
-
-    retError = PI_CHECK_ERROR(cuLaunchKernel(
-        cuFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
-        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2], local_size,
-        cuStream, const_cast<void **>(argIndices.data()), nullptr));
-    if (local_size != 0)
-      kernel->clear_local_size();
-
-    if (event) {
-      retError = map_ur_error(retImplEv->record());
-      *event = retImplEv.release();
-    }
-  } catch (pi_result err) {
-    retError = err;
-  }
-  return retError;
-}
-
 /// \TODO Not implemented
 pi_result cuda_piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
                                      pi_uint32, const pi_mem *, const void **,
@@ -1295,115 +1026,6 @@ pi_result cuda_piMemRetain(pi_mem mem) {
   assert(mem->get_reference_count() > 0);
   mem->increment_reference_count();
   return PI_SUCCESS;
-}
-
-/// Enqueues a wait on the given CUstream for all events.
-/// See \ref enqueueEventWait
-/// TODO: Add support for multiple streams once the Event class is properly
-/// refactored.
-///
-pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
-                                   pi_uint32 num_events_in_wait_list,
-                                   const pi_event *event_wait_list,
-                                   pi_event *event) {
-  return cuda_piEnqueueEventsWaitWithBarrier(
-      command_queue, num_events_in_wait_list, event_wait_list, event);
-}
-
-/// Enqueues a wait on the given CUstream for all specified events (See
-/// \ref enqueueEventWaitWithBarrier.) If the events list is empty, the enqueued
-/// wait will wait on all previous events in the queue.
-///
-/// \param[in] command_queue A valid PI queue.
-/// \param[in] num_events_in_wait_list Number of events in event_wait_list.
-/// \param[in] event_wait_list Events to wait on.
-/// \param[out] event Event for when all events in event_wait_list have finished
-/// or, if event_wait_list is empty, when all previous events in the queue have
-/// finished.
-///
-/// \return TBD
-pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
-                                              pi_uint32 num_events_in_wait_list,
-                                              const pi_event *event_wait_list,
-                                              pi_event *event) {
-  // This function makes one stream work on the previous work (or work
-  // represented by input events) and then all future work waits on that stream.
-  if (!command_queue) {
-    return PI_ERROR_INVALID_QUEUE;
-  }
-
-  pi_result result;
-
-  try {
-    ScopedContext active(command_queue->get_context());
-    pi_uint32 stream_token;
-    _pi_stream_guard guard;
-    CUstream cuStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list,
-        reinterpret_cast<const ur_event_handle_t *>(event_wait_list), guard,
-        &stream_token);
-    {
-      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
-      if (command_queue->barrier_event_ == nullptr) {
-        PI_CHECK_ERROR(cuEventCreate(&command_queue->barrier_event_,
-                                     CU_EVENT_DISABLE_TIMING));
-      }
-      if (num_events_in_wait_list == 0) { //  wait on all work
-        if (command_queue->barrier_tmp_event_ == nullptr) {
-          PI_CHECK_ERROR(cuEventCreate(&command_queue->barrier_tmp_event_,
-                                       CU_EVENT_DISABLE_TIMING));
-        }
-        command_queue->sync_streams(
-            [cuStream,
-             tmp_event = command_queue->barrier_tmp_event_](CUstream s) {
-              if (cuStream != s) {
-                // record a new CUDA event on every stream and make one stream
-                // wait for these events
-                PI_CHECK_ERROR(cuEventRecord(tmp_event, s));
-                PI_CHECK_ERROR(cuStreamWaitEvent(cuStream, tmp_event, 0));
-              }
-            });
-      } else { // wait just on given events
-        forLatestEvents(event_wait_list, num_events_in_wait_list,
-                        [cuStream](pi_event event) -> pi_result {
-                          if (event->get_queue()->has_been_synchronized(
-                                  event->get_compute_stream_token())) {
-                            return PI_SUCCESS;
-                          } else {
-                            return PI_CHECK_ERROR(
-                                cuStreamWaitEvent(cuStream, event->get(), 0));
-                          }
-                        });
-      }
-
-      result = PI_CHECK_ERROR(
-          cuEventRecord(command_queue->barrier_event_, cuStream));
-      for (unsigned int i = 0;
-           i < command_queue->compute_applied_barrier_.size(); i++) {
-        command_queue->compute_applied_barrier_[i] = false;
-      }
-      for (unsigned int i = 0;
-           i < command_queue->transfer_applied_barrier_.size(); i++) {
-        command_queue->transfer_applied_barrier_[i] = false;
-      }
-    }
-    if (result != PI_SUCCESS) {
-      return result;
-    }
-
-    if (event) {
-      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
-                                      cuStream, stream_token);
-      (*event)->start();
-      (*event)->record();
-    }
-
-    return PI_SUCCESS;
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
-  }
 }
 
 /// Creates a PI sampler object
@@ -2238,8 +1860,8 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ScopedContext active(command_queue->get_context());
 
     if (is_pinned) {
-      ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                         event_wait_list, nullptr);
+      ret_err = pi2ur::piEnqueueEventsWait(
+          command_queue, num_events_in_wait_list, event_wait_list, nullptr);
     }
 
     if (event) {
@@ -2293,8 +1915,8 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
     ScopedContext active(command_queue->get_context());
 
     if (is_pinned) {
-      ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                         event_wait_list, nullptr);
+      ret_err = pi2ur::piEnqueueEventsWait(
+          command_queue, num_events_in_wait_list, event_wait_list, nullptr);
     }
 
     if (event) {
@@ -3088,10 +2710,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRetain, cuda_piSamplerRetain)
   _PI_CL(piSamplerRelease, cuda_piSamplerRelease)
   // Queue commands
-  _PI_CL(piEnqueueKernelLaunch, cuda_piEnqueueKernelLaunch)
+  _PI_CL(piEnqueueKernelLaunch, pi2ur::piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, cuda_piEnqueueNativeKernel)
-  _PI_CL(piEnqueueEventsWait, cuda_piEnqueueEventsWait)
-  _PI_CL(piEnqueueEventsWaitWithBarrier, cuda_piEnqueueEventsWaitWithBarrier)
+  _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, cuda_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, cuda_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, cuda_piEnqueueMemBufferWrite)
