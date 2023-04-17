@@ -53,8 +53,7 @@ void MCWinCOFFStreamer::emitInstToData(const MCInst &Inst,
 
   SmallVector<MCFixup, 4> Fixups;
   SmallString<256> Code;
-  raw_svector_ostream VecOS(Code);
-  getAssembler().getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
+  getAssembler().getEmitter().encodeInstruction(Inst, Code, Fixups, STI);
 
   // Add the fixups and data.
   for (unsigned i = 0, e = Fixups.size(); i != e; ++i) {
@@ -116,7 +115,11 @@ bool MCWinCOFFStreamer::emitSymbolAttribute(MCSymbol *S,
   default: return false;
   case MCSA_WeakReference:
   case MCSA_Weak:
-    Symbol->setIsWeakExternal();
+    Symbol->setIsWeakExternal(COFF::IMAGE_WEAK_EXTERN_SEARCH_ALIAS);
+    Symbol->setExternal(true);
+    break;
+  case MCSA_WeakAntiDep:
+    Symbol->setIsWeakExternal(COFF::IMAGE_WEAK_EXTERN_ANTI_DEPENDENCY);
     Symbol->setExternal(true);
     break;
   case MCSA_Global:

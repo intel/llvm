@@ -722,6 +722,9 @@ private:
   detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
+  // NOTE: These members are required for reconstructing the buffer, but are not
+  // part of the implementation class. If more members are added, they should
+  // also be added to the weak_object specialization for buffers.
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
