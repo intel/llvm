@@ -118,6 +118,9 @@ protected:
   opportunistic_group(sub_group_mask m) : Mask(m) {}
 
   friend opportunistic_group this_kernel::get_opportunistic_group();
+
+  friend sub_group_mask
+  sycl::detail::GetMask<opportunistic_group>(opportunistic_group Group);
 };
 
 namespace this_kernel {

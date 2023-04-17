@@ -22,6 +22,7 @@
 #include <sycl/known_identity.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
+#include <sycl/detail/cuda/masked_redux.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -191,12 +192,14 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 //        scalar arithmetic, complex (plus only), and vector arithmetic
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (detail::is_scalar_arithmetic<T>::value ||
-                      (detail::is_complex<T>::value &&
-                       detail::is_multiplies<T, BinaryOperation>::value)) &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+inline __SYCL_ALWAYS_INLINE detail::enable_if_t<
+    ((is_group_v<std::decay_t<Group>> ||
+      ext::oneapi::experimental::is_user_constructed_group_v<
+          Group>)&&(detail::is_scalar_arithmetic<T>::value ||
+                    (detail::is_complex<T>::value &&
+                     detail::is_multiplies<T, BinaryOperation>::value)) &&
+     detail::is_native_op<T, BinaryOperation>::value),
+    T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -205,8 +208,23 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x, x)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+#if (__SYCL_CUDA_ARCH__ >= 800)
+    return detail::masked_reduction_cuda_sm80(
+        g, x, binary_op); // TODO can pass in mask as parameter once we confirm
+                          // all user_constructed_groups have masks for NVPTX
+#else
+    return detail::masked_reduction_cuda_shfls(g, x, binary_op);
+#endif
+  } else {
+    return sycl::detail::calc<__spv::GroupOperation::Reduce>(
+        g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  }
+#else
   return sycl::detail::calc<__spv::GroupOperation::Reduce>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#endif
 #else
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);

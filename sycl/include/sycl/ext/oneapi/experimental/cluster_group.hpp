@@ -126,6 +126,9 @@ protected:
 
   friend cluster_group<ClusterSize, ParentGroup>
   get_cluster_group<ClusterSize, ParentGroup>(ParentGroup g);
+
+  friend sub_group_mask sycl::detail::GetMask<ClusterSize, ParentGroup>(
+      cluster_group<ClusterSize, ParentGroup> Group);
 };
 
 template <size_t ClusterSize, typename Group>
@@ -138,10 +141,14 @@ get_cluster_group(Group group) {
 #if defined(__NVPTX__)
   uint32_t loc_id = group.get_local_linear_id();
   uint32_t loc_size = group.get_local_linear_range();
-  uint32_t bits = (1 << ClusterSize) - 1;
+  uint32_t bits = ClusterSize == 32
+                      ? 0xffffffff
+                      : ((1 << ClusterSize) - 1)
+                            << ((loc_id / ClusterSize) * ClusterSize);
 
-  return cluster_group<ClusterSize, sycl::sub_group>(sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
-      bits << ((loc_id / ClusterSize) * ClusterSize), loc_size));
+  return cluster_group<ClusterSize, sycl::sub_group>(
+      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+          bits, loc_size));
 #else
   return cluster_group<ClusterSize, sycl::sub_group>();
 #endif
@@ -153,6 +160,10 @@ get_cluster_group(Group group) {
 
 template <size_t ClusterSize, typename ParentGroup>
 struct is_user_constructed_group<cluster_group<ClusterSize, ParentGroup>>
+    : std::true_type {};
+
+template <size_t ClusterSize, typename ParentGroup>
+struct is_cluster_group<cluster_group<ClusterSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace ext::oneapi::experimental

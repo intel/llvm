@@ -14,7 +14,9 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-
+namespace ext::oneapi::experimental {
+template <size_t ClusterSize, typename ParentGroup> class cluster_group;
+}
 namespace detail {
 
 inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask) {
@@ -39,9 +41,15 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
 }
 #endif
 
-//todo inline works?
+// todo "inline" works?
 template <typename NonUniformGroup>
 inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
+  return Group.Mask;
+}
+
+template <size_t ClusterSize, typename ParentGroup>
+inline ext::oneapi::sub_group_mask GetMask(
+    ext::oneapi::experimental::cluster_group<ClusterSize, ParentGroup> Group) {
   return Group.Mask;
 }
 
