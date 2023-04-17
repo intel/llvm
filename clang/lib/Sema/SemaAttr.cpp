@@ -845,7 +845,6 @@ void Sema::ActOnPragmaUnused(const Token &IdTok, Scope *curScope,
     Diag(PragmaLoc, diag::warn_used_but_marked_unused) << Name;
 
   VD->addAttr(UnusedAttr::CreateImplicit(Context, IdTok.getLocation(),
-                                         AttributeCommonInfo::AS_Pragma,
                                          UnusedAttr::GNU_unused));
 }
 
@@ -1336,6 +1335,7 @@ void Sema::ActOnPragmaFEnvAccess(SourceLocation Loc, bool IsEnabled) {
       Diag(Loc, diag::err_pragma_fenv_requires_precise);
   }
   NewFPFeatures.setAllowFEnvAccessOverride(IsEnabled);
+  NewFPFeatures.setRoundingMathOverride(IsEnabled);
   FpPragmaStack.Act(Loc, PSK_Set, StringRef(), NewFPFeatures);
   CurFPFeatures = NewFPFeatures.applyOverrides(getLangOpts());
 }
