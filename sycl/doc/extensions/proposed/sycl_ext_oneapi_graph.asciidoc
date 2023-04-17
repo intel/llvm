@@ -587,7 +587,7 @@ node add(T cgf, const property_list& propList = {});
 object statically contains a group of commands, of which a single command is
 executed at runtime. A command group function object may submit any command
 as defined by the core SYCL specification, and any SYCL extensions unless explicitly
-stated otherwise.
+stated otherwise in <<extension-interaction, Interaction With Other Extensions>>.
 The requisites of `cgf` will be used to identify any dependent nodes in the graph
 to form edges with.
 
@@ -955,11 +955,6 @@ ways:
    * `info::event_profiling::command_end` - Timestamp when the last
       command-group node completes execution.
 
-
-For any other queue property that is defined by an extension, it is the
-responsibility of the extension to define the relationship between that queue
-property and this graph extension.
-
 ==== New Queue Member Functions
 
 Table {counter: tableNumber}. Additional member functions of the `sycl::queue` class.
@@ -1220,6 +1215,109 @@ aiming to optimize. Automatic load balancing of commands across devices is not a
 problem this extension currently aims to solve, it is the responsibility of the
 user to decide the device each command will be processed for, not the SYCL
 runtime.
+
+=== Interaction With Other Extensions [[extension-interaction]]
+
+This section defines the interaction of `sycl_ext_oneapi_graph` with other
+extensions.
+
+==== sycl_ext_oneapi_discard_queue_events
+
+When recording a `sycl::queue` which has been created with the
+`ext::oneapi::property::queue::discard_event` property, it is invalid to
+use these events returned from queue submissions to create graph edges. This is
+in-keeping with the
+link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events]
+specification wording that `handler::depends_on()` throws an exception when
+passed an invalid event.
+
+==== sycl_ext_oneapi_enqueue_barrier
+
+The new handler methods, and queue shortcuts, defined by
+link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enqueue_barrier]
+cannot be used in graph nodes. A synchronous exception will be thrown with
+error code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_memcpy2d
+
+The new handler methods, and queue shortcuts, defined by
+link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[sycl_ext_oneapi_memcpy2d]
+cannot be used in graph nodes. A synchronous exception will be thrown with
+error code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_queue_priority
+
+The queue priority property defined by
+link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
+is ignored during queue recording.
+
+==== sycl_ext_oneapi_queue_empty
+
+The `queue::ext_oneapi_empty()` query defined by the
+link:../supported/sycl_ext_oneapi_queue_empty.asciidoc[sycl_ext_oneapi_queue_empty]
+extension behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of this query.
+
+==== sycl_ext_intel_queue_index
+
+The compute index queue property defined by
+link:../supported/sycl_ext_intel_queue_index.asciidoc[sycl_ext_intel_queue_index]
+is ignored during queue recording.
+
+Using this information is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_codeplay_kernel_fusion
+
+As the
+link:../experimental/sycl_ext_codeplay_kernel_fusion.asciidoc[sycl_ext_codeplay_kernel_fusion]
+extension also introduces state to a `sycl::queue`, there are restrictions on
+its usage when combined with `sycl_ext_oneapi_graph`. Exceptions with error code
+`invalid` are thrown in the following cases:
+
+* `fusion_wrapper::start_fusion()` is called when its associated queue
+  is in the recording state.
+* `command_graph::begin_recording()` is called passing a queue in fusion mode.
+
+The `sycl::ext::codeplay::experimental::property::queue::enable_fusion` property
+defined by the extension is ignored by queue recording.
+
+To enable kernel fusion in a `command_graph` see the
+https://github.com/sommerlukas/llvm/blob/proposal/graph-fusion/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
+which is layered ontop of `sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_kernel_properties
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_prod
+
+The new `sycl::queue::ext_oneapi_prod()` method added by
+link:../proposed/sycl_ext_oneapi_prod.asciidoc[sycl_ext_oneapi_prod]
+behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of its operation.
+
+==== sycl_ext_oneapi_device_global
+
+The new handler methods, and queue shortcuts, defined by
+link:../proposed/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
 
 == Examples
 
