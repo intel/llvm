@@ -899,13 +899,13 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             return UR_RESULT_ERROR_INVALID_HOST_PTR;
         }
 
-        if (pProperties->pHost == NULL &&
+        if (pProperties != NULL && pProperties->pHost == NULL &&
             (flags & (UR_MEM_FLAG_USE_HOST_POINTER |
                       UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {
             return UR_RESULT_ERROR_INVALID_HOST_PTR;
         }
 
-        if (pProperties->pHost != NULL &&
+        if (pProperties != NULL && pProperties->pHost != NULL &&
             (flags & (UR_MEM_FLAG_USE_HOST_POINTER |
                       UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0) {
             return UR_RESULT_ERROR_INVALID_HOST_PTR;
