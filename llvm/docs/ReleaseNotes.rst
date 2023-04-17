@@ -191,6 +191,11 @@ Changes to the C API
   have been removed.
 * Removed ``LLVMPassManagerBuilderRef`` and functions interacting with it.
   These belonged to the no longer supported legacy pass manager.
+* Functions for initializing legacy passes like ``LLVMInitializeInstCombine``
+  have been removed. Calls to such functions can simply be dropped, as they are
+  no longer necessary.
+* ``LLVMPassRegistryRef`` and ``LLVMGetGlobalPassRegistry``, which were only
+  useful in conjunction with initialization functions, have been removed.
 * As part of the opaque pointer transition, ``LLVMGetElementType`` no longer
   gives the pointee type of a pointer type.
 * The following functions for creating constant expressions have been removed,
@@ -250,6 +255,12 @@ Changes to LLDB
 
 * LLDB is now able to show the subtype of signals found in a core file. For example
   memory tagging specific segfaults such as ``SIGSEGV: sync tag check fault``.
+
+* LLDB can now display register fields if they are described in target XML sent
+  by a debug server such as ``gdbserver`` (``lldb-server`` does not currently produce
+  this information). Fields are only printed when reading named registers, for
+  example ``register read cpsr``. They are not shown when reading a register set,
+  ``register read -s 0``.
 
 Changes to Sanitizers
 ---------------------

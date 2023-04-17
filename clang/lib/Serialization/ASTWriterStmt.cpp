@@ -1958,6 +1958,7 @@ ASTStmtWriter::VisitCXXUnresolvedConstructExpr(CXXUnresolvedConstructExpr *E) {
   Record.AddTypeSourceInfo(E->getTypeSourceInfo());
   Record.AddSourceLocation(E->getLParenLoc());
   Record.AddSourceLocation(E->getRParenLoc());
+  Record.push_back(E->isListInitialization());
   Code = serialization::EXPR_CXX_UNRESOLVED_CONSTRUCT;
 }
 

@@ -72,8 +72,6 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -145,7 +143,7 @@ class InductiveRangeCheck {
   Use *CheckUse = nullptr;
 
   static bool parseRangeCheckICmp(Loop *L, ICmpInst *ICI, ScalarEvolution &SE,
-                                  Value *&Index, Value *&Length);
+                                  const SCEV *&Index, const SCEV *&End);
 
   static void
   extractRangeChecksFromCond(Loop *L, ScalarEvolution &SE, Use &ConditionUse,
@@ -249,48 +247,16 @@ public:
   bool run(Loop *L, function_ref<void(Loop *, bool)> LPMAddNewLoop);
 };
 
-class IRCELegacyPass : public FunctionPass {
-public:
-  static char ID;
-
-  IRCELegacyPass() : FunctionPass(ID) {
-    initializeIRCELegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<BranchProbabilityInfoWrapperPass>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addRequired<LoopInfoWrapperPass>();
-    AU.addPreserved<LoopInfoWrapperPass>();
-    AU.addRequired<ScalarEvolutionWrapperPass>();
-    AU.addPreserved<ScalarEvolutionWrapperPass>();
-  }
-
-  bool runOnFunction(Function &F) override;
-};
-
 } // end anonymous namespace
 
-char IRCELegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(IRCELegacyPass, "irce",
-                      "Inductive range check elimination", false, false)
-INITIALIZE_PASS_DEPENDENCY(BranchProbabilityInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_END(IRCELegacyPass, "irce", "Inductive range check elimination",
-                    false, false)
-
 /// Parse a single ICmp instruction, `ICI`, into a range check.  If `ICI` cannot
-/// be interpreted as a range check, return false and set `Index` and `Length`
-/// to `nullptr`.  Otherwise set `Index` to the value being range checked, and
-/// set `Length` to the upper limit `Index` is being range checked.
-bool
-InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
-                                         ScalarEvolution &SE, Value *&Index,
-                                         Value *&Length) {
+/// be interpreted as a range check, return false and set `Index` and `End`
+/// to `nullptr`.  Otherwise set `Index` to the SCEV being range checked, and
+/// set `End` to the upper limit `Index` is being range checked.
+bool InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
+                                              ScalarEvolution &SE,
+                                              const SCEV *&Index,
+                                              const SCEV *&End) {
   auto IsLoopInvariant = [&SE, L](Value *V) {
     return SE.isLoopInvariant(SE.getSCEV(V), L);
   };
@@ -308,7 +274,7 @@ InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
     [[fallthrough]];
   case ICmpInst::ICMP_SGE:
     if (match(RHS, m_ConstantInt<0>())) {
-      Index = LHS;
+      Index = SE.getSCEV(LHS);
       return true; // Lower.
     }
     return false;
@@ -318,13 +284,13 @@ InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
     [[fallthrough]];
   case ICmpInst::ICMP_SGT:
     if (match(RHS, m_ConstantInt<-1>())) {
-      Index = LHS;
+      Index = SE.getSCEV(LHS);
       return true; // Lower.
     }
 
     if (IsLoopInvariant(LHS)) {
-      Index = RHS;
-      Length = LHS;
+      Index = SE.getSCEV(RHS);
+      End = SE.getSCEV(LHS);
       return true; // Upper.
     }
     return false;
@@ -334,8 +300,8 @@ InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
     [[fallthrough]];
   case ICmpInst::ICMP_UGT:
     if (IsLoopInvariant(LHS)) {
-      Index = RHS;
-      Length = LHS;
+      Index = SE.getSCEV(RHS);
+      End = SE.getSCEV(LHS);
       return true; // Both lower and upper.
     }
     return false;
@@ -365,23 +331,20 @@ void InductiveRangeCheck::extractRangeChecksFromCond(
   if (!ICI)
     return;
 
-  Value *Length = nullptr, *Index;
-  if (!parseRangeCheckICmp(L, ICI, SE, Index, Length))
+  const SCEV *End = nullptr, *Index = nullptr;
+  if (!parseRangeCheckICmp(L, ICI, SE, Index, End))
     return;
 
-  const auto *IndexAddRec = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(Index));
+  const auto *IndexAddRec = dyn_cast<SCEVAddRecExpr>(Index);
   bool IsAffineIndex =
       IndexAddRec && (IndexAddRec->getLoop() == L) && IndexAddRec->isAffine();
 
   if (!IsAffineIndex)
     return;
 
-  const SCEV *End = nullptr;
   // We strengthen "0 <= I" to "0 <= I < INT_SMAX" and "I < L" to "0 <= I < L".
   // We can potentially do much better here.
-  if (Length)
-    End = SE.getSCEV(Length);
-  else {
+  if (!End) {
     // So far we can only reach this point for Signed range check. This may
     // change in future. In this case we will need to pick Unsigned max for the
     // unsigned range check.
@@ -1829,39 +1792,6 @@ PreservedAnalyses IRCEPass::run(Function &F, FunctionAnalysisManager &AM) {
   return getLoopPassPreservedAnalyses();
 }
 
-bool IRCELegacyPass::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-  BranchProbabilityInfo &BPI =
-      getAnalysis<BranchProbabilityInfoWrapperPass>().getBPI();
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  InductiveRangeCheckElimination IRCE(SE, &BPI, DT, LI);
-
-  bool Changed = false;
-
-  for (const auto &L : LI) {
-    Changed |= simplifyLoop(L, &DT, &LI, &SE, nullptr, nullptr,
-                            /*PreserveLCSSA=*/false);
-    Changed |= formLCSSARecursively(*L, DT, &LI, &SE);
-  }
-
-  SmallPriorityWorklist<Loop *, 4> Worklist;
-  appendLoopsToWorklist(LI, Worklist);
-  auto LPMAddNewLoop = [&](Loop *NL, bool IsSubloop) {
-    if (!IsSubloop)
-      appendLoopsToWorklist(*NL, Worklist);
-  };
-
-  while (!Worklist.empty()) {
-    Loop *L = Worklist.pop_back_val();
-    Changed |= IRCE.run(L, LPMAddNewLoop);
-  }
-  return Changed;
-}
-
 bool
 InductiveRangeCheckElimination::isProfitableToTransform(const Loop &L,
                                                         LoopStructure &LS) {
@@ -2000,8 +1930,4 @@ bool InductiveRangeCheckElimination::run(
   }
 
   return Changed;
-}
-
-Pass *llvm::createInductiveRangeCheckEliminationPass() {
-  return new IRCELegacyPass();
 }

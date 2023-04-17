@@ -101,8 +101,16 @@ Improvements to clang-tidy
 - Support specifying `Checks` as a YAML list in the `.clang-tidy` configuration
   file.
 
+- Fix a potential crash when using the `--dump-config` option.
+
 New checks
 ^^^^^^^^^^
+
+- New :doc:`bugprone-non-zero-enum-to-bool-conversion
+  <clang-tidy/checks/bugprone/non-zero-enum-to-bool-conversion>` check.
+
+  Detect implicit and explicit casts of ``enum`` type into ``bool`` where ``enum`` type
+  doesn't have a zero-value enumerator.
 
 - New :doc:`bugprone-unsafe-functions
   <clang-tidy/checks/bugprone/unsafe-functions>` check.
@@ -112,17 +120,17 @@ New checks
   This check relies heavily on, but is not exclusive to, the functions from
   the *Annex K. "Bounds-checking interfaces"* of C11.
 
-- New :doc:`cppcoreguidelines-avoid-capture-default-when-capturing-this
-  <clang-tidy/checks/cppcoreguidelines/avoid-capture-default-when-capturing-this>` check.
-
-  Warns when lambda specify a capture default and capture ``this``.
-
 - New :doc:`cppcoreguidelines-avoid-capturing-lambda-coroutines
   <clang-tidy/checks/cppcoreguidelines/avoid-capturing-lambda-coroutines>` check.
 
   Flags C++20 coroutine lambdas with non-empty capture lists that may cause
   use-after-free errors and suggests avoiding captures or ensuring the lambda
   closure object has a guaranteed lifetime.
+
+- New :doc:`cppcoreguidelines-misleading-capture-default-by-value
+  <clang-tidy/checks/cppcoreguidelines/misleading-capture-default-by-value>` check.
+
+  Warns when lambda specify a by-value capture default and capture ``this``.
 
 - New :doc:`cppcoreguidelines-rvalue-reference-param-not-moved
   <clang-tidy/checks/cppcoreguidelines/rvalue-reference-param-not-moved>` check.
@@ -174,6 +182,10 @@ Changes in existing checks
   arguments to ``std::print``, ``std::format`` or other functions listed in
   the ``StringParameterFunction`` check option.
 
+- Improved :doc:`bugprone-dangling-handle
+  <clang-tidy/checks/bugprone/dangling-handle>` check enhancing detection of
+  handles behind type aliases.
+
 - Deprecated check-local options `HeaderFileExtensions`
   in :doc:`bugprone-dynamic-static-initializers
   <clang-tidy/checks/bugprone/dynamic-static-initializers>` check.
@@ -182,6 +194,10 @@ Changes in existing checks
 - Improved :doc:`bugprone-fold-init-type
   <clang-tidy/checks/bugprone/fold-init-type>` to handle iterators that do not
   define `value_type` type aliases.
+
+- Improved :doc:`bugprone-incorrect-roundings
+  <clang-tidy/checks/bugprone/incorrect-roundings>` check by adding support for
+  other floating point representations in float constant like ``0.5L``.
 
 - Deprecated check-local options `HeaderFileExtensions` and `ImplementationFileExtensions`
   in :doc:`bugprone-suspicious-include
@@ -241,6 +257,11 @@ Changes in existing checks
   <clang-tidy/checks/modernize/use-equals-default>` check for special member
   functions containing macros or preprocessor directives, and out-of-line special
   member functions in unions.
+
+- Improved :doc:`modernize-use-override
+  <clang-tidy/checks/modernize/use-override>` check with new
+  `IgnoreTemplateInstantiations` option to optionally ignore virtual function
+  overrides that are part of template instantiations.
 
 - Fixed reading `HungarianNotation.CString.*` options in
   :doc:`readability-identifier-naming
@@ -302,6 +323,10 @@ Changes in existing checks
 - Improved :doc:`bugprone-use-after-move
   <clang-tidy/checks/bugprone/use-after-move>` to understand that there is a
   sequence point between designated initializers.
+
+- Fixed an issue in the :doc:`performance-noexcept-move-constructor
+  <clang-tidy/checks/performance/noexcept-move-constructor>` checker that was causing
+  false-positives when the move constructor or move assign operator were defaulted.
 
 - Fixed an issue in :doc:`readability-identifier-naming
   <clang-tidy/checks/readability/identifier-naming>` when specifying an empty

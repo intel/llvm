@@ -104,6 +104,7 @@ Clang-Tidy Checks
    `bugprone-move-forwarding-reference <bugprone/move-forwarding-reference.html>`_, "Yes"
    `bugprone-multiple-statement-macro <bugprone/multiple-statement-macro.html>`_,
    `bugprone-no-escape <bugprone/no-escape.html>`_,
+   `bugprone-non-zero-enum-to-bool-conversion <bugprone/non-zero-enum-to-bool-conversion.html>`_,
    `bugprone-not-null-terminated-result <bugprone/not-null-terminated-result.html>`_, "Yes"
    `bugprone-parent-virtual-call <bugprone/parent-virtual-call.html>`_, "Yes"
    `bugprone-posix-return <bugprone/posix-return.html>`_, "Yes"
@@ -179,7 +180,6 @@ Clang-Tidy Checks
    `clang-analyzer-valist.Unterminated <clang-analyzer/valist.Unterminated.html>`_,
    `concurrency-mt-unsafe <concurrency/mt-unsafe.html>`_,
    `concurrency-thread-canceltype-asynchronous <concurrency/thread-canceltype-asynchronous.html>`_,
-   `cppcoreguidelines-avoid-capture-default-when-capturing-this <cppcoreguidelines/avoid-capture-default-when-capturing-this.html>`_, "Yes"
    `cppcoreguidelines-avoid-capturing-lambda-coroutines <cppcoreguidelines/avoid-capturing-lambda-coroutines.html>`_,
    `cppcoreguidelines-avoid-const-or-ref-data-members <cppcoreguidelines/avoid-const-or-ref-data-members.html>`_,
    `cppcoreguidelines-avoid-do-while <cppcoreguidelines/avoid-do-while.html>`_,
@@ -189,6 +189,7 @@ Clang-Tidy Checks
    `cppcoreguidelines-init-variables <cppcoreguidelines/init-variables.html>`_, "Yes"
    `cppcoreguidelines-interfaces-global-init <cppcoreguidelines/interfaces-global-init.html>`_,
    `cppcoreguidelines-macro-usage <cppcoreguidelines/macro-usage.html>`_,
+   `cppcoreguidelines-misleading-capture-default-by-value <cppcoreguidelines/misleading-capture-default-by-value.html>`_, "Yes"
    `cppcoreguidelines-narrowing-conversions <cppcoreguidelines/narrowing-conversions.html>`_,
    `cppcoreguidelines-no-malloc <cppcoreguidelines/no-malloc.html>`_,
    `cppcoreguidelines-owning-memory <cppcoreguidelines/owning-memory.html>`_,

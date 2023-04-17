@@ -73,8 +73,6 @@ namespace {
         return;
 
       (void) llvm::createAAEvalPass();
-      (void)llvm::createBitTrackingDCEPass();
-      (void) llvm::createAlignmentFromAssumptionsPass();
       (void) llvm::createBasicAAWrapperPass();
       (void) llvm::createSCEVAAWrapperPass();
       (void) llvm::createTypeBasedAAWrapperPass();
@@ -97,7 +95,6 @@ namespace {
       (void) llvm::createGlobalsAAWrapperPass();
       (void) llvm::createGuardWideningPass();
       (void) llvm::createLoopGuardWideningPass();
-      (void) llvm::createInductiveRangeCheckEliminationPass();
       (void) llvm::createInstSimplifyLegacyPass();
       (void) llvm::createInstructionCombiningPass();
       (void) llvm::createJMCInstrumenterPass();
