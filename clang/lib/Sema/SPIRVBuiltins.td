@@ -926,9 +926,9 @@ foreach name = ["GroupAll", "GroupAny"] in {
 
 foreach name = ["GroupBroadcast"] in {
   foreach IDType = TLAllInts.List in {
-    def : SPVBuiltin<name, [AGenType1, UInt, AGenType1, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenType1, UInt, AGenType1, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenType1, UInt, AGenType1, VectorType<IDType, 3>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, IDType], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 2>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 3>], Attr.Convergent>;
     def : SPVBuiltin<name, [Bool, UInt, Bool, IDType], Attr.Convergent>;
     def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 2>], Attr.Convergent>;
     def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 3>], Attr.Convergent>;
