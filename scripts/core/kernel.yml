@@ -30,6 +30,9 @@ params:
     - type: $x_kernel_handle_t*
       name: phKernel
       desc: "[out] pointer to handle of kernel object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_KERNEL_NAME:
+        - "If `pKernelName` wasn't found in `hProgram`."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set kernel argument to a value."
