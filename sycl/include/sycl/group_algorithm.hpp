@@ -209,13 +209,13 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
+  sycl::vec<unsigned, 4> MemberMask =
+      sycl::detail::ExtractMask(sycl::detail::GetMask(g));
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
 #if (__SYCL_CUDA_ARCH__ >= 800)
-    return detail::masked_reduction_cuda_sm80(
-        g, x, binary_op); // TODO can pass in mask as parameter once we confirm
-                          // all user_constructed_groups have masks for NVPTX
+    return detail::masked_reduction_cuda_sm80(g, x, binary_op, MemberMask[0]);
 #else
-    return detail::masked_reduction_cuda_shfls(g, x, binary_op);
+    return detail::masked_reduction_cuda_shfls(g, x, binary_op, MemberMask[0]);
 #endif
   } else {
     return sycl::detail::calc<__spv::GroupOperation::Reduce>(

@@ -119,8 +119,8 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
   }
 #elif defined (__NVPTX__)
-    sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
-   return __nvvm_vote_all_sync(MemberMask[0], pred);
+  sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
+  return __nvvm_vote_all_sync(MemberMask[0], pred);
 #endif
 }
 
@@ -140,8 +140,8 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
   }
 #elif defined (__NVPTX__)
-    sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
-   return __nvvm_vote_any_sync(MemberMask[0], pred);
+  sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
+  return __nvvm_vote_any_sync(MemberMask[0], pred);
 #endif
 }
 
