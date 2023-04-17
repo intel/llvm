@@ -43,7 +43,7 @@ namespace polygeist {
 using namespace mlir;
 
 static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
-    "enable-licm-sycl-accessor-versioning", llvm::cl::init(false),
+    "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),
     llvm::cl::desc("Enable loop versioning for SYCL accessors in LICM"));
 
 static llvm::cl::opt<unsigned> LICMSYCLAccessorPairsLimit(
@@ -742,9 +742,8 @@ collectHoistableOperations(LoopLikeOpInterface loop,
     ArrayRef<AccessorPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
-    // Currently only version for single accessor pair.
     bool willVersion = requireVersioning && EnableLICMSYCLAccessorVersioning &&
-                       numVersion < LICMVersionLimit &&
+                       isa<scf::ForOp>(loop) && numVersion < LICMVersionLimit &&
                        accessorPairs.size() <= LICMSYCLAccessorPairsLimit;
     if (willVersion)
       ++numVersion;
