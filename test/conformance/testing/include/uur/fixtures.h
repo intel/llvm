@@ -451,7 +451,46 @@ struct urProgramTest : urContextTest {
     }
 
     std::shared_ptr<std::vector<char>> il_binary;
+    std::string program_name = "foo";
     ur_program_handle_t program = nullptr;
+};
+
+struct urKernelTest : urProgramTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
+        ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+        size_t kernel_string_size = 0;
+        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
+                                        0, nullptr, &kernel_string_size));
+        std::string kernel_string;
+        kernel_string.resize(kernel_string_size);
+        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
+                                        kernel_string.size(),
+                                        kernel_string.data(), nullptr));
+        std::stringstream kernel_stream(kernel_string);
+        bool found_kernel = false;
+        // Go through the semi-colon separated list of kernel names looking for
+        // one that isn't a wrapper or an offset handler.
+        while (kernel_stream.good()) {
+            getline(kernel_stream, kernel_name, ';');
+            if (kernel_name.find("wrapper") == std::string::npos &&
+                kernel_name.find("offset") == std::string::npos) {
+                found_kernel = true;
+                break;
+            }
+        }
+        ASSERT_TRUE(found_kernel);
+    }
+
+    void TearDown() override {
+        if (kernel) {
+            ASSERT_SUCCESS(urKernelRelease(kernel));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::TearDown());
+    }
+
+    std::string kernel_name;
+    ur_kernel_handle_t kernel = nullptr;
 };
 } // namespace uur
 
