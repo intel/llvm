@@ -94,15 +94,13 @@ bool kernel_impl::isCreatedFromSource() const {
 }
 
 bool kernel_impl::isBuiltInKernel(const device &Device) const {
-  std::string KernelName = get_info<info::kernel::function_name>();
   auto BuiltInKernles = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernles.empty())
     return false;
-  if (std::any_of(
-          BuiltInKernles.begin(), BuiltInKernles.end(),
-          [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }))
-    return true;
-  return false;
+  std::string KernelName = get_info<info::kernel::function_name>();
+  return (std::any_of(
+      BuiltInKernles.begin(), BuiltInKernles.end(),
+      [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));
 }
 
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {

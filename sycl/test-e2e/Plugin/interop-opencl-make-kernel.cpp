@@ -51,7 +51,7 @@ int main() {
     (void)num_args;
   } catch (exception &e) {
     assert(false && "Using \"info::kernel::num_args\" query for valid kernel "
-                    "should not throw an exception.")
+                    "should not throw an exception.");
   }
 
   // The associated kernel bundle should not contain the dummy-kernel.

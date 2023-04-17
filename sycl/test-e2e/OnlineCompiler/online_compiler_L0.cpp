@@ -63,11 +63,11 @@ sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
 
   // Should not throw an exception
   try {
-    auto num_args = InteropKernel.get_info<info::kernel::num_args>();
+    auto num_args = Kernel.get_info<sycl::info::kernel::num_args>();
     (void)num_args;
   } catch (sycl::exception &e) {
     assert(false && "Using \"info::kernel::num_args\" query for valid kernel "
-                    "should not throw an exception.")
+                    "should not throw an exception.");
   }
 
   return Kernel;
