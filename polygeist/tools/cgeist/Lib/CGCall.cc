@@ -268,7 +268,6 @@ ValueCategory MLIRScanner::callHelper(
 
   // handle lowerto pragma.
   if (LTInfo.SymbolTable.count(ToCall.getName())) {
-    llvm::dbgs() << "Lowerto\n";
     SmallVector<Value> InputOperands;
     SmallVector<Value> OutputOperands;
     for (StringRef Input : LTInfo.InputSymbol)
@@ -422,11 +421,9 @@ ValueCategory MLIRScanner::callHelper(
   if (Op->getNumResults()) {
     if (RetReference) {
       ElementType = Glob.getTypes().getMLIRType(RetType);
-    } else if (isa<clang::PointerType>(
+    } else if (const auto *PtTy = dyn_cast<clang::PointerType>(
                    RetType->getUnqualifiedDesugaredType())) {
-      ElementType = Glob.getTypes().getMLIRType(
-          cast<clang::PointerType>(RetType->getUnqualifiedDesugaredType())
-              ->getPointeeType());
+      ElementType = Glob.getTypes().getMLIRType(PtTy->getPointeeType());
     }
     return ValueCategory(Op->getResult(0),
                          /*isReference*/ RetReference, ElementType);
@@ -488,7 +485,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
           llvm::Constant *RC = Glob.getCGM().GetAddrOfRTTIDescriptor(RT);
           auto PostTy =
               cast<IntegerType>(Glob.getTypes().getMLIRType(Expr->getType()));
-          PostTy.dump();
           return ValueCategory(
               Builder.create<arith::ConstantIntOp>(Loc, LC == RC, PostTy),
               false);
@@ -1093,12 +1089,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         bool IsReference = Expr->isLValue() || Expr->isXValue();
         std::optional<mlir::Type> ElementType = std::nullopt;
         if (IsReference) {
-          assert(isa<clang::ReferenceType>(Expr->getType()));
           ElementType = Glob.getTypes().getMLIRType(
               cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
-        } else if (isa<clang::PointerType>(Expr->getType())) {
-          ElementType = Glob.getTypes().getMLIRType(
-              cast<clang::PointerType>(Expr->getType())->getPointeeType());
+        } else if (const auto *PtTy =
+                       dyn_cast<clang::PointerType>(Expr->getType())) {
+          ElementType = Glob.getTypes().getMLIRType(PtTy->getPointeeType());
         }
         return ValueCategory(Called, IsReference, ElementType);
       }
@@ -1137,7 +1132,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         Expr->getType()->dump();
         llvm::errs() << " call: " << Called << "\n";
       }
-      assert(isa<clang::ReferenceType>(Expr->getType()) && "Foo");
       ElementType = Glob.getTypes().getMLIRType(
           cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
     }

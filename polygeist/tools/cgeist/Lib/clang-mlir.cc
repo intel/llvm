@@ -48,6 +48,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 
 #define DEBUG_TYPE "cgeist"
 
@@ -159,16 +160,12 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
         ElemTy = cast<mlir::MemRefType>(
                      Glob.getTypes().getMLIRType(ParmType, nullptr))
                      .getElementType();
-      } else if (isa<clang::ReferenceType>(
+      } else if (const auto *RefTy = dyn_cast<clang::ReferenceType>(
                      ParmType->getUnqualifiedDesugaredType())) {
-        ElemTy = Glob.getTypes().getMLIRType(
-            cast<clang::ReferenceType>(ParmType->getUnqualifiedDesugaredType())
-                ->getPointeeType());
-      } else if (isa<clang::PointerType>(
+        ElemTy = Glob.getTypes().getMLIRType(RefTy->getPointeeType());
+      } else if (const auto *PtTy = dyn_cast<clang::PointerType>(
                      ParmType->getUnqualifiedDesugaredType())) {
-        ElemTy = Glob.getTypes().getMLIRType(
-            cast<clang::PointerType>(ParmType->getUnqualifiedDesugaredType())
-                ->getPointeeType());
+        ElemTy = Glob.getTypes().getMLIRType(PtTy->getPointeeType());
       } else if (isa<clang::ExtVectorType>(
                      ParmType->getUnqualifiedDesugaredType())) {
         ElemTy = Glob.getTypes().getMLIRType(ParmType);
@@ -1274,43 +1271,34 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                                    getConstantIndex(FNum));
   } else if (sycl::isSYCLType(MT.getElementType())) {
     Type ElemTy = MT.getElementType();
-    Result = TypeSwitch<Type, Value>(ElemTy)
-                 .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
-                   assert(FNum < AT.getBody().size() && "ERROR");
-                   const auto ElemType = cast<MemRefType>(AT.getBody()[FNum]);
-                   const auto ResultType = MemRefType::get(
-                       ElemType.getShape(), ElemType.getElementType(),
-                       MemRefLayoutAttrInterface(), MT.getMemorySpace());
-                   return Builder.create<polygeist::SubIndexOp>(
-                       Loc, ResultType, Val, getConstantIndex(FNum));
-                 })
-                 .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
-                       sycl::AccessorSubscriptType, sycl::AtomicType,
-                       sycl::GroupType, sycl::ItemBaseType, sycl::ItemType,
-                       sycl::LocalAccessorBaseDeviceType,
-                       sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
-                       sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
-                       sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
-                     [&](auto ElemTy) {
-                       return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
-                                                                      Shape);
-                     });
-    InnerTy = TypeSwitch<Type, Type>(ElemTy)
-                  .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
-                    const auto ElemType = cast<MemRefType>(AT.getBody()[FNum]);
-                    return ElemType.getElementType();
-                  })
-                  .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
-                        sycl::AccessorSubscriptType, sycl::AtomicType,
-                        sycl::GroupType, sycl::ItemBaseType, sycl::ItemType,
-                        sycl::LocalAccessorBaseDeviceType,
-                        sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
-                        sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
-                        sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
-                      [&](auto ElemTy) {
-                        auto SYCLElemTy = cast<decltype(ElemTy)>(ElemTy);
-                        return SYCLElemTy.getBody()[FNum];
-                      });
+    std::pair<Value, Type> ResultAndType =
+        TypeSwitch<Type, std::pair<Value, Type>>(ElemTy)
+            .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
+              assert(FNum < AT.getBody().size() && "ERROR");
+              const auto ElemType = cast<MemRefType>(AT.getBody()[FNum]);
+              const auto ResultType = MemRefType::get(
+                  ElemType.getShape(), ElemType.getElementType(),
+                  MemRefLayoutAttrInterface(), MT.getMemorySpace());
+              return std::pair<Value, Type>{
+                  Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
+                                                        getConstantIndex(FNum)),
+                  ElemType};
+            })
+            .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
+                  sycl::AccessorSubscriptType, sycl::AtomicType,
+                  sycl::GroupType, sycl::ItemBaseType, sycl::ItemType,
+                  sycl::LocalAccessorBaseDeviceType,
+                  sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
+                  sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
+                  sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
+                [&](auto ElemTy) {
+                  auto SYCLElemTy = cast<decltype(ElemTy)>(ElemTy);
+                  return std::pair<Value, Type>{
+                      SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape),
+                      SYCLElemTy.getBody()[FNum]};
+                });
+    Result = ResultAndType.first;
+    InnerTy = ResultAndType.second;
   } else {
     auto MT0 =
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
