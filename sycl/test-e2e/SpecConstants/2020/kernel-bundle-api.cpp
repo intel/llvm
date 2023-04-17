@@ -266,6 +266,23 @@ bool test_set_and_get_on_device(sycl::queue q) {
 }
 
 bool test_native_specialization_constant(sycl::queue q) {
+  {
+    q.submit([&](sycl::handler &cgh) {
+      cgh.single_task<class Kernel>([=](sycl::kernel_handler h) {
+        h.get_specialization_constant<SpecName>();
+      });
+    });
+
+    auto inputBundle =
+        sycl::get_kernel_bundle<class Kernel, sycl::bundle_state::input>(
+            q.get_context(), {q.get_device()});
+    auto objectBundle = sycl::compile(inputBundle);
+    auto execBundleViaLink = sycl::link(objectBundle);
+    if (!check_value(execBundleViaLink.native_specialization_constant(), false,
+                     "linked bundle native specialization constant"))
+      return false;
+  }
+
   const auto always_false_selector = [](auto device_image) { return false; };
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       q.get_context(), always_false_selector);

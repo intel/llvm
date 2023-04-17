@@ -112,6 +112,8 @@ public:
   bool all_specialization_constant_native() const noexcept {
     // Specialization constants are natively supported in JIT mode on backends,
     // that are using SPIR-V as IR
+    if (!MBinImage)
+      return false;
     auto IsJITSPIRVTarget = [](const char *Target) {
       return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
               strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
