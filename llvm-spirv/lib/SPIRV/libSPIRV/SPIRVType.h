@@ -1060,7 +1060,6 @@ protected:
 };
 
 class SPIRVTypeJointMatrixINTEL : public SPIRVType {
-  Op OC;
   SPIRVType *CompType;
   std::vector<SPIRVValue *> Args;
 
