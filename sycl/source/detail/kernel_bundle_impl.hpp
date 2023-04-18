@@ -366,7 +366,9 @@ public:
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(*It);
 
-    auto [Kernel, Ignore, ArgMask] =
+    RT::PiKernel Kernel = nullptr;
+    const KernelArgMask *ArgMask = nullptr;
+    std::tie(Kernel, std::ignore, ArgMask) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
             DeviceImageImpl->get_program_ref());
