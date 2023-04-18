@@ -7,7 +7,5 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/BuiltinOps.h"
-
 #include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.h"
-
 #include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.cpp.inc"
