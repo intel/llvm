@@ -1486,15 +1486,15 @@ typedef struct ur_context_native_properties_t {
 ///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
-///         + `NULL == pContextNativeProperties`
+///         + `NULL == pProperties`
 ///         + `NULL == phContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext,                              ///< [in] the native handle of the context.
-    uint32_t numDevices,                                            ///< [in] number of devices associated with the context
-    const ur_device_handle_t *phDevices,                            ///< [in][range(0, numDevices)] list of devices associated with the context
-    const ur_context_native_properties_t *pContextNativeProperties, ///< [in] pointer to properties struct
-    ur_context_handle_t *phContext                                  ///< [out] pointer to the handle of the context object created.
+    ur_native_handle_t hNativeContext,                 ///< [in] the native handle of the context.
+    uint32_t numDevices,                               ///< [in] number of devices associated with the context
+    const ur_device_handle_t *phDevices,               ///< [in][range(0, numDevices)] list of devices associated with the context
+    const ur_context_native_properties_t *pProperties, ///< [in] pointer to properties struct
+    ur_context_handle_t *phContext                     ///< [out] pointer to the handle of the context object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5752,7 +5752,7 @@ typedef struct ur_context_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeContext;
     uint32_t *pnumDevices;
     const ur_device_handle_t **pphDevices;
-    const ur_context_native_properties_t **ppContextNativeProperties;
+    const ur_context_native_properties_t **ppProperties;
     ur_context_handle_t **pphContext;
 } ur_context_create_with_native_handle_params_t;
 
