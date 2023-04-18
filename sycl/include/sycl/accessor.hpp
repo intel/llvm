@@ -399,6 +399,28 @@ constexpr access::mode deduceAccessMode() {
     return access::mode::read;
   }
 
+  if constexpr (std::is_same<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::host_task>>::value ||
+                std::is_same<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::host_task>>::value) {
+    return access::mode::read;
+  }
+
+  if constexpr (std::is_same<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::write,
+                                      access::target::host_task>>::value ||
+                std::is_same<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::write,
+                                      access::target::host_task>>::value) {
+    return access::mode::write;
+  }
+
   return access::mode::read_write;
 }
 
@@ -412,6 +434,28 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value) {
     return access::target::constant_buffer;
+  }
+
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read_write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read_write,
+                                     access::target::host_task>>::value) {
+    return access::target::host_task;
   }
 
   return defaultTarget;
@@ -3016,9 +3060,7 @@ template <typename DataT, int Dimensions = 1,
           access_mode AccessMode = access_mode::read_write>
 class __SYCL_EBO host_accessor
     : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
-                      access::placeholder::false_t>,
-      public detail::OwnerLessBase<
-          host_accessor<DataT, Dimensions, AccessMode>> {
+                      access::placeholder::false_t> {
 protected:
   using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                              access::placeholder::false_t>;
@@ -3038,6 +3080,18 @@ protected:
          id<AdjustedDim> Offset) {
     AccessorT::__init(Ptr, AccessRange, MemRange, Offset);
   }
+
+#ifndef __SYCL_DEVICE_ONLY__
+  host_accessor(const detail::AccessorImplPtr &Impl)
+      : accessor<DataT, Dimensions, AccessMode, target::host_buffer,
+                 access::placeholder::false_t>{Impl} {}
+
+  template <class Obj>
+  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+#endif // __SYCL_DEVICE_ONLY__
 
 public:
   host_accessor() : AccessorT() {}
@@ -3196,6 +3250,28 @@ public:
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
   }
+
+  // host_accessor needs to explicitly define the owner_before member functions
+  // as inheriting from OwnerLessBase causes base class conflicts.
+  // TODO: Once host_accessor is detached from accessor, inherit from
+  // OwnerLessBase instead.
+#ifndef __SYCL_DEVICE_ONLY__
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<host_accessor> &Other)
+      const noexcept {
+    return this->impl.owner_before(
+        ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  bool ext_oneapi_owner_before(const host_accessor &Other) const noexcept {
+    return this->impl.owner_before(Other.impl);
+  }
+#else
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<host_accessor> &Other)
+      const noexcept;
+  bool ext_oneapi_owner_before(const host_accessor &Other) const noexcept;
+#endif
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>

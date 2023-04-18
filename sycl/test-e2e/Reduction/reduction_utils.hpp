@@ -4,11 +4,29 @@
 
 using namespace sycl;
 
+struct AllIdOp {
+  constexpr bool operator()(size_t Idx) const { return true; }
+};
+
+struct SkipAllOp {
+  constexpr bool operator()(size_t Idx) const { return false; }
+};
+
+struct SkipEvenOp {
+  constexpr bool operator()(size_t Idx) const { return Idx % 2; }
+};
+
+struct SkipOddOp {
+  constexpr bool operator()(size_t Idx) const { return (Idx + 1) % 2; }
+};
+
 /// Initializes the buffer<1> \p 'InBuf' buffer with pseudo-random values,
-/// computes the write the reduction value \p 'ExpectedOut'.
-template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, BinaryOperation BOp,
-                   range<1> Range) {
+/// computes the write the reduction value \p 'ExpectedOut'. Linearized IDs are
+/// filtered in \p 'ExpectedOut' using \p 'IdFilterFunc'.
+template <typename T, class BinaryOperation, typename IdFilterFuncT = AllIdOp>
+void initInputData(buffer<T, 1> &InBuf, std::optional<T> &ExpectedOut,
+                   BinaryOperation BOp, range<1> Range,
+                   IdFilterFuncT IdFilterFunc = {}) {
   size_t N = Range.size();
   assert(N != 0);
   auto In = InBuf.template get_access<access::mode::write>();
@@ -27,15 +45,18 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, BinaryOperation BOp,
       In[I] = I;
     else
       In[I] = ((I + 1) % 5) + 1.1;
-    ExpectedOut = I == 0 ? In[I] : BOp(ExpectedOut, In[I]);
+    if (IdFilterFunc(I))
+      ExpectedOut = ExpectedOut ? BOp(*ExpectedOut, In[I]) : In[I];
   }
 };
 
 /// Initializes the buffer<2> \p 'InBuf' buffer with pseudo-random values,
-/// computes the write the reduction value \p 'ExpectedOut'.
-template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, BinaryOperation BOp,
-                   range<2> Range) {
+/// computes the write the reduction value \p 'ExpectedOut'. Linearized IDs are
+/// filtered in \p 'ExpectedOut' using \p 'IdFilterFunc'.
+template <typename T, class BinaryOperation, typename IdFilterFuncT = AllIdOp>
+void initInputData(buffer<T, 2> &InBuf, std::optional<T> &ExpectedOut,
+                   BinaryOperation BOp, range<2> Range,
+                   IdFilterFuncT IdFilterFunc = {}) {
   assert(Range.size() != 0);
   auto In = InBuf.template get_access<access::mode::write>();
   for (int J = 0; J < Range[0]; ++J) {
@@ -54,16 +75,19 @@ void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, BinaryOperation BOp,
         In[J][I] = I + J;
       else
         In[J][I] = ((I + 1 + J) % 5) + 1.1;
-      ExpectedOut = (I == 0 && J == 0) ? In[J][I] : BOp(ExpectedOut, In[J][I]);
+      if (IdFilterFunc(I + J * Range[1]))
+        ExpectedOut = ExpectedOut ? BOp(*ExpectedOut, In[J][I]) : In[J][I];
     }
   }
 };
 
 /// Initializes the buffer<3> \p 'InBuf' buffer with pseudo-random values,
-/// computes the write the reduction value \p 'ExpectedOut'.
-template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, BinaryOperation BOp,
-                   range<3> Range) {
+/// computes the write the reduction value \p 'ExpectedOut'. Linearized IDs are
+/// filtered in \p 'ExpectedOut' using \p 'IdFilterFunc'.
+template <typename T, class BinaryOperation, typename IdFilterFuncT = AllIdOp>
+void initInputData(buffer<T, 3> &InBuf, std::optional<T> &ExpectedOut,
+                   BinaryOperation BOp, range<3> Range,
+                   IdFilterFuncT IdFilterFunc = {}) {
   assert(Range.size() != 0);
   auto In = InBuf.template get_access<access::mode::write>();
   for (int K = 0; K < Range[0]; ++K) {
@@ -83,9 +107,9 @@ void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, BinaryOperation BOp,
           In[K][J][I] = I + J + K;
         else
           In[K][J][I] = ((I + 1 + J + K * 3) % 5) + 1.1;
-        ExpectedOut = (I == 0 && J == 0 && K == 0)
-                          ? In[K][J][I]
-                          : BOp(ExpectedOut, In[K][J][I]);
+        if (IdFilterFunc(I + J * Range[2] + K * Range[1] * Range[2]))
+          ExpectedOut =
+              ExpectedOut ? BOp(*ExpectedOut, In[K][J][I]) : In[K][J][I];
       }
     }
   }
@@ -139,6 +163,10 @@ template <class T> struct CustomVecPlus {
 
 template <class T> struct PlusWithoutIdentity {
   T operator()(const T &A, const T &B) const { return A + B; }
+};
+
+template <class T> struct MultipliesWithoutIdentity {
+  T operator()(const T &A, const T &B) const { return A * B; }
 };
 
 template <typename T> T getMinimumFPValue() {
@@ -283,10 +311,10 @@ auto init_to_identity() {
 
 template <typename Name, typename T, bool HasIdentity, class BinaryOperation,
           template <int> typename RangeTy, int Dims,
-          typename PropListTy = property_list>
+          typename PropListTy = property_list, typename IdFilterFuncT = AllIdOp>
 int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
               BinaryOperation BOp, const RangeTy<Dims> &Range,
-              PropListTy PropList = {}) {
+              PropListTy PropList = {}, IdFilterFuncT IdFilterFunc = {}) {
   constexpr bool IsRange = std::is_same_v<range<Dims>, RangeTy<Dims>>;
   constexpr bool IsNDRange = std::is_same_v<nd_range<Dims>, RangeTy<Dims>>;
   static_assert(IsRange || IsNDRange);
@@ -326,11 +354,11 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   buffer<T, 1> OutBuf(1);
 
   // Initialize.
-  T CorrectOut;
-  initInputData(InBuf, CorrectOut, BOp, GlobalRange);
+  std::optional<T> CorrectOut;
+  initInputData(InBuf, CorrectOut, BOp, GlobalRange, IdFilterFunc);
   if (!PropList.template has_property<
           property::reduction::initialize_to_identity>()) {
-    CorrectOut = BOp(CorrectOut, Init);
+    CorrectOut = CorrectOut ? BOp(*CorrectOut, Init) : Init;
   }
 
   // The value assigned here must be discarded (if IsReadWrite is true).
@@ -352,42 +380,48 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     auto Redu = CreateReduction();
     if constexpr (IsRange)
-      CGH.parallel_for<Name>(
-          Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
+      CGH.parallel_for<Name>(Range, Redu, [=](item<Dims> Id, auto &Sum) {
+        if (IdFilterFunc(Id.get_linear_id()))
+          Sum.combine(In[Id]);
+      });
     else
       CGH.parallel_for<Name>(Range, Redu, [=](nd_item<Dims> NDIt, auto &Sum) {
-        Sum.combine(In[NDIt.get_global_id()]);
+        if (IdFilterFunc(NDIt.get_global_linear_id()))
+          Sum.combine(In[NDIt.get_global_linear_id()]);
       });
   });
 
   // Check correctness.
   auto Out = OutBuf.template get_access<access::mode::read>();
   T ComputedOut = *(Out.get_pointer());
-  return checkResults(Q, BOp, Range, ComputedOut, CorrectOut);
+  return checkResults(Q, BOp, Range, ComputedOut, *CorrectOut);
 }
 
 template <typename Name, typename T, class BinaryOperation,
           template <int> typename RangeTy, int Dims,
-          typename PropListTy = property_list>
+          typename PropListTy = property_list, typename IdFilterFuncT = AllIdOp>
 int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
-         const RangeTy<Dims> &Range, PropListTy PropList = {}) {
+         const RangeTy<Dims> &Range, PropListTy PropList = {},
+         IdFilterFuncT IdFilterFunc = {}) {
   return testInner<Name>(Q, OptionalIdentity(Identity), Init, BOp, Range,
                          PropList);
 }
 
 template <typename Name, typename T, class BinaryOperation,
           template <int> typename RangeTy, int Dims,
-          typename PropListTy = property_list>
+          typename PropListTy = property_list, typename IdFilterFuncT = AllIdOp>
 int test(queue &Q, T Init, BinaryOperation BOp, const RangeTy<Dims> &Range,
-         PropListTy PropList = {}) {
+         PropListTy PropList = {}, IdFilterFuncT IdFilterFunc = {}) {
   return testInner<Name>(Q, OptionalIdentity<T>(), Init, BOp, Range, PropList);
 }
 
 template <typename Name, typename T, bool HasIdentity, class BinaryOperation,
-          int Dims, typename PropListTy = property_list>
+          int Dims, typename PropListTy = property_list,
+          typename IdFilterFuncT = AllIdOp>
 int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
                  BinaryOperation BOp, const range<Dims> &Range,
-                 usm::alloc AllocType, PropListTy PropList = {}) {
+                 usm::alloc AllocType, PropListTy PropList = {},
+                 IdFilterFuncT IdFilterFunc = {}) {
   printTestLabel<T, BinaryOperation>(Range);
 
   auto Dev = Q.get_device();
@@ -434,12 +468,12 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   }
 
   // Initialize.
-  T CorrectOut;
+  std::optional<T> CorrectOut;
   buffer<T, Dims> InBuf(Range);
-  initInputData(InBuf, CorrectOut, BOp, Range);
+  initInputData(InBuf, CorrectOut, BOp, Range, IdFilterFunc);
   if (!PropList.template has_property<
           property::reduction::initialize_to_identity>()) {
-    CorrectOut = BOp(CorrectOut, Init);
+    CorrectOut = CorrectOut ? BOp(*CorrectOut, Init) : Init;
   }
 
   // Compute.
@@ -457,7 +491,10 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
      auto In = InBuf.template get_access<access::mode::read>(CGH);
      auto Redu = CreateReduction();
      CGH.parallel_for<TName<Name, class Test>>(
-         Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
+         Range, Redu, [=](item<Dims> Id, auto &Sum) {
+           if (IdFilterFunc(Id.get_linear_id()))
+             Sum.combine(In[Id]);
+         });
    }).wait();
 
   // Check correctness.
@@ -476,24 +513,25 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   std::string AllocStr =
       "AllocMode=" + std::to_string(static_cast<int>(AllocType));
-  int Error = checkResults(Q, BOp, Range, ComputedOut, CorrectOut, AllocStr);
+  int Error = checkResults(Q, BOp, Range, ComputedOut, *CorrectOut, AllocStr);
   free(ReduVarPtr, Q.get_context());
   return Error;
 }
 
 template <typename Name, typename T, class BinaryOperation, int Dims,
-          typename PropListTy = property_list>
+          typename PropListTy = property_list, typename IdFilterFuncT = AllIdOp>
 int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
             const range<Dims> &Range, usm::alloc AllocType,
-            PropListTy PropList = {}) {
+            property_list PropList = {}, IdFilterFuncT IdFilterFunc = {}) {
   return testUSMInner<Name>(Q, OptionalIdentity(Identity), Init, BOp, Range,
                             AllocType, PropList);
 }
 
 template <typename Name, typename T, class BinaryOperation, int Dims,
-          typename PropListTy = property_list>
+          typename PropListTy = property_list, typename IdFilterFuncT = AllIdOp>
 int testUSM(queue &Q, T Init, BinaryOperation BOp, const range<Dims> &Range,
-            usm::alloc AllocType, PropListTy PropList = {}) {
+            usm::alloc AllocType, property_list PropList = {},
+            IdFilterFuncT IdFilterFunc = {}) {
   return testUSMInner<Name>(Q, OptionalIdentity<T>(), Init, BOp, Range,
                             AllocType, PropList);
 }
