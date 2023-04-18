@@ -9530,7 +9530,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
     TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     bool CreatingSyclSPIRVFatObj =
-        TCArgs.getLastArg(options::OPT_c) &&
+        C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
             .equals_insensitive("spirv");
     if (CreatingSyclSPIRVFatObj)
