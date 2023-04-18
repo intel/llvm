@@ -14,7 +14,7 @@ struct umaPoolTest : uma_test::test,
                      ::testing::WithParamInterface<
                          std::function<uma::pool_unique_handle_t(void)>> {
     umaPoolTest() : pool(nullptr, nullptr) {}
-    void SetUp() {
+    void SetUp() override {
         test::SetUp();
         this->pool = makePool();
     }
@@ -33,7 +33,7 @@ struct umaPoolTest : uma_test::test,
 struct umaMultiPoolTest : umaPoolTest {
     static constexpr auto numPools = 16;
 
-    void SetUp() {
+    void SetUp() override {
         umaPoolTest::SetUp();
 
         pools.emplace_back(std::move(pool));
