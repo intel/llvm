@@ -2426,24 +2426,24 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_sampler_addressing_mode_t value) {
     switch (value) {
 
-    case UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
-        os << "UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT";
-        break;
-
-    case UR_SAMPLER_ADDRESSING_MODE_REPEAT:
-        os << "UR_SAMPLER_ADDRESSING_MODE_REPEAT";
-        break;
-
-    case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
-        os << "UR_SAMPLER_ADDRESSING_MODE_CLAMP";
+    case UR_SAMPLER_ADDRESSING_MODE_NONE:
+        os << "UR_SAMPLER_ADDRESSING_MODE_NONE";
         break;
 
     case UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE:
         os << "UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE";
         break;
 
-    case UR_SAMPLER_ADDRESSING_MODE_NONE:
-        os << "UR_SAMPLER_ADDRESSING_MODE_NONE";
+    case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
+        os << "UR_SAMPLER_ADDRESSING_MODE_CLAMP";
+        break;
+
+    case UR_SAMPLER_ADDRESSING_MODE_REPEAT:
+        os << "UR_SAMPLER_ADDRESSING_MODE_REPEAT";
+        break;
+
+    case UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
+        os << "UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT";
         break;
     default:
         os << "unknown enumerator";
