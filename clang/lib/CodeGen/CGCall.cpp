@@ -1839,7 +1839,7 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
 void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
                                                  bool HasOptnone,
                                                  bool AttrOnCallSite,
-                                                 llvm::AttrBuilder &FuncAttrs) {
+                                               llvm::AttrBuilder &FuncAttrs) {
   for (const auto &M : getLangOpts().FPAccuracyMap) {
     llvm::StringSet<> FuncOwnAttrs;
     FuncAttrs.addAttribute("fpaccuracy=", M.second);

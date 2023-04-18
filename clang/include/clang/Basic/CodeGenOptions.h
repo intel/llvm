@@ -64,12 +64,6 @@ public:
     Darwin_libsystem_m // Use Darwin's libsytem_m vector functions.
   };
 
-  enum AlternateMathLibray {
-    NoAltMathLibrary,   // No alternate math library is used.
-    ImfAltMathLibrary,  // IMF alternate math library is used.
-    TestAltMathLibrary  // A fake alternate math library is used.
-  };
-
   enum ObjCDispatchMethodKind {
     Legacy = 0,
     NonLegacy = 1,
