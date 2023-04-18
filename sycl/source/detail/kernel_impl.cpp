@@ -94,15 +94,28 @@ bool kernel_impl::isCreatedFromSource() const {
 }
 
 bool kernel_impl::isBuiltInKernel(const device &Device) const {
-  std::string KernelName = get_info<info::kernel::function_name>();
-  auto BuiltInKernles = Device.get_info<info::device::built_in_kernel_ids>();
-  if (BuiltInKernles.empty())
+  auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
+  if (BuiltInKernels.empty())
     return false;
-  if (std::any_of(
-          BuiltInKernles.begin(), BuiltInKernles.end(),
-          [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }))
-    return true;
-  return false;
+  std::string KernelName = get_info<info::kernel::function_name>();
+  return (std::any_of(
+      BuiltInKernels.begin(), BuiltInKernels.end(),
+      [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));
+}
+
+void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
+  if (MKernelBundleImpl->isInterop())
+    return;
+  auto Devices = MKernelBundleImpl->get_devices();
+  if (std::any_of(Devices.begin(), Devices.end(),
+                  [this](device &Device) { return isBuiltInKernel(Device); }))
+    return;
+
+  throw sycl::exception(
+      sycl::make_error_code(errc::invalid),
+      "info::kernel::num_args descriptor may only be used to query a kernel "
+      "that resides in a kernel bundle constructed using a backend specific"
+      "interoperability function or to query a device built-in kernel");
 }
 
 } // namespace detail
