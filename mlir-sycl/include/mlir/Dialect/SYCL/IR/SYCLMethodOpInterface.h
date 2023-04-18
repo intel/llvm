@@ -9,6 +9,8 @@
 #ifndef MLIR_DIALECT_SYCL_IR_METHODOPINTERFACE_H
 #define MLIR_DIALECT_SYCL_IR_METHODOPINTERFACE_H
 
+#include "mlir/IR/BuiltinOps.h"
+
 #include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.h.inc"
 
 #include <type_traits>
