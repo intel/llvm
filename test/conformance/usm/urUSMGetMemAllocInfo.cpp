@@ -67,7 +67,7 @@ TEST_P(urUSMGetMemAllocInfoTest, InvalidEnumeration) {
                              sizeof(ur_usm_type_t), &USMType, nullptr));
 }
 
-TEST_P(urUSMGetMemAllocInfoTest, InvalidValuePropValueSize) {
+TEST_P(urUSMGetMemAllocInfoTest, InvalidValuePropSize) {
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
                      urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_TYPE,

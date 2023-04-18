@@ -92,7 +92,7 @@ TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
     ASSERT_NE(size, 0);
     std::vector<uint8_t> data(size);
 
-    /* Invalid propValueSize */
+    /* Invalid propSize */
     ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0,
                                     data.data(), nullptr),
                      UR_RESULT_ERROR_INVALID_VALUE);

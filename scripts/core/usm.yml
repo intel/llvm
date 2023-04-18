@@ -73,6 +73,7 @@ type: enum
 desc: "USM memory allocation information type"
 class: $xUSM
 name: $x_usm_alloc_info_t
+typed_etors: True
 etors:
     - name: TYPE
       desc: "[$x_usm_type_t] Memory allocation type info"
@@ -343,13 +344,13 @@ params:
       name: propName
       desc: "[in] the name of the USM allocation property to query"
     - type: size_t
-      name: propValueSize
+      name: propSize
       desc: "[in] size in bytes of the USM allocation property value"
     - type: void*
       name: pPropValue
-      desc: "[out][optional] value of the USM allocation property"
+      desc: "[out][optional][typename(propName, propSize)] value of the USM allocation property"
     - type: size_t*
-      name: pPropValueSizeRet
+      name: pPropSizeRet
       desc: "[out][optional] bytes returned in USM allocation property"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT

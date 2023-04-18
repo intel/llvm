@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <cstddef>
+#include <cstring>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <memory>
@@ -9,25 +10,12 @@
 #include "ur_api.h"
 #include "ur_params.hpp"
 
-template <typename T> struct WrappedParams {
-    typedef T value_type;
-    virtual ~WrappedParams() {}
-    virtual T *get_struct() = 0;
-    virtual const char *get_expected() = 0;
-};
-
-template <typename T>
-std::unique_ptr<WrappedParams<typename T::value_type>> createParams();
-
 template <typename T> class ParamsTest : public testing::Test {
   protected:
-    ParamsTest() : params(createParams<T>()) {}
-    ~ParamsTest() override {}
-
-    std::unique_ptr<WrappedParams<typename T::value_type>> params;
+    T params;
 };
 
-struct UrInitParams : public WrappedParams<ur_init_params_t> {
+struct UrInitParams {
     ur_init_params_t params;
     ur_device_init_flags_t flags;
     UrInitParams(ur_device_init_flags_t _flags) : flags(_flags) {
@@ -42,12 +30,6 @@ struct UrInitParamsNoFlags : UrInitParams {
     const char *get_expected() { return ".device_flags = 0"; };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_init_params_t>>
-createParams<UrInitParamsNoFlags>() {
-    return std::make_unique<UrInitParamsNoFlags>();
-}
-
 struct UrInitParamsInvalidFlags : UrInitParams {
     UrInitParamsInvalidFlags()
         : UrInitParams(UR_DEVICE_INIT_FLAG_GPU | UR_DEVICE_INIT_FLAG_MCA |
@@ -59,13 +41,7 @@ struct UrInitParamsInvalidFlags : UrInitParams {
     };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_init_params_t>>
-createParams<UrInitParamsInvalidFlags>() {
-    return std::make_unique<UrInitParamsInvalidFlags>();
-}
-
-struct UrPlatformGet : public WrappedParams<ur_platform_get_params_t> {
+struct UrPlatformGet {
     ur_platform_get_params_t params;
     uint32_t num_entries;
     uint32_t *pNumPlatforms;
@@ -90,12 +66,6 @@ struct UrPlatformGetEmptyArray : UrPlatformGet {
     };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_platform_get_params_t>>
-createParams<UrPlatformGetEmptyArray>() {
-    return std::make_unique<UrPlatformGetEmptyArray>();
-}
-
 struct UrPlatformGetTwoPlatforms : UrPlatformGet {
     ur_platform_handle_t platforms[2] = {(ur_platform_handle_t)0xDEAFBEEFull,
                                          (ur_platform_handle_t)0xBADDCAFEull};
@@ -112,13 +82,7 @@ struct UrPlatformGetTwoPlatforms : UrPlatformGet {
     };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_platform_get_params_t>>
-createParams<UrPlatformGetTwoPlatforms>() {
-    return std::make_unique<UrPlatformGetTwoPlatforms>();
-}
-
-struct UrUsmHostAllocParams : public WrappedParams<ur_usm_host_alloc_params_t> {
+struct UrUsmHostAllocParams {
     ur_usm_host_alloc_params_t params;
 
     ur_context_handle_t hContext;
@@ -156,12 +120,6 @@ struct UrUsmHostAllocParamsEmpty : UrUsmHostAllocParams {
     };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_usm_host_alloc_params_t>>
-createParams<UrUsmHostAllocParamsEmpty>() {
-    return std::make_unique<UrUsmHostAllocParamsEmpty>();
-}
-
 struct UrUsmHostAllocParamsUsmDesc : UrUsmHostAllocParams {
     ur_usm_desc_t usm_desc;
     UrUsmHostAllocParamsUsmDesc() : UrUsmHostAllocParams() {
@@ -182,12 +140,6 @@ struct UrUsmHostAllocParamsUsmDesc : UrUsmHostAllocParams {
     };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_usm_host_alloc_params_t>>
-createParams<UrUsmHostAllocParamsUsmDesc>() {
-    return std::make_unique<UrUsmHostAllocParamsUsmDesc>();
-}
-
 struct UrUsmHostAllocParamsHostDesc : UrUsmHostAllocParamsUsmDesc {
     ur_usm_host_desc_t host_desc;
     UrUsmHostAllocParamsHostDesc() : UrUsmHostAllocParamsUsmDesc() {
@@ -206,17 +158,160 @@ struct UrUsmHostAllocParamsHostDesc : UrUsmHostAllocParamsUsmDesc {
     };
 };
 
-template <>
-std::unique_ptr<WrappedParams<ur_usm_host_alloc_params_t>>
-createParams<UrUsmHostAllocParamsHostDesc>() {
-    return std::make_unique<UrUsmHostAllocParamsHostDesc>();
-}
+struct UrDeviceGetInfoParams {
+    ur_device_get_info_params_t params;
+
+    ur_device_handle_t device;
+    ur_device_info_t propName;
+    size_t propSize;
+    void *pPropValue;
+    size_t propSizeRet;
+    size_t *pPropSizeRet;
+
+    UrDeviceGetInfoParams() {
+        device = nullptr;
+        propName = UR_DEVICE_INFO_FORCE_UINT32;
+        propSize = 0;
+        pPropValue = nullptr;
+        propSizeRet = 0;
+        pPropSizeRet = &propSizeRet;
+
+        params.phDevice = &device;
+        params.ppPropValue = &pPropValue;
+        params.ppropName = &propName;
+        params.ppropSize = &propSize;
+        params.ppPropSizeRet = &pPropSizeRet;
+    }
+
+    ur_device_get_info_params_t *get_struct() { return &params; }
+};
+
+struct UrDeviceGetInfoParamsEmpty : UrDeviceGetInfoParams {
+    UrDeviceGetInfoParamsEmpty() : UrDeviceGetInfoParams() {}
+    const char *get_expected() {
+        return ".hDevice = nullptr, .propName = unknown enumerator, .propSize "
+               "= 0, .pPropValue = nullptr, .pPropSizeRet = .+ \\(0\\)";
+    };
+};
+
+struct UrDeviceGetInfoParamsName : UrDeviceGetInfoParams {
+    const char *name = "FOOBAR";
+    UrDeviceGetInfoParamsName() : UrDeviceGetInfoParams() {
+        propName = UR_DEVICE_INFO_NAME;
+        pPropValue = (void *)name;
+        propSize = strlen(name) + 1;
+        propSizeRet = strlen(name) + 1;
+    }
+    const char *get_expected() {
+        return ".hDevice = nullptr, .propName = UR_DEVICE_INFO_NAME, .propSize "
+               "= 7, .pPropValue = .+ \\(FOOBAR\\), .pPropSizeRet = .+ \\(7\\)";
+    };
+};
+
+struct UrDeviceGetInfoParamsQueueFlag : UrDeviceGetInfoParams {
+    ur_queue_flags_t flags;
+    UrDeviceGetInfoParamsQueueFlag() : UrDeviceGetInfoParams() {
+        flags = UR_QUEUE_FLAG_ON_DEVICE_DEFAULT | UR_QUEUE_FLAG_PRIORITY_HIGH;
+        propName = UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES;
+        pPropValue = &flags;
+        propSize = sizeof(flags);
+        propSizeRet = sizeof(flags);
+    }
+    const char *get_expected() {
+        return ".hDevice = nullptr, .propName = "
+               "UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES, .propSize "
+               "= 4, .pPropValue = .+ \\(UR_QUEUE_FLAG_ON_DEVICE_DEFAULT \\| "
+               "UR_QUEUE_FLAG_PRIORITY_HIGH\\), .pPropSizeRet = .+ \\(4\\)";
+    };
+};
+
+struct UrDeviceGetInfoParamsInvalidSize : UrDeviceGetInfoParams {
+    ur_device_type_t t;
+    UrDeviceGetInfoParamsInvalidSize() : UrDeviceGetInfoParams() {
+        t = UR_DEVICE_TYPE_GPU;
+        propName = UR_DEVICE_INFO_TYPE;
+        pPropValue = &t;
+        propSize = 1;
+        propSizeRet = sizeof(t);
+    }
+    const char *get_expected() {
+        return ".+ .pPropValue = invalid size \\(is: 1, expected: >=4\\).+";
+    };
+};
+
+struct UrDeviceGetInfoParamsPartitionArray : UrDeviceGetInfoParams {
+    ur_device_partition_property_t props[3] = {
+        UR_DEVICE_PARTITION_BY_COUNTS, UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+        UR_DEVICE_PARTITION_BY_CSLICE};
+    UrDeviceGetInfoParamsPartitionArray() : UrDeviceGetInfoParams() {
+        propName = UR_DEVICE_INFO_PARTITION_PROPERTIES;
+        pPropValue = &props;
+        propSize = sizeof(props);
+        propSizeRet = sizeof(props);
+    }
+    const char *get_expected() {
+        return ".hDevice = nullptr, .propName = "
+               "UR_DEVICE_INFO_PARTITION_PROPERTIES, .propSize "
+               "= 24, .pPropValue = \\[4231, 4232, 4233\\], .pPropSizeRet = .+ "
+               "\\(24\\)";
+        // TODO: should resolve type values for ur_device_partition_property_t...
+    };
+};
+
+struct UrContextGetInfoParams {
+    ur_context_get_info_params_t params;
+
+    ur_context_handle_t hContext;
+    ur_context_info_t propName;
+    size_t propSize;
+    void *pPropValue;
+    size_t propSizeRet;
+    size_t *pPropSizeRet;
+
+    UrContextGetInfoParams() {
+        hContext = nullptr;
+        propName = UR_CONTEXT_INFO_FORCE_UINT32;
+        propSize = 0;
+        pPropValue = nullptr;
+        propSizeRet = 0;
+        pPropSizeRet = &propSizeRet;
+
+        params.phContext = &hContext;
+        params.ppPropValue = &pPropValue;
+        params.ppropName = &propName;
+        params.ppropSize = &propSize;
+        params.ppPropSizeRet = &pPropSizeRet;
+    }
+
+    ur_context_get_info_params_t *get_struct() { return &params; }
+};
+
+struct UrContextGetInfoParamsDevicesArray : UrContextGetInfoParams {
+    ur_device_handle_t handles[3] = {(ur_device_handle_t)0xABADull,
+                                     (ur_device_handle_t)0xCAFEull,
+                                     (ur_device_handle_t)0xBABEull};
+    UrContextGetInfoParamsDevicesArray() : UrContextGetInfoParams() {
+        propName = UR_CONTEXT_INFO_DEVICES;
+        propSize = sizeof(handles);
+        propSizeRet = sizeof(handles);
+        pPropValue = handles;
+    }
+    const char *get_expected() {
+        return ".hContext = nullptr, .propName = "
+               "UR_CONTEXT_INFO_DEVICES, .propSize "
+               "= 24, .pPropValue = \\[.+, .+, .+\\], .pPropSizeRet = .+ "
+               "\\(24\\)";
+    };
+};
 
 using testing::Types;
-typedef Types<UrInitParamsNoFlags, UrInitParamsInvalidFlags,
-              UrUsmHostAllocParamsEmpty, UrPlatformGetEmptyArray,
-              UrPlatformGetTwoPlatforms, UrUsmHostAllocParamsUsmDesc,
-              UrUsmHostAllocParamsHostDesc>
+typedef Types<
+    UrInitParamsNoFlags, UrInitParamsInvalidFlags, UrUsmHostAllocParamsEmpty,
+    UrPlatformGetEmptyArray, UrPlatformGetTwoPlatforms,
+    UrUsmHostAllocParamsUsmDesc, UrUsmHostAllocParamsHostDesc,
+    UrDeviceGetInfoParamsEmpty, UrDeviceGetInfoParamsName,
+    UrDeviceGetInfoParamsQueueFlag, UrDeviceGetInfoParamsPartitionArray,
+    UrContextGetInfoParamsDevicesArray, UrDeviceGetInfoParamsInvalidSize>
     Implementations;
 
 using ::testing::MatchesRegex;
@@ -226,8 +321,8 @@ TYPED_TEST_SUITE(ParamsTest, Implementations, );
 
 TYPED_TEST(ParamsTest, Serialize) {
     std::ostringstream out;
-    out << this->params->get_struct();
-    EXPECT_THAT(out.str(), MatchesRegex(this->params->get_expected()));
+    out << this->params.get_struct();
+    EXPECT_THAT(out.str(), MatchesRegex(this->params.get_expected()));
 }
 
 TEST(SerializePtr, nested_void_ptrs) {

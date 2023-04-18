@@ -143,223 +143,224 @@ type: enum
 desc: "Supported device info"
 class: $xDevice
 name: $x_device_info_t
+typed_etors: True
 etors:
     - name: TYPE
-      desc: "$x_device_type_t: type of the device"
+      desc: "[$x_device_type_t] type of the device"
     - name: VENDOR_ID
-      desc: "uint32_t: vendor Id of the device"
+      desc: "[uint32_t] vendor Id of the device"
     - name: DEVICE_ID
-      desc: "uint32_t: Id of the device"
+      desc: "[uint32_t] Id of the device"
     - name: MAX_COMPUTE_UNITS
-      desc: "uint32_t: the number of compute units"
+      desc: "[uint32_t] the number of compute units"
     - name: MAX_WORK_ITEM_DIMENSIONS
-      desc: "uint32_t: max work item dimensions"
+      desc: "[uint32_t] max work item dimensions"
     - name: MAX_WORK_ITEM_SIZES
-      desc: "size_t[]: return an array of max work item sizes"
+      desc: "[size_t[]] return an array of max work item sizes"
     - name: MAX_WORK_GROUP_SIZE
-      desc: "size_t: max work group size"
+      desc: "[size_t] max work group size"
     - name: SINGLE_FP_CONFIG
-      desc: "Return a bit field of $x_device_fp_capability_flags_t: single precision floating point capability"
+      desc: "[$x_device_fp_capability_flags_t] single precision floating point capability"
     - name: HALF_FP_CONFIG
-      desc: "Return a bit field of $x_device_fp_capability_flags_t: half precision floating point capability"
+      desc: "[$x_device_fp_capability_flags_t] half precision floating point capability"
     - name: DOUBLE_FP_CONFIG
-      desc: "Return a bit field of $x_device_fp_capability_flags_t: double precision floating point capability"
+      desc: "[$x_device_fp_capability_flags_t] double precision floating point capability"
     - name: QUEUE_PROPERTIES
-      desc: "Return a bit field of $x_queue_flags_t: command queue properties supported by the device"
+      desc: "[$x_queue_flags_t] command queue properties supported by the device"
     - name: PREFERRED_VECTOR_WIDTH_CHAR
-      desc: "uint32_t: preferred vector width for char"
+      desc: "[uint32_t] preferred vector width for char"
     - name: PREFERRED_VECTOR_WIDTH_SHORT
-      desc: "uint32_t: preferred vector width for short"
+      desc: "[uint32_t] preferred vector width for short"
     - name: PREFERRED_VECTOR_WIDTH_INT
-      desc: "uint32_t: preferred vector width for int"
+      desc: "[uint32_t] preferred vector width for int"
     - name: PREFERRED_VECTOR_WIDTH_LONG
-      desc: "uint32_t: preferred vector width for long"
+      desc: "[uint32_t] preferred vector width for long"
     - name: PREFERRED_VECTOR_WIDTH_FLOAT
-      desc: "uint32_t: preferred vector width for float"
+      desc: "[uint32_t] preferred vector width for float"
     - name: PREFERRED_VECTOR_WIDTH_DOUBLE
-      desc: "uint32_t: preferred vector width for double"
+      desc: "[uint32_t] preferred vector width for double"
     - name: PREFERRED_VECTOR_WIDTH_HALF
-      desc: "uint32_t: preferred vector width for half float"
+      desc: "[uint32_t] preferred vector width for half float"
     - name: NATIVE_VECTOR_WIDTH_CHAR
-      desc: "uint32_t: native vector width for char"
+      desc: "[uint32_t] native vector width for char"
     - name: NATIVE_VECTOR_WIDTH_SHORT
-      desc: "uint32_t: native vector width for short"
+      desc: "[uint32_t] native vector width for short"
     - name: NATIVE_VECTOR_WIDTH_INT
-      desc: "uint32_t: native vector width for int"
+      desc: "[uint32_t] native vector width for int"
     - name: NATIVE_VECTOR_WIDTH_LONG
-      desc: "uint32_t: native vector width for long"
+      desc: "[uint32_t] native vector width for long"
     - name: NATIVE_VECTOR_WIDTH_FLOAT
-      desc: "uint32_t: native vector width for float"
+      desc: "[uint32_t] native vector width for float"
     - name: NATIVE_VECTOR_WIDTH_DOUBLE
-      desc: "uint32_t: native vector width for double"
+      desc: "[uint32_t] native vector width for double"
     - name: NATIVE_VECTOR_WIDTH_HALF
-      desc: "uint32_t: native vector width for half float"
+      desc: "[uint32_t] native vector width for half float"
     - name: MAX_CLOCK_FREQUENCY
-      desc: "uint32_t: max clock frequency in MHz"
+      desc: "[uint32_t] max clock frequency in MHz"
     - name: MEMORY_CLOCK_RATE
-      desc: "uint32_t: memory clock frequency in MHz"
+      desc: "[uint32_t] memory clock frequency in MHz"
     - name: ADDRESS_BITS
-      desc: "uint32_t: address bits"
+      desc: "[uint32_t] address bits"
     - name: MAX_MEM_ALLOC_SIZE
-      desc: "uint64_t: max memory allocation size"
+      desc: "[uint64_t] max memory allocation size"
     - name: IMAGE_SUPPORTED
-      desc: "bool: images are supported"
+      desc: "[$x_bool_t] images are supported"
     - name: MAX_READ_IMAGE_ARGS
-      desc: "uint32_t: max number of image objects arguments of a kernel declared with the read_only qualifier"
+      desc: "[uint32_t] max number of image objects arguments of a kernel declared with the read_only qualifier"
     - name: MAX_WRITE_IMAGE_ARGS
-      desc: "uint32_t: max number of image objects arguments of a kernel declared with the write_only qualifier"
+      desc: "[uint32_t] max number of image objects arguments of a kernel declared with the write_only qualifier"
     - name: MAX_READ_WRITE_IMAGE_ARGS
-      desc: "uint32_t: max number of image objects arguments of a kernel declared with the read_write qualifier"
+      desc: "[uint32_t] max number of image objects arguments of a kernel declared with the read_write qualifier"
     - name: IMAGE2D_MAX_WIDTH
-      desc: "size_t: max width of Image2D object"
+      desc: "[size_t] max width of Image2D object"
     - name: IMAGE2D_MAX_HEIGHT
-      desc: "size_t: max heigh of Image2D object"
+      desc: "[size_t] max heigh of Image2D object"
     - name: IMAGE3D_MAX_WIDTH
-      desc: "size_t: max width of Image3D object"
+      desc: "[size_t] max width of Image3D object"
     - name: IMAGE3D_MAX_HEIGHT
-      desc: "size_t: max height of Image3D object"
+      desc: "[size_t] max height of Image3D object"
     - name: IMAGE3D_MAX_DEPTH
-      desc: "size_t: max depth of Image3D object"
+      desc: "[size_t] max depth of Image3D object"
     - name: IMAGE_MAX_BUFFER_SIZE
-      desc: "size_t: max image buffer size"
+      desc: "[size_t] max image buffer size"
     - name: IMAGE_MAX_ARRAY_SIZE
-      desc: "size_t: max image array size"
+      desc: "[size_t] max image array size"
     - name: MAX_SAMPLERS
-      desc: "uint32_t: max number of samplers that can be used in a kernel"
+      desc: "[uint32_t] max number of samplers that can be used in a kernel"
     - name: MAX_PARAMETER_SIZE
-      desc: "size_t: max size in bytes of all arguments passed to a kernel"
+      desc: "[size_t] max size in bytes of all arguments passed to a kernel"
     - name: MEM_BASE_ADDR_ALIGN
-      desc: "uint32_t: memory base address alignment"
+      desc: "[uint32_t] memory base address alignment"
     - name: GLOBAL_MEM_CACHE_TYPE
-      desc: "$x_device_mem_cache_type_t: global memory cache type"
+      desc: "[$x_device_mem_cache_type_t] global memory cache type"
     - name: GLOBAL_MEM_CACHELINE_SIZE
-      desc: "uint32_t: global memory cache line size in bytes"
+      desc: "[uint32_t] global memory cache line size in bytes"
     - name: GLOBAL_MEM_CACHE_SIZE
-      desc: "uint64_t: size of global memory cache in bytes"
+      desc: "[uint64_t] size of global memory cache in bytes"
     - name: GLOBAL_MEM_SIZE
-      desc: "uint64_t: size of global memory in bytes"
+      desc: "[uint64_t] size of global memory in bytes"
     - name: GLOBAL_MEM_FREE
-      desc: "uint64_t: size of global memory which is free in bytes"
+      desc: "[uint64_t] size of global memory which is free in bytes"
     - name: MAX_CONSTANT_BUFFER_SIZE
-      desc: "uint64_t: max constant buffer size in bytes"
+      desc: "[uint64_t] max constant buffer size in bytes"
     - name: MAX_CONSTANT_ARGS
-      desc: "uint32_t: max number of __const declared arguments in a kernel"
+      desc: "[uint32_t] max number of __const declared arguments in a kernel"
     - name: LOCAL_MEM_TYPE
-      desc: "$x_device_local_mem_type_t: local memory type"
+      desc: "[$x_device_local_mem_type_t] local memory type"
     - name: LOCAL_MEM_SIZE
-      desc: "uint64_t: local memory size in bytes"
+      desc: "[uint64_t] local memory size in bytes"
     - name: ERROR_CORRECTION_SUPPORT
-      desc: "bool: support error correction to global and local memory"
+      desc: "[bool] support error correction to global and local memory"
     - name: HOST_UNIFIED_MEMORY
-      desc: "bool: unified host device memory"
+      desc: "[bool] unified host device memory"
     - name: PROFILING_TIMER_RESOLUTION
-      desc: "size_t: profiling timer resolution in nanoseconds"
+      desc: "[size_t] profiling timer resolution in nanoseconds"
     - name: ENDIAN_LITTLE
-      desc: "bool: little endian byte order"
+      desc: "[bool] little endian byte order"
     - name: AVAILABLE
-      desc: "bool: device is available"
+      desc: "[bool] device is available"
     - name: COMPILER_AVAILABLE
-      desc: "bool: device compiler is available"
+      desc: "[bool] device compiler is available"
     - name: LINKER_AVAILABLE
-      desc: "bool: device linker is available"
+      desc: "[bool] device linker is available"
     - name: EXECUTION_CAPABILITIES
-      desc: "$x_device_exec_capability_flags_t: device kernel execution capability bit-field"
+      desc: "[$x_device_exec_capability_flags_t] device kernel execution capability bit-field"
     - name: QUEUE_ON_DEVICE_PROPERTIES
-      desc: "$x_queue_flags_t: device command queue property bit-field"
+      desc: "[$x_queue_flags_t] device command queue property bit-field"
     - name: QUEUE_ON_HOST_PROPERTIES
-      desc: "$x_queue_flags_t: host queue property bit-field"
+      desc: "[$x_queue_flags_t] host queue property bit-field"
     - name: BUILT_IN_KERNELS
-      desc: "char[]: a semi-colon separated list of built-in kernels"
+      desc: "[char[]] a semi-colon separated list of built-in kernels"
     - name: PLATFORM
-      desc: "$x_platform_handle_t: the platform associated with the device"
+      desc: "[$x_platform_handle_t] the platform associated with the device"
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the device object.
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: IL_VERSION
-      desc: "char[]: IL version"
+      desc: "[char[]] IL version"
     - name: NAME
-      desc: "char[]: Device name"
+      desc: "[char[]] Device name"
     - name: VENDOR
-      desc: "char[]: Device vendor"
+      desc: "[char[]] Device vendor"
     - name: DRIVER_VERSION
-      desc: "char[]: Driver version"
+      desc: "[char[]] Driver version"
     - name: PROFILE
-      desc: "char[]: Device profile"
+      desc: "[char[]] Device profile"
     - name: VERSION
-      desc: "char[]: Device version"
+      desc: "[char[]] Device version"
     - name: BACKEND_RUNTIME_VERSION
-      desc: "char[]: Version of backend runtime"
+      desc: "[char[]] Version of backend runtime"
     - name: EXTENSIONS
-      desc: "char[]: Return a space separated list of extension names"
+      desc: "[char[]] Return a space separated list of extension names"
     - name: PRINTF_BUFFER_SIZE
-      desc: "size_t: Maximum size in bytes of internal printf buffer"
+      desc: "[size_t] Maximum size in bytes of internal printf buffer"
     - name: PREFERRED_INTEROP_USER_SYNC
-      desc: "bool: prefer user synchronization when sharing object with other API"
+      desc: "[$x_bool_t] prefer user synchronization when sharing object with other API"
     - name: PARENT_DEVICE
-      desc: "$x_device_handle_t: return parent device handle"
+      desc: "[$x_device_handle_t] return parent device handle"
     - name: PARTITION_PROPERTIES
-      desc: "$x_device_partition_property_t[]: Returns the list of partition types supported by the device"
+      desc: "[$x_device_partition_property_t[]] Returns an array of partition types supported by the device"
     - name: PARTITION_MAX_SUB_DEVICES
-      desc: "uint32_t: maximum number of sub-devices when the device is partitioned"
+      desc: "[uint32_t] maximum number of sub-devices when the device is partitioned"
     - name: PARTITION_AFFINITY_DOMAIN
-      desc: |  
-            [$x_device_affinity_domain_flags_t]: Returns a bit-field of the supported affinity domains for partitioning. 
+      desc: |
+            [$x_device_affinity_domain_flags_t] Returns a bit-field of the supported affinity domains for partitioning. 
             If the device does not support any affinity domains, then 0 will be returned.
     - name: PARTITION_TYPE
-      desc: "$x_device_partition_property_t[]: return a list of $x_device_partition_property_t for properties specified in $xDevicePartition"
+      desc: "[$x_device_partition_property_t[]] return an array of $x_device_partition_property_t for properties specified in $xDevicePartition"
     - name: MAX_NUM_SUB_GROUPS
-      desc: "uint32_t: max number of sub groups"
+      desc: "[uint32_t] max number of sub groups"
     - name: SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS
-      desc: "bool: support sub group independent forward progress"
+      desc: "[$x_bool_t] support sub group independent forward progress"
     - name: SUB_GROUP_SIZES_INTEL
-      desc: "uint32_t[]: return an array of sub group sizes supported on Intel device"
+      desc: "[uint32_t[]] return an array of sub group sizes supported on Intel device"
     - name: USM_HOST_SUPPORT
-      desc: "bool: support USM host memory access"
+      desc: "[$x_bool_t] support USM host memory access"
     - name: USM_DEVICE_SUPPORT
-      desc: "bool: support USM device memory access"
+      desc: "[$x_bool_t] support USM device memory access"
     - name: USM_SINGLE_SHARED_SUPPORT
-      desc: "bool: support USM single device shared memory access"
+      desc: "[$x_bool_t] support USM single device shared memory access"
     - name: USM_CROSS_SHARED_SUPPORT
-      desc: "bool: support USM cross device shared memory access"
+      desc: "[$x_bool_t] support USM cross device shared memory access"
     - name: USM_SYSTEM_SHARED_SUPPORT
-      desc: "bool: support USM system wide shared memory access"
+      desc: "[$x_bool_t] support USM system wide shared memory access"
     - name: UUID
-      desc: "char[]: return device UUID"
+      desc: "[char[]] return device UUID"
     - name: PCI_ADDRESS
-      desc: "char[]: return device PCI address"
+      desc: "[char[]] return device PCI address"
     - name: GPU_EU_COUNT
-      desc: "uint32_t: return Intel GPU EU count"
+      desc: "[uint32_t] return Intel GPU EU count"
     - name: GPU_EU_SIMD_WIDTH
-      desc: "uint32_t: return Intel GPU EU SIMD width"
+      desc: "[uint32_t] return Intel GPU EU SIMD width"
     - name: GPU_EU_SLICES
-      desc: "uint32_t: return Intel GPU number of slices"
+      desc: "[uint32_t] return Intel GPU number of slices"
     - name: GPU_SUBSLICES_PER_SLICE
-      desc: "uint32_t: return Intel GPU number of subslices per slice"
+      desc: "[uint32_t] return Intel GPU number of subslices per slice"
     - name: MAX_MEMORY_BANDWIDTH
-      desc: "uint32_t: return max memory bandwidth in Mb/s"
+      desc: "[uint32_t] return max memory bandwidth in Mb/s"
     - name: IMAGE_SRGB
-      desc: "bool: image is SRGB"
+      desc: "[$x_bool_t] image is SRGB"
     - name: ATOMIC_64
-      desc: "bool: support 64 bit atomics"
+      desc: "[$x_bool_t] support 64 bit atomics"
     - name: ATOMIC_MEMORY_ORDER_CAPABILITIES
-      desc: "$x_memory_order_capability_flags_t: return a bit-field of atomic memory order capabilities"
+      desc: "[$x_memory_order_capability_flags_t] return a bit-field of atomic memory order capabilities"
     - name: ATOMIC_MEMORY_SCOPE_CAPABILITIES
-      desc: "$x_memory_scope_capability_flags_t: return a bit-field of atomic memory scope capabilities"
+      desc: "[$x_memory_scope_capability_flags_t] return a bit-field of atomic memory scope capabilities"
     - name: ATOMIC_FENCE_ORDER_CAPABILITIES
-      desc: "$x_memory_order_capability_flags_t: return a bit-field of atomic memory fence order capabilities"
+      desc: "[$x_memory_order_capability_flags_t] return a bit-field of atomic memory fence order capabilities"
     - name: ATOMIC_FENCE_SCOPE_CAPABILITIES
-      desc: "$x_memory_scope_capability_flags_t: return a bit-field of atomic memory fence scope capabilities"
+      desc: "[$x_memory_scope_capability_flags_t] return a bit-field of atomic memory fence scope capabilities"
     - name: BFLOAT16
-      desc: "bool: support for bfloat16"
+      desc: "[$x_bool_t] support for bfloat16"
     - name: MAX_COMPUTE_QUEUE_INDICES
       desc: |
-            uint32_t: Returns 1 if the device doesn't have a notion of a 
+            [uint32_t] Returns 1 if the device doesn't have a notion of a 
             queue index. Otherwise, returns the number of queue indices that are
             available for this device.
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
-      desc: "`bool`: support the $xKernelSetSpecializationConstants entry point"
+      desc: "[$x_bool_t] support the $xKernelSetSpecializationConstants entry point"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -386,7 +387,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [out][optional] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If propSize is not equal to or greater than the real number of bytes needed to return the info
             then the $X_RESULT_ERROR_INVALID_VALUE error is returned and pPropValue is not used.
     - type: "size_t*"

@@ -16,7 +16,243 @@
 
 namespace ur_params {
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
+
+inline void serializeStruct(std::ostream &os, const void *ptr);
+inline void serializeFlag_ur_device_init_flags_t(std::ostream &os,
+                                                 ur_device_init_flags_t flag);
+inline void
+serializeTaggedTyped_ur_platform_info_t(std::ostream &os, const void *ptr,
+                                        enum ur_platform_info_t value,
+                                        size_t size);
+inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
+                                                  const void *ptr,
+                                                  enum ur_device_info_t value,
+                                                  size_t size);
+inline void serializeFlag_ur_device_fp_capability_flags_t(
+    std::ostream &os, ur_device_fp_capability_flags_t flag);
+inline void serializeFlag_ur_device_exec_capability_flags_t(
+    std::ostream &os, ur_device_exec_capability_flags_t flag);
+inline void serializeFlag_ur_device_affinity_domain_flags_t(
+    std::ostream &os, ur_device_affinity_domain_flags_t flag);
+inline void serializeFlag_ur_memory_order_capability_flags_t(
+    std::ostream &os, ur_memory_order_capability_flags_t flag);
+inline void serializeFlag_ur_memory_scope_capability_flags_t(
+    std::ostream &os, ur_memory_scope_capability_flags_t flag);
+inline void serializeFlag_ur_context_flags_t(std::ostream &os,
+                                             ur_context_flags_t flag);
+inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
+                                                   const void *ptr,
+                                                   enum ur_context_info_t value,
+                                                   size_t size);
+inline void serializeFlag_ur_mem_flags_t(std::ostream &os, ur_mem_flags_t flag);
+inline void serializeTaggedTyped_ur_mem_info_t(std::ostream &os,
+                                               const void *ptr,
+                                               enum ur_mem_info_t value,
+                                               size_t size);
+inline void serializeTaggedTyped_ur_image_info_t(std::ostream &os,
+                                                 const void *ptr,
+                                                 enum ur_image_info_t value,
+                                                 size_t size);
+inline void serializeTaggedTyped_ur_sampler_info_t(std::ostream &os,
+                                                   const void *ptr,
+                                                   enum ur_sampler_info_t value,
+                                                   size_t size);
+inline void serializeFlag_ur_usm_flags_t(std::ostream &os, ur_usm_flags_t flag);
+inline void serializeFlag_ur_usm_host_mem_flags_t(std::ostream &os,
+                                                  ur_usm_host_mem_flags_t flag);
+inline void
+serializeFlag_ur_usm_device_mem_flags_t(std::ostream &os,
+                                        ur_usm_device_mem_flags_t flag);
+inline void serializeFlag_ur_usm_pool_flags_t(std::ostream &os,
+                                              ur_usm_pool_flags_t flag);
+inline void
+serializeTaggedTyped_ur_usm_alloc_info_t(std::ostream &os, const void *ptr,
+                                         enum ur_usm_alloc_info_t value,
+                                         size_t size);
+inline void serializeFlag_ur_usm_advice_flags_t(std::ostream &os,
+                                                ur_usm_advice_flags_t flag);
+inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
+                                                   const void *ptr,
+                                                   enum ur_program_info_t value,
+                                                   size_t size);
+inline void
+serializeTaggedTyped_ur_program_build_info_t(std::ostream &os, const void *ptr,
+                                             enum ur_program_build_info_t value,
+                                             size_t size);
+inline void serializeTaggedTyped_ur_kernel_info_t(std::ostream &os,
+                                                  const void *ptr,
+                                                  enum ur_kernel_info_t value,
+                                                  size_t size);
+inline void
+serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
+                                            enum ur_kernel_group_info_t value,
+                                            size_t size);
+inline void serializeTaggedTyped_ur_kernel_sub_group_info_t(
+    std::ostream &os, const void *ptr, enum ur_kernel_sub_group_info_t value,
+    size_t size);
+inline void
+serializeTaggedTyped_ur_kernel_exec_info_t(std::ostream &os, const void *ptr,
+                                           enum ur_kernel_exec_info_t value,
+                                           size_t size);
+inline void serializeTaggedTyped_ur_queue_info_t(std::ostream &os,
+                                                 const void *ptr,
+                                                 enum ur_queue_info_t value,
+                                                 size_t size);
+inline void serializeFlag_ur_queue_flags_t(std::ostream &os,
+                                           ur_queue_flags_t flag);
+inline void serializeTaggedTyped_ur_event_info_t(std::ostream &os,
+                                                 const void *ptr,
+                                                 enum ur_event_info_t value,
+                                                 size_t size);
+inline void
+serializeTaggedTyped_ur_profiling_info_t(std::ostream &os, const void *ptr,
+                                         enum ur_profiling_info_t value,
+                                         size_t size);
+inline void serializeFlag_ur_map_flags_t(std::ostream &os, ur_map_flags_t flag);
+inline void
+serializeFlag_ur_usm_migration_flags_t(std::ostream &os,
+                                       ur_usm_migration_flags_t flag);
 } // namespace ur_params
+
+inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_structure_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_base_properties_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_base_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_rect_offset_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_rect_region_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_init_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_platform_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_platform_backend_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_device_binary_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_partition_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_fp_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_mem_cache_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_local_mem_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_exec_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_affinity_domain_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_memory_order_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_memory_scope_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_context_properties_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_context_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_image_channel_order_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_image_channel_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_image_format_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_image_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_buffer_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_buffer_channel_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_buffer_alloc_location_properties_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_buffer_region_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_buffer_create_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_sampler_filter_mode_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_sampler_addressing_mode_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_sampler_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_host_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_device_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_pool_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_alloc_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_advice_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_host_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_device_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_limits_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_program_metadata_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const union ur_program_metadata_value_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_program_metadata_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_program_properties_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_program_build_status_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_program_binary_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_program_build_info_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_specialization_constant_info_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_group_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_sub_group_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_cache_config_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_exec_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_queue_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_queue_index_properties_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_profiling_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_execution_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_migration_flag_t value);
 
 inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     switch (value) {
@@ -681,6 +917,67 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_platform_info_t(std::ostream &os, const void *ptr,
+                                        enum ur_platform_info_t value,
+                                        size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_PLATFORM_INFO_NAME: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PLATFORM_INFO_VENDOR_NAME: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PLATFORM_INFO_VERSION: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PLATFORM_INFO_EXTENSIONS: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PLATFORM_INFO_PROFILE: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PLATFORM_INFO_BACKEND: {
+        const ur_platform_backend_t *tptr = (const ur_platform_backend_t *)ptr;
+        if (sizeof(ur_platform_backend_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_platform_backend_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value) {
     os << UR_MAJOR_VERSION(value) << "." << UR_MINOR_VERSION(value);
     return os;
@@ -1195,6 +1492,1417 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
+                                                  const void *ptr,
+                                                  enum ur_device_info_t value,
+                                                  size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_DEVICE_INFO_TYPE: {
+        const ur_device_type_t *tptr = (const ur_device_type_t *)ptr;
+        if (sizeof(ur_device_type_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_type_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_VENDOR_ID: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_DEVICE_ID: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+
+        const size_t *tptr = (const size_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(size_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
+        const ur_device_fp_capability_flags_t *tptr =
+            (const ur_device_fp_capability_flags_t *)ptr;
+        if (sizeof(ur_device_fp_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_fp_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_device_fp_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_HALF_FP_CONFIG: {
+        const ur_device_fp_capability_flags_t *tptr =
+            (const ur_device_fp_capability_flags_t *)ptr;
+        if (sizeof(ur_device_fp_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_fp_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_device_fp_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+        const ur_device_fp_capability_flags_t *tptr =
+            (const ur_device_fp_capability_flags_t *)ptr;
+        if (sizeof(ur_device_fp_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_fp_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_device_fp_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
+        const ur_queue_flags_t *tptr = (const ur_queue_flags_t *)ptr;
+        if (sizeof(ur_queue_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ADDRESS_BITS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_SAMPLERS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_PARAMETER_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
+        const ur_device_mem_cache_type_t *tptr =
+            (const ur_device_mem_cache_type_t *)ptr;
+        if (sizeof(ur_device_mem_cache_type_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_mem_cache_type_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_CONSTANT_ARGS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_LOCAL_MEM_TYPE: {
+        const ur_device_local_mem_type_t *tptr =
+            (const ur_device_local_mem_type_t *)ptr;
+        if (sizeof(ur_device_local_mem_type_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_local_mem_type_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
+        const bool *tptr = (const bool *)ptr;
+        if (sizeof(bool) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(bool) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
+        const bool *tptr = (const bool *)ptr;
+        if (sizeof(bool) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(bool) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ENDIAN_LITTLE: {
+        const bool *tptr = (const bool *)ptr;
+        if (sizeof(bool) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(bool) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_AVAILABLE: {
+        const bool *tptr = (const bool *)ptr;
+        if (sizeof(bool) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(bool) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
+        const bool *tptr = (const bool *)ptr;
+        if (sizeof(bool) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(bool) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_LINKER_AVAILABLE: {
+        const bool *tptr = (const bool *)ptr;
+        if (sizeof(bool) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(bool) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
+        const ur_device_exec_capability_flags_t *tptr =
+            (const ur_device_exec_capability_flags_t *)ptr;
+        if (sizeof(ur_device_exec_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_exec_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_device_exec_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
+        const ur_queue_flags_t *tptr = (const ur_queue_flags_t *)ptr;
+        if (sizeof(ur_queue_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+        const ur_queue_flags_t *tptr = (const ur_queue_flags_t *)ptr;
+        if (sizeof(ur_queue_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_PLATFORM: {
+        const ur_platform_handle_t *tptr = (const ur_platform_handle_t *)ptr;
+        if (sizeof(ur_platform_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_platform_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IL_VERSION: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_NAME: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_VENDOR: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_DRIVER_VERSION: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_PROFILE: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_VERSION: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_EXTENSIONS: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PARENT_DEVICE: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
+
+        const ur_device_partition_property_t *tptr =
+            (const ur_device_partition_property_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(ur_device_partition_property_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+        const ur_device_affinity_domain_flags_t *tptr =
+            (const ur_device_affinity_domain_flags_t *)ptr;
+        if (sizeof(ur_device_affinity_domain_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_affinity_domain_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_device_affinity_domain_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_PARTITION_TYPE: {
+
+        const ur_device_partition_property_t *tptr =
+            (const ur_device_partition_property_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(ur_device_partition_property_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(uint32_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_DEVICE_INFO_USM_HOST_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_USM_DEVICE_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_UUID: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_PCI_ADDRESS: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_DEVICE_INFO_GPU_EU_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GPU_EU_SLICES: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_IMAGE_SRGB: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ATOMIC_64: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+        const ur_memory_order_capability_flags_t *tptr =
+            (const ur_memory_order_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_order_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_order_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+        const ur_memory_scope_capability_flags_t *tptr =
+            (const ur_memory_scope_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_scope_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_scope_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+        const ur_memory_order_capability_flags_t *tptr =
+            (const ur_memory_order_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_order_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_order_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+        const ur_memory_scope_capability_flags_t *tptr =
+            (const ur_memory_scope_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_scope_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_scope_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_BFLOAT16: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_partition_t value) {
     switch (value) {
@@ -1887,6 +3595,158 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
+                                                   const void *ptr,
+                                                   enum ur_context_info_t value,
+                                                   size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_CONTEXT_INFO_NUM_DEVICES: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_DEVICES: {
+
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(ur_device_handle_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            ur_params::serializePtr(os, tptr[i]);
+        }
+        os << "]";
+    } break;
+
+    case UR_CONTEXT_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+        const ur_memory_order_capability_flags_t *tptr =
+            (const ur_memory_order_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_order_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_order_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+        const ur_memory_scope_capability_flags_t *tptr =
+            (const ur_memory_scope_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_scope_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_scope_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+        const ur_memory_order_capability_flags_t *tptr =
+            (const ur_memory_order_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_order_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_order_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+        const ur_memory_scope_capability_flags_t *tptr =
+            (const ur_memory_scope_capability_flags_t *)ptr;
+        if (sizeof(ur_memory_scope_capability_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_memory_scope_capability_flags_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value) {
     switch (value) {
 
@@ -2050,6 +3910,51 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value) {
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_mem_info_t(std::ostream &os,
+                                               const void *ptr,
+                                               enum ur_mem_info_t value,
+                                               size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_MEM_INFO_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_MEM_INFO_CONTEXT: {
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_image_channel_order_t value) {
     switch (value) {
@@ -2224,6 +4129,121 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value) {
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_image_info_t(std::ostream &os,
+                                                 const void *ptr,
+                                                 enum ur_image_info_t value,
+                                                 size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_IMAGE_INFO_FORMAT: {
+        const ur_image_format_t *tptr = (const ur_image_format_t *)ptr;
+        if (sizeof(ur_image_format_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_image_format_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_IMAGE_INFO_ELEMENT_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_IMAGE_INFO_ROW_PITCH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_IMAGE_INFO_SLICE_PITCH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_IMAGE_INFO_WIDTH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_IMAGE_INFO_HEIGHT: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_IMAGE_INFO_DEPTH: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_image_format_t params) {
     os << "(struct ur_image_format_t){";
@@ -2480,6 +4500,96 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_sampler_info_t(std::ostream &os,
+                                                   const void *ptr,
+                                                   enum ur_sampler_info_t value,
+                                                   size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_SAMPLER_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_SAMPLER_INFO_CONTEXT: {
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_SAMPLER_INFO_NORMALIZED_COORDS: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_SAMPLER_INFO_ADDRESSING_MODE: {
+        const ur_sampler_addressing_mode_t *tptr =
+            (const ur_sampler_addressing_mode_t *)ptr;
+        if (sizeof(ur_sampler_addressing_mode_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_sampler_addressing_mode_t)
+               << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_SAMPLER_INFO_FILTER_MODE: {
+        const ur_sampler_filter_mode_t *tptr =
+            (const ur_sampler_filter_mode_t *)ptr;
+        if (sizeof(ur_sampler_filter_mode_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_sampler_filter_mode_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_sampler_desc_t params) {
     os << "(struct ur_sampler_desc_t){";
@@ -2769,6 +4879,93 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_usm_alloc_info_t(std::ostream &os, const void *ptr,
+                                         enum ur_usm_alloc_info_t value,
+                                         size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_USM_ALLOC_INFO_TYPE: {
+        const ur_usm_type_t *tptr = (const ur_usm_type_t *)ptr;
+        if (sizeof(ur_usm_type_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_usm_type_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_USM_ALLOC_INFO_BASE_PTR: {
+        const void **tptr = (const void **)ptr;
+        if (sizeof(void *) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(void *) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_USM_ALLOC_INFO_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_USM_ALLOC_INFO_DEVICE: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_USM_ALLOC_INFO_POOL: {
+        const ur_usm_pool_handle_t *tptr = (const ur_usm_pool_handle_t *)ptr;
+        if (sizeof(ur_usm_pool_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_usm_pool_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_advice_flag_t value) {
     switch (value) {
@@ -3203,6 +5400,127 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
+                                                   const void *ptr,
+                                                   enum ur_program_info_t value,
+                                                   size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_PROGRAM_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROGRAM_INFO_CONTEXT: {
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_PROGRAM_INFO_NUM_DEVICES: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROGRAM_INFO_DEVICES: {
+
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(ur_device_handle_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            ur_params::serializePtr(os, tptr[i]);
+        }
+        os << "]";
+    } break;
+
+    case UR_PROGRAM_INFO_SOURCE: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PROGRAM_INFO_BINARY_SIZES: {
+
+        const size_t *tptr = (const size_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(size_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_PROGRAM_INFO_BINARIES: {
+
+        const unsigned char *tptr = (const unsigned char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PROGRAM_INFO_NUM_KERNELS: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROGRAM_INFO_KERNEL_NAMES: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_build_status_t value) {
     switch (value) {
@@ -3278,6 +5596,65 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_program_build_info_t(std::ostream &os, const void *ptr,
+                                             enum ur_program_build_info_t value,
+                                             size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_PROGRAM_BUILD_INFO_STATUS: {
+        const ur_program_build_status_t *tptr =
+            (const ur_program_build_status_t *)ptr;
+        if (sizeof(ur_program_build_status_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_program_build_status_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROGRAM_BUILD_INFO_OPTIONS: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PROGRAM_BUILD_INFO_LOG: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_PROGRAM_BUILD_INFO_BINARY_TYPE: {
+        const ur_program_binary_type_t *tptr =
+            (const ur_program_binary_type_t *)ptr;
+        if (sizeof(ur_program_binary_type_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_program_binary_type_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_specialization_constant_info_t params) {
@@ -3336,6 +5713,105 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value) {
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_kernel_info_t(std::ostream &os,
+                                                  const void *ptr,
+                                                  enum ur_kernel_info_t value,
+                                                  size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_KERNEL_INFO_FUNCTION_NAME: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_KERNEL_INFO_NUM_ARGS: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_INFO_CONTEXT: {
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_INFO_PROGRAM: {
+        const ur_program_handle_t *tptr = (const ur_program_handle_t *)ptr;
+        if (sizeof(ur_program_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_program_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_INFO_ATTRIBUTES: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_KERNEL_INFO_NUM_REGS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_group_info_t value) {
     switch (value) {
@@ -3369,6 +5845,109 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
+                                            enum ur_kernel_group_info_t value,
+                                            size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+
+        const size_t *tptr = (const size_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(size_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+
+        const size_t *tptr = (const size_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(size_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(size_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_sub_group_info_t value) {
     switch (value) {
@@ -3394,6 +5973,78 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_kernel_sub_group_info_t(
+    std::ostream &os, const void *ptr, enum ur_kernel_sub_group_info_t value,
+    size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_cache_config_t value) {
     switch (value) {
@@ -3436,6 +6087,67 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_kernel_exec_info_t(std::ostream &os, const void *ptr,
+                                           enum ur_kernel_exec_info_t value,
+                                           size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_KERNEL_EXEC_INFO_USM_PTRS: {
+
+        const void **tptr = (const void **)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(void *);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "]";
+    } break;
+
+    case UR_KERNEL_EXEC_INFO_CACHE_CONFIG: {
+        const ur_kernel_cache_config_t *tptr =
+            (const ur_kernel_cache_config_t *)ptr;
+        if (sizeof(ur_kernel_cache_config_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_kernel_cache_config_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value) {
     switch (value) {
 
@@ -3468,6 +6180,107 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value) {
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_queue_info_t(std::ostream &os,
+                                                 const void *ptr,
+                                                 enum ur_queue_info_t value,
+                                                 size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_QUEUE_INFO_CONTEXT: {
+        const ur_queue_handle_t *tptr = (const ur_queue_handle_t *)ptr;
+        if (sizeof(ur_queue_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_QUEUE_INFO_DEVICE: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_QUEUE_INFO_DEVICE_DEFAULT: {
+        const ur_queue_handle_t *tptr = (const ur_queue_handle_t *)ptr;
+        if (sizeof(ur_queue_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_QUEUE_INFO_FLAGS: {
+        const ur_queue_flags_t *tptr = (const ur_queue_flags_t *)ptr;
+        if (sizeof(ur_queue_flags_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_QUEUE_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_QUEUE_INFO_SIZE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     switch (value) {
 
@@ -3791,6 +6604,93 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value) {
     }
     return os;
 }
+namespace ur_params {
+inline void serializeTaggedTyped_ur_event_info_t(std::ostream &os,
+                                                 const void *ptr,
+                                                 enum ur_event_info_t value,
+                                                 size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_EVENT_INFO_COMMAND_QUEUE: {
+        const ur_queue_handle_t *tptr = (const ur_queue_handle_t *)ptr;
+        if (sizeof(ur_queue_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_EVENT_INFO_CONTEXT: {
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+
+    case UR_EVENT_INFO_COMMAND_TYPE: {
+        const ur_command_t *tptr = (const ur_command_t *)ptr;
+        if (sizeof(ur_command_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_command_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+        const ur_event_status_t *tptr = (const ur_event_status_t *)ptr;
+        if (sizeof(ur_event_status_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_event_status_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_EVENT_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_profiling_info_t value) {
     switch (value) {
@@ -3816,6 +6716,79 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_profiling_info_t(std::ostream &os, const void *ptr,
+                                         enum ur_profiling_info_t value,
+                                         size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_PROFILING_INFO_COMMAND_QUEUED: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROFILING_INFO_COMMAND_SUBMIT: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROFILING_INFO_COMMAND_START: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROFILING_INFO_COMMAND_END: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value) {
     switch (value) {
@@ -4507,8 +7480,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_context_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -5948,19 +8921,19 @@ operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_event_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
-    os << ".pPropValueSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppPropValueSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
@@ -5979,19 +8952,19 @@ operator<<(std::ostream &os,
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_profiling_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
-    os << ".pPropValueSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppPropValueSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
@@ -6140,8 +9113,8 @@ operator<<(std::ostream &os, const struct ur_kernel_get_info_params_t *params) {
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_kernel_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -6176,8 +9149,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_kernel_group_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -6212,8 +9185,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_kernel_sub_group_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -6368,8 +9341,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_kernel_exec_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     return os;
 }
@@ -6611,8 +9584,8 @@ inline std::ostream &operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_mem_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -6642,8 +9615,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_image_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -6689,19 +9662,19 @@ operator<<(std::ostream &os,
     ur_params::serializePtr(os, *(params->phPlatform));
 
     os << ", ";
-    os << ".PlatformInfoType = ";
+    os << ".propName = ";
 
-    os << *(params->pPlatformInfoType);
-
-    os << ", ";
-    os << ".Size = ";
-
-    os << *(params->pSize);
+    os << *(params->ppropName);
 
     os << ", ";
-    os << ".pPlatformInfo = ";
+    os << ".propSize = ";
 
-    ur_params::serializePtr(os, *(params->ppPlatformInfo));
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur_params::serializeTaggedTyped_ur_platform_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pSizeRet = ";
@@ -6990,8 +9963,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_program_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -7026,8 +9999,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_program_build_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -7115,14 +10088,14 @@ operator<<(std::ostream &os, const struct ur_queue_get_info_params_t *params) {
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_queue_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -7288,14 +10261,14 @@ operator<<(std::ostream &os,
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_sampler_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -7478,19 +10451,19 @@ operator<<(std::ostream &os,
     os << *(params->ppropName);
 
     os << ", ";
-    os << ".propValueSize = ";
+    os << ".propSize = ";
 
-    os << *(params->ppropValueSize);
+    os << *(params->ppropSize);
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_usm_alloc_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
-    os << ".pPropValueSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppPropValueSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
@@ -7587,8 +10560,8 @@ operator<<(std::ostream &os, const struct ur_device_get_info_params_t *params) {
 
     os << ", ";
     os << ".pPropValue = ";
-
-    ur_params::serializePtr(os, *(params->ppPropValue));
+    ur_params::serializeTaggedTyped_ur_device_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -7755,6 +10728,10 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
         os << ")";
     } else if constexpr (std::is_void_v<T> || !is_type_complete_v<T>) {
         os << (void *)ptr;
+    } else if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
+        os << (void *)(ptr) << " (";
+        os << ptr;
+        os << ")";
     } else {
         os << (void *)(ptr) << " (";
         os << *ptr;
