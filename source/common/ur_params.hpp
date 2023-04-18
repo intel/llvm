@@ -7568,9 +7568,9 @@ operator<<(std::ostream &os,
     os << "]";
 
     os << ", ";
-    os << ".pContextNativeProperties = ";
+    os << ".pProperties = ";
 
-    ur_params::serializePtr(os, *(params->ppContextNativeProperties));
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".phContext = ";
