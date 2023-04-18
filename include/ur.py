@@ -926,11 +926,11 @@ class ur_sampler_filter_mode_t(c_int):
 ###############################################################################
 ## @brief Sampler addressing mode
 class ur_sampler_addressing_mode_v(IntEnum):
-    MIRRORED_REPEAT = 0                             ## Mirrored Repeat
-    REPEAT = 1                                      ## Repeat
+    NONE = 0                                        ## None
+    CLAMP_TO_EDGE = 1                               ## Clamp to edge
     CLAMP = 2                                       ## Clamp
-    CLAMP_TO_EDGE = 3                               ## Clamp to edge
-    NONE = 4                                        ## None
+    REPEAT = 3                                      ## Repeat
+    MIRRORED_REPEAT = 4                             ## Mirrored Repeat
 
 class ur_sampler_addressing_mode_t(c_int):
     def __str__(self):

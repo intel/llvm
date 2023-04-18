@@ -2011,11 +2011,11 @@ typedef enum ur_sampler_filter_mode_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler addressing mode
 typedef enum ur_sampler_addressing_mode_t {
-    UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = 0, ///< Mirrored Repeat
-    UR_SAMPLER_ADDRESSING_MODE_REPEAT = 1,          ///< Repeat
+    UR_SAMPLER_ADDRESSING_MODE_NONE = 0,            ///< None
+    UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = 1,   ///< Clamp to edge
     UR_SAMPLER_ADDRESSING_MODE_CLAMP = 2,           ///< Clamp
-    UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = 3,   ///< Clamp to edge
-    UR_SAMPLER_ADDRESSING_MODE_NONE = 4,            ///< None
+    UR_SAMPLER_ADDRESSING_MODE_REPEAT = 3,          ///< Repeat
+    UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = 4, ///< Mirrored Repeat
     /// @cond
     UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2073,7 +2073,7 @@ typedef struct ur_sampler_desc_t {
 ///         + `NULL == pDesc`
 ///         + `NULL == phSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_SAMPLER_ADDRESSING_MODE_NONE < pDesc->addressingMode`
+///         + `::UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT < pDesc->addressingMode`
 ///         + `::UR_SAMPLER_FILTER_MODE_LINEAR < pDesc->filterMode`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
