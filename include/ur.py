@@ -215,6 +215,7 @@ class ur_structure_type_v(IntEnum):
     SAMPLER_DESC = 13                               ## ::ur_sampler_desc_t
     QUEUE_PROPERTIES = 14                           ## ::ur_queue_properties_t
     QUEUE_INDEX_PROPERTIES = 15                     ## ::ur_queue_properties_t
+    CONTEXT_NATIVE_PROPERTIES = 16                  ## ::ur_context_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -705,6 +706,18 @@ class ur_context_info_t(c_int):
     def __str__(self):
         return str(ur_context_info_v(self.value))
 
+
+###############################################################################
+## @brief Properties for for ::urContextCreateWithNativeHandle.
+class ur_context_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an interoperability
+                                                                        ## operation in the application that asked to not transfer the ownership to
+                                                                        ## the unified-runtime.
+    ]
 
 ###############################################################################
 ## @brief Context's extended deleter callback function with user data.
@@ -1715,9 +1728,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urContextCreateWithNativeHandle
 if __use_win_types:
-    _urContextCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
+    _urContextCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_native_properties_t), POINTER(ur_context_handle_t) )
 else:
-    _urContextCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
+    _urContextCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_native_properties_t), POINTER(ur_context_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urContextSetExtendedDeleter

@@ -747,7 +747,12 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext, ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in] the native handle of the context.
+    uint32_t numDevices, ///< [in] number of devices associated with the context
+    const ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+    const ur_context_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_context_handle_t *
         phContext ///< [out] pointer to the handle of the context object created.
 ) {
@@ -763,12 +768,21 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pProperties) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (NULL == phContext) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativeContext, phContext);
+    ur_result_t result = pfnCreateWithNativeHandle(
+        hNativeContext, numDevices, phDevices, pProperties, phContext);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
         refCountContext.createRefCount(*phContext);
