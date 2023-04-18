@@ -591,8 +591,9 @@ template <int N, template <class, int> class Op,
 bool test_int_types(queue q, const Config &cfg) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
-    // TODO: Enable testing of 16-bit integers when compiler is fixed.
-    // passed &= test<int16_t, N, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
+    passed &= test<int16_t, N, Op>(q, cfg);
+#endif
 
     // TODO: Enable testing of 8-bit integers is supported in HW.
     // passed &= test<int8_t, N, Op>(q, cfg);
@@ -606,8 +607,9 @@ bool test_int_types(queue q, const Config &cfg) {
   }
 
   if constexpr (SignMask & Unsigned) {
-    // TODO: Enable testing of 16-bit integers when compiler is fixed.
-    // passed &= test<uint16_t, N, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
+    passed &= test<uint16_t, N, Op>(q, cfg);
+#endif
 
     // TODO: Enable testing of 8-bit integers is supported in HW.
     // passed &= test<uint8_t, N, Op>(q, cfg);
@@ -627,9 +629,10 @@ template <int N, template <class, int> class Op>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
 
-  // TODO: Enable testing of sycl::half when compiler is fixed.
-  // passed &= test<sycl::half, N, Op>(q, cfg);
-
+  auto dev = q.get_device();
+  if (dev.has(sycl::aspect::fp16)) {
+    passed &= test<sycl::half, N, Op>(q, cfg);
+  }
   passed &= test<float, N, Op>(q, cfg);
   passed &= test<double, N, Op>(q, cfg);
   return passed;

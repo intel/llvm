@@ -2759,13 +2759,13 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using _MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<_MsgT, N> _Msg_data = detail::lsc_format_input<_MsgT>(src0);
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_stateless_1<_MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(),
-          src0.template bit_cast_view<_MsgT>().data());
+          pred.data(), addrs.data(), _Msg_data.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2842,14 +2842,14 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using _MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<_MsgT, N> _Msg_data0 = detail::lsc_format_input<_MsgT>(src0);
+  __ESIMD_NS::simd<_MsgT, N> _Msg_data1 = detail::lsc_format_input<_MsgT>(src1);
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_stateless_2<_MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(),
-          src0.template bit_cast_view<_MsgT>().data(),
-          src1.template bit_cast_view<_MsgT>().data());
+          pred.data(), addrs.data(), _Msg_data0.data(), _Msg_data1.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2980,11 +2980,12 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using _MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<_MsgT, N> _Msg_data0 = detail::lsc_format_input<_MsgT>(src0);
   auto si = __ESIMD_NS::get_surface_index(acc);
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_bti_1<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
                                 _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), src0.data(), si);
+          pred.data(), offsets.data(), _Msg_data0.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
 #endif
 }
@@ -3035,11 +3036,14 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using _MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<_MsgT, N> _Msg_data0 = detail::lsc_format_input<_MsgT>(src0);
+  __ESIMD_NS::simd<_MsgT, N> _Msg_data1 = detail::lsc_format_input<_MsgT>(src1);
   auto si = __ESIMD_NS::get_surface_index(acc);
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_bti_2<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
                                 _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), src0.data(), src1.data(), si);
+          pred.data(), offsets.data(), _Msg_data0.data(), _Msg_data1.data(),
+          si);
   return detail::lsc_format_ret<T>(Tmp);
 #endif
 }
