@@ -33,6 +33,13 @@ class IfOp;
 class ParallelOp;
 } // namespace scf
 
+namespace sycl {
+class SYCLIDGetOp;
+class SYCLRangeGetOp;
+class SYCLAccessorGetRangeOp;
+class SYCLAccessorSubscriptOp;
+} // namespace sycl
+
 //===----------------------------------------------------------------------===//
 // Utility Functions
 //===----------------------------------------------------------------------===//
@@ -228,6 +235,66 @@ public:
   /// Version the given loop \p loop using the condition \p versionCond.
   void versionLoop(LoopLikeOpInterface loop,
                    const LoopVersionCondition &versionCond) const;
+};
+
+//===----------------------------------------------------------------------===//
+// VersionConditionBuilder
+//===----------------------------------------------------------------------===//
+
+using AccessorType = TypedValue<MemRefType>;
+using AccessorPairType = std::pair<AccessorType, AccessorType>;
+class VersionConditionBuilder {
+public:
+  VersionConditionBuilder(
+      LoopLikeOpInterface loop,
+      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
+      : loop(loop), accessorPairs(requireNoOverlapAccessorPairs) {}
+
+  using SCFCondition = LoopVersionCondition::SCFCondition;
+  using AffineCondition = LoopVersionCondition::AffineCondition;
+
+  std::unique_ptr<LoopVersionCondition> createCondition() const {
+    OpBuilder builder(loop);
+    Location loc = loop.getLoc();
+    SCFCondition scfCond = createSCFCondition(builder, loc);
+    return std::make_unique<LoopVersionCondition>(scfCond);
+  }
+
+private:
+  /// Create a versioning condition suitable for scf::IfOp.
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
+
+  template <typename OpTy>
+  static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
+                             ValueRange arguments, StringRef functionName,
+                             StringRef typeName);
+
+  static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
+                                             unsigned index, OpBuilder builder,
+                                             Location loc);
+
+  static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                                   unsigned index,
+                                                   OpBuilder builder,
+                                                   Location loc);
+
+  static sycl::SYCLAccessorGetRangeOp
+  createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor,
+                               OpBuilder builder, Location loc);
+
+  static sycl::SYCLAccessorSubscriptOp
+  createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
+                                TypedValue<MemRefType> id, OpBuilder builder,
+                                Location loc);
+
+  static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
+                                    OpBuilder builder, Location loc);
+
+  static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
+                                  OpBuilder builder, Location loc);
+
+  mutable LoopLikeOpInterface loop;
+  ArrayRef<AccessorPairType> accessorPairs;
 };
 
 } // namespace mlir

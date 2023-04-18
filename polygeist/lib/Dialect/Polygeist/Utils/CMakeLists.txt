@@ -6,6 +6,7 @@ add_mlir_dialect_library(MLIRPolygeistUtils
 
   LINK_LIBS PUBLIC
   MLIRPolygeistDialect
+  MLIRSYCLDialect
   MLIRDialect
   MLIRIR
   )
