@@ -19,7 +19,7 @@ extern "C" {
 
 typedef struct uma_memory_tracker_t *uma_memory_tracker_handle_t;
 
-uma_memory_tracker_handle_t umaMemoryTrackerGet();
+uma_memory_tracker_handle_t umaMemoryTrackerGet(void);
 void *umaMemoryTrackerGetPool(uma_memory_tracker_handle_t hTracker,
                               const void *ptr);
 
