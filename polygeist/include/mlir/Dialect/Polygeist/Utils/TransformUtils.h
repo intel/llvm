@@ -230,6 +230,39 @@ public:
                    const LoopVersionCondition &versionCond) const;
 };
 
+//===----------------------------------------------------------------------===//
+// VersionConditionBuilder
+//===----------------------------------------------------------------------===//
+
+/// Build a version condition to check if the given list of accessor pairs
+/// overlap.
+class VersionConditionBuilder {
+public:
+  using AccessorType = TypedValue<MemRefType>;
+  using AccessorPairType = std::pair<AccessorType, AccessorType>;
+  using SCFCondition = LoopVersionCondition::SCFCondition;
+  using AffineCondition = LoopVersionCondition::AffineCondition;
+
+  VersionConditionBuilder(
+      LoopLikeOpInterface loop,
+      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
+      : loop(loop), accessorPairs(requireNoOverlapAccessorPairs) {}
+
+  std::unique_ptr<LoopVersionCondition> createCondition() const {
+    OpBuilder builder(loop);
+    Location loc = loop.getLoc();
+    SCFCondition scfCond = createSCFCondition(builder, loc);
+    return std::make_unique<LoopVersionCondition>(scfCond);
+  }
+
+private:
+  /// Create a versioning condition suitable for scf::IfOp.
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
+
+  mutable LoopLikeOpInterface loop;
+  ArrayRef<AccessorPairType> accessorPairs;
+};
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
