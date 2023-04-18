@@ -1153,6 +1153,7 @@ Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
           ADD_INIT_BUILTIN(WorkgroupSize, sycl::SYCLWorkGroupSizeOp),
 #undef ADD_INIT_BUILTIN
 #undef ADD_SUBGROUP_BUILTIN_BUILTIN
+#undef ADD_BUILTIN
       }};
 
   const auto BuiltinName = Callee->getNameAsString();
