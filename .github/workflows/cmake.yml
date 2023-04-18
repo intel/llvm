@@ -9,6 +9,9 @@ jobs:
   ubuntu-build:
     name: Build - Ubuntu
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [ {cxx: g++, c: gcc}, {cxx: clang++, c: clang} ]
 
     steps:
     - uses: actions/checkout@v3
@@ -16,13 +19,13 @@ jobs:
     - name: Install apt packages
       run: |
         sudo apt-get update
-        sudo apt-get install -y doxygen
+        sudo apt-get install -y doxygen ${{matrix.compiler.c}}
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON
+      run: cmake -B ${{github.workspace}}/build -D CMAKE_C_COMPILER=${{matrix.compiler.c}} -D CMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON
 
     - name: Generate source from spec, check for uncommitted diff
       run: cmake --build ${{github.workspace}}/build --target check-generated
