@@ -44,8 +44,17 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
 
+/// Returns true if the given function has linkonce_odr linkage.
+bool isLinkonceODR(FunctionOpInterface);
+
+/// Return true if the given function is only called from GPU kernels.
+bool isOnlyCalledFromGPUKernel(FunctionOpInterface);
+
 /// Return true if the given function is potentially a SYCL kernel body
-/// function.
+/// function. The SYCL kernel body function is created by SemaSYCL in clang for
+/// the body of the SYCL kernel, e.g., code in parallel_for.
+/// TODO: add an attribute to the call operator of the SYCL kernel functor in
+/// SemaSYCL in clang, to identify SYCL kernel body function accurately.
 bool isPotentialKernelBodyFunc(FunctionOpInterface);
 
 //===----------------------------------------------------------------------===//

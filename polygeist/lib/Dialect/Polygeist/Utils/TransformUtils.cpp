@@ -22,15 +22,29 @@ using namespace mlir;
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-/// Returns true if the function \p func has linkonce_odr linkage, and false
-/// otherwise.
 static constexpr StringRef linkageAttrName = "llvm.linkage";
-static bool isLinkonceODR(FunctionOpInterface func) {
+bool mlir::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = dyn_cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   assert(attr && "Expecting LLVM::LinkageAttr");
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
+}
+
+bool mlir::isOnlyCalledFromGPUKernel(FunctionOpInterface func) {
+  ModuleOp module = func->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+  return all_of(userMap.getUsers(func), [&](Operation *call) {
+    if (auto callerFunc = call->getParentOfType<FunctionOpInterface>()) {
+      Operation *op = callerFunc;
+      if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
+        if (gpuFunc.isKernel())
+          return true;
+      return isOnlyCalledFromGPUKernel(cast<FunctionOpInterface>(callerFunc));
+    }
+    return false;
+  });
 }
 
 bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
@@ -57,19 +71,7 @@ bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
     return false;
 
   // Ensure all the call sites for this function are from a GPU kernel.
-  // Return true if \p func only called from GPU kernel, return false otherwise.
-  std::function<bool(FunctionOpInterface)> isOnlyCalledFromGPUKernel =
-      [&](FunctionOpInterface func) {
-        return all_of(userMap.getUsers(func), [&](Operation *call) {
-          if (auto gpuFunc = call->getParentOfType<gpu::GPUFuncOp>())
-            if (gpuFunc.isKernel())
-              return true;
-          if (auto callerFunc = call->getParentOfType<FunctionOpInterface>())
-            return isOnlyCalledFromGPUKernel(callerFunc);
-          return false;
-        });
-      };
-  if (!isOnlyCalledFromGPUKernel)
+  if (!isOnlyCalledFromGPUKernel(func))
     return false;
 
   return true;

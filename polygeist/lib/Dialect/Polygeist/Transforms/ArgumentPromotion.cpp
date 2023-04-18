@@ -29,6 +29,7 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -89,6 +90,45 @@ static bool isValidMemRefType(Type type) {
       }))
     return false;
   return true;
+}
+
+// Returns true if the block of \p startOp contains an operation (after startOp)
+// that has a side effects on \p val, and false otherwise.
+static bool existsSideEffectAfter(Value val, Operation *startOp,
+                                  AliasAnalysis &aliasAnalysis) {
+  assert(startOp && "Expecting a valid pointer");
+
+  for (Operation &op : *startOp->getBlock()) {
+    if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
+      continue;
+
+    // An operation with unknown side effects is conservatively assumed to have
+    // a side effect on `val`.
+    auto MEI = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!MEI)
+      return true;
+
+    // Conservatively assume an operation with a nested region has side effects
+    // on 'val'.
+    if (op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return true;
+
+    SmallVector<MemoryEffects::EffectInstance, 1> effects;
+    MEI.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value effectVal = effect.getValue();
+      if (effectVal == val)
+        return true;
+
+      // Check whether the operation has an effect on a value that is aliased
+      // with 'val'.
+      AliasResult aliasRes = aliasAnalysis.alias(effectVal, val);
+      if (!aliasRes.isNo())
+        return true;
+    }
+  }
+
+  return false;
 }
 
 namespace {
@@ -187,14 +227,20 @@ public:
 private:
   /// Populate \p candidates with call operations to transform.
   void
-  collectCandidates(std::map<CallableOpInterface, Candidates> &callableToCalls);
+  collectCandidates(std::map<CallableOpInterface, Candidates> &callableToCalls,
+                    AliasAnalysis &aliasAnalysis);
+
+  /// Return true if the call operation \p callOp is a candidate, and false
+  /// otherwise.
+  bool isCandidateCall(CallOpInterface callOp) const;
 
   /// Return true is the callee is a candidate, and false otherwise.
   bool isCandidateCallable(CallableOpInterface callableOp);
 
   /// Return true if the call \p callOp operand at position \p pos is a
   /// candidate for peeling, and false otherwise.
-  bool isCandidateOperand(unsigned pos, CallOpInterface callOp) const;
+  bool isCandidateOperand(unsigned pos, CallOpInterface callOp,
+                          AliasAnalysis &aliasAnalysis) const;
 
   // Return true if all candidate operands in \p candidateOperandMap have the
   // same position and false otherwise.
@@ -369,8 +415,9 @@ void Candidate::replaceUsesOfArgument(Value origArg, unsigned pos,
 //===----------------------------------------------------------------------===//
 
 void ArgumentPromotionPass::runOnOperation() {
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   std::map<CallableOpInterface, Candidates> callableToCalls;
-  collectCandidates(callableToCalls);
+  collectCandidates(callableToCalls, aliasAnalysis);
 
   for (auto &entry : callableToCalls) {
     CallableOpInterface callableOp = entry.first;
@@ -400,7 +447,8 @@ void ArgumentPromotionPass::runOnOperation() {
 }
 
 void ArgumentPromotionPass::collectCandidates(
-    std::map<CallableOpInterface, Candidates> &callableToCalls) {
+    std::map<CallableOpInterface, Candidates> &callableToCalls,
+    AliasAnalysis &aliasAnalysis) {
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
@@ -425,6 +473,13 @@ void ArgumentPromotionPass::collectCandidates(
       if (!isCandidateCallable(callableOp))
         return;
 
+      // Perform basic checks to ensure all calls to the callable are OK.
+      if (llvm::any_of(userMap.getUsers(callableOp),
+                       [this](CallOpInterface callOp) {
+                         return !isCandidateCall(callOp);
+                       }))
+        return;
+
       // Collect candidate operands for each call site.
       std::map<Operation *, Candidate::CandidateOperands> candidateOperandMap;
       for (Operation *callOp : userMap.getUsers(callableOp)) {
@@ -432,7 +487,7 @@ void ArgumentPromotionPass::collectCandidates(
                    << "analyzing operand(s) of: " << *callOp << "\n");
         Candidate::CandidateOperands candidateOps;
         for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
-          if (isCandidateOperand(pos, callOp))
+          if (isCandidateOperand(pos, callOp, aliasAnalysis))
             candidateOps.push_back({callOp->getOperand(pos), pos});
         }
         if (candidateOps.empty())
@@ -441,9 +496,12 @@ void ArgumentPromotionPass::collectCandidates(
       }
 
       // Ensure all call sites have the same candidate operands.
-      assert(candidateOperandMap.empty() ||
-             haveSameCandidateOperands(candidateOperandMap) &&
-                 "Expecting call sites to have the same candidate operands");
+      if (!candidateOperandMap.empty() &&
+          !haveSameCandidateOperands(candidateOperandMap)) {
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "not a candidate: call sites have "
+                                             "different candidate operands\n");
+        return;
+      }
 
       // Create the candidate.
       for (const auto &entry : candidateOperandMap) {
@@ -458,8 +516,20 @@ void ArgumentPromotionPass::collectCandidates(
   });
 }
 
-bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
-                                               CallOpInterface callOp) const {
+bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
+  // Only calls in function exiting blocks are candidates.
+  if (!callOp->getBlock()->hasNoSuccessors()) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+      llvm::dbgs().indent(2) << "not in an existing block\n";
+    });
+  }
+
+  return true;
+}
+
+bool ArgumentPromotionPass::isCandidateOperand(
+    unsigned pos, CallOpInterface callOp, AliasAnalysis &aliasAnalysis) const {
   assert(pos < callOp->getNumOperands() &&
          "pos must be smaller than the number of call number of operands");
 
@@ -468,6 +538,15 @@ bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
   if (!isValidMemRefType(operand.getType())) {
     LLVM_DEBUG(llvm::dbgs().indent(4)
                << "operand " << pos << " doesn't have expected type\n");
+    return false;
+  }
+
+  // The operand must not be used by any instruction (after the call
+  // operation) which may read or write it.
+  if (existsSideEffectAfter(operand, callOp->getNextNode(), aliasAnalysis)) {
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "operand " << pos
+               << " used after call by operation with side effects\n");
     return false;
   }
 
@@ -494,9 +573,11 @@ bool ArgumentPromotionPass::isCandidateCallable(
     CallableOpInterface callableOp) {
   Operation *op = callableOp;
   auto funcOp = cast<FunctionOpInterface>(op);
-  if (!isPotentialKernelBodyFunc(funcOp)) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "not a candidate: not a potential kernel body function\n");
+  // The function must be defined, and private or with linkonce_odr linkage.
+  if (funcOp.isExternal() || (!funcOp.isPrivate() && !isLinkonceODR(funcOp))) {
+    LLVM_DEBUG(
+        llvm::dbgs().indent(2)
+        << "not a candidate: not defined or private or linkonce_odr linkage\n");
     return false;
   }
 
@@ -506,10 +587,20 @@ bool ArgumentPromotionPass::isCandidateCallable(
     return false;
   }
 
+  if (!isOnlyCalledFromGPUKernel(funcOp)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "not a candidate: found call site that is not called from a "
+                  "GPU kernel\n");
+    return false;
+  }
+
   return true;
 }
 
 // Ensure all call sites have the same candidate operands.
+// Note: we could improve this condition and find the intersection of peelable
+// operands for all call sites to increase the potential opportunity for
+// peeling.
 bool ArgumentPromotionPass::haveSameCandidateOperands(
     const std::map<Operation *, Candidate::CandidateOperands>
         &candidateOperandMap) const {

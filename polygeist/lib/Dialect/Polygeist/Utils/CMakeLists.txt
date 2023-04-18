@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRPolygeistUtils
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Polygeist/Utils
 
   LINK_LIBS PUBLIC
+  MLIRGPUOps
   MLIRPolygeistDialect
   MLIRSYCLDialect
   MLIRDialect
