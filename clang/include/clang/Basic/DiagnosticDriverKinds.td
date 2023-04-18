@@ -61,7 +61,7 @@ def err_drv_no_cuda_libdevice : Error<
   "via '--cuda-path', or pass '-nocudalib' to build without linking with "
   "libdevice">;
 
-def warn_function_fp_accuray_already_set : Warning <"FP accuracy value of '%0' has already "
+def warn_function_fp_accuracy_already_set : Warning <"FP accuracy value of '%0' has already "
   "been assigned to function '%1'">;
 def warn_all_fp_accuray_already_set : Warning <"FP accuracy value of '%0' has already "
   "been assigned to all functions in the program">;

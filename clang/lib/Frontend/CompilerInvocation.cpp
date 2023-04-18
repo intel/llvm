@@ -3618,7 +3618,7 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
             std::pair<LangOptions::FPAccuracyMapTy::iterator, bool> Result =
                 FuncMapIt->second.insert({"fp-accuracy", ValElement[0].str()});
             if (!Result.second) {
-              Diags.Report(diag::warn_function_fp_accuray_already_set)
+              Diags.Report(diag::warn_function_fp_accuracy_already_set)
                   << Result.first->second << FuncName.str();
             }
           } else {
