@@ -41,7 +41,8 @@ static std::string getResult(CUresult Res) {
   return ResultStr;
 }
 
-XPTI_CALLBACK_API void callback(uint16_t TraceType,
+extern "C" {
+__attribute__((__visibility__("default"))) void callback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
                                   xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
@@ -101,7 +102,7 @@ XPTI_CALLBACK_API void callback(uint16_t TraceType,
   }
 }
 
-void init() {
+__attribute__((__visibility__("default"))) void init() {
   std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
   if (PrinterType == "classic") {
     std::cerr << "Classic output is unsupported for CUDA\n";
@@ -113,9 +114,11 @@ void init() {
 }
 
 // For unification purpose
-void finish() {}
+__attribute__((__visibility__("default"))) void finish() {}
 
-void setIndentationLevel(int NewLevel)
+__attribute__((__visibility__("default"))) void setIndentationLevel(int NewLevel)
 {
   IndentationLevel = NewLevel;
+}
+
 }

@@ -17,6 +17,21 @@
 sycl::detail::SpinLock GlobalLock;
 bool HasZEPrinter;
 
+std::string getCurrentDSODir() {
+  auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
+  Dl_info Info;
+  int RetCode = dladdr(CurrentFunc, &Info);
+  if (0 == RetCode) {
+    // This actually indicates an error
+    return "";
+  }
+
+  auto Path = std::string(Info.dli_fname);
+  auto LastSlashPos = Path.find_last_of('/');
+
+  return Path.substr(0, LastSlashPos);
+}
+
 class CollectorLibraryWrapper {
   typedef void (*InitFuncType)();
   typedef void (*FinishFuncType)();
@@ -36,8 +51,9 @@ public:
   const std::string IndentFuncName = "setIndentationLevel";
 
   bool initPrinters() {
-    // add safe lib loading in terms of paths
-    MHandle = dlopen(MLibraryName.c_str() /*TO FIX*/, RTLD_LAZY);
+    const std::string CollectorDir =
+      getCurrentDSODir() + "/" + MLibraryName;
+    MHandle = dlopen(CollectorDir.c_str(), RTLD_LAZY);
     if (!MHandle) {
       std::cerr << "Cannot load library: " << dlerror() << '\n';
       return false;
@@ -62,6 +78,8 @@ public:
       ((SetIndentLvlFuncType)MSetIndentationLevelPtr)(MIndentationLevel);
 
     ((InitFuncType)MInitPtr)();
+
+    return true;
   }
 
   void finishPrinters() {
@@ -106,8 +124,8 @@ private:
   void *MFinishPtr = NULL;
   void *MCallbackPtr = NULL;
   void *MSetIndentationLevelPtr = NULL;
-} zeCollectorLibrary("ze_trace_collector.so"),
-    cudaCollectorLibrary("cuda_trace_collector.so");
+} zeCollectorLibrary("libze_trace_collector.so"),
+    cudaCollectorLibrary("libcuda_trace_collector.so");
 
 XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
@@ -180,8 +198,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                            cudaCallback);
     }
 #endif
-  }
-  if (std::string_view(StreamName) == "sycl" &&
+  } else if (std::string_view(StreamName) == "sycl" &&
       std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
