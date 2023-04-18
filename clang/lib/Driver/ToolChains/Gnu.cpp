@@ -595,10 +595,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Performing link for dependency file information, undefined symbols are OK.
   // True link time errors for symbols will be captured at host link.
-  if (JA.getType() == types::TY_Host_Dependencies_Image) {
-    CmdArgs.push_back("-z");
-    CmdArgs.push_back("undefs");
-  }
+  if (JA.getType() == types::TY_Host_Dependencies_Image)
+    CmdArgs.push_back("--unresolved-symbols=ignore-all");
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   Args.AddAllArgs(CmdArgs, options::OPT_u);

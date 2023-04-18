@@ -42,6 +42,7 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+constexpr char ATTR_OPT_LEVEL[] = "sycl-optlevel";
 
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
@@ -674,7 +675,8 @@ void ModuleDesc::dump() const {
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
                << ", LargeGRF:"
-               << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO") << "\n";
+               << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO")
+               << ", OptLevel:" << EntryPoints.getOptLevel() << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }
@@ -713,6 +715,7 @@ namespace {
 struct UsedOptionalFeatures {
   SmallVector<int, 4> Aspects;
   bool UsesLargeGRF = false;
+  int OptLevel = -1;
   SmallVector<int, 3> ReqdWorkGroupSize;
   // TODO: extend this further with reqd-sub-group-size and other properties
 
@@ -735,6 +738,12 @@ struct UsedOptionalFeatures {
     if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF))
       UsesLargeGRF = true;
 
+    if (F->hasFnAttribute(ATTR_OPT_LEVEL))
+      if (F->getFnAttribute(ATTR_OPT_LEVEL)
+              .getValueAsString()
+              .getAsInteger(10, OptLevel))
+        OptLevel = -1;
+
     if (const MDNode *MDN = F->getMetadata("reqd_work_group_size")) {
       size_t NumOperands = MDN->getNumOperands();
       assert(NumOperands >= 1 && NumOperands <= 3 &&
@@ -750,8 +759,9 @@ struct UsedOptionalFeatures {
     llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
     llvm::hash_code ReqdWorkGroupSizeHash = llvm::hash_combine_range(
         ReqdWorkGroupSize.begin(), ReqdWorkGroupSize.end());
-    Hash = static_cast<unsigned>(
-        llvm::hash_combine(AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash));
+    llvm::hash_code OptLevelHash = llvm::hash_value(OptLevel);
+    Hash = static_cast<unsigned>(llvm::hash_combine(
+        AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash, OptLevelHash));
   }
 
   std::string generateModuleName(StringRef BaseName) const {
@@ -772,6 +782,9 @@ struct UsedOptionalFeatures {
 
     if (UsesLargeGRF)
       Ret += "-large-grf";
+
+    if (OptLevel != -1)
+      Ret += "-O" + std::to_string(OptLevel);
 
     return Ret;
   }
@@ -808,7 +821,8 @@ public:
         return false;
     }
 
-    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF;
+    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF &&
+           OptLevel == Other.OptLevel;
   }
 
   unsigned hash() const { return static_cast<unsigned>(Hash); }
@@ -869,6 +883,8 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
       // Propagate LargeGRF flag to entry points group
       if (Features.UsesLargeGRF)
         MDProps.UsesLargeGRF = true;
+      if (Features.OptLevel != -1)
+        MDProps.OptLevel = Features.OptLevel;
       Groups.emplace_back(
           Features.generateModuleName(MD.getEntryPointGroup().GroupId),
           std::move(EntryPoints), MDProps);

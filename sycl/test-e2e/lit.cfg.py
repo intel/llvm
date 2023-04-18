@@ -127,6 +127,11 @@ if lit_config.params.get('ze_debug'):
     config.ze_debug = lit_config.params.get('ze_debug')
     lit_config.note("ZE_DEBUG: "+config.ze_debug)
 
+# Make sure that any dynamic checks below are done in the build directory and
+# not where the sources are located. This is important for the in-tree
+# configuration (as opposite to the standalone one).
+os.chdir(config.sycl_obj_root)
+
 # check if compiler supports CL command line options
 cl_options=False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' /help')

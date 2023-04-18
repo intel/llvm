@@ -227,6 +227,7 @@ SPIRV_DEC_ENCDEC(Capability)
 SPIRV_DEC_ENCDEC(Decoration)
 SPIRV_DEC_ENCDEC(OCLExtOpKind)
 SPIRV_DEC_ENCDEC(SPIRVDebugExtOpKind)
+SPIRV_DEC_ENCDEC(NonSemanticAuxDataOpKind)
 SPIRV_DEC_ENCDEC(LinkageType)
 
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::string &Str);

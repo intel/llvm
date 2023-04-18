@@ -55,7 +55,7 @@ on:
       cts_matrix:
         type: string
         required: false
-        default: ""
+        default: "[]"
       cts_cmake_extra_args:
         type: string
         required: false
@@ -232,7 +232,7 @@ jobs:
 
   khronos_sycl_cts:
     needs: build
-    if: ${{ inputs.cts_matrix != '' }}
+    if: ${{ inputs.cts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:

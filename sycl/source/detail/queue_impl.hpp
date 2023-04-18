@@ -140,10 +140,19 @@ public:
         throw sycl::exception(make_error_code(errc::invalid),
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
-      if (!MDevice->has(aspect::queue_profiling))
-        throw sycl::exception(make_error_code(errc::feature_not_supported),
-                              "Cannot enable profiling, the associated device "
-                              "does not have the queue_profiling aspect");
+      if (!MDevice->has(aspect::queue_profiling)) {
+        // TODO temporary workaround, see MLimitedProfiling
+        if (MDevice->is_accelerator() &&
+            checkNativeQueueProfiling(MDevice->getHandleRef(),
+                                      Context->getPlugin())) {
+          MLimitedProfiling = true;
+        } else {
+          throw sycl::exception(
+              make_error_code(errc::feature_not_supported),
+              "Cannot enable profiling, the associated device "
+              "does not have the queue_profiling aspect");
+        }
+      }
     }
     if (has_property<ext::intel::property::queue::compute_index>()) {
       int Idx = get_property<ext::intel::property::queue::compute_index>()
@@ -648,6 +657,8 @@ public:
                                size_t Offset,
                                const std::vector<event> &DepEvents);
 
+  bool isProfilingLimited() { return MLimitedProfiling; }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -809,6 +820,12 @@ protected:
   uint8_t MStreamID;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
+
+  // TODO this is a temporary workaround to allow use of start & end info
+  // on FPGA OpenCL 1.2 (current implementation of profiling does not
+  // support submit time stamps on this OpenCL version). Remove once
+  // the fallback implementation of profiling info is in place.
+  bool MLimitedProfiling = false;
 
 public:
   // Queue constructed with the discard_events property
