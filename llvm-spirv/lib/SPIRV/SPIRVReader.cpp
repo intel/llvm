@@ -2184,8 +2184,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       GEP->setIsInBounds(IsInbound);
       V = GEP;
     } else {
-      V = ConstantExpr::getGetElementPtr(BaseTy, dyn_cast<Constant>(Base),
-                                         Index, IsInbound);
+      auto *CT = cast<Constant>(Base);
+      V = ConstantExpr::getGetElementPtr(BaseTy, CT, Index, IsInbound);
     }
     return mapValue(BV, V);
   }
@@ -2200,14 +2200,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     switch (static_cast<size_t>(BV->getType()->getOpCode())) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
-    case OpTypeArray:
-      return mapValue(
-          BV, ConstantArray::get(dyn_cast<ArrayType>(transType(CC->getType())),
-                                 CV));
-    case OpTypeStruct:
-      return mapValue(BV,
-                      ConstantStruct::get(
-                          dyn_cast<StructType>(transType(CC->getType())), CV));
+    case OpTypeArray: {
+      auto *AT = cast<ArrayType>(transType(CC->getType()));
+      return mapValue(BV, ConstantArray::get(AT, CV));
+    }
+    case OpTypeStruct: {
+      auto *ST = cast<StructType>(transType(CC->getType()));
+      return mapValue(BV, ConstantStruct::get(ST, CV));
+    }
     case internal::OpTypeJointMatrixINTEL:
       return mapValue(BV, transSPIRVBuiltinFromInst(CC, BB));
     default:
