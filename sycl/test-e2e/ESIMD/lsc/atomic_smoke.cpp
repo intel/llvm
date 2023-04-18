@@ -313,8 +313,8 @@ bool test(queue q, const Config &cfg) {
             << cfg << "...";
 
   size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
-  auto arr = std::vector<T>(size);
-  auto buf = buffer{arr};
+  T *arr = new T[size];
+
 #if USE_FULL_BARRIER
   uint32_t *flag_ptr = malloc_shared<uint32_t>(1, q);
   *flag_ptr = 0;
@@ -330,6 +330,7 @@ bool test(queue q, const Config &cfg) {
   nd_range<1> rng(glob_rng, loc_rng);
 
   try {
+    buffer<T, 1> buf(arr, range<1>(size));
     auto e = q.submit([&](handler &cgh) {
       auto accessor = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<TestID<T, N, ImplF>>(
@@ -370,11 +371,11 @@ bool test(queue q, const Config &cfg) {
                 // do compare-and-swap in a loop until we get expected value;
                 // arg0 and arg1 must provide values which guarantee the loop
                 // is not endless:
-                for (auto old_val = atomic_update<op, T, N>(accessor, offsets,
-                                                      new_val, exp_val, m);
+                for (auto old_val = atomic_update<op, T, N>(
+                         accessor, offsets, new_val, exp_val, m);
                      any(old_val < exp_val, !m);
-                     old_val = atomic_update<op, T, N>(accessor, offsets, new_val,
-                                                 exp_val, m))
+                     old_val = atomic_update<op, T, N>(accessor, offsets,
+                                                       new_val, exp_val, m))
                   ;
               }
             }
@@ -383,6 +384,7 @@ bool test(queue q, const Config &cfg) {
     e.wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
+    delete[] arr;
 #if USE_FULL_BARRIER
     free(flag_ptr, q);
 #endif // USE_FULL_BARRIER
@@ -412,6 +414,7 @@ bool test(queue q, const Config &cfg) {
 #if USE_FULL_BARRIER
   free(flag_ptr, q);
 #endif // USE_FULL_BARRIER
+  delete[] arr;
   return err_cnt == 0;
 }
 #endif
