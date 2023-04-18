@@ -45,6 +45,89 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t command_queue, CUstream stream,
   }
 }
 
+template <typename PtrT>
+void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
+                           CUdeviceptr *out_dev_ptr, PtrT *out_host_ptr) {
+  // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
+  // checks with PI_CHECK_ERROR are not suggested
+  CUresult ret = cuPointerGetAttribute(
+      out_mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)usm_ptr);
+  // ARRAY, UNIFIED types are not supported!
+  assert(*out_mem_type != CU_MEMORYTYPE_ARRAY &&
+         *out_mem_type != CU_MEMORYTYPE_UNIFIED);
+
+  // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
+  if (ret == CUDA_ERROR_INVALID_VALUE) {
+    *out_mem_type = CU_MEMORYTYPE_HOST;
+    *out_dev_ptr = 0;
+    *out_host_ptr = usm_ptr;
+
+    // todo: resets the above "non-stick" error
+  } else if (ret == CUDA_SUCCESS) {
+    *out_dev_ptr = (*out_mem_type == CU_MEMORYTYPE_DEVICE)
+                       ? reinterpret_cast<CUdeviceptr>(usm_ptr)
+                       : 0;
+    *out_host_ptr = (*out_mem_type == CU_MEMORYTYPE_HOST) ? usm_ptr : nullptr;
+  } else {
+    UR_CHECK_ERROR(ret);
+  }
+}
+
+ur_result_t setCuMemAdvise(CUdeviceptr devPtr, size_t size,
+                           ur_usm_advice_flags_t ur_advice_flags,
+                           CUdevice device) {
+  std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
+      URToCUMemAdviseDeviceFlagsMap = {
+          {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
+          {UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY,
+           CU_MEM_ADVISE_UNSET_READ_MOSTLY},
+          {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION,
+           CU_MEM_ADVISE_SET_PREFERRED_LOCATION},
+          {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION,
+           CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION},
+          {UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE,
+           CU_MEM_ADVISE_SET_ACCESSED_BY},
+          {UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE,
+           CU_MEM_ADVISE_UNSET_ACCESSED_BY},
+      };
+  for (auto &FlagPair : URToCUMemAdviseDeviceFlagsMap) {
+    if (ur_advice_flags & FlagPair.first) {
+      UR_CHECK_ERROR(cuMemAdvise(devPtr, size, FlagPair.second, device));
+    }
+  }
+
+  std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
+      URToCUMemAdviseHostFlagsMap = {
+          {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST,
+           CU_MEM_ADVISE_SET_PREFERRED_LOCATION},
+          {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST,
+           CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION},
+          {UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST,
+           CU_MEM_ADVISE_SET_ACCESSED_BY},
+          {UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST,
+           CU_MEM_ADVISE_UNSET_ACCESSED_BY},
+      };
+
+  for (auto &FlagPair : URToCUMemAdviseHostFlagsMap) {
+    if (ur_advice_flags & FlagPair.first) {
+      UR_CHECK_ERROR(cuMemAdvise(devPtr, size, FlagPair.second, CU_DEVICE_CPU));
+    }
+  }
+
+  std::array<ur_usm_advice_flags_t, 4> UnmappedMemAdviceFlags = {
+      UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY,
+      UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY,
+      UR_USM_ADVICE_FLAG_BIAS_CACHED, UR_USM_ADVICE_FLAG_BIAS_UNCACHED};
+
+  for (auto &unMappedFlag : UnmappedMemAdviceFlags) {
+    if (ur_advice_flags & unMappedFlag) {
+      throw UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
@@ -388,4 +471,293 @@ UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     retError = err;
   }
   return retError;
+}
+
+/// TODO(ur): Add support for the offset.
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
+    ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
+    const void *pPattern, size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE);
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    uint32_t stream_token;
+    ur_stream_guard_ guard;
+    CUstream cuStream = hQueue->get_next_compute_stream(
+        numEventsInWaitList, phEventWaitList, guard, &stream_token);
+    result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+    if (phEvent) {
+      event_ptr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_USM_FILL, hQueue, cuStream, stream_token));
+      event_ptr->start();
+    }
+    switch (patternSize) {
+    case 1:
+      result = UR_CHECK_ERROR(
+          cuMemsetD8Async((CUdeviceptr)ptr, *((const uint8_t *)pPattern) & 0xFF,
+                          size, cuStream));
+      break;
+    case 2:
+      result = UR_CHECK_ERROR(cuMemsetD16Async(
+          (CUdeviceptr)ptr, *((const uint16_t *)pPattern) & 0xFFFF, size,
+          cuStream));
+      break;
+    case 4:
+      result = UR_CHECK_ERROR(cuMemsetD32Async(
+          (CUdeviceptr)ptr, *((const uint32_t *)pPattern) & 0xFFFFFFFF, size,
+          cuStream));
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+    if (phEvent) {
+      result = event_ptr->record();
+      *phEvent = event_ptr.release();
+    }
+  } catch (ur_result_t err) {
+    result = err;
+  }
+  return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
+    ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
+    size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+    if (phEvent) {
+      event_ptr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_USM_MEMCPY, hQueue, cuStream));
+      event_ptr->start();
+    }
+    result = UR_CHECK_ERROR(
+        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, cuStream));
+    if (phEvent) {
+      result = event_ptr->record();
+    }
+    if (blocking) {
+      result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+    if (phEvent) {
+      *phEvent = event_ptr.release();
+    }
+  } catch (ur_result_t err) {
+    result = err;
+  }
+  return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
+    ur_queue_handle_t hQueue, const void *pMem, size_t size,
+    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  ur_device_handle_t device = hQueue->get_context()->get_device();
+
+  // Certain cuda devices and Windows do not have support for some Unified
+  // Memory features. cuMemPrefetchAsync requires concurrent memory access
+  // for managed memory. Therfore, ignore prefetch hint if concurrent managed
+  // memory access is not available.
+  if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+    setErrorMessage("Prefetch hint ignored as device does not support "
+                    "concurrent managed access",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  unsigned int is_managed;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
+  if (!is_managed) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  // flags is currently unused so fail if set
+  if (flags != 0)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  ur_result_t result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+    if (phEvent) {
+      event_ptr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_COPY, hQueue, cuStream));
+      event_ptr->start();
+    }
+    result = UR_CHECK_ERROR(
+        cuMemPrefetchAsync((CUdeviceptr)pMem, size, device->get(), cuStream));
+    if (phEvent) {
+      result = event_ptr->record();
+      *phEvent = event_ptr.release();
+    }
+  } catch (ur_result_t err) {
+    result = err;
+  }
+  return result;
+}
+
+/// USM: memadvise API to govern behavior of automatic migration mechanisms
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
+                   ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  // Certain cuda devices and Windows do not have support for some Unified
+  // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
+  // to cuMemAdvise on a GPU device requires the GPU device to report a non-zero
+  // value for CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS. Therfore, ignore
+  // memory advise if concurrent managed memory access is not available.
+  if ((advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION) ||
+      (advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION) ||
+      (advice & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ||
+      (advice & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ||
+      (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
+    ur_device_handle_t device = hQueue->get_context()->get_device();
+    if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      setErrorMessage("Mem advise ignored as device does not support "
+                      "concurrent managed access",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
+    // TODO: If ptr points to valid system-allocated pageable memory we should
+    // check that the device also has the
+    // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
+  }
+
+  unsigned int is_managed;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
+  if (!is_managed) {
+    setErrorMessage(
+        "Memory advice ignored as memory advices only works with USM",
+        UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+
+    if (phEvent) {
+      event_ptr = std::unique_ptr<ur_event_handle_t_>(
+          ur_event_handle_t_::make_native(UR_COMMAND_USM_ADVISE, hQueue,
+                                          hQueue->get_next_transfer_stream()));
+      event_ptr->start();
+    }
+
+    if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
+                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY,
+                                 hQueue->get_context()->get_device()->get()));
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
+                                 CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
+                                 hQueue->get_context()->get_device()->get()));
+      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
+                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY,
+                                 hQueue->get_context()->get_device()->get()));
+    } else {
+      result = setCuMemAdvise((CUdeviceptr)pMem, size, advice,
+                              hQueue->get_context()->get_device()->get());
+    }
+
+    if (phEvent) {
+      result = event_ptr->record();
+      *phEvent = event_ptr.release();
+    }
+  } catch (ur_result_t err) {
+    result = err;
+  } catch (...) {
+    result = UR_RESULT_ERROR_UNKNOWN;
+  }
+  return result;
+}
+
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT when it is implemented.
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
+    ur_queue_handle_t hQueue, void *pMem, size_t pitch, size_t patternSize,
+    const void *pPattern, size_t width, size_t height,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
+    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
+    const void *pSrc, size_t srcPitch, size_t width, size_t height,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+    if (phEvent) {
+      (*phEvent) = ur_event_handle_t_::make_native(
+          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream);
+      (*phEvent)->start();
+    }
+
+    // Determine the direction of copy using cuPointerGetAttribute
+    // for both the src_ptr and dst_ptr
+    CUDA_MEMCPY2D cpyDesc = {0};
+
+    getUSMHostOrDevicePtr(pSrc, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice,
+                          &cpyDesc.srcHost);
+    getUSMHostOrDevicePtr(pDst, &cpyDesc.dstMemoryType, &cpyDesc.dstDevice,
+                          &cpyDesc.dstHost);
+
+    cpyDesc.dstPitch = dstPitch;
+    cpyDesc.srcPitch = srcPitch;
+    cpyDesc.WidthInBytes = width;
+    cpyDesc.Height = height;
+
+    result = UR_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cuStream));
+
+    if (phEvent) {
+      (*phEvent)->record();
+    }
+    if (blocking) {
+      result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+  } catch (ur_result_t err) {
+    result = err;
+  }
+  return result;
 }

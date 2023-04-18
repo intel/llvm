@@ -181,12 +181,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemImageRead = nullptr;
   pDdiTable->pfnMemImageWrite = nullptr;
   pDdiTable->pfnMemUnmap = nullptr;
-  pDdiTable->pfnUSMFill2D = nullptr;
-  pDdiTable->pfnUSMFill = nullptr;
-  pDdiTable->pfnUSMAdvise = nullptr;
-  pDdiTable->pfnUSMMemcpy2D = nullptr;
-  pDdiTable->pfnUSMMemcpy = nullptr;
-  pDdiTable->pfnUSMPrefetch = nullptr;
+  pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
+  pDdiTable->pfnUSMFill = urEnqueueUSMFill;
+  pDdiTable->pfnUSMAdvise = urEnqueueUSMAdvise;
+  pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
+  pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
+  pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
   return UR_RESULT_SUCCESS;
 }
 
@@ -225,14 +225,14 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnDeviceAlloc = nullptr;
-  pDdiTable->pfnFree = nullptr;
-  pDdiTable->pfnGetMemAllocInfo = nullptr;
-  pDdiTable->pfnHostAlloc = nullptr;
+  pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
+  pDdiTable->pfnFree = urUSMFree;
+  pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
+  pDdiTable->pfnHostAlloc = urUSMHostAlloc;
   pDdiTable->pfnPoolCreate = nullptr;
   pDdiTable->pfnPoolDestroy = nullptr;
   pDdiTable->pfnPoolDestroy = nullptr;
-  pDdiTable->pfnSharedAlloc = nullptr;
+  pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }
 

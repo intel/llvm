@@ -57,3 +57,5 @@ public:
 
   int get_max_work_group_size() const noexcept { return max_work_group_size; };
 };
+
+int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute);
