@@ -1725,7 +1725,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 
 // genx_volatile variables are special and require vstores instead of stores.
 // In most cases, the vstores are called directly in the implementation
-// of the simd object opertations, but in some cases clang can implicitly
+// of the simd object operations, but in some cases clang can implicitly
 // insert stores, such as after a write in inline assembly. To handle that
 // case, lower any stores of genx_volatiles into vstores.
 void lowerGlobalStores(Module &M, const SmallPtrSet<Type *, 4> &GVTS) {
