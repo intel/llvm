@@ -1046,7 +1046,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // used.
   if (!EnvVar) {
     if (Device->useImmediateCommandLists())
-      return std::pair<int, int>(-1, -1);
+      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
   std::string CopyEngineRange = EnvVar;
@@ -1095,8 +1095,8 @@ _ur_device_handle_t::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-    // Immediate command lists will be used by default on all platforms.
-    return PerQueue;
+    // Immediate command lists will be used by default only on PVC.
+    return isPVC() ? PerQueue : NotUsed;
 
   switch (ImmediateCommandlistsSetting) {
   case 0:
