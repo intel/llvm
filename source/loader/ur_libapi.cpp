@@ -1296,7 +1296,7 @@ ur_result_t UR_APICALL urMemImageGetInfo(
 ///         + `NULL == pDesc`
 ///         + `NULL == phSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_SAMPLER_ADDRESSING_MODE_NONE < pDesc->addressingMode`
+///         + `::UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT < pDesc->addressingMode`
 ///         + `::UR_SAMPLER_FILTER_MODE_LINEAR < pDesc->filterMode`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
