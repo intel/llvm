@@ -226,7 +226,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     sycl::detail::ur::assertion(
         cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
                            hKernel->get()) == CUDA_SUCCESS);
-    return ReturnValue(uint32_t{numRegs});
+    return ReturnValue(static_cast<uint32_t>(numRegs));
   }
   default:
     break;
@@ -295,14 +295,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
                     size_t propSize, const void *pPropValue) {
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
-    ur_program_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
-  // This entry point is only used for native specialization constants (SPIR-V),
-  // and the CUDA plugin is AOT only so this entry point is not supported.
-  sycl::detail::ur::die("Native specialization constants are not supported");
-  return {};
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(

@@ -163,9 +163,8 @@ ur_result_t ur_program_handle_t_::build_program(const char *build_options) {
 ///       query to PI and use cuModuleGetFunction to check for a kernel.
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
-std::string getKernelNames(ur_program_handle_t) {
-  sycl::detail::ur::die("getKernelNames not implemented");
-  return {};
+ur_result_t getKernelNames(ur_program_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 /// CUDA will handle the PTX/CUBIN binaries internally through CUmodule object.
@@ -282,9 +281,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
     ur_program_handle_t *phProgram) {
-  sycl::detail::ur::die(
-      "Creation of UR program from native handle not implemented");
-  return {};
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -335,7 +332,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->binary_, 1);
   case UR_PROGRAM_INFO_NUM_KERNELS:
-    return ReturnValue(getKernelNames(hProgram).c_str());
+    return getKernelNames(hProgram);
   default:
     break;
   }
@@ -436,4 +433,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   *phProgram = retProgram.release();
 
   return retError;
+}
+
+// This entry point is only used for native specialization constants (SPIR-V),
+// and the CUDA plugin is AOT only so this entry point is not supported.
+UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
+    ur_program_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

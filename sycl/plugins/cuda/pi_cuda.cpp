@@ -3054,6 +3054,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextProgramGetNativeHandle, pi2ur::piextProgramGetNativeHandle)
   _PI_CL(piextProgramCreateWithNativeHandle,
          pi2ur::piextProgramCreateWithNativeHandle)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         pi2ur::piextProgramSetSpecializationConstant)
   // Kernel
   _PI_CL(piKernelCreate, pi2ur::piKernelCreate)
   _PI_CL(piKernelSetArg, pi2ur::piKernelSetArg)
@@ -3064,8 +3066,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRelease, pi2ur::piKernelRelease)
   _PI_CL(piextKernelGetNativeHandle, pi2ur::piextKernelGetNativeHandle)
   _PI_CL(piKernelSetExecInfo, pi2ur::piKernelSetExecInfo)
-  _PI_CL(piextProgramSetSpecializationConstant,
-         pi2ur::piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, pi2ur::piKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle,
          pi2ur::piextKernelCreateWithNativeHandle)
