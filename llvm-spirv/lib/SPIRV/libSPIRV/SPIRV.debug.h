@@ -88,7 +88,8 @@ enum EncodingTag {
   Signed       = 4,
   SignedChar   = 5,
   Unsigned     = 6,
-  UnsignedChar = 7
+  UnsignedChar = 7,
+  Complex      = 8
 };
 
 enum CompositeTypeTag {
@@ -1000,6 +1001,7 @@ inline void DbgEncodingMap::init() {
   add(dwarf::DW_ATE_signed_char,       SPIRVDebug::SignedChar);
   add(dwarf::DW_ATE_unsigned,          SPIRVDebug::Unsigned);
   add(dwarf::DW_ATE_unsigned_char,     SPIRVDebug::UnsignedChar);
+  add(dwarf::DW_ATE_complex_float,     SPIRVDebug::Complex);
 }
 
 typedef SPIRVMap<dwarf::Tag, SPIRVDebug::TypeQualifierTag> DbgTypeQulifierMap;
