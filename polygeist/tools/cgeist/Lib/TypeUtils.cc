@@ -21,7 +21,9 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 
+extern llvm::cl::opt<bool> UseOpaquePointers;
 namespace mlirclang {
 
 using namespace llvm;
@@ -93,8 +95,11 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
                                      Ty.getLayout(), Ty.getMemorySpace());
       })
       .Case<mlir::LLVM::LLVMPointerType>([NewElementType](auto Ty) {
-        return mlir::LLVM::LLVMPointerType::get(NewElementType,
-                                                Ty.getAddressSpace());
+        return (UseOpaquePointers)
+                   ? mlir::LLVM::LLVMPointerType::get(
+                         NewElementType.getContext(), Ty.getAddressSpace())
+                   : mlir::LLVM::LLVMPointerType::get(NewElementType,
+                                                      Ty.getAddressSpace());
       });
 }
 

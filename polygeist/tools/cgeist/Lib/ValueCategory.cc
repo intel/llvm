@@ -139,8 +139,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
 
     if (toStore.getType() != getElemTy()) {
       if (auto mt = dyn_cast<MemRefType>(toStore.getType())) {
-        if (auto spt =
-                dyn_cast<mlir::LLVM::LLVMPointerType>(getElemTy())) {
+        if (auto spt = dyn_cast<mlir::LLVM::LLVMPointerType>(getElemTy())) {
           toStore =
               builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
         }
@@ -295,10 +294,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                        << " isArray: " << isArray << "\n";
         }
         assert(elty == smt.getElementType());
-        elty = (UseOpaquePointers)
-                   ? LLVM::LLVMPointerType::get(elty.getContext(),
-                                                pt.getAddressSpace())
-                   : LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
+        elty = getPointerType(elty, pt.getAddressSpace());
 
         auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
         for (ssize_t i = 0; i < smt.getShape().back(); i++) {
@@ -329,10 +325,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         assert(smt.getShape().back() == (ssize_t)st.getBody().size());
       }
       assert(elty == smt.getElementType());
-      elty = (UseOpaquePointers)
-                 ? LLVM::LLVMPointerType::get(elty.getContext(),
-                                              pt.getAddressSpace())
-                 : LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
+      elty = getPointerType(elty, pt.getAddressSpace());
 
       auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
       for (ssize_t i = 0; i < smt.getShape().back(); i++) {
@@ -534,11 +527,7 @@ ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
     return *this;
   }
 
-  auto DestTy = (UseOpaquePointers)
-                    ? LLVM::LLVMPointerType::get(Ty.getContext(),
-                                                 Ty.getMemorySpaceAsInt())
-                    : LLVM::LLVMPointerType::get(Ty.getElementType(),
-                                                 Ty.getMemorySpaceAsInt());
+  auto DestTy = getPointerType(Ty.getElementType(), Ty.getMemorySpaceAsInt());
   return {Builder.createOrFold<polygeist::Memref2PointerOp>(Loc, DestTy, val),
           isReference, ElementType};
 }
@@ -888,4 +877,12 @@ ValueCategory ValueCategory::Reshape(OpBuilder &Builder, Location Loc,
               Builder.createOrFold<arith::ConstantIndexOp>(Loc, Shape[0]),
               Builder.getArrayAttr({})),
           false};
+}
+
+mlir::Type ValueCategory::getPointerType(mlir::Type ElementType,
+                                         unsigned AddressSpace) const {
+  return (UseOpaquePointers)
+             ? LLVM::LLVMPointerType::get(ElementType.getContext(),
+                                          AddressSpace)
+             : LLVM::LLVMPointerType::get(ElementType, AddressSpace);
 }

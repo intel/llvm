@@ -45,7 +45,8 @@ class Type;
 
 namespace LLVM {
 class LLVMStructType;
-}
+class LLVMPointerType;
+} // namespace LLVM
 } // namespace mlir
 
 namespace mlirclang {
@@ -98,6 +99,9 @@ public:
 
   mlir::Type getPointerOrMemRefType(mlir::Type Ty, unsigned AddressSpace,
                                     bool IsAlloca = false) const;
+
+  mlir::LLVM::LLVMPointerType getPointerType(mlir::Type ElementType,
+                                             unsigned AddressSpace = 0) const;
 
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);

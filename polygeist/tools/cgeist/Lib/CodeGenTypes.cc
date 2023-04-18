@@ -1541,9 +1541,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
       if (!InnerSYCL)
-        return LLVM::LLVMPointerType::get(
-            SubType, CGM.getContext().getTargetAddressSpace(
-                         PointeeType.getAddressSpace()));
+        return getPointerType(SubType, CGM.getContext().getTargetAddressSpace(
+                                           PointeeType.getAddressSpace()));
     }
 
     if (isa<clang::ArrayType>(PTT)) {
@@ -1551,7 +1550,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         assert(SubRef);
         return SubType;
       }
-      return LLVM::LLVMPointerType::get(SubType);
+      return getPointerType(SubType);
     }
 
     if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
@@ -1570,7 +1569,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      MT.getMemorySpace());
       }
 
-      return LLVM::LLVMPointerType::get(SubType);
+      return getPointerType(SubType);
     }
 
     if (isa<clang::RecordType>(PTT) && SubRef) {
@@ -1793,9 +1792,16 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
   if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},
                                  AddressSpace);
+  return getPointerType(Ty, AddressSpace);
+}
+
+LLVM::LLVMPointerType
+CodeGenTypes::getPointerType(mlir::Type ElementType,
+                             unsigned int AddressSpace) const {
   return (UseOpaquePointers)
-             ? LLVM::LLVMPointerType::get(Ty.getContext(), AddressSpace)
-             : LLVM::LLVMPointerType::get(Ty, AddressSpace);
+             ? LLVM::LLVMPointerType::get(ElementType.getContext(),
+                                          AddressSpace)
+             : LLVM::LLVMPointerType::get(ElementType, AddressSpace);
 }
 
 const clang::CodeGen::CGFunctionInfo &

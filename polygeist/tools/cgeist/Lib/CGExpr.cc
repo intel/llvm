@@ -166,8 +166,8 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
         Builder.create<polygeist::Pointer2MemrefOp>(
             Loc, MT,
             Builder.create<mlir::LLVM::NullOp>(
-                Loc, LLVM::LLVMPointerType::get(Builder.getI8Type(),
-                                                MT.getMemorySpaceAsInt()))),
+                Loc, Glob.getTypes().getPointerType(Builder.getI8Type(),
+                                                    MT.getMemorySpaceAsInt()))),
         false, Builder.getI8Type());
 
   if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(MLIRTy))
@@ -312,8 +312,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                     return std::pair<mlir::Value, mlir::Type>{
                         Builder.create<LLVM::GEPOp>(
                             Loc,
-                            LLVM::LLVMPointerType::get(ST.getBody()[I],
-                                                       PT.getAddressSpace()),
+                            Glob.getTypes().getPointerType(
+                                ST.getBody()[I], PT.getAddressSpace()),
                             ToInit,
                             llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
                             /* inbounds */ true),
@@ -323,8 +323,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                     return std::pair<mlir::Value, mlir::Type>{
                         Builder.create<LLVM::GEPOp>(
                             Loc,
-                            LLVM::LLVMPointerType::get(AT.getElementType(),
-                                                       PT.getAddressSpace()),
+                            Glob.getTypes().getPointerType(
+                                AT.getElementType(), PT.getAddressSpace()),
                             ToInit,
                             llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
                             /* inbounds */ true),
@@ -334,8 +334,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                     return std::pair<mlir::Value, mlir::Type>{
                         Builder.create<LLVM::GEPOp>(
                             Loc,
-                            LLVM::LLVMPointerType::get(IT,
-                                                       PT.getAddressSpace()),
+                            Glob.getTypes().getPointerType(
+                                IT, PT.getAddressSpace()),
                             ToInit,
                             llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex},
                             /* inbounds */ true),
@@ -508,11 +508,11 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   auto Zero = Builder.create<arith::ConstantIntOp>(Loc, 0, 32);
   auto GEP0 = Builder.create<LLVM::GEPOp>(
-      Loc, LLVM::LLVMPointerType::get(SubType.getBody()[0], 0), Alloca,
+      Loc, Glob.getTypes().getPointerType(SubType.getBody()[0], 0), Alloca,
       ValueRange({Zero, Zero}), /* inbounds */ true);
   Builder.create<LLVM::StoreOp>(Loc, ArrayPtr.getValue(Builder), GEP0);
   auto GEP1 = Builder.create<LLVM::GEPOp>(
-      Loc, LLVM::LLVMPointerType::get(SubType.getBody()[1], 0), Alloca,
+      Loc, Glob.getTypes().getPointerType(SubType.getBody()[1], 0), Alloca,
       ValueRange({Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)}),
       /* inbounds */ true);
   ++Field;
@@ -759,7 +759,7 @@ ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
     Builder.create<mlir::memref::DeallocOp>(Loc, ToDelete);
   else {
     mlir::Value Args[1] = {Builder.create<LLVM::BitcastOp>(
-        Loc, LLVM::LLVMPointerType::get(Builder.getI8Type()), ToDelete)};
+        Loc, Glob.getTypes().getPointerType(Builder.getI8Type()), ToDelete)};
     Builder.create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateFreeFunction(),
                                        Args);
   }
@@ -802,7 +802,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
         auto PT = cast<LLVM::LLVMPointerType>(Ty);
         ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
             Loc,
-            LLVM::LLVMPointerType::get(
+            Glob.getTypes().getPointerType(
                 LLVM::LLVMArrayType::get(PT.getElementType(), 0),
                 PT.getAddressSpace()),
             Alloc);
@@ -835,7 +835,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
       auto PT = cast<LLVM::LLVMPointerType>(Ty);
       ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
           Loc,
-          LLVM::LLVMPointerType::get(
+          Glob.getTypes().getPointerType(
               LLVM::LLVMArrayType::get(PT.getElementType(), 0),
               PT.getAddressSpace()),
           Alloc);
@@ -867,8 +867,8 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *Expr) {
         Builder.create<polygeist::Pointer2MemrefOp>(
             Loc, MT,
             Builder.create<mlir::LLVM::NullOp>(
-                Loc, LLVM::LLVMPointerType::get(Builder.getI8Type(),
-                                                MT.getMemorySpaceAsInt()))),
+                Loc, Glob.getTypes().getPointerType(Builder.getI8Type(),
+                                                    MT.getMemorySpaceAsInt()))),
         false);
   if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(MElem))
     return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false);
@@ -919,14 +919,14 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
     if (isa<MemRefType>(Val.getType()))
       Val = Builder.create<polygeist::Memref2PointerOp>(
           Loc,
-          LLVM::LLVMPointerType::get(
+          Glob.getTypes().getPointerType(
               Builder.getI8Type(),
               cast<MemRefType>(Val.getType()).getMemorySpaceAsInt()),
           Val);
     else
       Val = Builder.create<LLVM::BitcastOp>(
           Loc,
-          LLVM::LLVMPointerType::get(
+          Glob.getTypes().getPointerType(
               Builder.getI8Type(),
               cast<LLVM::LLVMPointerType>(Val.getType()).getAddressSpace()),
           Val);
@@ -1558,8 +1558,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
           Builder.create<polygeist::Pointer2MemrefOp>(
               Loc, MT,
               Builder.create<mlir::LLVM::NullOp>(
-                  Loc, LLVM::LLVMPointerType::get(Builder.getI8Type(),
-                                                  MT.getMemorySpaceAsInt()))),
+                  Loc, Glob.getTypes().getPointerType(
+                           Builder.getI8Type(), MT.getMemorySpaceAsInt()))),
           false);
     llvm_unreachable("illegal type for cast");
   }
@@ -1633,8 +1633,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
         Ptr = Builder.create<polygeist::Memref2PointerOp>(
             Loc,
-            LLVM::LLVMPointerType::get(MT.getElementType(),
-                                       MT.getMemorySpaceAsInt()),
+            Glob.getTypes().getPointerType(MT.getElementType(),
+                                           MT.getMemorySpaceAsInt()),
             Ptr);
       mlir::Value NullptrLlvm =
           Builder.create<mlir::LLVM::NullOp>(Loc, Ptr.getType());
@@ -1715,14 +1715,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                 if (isa<MemRefType>(Val.getType())) {
                   Val = Builder.create<polygeist::Memref2PointerOp>(
                       Loc,
-                      LLVM::LLVMPointerType::get(Builder.getI8Type(),
-                                                 cast<MemRefType>(Val.getType())
-                                                     .getMemorySpaceAsInt()),
+                      Glob.getTypes().getPointerType(
+                          Builder.getI8Type(), cast<MemRefType>(Val.getType())
+                                                   .getMemorySpaceAsInt()),
                       Val);
                 } else {
                   Val = Builder.create<LLVM::BitcastOp>(
                       Loc,
-                      LLVM::LLVMPointerType::get(
+                      Glob.getTypes().getPointerType(
                           Builder.getI8Type(),
                           cast<LLVM::LLVMPointerType>(Val.getType())
                               .getAddressSpace()),
@@ -1753,8 +1753,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             Builder.create<polygeist::Pointer2MemrefOp>(Loc, NT, Scalar),
             false);
       }
-      PT = LLVM::LLVMPointerType::get(PT.getElementType(),
-                                      SPT.getAddressSpace());
+      PT = Glob.getTypes().getPointerType(PT.getElementType(),
+                                          SPT.getAddressSpace());
       auto Nval = Builder.create<mlir::LLVM::BitcastOp>(Loc, PT, Scalar);
       auto ElemTy = Glob.getTypes().getMLIRType(
           cast<clang::PointerType>(E->getType())->getPointeeType());
@@ -1798,8 +1798,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       if (ScalarTy.getElementType() != MT.getElementType()) {
         auto MemRefToPtr = Builder.create<polygeist::Memref2PointerOp>(
             Loc,
-            LLVM::LLVMPointerType::get(Builder.getI8Type(),
-                                       ScalarTy.getMemorySpaceAsInt()),
+            Glob.getTypes().getPointerType(Builder.getI8Type(),
+                                           ScalarTy.getMemorySpaceAsInt()),
             Scalar);
         assert(Ty.getMemorySpaceAsInt() == ScalarTy.getMemorySpaceAsInt() &&
                "Expecting 'ty' and 'ScalarTy' to have the same memory space");
@@ -2337,10 +2337,10 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(Location Loc,
   if (auto MemRefTy = dyn_cast<MemRefType>(Src.val.getType())) {
     auto ElementTy = MemRefTy.getElementType();
     auto AddressSpace = MemRefTy.getMemorySpaceAsInt();
-    Src = {
-        Builder.create<polygeist::Memref2PointerOp>(
-            Loc, LLVM::LLVMPointerType::get(ElementTy, AddressSpace), Src.val),
-        Src.isReference, ElementTy};
+    Src = {Builder.create<polygeist::Memref2PointerOp>(
+               Loc, Glob.getTypes().getPointerType(ElementTy, AddressSpace),
+               Src.val),
+           Src.isReference, ElementTy};
   }
   assert(isa<LLVM::LLVMPointerType>(Src.val.getType()) &&
          "Expecting a pointer");
@@ -2400,7 +2400,7 @@ ValueCategory MLIRScanner::EmitIntegralToPointerConversion(Location Loc,
       .Case<LLVM::LLVMPointerType>(
           [=](auto Ty) { return Src.IntToPtr(Builder, Loc, Ty, ElemTy); })
       .Case<MemRefType>([=](auto Ty) {
-        const auto MiddlePtrTy = LLVM::LLVMPointerType::get(
+        const auto MiddlePtrTy = Glob.getTypes().getPointerType(
             Ty.getElementType(), Ty.getMemorySpaceAsInt());
         return Src.IntToPtr(Builder, Loc, MiddlePtrTy, Ty.getElementType())
             .Ptr2MemRef(Builder, Loc);

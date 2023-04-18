@@ -157,7 +157,7 @@ ValueCategory MLIRScanner::callHelper(
     if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Arg.val.getType())) {
       if (PT.getAddressSpace() == 5)
         Arg.val = Builder.create<LLVM::AddrSpaceCastOp>(
-            Loc, LLVM::LLVMPointerType::get(PT.getElementType(), 0), Arg.val);
+            Loc, Glob.getTypes().getPointerType(Arg.getElemTy(), 0), Arg.val);
     }
 
     Value Val = nullptr;
@@ -335,13 +335,14 @@ ValueCategory MLIRScanner::callHelper(
                 ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
-        auto ET = cast<LLVM::LLVMStructType>(PT.getElementType()).getBody()[I];
+        auto ET = cast<LLVM::LLVMStructType>(L0.getElemTy()).getBody()[I];
         Blocks[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<LLVM::LoadOp>(
                 Loc,
                 Builder.create<LLVM::GEPOp>(
-                    Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+                    Loc,
+                    Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
                     Val,
                     ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
@@ -363,13 +364,14 @@ ValueCategory MLIRScanner::callHelper(
                 ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
-        auto ET = cast<LLVM::LLVMStructType>(PT.getElementType()).getBody()[I];
+        auto ET = cast<LLVM::LLVMStructType>(T0.getElemTy()).getBody()[I];
         Threads[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<LLVM::LoadOp>(
                 Loc,
                 Builder.create<LLVM::GEPOp>(
-                    Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+                    Loc,
+                    Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
                     Val,
                     ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
@@ -580,8 +582,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
         Val = Builder.create<polygeist::Memref2PointerOp>(
             Loc,
-            LLVM::LLVMPointerType::get(MT.getElementType(),
-                                       MT.getMemorySpaceAsInt()),
+            Glob.getTypes().getPointerType(MT.getElementType(),
+                                           MT.getMemorySpaceAsInt()),
             Val);
       }
       return Val;
@@ -603,10 +605,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
       auto ElementType = TypeTranslator.translateType(mlirclang::anonymize(
           mlirclang::getLLVMType(E->getType(), Glob.getCGM())));
-      auto PointerType =
-          (UseOpaquePointers)
-              ? LLVM::LLVMPointerType::get(ElementType.getContext(), 0)
-              : LLVM::LLVMPointerType::get(ElementType, 0);
+      auto PointerType = Glob.getTypes().getPointerType(ElementType, 0);
       auto Alloc = ABuilder.create<LLVM::AllocaOp>(Loc, PointerType,
                                                    ElementType, One, 0);
       ValueCategory(Alloc, /*isRef*/ true, ElementType)
@@ -708,7 +707,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     if (isa<MemRefType>(Val.getType()))
       Val = Builder.create<polygeist::Memref2PointerOp>(
           Loc,
-          LLVM::LLVMPointerType::get(
+          Glob.getTypes().getPointerType(
               Builder.getI8Type(),
               cast<MemRefType>(Val.getType()).getMemorySpaceAsInt()),
           Val);
@@ -1207,7 +1206,7 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
           Builder.create<LLVM::CallOp>(
               Loc, StrcmpF,
               ValueRange({Builder.create<LLVM::BitcastOp>(
-                  Loc, LLVM::LLVMPointerType::get(Builder.getIntegerType(8)),
+                  Loc, Glob.getTypes().getPointerType(Builder.getIntegerType(8)),
                   Arg)}));
         } else {
           Builder.create<memref::DeallocOp>(Loc, Arg);

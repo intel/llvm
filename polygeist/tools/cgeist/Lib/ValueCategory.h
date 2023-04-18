@@ -40,10 +40,8 @@ private:
                      mlir::arith::CmpFPredicate predicate,
                      mlir::Value RHS) const;
 
-  mlir::Type getElemTy() const {
-    assert(ElementType && "No element type defined");
-    return ElementType.value();
-  }
+  mlir::Type getPointerType(mlir::Type ElementType,
+                            unsigned AddressSpace) const;
 
 public:
   mlir::Value val;
@@ -53,6 +51,11 @@ public:
   /// Holds the element type of memrefs or pointers. This is particularly
   /// important with opaque pointers.
   std::optional<mlir::Type> ElementType{std::nullopt};
+
+  mlir::Type getElemTy() const {
+    assert(ElementType && "No element type defined");
+    return ElementType.value();
+  }
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
