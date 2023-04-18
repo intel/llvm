@@ -1649,7 +1649,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     //
   }
 
-  void *Host = Properties->pHost;
+  void *Host = nullptr;
+  if (Properties) {
+    Host = Properties->pHost;
+  }
 
   // If USM Import feature is enabled and hostptr is supplied,
   // import the hostptr if not already imported into USM.

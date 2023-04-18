@@ -764,6 +764,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(capabilities);
   }
 
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+    return ReturnValue(0);
+  }
+
   default:
     urPrint("Unsupported ParamName in urGetDeviceInfo\n");
     urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);

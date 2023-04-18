@@ -278,14 +278,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 ) {
   Context->Devices[0] = Device;
 
+  ur_queue_flags_t Flags{};
+  if (Props) {
+    Flags = Props->flags;
+  }
+
   int ForceComputeIndex = -1; // Use default/round-robin.
-  if (Props->pNext) {
-    const ur_base_properties_t *extendedDesc =
-        reinterpret_cast<const ur_base_properties_t *>(Props->pNext);
-    if (extendedDesc->stype == UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES) {
-      const ur_queue_index_properties_t *IndexProperties =
-          reinterpret_cast<const ur_queue_index_properties_t *>(extendedDesc);
-      ForceComputeIndex = IndexProperties->computeIndex;
+  if (Props) {
+    if (Props->pNext) {
+      const ur_base_properties_t *extendedDesc =
+          reinterpret_cast<const ur_base_properties_t *>(Props->pNext);
+      if (extendedDesc->stype == UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES) {
+        const ur_queue_index_properties_t *IndexProperties =
+            reinterpret_cast<const ur_queue_index_properties_t *>(extendedDesc);
+        ForceComputeIndex = IndexProperties->computeIndex;
+      }
     }
   }
 
@@ -316,9 +323,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
                                                              nullptr);
 
   try {
-    *Queue = new ur_queue_handle_t_(ZeComputeCommandQueues, ZeCopyCommandQueues,
-                                    Context, Device, true, Props->flags,
-                                    ForceComputeIndex);
+    *Queue =
+        new ur_queue_handle_t_(ZeComputeCommandQueues, ZeCopyCommandQueues,
+                               Context, Device, true, Flags, ForceComputeIndex);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
