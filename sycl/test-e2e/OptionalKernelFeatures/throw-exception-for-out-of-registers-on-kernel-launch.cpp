@@ -66,7 +66,7 @@ int main() {
              output[i] = values1 + values2 + values3 + values4;
            });
      }).wait();
-  } catch (sycl::exception& e) {
+  } catch (sycl::exception &e) {
     using std::string_view_literals::operator""sv;
     auto Msg = "Exceeded the number of registers available on the hardware."sv;
     if (std::string(e.what()).find(Msg) != std::string::npos) {
