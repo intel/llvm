@@ -80,7 +80,7 @@ umaMemoryTrackerRemove(uma_memory_tracker_handle_t hTracker, const void *ptr,
 
 extern "C" {
 
-uma_memory_tracker_handle_t umaMemoryTrackerGet() {
+uma_memory_tracker_handle_t umaMemoryTrackerGet(void) {
     static uma_memory_tracker_t tracker;
     return &tracker;
 }
