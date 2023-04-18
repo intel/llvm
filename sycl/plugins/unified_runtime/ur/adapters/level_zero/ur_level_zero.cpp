@@ -1046,7 +1046,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // used.
   if (!EnvVar) {
     if (Device->useImmediateCommandLists())
-      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
+      //return std::pair<int, int>(0, 0); // Only main copy engine will be used.
+      return std::pair<int, int>(-1, -1);
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
   std::string CopyEngineRange = EnvVar;
