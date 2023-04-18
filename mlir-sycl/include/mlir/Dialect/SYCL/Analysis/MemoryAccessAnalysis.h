@@ -13,10 +13,15 @@
 #ifndef MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
 #define MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
 
+#include "mlir/IR/Value.h"
+#include "mlir/Support/LLVM.h"
+#include "sycl/group.hpp"
+#include "llvm/ADT/ArrayRef.h"
+
 namespace mlir {
 namespace sycl {
 
-/// Classify array accesses.
+/// Classify array access patterns.
 enum MemoryAccessPattern {
   Unkown = 0,
 
@@ -78,9 +83,58 @@ enum MemoryAccessPattern {
   ///    |<--x<--x<--x<--x<--x|
   ReverseStridedShifted = Reverse | StridedShifted,
 
+  /// Array accessed in strided fashion, increasing offset order, starting at
+  /// different row offsets:
+  ///    |   x-->x-->x-->x-->x|
+  ///    |       x-->x-->x-->x|
+  StridedOverlapped = Strided | Overlapped,
+
+  /// Array accessed in strided fashion, decreasing offset order, starting at
+  /// different row offsets:
+  ///    |<--x<--x<--x        |
+  ///    |<--x<--x<--x<--x    |
+  ReverseStridedOverlapped = Reverse | StridedOverlapped,
+
   /// Array accessed in random order.
   Random = 1 << 8
+};
 
+/// A matrix describing an array access pattern. The array access function must
+/// be 'affine' (a linear combination of the enclosing loop induction
+/// variables).
+class MemoryAccessMatrix {
+public:
+  MemoryAccessMatrix() = delete;
+
+  MemoryAccessMatrix(unsigned nRows, unsigned nColumns);
+
+private:
+  unsigned nRows, nColumns;
+  SmallVector<Value> data;
+};
+
+/// A column vector representing offsets used to access an array.
+class OffsetVector {
+public:
+  OffsetVector() = delete;
+
+  OffsetVector(unsigned nRows);
+
+private:
+  unsigned nRows;
+  SmallVector<Value> offsets;
+};
+
+/// Describes an array access.
+class MemoryAccess {
+public:
+  MemoryAccess() = delete;
+
+  MemoryAccess(MemoryAccessMatrix &&matrix, OffsetVector &&offsets);
+
+private:
+  MemoryAccessMatrix matrix;
+  OffsetVector offsets;
 };
 
 } // namespace sycl
