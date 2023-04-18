@@ -39,6 +39,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -165,6 +166,24 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for esimd emulator.
+// TODO: Determine correct string to be passed.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 using IDBuilder = sycl::detail::Builder;
@@ -1316,6 +1335,12 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextMemImageCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, const pi_image_format *,
+                                              const pi_image_desc *, pi_mem *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -2022,21 +2047,15 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
 }
 
 /// Host Pipes
-pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
-                                   const char *pipe_symbol, pi_bool blocking,
-                                   void *ptr, size_t size,
-                                   pi_uint32 num_events_in_waitlist,
-                                   const pi_event *events_waitlist,
-                                   pi_event *event) {
+pi_result piextEnqueueReadHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                   void *, size_t, pi_uint32, const pi_event *,
+                                   pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
-                                    const char *pipe_symbol, pi_bool blocking,
-                                    void *ptr, size_t size,
-                                    pi_uint32 num_events_in_waitlist,
-                                    const pi_event *events_waitlist,
-                                    pi_event *event) {
+pi_result piextEnqueueWriteHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                    void *, size_t, pi_uint32, const pi_event *,
+                                    pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -2151,8 +2170,7 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                  uint64_t *hostTime) {
+pi_result piGetDeviceAndHostTimer(pi_device, uint64_t *, uint64_t *) {
   PiTrace(
       "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
   return PI_SUCCESS;

@@ -970,6 +970,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
 
   transFunctionMetadataAsUserSemanticDecoration(BF, F);
 
+  transAuxDataInst(BF, F);
+
   SPIRVDBG(dbgs() << "[transFunction] " << *F << " => ";
            spvdbgs() << *BF << '\n';)
   return BF;
@@ -1126,14 +1128,94 @@ void LLVMToSPIRVBase::transFunctionMetadataAsUserSemanticDecoration(
     // SMALL - 1
     // LARGE - 2
     // DEFAULT - 3
-    // Currently we only support SMALL and LARGE
-    if (RegisterAllocNodeMDOp == 1 || RegisterAllocNodeMDOp == 2) {
+    // Currently we only support AUTO, SMALL and LARGE
+    if (RegisterAllocNodeMDOp == 0 || RegisterAllocNodeMDOp == 1 ||
+        RegisterAllocNodeMDOp == 2) {
       // 4 threads per eu means large grf mode, and 8 threads per eu
-      // means small grf mode
-      std::string NumThreads = RegisterAllocNodeMDOp == 2 ? "4" : "8";
+      // means small grf mode, 0 means use internal heuristics to choose
+      std::string NumThreads;
+      switch (RegisterAllocNodeMDOp) {
+      case 0:
+        NumThreads = "0";
+        break;
+      case 1:
+        NumThreads = "8";
+        break;
+      case 2:
+        NumThreads = "4";
+        break;
+      default:
+        llvm_unreachable("Not implemented");
+      }
       BF->addDecorate(new SPIRVDecorateUserSemanticAttr(
           BF, "num-thread-per-eu " + NumThreads));
     }
+  }
+}
+
+void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
+  auto *BM = BF->getModule();
+  if (!BM->preserveAuxData())
+    return;
+  BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  const auto &FnAttrs = F->getAttributes().getFnAttrs();
+  for (const auto &Attr : FnAttrs) {
+    std::vector<SPIRVWord> Ops;
+    Ops.push_back(BF->getId());
+    if (Attr.isStringAttribute()) {
+      // Format for String attributes is:
+      // NonSemanticAuxDataFunctionAttribute Fcn AttrName AttrValue
+      // or, if no value:
+      // NonSemanticAuxDataFunctionAttribute Fcn AttrName
+      //
+      // AttrName and AttrValue are always Strings
+      StringRef AttrKind = Attr.getKindAsString();
+      StringRef AttrValue = Attr.getValueAsString();
+      auto *KindSpvString = BM->getString(AttrKind.str());
+      Ops.push_back(KindSpvString->getId());
+      if (!AttrValue.empty()) {
+        auto *ValueSpvString = BM->getString(AttrValue.str());
+        Ops.push_back(ValueSpvString->getId());
+      }
+    } else {
+      // Format for other types is:
+      // NonSemanticAuxDataFunctionAttribute Fcn AttrStr
+      // AttrStr is always a String.
+      std::string AttrStr = Attr.getAsString();
+      auto *AttrSpvString = BM->getString(AttrStr);
+      Ops.push_back(AttrSpvString->getId());
+    }
+    BM->addAuxData(NonSemanticAuxData::FunctionAttribute,
+                   transType(Type::getVoidTy(F->getContext())), Ops);
+  }
+  SmallVector<std::pair<unsigned, MDNode *>> AllMD;
+  SmallVector<StringRef> MDNames;
+  F->getContext().getMDKindNames(MDNames);
+  F->getAllMetadata(AllMD);
+  for (auto MD : AllMD) {
+    // Format for metadata is:
+    // NonSemanticAuxDataFunctionMetadata Fcn MDName MDVals...
+    // MDName is always a String, MDVals have different types as explained
+    // below. Also note this instruction has a variable number of operands
+    std::vector<SPIRVWord> Ops;
+    Ops.push_back(BF->getId());
+    Ops.push_back(BM->getString(MDNames[MD.first].str())->getId());
+    for (unsigned int OpIdx = 0; OpIdx < MD.second->getNumOperands(); OpIdx++) {
+      const auto &CurOp = MD.second->getOperand(OpIdx);
+      if (auto *MDStr = dyn_cast<MDString>(CurOp)) {
+        // For MDString, MDVal is String
+        auto *SPIRVStr = BM->getString(MDStr->getString().str());
+        Ops.push_back(SPIRVStr->getId());
+      } else if (auto *ValueAsMeta = dyn_cast<ValueAsMetadata>(CurOp)) {
+        // For Value metadata, MDVal is a SPIRVValue
+        auto *SPIRVVal = transValue(ValueAsMeta->getValue(), nullptr);
+        Ops.push_back(SPIRVVal->getId());
+      } else {
+        assert(false && "Unsupported metadata type");
+      }
+    }
+    BM->addAuxData(NonSemanticAuxData::FunctionMetadata,
+                   transType(Type::getVoidTy(F->getContext())), Ops);
   }
 }
 
@@ -1303,7 +1385,7 @@ SPIRVValue *LLVMToSPIRVBase::transValue(Value *V, SPIRVBasicBlock *BB,
 
   SPIRVDBG(dbgs() << "[transValue] " << *V << '\n');
   assert((!isa<Instruction>(V) || isa<GetElementPtrInst>(V) ||
-          isa<CastInst>(V) || isa<ExtractElementInst>(V) ||
+          isa<CastInst>(V) || isa<ExtractElementInst>(V) || isa<ICmpInst>(V) ||
           isa<BinaryOperator>(V) || BB) &&
          "Invalid SPIRV BB");
 
@@ -2828,6 +2910,11 @@ bool LLVMToSPIRVBase::transBuiltinSet() {
             SPIRVBuiltinSetNameMap::map(BM->getDebugInfoEIS()), &EISId))
       return false;
   }
+  if (BM->preserveAuxData()) {
+    if (!BM->importBuiltinSet(
+            SPIRVBuiltinSetNameMap::map(SPIRVEIS_NonSemantic_AuxData), &EISId))
+      return false;
+  }
   return true;
 }
 
@@ -4311,6 +4398,204 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                   Alignment, Mask->getId()};
     return BM->addInstTemplate(internal::OpMaskedScatterINTEL, Ops, BB,
                                nullptr);
+  }
+  case Intrinsic::is_fpclass: {
+    // There is no direct counterpart for the intrinsic in SPIR-V, hence
+    // we need to emulate its work by sequence of other instructions
+    SPIRVType *ResTy = transType(II->getType());
+    llvm::FPClassTest FPClass = static_cast<llvm::FPClassTest>(
+        cast<ConstantInt>(II->getArgOperand(1))->getZExtValue());
+    // if no tests are provided - return false
+    if (FPClass == 0)
+      return BM->addConstant(ResTy, false);
+    // if all tests are provided - return true
+    if (FPClass == fcAllFlags)
+      return BM->addConstant(ResTy, true);
+
+    Type *OpLLVMTy = II->getArgOperand(0)->getType();
+    SPIRVValue *InputFloat = transValue(II->getArgOperand(0), BB);
+    std::vector<SPIRVValue *> ResultVec;
+
+    // Adds test for Negative/Positive values
+    SPIRVValue *SignBitTest = nullptr;
+    SPIRVValue *NoSignTest = nullptr;
+    auto GetNegPosInstTest = [&](SPIRVValue *TestInst,
+                                 bool IsNegative) -> SPIRVValue * {
+      SignBitTest = (SignBitTest)
+                        ? SignBitTest
+                        : BM->addInstTemplate(OpSignBitSet,
+                                              {InputFloat->getId()}, BB, ResTy);
+      if (IsNegative) {
+        return BM->addInstTemplate(
+            OpLogicalAnd, {SignBitTest->getId(), TestInst->getId()}, BB, ResTy);
+      }
+      NoSignTest = (NoSignTest)
+                       ? NoSignTest
+                       : BM->addInstTemplate(OpLogicalNot,
+                                             {SignBitTest->getId()}, BB, ResTy);
+      return BM->addInstTemplate(
+          OpLogicalAnd, {NoSignTest->getId(), TestInst->getId()}, BB, ResTy);
+    };
+
+    // Get LLVM Op type converted to integer. It can be either scalar or vector.
+    const uint32_t BitSize = OpLLVMTy->getScalarSizeInBits();
+    Type *IntOpLLVMTy = IntegerType::getIntNTy(M->getContext(), BitSize);
+    if (OpLLVMTy->isVectorTy())
+      IntOpLLVMTy = FixedVectorType::get(
+          IntOpLLVMTy, cast<FixedVectorType>(OpLLVMTy)->getNumElements());
+    SPIRVType *OpSPIRVTy = transType(IntOpLLVMTy);
+    const llvm::fltSemantics &Semantics =
+        OpLLVMTy->getScalarType()->getFltSemantics();
+    const APInt Inf = APFloat::getInf(Semantics).bitcastToAPInt();
+    const APInt AllOneMantissa =
+        APFloat::getLargest(Semantics).bitcastToAPInt() & ~Inf;
+
+    // Some checks can be inverted tests for simple cases, for example
+    // simultaneous check for inf, normal, subnormal and zero is a check for
+    // non nan.
+    auto GetInvertedFPClassTest =
+        [](const llvm::FPClassTest Test) -> llvm::FPClassTest {
+      llvm::FPClassTest InvertedTest = ~Test & fcAllFlags;
+      switch (InvertedTest) {
+      default:
+        break;
+      case fcNan:
+      case fcSNan:
+      case fcQNan:
+      case fcInf:
+      case fcPosInf:
+      case fcNegInf:
+      case fcNormal:
+      case fcPosNormal:
+      case fcNegNormal:
+      case fcSubnormal:
+      case fcPosSubnormal:
+      case fcNegSubnormal:
+      case fcZero:
+      case fcPosZero:
+      case fcNegZero:
+      case fcFinite:
+      case fcPosFinite:
+      case fcNegFinite:
+        return InvertedTest;
+      }
+      return fcNone;
+    };
+    bool IsInverted = false;
+    if (llvm::FPClassTest InvertedCheck = GetInvertedFPClassTest(FPClass)) {
+      IsInverted = true;
+      FPClass = InvertedCheck;
+    }
+    auto GetInvertedTestIfNeeded = [&](SPIRVValue *TestInst) -> SPIRVValue * {
+      if (!IsInverted)
+        return TestInst;
+      return BM->addInstTemplate(OpLogicalNot, {TestInst->getId()}, BB, ResTy);
+    };
+
+    // Integer parameter of the intrinsic is combined from several bit masks
+    // referenced in FPClassTest enum from FloatingPointMode.h in LLVM.
+    // Since a single intrinsic can provide multiple tests - here we might end
+    // up adding several sequences of SPIR-V instructions
+    if (FPClass & fcNan) {
+      // Map on OpIsNan if we have both QNan and SNan test bits set
+      if (FPClass & fcSNan && FPClass & fcQNan) {
+        auto *TestIsNan =
+            BM->addInstTemplate(OpIsNan, {InputFloat->getId()}, BB, ResTy);
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsNan));
+      } else {
+        // isquiet(V) ==> abs(V) >= (unsigned(Inf) | quiet_bit)
+        APInt QNaNBitMask =
+            APInt::getOneBitSet(BitSize, AllOneMantissa.getActiveBits() - 1);
+        APInt InfWithQnanBit = Inf | QNaNBitMask;
+        auto *QNanBitConst = transValue(
+            Constant::getIntegerValue(IntOpLLVMTy, InfWithQnanBit), BB);
+        auto *BitCastToInt =
+            BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
+        auto *IntAbs =
+            BM->addExtInst(OpSPIRVTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                           OpenCLLIB::SAbs, {BitCastToInt}, BB);
+        auto *TestIsQNan = BM->addCmpInst(OpUGreaterThanEqual, ResTy, IntAbs,
+                                          QNanBitConst, BB);
+        if (FPClass & fcQNan) {
+          ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsQNan));
+        } else {
+          // issignaling(V) ==> isnan(V) && !isquiet(V)
+          auto *TestIsNan =
+              BM->addInstTemplate(OpIsNan, {InputFloat->getId()}, BB, ResTy);
+          auto *NotQNan = BM->addInstTemplate(OpLogicalNot,
+                                              {TestIsQNan->getId()}, BB, ResTy);
+          auto *TestIsSNan = BM->addInstTemplate(
+              OpLogicalAnd, {TestIsNan->getId(), NotQNan->getId()}, BB, ResTy);
+          ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsSNan));
+        }
+      }
+    }
+    if (FPClass & fcInf) {
+      auto *TestIsInf =
+          BM->addInstTemplate(OpIsInf, {InputFloat->getId()}, BB, ResTy);
+      if (FPClass & fcNegInf && FPClass & fcPosInf)
+        // Map on OpIsInf if we have both Inf test bits set
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsInf));
+      else
+        // Map on OpIsInf with following check for sign bit
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(
+            GetNegPosInstTest(TestIsInf, FPClass & fcNegInf)));
+    }
+    if (FPClass & fcNormal) {
+      auto *TestIsNormal =
+          BM->addInstTemplate(OpIsNormal, {InputFloat->getId()}, BB, ResTy);
+      if (FPClass & fcNegNormal && FPClass & fcPosNormal)
+        // Map on OpIsNormal if we have both Normal test bits set
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsNormal));
+      else
+        // Map on OpIsNormal with following check for sign bit
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(
+            GetNegPosInstTest(TestIsNormal, FPClass & fcNegNormal)));
+    }
+    if (FPClass & fcSubnormal) {
+      // issubnormal(V) ==> unsigned(abs(V) - 1) < (all mantissa bits set)
+      auto *BitCastToInt =
+          BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
+      SPIRVValue *IntAbs =
+          BM->addExtInst(OpSPIRVTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                         OpenCLLIB::SAbs, {BitCastToInt}, BB);
+      auto *MantissaConst = transValue(
+          Constant::getIntegerValue(IntOpLLVMTy, AllOneMantissa), BB);
+      auto *MinusOne =
+          BM->addBinaryInst(OpISub, OpSPIRVTy, IntAbs, MantissaConst, BB);
+      auto *TestIsSubnormal =
+          BM->addCmpInst(OpULessThan, ResTy, MinusOne, MantissaConst, BB);
+      if (FPClass & fcPosSubnormal && FPClass & fcNegSubnormal)
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsSubnormal));
+      else
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(
+            GetNegPosInstTest(TestIsSubnormal, FPClass & fcNegSubnormal)));
+    }
+    if (FPClass & fcZero) {
+      // Create zero integer constant and check for equality with bitcasted to
+      // int float value
+      auto *BitCastToInt =
+          BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
+      auto *ZeroConst = transValue(
+          Constant::getIntegerValue(IntOpLLVMTy, APInt::getZero(BitSize)), BB);
+      auto *TestIsZero =
+          BM->addCmpInst(OpIEqual, ResTy, BitCastToInt, ZeroConst, BB);
+      if (FPClass & fcPosZero && FPClass & fcNegZero)
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsZero));
+      else
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(
+            GetNegPosInstTest(TestIsZero, FPClass & fcNegZero)));
+    }
+    if (ResultVec.size() == 1)
+      return ResultVec.back();
+    SPIRVValue *Result = ResultVec.front();
+    for (size_t I = 1; I != ResultVec.size(); ++I) {
+      // Create a sequence of LogicalOr instructions from ResultVec to get
+      // the overall test result
+      std::vector<SPIRVId> LogicOps = {Result->getId(), ResultVec[I]->getId()};
+      Result = BM->addInstTemplate(OpLogicalOr, LogicOps, BB, ResTy);
+    }
+    return Result;
   }
 
   default:

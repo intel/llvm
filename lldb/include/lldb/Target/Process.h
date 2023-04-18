@@ -284,6 +284,13 @@ public:
     return m_resume_id == m_last_user_expression_resume;
   }
 
+  bool IsRunningExpression() const {
+    // Don't return true if we are no longer running an expression:
+    if (m_running_user_expression || m_running_utility_function)
+      return true;
+    return false;
+  }
+
   void SetRunningUserExpression(bool on) {
     if (on)
       m_running_user_expression++;
@@ -404,9 +411,9 @@ public:
 
     ~ProcessEventData() override;
 
-    static ConstString GetFlavorString();
+    static llvm::StringRef GetFlavorString();
 
-    ConstString GetFlavor() const override;
+    llvm::StringRef GetFlavor() const override;
 
     lldb::ProcessSP GetProcessSP() const { return m_process_wp.lock(); }
 

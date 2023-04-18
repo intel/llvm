@@ -86,13 +86,15 @@
 // 12.27 Added new queue create and get APIs for immediate commandlists
 // piextQueueCreate2, piextQueueCreateWithNativeHandle2,
 // piextQueueGetNativeHandle2
-// 12.28 Added piextVirtualMem* functions, and piextPhysicalMem* functions,
+// 12.28 Added piextMemImageCreateWithNativeHandle for creating images from
+// native handles.
+// 12.29 Added piextVirtualMem* functions, and piextPhysicalMem* functions,
 // PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
 // _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_access_info enum and
 // pi_virtual_access_flags bit flags.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 28
+#define _PI_H_VERSION_MINOR 29
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1330,6 +1332,24 @@ __SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
     pi_mem *mem);
 
+/// Creates PI image object from a native handle.
+///
+/// \param nativeHandle is the native handle to create PI image from.
+/// \param context The PI context of the memory allocation.
+/// \param ownNativeHandle Indicates if we own the native memory handle or it
+/// came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param ImageFormat is the pi_image_format struct that
+/// specifies the image channnel order and channel data type that
+/// match what the nativeHandle uses
+/// \param ImageDesc is the pi_image_desc struct that specifies
+/// the image dimension, pitch, slice and other information about
+/// the nativeHandle
+/// \param img is the PI img created from the native handle.
+__SYCL_EXPORT pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *img);
+
 //
 // Program
 //
@@ -2202,6 +2222,17 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// Returns the global timestamp from \param device , and syncronized host
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
+/// API to get backend specific option.
+/// \param frontend_option is a string that contains frontend option.
+/// \param backend_option is used to return the backend option corresponding to
+/// frontend option.
+///
+/// \return PI_SUCCESS is returned for valid frontend_option. If a valid backend
+/// option is not available, an empty string is returned.
+__SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
+                                                 const char *frontend_option,
+                                                 const char **backend_option);
 
 /// Queries  device for it's global timestamp in nanoseconds, and updates
 /// HostTime  with the value of the host timer at the closest possible point in
