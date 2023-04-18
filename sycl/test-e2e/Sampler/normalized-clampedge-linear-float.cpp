@@ -135,7 +135,7 @@ int main() {
   queue Q;
   device D = Q.get_device();
 
-  if (D.has(aspect::image)) {
+  if (D.has(aspect::ext_intel_legacy_image)) {
     // the _int8 channels are one byte per channel, or four bytes per pixel (for
     // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
     // per pixel (for RGBA) the _int32/fp32  channels are four bytes per

@@ -665,13 +665,6 @@ private:
   static_assert(Dimensions > 0 && Dimensions <= 3,
                 "Dimensions can be 1/2/3 for image accessor.");
 
-  template <typename Param>
-  void checkDeviceFeatureSupported(const device &Device) {
-    if (!Device.get_info<Param>())
-      throw feature_not_supported("Images are not supported by this device.",
-                                  PI_ERROR_INVALID_OPERATION);
-  }
-
 #ifdef __SYCL_DEVICE_ONLY__
 
   sycl::vec<int, Dimensions> getRangeInternal() const {
@@ -773,8 +766,12 @@ public:
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
         MImgChannelType(ImageRef.getChannelType()) {
-    checkDeviceFeatureSupported<info::device::image_support>(
-        getDeviceFromHandler(CommandGroupHandlerRef));
+
+    device Device = getDeviceFromHandler(CommandGroupHandlerRef);
+    if (!Device.has(aspect::ext_intel_legacy_image))
+      throw feature_not_supported(
+          "SYCL 1.2.1 images are not supported by this device.",
+          PI_ERROR_INVALID_OPERATION);
   }
 #endif
 

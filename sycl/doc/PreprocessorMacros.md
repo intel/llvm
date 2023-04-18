@@ -34,6 +34,11 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Disables all deprecation warnings in SYCL runtime headers, including SYCL
   1.2.1 deprecations.
 
+- **SYCL_DISABLE_IMAGE_ASPECT_WARNING**
+
+  Disables warning diagnostic issued when calling `device::has(aspect::image)`
+  and `platform::has(aspect::image)`.
+
 - **SYCL_FALLBACK_ASSERT**
 
   Defining as non-zero enables the fallback assert feature even on devices

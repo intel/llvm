@@ -175,7 +175,7 @@ int main(int Argc, const char *Argv[]) {
   sycl::queue Q(props);
 
   auto dev = Q.get_device();
-  if (dev.has(aspect::image)) {
+  if (dev.has(aspect::ext_intel_legacy_image)) {
     if (TestType == "image") {
       std::cerr << "RunTest_ImageTest" << std::endl;
       RunTest_ImageTest(Q);

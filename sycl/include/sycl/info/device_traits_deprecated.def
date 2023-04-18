@@ -1,5 +1,5 @@
 // Marked deprecated in SYCL 2020 spec
-__SYCL_PARAM_TRAITS_DEPRECATED(image_support, "deprecated in SYCL 2020, use device::has(aspect::image) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(image_support, "deprecated in SYCL 2020, use device::has(aspect::ext_intel_legacy_image) to query for SYCL 1.2.1 image support")
 __SYCL_PARAM_TRAITS_DEPRECATED(max_constant_buffer_size,"deprecated in SYCL 2020")
 __SYCL_PARAM_TRAITS_DEPRECATED(max_constant_args,"deprecated in SYCL 2020")
 __SYCL_PARAM_TRAITS_DEPRECATED(host_unified_memory,"deprecated in SYCL 2020, use device::has() with "

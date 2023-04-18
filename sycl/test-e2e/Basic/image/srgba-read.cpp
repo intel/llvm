@@ -97,7 +97,7 @@ int main() {
   if (D.has(aspect::ext_oneapi_srgb))
     std::cout << "aspect::ext_oneapi_srgb detected" << std::endl;
 
-  if (D.has(aspect::image)) {
+  if (D.has(aspect::ext_intel_legacy_image)) {
     // RGBA -- (normal, non-linearized)
     std::cout << "rgba -------" << std::endl;
     test_rd(image_channel_order::rgba, image_channel_type::unorm_int8);
