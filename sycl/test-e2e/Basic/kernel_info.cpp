@@ -51,8 +51,8 @@ int main() {
                                "query should throw an exception.");
   assert(ErrMsg ==
          "info::kernel::num_args descriptor may only be used to query a kernel "
-      "that resides in a kernel bundle constructed using a backend specific"
-      "interoperability function or to query a device built-in kernel");
+         "that resides in a kernel bundle constructed using a backend specific"
+         "interoperability function or to query a device built-in kernel");
   assert(Errc == errc::invalid);
 
   const context krnCtx = krn.get_info<info::kernel::context>();
