@@ -1447,4 +1447,4 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage">;
 
 // Warnings for fp accuracy already set.
-def FPAccuracyAlreadySet : DiagGroup<fp-accuracy-value">;
+def FPAccuracyAlreadySet : DiagGroup<"fp-accuracy-value">;
