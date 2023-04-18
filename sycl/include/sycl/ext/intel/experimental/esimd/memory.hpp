@@ -132,7 +132,7 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
          uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
          uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
          uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
-  constexpr unsigned _Width1 = n1 * sizeof(T1); 
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
@@ -238,8 +238,8 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
   using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
   __esimd_raw_send2_noresult<ElemT1, n1, N>(modifier, execSize, mask.data(),
-                                        numSrc0, sfid, exDesc, msgDesc,
-                                        msgSrc0.data());
+                                            numSrc0, sfid, exDesc, msgDesc,
+                                            msgSrc0.data());
 }
 
 template <typename T1, int n1, int N = 16>
@@ -3227,4 +3227,3 @@ public:
 } // namespace ext::intel
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-
