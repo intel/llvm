@@ -337,8 +337,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
 
     // Level Zero has a much more explicit notion of command submission than
     // OpenCL. It doesn't happen unless the user submits a command list. We've
-    // done it just above so the status is at least PI_EVENT_RUNNING.
-    uint32_t Result = ur_cast<uint32_t>(UR_EVENT_STATUS_RUNNING);
+    // done it just above so the status is at least PI_EVENT_SUBMITTED.
+    //
+    // NOTE: We currently cannot tell if command is currently running, so
+    // it will always show up "submitted" before it is finally "completed".
+    //
+    uint32_t Result = ur_cast<uint32_t>(UR_EVENT_STATUS_SUBMITTED);
 
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
