@@ -743,7 +743,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
     bool willVersion = requireVersioning && EnableLICMSYCLAccessorVersioning &&
-                       isa<scf::ForOp>(loop) && numVersion < LICMVersionLimit &&
+                       numVersion < LICMVersionLimit &&
                        accessorPairs.size() <= LICMSYCLAccessorPairsLimit;
     if (willVersion)
       ++numVersion;
