@@ -98,6 +98,9 @@ Improvements to clang-tidy
   `ImplementationFileExtensions`, replacing the check-local options of the
   same name.
 
+- Support specifying `Checks` as a YAML list in the `.clang-tidy` configuration
+  file.
+
 New checks
 ^^^^^^^^^^
 
@@ -254,6 +257,10 @@ Changes in existing checks
   behavior of using `i` as the prefix for enum tags, set the `EnumConstantPrefix`
   option to `i` instead of using `EnumConstantHungarianPrefix`.
 
+- Fixed a hungarian notation issue in :doc:`readability-identifier-naming
+  <clang-tidy/checks/readability/identifier-naming>` which failed to indicate
+  the number of asterisks.
+
 - Fixed a false positive in :doc:`readability-implicit-bool-conversion
   <clang-tidy/checks/readability/implicit-bool-conversion>` check warning would
   be unnecessarily emitted for explicit cast using direct list initialization.
@@ -307,8 +314,8 @@ Changes in existing checks
 
 - Improved :doc:`modernize-concat-nested-namespaces
   <clang-tidy/checks/modernize/concat-nested-namespaces>` to fix incorrect fixes when
-  using macro between namespace declarations and false positive when using namespace
-  with attributes.
+  using macro between namespace declarations, to fix false positive when using namespace
+  with attributes and to support nested inline namespace introduced in c++20.
 
 - Fixed a false positive in :doc:`performance-no-automatic-move
   <clang-tidy/checks/performance/no-automatic-move>` when warning would be

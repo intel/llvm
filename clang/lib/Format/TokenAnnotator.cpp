@@ -421,8 +421,7 @@ private:
           FormatToken *Next = CurrentToken->Next;
           if (PrevPrev && PrevPrev->is(tok::identifier) &&
               Prev->isOneOf(tok::star, tok::amp, tok::ampamp) &&
-              CurrentToken->is(tok::identifier) &&
-              !Next->isOneOf(tok::equal, tok::l_brace)) {
+              CurrentToken->is(tok::identifier) && Next->isNot(tok::equal)) {
             Prev->setType(TT_BinaryOperator);
             LookForDecls = false;
           }
@@ -1819,7 +1818,7 @@ private:
              Previous && Previous->Previous &&
              !Previous->Previous->isOneOf(tok::comma, tok::semi);
              Previous = Previous->Previous) {
-          if (Previous->isOneOf(tok::r_square, tok::r_paren)) {
+          if (Previous->isOneOf(tok::r_square, tok::r_paren, tok::greater)) {
             Previous = Previous->MatchingParen;
             if (!Previous)
               break;
@@ -2514,12 +2513,6 @@ private:
     // presence of the matching brace to distinguish between those.
     if (PrevToken->is(tok::r_brace) && Tok.is(tok::star) &&
         !PrevToken->MatchingParen) {
-      return TT_PointerOrReference;
-    }
-
-    // if (Class* obj { function() })
-    if (PrevToken->Tok.isAnyIdentifier() && NextToken->Tok.isAnyIdentifier() &&
-        NextToken->Next && NextToken->Next->is(tok::l_brace)) {
       return TT_PointerOrReference;
     }
 

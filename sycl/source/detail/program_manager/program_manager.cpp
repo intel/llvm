@@ -13,6 +13,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
+#include <detail/platform_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
@@ -359,6 +360,20 @@ static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
   return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
+static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
+                                         const char *PropName) {
+  pi_device_binary_property Prop = Img.getProperty(PropName);
+  std::stringstream ss;
+  if (!Prop)
+    return "";
+  int optLevel = DeviceBinaryProperty(Prop).asUint32();
+  if (optLevel < 0 || optLevel > 3)
+    return "";
+  ss << "-O" << optLevel;
+  std::string temp = ss.str();
+  return temp;
+}
+
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
@@ -399,6 +414,32 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // break. The behavior is now controlled through the RegisterAllocMode
     // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  // Add optimization flags.
+  auto str = getUint32PropAsOptStr(Img, "optLevel");
+  const char *optLevelStr = str.c_str();
+  // TODO: Passing these options to vector compiler causes build failure in
+  // backend. Will pass the flags once backend compilation issue is resolved.
+  // Update only if compile options are not overwritten by environment
+  // variable.
+  if (!isEsimdImage && !CompileOptsEnv && optLevelStr != nullptr &&
+      optLevelStr[0] != '\0') {
+    // Making sure all devices have the same platform.
+    assert(!Devs.empty() &&
+           std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
+             return Dev.get_platform() == Devs[0].get_platform();
+           }));
+    const char *backend_option = nullptr;
+    // Empty string is returned in backend_option when no appropriate backend
+    // option is available for a given frontend option.
+    Plugin.getBackendOption(
+        detail::getSyclObjImpl(Devs[0].get_platform())->getHandleRef(),
+        optLevelStr, &backend_option);
+    if (backend_option && backend_option[0] != '\0') {
+      if (!CompileOpts.empty())
+        CompileOpts += " ";
+      CompileOpts += std::string(backend_option);
+    }
   }
   if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
        Plugin.getBackend() == backend::opencl) &&
