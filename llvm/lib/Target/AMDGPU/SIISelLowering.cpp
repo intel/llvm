@@ -1096,6 +1096,15 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
 
     return true;
   }
+  case Intrinsic::amdgcn_ds_add_gs_reg_rtn:
+  case Intrinsic::amdgcn_ds_sub_gs_reg_rtn: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.memVT = MVT::getVT(CI.getOperand(0)->getType());
+    Info.ptrVal = nullptr;
+    Info.fallbackAddressSpace = AMDGPUAS::STREAMOUT_REGISTER;
+    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
+    return true;
+  }
   case Intrinsic::amdgcn_ds_append:
   case Intrinsic::amdgcn_ds_consume: {
     Info.opc = ISD::INTRINSIC_W_CHAIN;
@@ -1353,11 +1362,12 @@ bool SITargetLowering::isLegalAddressingMode(const DataLayout &DL,
       return true;
 
     return false;
+  }
 
-  } else if (AS == AMDGPUAS::PRIVATE_ADDRESS) {
+  if (AS == AMDGPUAS::PRIVATE_ADDRESS)
     return isLegalMUBUFAddressingMode(AM);
-  } else if (AS == AMDGPUAS::LOCAL_ADDRESS ||
-             AS == AMDGPUAS::REGION_ADDRESS) {
+
+  if (AS == AMDGPUAS::LOCAL_ADDRESS || AS == AMDGPUAS::REGION_ADDRESS) {
     // Basic, single offset DS instructions allow a 16-bit unsigned immediate
     // field.
     // XXX - If doing a 4-byte aligned 8-byte type access, we effectively have
@@ -1372,8 +1382,9 @@ bool SITargetLowering::isLegalAddressingMode(const DataLayout &DL,
       return true;
 
     return false;
-  } else if (AS == AMDGPUAS::FLAT_ADDRESS ||
-             AS == AMDGPUAS::UNKNOWN_ADDRESS_SPACE) {
+  }
+
+  if (AS == AMDGPUAS::FLAT_ADDRESS || AS == AMDGPUAS::UNKNOWN_ADDRESS_SPACE) {
     // For an unknown address space, this usually means that this is for some
     // reason being used for pure arithmetic, and not based on some addressing
     // computation. We don't have instructions that compute pointers with any
@@ -4477,6 +4488,25 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
 
     return BB;
   }
+  case AMDGPU::S_INVERSE_BALLOT_U32:
+  case AMDGPU::S_INVERSE_BALLOT_U64: {
+    MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
+    const GCNSubtarget &ST = MF->getSubtarget<GCNSubtarget>();
+    const SIRegisterInfo *TRI = ST.getRegisterInfo();
+    const DebugLoc &DL = MI.getDebugLoc();
+    const Register DstReg = MI.getOperand(0).getReg();
+    Register MaskReg = MI.getOperand(1).getReg();
+
+    const bool IsVALU = TRI->isVectorRegister(MRI, MaskReg);
+
+    if (IsVALU) {
+      MaskReg = TII->readlaneVGPRToSGPR(MaskReg, MI, MRI);
+    }
+
+    BuildMI(*BB, &MI, DL, TII->get(AMDGPU::COPY), DstReg).addReg(MaskReg);
+    MI.eraseFromParent();
+    return BB;
+  }
   default:
     return AMDGPUTargetLowering::EmitInstrWithCustomInserter(MI, BB);
   }
@@ -6139,7 +6169,8 @@ SDValue SITargetLowering::LowerGlobalAddress(AMDGPUMachineFunction *MFI,
       if (DAG.getDataLayout().getTypeAllocSize(Ty).isZero()) {
         assert(PtrVT == MVT::i32 && "32-bit pointer is expected.");
         // Adjust alignment for that dynamic shared memory array.
-        MFI->setDynLDSAlign(DAG.getDataLayout(), *cast<GlobalVariable>(GV));
+        Function &F = DAG.getMachineFunction().getFunction();
+        MFI->setDynLDSAlign(F, *cast<GlobalVariable>(GV));
         return SDValue(
             DAG.getMachineNode(AMDGPU::GET_GROUPSTATICSIZE, DL, PtrVT), 0);
       }
@@ -11342,8 +11373,7 @@ SDValue SITargetLowering::performAddCarrySubCarryCombine(SDNode *N,
   if (N->getValueType(0) != MVT::i32)
     return SDValue();
 
-  auto C = dyn_cast<ConstantSDNode>(N->getOperand(1));
-  if (!C || C->getZExtValue() != 0)
+  if (!isNullConstant(N->getOperand(1)))
     return SDValue();
 
   SelectionDAG &DAG = DCI.DAG;
