@@ -22,29 +22,72 @@ using namespace mlir;
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-static constexpr StringRef linkageAttrName = "llvm.linkage";
 bool mlir::isLinkonceODR(FunctionOpInterface func) {
+  constexpr StringRef linkageAttrName = "llvm.linkage";
   if (!func->hasAttr(linkageAttrName))
     return false;
-  auto attr = dyn_cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
-  assert(attr && "Expecting LLVM::LinkageAttr");
+  auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-bool mlir::isOnlyCalledFromGPUKernel(FunctionOpInterface func) {
+bool mlir::isTailCall(CallOpInterface call) {
+  if (!call->getBlock()->hasNoSuccessors())
+    return false;
+  Operation *op = call->getNextNode();
+  while (op) {
+    if (!isMemoryEffectFree(op))
+      return false;
+    op = op->getNextNode();
+  }
+  return true;
+}
+
+/// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
+/// func and its callers.
+static void
+getMaxDepthFromGPUKernel(FunctionOpInterface func,
+                         DenseMap<FunctionOpInterface, int> &funcMaxDepthMap) {
+  assert(!funcMaxDepthMap.contains(func) &&
+         "Expecting maximum depth of func is not already calculated");
+
+  // Function not in a GPU module is not called from a GPU kernel.
+  if (!func->getParentOfType<gpu::GPUModuleOp>()) {
+    funcMaxDepthMap[func] = -1;
+    return;
+  }
+
+  Operation *op = func;
+  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
+    if (gpuFunc.isKernel()) {
+      funcMaxDepthMap[func] = 0;
+      return;
+    }
+
   ModuleOp module = func->getParentOfType<ModuleOp>();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
-  return all_of(userMap.getUsers(func), [&](Operation *call) {
-    if (auto callerFunc = call->getParentOfType<FunctionOpInterface>()) {
-      Operation *op = callerFunc;
-      if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
-        if (gpuFunc.isKernel())
-          return true;
-      return isOnlyCalledFromGPUKernel(cast<FunctionOpInterface>(callerFunc));
-    }
-    return false;
-  });
+  int maxDepth = -1;
+  for (Operation *call : userMap.getUsers(func)) {
+    auto caller = call->getParentOfType<FunctionOpInterface>();
+    if (!funcMaxDepthMap.contains(func))
+      getMaxDepthFromGPUKernel(caller, funcMaxDepthMap);
+    int callerDepth = funcMaxDepthMap[func];
+
+    // Caller not called from a GPU kernel.
+    if (callerDepth == -1)
+      continue;
+
+    int depth = 1 + callerDepth;
+    if (depth > maxDepth)
+      maxDepth = depth;
+  }
+  funcMaxDepthMap[func] = maxDepth;
+}
+
+int mlir::getMaxDepthFromGPUKernel(FunctionOpInterface func) {
+  DenseMap<FunctionOpInterface, int> funcMaxDepthMap;
+  ::getMaxDepthFromGPUKernel(func, funcMaxDepthMap);
+  return funcMaxDepthMap[func];
 }
 
 bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
@@ -56,22 +99,20 @@ bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
 
-  // Ensure all the call sites for this function are tail calls.
-  if (any_of(userMap.getUsers(func), [](Operation *call) {
-        if (!call->getBlock()->hasNoSuccessors())
-          return true;
-        Operation *op = call->getNextNode();
-        while (op) {
-          if (!isMemoryEffectFree(op))
-            return true;
-          op = op->getNextNode();
-        }
+  if (!all_of(userMap.getUsers(func), [](Operation *op) {
+        if (auto call = dyn_cast<CallOpInterface>(op))
+          return isTailCall(call);
         return false;
       }))
     return false;
 
-  // Ensure all the call sites for this function are from a GPU kernel.
-  if (!isOnlyCalledFromGPUKernel(func))
+  int maxDepth = getMaxDepthFromGPUKernel(func);
+  // The function must to called from GPU kernel.
+  if (maxDepth == -1)
+    return false;
+  // The function should be called directly by a GPU kernel, or called by a
+  // function that directly called by a GPU kernel.
+  if (maxDepth > 2)
     return false;
 
   return true;

@@ -523,6 +523,7 @@ bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
       llvm::dbgs() << "Not a candidate: " << callOp << "\n";
       llvm::dbgs().indent(2) << "not in an existing block\n";
     });
+    return false;
   }
 
   return true;
@@ -587,10 +588,17 @@ bool ArgumentPromotionPass::isCandidateCallable(
     return false;
   }
 
-  if (!isOnlyCalledFromGPUKernel(funcOp)) {
+  // Ensure all the call sites for this function are either in a GPU kernel or
+  // in a function that is called directly by a GPU kernel.
+  // TODO: Could generalize by checking that the call chain from the GPU kernel
+  // are all candidates.
+  int maxDepth = getMaxDepthFromGPUKernel(funcOp);
+  assert(maxDepth > 0 && "Expecting func to be called from a GPU kernel and "
+                         "not itself a GPU kernel");
+  if (maxDepth > 2) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "not a candidate: found call site that is not called from a "
-                  "GPU kernel\n");
+               << "not a candidate: found call site that is called by a GPU "
+                  "kernel with depth more than 2.\n");
     return false;
   }
 

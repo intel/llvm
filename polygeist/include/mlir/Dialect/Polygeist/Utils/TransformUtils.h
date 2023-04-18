@@ -22,6 +22,7 @@ namespace mlir {
 class AffineForOp;
 class AffineIfOp;
 class AffineParallelOp;
+class CallOpInterface;
 class DominanceInfo;
 class FunctionOpInterface;
 class LoopLikeOpInterface;
@@ -44,13 +45,17 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
 
-/// Returns true if the given function has linkonce_odr linkage.
+/// Returns true if the given function has 'linkonce_odr' LLVM  linkage.
 bool isLinkonceODR(FunctionOpInterface);
 
-/// Return true if the given function is only called from GPU kernels.
-bool isOnlyCalledFromGPUKernel(FunctionOpInterface);
+/// Returns true if the given call is a tail call.
+bool isTailCall(CallOpInterface);
 
-/// Return true if the given function is potentially a SYCL kernel body
+/// Returns the maximum depth from a GPU kernel.
+/// Returns -1 if the call is not called from a GPU kernel.
+int getMaxDepthFromGPUKernel(FunctionOpInterface);
+
+/// Returns true if the given function is potentially a SYCL kernel body
 /// function. The SYCL kernel body function is created by SemaSYCL in clang for
 /// the body of the SYCL kernel, e.g., code in parallel_for.
 /// TODO: add an attribute to the call operator of the SYCL kernel functor in
