@@ -155,6 +155,8 @@ _PI_API(piGetDeviceAndHostTimer)
 _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
+_PI_API(piPluginGetBackendOption)
+
 // Queue create and get APIs for immediate commandlists
 _PI_API(piextQueueCreate2)
 _PI_API(piextQueueGetNativeHandle2)
