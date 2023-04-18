@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_METHOD_OP_INTERFACE_H_
-#define MLIR_SYCL_METHOD_OP_INTERFACE_H_
+#ifndef MLIR_DIALECT_SYCL_IR_METHODOPINTERFACE_H
+#define MLIR_DIALECT_SYCL_IR_METHODOPINTERFACE_H
 
 #include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.h.inc"
 
@@ -20,4 +20,4 @@ using isSYCLMethod = std::is_base_of<SYCLMethodOpInterface::Trait<T>, T>;
 } // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_SYCL_METHOD_OP_INTERFACE_H_
+#endif // MLIR_DIALECT_SYCL_IR_METHODOPINTERFACE_H

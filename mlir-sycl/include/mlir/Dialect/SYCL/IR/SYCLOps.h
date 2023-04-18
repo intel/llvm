@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_OPS_H_
-#define MLIR_SYCL_OPS_H_
+#ifndef MLIR_DIALECT_SYCL_IR_SYCLOPS_H
+#define MLIR_DIALECT_SYCL_IR_SYCLOPS_H
 
 #include "mlir/Dialect/SYCL/IR/SYCLTraits.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
@@ -34,4 +34,4 @@ inline bool isSYCLOperation(Operation *op) {
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 
-#endif // MLIR_SYCL_OPS_H_
+#endif // MLIR_DIALECT_SYCL_IR_SYCLOPS_H
