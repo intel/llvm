@@ -25,10 +25,10 @@
      inkscape:document-units="mm"
      showgrid="true"
      inkscape:zoom="4.9316455"
-     inkscape:cx="241.29877"
-     inkscape:cy="138.39194"
-     inkscape:window-width="1723"
-     inkscape:window-height="1486"
+     inkscape:cx="235.72254"
+     inkscape:cy="155.4248"
+     inkscape:window-width="3040"
+     inkscape:window-height="1678"
      inkscape:window-x="114"
      inkscape:window-y="114"
      inkscape:window-maximized="0"
@@ -48,6 +48,25 @@
      id="defs2">
     <marker
        style="overflow:visible"
+       id="marker1477"
+       refX="3"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="TriangleStart"
+       markerWidth="5.3244081"
+       markerHeight="6.155385"
+       viewBox="0 0 5.3244081 6.1553851"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.5)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path1475" />
+    </marker>
+    <marker
+       style="overflow:visible"
        id="marker47474"
        refX="3"
        refY="0"
@@ -64,25 +83,6 @@
          style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
          d="M 5.77,0 -2.88,5 V -5 Z"
          id="path47472" />
-    </marker>
-    <marker
-       style="overflow:visible"
-       id="marker46854"
-       refX="5"
-       refY="0"
-       orient="auto-start-reverse"
-       inkscape:stockid="TriangleStart"
-       markerWidth="5.3244081"
-       markerHeight="6.155385"
-       viewBox="0 0 5.3244081 6.1553851"
-       inkscape:isstock="true"
-       inkscape:collect="always"
-       preserveAspectRatio="xMidYMid">
-      <path
-         transform="scale(0.5)"
-         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
-         d="M 5.77,0 -2.88,5 V -5 Z"
-         id="path46852" />
     </marker>
     <marker
        style="overflow:visible"
@@ -351,14 +351,6 @@
                x="147.57428"
                y="111.23069">Fat Object</tspan></text>
           <path
-             style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-start:url(#marker46854)"
-             d="m 66.860792,121.99786 -5.572998,0 V 86.437864"
-             id="path30702"
-             inkscape:connector-type="orthogonal"
-             inkscape:connector-curvature="0"
-             inkscape:connection-end="#g1902"
-             inkscape:connection-start="#g30650-1" />
-          <path
              style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.281035px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;marker-end:url(#marker34666)"
              d="m 61.287794,96.970628 h 5.08"
              id="path31434"
@@ -439,6 +431,14 @@
              style="fill:#030303;fill-opacity:1;stroke:#000000;stroke-width:0.264999;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker47474)"
              d="m 112.39285,121.96595 v -5.84787"
              id="path47262" />
+          <path
+             style="fill:#030303;stroke:#000000;stroke-width:0.264999"
+             d="M 61.293294,86.449571 V 121.32214"
+             id="path690" />
+          <path
+             style="fill:#030303;stroke:#000000;stroke-width:0.264999;marker-end:url(#marker1477)"
+             d="m 61.160794,121.26849 h 5.204062"
+             id="path692" />
         </g>
       </g>
     </g>
