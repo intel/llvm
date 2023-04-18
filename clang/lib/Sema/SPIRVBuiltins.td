@@ -540,7 +540,7 @@ foreach name = ["clz", "ctz", "popcount"] in {
 
 def : ConstOCLSPVBuiltin<"rotate", [AIGenTypeN, AIGenTypeN, AIGenTypeN]>;
 
-def : ConstOCLSPVBuiltin<"s_abs", [AUIGenTypeN, ASIGenTypeN]>;
+def : ConstOCLSPVBuiltin<"s_abs", [ASIGenTypeN, ASIGenTypeN]>;
 
 def : ConstOCLSPVBuiltin<"s_abs_diff", [AUIGenTypeN, ASIGenTypeN, ASIGenTypeN]>;
 

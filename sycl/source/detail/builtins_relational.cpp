@@ -552,6 +552,14 @@ MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::cl_ulong, s::cl_ulong,
                         s::cl_ulong, s::cl_long)
 MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::cl_ulong, s::cl_ulong,
                         s::cl_ulong, s::cl_ulong)
+MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::longlong, s::longlong,
+                        s::longlong, s::longlong)
+MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::longlong, s::longlong,
+                        s::longlong, s::ulonglong)
+MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::ulonglong, s::ulonglong,
+                        s::ulonglong, s::longlong)
+MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::ulonglong, s::ulonglong,
+                        s::ulonglong, s::ulonglong)
 MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::cl_half, s::cl_half,
                         s::cl_half, s::cl_short)
 MAKE_SC_FSC_1V_2V_3V_FV(sycl_host_select, __vselect, s::cl_half, s::cl_half,

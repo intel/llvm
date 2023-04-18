@@ -521,7 +521,14 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
 fract(T x, T2 iptr) __NOEXC {
   detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_fract<T>(x, iptr);
+  // workaround to support multi_ptr without decoration
+  if constexpr (!iptr.is_decorated) {
+    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
+              access::decorated::yes>
+        iptr_decorated = iptr;
+    return __sycl_std::__invoke_fract<T>(x, iptr_decorated);
+  } else
+    return __sycl_std::__invoke_fract<T>(x, iptr);
 }
 
 // svgenfloat frexp (svgenfloat x, genintptr exp)
@@ -530,7 +537,14 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
 frexp(T x, T2 exp) __NOEXC {
   detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_frexp<T>(x, exp);
+  // workaround to support multi_ptr without decoration
+  if constexpr (!exp.is_decorated) {
+    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
+              access::decorated::yes>
+        exp_decorated = exp;
+    return __sycl_std::__invoke_frexp<T>(x, exp_decorated);
+  } else
+    return __sycl_std::__invoke_frexp<T>(x, exp);
 }
 
 // svgenfloat hypot (svgenfloat x, svgenfloat y)
@@ -584,7 +598,14 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
 lgamma_r(T x, T2 signp) __NOEXC {
   detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_lgamma_r<T>(x, signp);
+  // workaround to support multi_ptr without decoration
+  if constexpr (!signp.is_decorated) {
+    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
+              access::decorated::yes>
+        signp_decorated = signp;
+    return __sycl_std::__invoke_lgamma_r<T>(x, signp_decorated);
+  } else
+    return __sycl_std::__invoke_lgamma_r<T>(x, signp);
 }
 
 // svgenfloat log (svgenfloat x)
@@ -644,7 +665,14 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
 modf(T x, T2 iptr) __NOEXC {
   detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_modf<T>(x, iptr);
+  // workaround to support multi_ptr without decoration
+  if constexpr (!iptr.is_decorated) {
+    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
+              access::decorated::yes>
+        iptr_decorated = iptr;
+    return __sycl_std::__invoke_modf<T>(x, iptr_decorated);
+  } else
+    return __sycl_std::__invoke_modf<T>(x, iptr);
 }
 
 template <typename T,
@@ -695,7 +723,14 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
 remquo(T x, T y, T2 quo) __NOEXC {
   detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_remquo<T>(x, y, quo);
+  // workaround to support multi_ptr without decoration
+  if constexpr (!quo.is_decorated) {
+    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
+              access::decorated::yes>
+        quo_decorated = quo;
+    return __sycl_std::__invoke_remquo<T>(x, y, quo_decorated);
+  } else
+    return __sycl_std::__invoke_remquo<T>(x, y, quo);
 }
 
 // svgenfloat rint (svgenfloat x)
@@ -737,7 +772,14 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
 sincos(T x, T2 cosval) __NOEXC {
   detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_sincos<T>(x, cosval);
+  // workaround to support multi_ptr without decoration
+  if constexpr (!cosval.is_decorated) {
+    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
+              access::decorated::yes>
+        cosval_decorated = cosval;
+    return __sycl_std::__invoke_sincos<T>(x, cosval_decorated);
+  } else
+    return __sycl_std::__invoke_sincos<T>(x, cosval);
 }
 
 // svgenfloat sinh (svgenfloat x)
@@ -1084,10 +1126,8 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> abs(T x) __NOEXC {
 
 // ugeninteger abs (geninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_igeninteger<T>::value,
-                    detail::make_unsigned_t<T>>
-abs(T x) __NOEXC {
-  return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<T>>(x);
+detail::enable_if_t<detail::is_igeninteger<T>::value, T> abs(T x) __NOEXC {
+  return __sycl_std::__invoke_s_abs<T>(x);
 }
 
 // ugeninteger abs_diff (geninteger x, geninteger y)
@@ -1434,9 +1474,8 @@ mul24(T x, T y) __NOEXC {
 
 #define __SYCL_MARRAY_INTEGER_FUNCTION_ABS_I_OVERLOAD(NAME, ARG, ...)          \
   template <typename T, size_t N>                                              \
-  std::enable_if_t<detail::is_igeninteger<T>::value,                           \
-                   marray<detail::make_unsigned_t<T>, N>>                      \
-  NAME(marray<T, N> ARG) __NOEXC {                                             \
+  std::enable_if_t<detail::is_igeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG) __NOEXC {                                              \
     __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
   }
 
@@ -2073,19 +2112,22 @@ detail::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
 template <typename T>
 detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                                                              bool c) __NOEXC {
-  return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
-}
-
-// mgentype select (mgentype a, mgentype b, marray<bool, { N }> c)
-template <typename T,
-          typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>
-sycl::marray<detail::marray_element_t<T>, T::size()>
-select(T a, T b, sycl::marray<bool, T::size()> c) __NOEXC {
-  sycl::marray<detail::marray_element_t<T>, T::size()> res;
-  for (int i = 0; i < a.size(); i++) {
-    res[i] = select(a[i], b[i], c[i]);
-  }
-  return res;
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long> ||
+                std::is_same_v<T, unsigned long>)
+    return __sycl_std::__invoke_select<T>(a, b, static_cast<long>(c));
+  else if constexpr (std::is_same_v<T, char> ||
+                     std::is_same_v<T, signed char> ||
+                     std::is_same_v<T, unsigned char>)
+    return __sycl_std::__invoke_select<T>(a, b, static_cast<char>(c));
+  else if constexpr (std::is_same_v<T, short> ||
+                     std::is_same_v<T, unsigned short> ||
+                     std::is_same_v<T, half>)
+    return __sycl_std::__invoke_select<T>(a, b, static_cast<short>(c));
+  else if constexpr (std::is_same_v<T, long long> ||
+                     std::is_same_v<T, unsigned long long>)
+    return __sycl_std::__invoke_select<T>(a, b, static_cast<long long>(c));
+  else
+    return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
 }
 
 // geninteger select (geninteger a, geninteger b, igeninteger c)
@@ -2162,6 +2204,47 @@ detail::enable_if_t<detail::is_svgenfloath<T>::value &&
 select(T a, T b, T2 c) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_select<T>(a, b, c);
+}
+
+// other marray relational functions
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+any(marray<T, N> x) __NOEXC {
+  for (int i = 0; i < N; i++)
+    if (any(x[i]))
+      return true;
+  return false;
+}
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+all(marray<T, N> x) __NOEXC {
+  detail::anyall_ret_t res = true;
+  for (int i = 0; i < N; i++)
+    if (!all(x[i]))
+      return false;
+  return true;
+}
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_gentype<T>::value, marray<T, N>>
+bitselect(marray<T, N> a, marray<T, N> b, marray<T, N> c) __NOEXC {
+  marray<T, N> res;
+  for (int i = 0; i < N; i++) {
+    res[i] = bitselect(a[i], b[i], c[i]);
+  }
+  return res;
+}
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_gentype<T>::value, marray<T, N>>
+select(marray<T, N> a, marray<T, N> b, marray<bool, N> c) __NOEXC {
+  marray<T, N> res;
+  for (int i = 0; i < N; i++) {
+    res[i] = select(a[i], b[i], c[i]);
+  }
+  return res;
 }
 
 namespace native {
