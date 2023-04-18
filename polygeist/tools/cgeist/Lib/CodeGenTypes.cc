@@ -55,6 +55,8 @@ static cl::opt<bool>
                             cl::desc("Whether to allow types in the sycl "
                                      "namespace and not in the SYCL dialect"));
 
+extern llvm::cl::opt<bool> UseOpaquePointers;
+
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
 /******************************************************************************/
@@ -1791,8 +1793,9 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
   if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},
                                  AddressSpace);
-  // TODO(Lukas)
-  return LLVM::LLVMPointerType::get(Ty, AddressSpace);
+  return (UseOpaquePointers)
+             ? LLVM::LLVMPointerType::get(Ty.getContext(), AddressSpace)
+             : LLVM::LLVMPointerType::get(Ty, AddressSpace);
 }
 
 const clang::CodeGen::CGFunctionInfo &

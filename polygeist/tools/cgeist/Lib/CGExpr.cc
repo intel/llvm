@@ -185,6 +185,7 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
 /// Construct corresponding MLIR operations to initialize the given value by a
 /// provided InitListExpr.
 mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
+                                                           mlir::Type ElemTy,
                                                            clang::Expr *Expr) {
   LLVM_DEBUG({
     llvm::dbgs() << "InitializeValueByInitListExpr: ";
@@ -207,8 +208,9 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
-  std::function<mlir::DenseElementsAttr(clang::Expr *, mlir::Value, bool)>
-      Helper = [&](class Expr *Expr, mlir::Value ToInit,
+  std::function<mlir::DenseElementsAttr(clang::Expr *, mlir::Value, mlir::Type,
+                                        bool)>
+      Helper = [&](class Expr *Expr, mlir::Value ToInit, mlir::Type ElementTy,
                    bool Inner) -> mlir::DenseElementsAttr {
     Location Loc = ToInit.getLoc();
     if (auto *InitListExpr = dyn_cast<clang::InitListExpr>(Expr)) {
@@ -258,72 +260,95 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
       bool AllSub = true;
       for (unsigned I = 0, E = Num; I < E; ++I) {
         mlir::Value Next;
+        mlir::Type StoreTy;
         if (auto MT = dyn_cast<MemRefType>(ToInit.getType())) {
           llvm::SmallVector<int64_t> Shape(MT.getShape());
           assert(!Shape.empty());
           Shape[0] = ShapedType::kDynamic;
 
-          mlir::Type ElemTy = MT.getElementType();
+          mlir::Type MRET = MT.getElementType();
           mlir::Type ET;
-          if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(ElemTy))
-            ET = mlir::MemRefType::get(Shape, ST.getBody()[I],
+          if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(MRET)) {
+            StoreTy = ST.getBody()[I];
+            ET = mlir::MemRefType::get(Shape, StoreTy,
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
-          else if (sycl::isSYCLType(ElemTy))
-            ET =
-                TypeSwitch<mlir::Type, mlir::MemRefType>(ElemTy)
+          } else if (sycl::isSYCLType(ElemTy)) {
+
+            std::pair<mlir::MemRefType, mlir::Type> Types =
+                TypeSwitch<mlir::Type, std::pair<mlir::MemRefType, mlir::Type>>(
+                    MRET)
                     .Case<mlir::sycl::IDType, mlir::sycl::RangeType>([&](auto) {
-                      return mlir::MemRefType::get(Shape, ElemTy,
-                                                   MemRefLayoutAttrInterface(),
-                                                   MT.getMemorySpace());
+                      return std::pair<mlir::MemRefType, mlir::Type>{
+                          mlir::MemRefType::get(Shape, MRET,
+                                                MemRefLayoutAttrInterface(),
+                                                MT.getMemorySpace()),
+                          MRET};
                     })
                     .Case<mlir::sycl::ItemBaseType>([&](auto Ty) {
-                      return mlir::MemRefType::get(Shape, Ty.getBody()[I],
-                                                   MemRefLayoutAttrInterface(),
-                                                   MT.getMemorySpace());
+                      return std::pair<mlir::MemRefType, mlir::Type>{
+                          mlir::MemRefType::get(Shape, Ty.getBody()[I],
+                                                MemRefLayoutAttrInterface(),
+                                                MT.getMemorySpace()),
+                          Ty.getBody()[I]};
                     });
-          else
-            ET = mlir::MemRefType::get(Shape, ElemTy,
-                                       MemRefLayoutAttrInterface(),
+            ET = Types.first;
+            StoreTy = Types.second;
+          } else {
+            StoreTy = MRET;
+            ET = mlir::MemRefType::get(Shape, MRET, MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
+          }
 
           Next = Builder.create<polygeist::SubIndexOp>(Loc, ET, ToInit,
                                                        getConstantIndex(I));
         } else {
           auto PT = cast<LLVM::LLVMPointerType>(ToInit.getType());
-          auto ET = PT.getElementType();
           const auto GEPIndex = static_cast<int32_t>(I);
-          Next =
-              TypeSwitch<mlir::Type, mlir::Value>(ET)
+          std::pair<mlir::Value, mlir::Type> PtrAndType =
+              TypeSwitch<mlir::Type, std::pair<mlir::Value, mlir::Type>>(
+                  ElementTy)
                   .Case<LLVM::LLVMStructType>([=](auto ST) {
-                    return Builder.create<LLVM::GEPOp>(
-                        Loc,
-                        LLVM::LLVMPointerType::get(ST.getBody()[I],
-                                                   PT.getAddressSpace()),
-                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
-                        /* inbounds */ true);
+                    return std::pair<mlir::Value, mlir::Type>{
+                        Builder.create<LLVM::GEPOp>(
+                            Loc,
+                            LLVM::LLVMPointerType::get(ST.getBody()[I],
+                                                       PT.getAddressSpace()),
+                            ToInit,
+                            llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
+                            /* inbounds */ true),
+                        ST.getBody()[I]};
                   })
                   .Case<LLVM::LLVMArrayType>([=](auto AT) {
-                    return Builder.create<LLVM::GEPOp>(
-                        Loc,
-                        LLVM::LLVMPointerType::get(AT.getElementType(),
-                                                   PT.getAddressSpace()),
-                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
-                        /* inbounds */ true);
+                    return std::pair<mlir::Value, mlir::Type>{
+                        Builder.create<LLVM::GEPOp>(
+                            Loc,
+                            LLVM::LLVMPointerType::get(AT.getElementType(),
+                                                       PT.getAddressSpace()),
+                            ToInit,
+                            llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
+                            /* inbounds */ true),
+                        AT.getElementType()};
                   })
                   .Case<IntegerType>([=](auto IT) {
-                    return Builder.create<LLVM::GEPOp>(
-                        Loc,
-                        LLVM::LLVMPointerType::get(IT, PT.getAddressSpace()),
-                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex},
-                        /* inbounds */ true);
+                    return std::pair<mlir::Value, mlir::Type>{
+                        Builder.create<LLVM::GEPOp>(
+                            Loc,
+                            LLVM::LLVMPointerType::get(IT,
+                                                       PT.getAddressSpace()),
+                            ToInit,
+                            llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex},
+                            /* inbounds */ true),
+                        IT};
                   });
+          Next = PtrAndType.first;
+          StoreTy = PtrAndType.second;
         }
 
         auto Sub =
             Helper(InitListExpr->hasArrayFiller() ? InitListExpr->getInit(0)
                                                   : InitListExpr->getInit(I),
-                   Next, true);
+                   Next, StoreTy, true);
         if (Sub) {
           size_t N = 1;
           if (Sub.isSplat())
@@ -348,7 +373,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
     bool IsArray = false;
     Glob.getTypes().getMLIRType(Expr->getType(), &IsArray);
     ValueCategory Sub = Visit(Expr);
-    ValueCategory(ToInit, /*isReference*/ true, Sub.val.getType())
+    ValueCategory(ToInit, /*isReference*/ true, ElementTy)
         .store(Builder, Sub, IsArray);
     if (!Sub.isReference)
       if (auto MT = dyn_cast<MemRefType>(ToInit.getType())) {
@@ -369,7 +394,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
     return mlir::DenseElementsAttr();
   };
 
-  return Helper(Expr, ToInit, Inner);
+  return Helper(Expr, ToInit, ElemTy, Inner);
 }
 
 ValueCategory
@@ -454,7 +479,7 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
   }
 
   auto Op = createAllocOp(SubType, nullptr, /*memtype*/ 0, IsArray, LLVMABI);
-  InitializeValueByInitListExpr(Op, Expr);
+  InitializeValueByInitListExpr(Op, SubType, Expr);
   return ValueCategory(Op, true, SubType);
 }
 
@@ -498,7 +523,7 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
       Builder.create<arith::ConstantIntOp>(
           Loc, ArrayType->getSize().getZExtValue(), ITy.getWidth()),
       GEP1);
-  mlir::Value Load = Builder.create<mlir::LLVM::LoadOp>(Loc, Alloca);
+  mlir::Value Load = Builder.create<mlir::LLVM::LoadOp>(Loc, SubType, Alloca);
   return ValueCategory(Load, /*isRef*/ false);
 }
 
@@ -788,7 +813,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
         Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange({Count}));
     ElemTy = MT.getElementType();
     if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+      (void)InitializeValueByInitListExpr(Alloc, ElemTy.value(),
+                                          Expr->getInitializer());
   } else {
     auto I64 = mlir::IntegerType::get(Count.getContext(), 64);
     Value TypeSize = getTypeSize(Expr->getAllocatedType());
@@ -802,7 +828,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
             ->getResult(0));
 
     if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+      (void)InitializeValueByInitListExpr(Alloc, ElemTy.value(),
+                                          Expr->getInitializer());
 
     if (Expr->isArray()) {
       auto PT = cast<LLVM::LLVMPointerType>(Ty);

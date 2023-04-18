@@ -615,6 +615,7 @@ public:
   ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *Expr);
 
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value ToInit,
+                                                mlir::Type ElemTy,
                                                 clang::Expr *Expr);
 
   ValueCategory VisitInitListExpr(clang::InitListExpr *Expr);

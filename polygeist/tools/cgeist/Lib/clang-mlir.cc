@@ -1824,7 +1824,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
 
     if (isa<clang::InitListExpr>(InitExpr)) {
       Attribute InitValAttr = MS.InitializeValueByInitListExpr(
-          Op, const_cast<clang::Expr *>(InitExpr));
+          Op, VarTy.getElementType(), const_cast<clang::Expr *>(InitExpr));
       GlobalOp.setInitialValueAttr(InitValAttr);
     } else {
       ValueCategory VC = MS.Visit(const_cast<clang::Expr *>(InitExpr));

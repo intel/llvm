@@ -211,9 +211,9 @@ ValueCategory MLIRScanner::callHelper(
                 clang::CodeGen::ABIArgInfo::IndirectAliased) {
           OpBuilder ABuilder(Builder.getContext());
           ABuilder.setInsertionPointToStart(AllocationScope);
+          auto ElemTy = Arg.getValue(Builder).getType();
           auto Ty = Glob.getTypes().getPointerOrMemRefType(
-              Arg.getValue(Builder).getType(),
-              Glob.getCGM().getDataLayout().getAllocaAddrSpace(),
+              ElemTy, Glob.getCGM().getDataLayout().getAllocaAddrSpace(),
               /*IsAlloc*/ true);
           if (auto MemRefTy = dyn_cast<MemRefType>(Ty)) {
             Val = ABuilder.create<memref::AllocaOp>(Loc, MemRefTy);
@@ -225,9 +225,9 @@ ValueCategory MLIRScanner::callHelper(
           } else
             // TODO(Lukas)
             Val = ABuilder.create<LLVM::AllocaOp>(
-                Loc, Ty, ABuilder.create<arith::ConstantIntOp>(Loc, 1, 64), 0);
-
-          ValueCategory(Val, /*isRef*/ true, Ty)
+                Loc, Ty, ElemTy,
+                ABuilder.create<arith::ConstantIntOp>(Loc, 1, 64), 0);
+          ValueCategory(Val, /*isRef*/ true, ElemTy)
               .store(Builder, Arg.getValue(Builder));
         } else
           Val = Arg.getValue(Builder);

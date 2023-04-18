@@ -40,6 +40,11 @@ private:
                      mlir::arith::CmpFPredicate predicate,
                      mlir::Value RHS) const;
 
+  mlir::Type getElemTy() const {
+    assert(ElementType && "No element type defined");
+    return ElementType.value();
+  }
+
 public:
   mlir::Value val;
   bool isReference;
