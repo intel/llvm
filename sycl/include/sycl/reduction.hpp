@@ -2632,6 +2632,20 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
       else
         return Delegate(Impl<Strat::basic>{});
     } else if constexpr (Reduction::has_fast_atomics) {
+      if constexpr (sizeof(typename Reduction::result_type) == 8) {
+        // Both group_reduce_and_atomic_cross_wg and
+        // local_mem_tree_and_atomic_cross_wg implicitly require
+        // aspect::atomic64 if the result type of the reduction is 64-bit. If
+        // the device does not support this, we need to fall back to more
+        // reliable strategies.
+        if (!getDeviceFromHandler(CGH).has(aspect::atomic64)) {
+          if constexpr (Reduction::has_fast_reduce)
+            return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
+          else
+            return Delegate(Impl<Strat::basic>{});
+        }
+      }
+
       if constexpr (Reduction::has_fast_reduce) {
         return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
       } else {
@@ -2762,10 +2776,16 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
       // specification. However, implementing run-time check for that would
       // result in an extra kernel compilation(s). We probably need to
       // investigate if the usage of kernel_bundles can mitigate that.
+      // TODO: local_atomic_and_atomic_cross_wg uses atomics on the partial
+      // results, which may add an implicit requirement on aspect::atomic64. As
+      // a temporary work-around we do not pick this if the result type is
+      // 64-bit. In the future this selection should be done at runtime based
+      // on the device.
       // Note: Identityless reductions cannot use group reductions.
       if constexpr (Reduction::has_fast_reduce && Reduction::has_identity)
         return reduction::strategy::group_reduce_and_last_wg_detection;
-      else if constexpr (Reduction::has_fast_atomics)
+      else if constexpr (Reduction::has_fast_atomics &&
+                         sizeof(typename Reduction::result_type) != 8)
         return reduction::strategy::local_atomic_and_atomic_cross_wg;
       else
         return reduction::strategy::range_basic;
