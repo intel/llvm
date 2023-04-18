@@ -33,13 +33,6 @@ class IfOp;
 class ParallelOp;
 } // namespace scf
 
-namespace sycl {
-class SYCLIDGetOp;
-class SYCLRangeGetOp;
-class SYCLAccessorGetRangeOp;
-class SYCLAccessorSubscriptOp;
-} // namespace sycl
-
 //===----------------------------------------------------------------------===//
 // Utility Functions
 //===----------------------------------------------------------------------===//
@@ -247,14 +240,13 @@ class VersionConditionBuilder {
 public:
   using AccessorType = TypedValue<MemRefType>;
   using AccessorPairType = std::pair<AccessorType, AccessorType>;
+  using SCFCondition = LoopVersionCondition::SCFCondition;
+  using AffineCondition = LoopVersionCondition::AffineCondition;
 
   VersionConditionBuilder(
       LoopLikeOpInterface loop,
       ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
       : loop(loop), accessorPairs(requireNoOverlapAccessorPairs) {}
-
-  using SCFCondition = LoopVersionCondition::SCFCondition;
-  using AffineCondition = LoopVersionCondition::AffineCondition;
 
   std::unique_ptr<LoopVersionCondition> createCondition() const {
     OpBuilder builder(loop);

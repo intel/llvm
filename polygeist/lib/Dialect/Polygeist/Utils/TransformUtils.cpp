@@ -415,11 +415,11 @@ static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
   SmallVector<Type> argumentTypes;
   for (Value argument : arguments)
     argumentTypes.push_back(argument.getType());
-  attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+  attrs.set(sycl::SYCLDialect::getArgumentTypesAttrName(),
             builder.getTypeArrayAttr(argumentTypes));
-  attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+  attrs.set(sycl::SYCLDialect::getFunctionNameAttrName(),
             FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
-  attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+  attrs.set(sycl::SYCLDialect::getTypeNameAttrName(),
             FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
   return builder.create<OpTy>(loc, resTy, ValueRange(arguments), attrs);
 }
