@@ -25,7 +25,7 @@ compiler driver is responsible for creating the fat object and the
 `clang-linker-wrapper` tool is responsible for the general functionality that is
 performed during the link.
 
-![High level view of the offloading flow](images/OffloadGeneralFlow.png
+![High level view of the offloading flow](images/OffloadGeneralFlow.svg
  "General Offload Flow")
 
 *Diagram 1: General Offload Flow*
@@ -60,7 +60,7 @@ binary which will be embedded in the final object.  Generation will be
 separated out to allow for potential parallelism during compilation of both the
 host and target device binaries.
 
-![Creating the fat object](images/OffloadFatObject.png
+![Creating the fat object](images/OffloadFatObject.svg
  "Fat Object Generation")
 
 *Diagram 2: Fat Object Generation*
@@ -156,7 +156,8 @@ are working with.  The default device code is typically represented in LLVM-IR
 which requires an additional link step of the device code before being
 wrapped and integrated into the final executable.  As mentioned in
 [Packager](#packager) device representation in SPIR-V should be considered
-with the ability to link native SPIR-V modules.
+with the ability to link native SPIR-V modules.  Performing the device link
+against LLVM-IR is performed by `llvm-link`.
 
 To reduce the potential size of the linked device binary, an additional host
 link step is performed to gather dependency information when static device
@@ -179,6 +180,20 @@ to be controlled by the `clang-linker-wrapper`.  There is a controlling option
 (`-fno-sycl-device-lib=arg`) that is available to the user which needs to be
 provided to the wrapper to give more control over what device libraries are
 pulled in during the device link.
+
+### Post-link and SPIR-V translation
+
+After the device binaries are linked together, two additional steps are
+performed to prepare the device binary for consumption by an offline compilation
+tool for AOT or to be wrapped for JIT processing.
+
+The `sycl-post-link` tool is used after the device link is performed,
+applying any changes such as optimizations and code splitting before passing
+off to the `llvm-spirv` tool, which translates the LLVM-IR to SPIR-V.
+
+At this point, the SPIR-V binary is sent to the Ahead of Time compilation
+step to produce the final device binary or is wrapped before being linked into
+the final executable.
 
 ### Ahead Of Time Compilation
 
