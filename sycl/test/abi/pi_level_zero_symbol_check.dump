@@ -101,6 +101,7 @@ piextKernelSetArgPointer
 piextKernelSetArgSampler
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
+piextMemImageCreateWithNativeHandle
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextPluginGetOpaqueData
