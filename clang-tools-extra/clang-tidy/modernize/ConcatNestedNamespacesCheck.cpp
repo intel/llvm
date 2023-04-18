@@ -7,10 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "ConcatNestedNamespacesCheck.h"
+#include "../utils/LexerUtils.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Lex/Lexer.h"
+#include "clang/Basic/SourceLocation.h"
 #include <algorithm>
+#include <optional>
 
 namespace clang::tidy::modernize {
 
@@ -20,8 +23,16 @@ static bool locationsInSameFile(const SourceManager &Sources,
          Sources.getFileID(Loc1) == Sources.getFileID(Loc2);
 }
 
-static bool anonymousOrInlineNamespace(const NamespaceDecl &ND) {
-  return ND.isAnonymousNamespace() || ND.isInlineNamespace();
+static StringRef getRawStringRef(const SourceRange &Range,
+                                 const SourceManager &Sources,
+                                 const LangOptions &LangOpts) {
+  CharSourceRange TextRange = Lexer::getAsCharRange(Range, Sources, LangOpts);
+  return Lexer::getSourceText(TextRange, Sources, LangOpts);
+}
+
+static bool unsupportedNamespace(const NamespaceDecl &ND) {
+  return ND.isAnonymousNamespace() || ND.isInlineNamespace() ||
+         !ND.attrs().empty();
 }
 
 static bool singleNamedNamespaceChild(const NamespaceDecl &ND) {
@@ -30,33 +41,68 @@ static bool singleNamedNamespaceChild(const NamespaceDecl &ND) {
     return false;
 
   const auto *ChildNamespace = dyn_cast<const NamespaceDecl>(*Decls.begin());
-  return ChildNamespace && !anonymousOrInlineNamespace(*ChildNamespace);
+  return ChildNamespace && !unsupportedNamespace(*ChildNamespace);
 }
 
-static bool alreadyConcatenated(std::size_t NumCandidates,
-                                const SourceRange &ReplacementRange,
-                                const SourceManager &Sources,
-                                const LangOptions &LangOpts) {
-  // FIXME: This logic breaks when there is a comment with ':'s in the middle.
-  CharSourceRange TextRange =
-      Lexer::getAsCharRange(ReplacementRange, Sources, LangOpts);
-  StringRef CurrentNamespacesText =
-      Lexer::getSourceText(TextRange, Sources, LangOpts);
-  return CurrentNamespacesText.count(':') == (NumCandidates - 1) * 2;
+template <class R, class F>
+static void concatNamespace(NamespaceName &ConcatNameSpace, R &&Range,
+                            F &&Stringify) {
+  for (auto const &V : Range) {
+    ConcatNameSpace.append(Stringify(V));
+    if (V != Range.back())
+      ConcatNameSpace.append("::");
+  }
 }
 
-ConcatNestedNamespacesCheck::NamespaceString
-ConcatNestedNamespacesCheck::concatNamespaces() {
-  NamespaceString Result("namespace ");
-  Result.append(Namespaces.front()->getName());
+std::optional<SourceRange>
+NS::getCleanedNamespaceFrontRange(const SourceManager &SM,
+                                  const LangOptions &LangOpts) const {
+  // Front from namespace tp '{'
+  std::optional<Token> Tok =
+      ::clang::tidy::utils::lexer::findNextTokenSkippingComments(
+          back()->getLocation(), SM, LangOpts);
+  if (!Tok)
+    return std::nullopt;
+  while (Tok->getKind() != tok::TokenKind::l_brace) {
+    Tok = utils::lexer::findNextTokenSkippingComments(Tok->getEndLoc(), SM,
+                                                      LangOpts);
+    if (!Tok)
+      return std::nullopt;
+  }
+  return SourceRange{front()->getBeginLoc(), Tok->getEndLoc()};
+}
+SourceRange NS::getReplacedNamespaceFrontRange() const {
+  return SourceRange{front()->getBeginLoc(), back()->getLocation()};
+}
 
-  std::for_each(std::next(Namespaces.begin()), Namespaces.end(),
-                [&Result](const NamespaceDecl *ND) {
-                  Result.append("::");
-                  Result.append(ND->getName());
-                });
+SourceRange NS::getDefaultNamespaceBackRange() const {
+  return SourceRange{front()->getRBraceLoc(), front()->getRBraceLoc()};
+}
+SourceRange NS::getNamespaceBackRange(const SourceManager &SM,
+                                      const LangOptions &LangOpts) const {
+  // Back from '}' to conditional '// namespace xxx'
+  SourceLocation Loc = front()->getRBraceLoc();
+  std::optional<Token> Tok =
+      utils::lexer::findNextTokenIncludingComments(Loc, SM, LangOpts);
+  if (!Tok)
+    return getDefaultNamespaceBackRange();
+  if (Tok->getKind() != tok::TokenKind::comment)
+    return getDefaultNamespaceBackRange();
+  SourceRange TokRange = SourceRange{Tok->getLocation(), Tok->getEndLoc()};
+  StringRef TokText = getRawStringRef(TokRange, SM, LangOpts);
+  std::string CloseComment = ("namespace " + getName()).str();
+  // current fix hint in readability/NamespaceCommentCheck.cpp use single line
+  // comment
+  if (TokText != "// " + CloseComment && TokText != "//" + CloseComment)
+    return getDefaultNamespaceBackRange();
+  return SourceRange{front()->getRBraceLoc(), Tok->getEndLoc()};
+}
 
-  return Result;
+NamespaceName NS::getName() const {
+  NamespaceName Name{};
+  concatNamespace(Name, *this,
+                  [](const NamespaceDecl *ND) { return ND->getName(); });
+  return Name;
 }
 
 void ConcatNestedNamespacesCheck::registerMatchers(
@@ -65,11 +111,44 @@ void ConcatNestedNamespacesCheck::registerMatchers(
 }
 
 void ConcatNestedNamespacesCheck::reportDiagnostic(
-    const SourceRange &FrontReplacement, const SourceRange &BackReplacement) {
-  diag(Namespaces.front()->getBeginLoc(),
-       "nested namespaces can be concatenated", DiagnosticIDs::Warning)
-      << FixItHint::CreateReplacement(FrontReplacement, concatNamespaces())
-      << FixItHint::CreateReplacement(BackReplacement, "}");
+    const SourceManager &SM, const LangOptions &LangOpts) {
+  DiagnosticBuilder DB =
+      diag(Namespaces.front().front()->getBeginLoc(),
+           "nested namespaces can be concatenated", DiagnosticIDs::Warning);
+
+  SmallVector<SourceRange, 6> Fronts;
+  Fronts.reserve(Namespaces.size() - 1U);
+  SmallVector<SourceRange, 6> Backs;
+  Backs.reserve(Namespaces.size());
+
+  for (const NS &ND : Namespaces) {
+    std::optional<SourceRange> SR =
+        ND.getCleanedNamespaceFrontRange(SM, LangOpts);
+    if (!SR)
+      return;
+    Fronts.push_back(SR.value());
+    Backs.push_back(ND.getNamespaceBackRange(SM, LangOpts));
+  }
+  if (Fronts.empty() || Backs.empty())
+    return;
+
+  // the last one should be handled specially
+  Fronts.pop_back();
+  SourceRange LastRBrace = Backs.pop_back_val();
+
+  NamespaceName ConcatNameSpace{"namespace "};
+  concatNamespace(ConcatNameSpace, Namespaces,
+                  [](const NS &NS) { return NS.getName(); });
+
+  for (SourceRange const &Front : Fronts)
+    DB << FixItHint::CreateRemoval(Front);
+  DB << FixItHint::CreateReplacement(
+      Namespaces.back().getReplacedNamespaceFrontRange(), ConcatNameSpace);
+  if (LastRBrace != Namespaces.back().getDefaultNamespaceBackRange())
+    DB << FixItHint::CreateReplacement(LastRBrace,
+                                       ("} // " + ConcatNameSpace).str());
+  for (SourceRange const &Back : llvm::reverse(Backs))
+    DB << FixItHint::CreateRemoval(Back);
 }
 
 void ConcatNestedNamespacesCheck::check(
@@ -80,22 +159,18 @@ void ConcatNestedNamespacesCheck::check(
   if (!locationsInSameFile(Sources, ND.getBeginLoc(), ND.getRBraceLoc()))
     return;
 
-  if (anonymousOrInlineNamespace(ND))
+  if (unsupportedNamespace(ND))
     return;
 
-  Namespaces.push_back(&ND);
+  if (!ND.isNested())
+    Namespaces.push_back(NS{});
+  Namespaces.back().push_back(&ND);
 
   if (singleNamedNamespaceChild(ND))
     return;
 
-  SourceRange FrontReplacement(Namespaces.front()->getBeginLoc(),
-                               Namespaces.back()->getLocation());
-  SourceRange BackReplacement(Namespaces.back()->getRBraceLoc(),
-                              Namespaces.front()->getRBraceLoc());
-
-  if (!alreadyConcatenated(Namespaces.size(), FrontReplacement, Sources,
-                           getLangOpts()))
-    reportDiagnostic(FrontReplacement, BackReplacement);
+  if (Namespaces.size() > 1)
+    reportDiagnostic(Sources, getLangOpts());
 
   Namespaces.clear();
 }

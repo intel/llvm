@@ -1712,8 +1712,6 @@ static bool CheckConstexprDestructorSubobjects(Sema &SemaRef,
 
 /// Check whether a function's parameter types are all literal types. If so,
 /// return true. If not, produce a suitable diagnostic and return false.
-/// If any ParamDecl is null, return false without producing a diagnostic.
-/// The code creating null parameters is responsible for producing a diagnostic.
 static bool CheckConstexprParameterTypes(Sema &SemaRef,
                                          const FunctionDecl *FD,
                                          Sema::CheckConstexprKind Kind) {
@@ -1723,8 +1721,7 @@ static bool CheckConstexprParameterTypes(Sema &SemaRef,
                                               e = FT->param_type_end();
        i != e; ++i, ++ArgIndex) {
     const ParmVarDecl *PD = FD->getParamDecl(ArgIndex);
-    if (!PD)
-      return false;
+    assert(PD && "null in a parameter list");
     SourceLocation ParamLoc = PD->getLocation();
     if (CheckLiteralType(SemaRef, Kind, ParamLoc, *i,
                          diag::err_constexpr_non_literal_param, ArgIndex + 1,
@@ -3253,16 +3250,6 @@ static bool InitializationHasSideEffects(const FieldDecl &FD) {
   return false;
 }
 
-static const ParsedAttr *getMSPropertyAttr(const ParsedAttributesView &list) {
-  ParsedAttributesView::const_iterator Itr =
-      llvm::find_if(list, [](const ParsedAttr &AL) {
-        return AL.isDeclspecPropertyAttribute();
-      });
-  if (Itr != list.end())
-    return &*Itr;
-  return nullptr;
-}
-
 // Check if there is a field shadowing.
 void Sema::CheckShadowInheritedFields(const SourceLocation &Loc,
                                       DeclarationName FieldName,
@@ -3340,7 +3327,7 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
 
   bool isFunc = D.isDeclarationOfFunction();
   const ParsedAttr *MSPropertyAttr =
-      getMSPropertyAttr(D.getDeclSpec().getAttributes());
+      D.getDeclSpec().getAttributes().getMSPropertyAttr();
 
   if (cast<CXXRecordDecl>(CurContext)->isInterface()) {
     // The Microsoft extension __interface only permits public member functions
@@ -16777,7 +16764,8 @@ static bool UsefulToPrintExpr(const Expr *E) {
 /// Try to print more useful information about a failed static_assert
 /// with expression \E
 void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
-  if (const auto *Op = dyn_cast<BinaryOperator>(E)) {
+  if (const auto *Op = dyn_cast<BinaryOperator>(E);
+      Op && Op->getOpcode() != BO_LOr) {
     const Expr *LHS = Op->getLHS()->IgnoreParenImpCasts();
     const Expr *RHS = Op->getRHS()->IgnoreParenImpCasts();
 

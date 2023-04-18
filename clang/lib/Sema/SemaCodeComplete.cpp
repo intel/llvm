@@ -4148,7 +4148,7 @@ static void AddPrettyFunctionResults(const LangOptions &LangOpts,
 
 static void HandleCodeCompleteResults(Sema *S,
                                       CodeCompleteConsumer *CodeCompleter,
-                                      CodeCompletionContext Context,
+                                      const CodeCompletionContext &Context,
                                       CodeCompletionResult *Results,
                                       unsigned NumResults) {
   if (CodeCompleter)
@@ -6217,7 +6217,7 @@ getNextAggregateIndexAfterDesignatedInit(const ResultCandidate &Aggregate,
 
   // Look for designated initializers.
   // They're in their syntactic form, not yet resolved to fields.
-  IdentifierInfo *DesignatedFieldName = nullptr;
+  const IdentifierInfo *DesignatedFieldName = nullptr;
   unsigned ArgsAfterDesignator = 0;
   for (const Expr *Arg : Args) {
     if (const auto *DIE = dyn_cast<DesignatedInitExpr>(Arg)) {
