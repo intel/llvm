@@ -489,103 +489,41 @@ static Value *EmitISOVolatileStore(CodeGenFunction &CGF, const CallExpr *E) {
   return Store;
 }
 
-static StringRef
-convertFPAccuracy(LangOptions::FPAccuracyKind FPAccuracy) {
-  StringRef AccuracyVal;
-  switch (FPAccuracy) {
-  case LangOptions::FPA_Default:
-    AccuracyVal = "default";
-    break;
-  case LangOptions::FPA_High:
-    AccuracyVal = "high";
-    break;
-  case LangOptions::FPA_Medium:
-    AccuracyVal = "medium";
-    break;
-  case LangOptions::FPA_Low:
-    AccuracyVal = "low";
-    break;
-  case LangOptions::FPA_Sycl:
-    AccuracyVal = "sycl";
-    break;
-  case LangOptions::FPA_Cuda:
-    AccuracyVal = "cuda";
-    break;
-  }
-  return AccuracyVal;
-}
-
-// TODO: This function is only a place holder. Returning for now a hard-code value
-// of the ULP error.
-unsigned getFPMaxError(Function *F, LangOptions::FPAccuracyKind FPAccuracy) { 
-    unsigned MaxError;
-  switch (FPAccuracy) {
-    case LangOptions::FPA_Default:
-    MaxError = 0;
-    break;
-  case LangOptions::FPA_High:
-      MaxError = 1;
-    break;
-  case LangOptions::FPA_Medium:
-    MaxError = 4;
-    break;
-  case LangOptions::FPA_Low:
-    MaxError = 11;
-    break;
-  case LangOptions::FPA_Sycl:
-    MaxError = 10;
-    break;
-  case LangOptions::FPA_Cuda:
-    MaxError = 2;
-    break;
-  }
-  return MaxError;
+static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF,
+                                           llvm::Function *F,
+                                           ArrayRef<Value *> Args) {
+  llvm::CallInst *CI = CGF.Builder.CreateCall(F, Args);
+  unsigned BuiltinID = CGF.getCurrentBuiltinID();
+  StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
+  llvm::AttributeList AttrList;
+  CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList);
+  // TODO: Needs some processing here to call fp::getAccuracyForFPBuiltin
+  // before setting the attribute for the call.
+  CI->setAttributes(AttrList);
+  return CI;
 }
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
 // floating-point intrinsic.
-static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
-                                const CallExpr *E, unsigned IntrinsicID,
-                                unsigned ConstrainedIntrinsicID) {
+static Value *
+emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF, const CallExpr *E,
+                                   unsigned IntrinsicID,
+                                   unsigned ConstrainedIntrinsicID) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-
-  if (CGF.getLangOpts().getFPAccuracy()) {
-    // TODO: Need to check here if the accuracy of the math library function
-    // is different than the one in the command line.
-    LangOptions::FPAccuracyKind FPAccuracy = CGF.getLangOpts().getFPAccuracy();
-    StringRef FPAccuracyVal = convertFPAccuracy(FPAccuracy);
-    Function *F = CGF.CGM.getIntrinsic(Intrinsic::experimental_fpaccuracy_cos,
-                                       Src0->getType());
-    // TODO: getFPAccuracy is a place holder for the ucooming function. This will
-    // have to use Target (may be?) in order to calculate the accuracy allowed
-    // for the function F. For now the function is retruning a hard-coded string.
-    unsigned MaxError = getFPMaxError(F, FPAccuracy);
-    StringRef AccuracyStr = "fpbuiltin-max-error";
-    auto *AccuracyMD = MDString::get(CGF.Builder.getContext(), AccuracyStr);
-    llvm::CallInst *CI = CGF.Builder.CreateCall(F, { Src0 });
-    if (CGF.getLangOpts().getFPAccuracy() !=
-        LangOptions::FPAccuracyKind::FPA_Default) {
-      if (!CGF.getLangOpts().FuncAccMap.empty()) {
-        // TODO: Needs to go trhough the map and set the attribute
-        // for each function in the map.
-        // If this map is empty the call site should get the default
-        // attribute with the error corresponding to the accuracy
-        // given in the command line option; this should be given
-        // in the map.
-      }
-      AttributeList FPBuiltinMaxErrorAttr = F->getAttributes().get(
-          CGF.getLLVMContext(), AttributeList::FunctionIndex,
-          Attribute::FPBuiltinMaxError);
-      CI->setAttributes(FPBuiltinMaxErrorAttr);
-      AttributeList A = CI->getAttributes();
-    }
-    return CI;
+  if (!CGF.getLangOpts().FPAccuracyMap.empty()) {
+    Function *Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+    return CreateBuiltinCallWithAttr(CGF, Func, {Src0});
   }
+  if (!CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
+    Function *Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+    return CreateBuiltinCallWithAttr(CGF, Func, {Src0});
+  }
+
   if (CGF.Builder.getIsFPConstrained()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
-    return CGF.Builder.CreateConstrainedFPCall(F, { Src0 });
+    return CGF.Builder.CreateConstrainedFPCall(F, {Src0});
   } else {
     Function *F = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
     return CGF.Builder.CreateCall(F, Src0);
@@ -2301,6 +2239,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                                                Result.Val.getFloat()));
   }
 
+  CurrentBuiltinIDRAII CB(*this, BuiltinID);
+
   // If current long-double semantics is IEEE 128-bit, replace math builtins
   // of long-double with f128 equivalent.
   // TODO: This mutation should also be applied to other targets other than PPC,
@@ -2361,9 +2301,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_cosf16:
     case Builtin::BI__builtin_cosl:
     case Builtin::BI__builtin_cosf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::cos,
-                                   Intrinsic::experimental_constrained_cos));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::cos, Intrinsic::fpbuiltin_cos));
+
     case Builtin::BIexp:
     case Builtin::BIexpf:
     case Builtin::BIexpl:
@@ -2566,8 +2506,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_sinl:
     case Builtin::BI__builtin_sinf128:
       return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::sin,
-                                   Intrinsic::experimental_constrained_sin));
+                                   Intrinsic::sin, Intrinsic::fpbuiltin_cos));
 
     case Builtin::BIsqrt:
     case Builtin::BIsqrtf:

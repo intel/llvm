@@ -313,13 +313,6 @@ public:
     FPA_Cuda
   };
 
-  typedef llvm::MapVector<std::string, std::string, llvm::StringMap<unsigned>>
-      FPAccuracyAttrMap;
-  typedef llvm::MapVector<std::string, FPAccuracyAttrMap,
-                          llvm::StringMap<unsigned>>
-      FPAccuracyAttrFuncMap;
-  FPAccuracyAttrFuncMap FuncAccMap;
-
   /// Possible exception handling behavior.
   enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };
 
@@ -402,6 +395,13 @@ public:
     /// Any trailing array member of undefined size is a FAM.
     IncompleteOnly = 3,
   };
+
+  using FPAccuracyMapTy =
+      llvm::MapVector<std::string, std::string, llvm::StringMap<unsigned>>;
+  FPAccuracyMapTy FPAccuracyMap;
+  using FPAccuracyFuncMapTy =
+      llvm::MapVector<std::string, FPAccuracyMapTy, llvm::StringMap<unsigned>>;
+  FPAccuracyFuncMapTy FPAccuracyFuncMap;
 
 public:
   /// The used language standard.

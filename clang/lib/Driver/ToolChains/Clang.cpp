@@ -2830,14 +2830,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     FPContract = "on";
   bool StrictFPModel = false;
   StringRef Float16ExcessPrecision = "";
-  StringRef FPAccuracy = "";
-  std::string FPAccurayBis;
-  static constexpr size_t npos = ~size_t(0);
-  SmallVector<StringRef> ListOfMathLib;
-  std::string FullFPAccuracyCmdLineArgs;
-  LangOptions::FPAccuracyAttrMap FuncAccuracyMap;
-  LangOptions::FPAccuracyAttrFuncMap FuncAttrMap;
-  SmallVector<StringRef, 3> AccuracyElement;
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -3141,37 +3133,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
           FPContract = "on";
       }
       break;
-    case options::OPT_ffp_accuracy_EQ: {
-      StringRef Val = A->getValue();
-      FullFPAccuracyCmdLineArgs = A->getValue();
-      for (StringRef Values :
-           Args.getAllArgValues(options::OPT_ffp_accuracy_EQ)) {
-        SmallVector<StringRef, 8> AccuracyArr;
-        Values.split(AccuracyArr, ' ');
-        for (const auto &Accuracy : AccuracyArr) {
-          Accuracy.split(AccuracyElement, ':');
-          FPAccuracy = AccuracyElement[0];
-          if (!(FPAccuracy.equals("default") || FPAccuracy.equals("high") ||
-                FPAccuracy.equals("low") || FPAccuracy.equals("medium") ||
-                FPAccuracy.equals("sycl") || FPAccuracy.equals("cuda")))
-            D.Diag(diag::err_drv_unsupported_option_argument)
-                << A->getSpelling() << FPAccuracy;
-          if (AccuracyElement.size() == 2) {
-            SmallVector<StringRef, 30> FuncList;
-            AccuracyElement[1].split(FuncList, ',');
-            for (StringRef FuncName : FuncList) {
-              // TODO: For now the FuncName is given a hard-coded error.
-              // It will need to be computed.
-              FuncAccuracyMap.insert(
-                  {"ffp-accuracy", AccuracyElement[0].str()});
-              FuncAttrMap.insert({FuncName.str(), std::move(FuncAccuracyMap)});
-            }
-          }
-        }
-      }
-      FPAccuracy = Val;
-      break;
-    }
     }
 
     if (StrictFPModel) {
@@ -3265,13 +3226,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!Float16ExcessPrecision.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffloat16-excess-precision=" +
                                          Float16ExcessPrecision));
-
-  if (!FPAccuracy.empty())
-    if (!FuncAttrMap.empty())
-      CmdArgs.push_back(
-          Args.MakeArgString("-fpbuiltin-max-error=" + FullFPAccuracyCmdLineArgs));
-    else
-      CmdArgs.push_back(Args.MakeArgString("-ffp-accuracy=" + FPAccuracy));
 
   ParseMRecip(D, Args, CmdArgs);
 
@@ -6027,6 +5981,27 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
   }
+
+  std::string FpAccuracyAttr;
+  auto RenderFPAccuracyOptions = [&FpAccuracyAttr](const Twine &optStr) {
+    optStr.isSingleStringRef();
+    if (FpAccuracyAttr.empty())
+      FpAccuracyAttr = std::move(std::string("-ffp-accuracy-attr="));
+    else
+      FpAccuracyAttr += " ";
+    FpAccuracyAttr += optStr.str();
+  };
+  for (const Arg *A : Args) {
+    unsigned OptionID = A->getOption().getID();
+    switch (OptionID) {
+    case options::OPT_ffp_accuracy_EQ:
+      RenderFPAccuracyOptions(A->getValue());
+      A->claim();
+      break;
+    }
+  }
+  if (!FpAccuracyAttr.empty())
+    CmdArgs.push_back(Args.MakeArgString(FpAccuracyAttr));
 
   // Decide whether to use verbose asm. Verbose assembly is the default on
   // toolchains which have the integrated assembler on by default.

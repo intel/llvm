@@ -7852,3 +7852,12 @@ void CodeGenModule::moveLazyEmissionStates(CodeGenModule *NewBuilder) {
 
   NewBuilder->ABI->MangleCtx = std::move(ABI->MangleCtx);
 }
+
+void CodeGenModule::getFPAccuracyFuncAttributes(StringRef Name,
+                                                llvm::AttributeList &AttrList) {
+  llvm::AttrBuilder FuncAttrs(getLLVMContext());
+  getDefaultFunctionAttributes(Name, /*HasOptNone*/ false,
+                               /*AttrOnCallSite*/ true, FuncAttrs);
+  AttrList = llvm::AttributeList::get(
+      getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
+}

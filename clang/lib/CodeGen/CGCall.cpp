@@ -1839,7 +1839,23 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
 void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
                                                  bool HasOptnone,
                                                  bool AttrOnCallSite,
-                                               llvm::AttrBuilder &FuncAttrs) {
+                                                 llvm::AttrBuilder &FuncAttrs) {
+  for (const auto &M : getLangOpts().FPAccuracyMap) {
+    llvm::StringSet<> FuncOwnAttrs;
+    FuncAttrs.addAttribute("fpaccuracy=", M.second);
+    FuncOwnAttrs.insert(M.first);
+  }
+  if (!getLangOpts().FPAccuracyFuncMap.empty()) {
+    llvm::StringSet<> FuncOwnAttrs;
+    auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
+    if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
+      for (const std::pair<std::string, std::string> &AttrPair :
+           FuncMapIt->second) {
+        FuncAttrs.addAttribute("fpaccuracy=", AttrPair.second);
+        FuncOwnAttrs.insert(AttrPair.first);
+      }
+    }
+  }
   // OptimizeNoneAttr takes precedence over -Os or -Oz. No warning needed.
   if (!HasOptnone) {
     if (CodeGenOpts.OptimizeSize)
