@@ -14,22 +14,23 @@ type: enum
 desc: "Query queue info"
 class: $xQueue
 name: $x_queue_info_t
+typed_etors: True
 etors:
     - name: CONTEXT
-      desc: "$x_queue_handle_t: context associated with this queue."
+      desc: "[$x_queue_handle_t] context associated with this queue."
     - name: DEVICE
-      desc: "$x_device_handle_t: device associated with this queue."
+      desc: "[$x_device_handle_t] device associated with this queue."
     - name: DEVICE_DEFAULT
-      desc: "$x_queue_handle_t: the current default queue of the underlying device."
+      desc: "[$x_queue_handle_t] the current default queue of the underlying device."
     - name: FLAGS
-      desc: "$x_queue_flags_t: the properties associated with $x_queue_properties_t::flags."
+      desc: "[$x_queue_flags_t] the properties associated with $x_queue_properties_t::flags."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the queue object.
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: SIZE
-      desc: "uint32_t: The size of the queue"
+      desc: "[uint32_t] The size of the queue"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Queue property flags"
@@ -73,11 +74,11 @@ params:
       name: propName
       desc: "[in] name of the queue property to query"
     - type: "size_t"
-      name: propValueSize
+      name: propSize
       desc: "[in] size in bytes of the queue property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out][optional] value of the queue property"
+      desc: "[out][optional][typename(propName, propSize)] value of the queue property"
     - type: "size_t*"
       name: pPropSizeRet
       desc: "[out][optional] size in bytes returned in queue property value"

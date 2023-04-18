@@ -44,27 +44,28 @@ type: enum
 desc: "Supported platform info"
 class: $xPlatform
 name: $x_platform_info_t
+typed_etors: True
 etors:
     - name: NAME
       value: "1"
-      desc: "[char*] The string denoting name of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting name of the platform. The size of the info needs to be dynamically queried."
     - name: VENDOR_NAME
       value: "2"
-      desc: "[char*] The string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
     - name: VERSION
       value: "3"
-      desc: "[char*] The string denoting the version of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting the version of the platform. The size of the info needs to be dynamically queried."
     - name: EXTENSIONS
       value: "4"
-      desc: "[char*] The string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
       todo: "document extensions names and their meaning"
     - name: PROFILE
       value: "5"
-      desc: "[char*] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
       todo: "currently always return FULL_PROFILE, deprecate?"
     - name: BACKEND
       value: "6"
-      desc: "$x_platform_backend_t: The backend of the platform. Identifies the native backend adapter implementing this platform."
+      desc: "[$x_platform_backend_t] The backend of the platform. Identifies the native backend adapter implementing this platform."
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -83,16 +84,16 @@ params:
       name: hPlatform
       desc: "[in] handle of the platform"
     - type: $x_platform_info_t
-      name: PlatformInfoType
+      name: propName
       desc: "[in] type of the info to retrieve"
     - type: "size_t"
-      name: Size
+      name: propSize
       desc: |
             [in] the number of bytes pointed to by pPlatformInfo.
     - type: "void*"
-      name: pPlatformInfo
+      name: pPropValue
       desc: |
-            [out][optional] array of bytes holding the info.
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
             If Size is not equal to or greater to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
     - type: "size_t*"
       name: pSizeRet

@@ -63,7 +63,7 @@ TEST_P(urEventGetProfilingInfoNegativeTest, InvalidValue) {
     ASSERT_NE(size, 0);
     std::vector<uint8_t> data(size);
 
-    /* Invalid propValueSize */
+    /* Invalid propSize */
     ASSERT_EQ_RESULT(
         urEventGetProfilingInfo(event, info_type, 0, data.data(), nullptr),
         UR_RESULT_ERROR_INVALID_VALUE);

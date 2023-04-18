@@ -305,6 +305,7 @@ type: enum
 desc: "Get Program object information"
 class: $xProgram
 name: $x_program_info_t
+typed_etors: True
 etors:
     - name: REFERENCE_COUNT
       desc: |
@@ -312,21 +313,21 @@ etors:
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
-      desc: "Program context info."
+      desc: "[$x_context_handle_t] Program context info."
     - name: NUM_DEVICES
-      desc: "Return number of devices associated with Program."
+      desc: "[uint32_t] Return number of devices associated with Program."
     - name: DEVICES
-      desc: "Return list of devices associated with Program, return type uint32_t*."
+      desc: "[$x_device_handle_t[]] Return list of devices associated with Program."
     - name: SOURCE
-      desc: "Return program source associated with Program, return type char*."
+      desc: "[char[]] Return program source associated with Program."
     - name: BINARY_SIZES
-      desc: "Return program binary sizes for each device, return type size_t*."
+      desc: "[size_t[]] Return program binary sizes for each device."
     - name: BINARIES
-      desc: "Return program binaries for all devices for this Program, return type uchar*."
+      desc: "[unsigned char[]] Return program binaries for all devices for this Program."
     - name: NUM_KERNELS
-      desc: "Number of kernels in Program, return type size_t."
+      desc: "[size_t] Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES
-      desc: "Return a null-terminated, semi-colon separated list of kernel names in Program, return type char*."
+      desc: "[char[]] Return a null-terminated, semi-colon separated list of kernel names in Program."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a Program object"
@@ -349,7 +350,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [in,out][optional] array of bytes of holding the program info property.
+            [in,out][optional][typename(propName, propSize)] array of bytes of holding the program info property.
             If propSize is not equal to or greater than the real number of bytes needed to return 
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
@@ -389,15 +390,16 @@ type: enum
 desc: "Get Program object build information"
 class: $xProgram
 name: $x_program_build_info_t
+typed_etors: True
 etors:
     - name: STATUS
-      desc: "Program build status, return type $x_program_build_status_t."
+      desc: "[$x_program_build_status_t] Program build status."
     - name: OPTIONS
-      desc: "Null-terminated options string specified by last build, compile or link operation performed on the program. Return type char*."
+      desc: "[char[]] Null-terminated options string specified by last build, compile or link operation performed on the program."
     - name: LOG
-      desc: "Null-terminated program build log, return type char*."
+      desc: "[char[]] Null-terminated program build log."
     - name: BINARY_TYPE
-      desc: "Program binary type, return type $x_program_binary_type_t."
+      desc: "[$x_program_binary_type_t] Program binary type."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query build information about a Program object for a Device"
@@ -423,7 +425,7 @@ params:
     - type: "void*"
       name: pPropValue
       desc: |
-            [in,out][optional] value of the Program build property.
+            [in,out][optional][typename(propName, propSize)] value of the Program build property.
             If propSize is not equal to or greater than the real number of bytes
             needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE
             error is returned and pPropValue is not used.
