@@ -106,6 +106,7 @@ owners for help.
 **Note**: Features clearly marked as experimental are considered as an exception
 to this guideline.
 
-### ABI breaking changes window June 15 - September 15 2022 [CLOSED]
+### ABI breaking changes window April 18 - July 11 2023
+Next ABI breaking changes window will be roughly April-July 2024
 
-Next ABI breaking changes window is TBD.
+
