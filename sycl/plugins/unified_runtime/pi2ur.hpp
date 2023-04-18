@@ -2492,6 +2492,29 @@ inline pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   return PI_SUCCESS;
 }
 
+inline pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *RetImage) {
+
+  PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  std::ignore = NativeHandle;
+  std::ignore = Context;
+  std::ignore = OwnNativeHandle;
+  std::ignore = ImageFormat;
+  std::ignore = ImageDesc;
+  std::ignore = RetImage;
+
+  // ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(RetImage);
+  // HANDLE_ERRORS(urMemImageCreateWithNativeHandle(UrContext, OwnNativeHandle,
+  // HostPtr, UrMem));
+
+  return PI_SUCCESS;
+}
+
 inline pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
                                       pi_buffer_create_type BufferCreateType,
                                       void *BufferCreateInfo, pi_mem *RetMem) {

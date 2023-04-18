@@ -1449,15 +1449,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       Blocking, NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
-    const ur_image_format_t
-        *ImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *ImageDesc, ///< [in] pointer to image description
-    void *Host,                       ///< [in] pointer to the buffer data
-    ur_mem_handle_t *Mem ///< [out] pointer to handle of image object created
-) {
+static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
+                                  const ur_image_desc_t *ImageDesc,
+                                  ZeStruct<ze_image_desc_t> &ZeImageDesc) {
+
   ze_image_format_type_t ZeImageFormatType;
   size_t ZeImageFormatTypeSize;
   switch (ImageFormat->channelType) {
@@ -1581,7 +1576,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  ZeStruct<ze_image_desc_t> ZeImageDesc;
   ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
@@ -1591,7 +1585,65 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   ZeImageDesc.arraylevels = ur_cast<uint32_t>(ImageDesc->arraySize);
   ZeImageDesc.miplevels = ImageDesc->numMipLevel;
 
+  return UR_RESULT_SUCCESS;
+}
+
+#if 0
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t NativeMem, ///< [in] the native handle of the mem.
+    ur_context_handle_t Context,  ///< [in] handle of the context object
+    bool OwnNativeHandle,
+/*
+    const ur_image_format_t
+        *ImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *ImageDesc, ///< [in] pointer to image description
+*/
+    ur_mem_handle_t
+        *Mem ///< [out] pointer to the handle of the mem object created.
+) {
+
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+
+  ze_image_handle_t ZeImage = ur_cast<ze_image_handle_t>(NativeMem);
+
+try {
+    auto UrImage =
+        new _ur_image(ur_cast<ur_context_handle_t>(Context), ZeImage, OwnNativeHandle);
+    *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
+
+/*
+#ifndef NDEBUG
+    ZeStruct<ze_image_desc_t> ZeImageDesc;
+    UR_CALL(ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc));
+
+    UrImage->ZeImageDesc = ZeImageDesc;
+#endif // !NDEBUG
+*/
+
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
+
+}
+#endif
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
+    ur_context_handle_t Context, ///< [in] handle of the context object
+    ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
+    const ur_image_format_t
+        *ImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *ImageDesc, ///< [in] pointer to image description
+    void *Host,                       ///< [in] pointer to the buffer data
+    ur_mem_handle_t *Mem ///< [out] pointer to handle of image object created
+) {
+  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
+  UR_CALL(ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc));
 
   // Currently we have the "0" device in context with mutliple root devices to
   // own the image.

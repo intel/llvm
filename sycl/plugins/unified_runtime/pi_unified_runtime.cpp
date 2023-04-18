@@ -975,6 +975,14 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
       NumEventsInWaitList, EventsWaitList, Event);
 }
 
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *Img) {
+  return pi2ur::piextMemImageCreateWithNativeHandle(
+      NativeHandle, Context, OwnNativeHandle, ImageFormat, ImageDesc, Img);
+}
+
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime) {

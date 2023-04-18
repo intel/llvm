@@ -193,6 +193,11 @@ struct _ur_image final : ur_mem_handle_t_ {
   _ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage)
       : ur_mem_handle_t_(UrContext), ZeImage{ZeImage} {}
 
+  _ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage,
+            bool OwnNativeHandle)
+      : ur_mem_handle_t_(UrContext), ZeImage{ZeImage},
+        OwnZeMemHandle{OwnNativeHandle} {}
+
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
                                   ur_device_handle_t = nullptr) override {
     ZeHandle = reinterpret_cast<char *>(ZeImage);
@@ -213,6 +218,8 @@ struct _ur_image final : ur_mem_handle_t_ {
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
+
+  bool OwnZeMemHandle = true;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
