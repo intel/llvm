@@ -4962,8 +4962,12 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
     // Level Zero has a much more explicit notion of command submission than
     // OpenCL. It doesn't happen unless the user submits a command list. We've
-    // done it just above so the status is at least PI_EVENT_RUNNING.
-    pi_int32 Result = PI_EVENT_RUNNING;
+    // done it just above so the status is at least PI_EVENT_SUBMITTED.
+    //
+    // NOTE: We currently cannot tell if command is currently running, so
+    // it will always show up "submitted" before it is finally "completed".
+    //
+    pi_int32 Result = PI_EVENT_SUBMITTED;
 
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
