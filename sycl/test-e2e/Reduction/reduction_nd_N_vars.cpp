@@ -127,7 +127,6 @@ int test(queue &Q, size_t NWorkItems, size_t WGSize, RedTys... Reds) {
   Q.submit([&](handler &CGH) {
      auto InAcc = sycl::detail::make_tuple(
          accessor(Reds.InBuf, CGH, sycl::read_only)...);
-     auto SyclReds = std::forward_as_tuple(Reds.createRed(CGH)...);
      std::apply(
          [&](auto... SyclReds) {
            CGH.parallel_for<Name>(
@@ -150,7 +149,7 @@ int test(queue &Q, size_t NWorkItems, size_t WGSize, RedTys... Reds) {
                  return;
                });
          },
-         SyclReds);
+         std::forward_as_tuple(Reds.createRed(CGH)...));
    }).wait();
 
   int NumErrors = (0 + ... + Reds.checkResult(NDR));
