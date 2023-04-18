@@ -390,6 +390,27 @@ void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
   }
 }
 
+// Helper to verify out-of-registers case (exceeded block max registers).
+// If the kernel requires a number of registers for the entire thread
+// block exceeds the hardware limitations, then the cuLaunchKernel call
+// will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
+bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
+                                     size_t blockSize) {
+  assert(device);
+  assert(kernel);
+
+  int maxRegsPerBlock{0};
+  PI_CHECK_ERROR(cuDeviceGetAttribute(
+      &maxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+      device->get()));
+
+  int regsPerThread{0};
+  PI_CHECK_ERROR(cuFuncGetAttribute(&regsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                    kernel->get()));
+
+  return blockSize * regsPerThread > size_t(maxRegsPerBlock);
+};
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -3174,10 +3195,18 @@ pi_result cuda_piEnqueueKernelLaunch(
           return PI_SUCCESS;
         };
 
+        size_t kernelLocalWorkGroupSize = 0;
         for (size_t dim = 0; dim < work_dim; dim++) {
           auto err = isValid(dim);
           if (err != PI_SUCCESS)
             return err;
+          // If no error then sum the total local work size per dim.
+          kernelLocalWorkGroupSize += local_work_size[dim];
+        }
+
+        if (hasExceededMaxRegistersPerBlock(command_queue->device_, kernel,
+                                            kernelLocalWorkGroupSize)) {
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         }
       } else {
         guessLocalWorkSize(command_queue->device_, threadsPerBlock,
