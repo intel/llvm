@@ -2082,7 +2082,7 @@ pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextVirtualMemGranularityGetInfo(pi_context, pi_device, size_t,
+pi_result piextVirtualMemGranularityGetInfo(pi_context, pi_device,
                                             pi_virtual_mem_granularity_info,
                                             size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;

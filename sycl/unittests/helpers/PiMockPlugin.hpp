@@ -1133,7 +1133,7 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
 }
 
 inline pi_result
-mock_piextVirtualMemGranularityGetInfo(pi_context, pi_device, size_t,
+mock_piextVirtualMemGranularityGetInfo(pi_context, pi_device,
                                        pi_virtual_mem_granularity_info, size_t,
                                        void *, size_t *) {
   return PI_SUCCESS;

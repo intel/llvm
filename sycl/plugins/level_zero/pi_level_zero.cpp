@@ -8279,10 +8279,11 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
 /// \param ParamValueSize is the size of the result in bytes.
 /// \param ParamValue is the result.
 /// \param ParamValueSizeRet is how many bytes were written.
-pi_result piextVirtualMemGranularityGetInfo(
-    pi_context Context, pi_device Device, size_t MemSize,
-    pi_virtual_mem_granularity_info ParamName, size_t ParamValueSize,
-    void *ParamValue, size_t *ParamValueSizeRet) {
+pi_result
+piextVirtualMemGranularityGetInfo(pi_context Context, pi_device Device,
+                                  pi_virtual_mem_granularity_info ParamName,
+                                  size_t ParamValueSize, void *ParamValue,
+                                  size_t *ParamValueSizeRet) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
@@ -8290,10 +8291,12 @@ pi_result piextVirtualMemGranularityGetInfo(
   switch (ParamName) {
   case PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
   case PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED: {
-    // For L0 the minimum and recommended granularity is the same.
+    // For L0 the minimum and recommended granularity is the same. We use an
+    // memory size of 1 byte to get the actual granularity instead of the
+    // aligned size.
     size_t PageSize;
     ZE_CALL(zeVirtualMemQueryPageSize,
-            (Context->ZeContext, Device->ZeDevice, MemSize, &PageSize));
+            (Context->ZeContext, Device->ZeDevice, 1, &PageSize));
     return ReturnValue(PageSize);
   }
   default:

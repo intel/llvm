@@ -21,35 +21,30 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT size_t get_minimum_mem_granularity(size_t numBytes,
-                                                 const device &SyclDevice,
+__SYCL_EXPORT size_t get_minimum_mem_granularity(const device &SyclDevice,
                                                  const context &SyclContext);
 
-inline size_t get_minimum_mem_granularity(size_t numBytes,
-                                          const queue &SyclQueue) {
-  return get_minimum_mem_granularity(numBytes, SyclQueue.get_device(),
+inline size_t get_minimum_mem_granularity(const queue &SyclQueue) {
+  return get_minimum_mem_granularity(SyclQueue.get_device(),
                                      SyclQueue.get_context());
 }
 
-inline size_t get_minimum_mem_granularity(size_t numBytes,
-                                          const physical_mem &SyclPhysicalMem) {
-  return get_minimum_mem_granularity(numBytes, SyclPhysicalMem.get_device(),
+inline size_t get_minimum_mem_granularity(const physical_mem &SyclPhysicalMem) {
+  return get_minimum_mem_granularity(SyclPhysicalMem.get_device(),
                                      SyclPhysicalMem.get_context());
 }
 
 __SYCL_EXPORT size_t get_recommended_mem_granularity(
-    size_t numBytes, const device &SyclDevice, const context &SyclContext);
+    const device &SyclDevice, const context &SyclContext);
 
-inline size_t get_recommended_mem_granularity(size_t numBytes,
-                                              const queue &SyclQueue) {
-  return get_recommended_mem_granularity(numBytes, SyclQueue.get_device(),
+inline size_t get_recommended_mem_granularity(const queue &SyclQueue) {
+  return get_recommended_mem_granularity(SyclQueue.get_device(),
                                          SyclQueue.get_context());
 }
 
 inline size_t
-get_recommended_mem_granularity(size_t numBytes,
-                                const physical_mem &SyclPhysicalMem) {
-  return get_recommended_mem_granularity(numBytes, SyclPhysicalMem.get_device(),
+get_recommended_mem_granularity(const physical_mem &SyclPhysicalMem) {
+  return get_recommended_mem_granularity(SyclPhysicalMem.get_device(),
                                          SyclPhysicalMem.get_context());
 }
 

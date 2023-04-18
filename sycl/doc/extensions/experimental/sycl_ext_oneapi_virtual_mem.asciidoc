@@ -106,13 +106,13 @@ The interfaces for querying these granularities are defined as:
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-size_t get_minimum_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext);
-size_t get_minimum_mem_granularity(size_t numBytes, const queue &syclQueue);
-size_t get_minimum_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem);
+size_t get_minimum_mem_granularity(const device &syclDevice, const context &syclContext);
+size_t get_minimum_mem_granularity(const queue &syclQueue);
+size_t get_minimum_mem_granularity(const physical_mem &syclPhysicalMem);
 
-size_t get_recommended_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext);
-size_t get_recommended_mem_granularity(size_t numBytes, const queue &syclQueue);
-size_t get_recommended_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem);
+size_t get_recommended_mem_granularity(const device &syclDevice, const context &syclContext);
+size_t get_recommended_mem_granularity(const queue &syclQueue);
+size_t get_recommended_mem_granularity(const physical_mem &syclPhysicalMem);
 
 } // namespace sycl::ext::oneapi::experimental
 ```

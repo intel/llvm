@@ -12,7 +12,9 @@ namespace syclext = sycl::ext::oneapi::experimental;
 template <typename T> class VirtualVector {
 public:
   VirtualVector(sycl::queue &Q)
-      : MDevice{Q.get_device()}, MContext{Q.get_context()} {};
+      : MDevice{Q.get_device()}, MContext{Q.get_context()},
+        MGranularity{
+            syclext::get_minimum_mem_granularity(MDevice, MContext)} {};
 
   ~VirtualVector() {
     // Free all mapped ranges.
@@ -76,9 +78,8 @@ public:
 
 private:
   size_t AlignByteSize(size_t UnalignedByteSize) const {
-    size_t Granularity = syclext::get_minimum_mem_granularity(
-        UnalignedByteSize, MDevice, MContext);
-    return ((UnalignedByteSize + Granularity - 1) / Granularity) * Granularity;
+    return ((UnalignedByteSize + MGranularity - 1) / MGranularity) *
+           MGranularity;
   }
 
   void *RecreateAddressRange(size_t AlignedNewByteSize) {
@@ -128,6 +129,8 @@ private:
   T *MBasePtr = nullptr;
   size_t MSize = 0;
   size_t MByteSize = 0;
+
+  const size_t MGranularity = 0;
 };
 
 constexpr size_t NumIters = 10;
@@ -149,9 +152,7 @@ int main() {
   // To better test the functionality, try to allocate below the granularity
   // but enough to require more memory for some iterations.
   size_t SizeIncrement = 11;
-  size_t MinSizeGran =
-      syclext::get_minimum_mem_granularity(SizeIncrement * sizeof(int), Q) /
-      sizeof(int);
+  size_t MinSizeGran = syclext::get_minimum_mem_granularity(Q) / sizeof(int);
   SizeIncrement = std::max(MinSizeGran / 2 - 1, SizeIncrement);
 
   // Each work-item will work on multiple elements.

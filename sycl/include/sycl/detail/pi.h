@@ -2014,15 +2014,15 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 ///
 /// \param context is the context to get the granularity from.
 /// \param device is the device to get the granularity from.
-/// \param mem_size is the potentially unadjusted size to get granularity for.
 /// \param param_name is the type of query to perform.
 /// \param param_value_size is the size of the result in bytes.
 /// \param param_value is the result.
 /// \param param_value_size_ret is how many bytes were written.
-pi_result piextVirtualMemGranularityGetInfo(
-    pi_context context, pi_device device, size_t mem_size,
-    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
-    void *param_value, size_t *param_value_size_ret);
+pi_result
+piextVirtualMemGranularityGetInfo(pi_context context, pi_device device,
+                                  pi_virtual_mem_granularity_info param_name,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret);
 
 /// API for creating a physical memory handle that virtual memory can be mapped
 /// to.

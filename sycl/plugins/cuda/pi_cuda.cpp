@@ -5651,12 +5651,9 @@ pi_result cuda_piextEnqueueWriteHostPipe(
 }
 
 pi_result cuda_piextVirtualMemGranularityGetInfo(
-    pi_context context, pi_device device, size_t mem_size,
+    pi_context context, pi_device device,
     pi_virtual_mem_granularity_info param_name, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret) {
-  // CUDA does not use the wanted memory size to determine granularity.
-  (void)mem_size;
-
   assert(context != nullptr);
   assert(device != nullptr);
 

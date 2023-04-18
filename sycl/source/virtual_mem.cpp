@@ -15,8 +15,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT size_t get_minimum_mem_granularity(size_t numBytes,
-                                                 const device &SyclDevice,
+__SYCL_EXPORT size_t get_minimum_mem_granularity(const device &SyclDevice,
                                                  const context &SyclContext) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
@@ -31,7 +30,7 @@ __SYCL_EXPORT size_t get_minimum_mem_granularity(size_t numBytes,
 #ifndef NDEBUG
   size_t InfoOutputSize;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), numBytes,
+      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
       PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, 0, nullptr,
       &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
@@ -39,14 +38,14 @@ __SYCL_EXPORT size_t get_minimum_mem_granularity(size_t numBytes,
 #endif // NDEBUG
   size_t Granularity;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), numBytes,
+      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
       PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(size_t),
       &Granularity, nullptr);
   return Granularity;
 }
 
 __SYCL_EXPORT size_t get_recommended_mem_granularity(
-    size_t numBytes, const device &SyclDevice, const context &SyclContext) {
+    const device &SyclDevice, const context &SyclContext) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -60,7 +59,7 @@ __SYCL_EXPORT size_t get_recommended_mem_granularity(
 #ifndef NDEBUG
   size_t InfoOutputSize;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), numBytes,
+      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
       PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED, 0, nullptr,
       &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
@@ -68,7 +67,7 @@ __SYCL_EXPORT size_t get_recommended_mem_granularity(
 #endif // NDEBUG
   size_t Granularity;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), numBytes,
+      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
       PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED, sizeof(size_t),
       &Granularity, nullptr);
   return Granularity;

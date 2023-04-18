@@ -5448,12 +5448,11 @@ pi_result hip_piextEnqueueWriteHostPipe(
 }
 
 pi_result hip_piextVirtualMemGranularityGetInfo(
-    pi_context context, pi_device device, size_t mem_size,
+    pi_context context, pi_device device,
     pi_virtual_mem_granularity_info param_name, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret) {
   std::ignore = context;
   std::ignore = device;
-  std::ignore = mem_size;
   std::ignore = param_name;
   std::ignore = param_value_size;
   std::ignore = param_value;
