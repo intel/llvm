@@ -15,7 +15,6 @@
 
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
-#include "sycl/group.hpp"
 #include "llvm/ADT/ArrayRef.h"
 
 namespace mlir {
@@ -103,10 +102,43 @@ enum MemoryAccessPattern {
 /// be 'affine' (a linear combination of the enclosing loop induction
 /// variables).
 class MemoryAccessMatrix {
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
+                                       const MemoryAccessMatrix &);
+
 public:
   MemoryAccessMatrix() = delete;
 
   MemoryAccessMatrix(unsigned nRows, unsigned nColumns);
+
+  /// Access the element at the specified row and column.
+  Value &at(unsigned row, unsigned column) {
+    assert(row < nRows && "Row outside of range");
+    assert(column < nColumns && "Column outside of range");
+    return data[row * nColumns + column];
+  }
+
+  Value at(unsigned row, unsigned column) const {
+    assert(row < nRows && "Row outside of range");
+    assert(column < nColumns && "Column outside of range");
+    return data[row * nColumns + column];
+  }
+
+  Value &operator()(unsigned row, unsigned column) { return at(row, column); }
+
+  Value operator()(unsigned row, unsigned column) const {
+    return at(row, column);
+  }
+
+  unsigned getNumRows() const { return nRows; }
+
+  unsigned getNumColumns() const { return nColumns; }
+
+  /// Get a [Mutable]ArrayRef corresponding to the specified row.
+  MutableArrayRef<Value> getRow(unsigned row);
+  ArrayRef<Value> getRow(unsigned row) const;
+
+  /// Set the specified row to `elems`.
+  void setRow(unsigned row, ArrayRef<Value> elems);
 
 private:
   unsigned nRows, nColumns;
