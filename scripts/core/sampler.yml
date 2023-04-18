@@ -25,16 +25,21 @@ desc: "Sampler addressing mode"
 class: $xSampler
 name: $x_sampler_addressing_mode_t
 etors:
-    - name: MIRRORED_REPEAT
-      desc: "Mirrored Repeat"
-    - name: REPEAT
-      desc: "Repeat"
-    - name: CLAMP
-      desc: "Clamp"
-    - name: CLAMP_TO_EDGE
-      desc: "Clamp to edge"
     - name: NONE
+      value: "0"
       desc: "None"
+    - name: CLAMP_TO_EDGE
+      value: "1"
+      desc: "Clamp to edge"
+    - name: CLAMP
+      value: "2"
+      desc: "Clamp"
+    - name: REPEAT
+      value: "3"
+      desc: "Repeat"
+    - name: MIRRORED_REPEAT
+      value: "4"
+      desc: "Mirrored Repeat"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get sample object information"

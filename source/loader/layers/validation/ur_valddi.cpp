@@ -1182,7 +1182,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_SAMPLER_ADDRESSING_MODE_NONE < pDesc->addressingMode) {
+        if (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT <
+            pDesc->addressingMode) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
