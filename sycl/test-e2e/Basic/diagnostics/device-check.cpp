@@ -9,6 +9,8 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=Gpu %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=Acc %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=XPU %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=host %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=HOST %t.out
 
 //==------------------- device-check.cpp --------------------------==//
 // This is a diagnostic test which ensures that

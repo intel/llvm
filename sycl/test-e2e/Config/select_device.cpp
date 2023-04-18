@@ -180,6 +180,9 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
+        if(plt.had(aspect::host)) {
+          continue;
+        }
         if (passed) {
           break;
         } // no need to write more than one match
@@ -313,26 +316,25 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
-        if (passed) {
-          break;
-        } // no need for additional entries
-        for (const auto &dev : plt.get_devices()) {
-          if (dev.has(aspect::gpu)) {
-            std::string name = dev.get_info<info::device::name>();
-            addEscapeSymbolToSpecialCharacters(name);
-            std::string ver("98.76.54321");
-            if (((plt.get_backend() == backend::opencl) &&
-                 (sycl_be.find("opencl") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
-                 (sycl_be.find("level_zero") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_cuda) &&
-                 (sycl_be.find("cuda") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_hip) &&
-                 (sycl_be.find("hip") != std::string::npos))) {
-              fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                 << "}}" << std::endl;
-              passed = true;
-              break;
+        if (!plt.has(aspect::host)) {
+          for (const auto &dev : plt.get_devices()) {
+            if (dev.has(aspect::gpu)) {
+              std::string name = dev.get_info<info::device::name>();
+              addEscapeSymbolToSpecialCharacters(name);
+              std::string ver("98.76.54321");
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("opencl") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
+                   (sycl_be.find("level_zero") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_cuda) &&
+                   (sycl_be.find("cuda") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_hip) &&
+                   (sycl_be.find("hip") != std::string::npos))) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -447,43 +449,45 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
-        if (passed) {
-          break;
-        } // no need for additional entries
-        for (const auto &dev : plt.get_devices()) {
-          if (dev.has(aspect::gpu)) {
-            std::string name = dev.get_info<info::device::name>();
-            addEscapeSymbolToSpecialCharacters(name);
-            std::string ver = dev.get_info<info::device::driver_version>();
-            size_t pos = 0;
-            if (((plt.get_backend() == backend::opencl) &&
-                 (sycl_be.find("opencl") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
-                 (sycl_be.find("level_zero") != std::string::npos))) {
-              if ((pos = ver.find(".")) == std::string::npos) {
-                throw std::runtime_error("Malformed syntax in version string");
+        if (!plt.has(aspect::host)) {
+          for (const auto &dev : plt.get_devices()) {
+            if (dev.has(aspect::gpu)) {
+              std::string name = dev.get_info<info::device::name>();
+              addEscapeSymbolToSpecialCharacters(name);
+              std::string ver = dev.get_info<info::device::driver_version>();
+              size_t pos = 0;
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("opencl") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
+                   (sycl_be.find("level_zero") != std::string::npos))) {
+                if ((pos = ver.find(".")) == std::string::npos) {
+                  throw std::runtime_error(
+                      "Malformed syntax in version string");
+                }
+                pos++;
+                size_t start = pos;
+                if ((pos = ver.find(".", pos)) == std::string::npos) {
+                  throw std::runtime_error(
+                      "Malformed syntax in version string");
+                }
+                ver.replace(start, pos - start, "*");
+              } else if (((plt.get_backend() == backend::ext_oneapi_cuda) &&
+                          (sycl_be.find("cuda") != std::string::npos)) ||
+                         ((plt.get_backend() == backend::ext_oneapi_hip) &&
+                          (sycl_be.find("hip") != std::string::npos))) {
+                if ((pos = ver.find(".")) == std::string::npos) {
+                  throw std::runtime_error(
+                      "Malformed syntax in version string");
+                }
+                pos++;
+                ver.replace(pos, ver.length(), "*");
               }
-              pos++;
-              size_t start = pos;
-              if ((pos = ver.find(".", pos)) == std::string::npos) {
-                throw std::runtime_error("Malformed syntax in version string");
-              }
-              ver.replace(start, pos - start, "*");
-            } else if (((plt.get_backend() == backend::ext_oneapi_cuda) &&
-                        (sycl_be.find("cuda") != std::string::npos)) ||
-                       ((plt.get_backend() == backend::ext_oneapi_hip) &&
-                        (sycl_be.find("hip") != std::string::npos))) {
-              if ((pos = ver.find(".")) == std::string::npos) {
-                throw std::runtime_error("Malformed syntax in version string");
-              }
-              pos++;
-              ver.replace(pos, ver.length(), "*");
-            }
 
-            fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-               << "}}" << std::endl;
-            passed = true;
-            break;
+              fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                 << "}}" << std::endl;
+              passed = true;
+              break;
+            }
           }
         }
       }
@@ -526,24 +530,23 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
-        if (passed) {
-          break;
-        } // no need for additional entries
-        for (const auto &dev : plt.get_devices()) {
-          if (dev.has(aspect::gpu)) {
-            std::string name = dev.get_info<info::device::name>();
-            addEscapeSymbolToSpecialCharacters(name);
-            if (((plt.get_backend() == backend::opencl) &&
-                 (sycl_be.find("opencl") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
-                 (sycl_be.find("level_zero") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_cuda) &&
-                 (sycl_be.find("cuda") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_hip) &&
-                 (sycl_be.find("hip") != std::string::npos))) {
-              fs << "DeviceName:{{" << name << "}}" << std::endl;
-              passed = true;
-              break;
+        if (!plt.has(aspect::host)) {
+          for (const auto &dev : plt.get_devices()) {
+            if (dev.has(aspect::gpu)) {
+              std::string name = dev.get_info<info::device::name>();
+              addEscapeSymbolToSpecialCharacters(name);
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("opencl") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
+                   (sycl_be.find("level_zero") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_cuda) &&
+                   (sycl_be.find("cuda") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_hip) &&
+                   (sycl_be.find("hip") != std::string::npos))) {
+                fs << "DeviceName:{{" << name << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -636,27 +639,29 @@ int main() {
       std::stringstream ss;
       int count = 0;
       for (const auto &plt : platform::get_platforms()) {
-        for (const auto &dev : plt.get_devices()) {
-          if (dev.has(aspect::gpu)) {
-            std::string name = dev.get_info<info::device::name>();
-            addEscapeSymbolToSpecialCharacters(name);
-            std::string ver = dev.get_info<info::device::driver_version>();
-            if (((plt.get_backend() == backend::opencl) &&
-                 (sycl_be.find("opencl") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
-                 (sycl_be.find("level_zero") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_cuda) &&
-                 (sycl_be.find("cuda") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_hip) &&
-                 (sycl_be.find("hip") != std::string::npos))) {
-              if (count > 0) {
-                ss << " | ";
+        if (!plt.has(aspect::host)) {
+          for (const auto &dev : plt.get_devices()) {
+            if (dev.has(aspect::gpu)) {
+              std::string name = dev.get_info<info::device::name>();
+              addEscapeSymbolToSpecialCharacters(name);
+              std::string ver = dev.get_info<info::device::driver_version>();
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("opencl") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
+                   (sycl_be.find("level_zero") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_cuda) &&
+                   (sycl_be.find("cuda") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_hip) &&
+                   (sycl_be.find("hip") != std::string::npos))) {
+                if (count > 0) {
+                  ss << " | ";
+                }
+                ss << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}";
+                count++;
+                passed = true;
+                break;
               }
-              ss << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                 << "}}";
-              count++;
-              passed = true;
-              break;
             }
           }
         }
@@ -701,21 +706,23 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
-        for (const auto &dev : plt.get_devices()) {
-          if (dev.has(aspect::gpu)) {
-            std::string name = dev.get_info<info::device::name>();
-            addEscapeSymbolToSpecialCharacters(name);
-            if (((plt.get_backend() == backend::opencl) &&
-                 (sycl_be.find("opencl") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
-                 (sycl_be.find("level_zero") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_cuda) &&
-                 (sycl_be.find("cuda") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_hip) &&
-                 (sycl_be.find("hip") != std::string::npos))) {
-              fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
-              passed = true;
-              break;
+        if (!plt.has(aspect::host)) {
+          for (const auto &dev : plt.get_devices()) {
+            if (dev.has(aspect::gpu)) {
+              std::string name = dev.get_info<info::device::name>();
+              addEscapeSymbolToSpecialCharacters(name);
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("opencl") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
+                   (sycl_be.find("level_zero") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_cuda) &&
+                   (sycl_be.find("cuda") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_hip) &&
+                   (sycl_be.find("hip") != std::string::npos))) {
+                fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -829,23 +836,25 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
-        for (const auto &dev : plt.get_devices()) {
-          if (dev.has(aspect::gpu)) {
-            std::string name = dev.get_info<info::device::name>();
-            addEscapeSymbolToSpecialCharacters(name);
-            std::string ver = dev.get_info<info::device::driver_version>();
-            if (((plt.get_backend() == backend::opencl) &&
-                 (sycl_be.find("opencl") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
-                 (sycl_be.find("level_zero") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_cuda) &&
-                 (sycl_be.find("cuda") != std::string::npos)) ||
-                ((plt.get_backend() == backend::ext_oneapi_hip) &&
-                 (sycl_be.find("hip") != std::string::npos))) {
-              fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{" << ver
-                 << "}}" << std::endl;
-              passed = true;
-              break;
+        if (!plt.has(aspect::host)) {
+          for (const auto &dev : plt.get_devices()) {
+            if (dev.has(aspect::gpu)) {
+              std::string name = dev.get_info<info::device::name>();
+              addEscapeSymbolToSpecialCharacters(name);
+              std::string ver = dev.get_info<info::device::driver_version>();
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("opencl") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
+                   (sycl_be.find("level_zero") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_cuda) &&
+                   (sycl_be.find("cuda") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::ext_oneapi_hip) &&
+                   (sycl_be.find("hip") != std::string::npos))) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
+                   << ver << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }

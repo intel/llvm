@@ -41,6 +41,10 @@ device_global<StructWithSubscript> DeviceGlobalVar2;
 
 int main() {
   queue Q;
+  if (Q.is_host()) {
+    std::cout << "Skipping test\n";
+    return 0;
+  }
 
   Q.single_task([]() {
      DeviceGlobalVar1[2] = 1234;

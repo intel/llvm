@@ -3,7 +3,7 @@
 // RUN: %CPU_CHECK_PLACEHOLDER --implicit-check-not "COMPUTATION ERROR" --implicit-check-not "WRONG INTERNALIZATION"
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
 // RUN: %GPU_CHECK_PLACEHOLDER --implicit-check-not "COMPUTATION ERROR" --implicit-check-not "WRONG INTERNALIZATION"
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || host
 // REQUIRES: fusion
 
 // Test caching for JIT fused kernels. Also test for debug messages being

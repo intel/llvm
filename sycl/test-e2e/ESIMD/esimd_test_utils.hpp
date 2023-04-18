@@ -37,6 +37,11 @@ namespace esimd_test {
 // Require GPU device
 inline int ESIMDSelector(const device &device) {
   const std::string intel{"Intel(R) Corporation"};
+  if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
+    std::string filter_string(dev_filter);
+    if (filter_string.find("host") != std::string::npos)
+      return device.is_host() ? 1000 : -1;
+  }
   if (device.get_backend() == backend::ext_intel_esimd_emulator) {
     return 1000;
   } else if (device.is_gpu() &&

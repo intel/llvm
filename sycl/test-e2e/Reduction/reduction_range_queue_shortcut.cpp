@@ -3,8 +3,12 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
-// Group algorithms are not supported on NVidia.
+// `Group algorithms are not supported on host device.` on NVidia.
 // XFAIL: hip_nvidia
+
+// RUNx: %HOST_RUN_PLACEHOLDER %t.out
+// TODO: Enable the test for HOST when it supports ext::oneapi::reduce() and
+// barrier()
 
 // This test only checks that the shortcut method queue::parallel_for()
 // can accept 2 or more reduction variables.

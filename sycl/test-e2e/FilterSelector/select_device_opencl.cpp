@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR='opencl:*' %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='opencl:*;host:*' %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set
@@ -41,6 +41,11 @@ int main() {
     cpu_selector cs;
     device d = cs.select_device();
     cout << "CPU device is found : " << d.is_cpu() << std::endl;
+  }
+  {
+    host_selector hs;
+    device d = hs.select_device();
+    cout << "HOST device is found: " << d.is_host() << std::endl;
   }
   {
     accelerator_selector as;

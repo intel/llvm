@@ -3,7 +3,7 @@
 // RUN: %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
 // RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || host
 
 // Test fusion cancellation on host task submission happening before
 // complete_fusion.

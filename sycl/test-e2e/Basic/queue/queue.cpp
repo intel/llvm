@@ -16,13 +16,15 @@
 using namespace sycl;
 
 std::string get_type(const device &dev) {
-  return dev.is_gpu() ? "OpenCL.GPU" : "OpenCL.CPU";
+  return ((dev.is_host()) ? "host"
+                          : (dev.is_gpu() ? "OpenCL.GPU" : "OpenCL.CPU"));
 }
 
 void print_queue_info(const queue &q) {
   std::cout << "ID=" << std::hex
-            << ((q.get_context().get_platform().get_backend() !=
-                 sycl::backend::opencl)
+            << ((q.get_device().is_host() ||
+                 q.get_context().get_platform().get_backend() !=
+                     sycl::backend::opencl)
                     ? nullptr
                     : sycl::get_native<sycl::backend::opencl>(q))
             << std::endl;
@@ -48,7 +50,9 @@ int main() {
     size_t hash = std::hash<queue>()(Queue);
     queue MovedQueue(std::move(Queue));
     assert(hash == std::hash<queue>()(MovedQueue));
-    if (deviceA.get_platform().get_backend() == sycl::backend::opencl) {
+    assert(deviceA.is_host() == MovedQueue.is_host());
+    if (!deviceA.is_host() &&
+        deviceA.get_platform().get_backend() == sycl::backend::opencl) {
       assert(sycl::get_native<sycl::backend::opencl>(MovedQueue) != nullptr);
     }
   }
@@ -59,7 +63,9 @@ int main() {
     queue WillMovedQueue(deviceB);
     WillMovedQueue = std::move(Queue);
     assert(hash == std::hash<queue>()(WillMovedQueue));
-    if (deviceA.get_platform().get_backend() == sycl::backend::opencl) {
+    assert(deviceA.is_host() == WillMovedQueue.is_host());
+    if (!deviceA.is_host() &&
+        deviceA.get_platform().get_backend() == sycl::backend::opencl) {
       assert(sycl::get_native<sycl::backend::opencl>(WillMovedQueue) !=
              nullptr);
     }
@@ -72,6 +78,7 @@ int main() {
     assert(hash == std::hash<queue>()(Queue));
     assert(hash == std::hash<queue>()(QueueCopy));
     assert(Queue == QueueCopy);
+    assert(Queue.is_host() == QueueCopy.is_host());
   }
   {
     std::cout << "copy assignment operator" << std::endl;
@@ -82,6 +89,7 @@ int main() {
     assert(hash == std::hash<queue>()(Queue));
     assert(hash == std::hash<queue>()(WillQueueCopy));
     assert(Queue == WillQueueCopy);
+    assert(Queue.is_host() == WillQueueCopy.is_host());
   }
 
   {

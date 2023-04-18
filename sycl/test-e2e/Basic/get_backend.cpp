@@ -20,6 +20,7 @@ bool check(backend be) {
   case backend::ext_oneapi_level_zero:
   case backend::ext_oneapi_cuda:
   case backend::ext_oneapi_hip:
+  case backend::host:
     return true;
   default:
     return false;
@@ -34,31 +35,33 @@ inline void return_fail() {
 
 int main() {
   for (const auto &plt : platform::get_platforms()) {
-    if (check(plt.get_backend()) == false) {
-      return_fail();
-    }
+    if (!plt.is_host()) {
+      if (check(plt.get_backend()) == false) {
+        return_fail();
+      }
 
-    context c(plt);
-    if (c.get_backend() != plt.get_backend()) {
-      return_fail();
-    }
+      context c(plt);
+      if (c.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
 
     queue q(c, default_selector_v);
     if (q.get_backend() != plt.get_backend()) {
       return_fail();
     }
 
-    auto device = q.get_device();
-    if (device.get_backend() != plt.get_backend()) {
-      return_fail();
-    }
+      auto device = q.get_device();
+      if (device.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
 
-    unsigned char *HostAlloc = (unsigned char *)malloc_host(1, c);
-    auto e = q.memset(HostAlloc, 42, 1);
-    if (e.get_backend() != plt.get_backend()) {
-      return_fail();
+      unsigned char *HostAlloc = (unsigned char *)malloc_host(1, c);
+      auto e = q.memset(HostAlloc, 42, 1);
+      if (e.get_backend() != plt.get_backend()) {
+        return_fail();
+      }
+      free(HostAlloc, c);
     }
-    free(HostAlloc, c);
   }
   std::cout << "Passed" << std::endl;
   return 0;

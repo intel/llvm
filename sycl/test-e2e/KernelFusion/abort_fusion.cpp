@@ -3,7 +3,7 @@
 // RUN: %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
 // RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || host
 // REQUIRES: fusion
 
 // Test fusion being aborted: Different scenarios causing the JIT compiler

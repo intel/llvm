@@ -90,7 +90,7 @@ semicolon-separated list of configurations. Each configuration includes backend
 separated from comma-separated list of target devices with colon. Example:
 
 ```
--DSYCL_TEST_E2E_TARGETS="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
+-DSYCL_TEST_E2E_TARGETS="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu;host:host"
 ```
 
 ***SYCL_BE*** - SYCL backend to be used for testing. Supported values are:

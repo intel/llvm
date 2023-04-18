@@ -32,6 +32,10 @@ device_global<int[4]> DeviceGlobalVar;
 
 int main() {
   queue Q;
+  if (Q.is_host()) {
+    std::cout << "Skipping test\n";
+    return 0;
+  }
 
   Q.single_task([=]() { DeviceGlobalVar.get()[0] = 42; });
   // Make sure that the write happens before subsequent read

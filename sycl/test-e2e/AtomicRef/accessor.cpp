@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -100,6 +101,9 @@ int main() {
   queue q;
   constexpr int N = 32;
   accessor_test<int>(q, N);
-  local_accessor_test<int>(q, N);
+  // TODO: Enable local accessor test for host when barrier is supported
+  if (!q.get_device().is_host()) {
+    local_accessor_test<int>(q, N);
+  }
   std::cout << "Test passed." << std::endl;
 }

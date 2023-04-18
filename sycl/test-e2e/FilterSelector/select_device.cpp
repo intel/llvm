@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:*" %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="host:*" %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu" %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out
@@ -11,7 +12,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: cpu,gpu,accelerator
+// REQUIRES: cpu,gpu,accelerator,host
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -49,6 +50,12 @@ int main() {
     cpu_selector cs;
     device d = cs.select_device();
     std::cout << "CPU device is found: " << d.is_cpu() << std::endl;
+  }
+  if (!envVal || forcedPIs == "*" ||
+      forcedPIs.find("host") != std::string::npos) {
+    host_selector hs;
+    device d = hs.select_device();
+    std::cout << "HOST device is found: " << d.is_host() << std::endl;
   }
   if (!envVal || forcedPIs == "*" ||
       forcedPIs.find("acc") != std::string::npos) {
