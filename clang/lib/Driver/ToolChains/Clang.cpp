@@ -5983,22 +5983,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   std::string FpAccuracyAttr;
   auto RenderFPAccuracyOptions = [&FpAccuracyAttr](const Twine &optStr) {
-    optStr.isSingleStringRef();
     if (FpAccuracyAttr.empty())
       FpAccuracyAttr = std::move(std::string("-ffp-accuracy-attr="));
     else
       FpAccuracyAttr += " ";
     FpAccuracyAttr += optStr.str();
   };
-  for (const Arg *A : Args) {
-    unsigned OptionID = A->getOption().getID();
-    switch (OptionID) {
-    case options::OPT_ffp_accuracy_EQ:
-      RenderFPAccuracyOptions(A->getValue());
-      A->claim();
-      break;
-    }
-  }
+  for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ))
+    RenderFPAccuracyOptions(A);
   if (!FpAccuracyAttr.empty())
     CmdArgs.push_back(Args.MakeArgString(FpAccuracyAttr));
 
