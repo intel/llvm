@@ -1591,7 +1591,8 @@ public:
   /// because we'll lose all important information after each repl.
   void moveLazyEmissionStates(CodeGenModule *NewBuilder);
 
-  void getFPAccuracyFuncAttributes(StringRef Name, llvm::AttributeList &AttrList);
+  void getFPAccuracyFuncAttributes(StringRef Name,
+                                   llvm::AttributeList &AttrList);
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
