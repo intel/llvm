@@ -72,6 +72,8 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/kernel.hpp"
     "../unified_runtime/ur/adapters/cuda/queue.hpp"
     "../unified_runtime/ur/adapters/cuda/queue.cpp"
+    "../unified_runtime/ur/adapters/cuda/sampler.cpp"
+    "../unified_runtime/ur/adapters/cuda/sampler.hpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/tracing.cpp"
     # --- 

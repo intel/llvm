@@ -148,6 +148,8 @@ add_sycl_library("ur_adapter_cuda" SHARED
     "ur/adapters/cuda/kernel.hpp"
     "ur/adapters/cuda/queue.cpp"
     "ur/adapters/cuda/queue.hpp"
+    "ur/adapters/cuda/sampler.cpp"
+    "ur/adapters/cuda/sampler.hpp"
     "ur/adapters/cuda/ur_interface_loader.cpp"
     "ur/adapters/cuda/tracing.cpp"
   INCLUDE_DIRS

@@ -49,6 +49,7 @@
 #include <ur/adapters/cuda/program.hpp>
 #include <ur/adapters/cuda/event.hpp>
 #include <ur/adapters/cuda/queue.hpp>
+#include <ur/adapters/cuda/sampler.hpp>
 
 // Share code between the PI Plugin and UR Adapter
 #include <pi2ur.hpp>
@@ -406,19 +407,8 @@ struct _pi_kernel : ur_kernel_handle_t_ {
 /// Sampler property layout:
 /// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
 /// |      N/A      | addressing mode | fiter mode | normalize coords |
-struct _pi_sampler {
-  std::atomic_uint32_t refCount_;
-  pi_uint32 props_;
-  pi_context context_;
-
-  _pi_sampler(pi_context context)
-      : refCount_(1), props_(0), context_(context) {}
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
+struct _pi_sampler : ur_sampler_handle_t_ {
+  using ur_sampler_handle_t_::ur_sampler_handle_t_;
 };
 
 // -------------------------------------------------------------

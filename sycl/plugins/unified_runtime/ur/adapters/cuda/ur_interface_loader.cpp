@@ -130,12 +130,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreate = nullptr;
+  pDdiTable->pfnCreate = urSamplerCreate;
   pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
+  pDdiTable->pfnGetInfo = urSamplerGetInfo;
   pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnRelease = urSamplerRelease;
+  pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
 }
 
