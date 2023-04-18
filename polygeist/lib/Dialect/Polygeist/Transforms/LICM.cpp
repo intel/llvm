@@ -41,6 +41,9 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using AccessorType = VersionConditionBuilder::AccessorType;
+using AccessorPairType = VersionConditionBuilder::AccessorPairType;
+
 
 static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
     "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),

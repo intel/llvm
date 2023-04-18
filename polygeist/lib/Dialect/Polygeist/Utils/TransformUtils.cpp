@@ -407,6 +407,106 @@ void LoopTools::versionLoop(LoopLikeOpInterface loop,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
+template <typename OpTy>
+static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
+                           ValueRange arguments, StringRef functionName,
+                           StringRef typeName) {
+  NamedAttrList attrs;
+  SmallVector<Type> argumentTypes;
+  for (Value argument : arguments)
+    argumentTypes.push_back(argument.getType());
+  attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+            builder.getTypeArrayAttr(argumentTypes));
+  attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
+  attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
+  return builder.create<OpTy>(loc, resTy, ValueRange(arguments), attrs);
+}
+
+static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
+                                           unsigned index, OpBuilder builder,
+                                           Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return createMethodOp<sycl::SYCLIDGetOp>(
+      builder, loc, MemRefType::get(ShapedType::kDynamic, resTy), {id, indexOp},
+      "operator[]", "id");
+}
+
+static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                                 unsigned index,
+                                                 OpBuilder builder,
+                                                 Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return createMethodOp<sycl::SYCLRangeGetOp>(builder, loc, resTy,
+                                              {range, indexOp}, "get", "range");
+}
+
+static sycl::SYCLAccessorGetRangeOp
+createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor, OpBuilder builder,
+                             Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const auto rangeTy = cast<sycl::RangeType>(
+      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
+  return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
+      builder, loc, rangeTy, accessor, "get_range", "accessor");
+}
+
+static sycl::SYCLAccessorSubscriptOp
+createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
+                              TypedValue<MemRefType> id, OpBuilder builder,
+                              Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const auto MT = cast<MemRefType>(
+      cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
+  return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
+      builder, loc, MT, {accessor, id}, "operator[]", "accessor");
+}
+
+static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
+                                  OpBuilder builder, Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const auto idTy = cast<sycl::IDType>(
+      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  for (unsigned i = 0; i < accTy.getDimension(); ++i) {
+    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
+  }
+  return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
+}
+
+static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
+                                OpBuilder builder, Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
+  auto range = builder.create<memref::AllocaOp>(
+      loc, MemRefType::get(1, getRangeOp.getType()));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  builder.create<memref::StoreOp>(loc, getRangeOp, range, zeroIndex);
+  const auto idTy = cast<sycl::IDType>(
+      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  unsigned dim = accTy.getDimension();
+  for (unsigned i = 0; i < dim; ++i) {
+    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
+    auto index = (i == dim - 1)
+                     ? rangeGetOp
+                     : builder.create<arith::SubIOp>(loc, rangeGetOp, one);
+    builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
+  }
+  return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
+}
+
 VersionConditionBuilder::SCFCondition
 VersionConditionBuilder::createSCFCondition(OpBuilder builder,
                                             Location loc) const {
@@ -436,106 +536,4 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder,
         condition ? builder.create<arith::AndIOp>(loc, condition, orOp) : orOp;
   }
   return condition;
-}
-
-template <typename OpTy>
-OpTy VersionConditionBuilder::createMethodOp(OpBuilder builder, Location loc,
-                                             Type resTy, ValueRange arguments,
-                                             StringRef functionName,
-                                             StringRef typeName) {
-  NamedAttrList attrs;
-  SmallVector<Type> argumentTypes;
-  for (Value argument : arguments)
-    argumentTypes.push_back(argument.getType());
-  attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
-            builder.getTypeArrayAttr(argumentTypes));
-  attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
-            FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
-  attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
-            FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
-  return builder.create<OpTy>(loc, resTy, ValueRange(arguments), attrs);
-}
-
-sycl::SYCLIDGetOp
-VersionConditionBuilder::createSYCLIDGetOp(TypedValue<MemRefType> id,
-                                           unsigned index, OpBuilder builder,
-                                           Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return createMethodOp<sycl::SYCLIDGetOp>(
-      builder, loc, MemRefType::get(ShapedType::kDynamic, resTy), {id, indexOp},
-      "operator[]", "id");
-}
-
-sycl::SYCLRangeGetOp
-VersionConditionBuilder::createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                              unsigned index, OpBuilder builder,
-                                              Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return createMethodOp<sycl::SYCLRangeGetOp>(builder, loc, resTy,
-                                              {range, indexOp}, "get", "range");
-}
-
-sycl::SYCLAccessorGetRangeOp
-VersionConditionBuilder::createSYCLAccessorGetRangeOp(
-    TypedValue<MemRefType> accessor, OpBuilder builder, Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
-  const auto rangeTy = cast<sycl::RangeType>(
-      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
-  return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
-      builder, loc, rangeTy, accessor, "get_range", "accessor");
-}
-
-sycl::SYCLAccessorSubscriptOp
-VersionConditionBuilder::createSYCLAccessorSubscriptOp(
-    TypedValue<MemRefType> accessor, TypedValue<MemRefType> id,
-    OpBuilder builder, Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
-  const auto MT = cast<MemRefType>(
-      cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
-  return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
-      builder, loc, MT, {accessor, id}, "operator[]", "accessor");
-}
-
-Value VersionConditionBuilder::getSYCLAccessorBegin(
-    TypedValue<MemRefType> accessor, OpBuilder builder, Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
-  const auto idTy = cast<sycl::IDType>(
-      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
-    builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
-  }
-  return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
-}
-
-Value VersionConditionBuilder::getSYCLAccessorEnd(
-    TypedValue<MemRefType> accessor, OpBuilder builder, Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
-  Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
-  auto range = builder.create<memref::AllocaOp>(
-      loc, MemRefType::get(1, getRangeOp.getType()));
-  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  builder.create<memref::StoreOp>(loc, getRangeOp, range, zeroIndex);
-  const auto idTy = cast<sycl::IDType>(
-      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-  const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
-  unsigned dim = accTy.getDimension();
-  for (unsigned i = 0; i < dim; ++i) {
-    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
-    Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
-    auto index = (i == dim - 1)
-                     ? rangeGetOp
-                     : builder.create<arith::SubIOp>(loc, rangeGetOp, one);
-    builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
-  }
-  return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }

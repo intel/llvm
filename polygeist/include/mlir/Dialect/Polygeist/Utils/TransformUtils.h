@@ -241,10 +241,13 @@ public:
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-using AccessorType = TypedValue<MemRefType>;
-using AccessorPairType = std::pair<AccessorType, AccessorType>;
+/// Build a version condition to check if the given list of accessor pairs
+/// overlap.
 class VersionConditionBuilder {
 public:
+  using AccessorType = TypedValue<MemRefType>;
+  using AccessorPairType = std::pair<AccessorType, AccessorType>;
+
   VersionConditionBuilder(
       LoopLikeOpInterface loop,
       ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
@@ -263,35 +266,6 @@ public:
 private:
   /// Create a versioning condition suitable for scf::IfOp.
   SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
-
-  template <typename OpTy>
-  static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
-                             ValueRange arguments, StringRef functionName,
-                             StringRef typeName);
-
-  static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
-                                             unsigned index, OpBuilder builder,
-                                             Location loc);
-
-  static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                                   unsigned index,
-                                                   OpBuilder builder,
-                                                   Location loc);
-
-  static sycl::SYCLAccessorGetRangeOp
-  createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor,
-                               OpBuilder builder, Location loc);
-
-  static sycl::SYCLAccessorSubscriptOp
-  createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
-                                TypedValue<MemRefType> id, OpBuilder builder,
-                                Location loc);
-
-  static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
-                                    OpBuilder builder, Location loc);
-
-  static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
-                                  OpBuilder builder, Location loc);
 
   mutable LoopLikeOpInterface loop;
   ArrayRef<AccessorPairType> accessorPairs;
