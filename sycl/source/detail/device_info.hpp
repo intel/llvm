@@ -785,6 +785,22 @@ struct get_device_info_impl<
   }
 };
 
+// Specialization for max registers per work-group
+template <>
+struct get_device_info_impl<
+    uint32_t,
+    ext::codeplay::experimental::info::device::max_registers_per_work_group> {
+  static uint32_t get(RT::PiDevice dev, const plugin &Plugin) {
+    uint32_t maxRegsPerWG;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev,
+        PiInfoCode<ext::codeplay::experimental::info::device::
+                       max_registers_per_work_group>::value,
+        sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
+    return maxRegsPerWG;
+  }
+};
+
 template <typename Param>
 typename Param::return_type get_device_info(RT::PiDevice dev,
                                             const plugin &Plugin) {
@@ -1662,6 +1678,14 @@ inline bool get_device_info_host<
     ext::codeplay::experimental::info::device::supports_fusion>() {
   // No support for fusion on the host device.
   return false;
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::codeplay::experimental::info::device::max_registers_per_work_group>() {
+  throw runtime_error("Obtaining the maximum number of available registers per "
+                      "work-group is not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 } // namespace detail
