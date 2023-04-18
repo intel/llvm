@@ -5,15 +5,9 @@ endif()
 
 add_library(
   libc_test_utils
-  RandUtils.cpp
-  RandUtils.h
-  StreamWrapper.cpp
-  StreamWrapper.h
   ${EFFile}
   ExecuteFunction.h
   ${FDReaderFile}
   FDReader.h
-  Timer.h
-  Timer.cpp
   RoundingModeUtils.cpp
 )
