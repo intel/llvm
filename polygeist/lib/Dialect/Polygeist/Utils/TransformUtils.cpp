@@ -33,13 +33,7 @@ bool mlir::isLinkonceODR(FunctionOpInterface func) {
 bool mlir::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
-  Operation *op = call->getNextNode();
-  while (op) {
-    if (!isMemoryEffectFree(op))
-      return false;
-    op = op->getNextNode();
-  }
-  return true;
+  return isRegionReturnLike(call->getNextNode());
 }
 
 /// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
@@ -50,7 +44,8 @@ getMaxDepthFromGPUKernel(FunctionOpInterface func,
   assert(!funcMaxDepthMap.contains(func) &&
          "Expecting maximum depth of func is not already calculated");
 
-  // Function not in a GPU module is not called from a GPU kernel.
+  // A function that does not reside in a GPU module cannot be called from a GPU
+  // kernel.
   if (!func->getParentOfType<gpu::GPUModuleOp>()) {
     funcMaxDepthMap[func] = -1;
     return;
