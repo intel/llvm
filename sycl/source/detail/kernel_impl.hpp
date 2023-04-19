@@ -221,9 +221,9 @@ kernel_impl::get_info(const device &Device) const {
     if (!isDeviceCustom && !isBuiltInKernel(Device))
       throw exception(
           sycl::make_error_code(errc::invalid),
-          "\"info::kernel_device_specific::global_work_size\" descriptor may "
-          "only be used if the device type is device_type::custom or if the "
-          "kernel is a built-in kernel.");
+          "info::kernel_device_specific::global_work_size descriptor may only "
+          "be used if the device type is device_type::custom or if the kernel "
+          "is a built-in kernel.");
   }
 
   if (is_host()) {

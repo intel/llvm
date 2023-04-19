@@ -94,7 +94,8 @@ int main() {
       bool isCustomDevice = dev.get_info<sycl::info::device::device_type>() ==
                             sycl::info::device_type::custom;
       assert((isCustomDevice || isBuiltInKernel) &&
-             "\"info::kernel::num_args\" can only be used with custom device "
+             "info::kernel_device_specific::global_work_size descriptor can "
+             "only be used with custom device "
              "or built-in kernel.");
 
     } catch (sycl::exception &e) {
@@ -102,14 +103,13 @@ int main() {
       Errc = e.code();
       ErrMsg = e.what();
     }
-    assert(
-        IsExceptionThrown &&
-        "Invalid using of \"info::kernel_device_specific::global_work_size\" "
-        "query should throw an exception.");
+    assert(IsExceptionThrown &&
+           "Invalid using of info::kernel_device_specific::global_work_size "
+           "query should throw an exception.");
     assert(Errc == errc::invalid);
     assert(ErrMsg ==
-           "\"info::kernel_device_specific::global_work_size\" descriptor may "
-           "only be used if the device type is device_type::custom or if the "
+           "info::kernel_device_specific::global_work_size descriptor may only "
+           "be used if the device type is device_type::custom or if the "
            "kernel is a built-in kernel.");
   }
 }
