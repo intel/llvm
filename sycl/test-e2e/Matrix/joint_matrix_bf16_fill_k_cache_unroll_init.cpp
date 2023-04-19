@@ -17,6 +17,8 @@
 // data reuse of A and B in physical layer
 
 #define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
+#define INIT_LIST
+#define MANUAL_UNROLL
 
 #include <algorithm>
 #include <chrono>
