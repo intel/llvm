@@ -2200,9 +2200,9 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
-          /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
-          std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
-          std::move(NewSpecConstBlob));
+          getSyclObjImpl(DeviceImages[0])->get_bin_image_ref(), Context, Devs,
+          bundle_state::executable, std::move(KernelIDs), LinkedProg,
+          std::move(NewSpecConstMap), std::move(NewSpecConstBlob));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
