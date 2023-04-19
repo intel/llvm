@@ -997,7 +997,7 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
 
 /// \return UR_RESULT_SUCCESS always since CUDA devices are always root
 /// devices.
-ur_result_t urDeviceRelease(ur_device_handle_t device) {
+UR_DLLEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t device) {
   UR_ASSERT(device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   return UR_RESULT_SUCCESS;
