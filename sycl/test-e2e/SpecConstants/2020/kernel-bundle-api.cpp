@@ -269,7 +269,7 @@ bool test_native_specialization_constant(sycl::queue q) {
   {
     q.submit([&](sycl::handler &cgh) {
       cgh.single_task<class Kernel>([=](sycl::kernel_handler h) {
-        h.get_specialization_constant<SpecName>();
+        h.get_specialization_constant<int_id>();
       });
     });
 
@@ -278,7 +278,7 @@ bool test_native_specialization_constant(sycl::queue q) {
             q.get_context(), {q.get_device()});
     auto objectBundle = sycl::compile(inputBundle);
     auto execBundleViaLink = sycl::link(objectBundle);
-    if (!check_value(execBundleViaLink.native_specialization_constant(), false,
+    if (!check_value(false, execBundleViaLink.native_specialization_constant(),
                      "linked bundle native specialization constant"))
       return false;
   }
@@ -286,6 +286,6 @@ bool test_native_specialization_constant(sycl::queue q) {
   const auto always_false_selector = [](auto device_image) { return false; };
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       q.get_context(), always_false_selector);
-  return check_value(bundle.native_specialization_constant(), false,
+  return check_value(false, bundle.native_specialization_constant(),
                      "empty bundle native specialization constant");
 }
