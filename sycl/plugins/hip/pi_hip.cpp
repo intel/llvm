@@ -1964,7 +1964,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     sycl::detail::pi::assertion(max_registers >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(max_registers));
+                   static_cast<uint32_t>(max_registers));
   }
 
   // TODO: Investigate if this information is available on HIP.
