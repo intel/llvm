@@ -125,7 +125,7 @@ void LoopVersionBuilder::createElseBody(AffineIfOp ifOp) const {
 }
 
 //===----------------------------------------------------------------------===//
-// LoopGuardBuilder
+// LoopGuardBuilder: testing
 //===----------------------------------------------------------------------===//
 
 std::unique_ptr<LoopGuardBuilder>
