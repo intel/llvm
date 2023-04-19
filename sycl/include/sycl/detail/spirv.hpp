@@ -501,8 +501,8 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 // - The Intel SPIR-V extension natively supports all arithmetic types.
 //   However, OpenCL extension natively supports float vectors,
 //   integer vectors, half scalar and double scalar.
-//   For double, long and half vectors we perform emulation with scalar
-//   version.
+//   For double, long, long long, unsigned long, unsigned long long
+//   and half vectors we perform emulation with scalar version.
 // - The CUDA shfl intrinsics do not support vectors, and we use the _i32
 //   variants for all scalar types
 #ifndef __NVPTX__
@@ -511,6 +511,9 @@ template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
     : bool_constant<std::is_same_v<vector_element_t<T>, double> ||
                     std::is_same_v<vector_element_t<T>, long> ||
+                    std::is_same_v<vector_element_t<T>, unsigned long> ||
+                    std::is_same_v<vector_element_t<T>, long long> ||
+                    std::is_same_v<vector_element_t<T>, unsigend long long> ||
                     std::is_same_v<vector_element_t<T>, half>> {};
 
 template <typename T>
