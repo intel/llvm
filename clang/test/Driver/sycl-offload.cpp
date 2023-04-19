@@ -160,3 +160,6 @@
 // RUN:   %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
 // CHECK_BITFIELD_OPTION: clang{{.*}} "-ffine-grained-bitfield-accesses"
 
+/// Check if the clang with fsycl adds C++ libraries to the link line
+//  RUN:  %clang -### -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-FSYCL-WITH-CLANG %s
+// CHECK-FSYCL-WITH-CLANG: "-lstdc++"
