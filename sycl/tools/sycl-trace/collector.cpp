@@ -15,7 +15,8 @@
 #include <sycl/detail/spinlock.hpp>
 
 sycl::detail::SpinLock GlobalLock;
-bool HasZEPrinter;
+
+bool HasZEPrinter = false;
 
 std::string getCurrentDSODir() {
   auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
@@ -51,8 +52,7 @@ public:
   const std::string IndentFuncName = "setIndentationLevel";
 
   bool initPrinters() {
-    const std::string CollectorDir =
-      getCurrentDSODir() + "/" + MLibraryName;
+    const std::string CollectorDir = getCurrentDSODir() + "/" + MLibraryName;
     MHandle = dlopen(CollectorDir.c_str(), RTLD_LAZY);
     if (!MHandle) {
       std::cerr << "Cannot load library: " << dlerror() << '\n';
@@ -127,6 +127,8 @@ private:
 } zeCollectorLibrary("libze_trace_collector.so"),
     cudaCollectorLibrary("libcuda_trace_collector.so");
 
+// These routing functions are needed to be able to use GlobalLock for
+// dynamically loaded collectors.
 XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
                                   xpti::trace_event_data_t *Event,
@@ -199,7 +201,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     }
 #endif
   } else if (std::string_view(StreamName) == "sycl" &&
-      std::getenv("SYCL_TRACE_API_ENABLE")) {
+             std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_diagnostics, syclCallback);
@@ -213,15 +215,17 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
 #ifdef SYCL_HAS_LEVEL_ZERO
   else if (std::string_view(StreamName) ==
                "sycl.experimental.level_zero.debug" &&
-           std::getenv("SYCL_TRACE_ZE_ENABLE"))
+           std::getenv("SYCL_TRACE_ZE_ENABLE")) {
     zeCollectorLibrary.finishPrinters();
-  zeCollectorLibrary.clear();
+    zeCollectorLibrary.clear();
+  }
 #endif
 #ifdef USE_PI_CUDA
   else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
-           std::getenv("SYCL_TRACE_CU_ENABLE"))
-      cudaCollectorLibrary.finishPrinters();
-  cudaCollectorLibrary.clear();
+           std::getenv("SYCL_TRACE_CU_ENABLE")) {
+    cudaCollectorLibrary.finishPrinters();
+    cudaCollectorLibrary.clear();
+  }
 #endif
   if (std::string_view(StreamName) == "sycl" &&
       std::getenv("SYCL_TRACE_API_ENABLE"))

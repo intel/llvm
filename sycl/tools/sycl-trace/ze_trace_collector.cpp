@@ -245,10 +245,10 @@ static std::string getResult(ze_result_t Res) {
 
 extern "C" {
 
-__attribute__((__visibility__("default"))) void callback(uint16_t TraceType,
-                                xpti::trace_event_data_t * /*Parent*/,
-                                xpti::trace_event_data_t * /*Event*/,
-                                uint64_t /*Instance*/, const void *UserData) {
+__attribute__((__visibility__("default"))) void
+callback(uint16_t TraceType, xpti::trace_event_data_t * /*Parent*/,
+         xpti::trace_event_data_t * /*Event*/, uint64_t /*Instance*/,
+         const void *UserData) {
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto PrintPrefix = [] {
     if (IndentationLevel)
@@ -318,6 +318,8 @@ __attribute__((__visibility__("default"))) void init() {
 // For unification purpose
 __attribute__((__visibility__("default"))) void finish() {}
 
-__attribute__((__visibility__("default"))) void setIndentationLevel(int NewLevel) { IndentationLevel = NewLevel; }
-
+__attribute__((__visibility__("default"))) void
+setIndentationLevel(int NewLevel) {
+  IndentationLevel = NewLevel;
+}
 }

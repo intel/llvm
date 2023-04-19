@@ -1,7 +1,5 @@
 add_executable(sycl-trace main.cpp)
 
-#add_definitions(-O0 -gdwarf-4)
-
 target_include_directories(sycl-trace PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"
 )
@@ -81,8 +79,6 @@ if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(ze_trace_collector ze-pretty-printers)
   target_compile_definitions(sycl_pi_trace_collector PRIVATE SYCL_HAS_LEVEL_ZERO)
-  #target_compile_options(ze_trace_collector PUBLIC
-  #                         -fvisibility=hidden -fvisibility-inlines-hidden)
 endif()
 
 target_compile_definitions(sycl_pi_trace_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
@@ -162,8 +158,6 @@ if(SYCL_BUILD_PI_CUDA)
     PRIVATE
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
   )
-  #target_compile_options(cuda_trace_collector PUBLIC
-  #                         -fvisibility=hidden -fvisibility-inlines-hidden)
 endif()
 
 add_dependencies(sycl-trace sycl_pi_trace_collector)
