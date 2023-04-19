@@ -5913,10 +5913,12 @@ pi_result cuda_piextVirtualMemUnmap(pi_context context, const void *ptr,
   return result;
 }
 
-pi_result cuda_piextVirtualMemAccessGetInfo(
-    pi_context context, const void *ptr, size_t range_size,
-    pi_virtual_mem_access_info param_name, size_t param_value_size,
-    void *param_value, size_t *param_value_size_ret) {
+pi_result cuda_piextVirtualMemGetInfo(pi_context context, const void *ptr,
+                                      size_t range_size,
+                                      pi_virtual_mem_info param_name,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
   std::ignore = range_size;
 
   assert(context != nullptr);
@@ -5926,7 +5928,7 @@ pi_result cuda_piextVirtualMemAccessGetInfo(
   try {
     ScopedContext active(context);
     switch (param_name) {
-    case PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE: {
+    case PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE: {
       CUmemLocation mem_loc = {};
       mem_loc.type = CU_MEM_LOCATION_TYPE_DEVICE;
       result = GetDeviceOrdinal(context->get_device(), mem_loc.id);
@@ -6148,7 +6150,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextVirtualMemMap, cuda_piextVirtualMemMap)
   _PI_CL(piextVirtualMemUnmap, cuda_piextVirtualMemUnmap)
   _PI_CL(piextVirtualMemSetAccess, cuda_piextVirtualMemSetAccess)
-  _PI_CL(piextVirtualMemAccessGetInfo, cuda_piextVirtualMemAccessGetInfo)
+  _PI_CL(piextVirtualMemGetInfo, cuda_piextVirtualMemGetInfo)
 
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)

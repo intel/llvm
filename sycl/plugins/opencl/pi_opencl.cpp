@@ -2291,12 +2291,11 @@ pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
 /// \param param_value_size is the size of the result in bytes.
 /// \param param_value is the result.
 /// \param param_value_size_ret is how many bytes were written.
-pi_result piextVirtualMemAccessGetInfo(pi_context context, const void *ptr,
-                                       size_t range_size,
-                                       pi_virtual_mem_access_info param_name,
-                                       size_t param_value_size,
-                                       void *param_value,
-                                       size_t *param_value_size_ret) {
+pi_result piextVirtualMemGetInfo(pi_context context, const void *ptr,
+                                 size_t range_size,
+                                 pi_virtual_mem_info param_name,
+                                 size_t param_value_size, void *param_value,
+                                 size_t *param_value_size_ret) {
   std::ignore = context;
   std::ignore = ptr;
   std::ignore = range_size;
@@ -2568,7 +2567,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextVirtualMemMap, piextVirtualMemMap)
   _PI_CL(piextVirtualMemUnmap, piextVirtualMemUnmap)
   _PI_CL(piextVirtualMemSetAccess, piextVirtualMemSetAccess)
-  _PI_CL(piextVirtualMemAccessGetInfo, piextVirtualMemAccessGetInfo)
+  _PI_CL(piextVirtualMemGetInfo, piextVirtualMemGetInfo)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)

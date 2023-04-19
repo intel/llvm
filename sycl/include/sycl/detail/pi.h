@@ -90,7 +90,7 @@
 // native handles.
 // 12.29 Added piextVirtualMem* functions, and piextPhysicalMem* functions,
 // PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
-// _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_access_info enum and
+// _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
 // pi_virtual_access_flags bit flags.
 
 #define _PI_H_VERSION_MAJOR 12
@@ -561,8 +561,8 @@ typedef enum {
 } _pi_virtual_mem_granularity_info;
 
 typedef enum {
-  PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE = 0x30200,
-} _pi_virtual_mem_access_info;
+  PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE = 0x30200,
+} _pi_virtual_mem_info;
 
 using pi_context_properties = intptr_t;
 
@@ -695,7 +695,7 @@ using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
 using pi_kernel_cache_config = _pi_kernel_cache_config;
 using pi_virtual_mem_granularity_info = _pi_virtual_mem_granularity_info;
-using pi_virtual_mem_access_info = _pi_virtual_mem_access_info;
+using pi_virtual_mem_info = _pi_virtual_mem_info;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -2134,12 +2134,11 @@ pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
 /// \param param_value_size is the size of the result in bytes.
 /// \param param_value is the result.
 /// \param param_value_size_ret is how many bytes were written.
-pi_result piextVirtualMemAccessGetInfo(pi_context context, const void *ptr,
-                                       size_t range_size,
-                                       pi_virtual_mem_access_info param_name,
-                                       size_t param_value_size,
-                                       void *param_value,
-                                       size_t *param_value_size_ret);
+pi_result piextVirtualMemGetInfo(pi_context context, const void *ptr,
+                                 size_t range_size,
+                                 pi_virtual_mem_info param_name,
+                                 size_t param_value_size, void *param_value,
+                                 size_t *param_value_size_ret);
 
 ///
 /// Plugin

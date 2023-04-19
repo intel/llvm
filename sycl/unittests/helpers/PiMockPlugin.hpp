@@ -1190,10 +1190,9 @@ inline pi_result mock_piextVirtualMemSetAccess(pi_context, const void *, size_t,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextVirtualMemAccessGetInfo(pi_context, const void *,
-                                                   size_t,
-                                                   pi_virtual_mem_access_info,
-                                                   size_t, void *, size_t *) {
+inline pi_result mock_piextVirtualMemGetInfo(pi_context, const void *, size_t,
+                                             pi_virtual_mem_info, size_t,
+                                             void *, size_t *) {
   return PI_SUCCESS;
 }
 

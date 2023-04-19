@@ -173,6 +173,6 @@ _PI_API(piextVirtualMemFree)
 _PI_API(piextVirtualMemMap)
 _PI_API(piextVirtualMemUnmap)
 _PI_API(piextVirtualMemSetAccess)
-_PI_API(piextVirtualMemAccessGetInfo)
+_PI_API(piextVirtualMemGetInfo)
 
 #undef _PI_API

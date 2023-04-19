@@ -5626,10 +5626,11 @@ pi_result hip_piextVirtualMemSetAccess(pi_context context, const void *ptr,
   return {};
 }
 
-pi_result hip_piextVirtualMemAccessGetInfo(
-    pi_context context, const void *ptr, size_t range_size,
-    pi_virtual_mem_access_info param_name, size_t param_value_size,
-    void *param_value, size_t *param_value_size_ret) {
+pi_result hip_piextVirtualMemGetInfo(pi_context context, const void *ptr,
+                                     size_t range_size,
+                                     pi_virtual_mem_info param_name,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret) {
   std::ignore = context;
   std::ignore = ptr;
   std::ignore = range_size;
@@ -5638,7 +5639,7 @@ pi_result hip_piextVirtualMemAccessGetInfo(
   std::ignore = param_value;
   std::ignore = param_value_size_ret;
 
-  sycl::detail::pi::die("hip_piextVirtualMemAccessGetInfo not implemented");
+  sycl::detail::pi::die("hip_piextVirtualMemGetInfo not implemented");
   return {};
 }
 
@@ -5842,7 +5843,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextVirtualMemMap, hip_piextVirtualMemMap)
   _PI_CL(piextVirtualMemUnmap, hip_piextVirtualMemUnmap)
   _PI_CL(piextVirtualMemSetAccess, hip_piextVirtualMemSetAccess)
-  _PI_CL(piextVirtualMemAccessGetInfo, hip_piextVirtualMemAccessGetInfo)
+  _PI_CL(piextVirtualMemGetInfo, hip_piextVirtualMemGetInfo)
 
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)

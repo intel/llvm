@@ -8609,16 +8609,16 @@ pi_result piextVirtualMemSetAccess(pi_context Context, const void *Ptr,
 /// \param ParamValueSize is the size of the result in bytes.
 /// \param ParamValue is the result.
 /// \param ParamValueSizeRet is how many bytes were written.
-pi_result piextVirtualMemAccessGetInfo(pi_context Context, const void *Ptr,
-                                       size_t RangeSize,
-                                       pi_virtual_mem_access_info ParamName,
-                                       size_t ParamValueSize, void *ParamValue,
-                                       size_t *ParamValueSizeRet) {
+pi_result piextVirtualMemGetInfo(pi_context Context, const void *Ptr,
+                                 size_t RangeSize,
+                                 pi_virtual_mem_info ParamName,
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
-  case PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE: {
+  case PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE: {
     size_t Size;
     ze_memory_access_attribute_t Access;
     ZE_CALL(zeVirtualMemGetAccessAttribute,
@@ -8631,7 +8631,7 @@ pi_result piextVirtualMemAccessGetInfo(pi_context Context, const void *Ptr,
     return ReturnValue(Access);
   }
   default:
-    urPrint("piextVirtualMemAccessGetInfo: unsupported ParamName\n");
+    urPrint("piextVirtualMemGetInfo: unsupported ParamName\n");
     return PI_ERROR_INVALID_VALUE;
   }
   return PI_SUCCESS;

@@ -130,17 +130,16 @@ get_access_mode(const void *Ptr, size_t NumBytes, const context &SyclContext) {
   const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
 #ifndef NDEBUG
   size_t InfoOutputSize;
-  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemAccessGetInfo>(
+  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGetInfo>(
       ContextImpl->getHandleRef(), Ptr, NumBytes,
-      PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE, 0, nullptr,
-      &InfoOutputSize);
+      PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE, 0, nullptr, &InfoOutputSize);
   assert(InfoOutputSize == sizeof(RT::PiVirtualAccessFlags) &&
          "Unexpected output size of access mode info query.");
 #endif // NDEBUG
   RT::PiVirtualAccessFlags AccessFlags;
-  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemAccessGetInfo>(
+  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGetInfo>(
       ContextImpl->getHandleRef(), Ptr, NumBytes,
-      PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE,
+      PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE,
       sizeof(RT::PiVirtualAccessFlags), &AccessFlags, nullptr);
 
   if (AccessFlags & PI_VIRTUAL_ACCESS_FLAG_RW)

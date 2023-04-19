@@ -2138,9 +2138,9 @@ pi_result piextVirtualMemSetAccess(pi_context, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextVirtualMemAccessGetInfo(pi_context, const void *, size_t,
-                                       pi_virtual_mem_access_info, size_t,
-                                       void *, size_t *) {
+pi_result piextVirtualMemGetInfo(pi_context, const void *, size_t,
+                                 pi_virtual_mem_info, size_t, void *,
+                                 size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
