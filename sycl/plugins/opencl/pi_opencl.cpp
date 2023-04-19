@@ -2165,11 +2165,8 @@ pi_result piextPhysicalMemCreate(pi_context context, pi_device device,
 
 /// API for releasing a physical memory handle.
 ///
-/// \param context is the context within which the physical memory is allocated.
 /// \param physical_mem is the handle for the physical memory to free.
-pi_result piextPhysicalMemRelease(pi_context context,
-                                  pi_physical_mem physical_mem) {
-  std::ignore = context;
+pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem) {
   std::ignore = physical_mem;
 
   // Virtual memory operations are currently not supported by PI OpenCL.

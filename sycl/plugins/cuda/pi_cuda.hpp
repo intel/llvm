@@ -1004,11 +1004,20 @@ struct _pi_physical_mem {
 
   std::atomic_uint32_t refCount_;
   native_type physical_mem_;
+  pi_context context_;
 
-  _pi_physical_mem(native_type physical_mem)
-      : refCount_(1), physical_mem_(physical_mem) {}
+  _pi_physical_mem(native_type physical_mem, pi_context context)
+      : refCount_(1), physical_mem_(physical_mem), context_(context) {
+    cuda_piContextRetain(context_);
+  }
+
+  ~_pi_physical_mem() {
+    cuda_piContextRelease(context_);
+  }
 
   native_type get() const noexcept { return physical_mem_; }
+
+  pi_context get_context() const noexcept { return context_; }
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

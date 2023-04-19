@@ -5561,8 +5561,7 @@ pi_result hip_piextPhysicalMemRetain(pi_physical_mem physical_mem) {
   return {};
 }
 
-pi_result hip_piextPhysicalMemRelease(pi_context context,
-                                      pi_physical_mem physical_mem) {
+pi_result hip_piextPhysicalMemRelease(pi_physical_mem physical_mem) {
   std::ignore = context;
   std::ignore = physical_mem;
 

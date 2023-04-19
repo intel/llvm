@@ -47,8 +47,7 @@ public:
 
   ~physical_mem_impl() {
     const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextPhysicalMemRelease>(MContext->getHandleRef(),
-                                                    MPhysicalMem);
+    Plugin.call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
   }
 
   void map(const void *Ptr, size_t NumBytes, size_t Offset) const {

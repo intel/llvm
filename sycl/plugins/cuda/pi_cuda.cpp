@@ -5786,7 +5786,7 @@ pi_result cuda_piextPhysicalMemCreate(pi_context context, pi_device device,
 
     CUmemGenericAllocationHandle res_handle;
     PI_CHECK_ERROR(cuMemCreate(&res_handle, mem_size, &alloc_props, 0));
-    *ret_physical_mem = new _pi_physical_mem(res_handle);
+    *ret_physical_mem = new _pi_physical_mem(res_handle, context);
   } catch (pi_result error) {
     result = error;
   }
@@ -5800,9 +5800,7 @@ pi_result cuda_piextPhysicalMemRetain(pi_physical_mem physical_mem) {
   return PI_SUCCESS;
 }
 
-pi_result cuda_piextPhysicalMemRelease(pi_context context,
-                                       pi_physical_mem physical_mem) {
-  assert(context != nullptr);
+pi_result cuda_piextPhysicalMemRelease(pi_physical_mem physical_mem) {
   assert(physical_mem != nullptr);
 
   if (physical_mem->decrement_reference_count() > 0)
@@ -5811,7 +5809,7 @@ pi_result cuda_piextPhysicalMemRelease(pi_context context,
   try {
     std::unique_ptr<_pi_physical_mem> physical_mem_up(physical_mem);
 
-    ScopedContext active(context);
+    ScopedContext active(physical_mem->get_context());
     PI_CHECK_ERROR(cuMemRelease(physical_mem->get()));
     return PI_SUCCESS;
   } catch (pi_result err) {

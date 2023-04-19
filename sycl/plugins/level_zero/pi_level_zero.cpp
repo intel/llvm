@@ -8447,7 +8447,7 @@ pi_result piextPhysicalMemCreate(pi_context Context, pi_device Device,
   ZE_CALL(zePhysicalMemCreate, (Context->ZeContext, Device->ZeDevice,
                                 &PhysicalMemDesc, &ZePhysicalMem));
   try {
-    *RetPhysicalMem = new _pi_physical_mem(ZePhysicalMem);
+    *RetPhysicalMem = new _pi_physical_mem(ZePhysicalMem, Context);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -8468,18 +8468,15 @@ pi_result piextPhysicalMemRetain(pi_physical_mem PhysicalMem) {
 
 /// API for releasing a physical memory handle.
 ///
-/// \param Context is the context within which the physical memory is allocated.
 /// \param PhysicalMem is the handle for the physical memory to free.
-pi_result piextPhysicalMemRelease(pi_context Context,
-                                  pi_physical_mem PhysicalMem) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+pi_result piextPhysicalMemRelease(pi_physical_mem PhysicalMem) {
   PI_ASSERT(PhysicalMem, PI_ERROR_INVALID_VALUE);
 
   if (!PhysicalMem->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
   ZE_CALL(zePhysicalMemDestroy,
-          (Context->ZeContext, PhysicalMem->ZePhysicalMem));
+          (PhysicalMem->Context->ZeContext, PhysicalMem->ZePhysicalMem));
   delete PhysicalMem;
 
   return PI_SUCCESS;

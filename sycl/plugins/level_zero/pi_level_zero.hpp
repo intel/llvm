@@ -1371,11 +1371,14 @@ struct _pi_sampler : _pi_object {
 };
 
 struct _pi_physical_mem : _pi_object {
-  _pi_physical_mem(ze_physical_mem_handle_t ZePhysicalMem)
-      : ZePhysicalMem{ZePhysicalMem} {}
+  _pi_physical_mem(ze_physical_mem_handle_t ZePhysicalMem, pi_context Ctx)
+      : ZePhysicalMem{ZePhysicalMem}, Context{Ctx} {}
 
   // Level Zero physical memory handle.
   ze_physical_mem_handle_t ZePhysicalMem;
+  
+  // Keeps the PI context of this memory handle.
+  pi_context Context;
 };
 
 #endif // PI_LEVEL_ZERO_HPP

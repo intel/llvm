@@ -2063,10 +2063,8 @@ pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem);
 
 /// API for releasing a physical memory handle.
 ///
-/// \param context is the context within which the physical memory is allocated.
 /// \param physical_mem is the handle for the physical memory to free.
-pi_result piextPhysicalMemRelease(pi_context context,
-                                  pi_physical_mem physical_mem);
+pi_result piextPhysicalMemRelease(pi_physical_mem physical_mem);
 
 /// API for reserving a virtual memory range.
 ///

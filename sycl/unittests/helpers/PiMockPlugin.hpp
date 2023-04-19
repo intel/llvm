@@ -1159,7 +1159,7 @@ inline pi_result mock_piextPhysicalMemRetain(pi_physical_mem) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextPhysicalMemRelease(pi_context, pi_physical_mem) {
+inline pi_result mock_piextPhysicalMemRelease(pi_physical_mem) {
   return PI_SUCCESS;
 }
 
