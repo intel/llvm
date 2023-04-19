@@ -34,7 +34,9 @@ bool mlir::isLinkonceODR(FunctionOpInterface func) {
 bool mlir::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
-  return isRegionReturnLike(call->getNextNode());
+  Operation *nextOp = call->getNextNode();
+  return (nextOp->hasTrait<OpTrait::IsTerminator>() ||
+          isRegionReturnLike(nextOp));
 }
 
 /// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
