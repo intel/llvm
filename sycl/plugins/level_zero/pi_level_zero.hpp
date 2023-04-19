@@ -1376,7 +1376,7 @@ struct _pi_physical_mem : _pi_object {
 
   // Level Zero physical memory handle.
   ze_physical_mem_handle_t ZePhysicalMem;
-  
+
   // Keeps the PI context of this memory handle.
   pi_context Context;
 };

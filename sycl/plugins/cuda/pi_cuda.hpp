@@ -1011,9 +1011,7 @@ struct _pi_physical_mem {
     cuda_piContextRetain(context_);
   }
 
-  ~_pi_physical_mem() {
-    cuda_piContextRelease(context_);
-  }
+  ~_pi_physical_mem() { cuda_piContextRelease(context_); }
 
   native_type get() const noexcept { return physical_mem_; }
 
