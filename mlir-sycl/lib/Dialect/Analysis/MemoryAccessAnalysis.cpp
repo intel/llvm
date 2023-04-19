@@ -43,13 +43,49 @@ static bool isEqualTo(Value val, int constant, DataFlowSolver &solver) {
 }
 
 /// Determine whether a value is zero.
-bool isZero(Value val, DataFlowSolver &solver) {
+static bool isZero(Value val, DataFlowSolver &solver) {
   return isEqualTo(val, 0, solver);
 }
 
-/// Determine whether a value is one.
-bool isOne(Value val, DataFlowSolver &solver) {
+/// Determine whether a value is 1.
+static bool isOne(Value val, DataFlowSolver &solver) {
   return isEqualTo(val, 1, solver);
+}
+
+/// Determine whether a value is -1.
+static bool isNegativeOne(Value val, DataFlowSolver &solver) {
+  return isEqualTo(val, -1, solver);
+}
+
+/// Determine whether a value is >1.
+static bool isGreaterThanOne(Value val, DataFlowSolver &solver) {
+  Optional<APInt> constValue = getConstIntegerValue(val, solver);
+  return (constValue.has_value() && (*constValue).isStrictlyPositive() &&
+          !(*constValue).isOne());
+}
+
+/// Analyze the given memory access matrix and classify its access pattern.
+static MemoryAccessPattern classify(const MemoryAccessMatrix &matrix,
+                                    const OffsetVector &offsets,
+                                    DataFlowSolver &solver) {
+  const bool isIdentityMatrix = matrix.isIdentity(solver);
+  const bool isZeroVector = offsets.isZero(solver);
+
+  if (isIdentityMatrix && isZeroVector)
+    return MemoryAccessPattern::Linear;
+
+  unsigned lastOffsetIndex = offsets.getNumRows() - 1;
+  Value lastOffset = offsets.at(lastOffsetIndex);
+  if (isIdentityMatrix && offsets.isZeroUpTo(lastOffsetIndex, solver) &&
+      isGreaterThanOne(lastOffset, solver))
+    return MemoryAccessPattern::LinearShifted;
+
+  // TODO reverse linear shifted.
+
+  if (matrix.isLowerTriangularUnit(solver) && isZeroVector)
+    return MemoryAccessPattern::LinearOverlapped;
+
+  return MemoryAccessPattern::Unkown;
 }
 
 //===----------------------------------------------------------------------===//
@@ -198,6 +234,27 @@ bool MemoryAccessMatrix::isLowerTriangular(DataFlowSolver &solver) const {
   return true;
 }
 
+bool MemoryAccessMatrix::isLowerTriangularUnit(DataFlowSolver &solver) const {
+  if (!isSquare())
+    return false;
+
+  for (unsigned row = 0; row < nRows; ++row)
+    for (unsigned col = 0; col < nColumns; ++col) {
+      Value val = at(row, col);
+      bool isAboveDiagonal = (col > row);
+
+      // All values above the diagonal must be zero.
+      if (isAboveDiagonal && !::isZero(val, solver))
+        return false;
+
+      // All values on or below the diagonal must one.
+      if (!isAboveDiagonal && ::isOne(val, solver))
+        return false;
+    }
+
+  return true;
+}
+
 bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
   if (!isSquare())
     return false;
@@ -219,6 +276,27 @@ bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
   return true;
 }
 
+bool MemoryAccessMatrix::isUpperTriangularUnit(DataFlowSolver &solver) const {
+  if (!isSquare())
+    return false;
+
+  for (unsigned row = 0; row < nRows; ++row)
+    for (unsigned col = 0; col < nColumns; ++col) {
+      Value val = at(row, col);
+      bool isBelowDiagonal = (col < row);
+
+      // All values below the diagonal must be zero.
+      if (isBelowDiagonal && !::isZero(val, solver))
+        return false;
+
+      // All values on or above the diagonal must be non-zero.
+      if (!isBelowDiagonal && ::isOne(val, solver))
+        return false;
+    }
+
+  return true;
+}
+
 bool MemoryAccessMatrix::isIdentity(DataFlowSolver &solver) const {
   if (!isDiagonal(solver))
     return false;
@@ -227,6 +305,22 @@ bool MemoryAccessMatrix::isIdentity(DataFlowSolver &solver) const {
   for (unsigned pos = 0; pos < nRows; ++pos) {
     Value val = at(pos, pos);
     if (!isOne(val, solver))
+      return false;
+  }
+  return true;
+}
+
+bool MemoryAccessMatrix::isIdentityUpTo(unsigned row,
+                                        DataFlowSolver &solver) const {
+  if (!isDiagonal(solver))
+    return false;
+
+  for (unsigned pos = 0; pos < nRows; ++pos) {
+    Value val = at(pos, pos);
+    bool isBeforeRow = (pos < row);
+    if (isBeforeRow && !isOne(val, solver))
+      return false;
+    if (!isBeforeRow && !isGreaterThanOne(val, solver))
       return false;
   }
   return true;
@@ -281,6 +375,19 @@ bool OffsetVector::isZero(DataFlowSolver &solver) const {
                       [&](Value offset) { return ::isZero(offset, solver); });
 }
 
+bool OffsetVector::isZeroUpTo(unsigned row, DataFlowSolver &solver) const {
+  assert(row < nRows && "out of bounds");
+  for (unsigned pos = 0; pos < nRows; ++pos) {
+    Value val = at(pos);
+    bool isBeforeRow = (pos < row);
+    if (isBeforeRow && !::isZero(val, solver))
+      return false;
+    if (!isBeforeRow && ::isZero(val, solver))
+      return false;
+  }
+  return true;
+}
+
 Optional<APInt>
 OffsetVector::getConstIntegerValue(unsigned row, DataFlowSolver &solver) const {
   Value val = at(row);
@@ -300,11 +407,4 @@ MemoryAccess<OpTy>::MemoryAccess(const OpTy &accessOp,
   static_assert(std::is_same<AffineLoadOp, OpTy>::value ||
                     std::is_same<AffineStoreOp, OpTy>::value,
                 "Expecting an affine load or store operation");
-}
-
-template <typename OpTy>
-MemoryAccessPattern MemoryAccess<OpTy>::classify() const {
-  // A linear access has an identity access matrix.
-
-  return MemoryAccessPattern::Unkown;
 }

@@ -199,11 +199,23 @@ public:
   /// Returns true if all non-zero entries are below the diagonal.
   bool isLowerTriangular(DataFlowSolver &solver) const;
 
+  /// Returns true if this is a lower triangular matrix with all non-zero
+  /// entries having unit value.
+  bool isLowerTriangularUnit(DataFlowSolver &solver) const;
+
   /// Returns true if all non-zero entries are above the diagonal.
   bool isUpperTriangular(DataFlowSolver &solver) const;
 
+  /// Returns true if this is an upper triangular matrix with all non-zero
+  /// entries having unit value.
+  bool isUpperTriangularUnit(DataFlowSolver &solver) const;
+
   /// Returns true if the matrix is the unit matrix.
   bool isIdentity(DataFlowSolver &solver) const;
+
+  /// Returns true if the matrix is diagonal with unit values up to the
+  /// specified \p row.
+  bool isIdentityUpTo(unsigned row, DataFlowSolver &solver) const;
 
   /// Returns true if the matrix is the filled with zero values.
   bool isZero(DataFlowSolver &solver) const;
@@ -282,6 +294,9 @@ public:
 
   /// Returns true if the vector contains all zeros.
   bool isZero(DataFlowSolver &solver) const;
+
+  /// Returns true if the matrix is the filled with zero up to \p row.
+  bool isZeroUpTo(unsigned row, DataFlowSolver &solver) const;
 
 private:
   /// Determine whether the value at \p row is a constant integer value.
