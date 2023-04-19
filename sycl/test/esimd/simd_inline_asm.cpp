@@ -24,7 +24,4 @@ void test_error() SYCL_ESIMD_FUNCTION {
   __asm__("%0" : "=rw"(mask.data()));
 
   __asm__("%0" : "=rw"(mask.data_ref()));
-
-  s.commit();
-  mask.commit();
 }
