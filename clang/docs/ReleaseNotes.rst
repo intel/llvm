@@ -103,6 +103,8 @@ C++2b Feature Support
 
 Resolutions to C++ Defect Reports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- Implemented `DR2397 <https://wg21.link/CWG2397>`_ which allows ``auto`` specifier for pointers
+  and reference to arrays.
 
 C Language Changes
 ------------------
@@ -216,6 +218,9 @@ Improvements to Clang's diagnostics
 - Clang now avoids unnecessary diagnostic warnings for obvious expressions in
   the case of binary operators with logical OR operations.
   (`#57906 <https://github.com/llvm/llvm-project/issues/57906>`_)
+- Clang's "static assertion failed" diagnostic now points to the static assertion
+  expression instead of pointing to the ``static_assert`` token.
+  (`#61951 <https://github.com/llvm/llvm-project/issues/61951>`_)
 
 Bug Fixes in This Version
 -------------------------
@@ -290,6 +295,12 @@ Bug Fixes in This Version
   (`#61142 <https://github.com/llvm/llvm-project/issues/61142>`_)
 - Clang now better diagnose placeholder types constrained with a concept that is
   not a type concept.
+- Fix crash when a doc comment contains a line splicing.
+  (`#62054 <https://github.com/llvm/llvm-project/issues/62054>`_)
+- Work around with a clang coverage crash which happens when visiting 
+  expressions/statements with invalid source locations in non-assert builds. 
+  Assert builds may still see assertions triggered from this.
+  (`#62105 <https://github.com/llvm/llvm-project/issues/62105>`_)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
