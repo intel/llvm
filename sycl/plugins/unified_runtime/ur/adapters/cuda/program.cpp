@@ -113,8 +113,9 @@ ur_result_t ur_program_handle_t_::set_binary(const char *source,
 }
 
 ur_result_t ur_program_handle_t_::build_program(const char *build_options) {
-
-  this->buildOptions_ = build_options;
+  if (build_options) {
+    this->buildOptions_ = build_options;
+  }
 
   constexpr const unsigned int numberOfOptions = 4u;
 
