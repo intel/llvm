@@ -521,14 +521,7 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
 fract(T x, T2 iptr) __NOEXC {
   detail::check_vector_size<T, T2>();
-  // workaround to support multi_ptr without decoration
-  if constexpr (!iptr.is_decorated) {
-    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
-              access::decorated::yes>
-        iptr_decorated = iptr;
-    return __sycl_std::__invoke_fract<T>(x, iptr_decorated);
-  } else
-    return __sycl_std::__invoke_fract<T>(x, iptr);
+  return __sycl_std::__invoke_fract<T>(x, iptr);
 }
 
 // svgenfloat frexp (svgenfloat x, genintptr exp)
@@ -537,14 +530,7 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
 frexp(T x, T2 exp) __NOEXC {
   detail::check_vector_size<T, T2>();
-  // workaround to support multi_ptr without decoration
-  if constexpr (!exp.is_decorated) {
-    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
-              access::decorated::yes>
-        exp_decorated = exp;
-    return __sycl_std::__invoke_frexp<T>(x, exp_decorated);
-  } else
-    return __sycl_std::__invoke_frexp<T>(x, exp);
+  return __sycl_std::__invoke_frexp<T>(x, exp);
 }
 
 // svgenfloat hypot (svgenfloat x, svgenfloat y)
@@ -598,14 +584,7 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
 lgamma_r(T x, T2 signp) __NOEXC {
   detail::check_vector_size<T, T2>();
-  // workaround to support multi_ptr without decoration
-  if constexpr (!signp.is_decorated) {
-    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
-              access::decorated::yes>
-        signp_decorated = signp;
-    return __sycl_std::__invoke_lgamma_r<T>(x, signp_decorated);
-  } else
-    return __sycl_std::__invoke_lgamma_r<T>(x, signp);
+  return __sycl_std::__invoke_lgamma_r<T>(x, signp);
 }
 
 // svgenfloat log (svgenfloat x)
@@ -665,14 +644,7 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
 modf(T x, T2 iptr) __NOEXC {
   detail::check_vector_size<T, T2>();
-  // workaround to support multi_ptr without decoration
-  if constexpr (!iptr.is_decorated) {
-    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
-              access::decorated::yes>
-        iptr_decorated = iptr;
-    return __sycl_std::__invoke_modf<T>(x, iptr_decorated);
-  } else
-    return __sycl_std::__invoke_modf<T>(x, iptr);
+  return __sycl_std::__invoke_modf<T>(x, iptr);
 }
 
 template <typename T,
@@ -723,14 +695,7 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
 remquo(T x, T y, T2 quo) __NOEXC {
   detail::check_vector_size<T, T2>();
-  // workaround to support multi_ptr without decoration
-  if constexpr (!quo.is_decorated) {
-    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
-              access::decorated::yes>
-        quo_decorated = quo;
-    return __sycl_std::__invoke_remquo<T>(x, y, quo_decorated);
-  } else
-    return __sycl_std::__invoke_remquo<T>(x, y, quo);
+  return __sycl_std::__invoke_remquo<T>(x, y, quo);
 }
 
 // svgenfloat rint (svgenfloat x)
@@ -772,14 +737,7 @@ detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
 sincos(T x, T2 cosval) __NOEXC {
   detail::check_vector_size<T, T2>();
-  // workaround to support multi_ptr without decoration
-  if constexpr (!cosval.is_decorated) {
-    multi_ptr<typename detail::remove_pointer_t<T2>, T2::address_space,
-              access::decorated::yes>
-        cosval_decorated = cosval;
-    return __sycl_std::__invoke_sincos<T>(x, cosval_decorated);
-  } else
-    return __sycl_std::__invoke_sincos<T>(x, cosval);
+  return __sycl_std::__invoke_sincos<T>(x, cosval);
 }
 
 // svgenfloat sinh (svgenfloat x)
@@ -2224,7 +2182,6 @@ any(marray<T, N> x) __NOEXC {
 template <typename T, size_t N>
 detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
 all(marray<T, N> x) __NOEXC {
-  detail::anyall_ret_t res = true;
   for (int i = 0; i < N; i++)
     if (!all(x[i]))
       return false;

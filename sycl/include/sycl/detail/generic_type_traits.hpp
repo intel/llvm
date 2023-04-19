@@ -380,15 +380,49 @@ public:
   using type = decltype(check(T()));
 };
 
+// IsNonLegacyMultiPtr
+template <typename T> struct IsNonLegacyMultiPtr {
+  static constexpr bool value = false;
+};
+
+template <typename ElementType, access::address_space Space>
+struct IsNonLegacyMultiPtr<
+    multi_ptr<ElementType, Space, access::decorated::yes>> {
+  static constexpr bool value = true;
+};
+
+template <typename ElementType, access::address_space Space>
+struct IsNonLegacyMultiPtr<
+    multi_ptr<ElementType, Space, access::decorated::no>> {
+  static constexpr bool value = true;
+};
+
+// IsLegacyMultiPtr
+template <typename T> struct IsLegacyMultiPtr {
+  static constexpr bool value = false;
+};
+
+template <typename ElementType, access::address_space Space>
+struct IsLegacyMultiPtr<
+    multi_ptr<ElementType, Space, access::decorated::legacy>> {
+  static constexpr bool value = true;
+};
+
 template <typename To> struct PointerConverter {
   template <typename From> static To Convert(From *t) {
     return reinterpret_cast<To>(t);
   }
 
   template <typename From> static To Convert(From &t) {
-    // TODO find the better way to get the pointer to underlying data from vec
-    // class
-    return reinterpret_cast<To>(t.get());
+    if constexpr (IsNonLegacyMultiPtr<From>::value) {
+      return detail::cast_AS<To>(t.get_decorated());
+    } else if constexpr (IsLegacyMultiPtr<From>::value) {
+      return detail::cast_AS<To>(t.get());
+    } else {
+      // TODO find the better way to get the pointer to underlying data from vec
+      // class
+      return reinterpret_cast<To>(t.get());
+    }
   }
 };
 
