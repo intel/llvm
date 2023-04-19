@@ -34,6 +34,15 @@ struct provider_base {
     enum uma_result_t get_last_result(const char **) noexcept {
         return UMA_RESULT_ERROR_UNKNOWN;
     }
+    enum uma_result_t get_min_page_size(void *ptr, size_t *pageSize) noexcept {
+        return UMA_RESULT_ERROR_UNKNOWN;
+    }
+    enum uma_result_t purge_lazy(void *ptr, size_t size) noexcept {
+        return UMA_RESULT_ERROR_UNKNOWN;
+    }
+    enum uma_result_t purge_force(void *ptr, size_t size) noexcept {
+        return UMA_RESULT_ERROR_UNKNOWN;
+    }
 };
 
 struct provider_malloc : public provider_base {

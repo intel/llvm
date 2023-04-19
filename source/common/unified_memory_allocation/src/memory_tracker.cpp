@@ -168,6 +168,27 @@ static enum uma_result_t trackingGetLastResult(void *provider,
     return umaMemoryProviderGetLastResult(p->hUpstream, msg);
 }
 
+static enum uma_result_t trackingGetMinPageSize(void *provider, void *ptr,
+                                                size_t *pageSize) {
+    uma_tracking_memory_provider_t *p =
+        (uma_tracking_memory_provider_t *)provider;
+    return umaMemoryProviderGetMinPageSize(p->hUpstream, ptr, pageSize);
+}
+
+static enum uma_result_t trackingPurgeLazy(void *provider, void *ptr,
+                                           size_t size) {
+    uma_tracking_memory_provider_t *p =
+        (uma_tracking_memory_provider_t *)provider;
+    return umaMemoryProviderPurgeLazy(p->hUpstream, ptr, size);
+}
+
+static enum uma_result_t trackingPurgeForce(void *provider, void *ptr,
+                                            size_t size) {
+    uma_tracking_memory_provider_t *p =
+        (uma_tracking_memory_provider_t *)provider;
+    return umaMemoryProviderPurgeForce(p->hUpstream, ptr, size);
+}
+
 enum uma_result_t umaTrackingMemoryProviderCreate(
     uma_memory_provider_handle_t hUpstream, uma_memory_pool_handle_t hPool,
     uma_memory_provider_handle_t *hTrackingProvider) {
@@ -183,6 +204,9 @@ enum uma_result_t umaTrackingMemoryProviderCreate(
     trackingMemoryProviderOps.alloc = trackingAlloc;
     trackingMemoryProviderOps.free = trackingFree;
     trackingMemoryProviderOps.get_last_result = trackingGetLastResult;
+    trackingMemoryProviderOps.get_min_page_size = trackingGetMinPageSize;
+    trackingMemoryProviderOps.purge_force = trackingPurgeForce;
+    trackingMemoryProviderOps.purge_lazy = trackingPurgeLazy;
 
     return umaMemoryProviderCreate(&trackingMemoryProviderOps, &params,
                                    hTrackingProvider);
