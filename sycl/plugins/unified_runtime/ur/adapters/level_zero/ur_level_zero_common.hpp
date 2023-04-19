@@ -18,6 +18,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include "ur/usm_allocator_config.hpp"
 #include "ur_level_zero_context.hpp"
 #include "ur_level_zero_device.hpp"
 #include "ur_level_zero_event.hpp"
@@ -28,10 +29,19 @@
 #include "ur_level_zero_queue.hpp"
 #include "ur_level_zero_sampler.hpp"
 
+struct _ur_platform_handle_t;
+
 template <class To, class From> To ur_cast(From Value) {
   // TODO: see if more sanity checks are possible.
   assert(sizeof(From) == sizeof(To));
   return (To)(Value);
+}
+
+template <> uint32_t inline ur_cast(uint64_t Value) {
+  // Cast value and check that we don't lose any information.
+  uint32_t CastedValue = (uint32_t)(Value);
+  assert((uint64_t)CastedValue == Value);
+  return CastedValue;
 }
 
 static auto getUrResultString = [](ur_result_t Result) {
@@ -302,3 +312,69 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
 // Perform traced call to L0 without checking for errors
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
+
+// Record for a memory allocation. This structure is used to keep information
+// for each memory allocation.
+struct MemAllocRecord : _ur_object {
+  MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
+      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
+  // Currently kernel can reference memory allocations from different contexts
+  // and we need to know the context of a memory allocation when we release it
+  // in piKernelRelease.
+  // TODO: this should go away when memory isolation issue is fixed in the Level
+  // Zero runtime.
+  pi_context Context;
+
+  // Indicates if we own the native memory handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeMemHandle;
+};
+
+extern usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+extern const bool UseUSMAllocator;
+
+// Controls support of the indirect access kernels and deferred memory release.
+const bool IndirectAccessTrackingEnabled = [] {
+  return std::getenv("SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY") !=
+         nullptr;
+}();
+
+const bool ExposeCSliceInAffinityPartitioning = [] {
+  const char *Flag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  return Flag ? std::atoi(Flag) != 0 : false;
+}();
+
+// TODO: make it into a ur_device_handle_t class member
+const std::pair<int, int>
+getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device);
+
+class ZeUSMImportExtension {
+  // Pointers to functions that import/release host memory into USM
+  ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
+                                                void *, size_t) = nullptr;
+  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
+                                                 void *) = nullptr;
+
+public:
+  // Whether user has requested Import/Release, and platform supports it.
+  bool Enabled;
+
+  ZeUSMImportExtension() : Enabled{false} {}
+
+  void setZeUSMImport(_ur_platform_handle_t *Platform);
+  void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
+                     size_t Size);
+  void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
+};
+
+// Helper wrapper for working with USM import extension in Level Zero.
+extern ZeUSMImportExtension ZeUSMImport;
+
+// This will count the calls to Level-Zero
+extern std::map<const char *, int> *ZeCallCount;
+
+// Some opencl extensions we know are supported by all Level Zero devices.
+constexpr char ZE_SUPPORTED_EXTENSIONS[] =
+    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
+    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
