@@ -23,6 +23,7 @@ namespace mlir {
 
 class AffineLoadOp;
 class AffineStoreOp;
+class DataFlowSolver;
 
 namespace sycl {
 
@@ -185,6 +186,34 @@ public:
   MemoryAccessMatrix getSubMatrix(std::set<unsigned> rows,
                                   std::set<unsigned> columns) const;
 
+  //===----------------------------------------------------------------------===//
+  // Queries
+  //===----------------------------------------------------------------------===//
+
+  /// Returns true if the matrix has equal number of rows and columns.
+  bool isSquare() const;
+
+  /// Returns true if the only non-zero entries are on the diagonal.
+  bool isDiagonal(DataFlowSolver &solver) const;
+
+  /// Returns true if all non-zero entries are below the diagonal.
+  bool isLowerTriangular(DataFlowSolver &solver) const;
+
+  /// Returns true if all non-zero entries are above the diagonal.
+  bool isUpperTriangular(DataFlowSolver &solver) const;
+
+  /// Returns true if the matrix is the unit matrix.
+  bool isIdentity(DataFlowSolver &solver) const;
+
+  /// Returns true if the matrix is the filled with zero values.
+  bool isZero(DataFlowSolver &solver) const;
+
+private:
+  /// Determine whether the value at \p row and \p column is a constant integer
+  /// value.
+  Optional<APInt> getConstIntegerValue(unsigned row, unsigned column,
+                                       DataFlowSolver &solver) const;
+
 private:
   unsigned nRows, nColumns;
   SmallVector<Value> data;
@@ -246,6 +275,18 @@ public:
   /// Add an extra element at the bottom of the offset vector and set it to the
   /// given \p offset value.
   unsigned append(Value offset);
+
+  //===----------------------------------------------------------------------===//
+  // Queries
+  //===----------------------------------------------------------------------===//
+
+  /// Returns true if the vector contains all zeros.
+  bool isZero(DataFlowSolver &solver) const;
+
+private:
+  /// Determine whether the value at \p row is a constant integer value.
+  Optional<APInt> getConstIntegerValue(unsigned row,
+                                       DataFlowSolver &solver) const;
 
 private:
   unsigned nRows;

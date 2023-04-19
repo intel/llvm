@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <utility>
-
 #include "mlir/Dialect/SYCL/Analysis/MemoryAccessAnalysis.h"
+#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
+#include <utility>
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -20,6 +21,36 @@ using namespace mlir::sycl;
 //===----------------------------------------------------------------------===//
 // Helper Functions
 //===----------------------------------------------------------------------===//
+
+/// Determine whether a value is an known integer value.
+static Optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+  if (!isa<IntegerType>(val.getType()))
+    return std::nullopt;
+
+  auto *inferredRange =
+      solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
+  if (!inferredRange || inferredRange->getValue().isUninitialized())
+    return std::nullopt;
+
+  const ConstantIntRanges &range = inferredRange->getValue().getValue();
+  return range.getConstantValue();
+}
+
+/// Determine whether a value is equal to a given integer constant.
+static bool isEqualTo(Value val, int constant, DataFlowSolver &solver) {
+  Optional<APInt> constValue = getConstIntegerValue(val, solver);
+  return (constValue.has_value() && *constValue == constant);
+}
+
+/// Determine whether a value is zero.
+bool isZero(Value val, DataFlowSolver &solver) {
+  return isEqualTo(val, 0, solver);
+}
+
+/// Determine whether a value is one.
+bool isOne(Value val, DataFlowSolver &solver) {
+  return isEqualTo(val, 1, solver);
+}
 
 //===----------------------------------------------------------------------===//
 // MemoryAccessMatrix
@@ -124,6 +155,95 @@ MemoryAccessMatrix::getSubMatrix(std::set<unsigned> rows,
   return getRows(std::move(rows)).getColumns(std::move(columns));
 }
 
+bool MemoryAccessMatrix::isSquare() const { return (nRows == nColumns); }
+
+bool MemoryAccessMatrix::isDiagonal(DataFlowSolver &solver) const {
+  if (!isSquare())
+    return false;
+
+  for (unsigned row = 0; row < nRows; ++row)
+    for (unsigned col = 0; col < nColumns; ++col) {
+      Value val = at(row, col);
+      bool isOnDiagonal = (row == col);
+
+      // All values on the diagonal must be non-zero.
+      if (isOnDiagonal && ::isZero(val, solver))
+        return false;
+      // All values not on the diagonal must be zero.
+      if (!isOnDiagonal && !::isZero(val, solver))
+        return false;
+    }
+
+  return true;
+}
+
+bool MemoryAccessMatrix::isLowerTriangular(DataFlowSolver &solver) const {
+  if (!isSquare())
+    return false;
+
+  for (unsigned row = 0; row < nRows; ++row)
+    for (unsigned col = 0; col < nColumns; ++col) {
+      Value val = at(row, col);
+      bool isAboveDiagonal = (col > row);
+
+      // All values above the diagonal must be zero.
+      if (isAboveDiagonal && !::isZero(val, solver))
+        return false;
+
+      // All values on or below the diagonal must be non-zero.
+      if (!isAboveDiagonal && ::isZero(val, solver))
+        return false;
+    }
+
+  return true;
+}
+
+bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
+  if (!isSquare())
+    return false;
+
+  for (unsigned row = 0; row < nRows; ++row)
+    for (unsigned col = 0; col < nColumns; ++col) {
+      Value val = at(row, col);
+      bool isBelowDiagonal = (col < row);
+
+      // All values below the diagonal must be zero.
+      if (isBelowDiagonal && !::isZero(val, solver))
+        return false;
+
+      // All values on or above the diagonal must be non-zero.
+      if (!isBelowDiagonal && ::isZero(val, solver))
+        return false;
+    }
+
+  return true;
+}
+
+bool MemoryAccessMatrix::isIdentity(DataFlowSolver &solver) const {
+  if (!isDiagonal(solver))
+    return false;
+
+  // Determine whether all values on the diagonal are equal to one.
+  for (unsigned pos = 0; pos < nRows; ++pos) {
+    Value val = at(pos, pos);
+    if (!isOne(val, solver))
+      return false;
+  }
+  return true;
+}
+
+bool MemoryAccessMatrix::isZero(DataFlowSolver &solver) const {
+  return (llvm::all_of(data,
+                       [&solver](Value val) { return ::isZero(val, solver); }));
+}
+
+Optional<APInt>
+MemoryAccessMatrix::getConstIntegerValue(unsigned row, unsigned column,
+                                         DataFlowSolver &solver) const {
+  Value val = at(row, column);
+  return ::getConstIntegerValue(val, solver);
+}
+
 //===----------------------------------------------------------------------===//
 // OffsetVector
 //===----------------------------------------------------------------------===//
@@ -154,6 +274,17 @@ unsigned OffsetVector::append(Value offset) {
   unsigned lastRow = nRows - 1;
   setOffset(lastRow, offset);
   return lastRow;
+}
+
+bool OffsetVector::isZero(DataFlowSolver &solver) const {
+  return llvm::all_of(offsets,
+                      [&](Value offset) { return ::isZero(offset, solver); });
+}
+
+Optional<APInt>
+OffsetVector::getConstIntegerValue(unsigned row, DataFlowSolver &solver) const {
+  Value val = at(row);
+  return ::getConstIntegerValue(val, solver);
 }
 
 //===----------------------------------------------------------------------===//
