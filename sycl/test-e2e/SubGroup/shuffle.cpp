@@ -38,7 +38,15 @@ int main() {
   check<long, 8>(Queue);
   check<long, 16>(Queue);
   check<unsigned long>(Queue);
+  check<unsigned long, 2>(Queue);
+  check<unsigned long, 4>(Queue);
+  check<unsigned long, 8>(Queue);
+  check<unsigned long, 16>(Queue);
   check<float>(Queue);
+  check<float, 2>(Queue);
+  check<float, 4>(Queue);
+  check<float, 8>(Queue);
+  check<float, 16>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }
