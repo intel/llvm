@@ -35,6 +35,22 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
     ASSERT_EQ(calls["get_last_result"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
+
+    ret = umaMemoryProviderGetMinPageSize(tracingProvider.get(), nullptr,
+                                          nullptr);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(calls["get_min_page_size"], 1);
+    ASSERT_EQ(calls.size(), ++call_count);
+
+    ret = umaMemoryProviderPurgeLazy(tracingProvider.get(), nullptr, 0);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(calls["purge_lazy"], 1);
+    ASSERT_EQ(calls.size(), ++call_count);
+
+    ret = umaMemoryProviderPurgeForce(tracingProvider.get(), nullptr, 0);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(calls["purge_force"], 1);
+    ASSERT_EQ(calls.size(), ++call_count);
 }
 
 //////////////////////////// Negative test cases

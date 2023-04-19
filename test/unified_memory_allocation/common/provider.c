@@ -38,14 +38,41 @@ static enum uma_result_t nullGetLastResult(void *provider, const char **ppMsg) {
     return UMA_RESULT_SUCCESS;
 }
 
+static enum uma_result_t nullGetPageSize(void *provider, void *ptr,
+
+                                         size_t *pageSize) {
+    (void)provider;
+    (void)ptr;
+    (void)pageSize;
+    return UMA_RESULT_SUCCESS;
+}
+
+static enum uma_result_t nullPurgeLazy(void *provider, void *ptr, size_t size) {
+    (void)provider;
+    (void)ptr;
+    (void)size;
+    return UMA_RESULT_SUCCESS;
+}
+
+static enum uma_result_t nullPurgeForce(void *provider, void *ptr,
+                                        size_t size) {
+    (void)provider;
+    (void)ptr;
+    (void)size;
+    return UMA_RESULT_SUCCESS;
+}
+
 uma_memory_provider_handle_t nullProviderCreate(void) {
-    struct uma_memory_provider_ops_t ops = {.version = UMA_VERSION_CURRENT,
-                                            .initialize = nullInitialize,
-                                            .finalize = nullFinalize,
-                                            .alloc = nullAlloc,
-                                            .free = nullFree,
-                                            .get_last_result =
-                                                nullGetLastResult};
+    struct uma_memory_provider_ops_t ops = {
+        .version = UMA_VERSION_CURRENT,
+        .initialize = nullInitialize,
+        .finalize = nullFinalize,
+        .alloc = nullAlloc,
+        .free = nullFree,
+        .get_last_result = nullGetLastResult,
+        .get_min_page_size = nullGetPageSize,
+        .purge_lazy = nullPurgeLazy,
+        .purge_force = nullPurgeForce};
 
     uma_memory_provider_handle_t hProvider;
     enum uma_result_t ret = umaMemoryProviderCreate(&ops, NULL, &hProvider);
@@ -96,16 +123,47 @@ static enum uma_result_t traceGetLastResult(void *provider,
                                           ppMsg);
 }
 
+static enum uma_result_t traceGetPageSize(void *provider, void *ptr,
+
+                                          size_t *pageSize) {
+    struct traceParams *traceProvider = (struct traceParams *)provider;
+
+    traceProvider->trace("get_min_page_size");
+    return umaMemoryProviderGetMinPageSize(traceProvider->hUpstreamProvider,
+                                           ptr, pageSize);
+}
+
+static enum uma_result_t tracePurgeLazy(void *provider, void *ptr,
+                                        size_t size) {
+    struct traceParams *traceProvider = (struct traceParams *)provider;
+
+    traceProvider->trace("purge_lazy");
+    return umaMemoryProviderPurgeLazy(traceProvider->hUpstreamProvider, ptr,
+                                      size);
+}
+
+static enum uma_result_t tracePurgeForce(void *provider, void *ptr,
+                                         size_t size) {
+    struct traceParams *traceProvider = (struct traceParams *)provider;
+
+    traceProvider->trace("purge_force");
+    return umaMemoryProviderPurgeForce(traceProvider->hUpstreamProvider, ptr,
+                                       size);
+}
+
 uma_memory_provider_handle_t
 traceProviderCreate(uma_memory_provider_handle_t hUpstreamProvider,
                     void (*trace)(const char *)) {
-    struct uma_memory_provider_ops_t ops = {.version = UMA_VERSION_CURRENT,
-                                            .initialize = traceInitialize,
-                                            .finalize = traceFinalize,
-                                            .alloc = traceAlloc,
-                                            .free = traceFree,
-                                            .get_last_result =
-                                                traceGetLastResult};
+    struct uma_memory_provider_ops_t ops = {
+        .version = UMA_VERSION_CURRENT,
+        .initialize = traceInitialize,
+        .finalize = traceFinalize,
+        .alloc = traceAlloc,
+        .free = traceFree,
+        .get_last_result = traceGetLastResult,
+        .get_min_page_size = traceGetPageSize,
+        .purge_lazy = tracePurgeLazy,
+        .purge_force = tracePurgeForce};
 
     struct traceParams params = {.hUpstreamProvider = hUpstreamProvider,
                                  .trace = trace};

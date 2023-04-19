@@ -42,6 +42,10 @@ struct uma_memory_provider_ops_t {
     enum uma_result_t (*free)(void *provider, void *ptr, size_t size);
     enum uma_result_t (*get_last_result)(void *provider,
                                          const char **ppMessage);
+    enum uma_result_t (*get_min_page_size)(void *provider, void *ptr,
+                                           size_t *pageSize);
+    enum uma_result_t (*purge_lazy)(void *provider, void *ptr, size_t size);
+    enum uma_result_t (*purge_force)(void *provider, void *ptr, size_t size);
 };
 
 #ifdef __cplusplus
