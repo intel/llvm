@@ -16,8 +16,14 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/raw_ostream.h"
+#include <set>
 
 namespace mlir {
+
+class AffineLoadOp;
+class AffineStoreOp;
+
 namespace sycl {
 
 /// Classify array access patterns.
@@ -98,19 +104,27 @@ enum MemoryAccessPattern {
   Random = 1 << 8
 };
 
-/// A matrix describing an array access pattern. The array access function must
-/// be 'affine' (a linear combination of the enclosing loop induction
-/// variables).
+/// A matrix describing an array access pattern.
+/// The matrix has size [nRows x nColumns] where nRows is equal to the number of
+/// array dimensions and nColumns is equal to the number of loops enclosing the
+/// array access.
+/// Each column represents the memory access pattern of the corresponding loop
+/// level (the outermost loop maps to the leftmost column in the matrix).
+/// Each row represents the memory access pattern of the corresponding array
+/// dimension (the leftmost dimension maps to first row in the matrix).
+/// Note: The array access function is expected to be a linear combination of
+/// the enclosing loop induction variables.
 class MemoryAccessMatrix {
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
-                                       const MemoryAccessMatrix &);
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
 
 public:
   MemoryAccessMatrix() = delete;
+  MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
 
+  /// Construct a matrix with the specified number of rows and columns.
   MemoryAccessMatrix(unsigned nRows, unsigned nColumns);
 
-  /// Access the element at the specified row and column.
+  /// Access the element at the specified \p row and \p column.
   Value &at(unsigned row, unsigned column) {
     assert(row < nRows && "Row outside of range");
     assert(column < nColumns && "Column outside of range");
@@ -124,53 +138,173 @@ public:
   }
 
   Value &operator()(unsigned row, unsigned column) { return at(row, column); }
-
   Value operator()(unsigned row, unsigned column) const {
     return at(row, column);
   }
+
+  /// Swap \p column with \p otherColumn.
+  void swapColumns(unsigned column, unsigned otherColumn);
+
+  /// Swap \p row with \p otherRow.
+  void swapRows(unsigned row, unsigned otherRow);
 
   unsigned getNumRows() const { return nRows; }
 
   unsigned getNumColumns() const { return nColumns; }
 
-  /// Get a [Mutable]ArrayRef corresponding to the specified row.
-  MutableArrayRef<Value> getRow(unsigned row);
-  ArrayRef<Value> getRow(unsigned row) const;
+  /// Get a copy of the specified \p row.
+  SmallVector<Value> getRow(unsigned row) const;
 
-  /// Set the specified row to `elems`.
+  /// Set the specified \p row to \p elems.
   void setRow(unsigned row, ArrayRef<Value> elems);
+
+  /// Fill \p row with the given \p value.
+  void fillRow(unsigned row, Value value);
+
+  /// Add an extra row at the bottom of the matrix.
+  unsigned appendRow();
+
+  /// Add an extra row at the bottom of the matrix and copy the given elements
+  /// \p elems into the new row.
+  unsigned appendRow(ArrayRef<Value> elems);
+
+  /// Get a copy of the specified \p column.
+  SmallVector<Value> getColumn(unsigned column) const;
+
+  /// Set the specified \p column to \p elems.
+  void setColumn(unsigned col, ArrayRef<Value> elems);
+
+  /// Construct a new matrix containing the specified \p rows.
+  MemoryAccessMatrix getRows(std::set<unsigned> rows) const;
+
+  /// Construct a new matrix containing the specified \p columns.
+  MemoryAccessMatrix getColumns(std::set<unsigned> columns) const;
+
+  /// Construct a new matrix containing the sub-matrix specified by \p rows and
+  /// \p columns.
+  MemoryAccessMatrix getSubMatrix(std::set<unsigned> rows,
+                                  std::set<unsigned> columns) const;
 
 private:
   unsigned nRows, nColumns;
   SmallVector<Value> data;
 };
 
+inline raw_ostream &operator<<(raw_ostream &os,
+                               const MemoryAccessMatrix &matrix) {
+  for (unsigned row = 0; row < matrix.getNumRows(); ++row) {
+    llvm::interleave(
+        matrix.getRow(row), os, [&os](Value elem) { os << elem; }, " ");
+    os << '\n';
+  }
+  return os;
+}
+
 /// A column vector representing offsets used to access an array.
+/// The size is equal to the number of array dimensions. The first vector
+/// element corresponds to the leftmost array dimension.
 class OffsetVector {
+  friend raw_ostream &operator<<(raw_ostream &, const OffsetVector &);
+
 public:
   OffsetVector() = delete;
+  OffsetVector(OffsetVector &&) = default;
 
+  /// Construct an offset vector with the specified number of rows.
   OffsetVector(unsigned nRows);
+
+  /// Access the offset at the specified \p row.
+  Value &at(unsigned row) {
+    assert(row < nRows && "Row outside of range");
+    return offsets[row];
+  }
+
+  Value at(unsigned row) const {
+    assert(row < nRows && "Row outside of range");
+    return offsets[row];
+  }
+
+  Value &operator()(unsigned row) { return at(row); }
+  Value operator()(unsigned row) const { return at(row); }
+
+  /// Swap \p row with \p otherRow.
+  void swapRows(unsigned row, unsigned otherRow);
+
+  unsigned getNumRows() const { return nRows; }
+
+  ArrayRef<Value> getOffsets() const { return offsets; }
+
+  /// Get the offset value at the specified \p row.
+  Value getOffset(unsigned row) const;
+
+  /// Set the specified \p row to the given \p offset value.
+  void setOffset(unsigned row, Value offset);
+
+  /// Fill the offset vector with the given \p value.
+  void fill(Value value);
+
+  /// Add an extra element at the bottom of the offset vector and set it to the
+  /// given \p offset value.
+  unsigned append(Value offset);
 
 private:
   unsigned nRows;
   SmallVector<Value> offsets;
 };
 
-/// Describes an array access.
-class MemoryAccess {
+inline raw_ostream &operator<<(raw_ostream &os, const OffsetVector &vector) {
+  llvm::interleave(
+      vector.getOffsets(), os, [&os](Value elem) { os << elem; }, " ");
+  os << "\n";
+  return os;
+}
+
+/// Describes an array access via an access matrix and an offset vector.
+/// For example consider the following access in a loop nest:
+///   for (i)
+///     for (j)
+///       ...= A[c1*i+c2][c3*j+c4];
+///
+/// The access is described by:
+///   |c1   0|   |i|   |c2|
+///   |      | * | | + |  |
+///   | 0  c3|   |j|   |c4|
+///
+template <typename OpTy> class MemoryAccess {
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess &);
+
 public:
   MemoryAccess() = delete;
 
-  MemoryAccess(MemoryAccessMatrix &&matrix, OffsetVector &&offsets);
+  MemoryAccess(const OpTy &accessOp, MemoryAccessMatrix &&matrix,
+               OffsetVector &&offsets);
+
+  const OpTy &getAccessOp() const { return accessOp; }
+
+  const MemoryAccessMatrix &getAccessMatrix() const { return matrix; }
+
+  const OffsetVector &getOffsetVector() const { return offsets; }
+
+  /// Analyze the array access and return its classification.
+  MemoryAccessPattern classify() const;
 
 private:
-  MemoryAccessMatrix matrix;
-  OffsetVector offsets;
+  const OpTy &accessOp;      /// The array load or store operation.
+  MemoryAccessMatrix matrix; /// The memory access matrix.
+  OffsetVector offsets;      /// The offset vector.
 };
+
+template <typename OpTy>
+inline raw_ostream &operator<<(raw_ostream &os,
+                               const MemoryAccess<OpTy> &access) {
+  os << "--- MemoryAccess ---\n\n";
+  os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
+  os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
+  os << "\n------------------\n";
+  return os;
+}
 
 } // namespace sycl
 } // namespace mlir
 
 #endif // MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
-which clang
