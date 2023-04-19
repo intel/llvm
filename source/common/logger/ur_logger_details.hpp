@@ -48,6 +48,10 @@ class Logger {
         log(logger::Level::WARN, format, std::forward<Args>(args)...);
     }
 
+    template <typename... Args> void warn(const char *format, Args &&...args) {
+        warning(format, std::forward<Args>(args)...);
+    }
+
     template <typename... Args> void error(const char *format, Args &&...args) {
         log(logger::Level::ERR, format, std::forward<Args>(args)...);
     }
