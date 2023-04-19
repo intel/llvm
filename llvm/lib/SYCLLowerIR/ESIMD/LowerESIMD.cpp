@@ -1025,7 +1025,7 @@ static void translateUnPackMask(CallInst &CI) {
   CI.replaceAllUsesWith(TransCI);
 }
 
-static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
+static bool translateVLoad(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
@@ -1035,7 +1035,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   return true;
 }
 
-static bool translateVStore(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
+static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   if (GVTS.find(CI.getOperand(1)->getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
@@ -1728,7 +1728,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 // of the simd object operations, but in some cases clang can implicitly
 // insert stores, such as after a write in inline assembly. To handle that
 // case, lower any stores of genx_volatiles into vstores.
-void lowerGlobalStores(Module &M, const SmallPtrSet<Type *, 4> &GVTS) {
+void lowerGlobalStores(Module &M, const SmallPtrSetImpl<Type *> &GVTS) {
   SmallVector<Instruction *, 4> ToErase;
   for (auto &F : M.functions()) {
     for (Instruction &I : instructions(F)) {
@@ -1781,7 +1781,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
 }
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
-                                         SmallPtrSet<Type *, 4> &GVTS) {
+                                         SmallPtrSetImpl<Type *> &GVTS) {
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
