@@ -52,11 +52,11 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
   if (DIF.compile_unit_count() == 0)
     return;
 
-  DICompileUnit *CU = *DIF.compile_units().begin();
-  transDbgEntry(CU);
-
-  for (DIImportedEntity *IE : CU->getImportedEntities())
-    transDbgEntry(IE);
+  for (DICompileUnit *CU : DIF.compile_units()) {
+    transDbgEntry(CU);
+    for (DIImportedEntity *IE : CU->getImportedEntities())
+      transDbgEntry(IE);
+  }
 
   for (const DIType *T : DIF.types())
     transDbgEntry(T);
@@ -404,10 +404,9 @@ SPIRVType *LLVMToSPIRVDbgTran::getInt32Ty() {
 SPIRVEntry *LLVMToSPIRVDbgTran::getScope(DIScope *S) {
   if (S)
     return transDbgEntry(S);
-  else {
-    assert(SPIRVCU && "Compile unit is expected to be already translated");
-    return SPIRVCU;
-  }
+  assert(!SPIRVCUMap.empty() &&
+         "Compile units are expected to be already translated");
+  return SPIRVCUMap.begin()->second;
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::getGlobalVariable(const DIGlobalVariable *GV) {
@@ -556,9 +555,9 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
         Ops, {SPIRVDebugInfoVersionIdx, DWARFVersionIdx, LanguageIdx});
   BM->addModuleProcessed(SPIRVDebug::ProducerPrefix + CU->getProducer().str());
   // Cache CU in a member.
-  SPIRVCU = static_cast<SPIRVExtInst *>(
+  SPIRVCUMap[CU] = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::CompilationUnit, getVoidTy(), Ops));
-  return SPIRVCU;
+  return SPIRVCUMap[CU];
 }
 
 // Types
@@ -985,7 +984,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInheritance(const DIDerivedType *DT) {
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgPtrToMember(const DIDerivedType *DT) {
-  using namespace SPIRVDebug::Operand::PtrToMember;
+  using namespace SPIRVDebug::Operand::TypePtrToMember;
   SPIRVWordVec Ops(OperandCount);
   Ops[MemberTypeIdx] = transDbgEntry(DT->getBaseType())->getId();
   Ops[ParentIdx] = transDbgEntry(DT->getClassType())->getId();
@@ -1086,7 +1085,7 @@ LLVMToSPIRVDbgTran::transDbgGlobalVariable(const DIGlobalVariable *GV) {
 
   // Parent scope
   DIScope *Context = GV->getScope();
-  SPIRVEntry *Parent = SPIRVCU;
+  SPIRVEntry *Parent = SPIRVCUMap.begin()->second;
   // Global variable may be declared in scope of a namespace or imported module,
   // it may also be a static variable declared in scope of a function.
   if (Context && (isa<DINamespace>(Context) || isa<DISubprogram>(Context) ||
@@ -1121,10 +1120,15 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
   Ops[LineIdx] = Func->getLine();
   Ops[ColumnIdx] = 0; // This version of DISubprogram has no column number
   auto Scope = Func->getScope();
-  if (Scope && isa<DIFile>(Scope))
-    Ops[ParentIdx] = SPIRVCU->getId();
-  else
+  if (Scope && !isa<DIFile>(Scope)) {
     Ops[ParentIdx] = getScope(Scope)->getId();
+  } else {
+    if (auto *Unit = Func->getUnit())
+      Ops[ParentIdx] = SPIRVCUMap[Unit]->getId();
+    else
+      // it might so happen, that DISubprogram is missing Unit parameter
+      Ops[ParentIdx] = SPIRVCUMap.begin()->second->getId();
+  }
   Ops[LinkageNameIdx] = BM->getString(Func->getLinkageName().str())->getId();
   Ops[FlagsIdx] = adjustAccessFlags(Scope, transDebugFlags(Func));
   if (isNonSemanticDebugInfo())
