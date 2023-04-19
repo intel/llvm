@@ -131,8 +131,8 @@ enum class lsc_subopcode : uint8_t {
 // /^_Z(\d+)__esimd_\w+/
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
 static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
+static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
-
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
   enum GenXArgRuleKind {
@@ -714,10 +714,10 @@ static bool isDevicelibFunction(StringRef FunctionName) {
       .Default(false);
 }
 
-// Mangle deviceLib function to make it pass through the regular workflow
-// These functions are defined as extern "C" which Demangler that is used
-// fails to handle properly.
-static std::string mangleDevicelibFunction(StringRef FunctionName) {
+static std::string mangleFunction(StringRef FunctionName) {
+  // Mangle deviceLib function to make it pass through the regular workflow
+  // These functions are defined as extern "C" which Demangler that is used
+  // fails to handle properly.
   if (isDevicelibFunction(FunctionName)) {
     if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
       return (Twine("_Z31") + FunctionName + "RKf").str();
@@ -726,6 +726,11 @@ static std::string mangleDevicelibFunction(StringRef FunctionName) {
       return (Twine("_Z31") + FunctionName + "RKt").str();
     }
   }
+  // Every inserted vstore gets its own function with the same name,
+  // so they are mangled with ".[0-9]+". Just use the
+  // raw name to pass through the demangler.
+  if (FunctionName.startswith(ESIMD_INSERTED_VSTORE_FUNC_NAME))
+    return ESIMD_INSERTED_VSTORE_FUNC_NAME;
   return FunctionName.str();
 }
 
@@ -1469,7 +1474,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
   llvm::esimd::assert_and_diag(F, "function to translate is invalid");
-  std::string MnglNameStr = mangleDevicelibFunction(F->getName());
+  std::string MnglNameStr = mangleFunction(F->getName());
   StringRef MnglName = MnglNameStr;
 
   Demangler Parser(MnglName.begin(), MnglName.end());
@@ -1718,6 +1723,45 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   return GenXVolatileTypeSet;
 }
 
+// genx_volatile variables are special and require vstores instead of stores.
+// In most cases, the vstores are called directly in the implementation
+// of the simd object operations, but in some cases clang can implicitly
+// insert stores, such as after a write in inline assembly. To handle that
+// case, lower any stores of genx_volatiles into vstores.
+void lowerGlobalStores(Module &M, const SmallPtrSet<Type *, 4> &GVTS) {
+  SmallVector<Instruction *, 4> ToErase;
+  for (auto &F : M.functions()) {
+    for (Instruction &I : instructions(F)) {
+      auto SI = dyn_cast_or_null<StoreInst>(&I);
+      if (!SI)
+        continue;
+      if (GVTS.find(SI->getValueOperand()->getType()) == GVTS.end())
+        continue;
+      SmallVector<Type *, 2> ArgTypes;
+      IRBuilder<> Builder(SI);
+      ArgTypes.push_back(SI->getPointerOperand()->getType());
+      ArgTypes.push_back(SI->getValueOperand()->getType());
+      auto *NewFType = FunctionType::get(SI->getType(), ArgTypes, false);
+      auto *NewF =
+          Function::Create(NewFType, GlobalVariable::ExternalWeakLinkage,
+                           ESIMD_INSERTED_VSTORE_FUNC_NAME, M);
+      NewF->addFnAttr(Attribute::NoUnwind);
+      NewF->addFnAttr(Attribute::Convergent);
+      NewF->setDSOLocal(true);
+      NewF->setCallingConv(CallingConv::SPIR_FUNC);
+      SmallVector<Value *, 2> Args;
+      Args.push_back(SI->getPointerOperand());
+      Args.push_back(SI->getValueOperand());
+      auto *NewCI = Builder.CreateCall(NewFType, NewF, Args);
+      NewCI->setDebugLoc(SI->getDebugLoc());
+      ToErase.push_back(SI);
+    }
+  }
+  for (auto *Inst : ToErase) {
+    Inst->eraseFromParent();
+  }
+}
+
 } // namespace
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
@@ -1726,7 +1770,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
   // uses the generated metadata:
   size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
-
+  lowerGlobalStores(M, GVTS);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }

@@ -819,7 +819,6 @@ The parameter and the return type in the ABI form will be `<8 x float>`.
 Inline assembly is supported with ESIMD classes `simd`, `simd_mask` and `simd_view`. `simd_view` only supports read operations.
 In order the access the raw underlying vector required for inline assembly, the `data` function can be used for read-only access and
 the `data_ref` function can be used for write access. The `data_ref` function only exists for `simd` and `simd_mask`, and should only be used in inline assembly.
-If the `simd` or `simd_mask` object is a private global variable, the `commit` function must be called after any write in inline assembly.
 
 Example of inline GEN assembly:
 ```cpp
@@ -842,7 +841,6 @@ void calledFromKernel() {
   __asm__("add (M1, 16) %0 %1 %2"
                     : "=rw"(vc.data_ref())
                     : "rw"(va.data()), "rw"(vb.data()));
-  vc.commit();
 }
 ```
 
