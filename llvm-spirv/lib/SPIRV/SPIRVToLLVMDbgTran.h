@@ -161,7 +161,7 @@ private:
 
   SPIRVModule *BM;
   Module *M;
-  DIBuilder Builder;
+  std::unordered_map<SPIRVId, std::unique_ptr<DIBuilder>> BuilderMap;
   SPIRVToLLVM *SPIRVReader;
   bool Enable;
   std::unordered_map<std::string, DIFile *> FileMap;
@@ -176,6 +176,8 @@ private:
 
   DIScope *getScope(const SPIRVEntry *ScopeInst);
   SPIRVExtInst *getDbgInst(const SPIRVId Id);
+
+  DIBuilder &getDIBuilder(const SPIRVExtInst *DebugInst);
 
   template <SPIRVWord OpCode> SPIRVExtInst *getDbgInst(const SPIRVId Id) {
     if (SPIRVExtInst *DI = getDbgInst(Id)) {

@@ -3310,13 +3310,9 @@ bool SPIRVToLLVM::translate() {
 
   // Compile unit might be needed during translation of debug intrinsics.
   for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
-    // Translate Compile Unit first.
-    // It shuldn't be far from the beginig of the vector
-    if (EI->getExtOp() == SPIRVDebug::CompilationUnit) {
+    // Translate Compile Units first.
+    if (EI->getExtOp() == SPIRVDebug::CompilationUnit)
       DbgTran->transDebugInst(EI);
-      // Fixme: there might be more then one Compile Unit.
-      break;
-    }
   }
   // Then translate all debug instructions.
   for (SPIRVExtInst *EI : BM->getDebugInstVec()) {

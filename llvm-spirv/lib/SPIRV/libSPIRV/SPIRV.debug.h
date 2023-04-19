@@ -13,6 +13,8 @@ static const std::string ChecksumKindPrefx = {"//__CSK_"};
 
 // clang-format off
 
+// Need to update hasDbgInstParentScopeIdx each time we add new instruction
+// with ParentScopeIdx
 enum Instruction {
   DebugInfoNone                 = 0,
   CompilationUnit               = 1,
@@ -449,7 +451,7 @@ enum {
 };
 }
 
-namespace PtrToMember {
+namespace TypePtrToMember {
 enum {
   MemberTypeIdx = 0,
   ParentIdx     = 1,
@@ -828,6 +830,58 @@ enum {
   IsDeclIdx       = 7,
   OperandCount    = 8
 };
+}
+
+// helper function to get parent scope of debug instruction, to be used
+// to determine with which compile unit the particular instruction relates
+inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
+                                     uint32_t &ParentScopeIdx) {
+  switch (Kind) {
+  case SPIRVDebug::Typedef:
+    ParentScopeIdx = Typedef::ParentIdx;
+    return true;
+  case SPIRVDebug::TypeEnum:
+    ParentScopeIdx = TypeEnum::ParentIdx;
+    return true;
+  case SPIRVDebug::TypeComposite:
+    ParentScopeIdx = TypeMember::ParentIdx;
+    return true;
+  case SPIRVDebug::TypeInheritance:
+    ParentScopeIdx = TypeInheritance::ParentIdx;
+    return true;
+  case SPIRVDebug::TypePtrToMember:
+    ParentScopeIdx = TypePtrToMember::ParentIdx;
+    return true;
+  case SPIRVDebug::Function:
+    ParentScopeIdx = Function::ParentIdx;
+    return true;
+  case SPIRVDebug::LexicalBlock:
+    ParentScopeIdx = LexicalBlock::ParentIdx;
+    return true;
+  case SPIRVDebug::LexicalBlockDiscriminator:
+    ParentScopeIdx = LexicalBlockDiscriminator::ParentIdx;
+    return true;
+  case SPIRVDebug::Scope:
+    ParentScopeIdx = Scope::ScopeIdx;
+    return true;
+  case SPIRVDebug::InlinedAt:
+    ParentScopeIdx = InlinedAt::ScopeIdx;
+    return true;
+  case SPIRVDebug::LocalVariable:
+    ParentScopeIdx = LocalVariable::ParentIdx;
+    return true;
+  case SPIRVDebug::ImportedEntity:
+    ParentScopeIdx = ImportedEntity::ParentIdx;
+    return true;
+  case SPIRVDebug::ModuleINTEL:
+    ParentScopeIdx = ModuleINTEL::ParentIdx;
+    return true;
+  case SPIRVDebug::Module:
+    ParentScopeIdx = ModuleINTEL::ParentIdx;
+    return true;
+  default:
+    return false;
+  }
 }
 
 } // namespace Operand

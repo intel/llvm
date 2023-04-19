@@ -7,7 +7,7 @@
 ; CHECK: DW_TAG_compile_unit
 ; CHECK:   DW_TAG_subprogram
 ; CHECK:     DW_AT_name{{.*}}"f"
-; CHECK-NOT: DW_TAG_compile_unit
+; CHECK: DW_TAG_compile_unit
 ;
 ; created from
 ;   void f() {} // compile with -g

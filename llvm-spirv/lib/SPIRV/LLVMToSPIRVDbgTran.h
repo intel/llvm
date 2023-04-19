@@ -164,7 +164,7 @@ private:
   SPIRVType *VoidT = nullptr;
   SPIRVType *Int32T = nullptr;
   SPIRVEntry *DebugInfoNone;
-  SPIRVExtInst *SPIRVCU = nullptr;
+  std::unordered_map<const DICompileUnit *, SPIRVExtInst *> SPIRVCUMap;
   std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
   std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
 }; // class LLVMToSPIRVDbgTran
