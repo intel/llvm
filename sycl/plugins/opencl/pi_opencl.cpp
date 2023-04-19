@@ -672,8 +672,8 @@ pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info paramName,
                             size_t *paramValueSizeRet) {
 
   switch (paramName) {
-  case PIEXT_PLATFORM_INFO_BACKEND: {
-    pi_platform_backend result = PIEXT_PLATFORM_BACKEND_OPENCL;
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    pi_platform_backend result = PI_EXT_PLATFORM_BACKEND_OPENCL;
     if (paramValue) {
       if (paramValueSize < sizeof(result))
         return PI_ERROR_INVALID_VALUE;

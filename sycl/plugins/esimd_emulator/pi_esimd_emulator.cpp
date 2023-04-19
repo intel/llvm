@@ -484,10 +484,10 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   case PI_PLATFORM_INFO_EXTENSIONS:
     return ReturnValue("");
 
-  case PIEXT_PLATFORM_INFO_BACKEND:
+  case PI_EXT_PLATFORM_INFO_BACKEND:
     return getInfo<pi_platform_backend>(
         ParamValueSize, ParamValue, ParamValueSizeRet,
-        PIEXT_PLATFORM_BACKEND_UNKNOWN); // TODO: add ESIMD to UR?
+        PI_EXT_PLATFORM_BACKEND_UNKNOWN); // TODO: add ESIMD to UR?
 
   default:
     // TODO: implement other parameters

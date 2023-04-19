@@ -964,10 +964,10 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   case PI_PLATFORM_INFO_EXTENSIONS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
-  case PIEXT_PLATFORM_INFO_BACKEND: {
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
     return getInfo<pi_platform_backend>(param_value_size, param_value,
                                         param_value_size_ret,
-                                        PIEXT_PLATFORM_BACKEND_CUDA);
+                                        PI_EXT_PLATFORM_BACKEND_CUDA);
   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);

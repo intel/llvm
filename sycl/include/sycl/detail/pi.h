@@ -88,7 +88,7 @@
 // piextQueueGetNativeHandle2
 // 12.28 Added piextMemImageCreateWithNativeHandle for creating images from
 // native handles.
-// 12.29 Support PIEXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
+// 12.29 Support PI_EXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 28
