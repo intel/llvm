@@ -52,8 +52,8 @@ bool isLinkonceODR(FunctionOpInterface);
 bool isTailCall(CallOpInterface);
 
 /// Returns the maximum depth from a GPU kernel.
-/// Returns -1 if the call is not called from a GPU kernel.
-int getMaxDepthFromGPUKernel(FunctionOpInterface);
+/// Returns std::nullopt if the call is not called from a GPU kernel.
+Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface);
 
 /// Returns true if the given function is potentially a SYCL kernel body
 /// function. The SYCL kernel body function is created by SemaSYCL in clang for

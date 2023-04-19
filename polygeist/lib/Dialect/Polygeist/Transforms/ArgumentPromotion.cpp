@@ -592,10 +592,11 @@ bool ArgumentPromotionPass::isCandidateCallable(
   // in a function that is called directly by a GPU kernel.
   // TODO: Could generalize by checking that the call chain from the GPU kernel
   // are all candidates.
-  int maxDepth = getMaxDepthFromGPUKernel(funcOp);
-  assert(maxDepth > 0 && "Expecting func to be called from a GPU kernel and "
-                         "not itself a GPU kernel");
-  if (maxDepth > 2) {
+  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(funcOp);
+  assert(maxDepth.has_value() &&
+         "Expecting func to be called from a GPU kernel");
+  assert(maxDepth.value() != 0 && "Expecting func is not itself a GPU kernel");
+  if (maxDepth.value() > 2) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: found call site that is called by a GPU "
                   "kernel with depth more than 2.\n");

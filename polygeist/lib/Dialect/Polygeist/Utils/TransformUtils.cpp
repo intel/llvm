@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <optional>
 
 using namespace mlir;
 
@@ -38,16 +39,16 @@ bool mlir::isTailCall(CallOpInterface call) {
 
 /// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
 /// func and its callers.
-static void
-getMaxDepthFromGPUKernel(FunctionOpInterface func,
-                         DenseMap<FunctionOpInterface, int> &funcMaxDepthMap) {
+static void getMaxDepthFromAnyGPUKernel(
+    FunctionOpInterface func,
+    DenseMap<FunctionOpInterface, Optional<unsigned>> &funcMaxDepthMap) {
   assert(!funcMaxDepthMap.contains(func) &&
          "Expecting maximum depth of func is not already calculated");
 
   // A function that does not reside in a GPU module cannot be called from a GPU
   // kernel.
   if (!func->getParentOfType<gpu::GPUModuleOp>()) {
-    funcMaxDepthMap[func] = -1;
+    funcMaxDepthMap[func] = std::nullopt;
     return;
   }
 
@@ -61,27 +62,29 @@ getMaxDepthFromGPUKernel(FunctionOpInterface func,
   ModuleOp module = func->getParentOfType<ModuleOp>();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
-  int maxDepth = -1;
+  Optional<unsigned> maxDepth = std::nullopt;
   for (Operation *call : userMap.getUsers(func)) {
     auto caller = call->getParentOfType<FunctionOpInterface>();
-    if (!funcMaxDepthMap.contains(func))
-      getMaxDepthFromGPUKernel(caller, funcMaxDepthMap);
-    int callerDepth = funcMaxDepthMap[func];
+    if (!funcMaxDepthMap.contains(caller))
+      getMaxDepthFromAnyGPUKernel(caller, funcMaxDepthMap);
+    Optional<unsigned> callerDepth = funcMaxDepthMap[caller];
 
     // Caller not called from a GPU kernel.
-    if (callerDepth == -1)
+    if (!callerDepth.has_value())
       continue;
 
-    int depth = 1 + callerDepth;
-    if (depth > maxDepth)
+    unsigned depth = 1 + callerDepth.value();
+    if (!maxDepth.has_value())
+      maxDepth = depth;
+    else if (depth > maxDepth.value())
       maxDepth = depth;
   }
   funcMaxDepthMap[func] = maxDepth;
 }
 
-int mlir::getMaxDepthFromGPUKernel(FunctionOpInterface func) {
-  DenseMap<FunctionOpInterface, int> funcMaxDepthMap;
-  ::getMaxDepthFromGPUKernel(func, funcMaxDepthMap);
+Optional<unsigned> mlir::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+  DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
+  ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
@@ -101,16 +104,13 @@ bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
       }))
     return false;
 
-  int maxDepth = getMaxDepthFromGPUKernel(func);
+  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
   // The function must to called from GPU kernel.
-  if (maxDepth == -1)
+  if (!maxDepth.has_value())
     return false;
   // The function should be called directly by a GPU kernel, or called by a
   // function that directly called by a GPU kernel.
-  if (maxDepth > 2)
-    return false;
-
-  return true;
+  return (maxDepth.value() == 1 || maxDepth.value() == 2);
 }
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
