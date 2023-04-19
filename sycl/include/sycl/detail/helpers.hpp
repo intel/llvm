@@ -241,12 +241,12 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
-void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-  (f(Inds), ...);
+void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+  (f(std::integral_constant<size_t, Inds>{}), ...);
 }
 
-template <size_t count, class F> void dim_loop(F &&f) {
-  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
+template <size_t count, class F> void loop(F &&f) {
+  loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 
 } // namespace detail
