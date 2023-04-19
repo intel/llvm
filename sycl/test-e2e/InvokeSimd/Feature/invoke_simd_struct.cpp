@@ -41,18 +41,14 @@ constexpr int VL = 16;
 template <class T> struct solo {
   T x;
 
-  float sum() {
-    return x;
-  }
+  float sum() { return x; }
 };
 
 template <class TX, class TY> struct duo {
   TX x;
   TY y;
 
-  float sum() {
-    return x + y;
-  }
+  float sum() { return x + y; }
 };
 
 template <class TX, class TY, class TZ> struct trio {
@@ -60,9 +56,7 @@ template <class TX, class TY, class TZ> struct trio {
   TY y;
   TZ z;
 
-  float sum() {
-    return x + y + z;
-  }
+  float sum() { return x + y + z; }
 };
 
 template <class StructTy>
