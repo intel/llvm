@@ -1370,7 +1370,7 @@ struct _pi_sampler : _ur_object {
   ze_sampler_handle_t ZeSampler;
 };
 
-struct _pi_physical_mem : _pi_object {
+struct _pi_physical_mem : _ur_object {
   _pi_physical_mem(ze_physical_mem_handle_t ZePhysicalMem, pi_context Ctx)
       : ZePhysicalMem{ZePhysicalMem}, Context{Ctx} {}
 
