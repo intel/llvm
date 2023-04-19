@@ -206,8 +206,8 @@ private:
 };
 
 // Base class to store common data
-struct _pi_object {
-  _pi_object() : RefCount{} {}
+struct _ur_object {
+  _ur_object() : RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;
