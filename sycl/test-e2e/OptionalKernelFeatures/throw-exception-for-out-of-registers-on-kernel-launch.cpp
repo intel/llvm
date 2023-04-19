@@ -14,9 +14,31 @@
 // are able to check the functionality of the out-of-registers (exceeded
 // max-registers-per-block) error handling in the SYCL runtime.
 
-class kernel_vadd;
+// The test aims to use at least 64 registers meaning that with the maximum
+// workgroup size (assumed 1024 on most CUDA SMs), will produce a launch
+// configuration that will execution due to reaching HW limitations. Hence, we
+// are able to check the functionality of the out-of-registers (exceeded
+// max-registers-per-block) error handling in the SYCL runtime.
+//
+// A more reliable test to work with lower max work-group sizes will be better,
+// but a also more complicated to achieve the register usage desired to ensure,
+// we will reach the hardware limitations. Additionally, all GPUs supported by
+// CUDA backend allow max block sizes of 1024, hence it is safe to rely on that
+// assumption.
+//
+// To avoid false test failure, we early exit if the said assumption isn't met.
+
+class kernel_vadd_and_sum;
 
 int main() {
+  sycl::queue q;
+  sycl::device dev = q.get_device();
+  size_t local_size = dev.get_info<sycl::info::device::max_work_group_size>();
+  if (local_size < 1024u) {
+    // Skip because we may not reach the error case due to the register count.
+    return 0;
+  }
+
   using elem_t = unsigned int;
   static_assert(std::is_integral_v<elem_t> || std::is_floating_point_v<elem_t>);
 
@@ -45,18 +67,14 @@ int main() {
 
   sycl::buffer<sycl::vec<elem_t, VEC_DIM>> outputBuf{GLOBAL_WORK_SIZE};
 
-  sycl::queue q;
   try {
-    sycl::device dev = q.get_device();
-    auto local_size = dev.get_info<sycl::info::device::max_work_group_size>();
-
     q.submit([&](sycl::handler &h) {
        auto input1 = valuesBuf1.get_access<sycl::access::mode::read>(h);
        auto input2 = valuesBuf2.get_access<sycl::access::mode::read>(h);
        auto input3 = valuesBuf3.get_access<sycl::access::mode::read>(h);
        auto input4 = valuesBuf4.get_access<sycl::access::mode::read>(h);
        auto output = outputBuf.get_access<sycl::access::mode::write>(h);
-       h.parallel_for<kernel_vadd>(
+       h.parallel_for<kernel_vadd_and_sum>(
            sycl::nd_range<1>{{GLOBAL_WORK_SIZE}, {local_size}},
            [=](sycl::id<1> i) {
              sycl::vec<elem_t, VEC_DIM> values1 = input1[i];
