@@ -40,17 +40,29 @@ constexpr int VL = 16;
 
 template <class T> struct solo {
   T x;
+
+  float sum() {
+    return x;
+  }
 };
 
-template <class TY, class TX> struct duo {
-  TY y;
+template <class TX, class TY> struct duo {
   TX x;
+  TY y;
+
+  float sum() {
+    return x + y;
+  }
 };
 
-template <class TZ, class TY, class TX> struct trio {
+template <class TX, class TY, class TZ> struct trio {
+  TX x;
+  TY y;
   TZ z;
-  TY y;
-  TX x;
+
+  float sum() {
+    return x + y + z;
+  }
 };
 
 template <class StructTy>
@@ -58,7 +70,34 @@ __attribute__((always_inline)) esimd::simd<float, VL>
 ESIMD_CALLEE(float *A, int i, StructTy S) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> a;
   a.copy_from(A + i);
+  return a * S.sum();
+}
+
+// Specialization for 'Solo' case
+template <>
+__attribute__((always_inline)) esimd::simd<float, VL>
+ESIMD_CALLEE(float *A, int i, solo<float> S) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> a;
+  a.copy_from(A + i);
   return a * S.x;
+}
+
+// Specialization for 'Duo' case
+template <>
+__attribute__((always_inline)) esimd::simd<float, VL>
+ESIMD_CALLEE(float *A, int i, duo<float, float> S) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> a;
+  a.copy_from(A + i);
+  return a * (S.x + S.y);
+}
+
+// Specialization for 'Trio' case
+template <>
+__attribute__((always_inline)) esimd::simd<float, VL>
+ESIMD_CALLEE(float *A, int i, trio<char, int, float> S) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> a;
+  a.copy_from(A + i);
+  return a * (S.x + S.y + S.z);
 }
 
 template <class StructTy>
@@ -68,7 +107,7 @@ template <class StructTy>
   return res;
 }
 
-enum StructsTypes { Solo = 1, Duo = 2, Trio = 3, DuoSameType = 4 };
+enum StructsTypes { Solo = 1, Duo, Trio, Func };
 
 template <int> class TestID;
 
@@ -86,22 +125,14 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
     C[i] = -1;
   }
 
-  // Solo case, declared outside parallel_for.
-  // Could be represented internally as a basic type value.
-  auto uno = solo<float>{-1.0};
-
-  // Duo same type case, declared inside parallel_for.
-  // Could be represented internally as an array.
-  float X = -1.0;
-  float Y = 2;
-
-  // Duo case, declared outside parallel_for.
-  // Could be represented internally as a tuple.
-  auto dos = duo<char, float>{2, -1.0};
-
-  // Trio case, declared outside parallel_for.
-  // Could be represented internally as a tuple.
-  auto tres = trio<char, int, float>{2, 10, -1.0};
+  // For 'Solo' case
+  auto uno = solo<float>{2.0};
+  // For 'Duo'
+  float X = 1.0;
+  // For 'Trio' case
+  auto tres = trio<char, int, float>{2, 1, -1.0};
+  // For 'Func' case
+  int Y = 1;
 
   sycl::range<1> GlobalRange{Size};
   // Number of workitems in each workgroup.
@@ -124,16 +155,17 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
             if constexpr (UsedStruct == StructsTypes::Solo) {
               res = invoke_simd(sg, SIMD_CALLEE<solo<float>>, uniform{A},
                                 uniform{i}, uniform{uno});
-            } else if constexpr (UsedStruct == StructsTypes::DuoSameType) {
-              auto dos_same = duo<float, float>{Y, X};
-              res = invoke_simd(sg, SIMD_CALLEE<duo<float, float>>, uniform{A},
-                                uniform{i}, uniform{dos_same});
             } else if constexpr (UsedStruct == StructsTypes::Duo) {
-              res = invoke_simd(sg, SIMD_CALLEE<duo<char, float>>, uniform{A},
+              auto dos = duo<float, float>{X, X};
+              res = invoke_simd(sg, SIMD_CALLEE<duo<float, float>>, uniform{A},
                                 uniform{i}, uniform{dos});
             } else if constexpr (UsedStruct == StructsTypes::Trio) {
               res = invoke_simd(sg, SIMD_CALLEE<trio<char, int, float>>,
                                 uniform{A}, uniform{i}, uniform{tres});
+            } else if constexpr (UsedStruct == StructsTypes::Func) {
+              auto func = duo<int, int>{Y, Y};
+              res = invoke_simd(sg, SIMD_CALLEE<duo<int, int>>, uniform{A},
+                                uniform{i}, uniform{func});
             } else {
               static_assert(false, "Unsupported case");
             }
@@ -153,7 +185,7 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < Size; ++i)
-    if (A[i] * (-1.0) != C[i])
+    if (2.0 * A[i] != C[i])
       err_cnt++;
 
   if (err_cnt > 0) {
@@ -182,13 +214,13 @@ int main(void) {
   passed &= test<StructsTypes::Solo>(q);
 
   std::cout << "  Case #2, structure with two same type elements:\n";
-  passed &= test<StructsTypes::DuoSameType>(q);
-
-  std::cout << "  Case #2, structure with two different types elements:\n";
   passed &= test<StructsTypes::Duo>(q);
 
-  std::cout << "  Case #4, structure with tree elements:\n";
+  std::cout << "  Case #3, structure with tree elements:\n";
   passed &= test<StructsTypes::Trio>(q);
+
+  std::cout << "  Case #4, structure with function member being called:\n";
+  passed &= test<StructsTypes::Func>(q);
 
   return passed ? 0 : 1;
 }
