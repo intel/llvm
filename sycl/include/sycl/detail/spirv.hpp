@@ -513,7 +513,7 @@ struct TypeIsProhibitedForShuffleEmulation
                     std::is_same_v<vector_element_t<T>, long> ||
                     std::is_same_v<vector_element_t<T>, unsigned long> ||
                     std::is_same_v<vector_element_t<T>, long long> ||
-                    std::is_same_v<vector_element_t<T>, unsigend long long> ||
+                    std::is_same_v<vector_element_t<T>, unsigned long long> ||
                     std::is_same_v<vector_element_t<T>, half>> {};
 
 template <typename T>
