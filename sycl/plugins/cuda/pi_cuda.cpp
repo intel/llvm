@@ -347,44 +347,6 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 
 //-- PI API implementation
 extern "C" {
-pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-
-  switch (param_name) {
-  case PI_CONTEXT_INFO_NUM_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1);
-  case PI_CONTEXT_INFO_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   context->get_device());
-  case PI_CONTEXT_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   context->get_reference_count());
-  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    // These queries should be dealt with in context_impl.cpp by calling the
-    // queries of each device separately and building the intersection set.
-    setErrorMessage("These queries should have never come here.",
-                    UR_RESULT_ERROR_INVALID_ARGUMENT);
-    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-  }
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            true);
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
-    // 2D USM operations currently not supported.
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            false);
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-
-  return PI_ERROR_OUT_OF_RESOURCES;
-}
-
 /// \return If available, the first binary that is PTX
 ///
 pi_result cuda_piextDeviceSelectBinary(pi_device device,
