@@ -579,7 +579,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     const RTDeviceBinaryImage *DeviceImage = nullptr;
     RT::PiProgram Program = nullptr;
     const KernelArgMask *EliminatedArgs = nullptr;
-    ;
     if (KernelCG->getKernelBundle() != nullptr) {
       // Retrieve the device image from the kernel bundle.
       auto KernelBundle = KernelCG->getKernelBundle();
