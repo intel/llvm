@@ -766,7 +766,7 @@ int main(int Ac, char **Av) {
           SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowExtraDIExpressionsEnabled(true);
       if (DebugEIS.getValue() ==
-          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200 ||
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100 ||
           DebugEIS.getValue() ==
           SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowedToUseExtension(

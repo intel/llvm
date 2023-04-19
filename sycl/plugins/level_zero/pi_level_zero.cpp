@@ -3238,8 +3238,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
                        void *ParamValue, size_t *ParamValueSizeRet) {
   PI_ASSERT(Mem, PI_ERROR_INVALID_VALUE);
-  // piMemImageGetInfo must be used for images
-  PI_ASSERT(!Mem->isImage(), PI_ERROR_INVALID_VALUE);
+  // piMemImageGetInfo must be used for images, except for shared params (like
+  // Context, AccessMode, etc)
+  PI_ASSERT(ParamName == PI_MEM_CONTEXT || !Mem->isImage(),
+            PI_ERROR_INVALID_VALUE);
 
   std::shared_lock<ur_shared_mutex> Lock(Mem->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
@@ -3308,12 +3310,15 @@ pi_result piMemRelease(pi_mem Mem) {
 
   if (Mem->isImage()) {
     char *ZeHandleImage;
-    PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
-    auto ZeResult = ZE_CALL_NOCHECK(
-        zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-      return mapError(ZeResult);
+    auto Image = static_cast<pi_image>(Mem);
+    if (Image->OwnZeMemHandle) {
+      PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
+      auto ZeResult = ZE_CALL_NOCHECK(
+          zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
+      // Gracefully handle the case that L0 was already unloaded.
+      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        return mapError(ZeResult);
+    }
   } else {
     auto Buffer = static_cast<pi_buffer>(Mem);
     Buffer->free();
@@ -3323,20 +3328,9 @@ pi_result piMemRelease(pi_mem Mem) {
   return PI_SUCCESS;
 }
 
-pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
-                           const pi_image_format *ImageFormat,
-                           const pi_image_desc *ImageDesc, void *HostPtr,
-                           pi_mem *RetImage) {
-
-  // TODO: implement read-only, write-only
-  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-    die("piMemImageCreate: Level-Zero implements only read-write buffer,"
-        "no read-only or write-only yet.");
-  }
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(ImageFormat, PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-
+static pi_result pi2zeImageDesc(const pi_image_format *ImageFormat,
+                                const pi_image_desc *ImageDesc,
+                                ZeStruct<ze_image_desc_t> &ZeImageDesc) {
   ze_image_format_type_t ZeImageFormatType;
   size_t ZeImageFormatTypeSize;
   switch (ImageFormat->image_channel_data_type) {
@@ -3447,8 +3441,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     return PI_ERROR_INVALID_VALUE;
   }
 
-  ZeStruct<ze_image_desc_t> ZeImageDesc;
-  ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
+  ZeImageDesc.arraylevels = 0;
+  ZeImageDesc.flags = 0;
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
   ZeImageDesc.width = pi_cast<uint32_t>(ImageDesc->image_width);
@@ -3456,6 +3450,29 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.depth = pi_cast<uint32_t>(ImageDesc->image_depth);
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
+
+  return PI_SUCCESS;
+}
+
+pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
+                           const pi_image_format *ImageFormat,
+                           const pi_image_desc *ImageDesc, void *HostPtr,
+                           pi_mem *RetImage) {
+
+  // TODO: implement read-only, write-only
+  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
+    die("piMemImageCreate: Level-Zero implements only read-write buffer,"
+        "no read-only or write-only yet.");
+  }
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(ImageFormat, PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
+
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
+  pi_result DescriptionResult =
+      pi2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
+  if (DescriptionResult != PI_SUCCESS)
+    return DescriptionResult;
 
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
@@ -3470,7 +3487,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
           (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeHImage));
 
   try {
-    auto ZePIImage = new _pi_image(Context, ZeHImage);
+    auto ZePIImage = new _pi_image(Context, ZeHImage, /*OwnNativeHandle=*/true);
     *RetImage = ZePIImage;
 
 #ifndef NDEBUG
@@ -3594,6 +3611,42 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     ZE_CALL(zeCommandListAppendMemoryCopy,
             (Context->ZeCommandListInit, ZeHandleDst, Ptr, Size, nullptr, 0,
              nullptr));
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *RetImage) {
+
+  PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+
+  ze_image_handle_t ZeHImage = pi_cast<ze_image_handle_t>(NativeHandle);
+
+  try {
+    auto ZePIImage = new _pi_image(Context, ZeHImage, OwnNativeHandle);
+    *RetImage = ZePIImage;
+
+#ifndef NDEBUG
+    ZeStruct<ze_image_desc_t> ZeImageDesc;
+    pi_result DescriptionResult =
+        pi2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
+    if (DescriptionResult != PI_SUCCESS)
+      return DescriptionResult;
+
+    ZePIImage->ZeImageDesc = ZeImageDesc;
+#endif // !NDEBUG
+
+  } catch (const std::bad_alloc &) {
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
 
   return PI_SUCCESS;
@@ -4993,8 +5046,12 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
     // Level Zero has a much more explicit notion of command submission than
     // OpenCL. It doesn't happen unless the user submits a command list. We've
-    // done it just above so the status is at least PI_EVENT_RUNNING.
-    pi_int32 Result = PI_EVENT_RUNNING;
+    // done it just above so the status is at least PI_EVENT_SUBMITTED.
+    //
+    // NOTE: We currently cannot tell if command is currently running, so
+    // it will always show up "submitted" before it is finally "completed".
+    //
+    pi_int32 Result = PI_EVENT_SUBMITTED;
 
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and

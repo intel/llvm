@@ -1257,10 +1257,8 @@ static void replaceOperandWithAnnotationIntrinsicCallResult(Function *F,
     for (auto *Use : BV->users()) {
       if (auto *II = dyn_cast<IntrinsicInst>(Use)) {
         if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
-            II->getType() == BV->getType()) {
-          assert(CR == nullptr && "Multiple annotation created for same value");
+            II->getType() == BV->getType())
           CR = II;
-        }
       }
     }
     return CR ? true : false;
@@ -2366,6 +2364,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
     default:

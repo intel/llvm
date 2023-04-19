@@ -642,6 +642,9 @@ public:
 
   Value *insertRangeTest(Value *V, const APInt &Lo, const APInt &Hi,
                          bool isSigned, bool Inside);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  Instruction *PromoteCastOfAllocation(BitCastInst &CI, AllocaInst &AI);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   bool mergeStoreIntoSuccessor(StoreInst &SI);
 
   /// Given an initial instruction, check to see if it is the root of a

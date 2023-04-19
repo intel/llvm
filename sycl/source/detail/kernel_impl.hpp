@@ -186,6 +186,9 @@ private:
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
   std::mutex MNoncacheableEnqueueMutex;
+
+  bool isBuiltInKernel(const device &Device) const;
+  void checkIfValidForNumArgsInfoQuery() const;
 };
 
 template <typename Param>
@@ -196,6 +199,10 @@ inline typename Param::return_type kernel_impl::get_info() const {
     // TODO implement
     assert(0 && "Not implemented");
   }
+
+  if constexpr (std::is_same_v<Param, info::kernel::num_args>)
+    checkIfValidForNumArgsInfoQuery();
+
   return get_kernel_info<Param>(this->getHandleRef(), getPlugin());
 }
 
