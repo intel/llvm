@@ -10,8 +10,8 @@
 
 #include "Utils.h"
 #include "mlir/Analysis/CallGraph.h"
+#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Transforms/InliningUtils.h"

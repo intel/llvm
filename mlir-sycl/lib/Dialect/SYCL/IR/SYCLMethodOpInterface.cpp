@@ -1,4 +1,4 @@
-//===--- SYCLOpsAttributes.cpp --------------------------------------------===//
+//===--- SYCLMethodOpInterface.cpp ----------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,6 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.cpp.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.cpp.inc"

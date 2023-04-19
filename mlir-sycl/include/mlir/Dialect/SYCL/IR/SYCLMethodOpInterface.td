@@ -1,4 +1,4 @@
-//===--- SYCLOpInterfaces.td ----------------------------------------------===//
+//===--- SYCLMethodOpInterface.td -----------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_OP_INTERFACES
-#define SYCL_OP_INTERFACES
+#ifndef SYCL_METHOD_OP_INTERFACE
+#define SYCL_METHOD_OP_INTERFACE
+
+include "mlir/Dialect/SYCL/IR/SYCLBase.td"
 
 include "mlir/IR/OpBase.td"
-
-class SYCL_OpInterface<string name> : OpInterface<name> {
-  let cppNamespace = "::mlir::sycl";
-}
 
 def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
   let description =[{
@@ -87,15 +85,4 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
   }];
 }
 
-class SYCLOpTrait<string name> : NativeOpTrait<name> {
-  let cppNamespace = "::mlir::sycl";
-}
-
-def SYCLGetID : SYCLOpTrait<"SYCLGetID">;
-def SYCLGetComponent : SYCLOpTrait<"SYCLGetComponent">;
-def SYCLGetRange : SYCLOpTrait<"SYCLGetRange">;
-def SYCLGetGroup : SYCLOpTrait<"SYCLGetGroup">;
-def SYCLIndexSpaceGetID : SYCLOpTrait<"SYCLIndexSpaceGetID">;
-def SYCLIndexSpaceGetRange : SYCLOpTrait<"SYCLIndexSpaceGetRange">;
-
-#endif // SYCL_OP_INTERFACES
+#endif // SYCL_METHOD_OP_INTERFACE

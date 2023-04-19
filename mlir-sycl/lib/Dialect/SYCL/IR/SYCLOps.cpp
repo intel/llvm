@@ -8,7 +8,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -204,8 +204,6 @@ void SYCLConstructorOp::getEffects(
     }
   }
 }
-
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"

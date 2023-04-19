@@ -1,4 +1,4 @@
-//===--- SYCLOpsDialect.cpp - SYCL Dialect registration in MLIR -----------===//
+//===--- SYCLDialect.cpp - SYCL Dialect registration in MLIR --------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
+
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 

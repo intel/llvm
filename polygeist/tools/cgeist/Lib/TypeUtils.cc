@@ -14,7 +14,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Type.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Types.h"
 

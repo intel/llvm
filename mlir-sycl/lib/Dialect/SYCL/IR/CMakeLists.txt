@@ -29,12 +29,13 @@ else()
 endif()
 
 add_mlir_dialect_library(MLIRSYCLDialect
-  SYCLTraits.cpp
-  SYCLOps.cpp
-  SYCLOpsAttributes.cpp
-  SYCLOpsDialect.cpp
-  SYCLOpsTypes.cpp
   MethodUtils.cpp
+  SYCLAttributes.cpp
+  SYCLDialect.cpp
+  SYCLMethodOpInterface.cpp
+  SYCLOps.cpp
+  SYCLTraits.cpp
+  SYCLTypes.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_SYCL_SOURCE_DIR}/mlir/Dialect/SYCL

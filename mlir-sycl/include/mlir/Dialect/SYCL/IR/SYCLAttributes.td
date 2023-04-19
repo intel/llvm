@@ -1,4 +1,4 @@
-//===-- SYCLOpsAttributes.td - SYCL dialect attribute definitions *tablegen===//
+//===-- SYCLAttributes.td - SYCL dialect attribute definitions *- tablegen -*=//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_OP_ATTRIBUTES
-#define SYCL_OP_ATTRIBUTES
+#ifndef SYCL_ATTRIBUTES
+#define SYCL_ATTRIBUTES
 
 include "mlir/IR/EnumAttr.td"
 
-include "SYCLOps.td"
+include "SYCLBase.td"
 
 class SYCL_I32EnumAttr<string name, string summary, list<I32EnumAttrCase> cases>
     : I32EnumAttr<name, summary, cases> {
@@ -107,4 +107,4 @@ def AccessDecoratedAttr
                        [NoAccessDecorated, YesAccessDecorated,
                        LegacyAccessDecorated]>;
 
-#endif // SYCL_OP_ATTRIBUTES
+#endif // SYCL_ATTRIBUTES

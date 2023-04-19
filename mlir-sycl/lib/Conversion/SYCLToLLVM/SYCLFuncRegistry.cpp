@@ -16,7 +16,7 @@
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-func-registry"

@@ -1,4 +1,4 @@
-//===--- SYCLOpsDialect.h -------------------------------------------------===//
+//===--- SYCLDialect.h ----------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_OPS_DIALECT_H_
-#define MLIR_SYCL_OPS_DIALECT_H_
+#ifndef MLIR_DIALECT_SYCL_IR_SYCLDIALECT_H
+#define MLIR_DIALECT_SYCL_IR_SYCLDIALECT_H
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -67,4 +67,4 @@ private:
 /// sycl dialect.
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
 
-#endif // MLIR_SYCL_OPS_DIALECT_H_
+#endif // MLIR_DIALECT_SYCL_IR_SYCLDIALECT_H
