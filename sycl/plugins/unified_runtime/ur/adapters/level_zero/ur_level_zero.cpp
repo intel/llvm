@@ -84,7 +84,7 @@ ur_result_t _ur_platform_handle_t::initialize() {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+ur_result_t urPlatformGet(
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
                          ///< NumEntries should be greater than zero, otherwise
@@ -201,7 +201,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
+ur_result_t urPlatformGetInfo(
     ur_platform_handle_t Platform, ///< [in] handle of the platform
     ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
     size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
@@ -255,7 +255,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
+ur_result_t urDeviceGet(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
     ur_device_type_t DeviceType,   ///< [in] the type of the devices.
     uint32_t NumEntries, ///< [in] the number of devices to be added to
@@ -282,7 +282,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<pi_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
@@ -332,7 +332,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
+ur_result_t urDeviceGetInfo(
     ur_device_handle_t Device,  ///< [in] handle of the device instance
     ur_device_info_t ParamName, ///< [in] type of the info to retrieve
     size_t propSize,  ///< [in] the number of bytes pointed to by pDeviceInfo.
@@ -582,8 +582,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     if (Device->isCCS()) {
       struct {
         ur_device_partition_property_t Arr[2];
-      } PartitionProperties = {{UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
-                                ur_device_partition_property_t(0)}};
+      } PartitionProperties = {
+          {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_property_t(0)}};
       return ReturnValue(PartitionProperties);
     }
 
@@ -662,25 +662,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ze_device_fp_flags_t ZeSingleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp32flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      SingleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{SingleFPValue});
   }
@@ -689,25 +690,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ze_device_fp_flags_t ZeHalfFPCapabilities =
         Device->ZeDeviceModuleProperties->fp16flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{HalfFPValue});
   }
@@ -716,25 +717,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ze_device_fp_flags_t ZeDoubleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp64flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      DoubleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{DoubleFPValue});
   }
@@ -1043,7 +1045,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
-    if (Device->ImmCommandListUsed)
+    if (Device->useImmediateCommandLists())
       return std::pair<int, int>(-1, -1);   // No copy engines can be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
@@ -1079,7 +1081,7 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 // The default is standard commandlists. Setting 1 or 2 specifies use of
 // immediate commandlists.
 
-// Get value of immediate commandlists env var setting or -1 if unset
+// Get value of immediate commandlists env var setting or -1 if unset.
 _ur_device_handle_t::ImmCmdlistMode
 _ur_device_handle_t::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
@@ -1291,7 +1293,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
-  std::shared_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
@@ -1306,7 +1308,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
 // Check the device cache and load it if necessary.
 ur_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
-  std::scoped_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::scoped_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return UR_RESULT_SUCCESS;
@@ -1482,7 +1484,7 @@ void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
+ur_result_t urDevicePartition(
     ur_device_handle_t Device, ///< [in] handle of the device to partition.
     const ur_device_partition_property_t
         *Properties, ///< [in] null-terminated array of <$_device_partition_t
@@ -1504,7 +1506,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
          Properties[1] != UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
-  } else if (Properties[0] == UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
+  } else if (Properties[0] == UR_DEVICE_PARTITION_BY_CSLICE) {
     if (Properties[1] != 0) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -1535,7 +1537,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
         return 0;
       }
     }
-    if (Properties[0] == UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
+    if (Properties[0] == UR_DEVICE_PARTITION_BY_CSLICE) {
       // Not a CSlice-based partitioning.
       if (!Device->SubDevices[0]->isCCS()) {
         return 0;
@@ -1561,5 +1563,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   if (pNumDevicesRet) {
     *pNumDevicesRet = EffectiveNumDevices;
   }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urInit([[maybe_unused]] ur_device_init_flags_t device_flags) {
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urTearDown([[maybe_unused]] void *pParams) {
   return UR_RESULT_SUCCESS;
 }

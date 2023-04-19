@@ -160,7 +160,7 @@ struct SatisfactionStackRAII {
   Sema &SemaRef;
   bool Inserted = false;
   SatisfactionStackRAII(Sema &SemaRef, const NamedDecl *ND,
-                        llvm::FoldingSetNodeID FSNID)
+                        const llvm::FoldingSetNodeID &FSNID)
       : SemaRef(SemaRef) {
       if (ND) {
       SemaRef.PushSatisfactionStackEntry(ND, FSNID);
@@ -704,26 +704,10 @@ bool Sema::CheckFunctionConstraints(const FunctionDecl *FD,
     Record = const_cast<CXXRecordDecl *>(Method->getParent());
   }
   CXXThisScopeRAII ThisScope(*this, Record, ThisQuals, Record != nullptr);
-  // We substitute with empty arguments in order to rebuild the atomic
-  // constraint in a constant-evaluated context.
-  // FIXME: Should this be a dedicated TreeTransform?
-  const Expr *RC = FD->getTrailingRequiresClause();
-  llvm::SmallVector<Expr *, 1> Converted;
-
-  if (CheckConstraintSatisfaction(
-          FD, {RC}, Converted, *MLTAL,
-          SourceRange(UsageLoc.isValid() ? UsageLoc : FD->getLocation()),
-          Satisfaction))
-    return true;
-
-  // FIXME: we need to do this for the function constraints for
-  // comparison of constraints to work, but do we also need to do it for
-  // CheckInstantiatedFunctionConstraints?  That one is more difficult, but we
-  // seem to always just pick up the constraints from the primary template.
-  assert(Converted.size() <= 1 && "Got more expressions converted?");
-  if (!Converted.empty() && Converted[0] != nullptr)
-    const_cast<FunctionDecl *>(FD)->setTrailingRequiresClause(Converted[0]);
-  return false;
+  return CheckConstraintSatisfaction(
+      FD, {FD->getTrailingRequiresClause()}, *MLTAL,
+      SourceRange(UsageLoc.isValid() ? UsageLoc : FD->getLocation()),
+      Satisfaction);
 }
 
 
@@ -1367,7 +1351,7 @@ static NormalForm makeDNF(const NormalizedConstraint &Normalized) {
 }
 
 template<typename AtomicSubsumptionEvaluator>
-static bool subsumes(NormalForm PDNF, NormalForm QCNF,
+static bool subsumes(const NormalForm &PDNF, const NormalForm &QCNF,
                      AtomicSubsumptionEvaluator E) {
   // C++ [temp.constr.order] p2
   //   Then, P subsumes Q if and only if, for every disjunctive clause Pi in the

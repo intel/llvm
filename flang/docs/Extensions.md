@@ -88,6 +88,10 @@ end
   from sharing the same name as a symbol in its scope's host, if it
   has one.
   We accept this usage with a portability warning.
+* A module name from a `USE` statement can also be used as a
+  non-global name in the same scope.  This is not conforming,
+  but it is useful and unambiguous.
+* The argument to `RANDOM_NUMBER` may not be an assumed-size array.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -108,6 +112,7 @@ end
 * Quad precision REAL literals with `Q`
 * `X` prefix/suffix as synonym for `Z` on hexadecimal literals
 * `B`, `O`, `Z`, and `X` accepted as suffixes as well as prefixes
+* Support for using bare `L` in FORMAT statement
 * Triplets allowed in array constructors
 * `%LOC`, `%VAL`, and `%REF`
 * Leading comma allowed before I/O item list
@@ -188,7 +193,9 @@ end
   relax enforcement of some requirements on actual arguments that must otherwise
   hold true for definable arguments.
 * Assignment of `LOGICAL` to `INTEGER` and vice versa (but not other types) is
-  allowed.  The values are normalized.
+  allowed.  The values are normalized to canonical `.TRUE.`/`.FALSE.`.
+  The values are also normalized for assignments of `LOGICAL(KIND=K1)` to
+  `LOGICAL(KIND=K2)`, when `K1 != K2`.
 * Static initialization of `LOGICAL` with `INTEGER` is allowed in `DATA` statements
   and object initializers.
   The results are *not* normalized to canonical `.TRUE.`/`.FALSE.`.
@@ -272,6 +279,9 @@ end
 * The character length of the `SOURCE=` or `MOLD=` in `ALLOCATE`
   may be distinct from the constant character length, if any,
   of an allocated object.
+* When a name is brought into a scope by multiple ways,
+  such as USE-association as well as an `IMPORT` from its host,
+  it's an error only if the resolution is ambiguous.
 
 ### Extensions supported when enabled by options
 

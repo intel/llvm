@@ -17,9 +17,11 @@
 #include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
+
 namespace transform {
 
 class TransformOpInterface;
+class TransformResults;
 
 /// Options controlling the application of transform operations by the
 /// TransformState.
@@ -313,7 +315,15 @@ public:
     /// Replaces the given payload op with another op. If the replacement op is
     /// null, removes the association of the payload op with its handle. Returns
     /// failure if the op is not associated with any handle.
+    ///
+    /// Note: This function does not update value handles. None of the original
+    /// op's results are allowed to be mapped to any value handle.
     LogicalResult replacePayloadOp(Operation *op, Operation *replacement);
+
+    /// Replaces the given payload value with another value. If the replacement
+    /// value is null, removes the association of the payload value with its
+    /// handle. Returns failure if the value is not associated with any handle.
+    LogicalResult replacePayloadValue(Value value, Value replacement);
 
   private:
     /// Back-reference to the state that is being extended.
@@ -391,6 +401,11 @@ private:
            "trying to find a mapping for an operation from an unmapped region");
     return it->second;
   }
+
+  /// Updates the state to include the associations between op results and the
+  /// provided result of applying a transform op.
+  LogicalResult updateStateFromResults(const TransformResults &results,
+                                       ResultRange opResults);
 
   /// Sets the payload IR ops associated with the given transform IR value
   /// (handle). A payload op may be associated multiple handles as long as
@@ -484,17 +499,17 @@ private:
   void forgetValueMapping(Value valueHandle,
                           ArrayRef<Operation *> payloadOperations);
 
-  /// Updates the payload IR ops associated with the given transform IR value.
-  /// The callback function is called once per associated operation and is
-  /// expected to return the modified operation or nullptr. In the latter case,
-  /// the corresponding operation is no longer associated with the transform IR
-  /// value. Value handles associated with the results of the operation are
-  /// also updated to be associated with the results of the new operation. For
-  /// this reason, the new operation must have the same number of results.
+  /// Replaces the given payload op with another op. If the replacement op is
+  /// null, removes the association of the payload op with its handle.
   ///
-  /// Returns failure if the payload does not satisfy the conditions associated
-  /// with the type of the handle value.
+  /// Note: This function does not update value handles. None of the original
+  /// op's results are allowed to be mapped to any value handle.
   LogicalResult replacePayloadOp(Operation *op, Operation *replacement);
+
+  /// Replaces the given payload value with another value. If the replacement
+  /// value is null, removes the association of the payload value with its
+  /// handle.
+  LogicalResult replacePayloadValue(Value value, Value replacement);
 
   /// If the operand is a handle consumed by the operation, i.e. has the "free"
   /// memory effect associated with it, identifies other handles that are
@@ -555,6 +570,18 @@ private:
   /// Each region must be an ancestor of the following regions in this list.
   /// These are also the keys for "mappings".
   SmallVector<Region *> regionStack;
+
+  /// This cache stores operation names for operations that are tracked in the
+  /// transform dialect state. It is used to detect missing memory side effects
+  /// and op tracking.
+  ///
+  /// All tracked ops are added to this cache before a transform op is applied.
+  /// After the application of the transform op, the names of all tracked ops
+  /// are compared with the names in the cache. If there is a mismatch (or a
+  /// crash), op tracking is missing somewhere. This is typically a missing
+  /// "consumesHandle" side effect or a pattern that removes an op without
+  /// notifying a TrackingListener.
+  DenseMap<Operation *, OperationName> cachedNames;
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
 };
 
@@ -589,6 +616,10 @@ public:
   /// is an operation handle, all mapped values are expected to be payload
   /// operations.
   void setMappedValues(OpResult handle, ArrayRef<MappedValue> values);
+
+  /// Sets the currently unset results to empty lists of the kind expected by
+  /// the corresponding results of the given `transform` op.
+  void setRemainingToEmpty(TransformOpInterface transform);
 
 private:
   /// Creates an instance of TransformResults that expects mappings for
@@ -670,6 +701,11 @@ LogicalResult verifyTransformOpInterface(Operation *op);
 void prepareValueMappings(
     SmallVectorImpl<SmallVector<transform::MappedValue>> &mappings,
     ValueRange values, const transform::TransformState &state);
+
+/// Populates `results` with payload associations that match exactly those of
+/// the operands to `block`'s terminator.
+void forwardTerminatorOperands(Block *block, transform::TransformState &state,
+                               transform::TransformResults &results);
 } // namespace detail
 
 /// This trait is supposed to be attached to Transform dialect operations that
@@ -838,6 +874,11 @@ bool isHandleConsumed(Value handle, transform::TransformOpInterface transform);
 /// IR resource.
 void modifiesPayload(SmallVectorImpl<MemoryEffects::EffectInstance> &effects);
 void onlyReadsPayload(SmallVectorImpl<MemoryEffects::EffectInstance> &effects);
+
+/// Populates `consumedArguments` with positions of `block` arguments that are
+/// consumed by the operations in the `block`.
+void getConsumedBlockArguments(
+    Block &block, llvm::SmallDenseSet<unsigned> &consumedArguments);
 
 /// Trait implementing the MemoryEffectOpInterface for operations that "consume"
 /// their operands and produce new results.

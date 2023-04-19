@@ -7,13 +7,82 @@ message(STATUS "Including the PI API HIP backend for ${SYCL_BUILD_PI_HIP_PLATFOR
 # Set default ROCm installation directory
 set(SYCL_BUILD_PI_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
 
-if(NOT EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}")
-  message(FATAL_ERROR "Couldn't find ROCm installation in '${SYCL_BUILD_PI_HIP_ROCM_DIR}',"
-                      " please set SYCL_BUILD_PI_HIP_ROCM_DIR to the path of the ROCm installation.")
+# Set HIP include and lib dirs
+set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "" CACHE STRING "Override HIP include dir path (set to \"\" for default behavior)")
+set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "" CACHE STRING "Override HSA include dir path (set to \"\" for default behavior)")
+
+if("${SYCL_BUILD_PI_HIP_INCLUDE_DIR}" STREQUAL "")
+  set(PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include")
+else()
+  set(PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_INCLUDE_DIR}")
 endif()
 
-# Set HIP include dirs
-set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include;${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
+if("${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}" STREQUAL "")
+  set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
+else()
+  set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_INCLUDE_DIR}")
+endif()
+
+# Set HIP lib dir
+set(SYCL_BUILD_PI_HIP_LIB_DIR "" CACHE STRING "Override HIP lib dir path (set to \"\" for default behavior)")
+if("${SYCL_BUILD_PI_HIP_LIB_DIR}" STREQUAL "")
+  set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib")
+else()
+  set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_LIB_DIR}")
+endif()
+
+# Mark override options for advanced usage
+mark_as_advanced(SYCL_BUILD_PI_HIP_INCLUDE_DIR SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR SYCL_BUILD_PI_HIP_LIB_DIR)
+
+# Check if ROCm install paths exists
+# N.B. Doesn't check if all override options are set: HSA and HIP include (and HIP lib for AMD platform)
+if(("${SYCL_BUILD_PI_HIP_INCLUDE_DIR}" STREQUAL "") OR
+   ("${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}" STREQUAL "") OR
+   (("${SYCL_BUILD_PI_HIP_LIB_DIR}" STREQUAL "") AND ("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")))
+
+  if(NOT EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}")
+    message(FATAL_ERROR "Couldn't find ROCm installation in '${SYCL_BUILD_PI_HIP_ROCM_DIR}',"
+                        " please set SYCL_BUILD_PI_HIP_ROCM_DIR to the path of the ROCm installation.")
+  endif()
+endif()
+
+# Check if HIP include path exists
+if(NOT EXISTS "${PI_HIP_INCLUDE_DIR}")
+  if("${SYCL_BUILD_PI_HIP_INCLUDE_DIR}" STREQUAL "")
+    message(FATAL_ERROR "Couldn't find the HIP include directory at '${PI_HIP_INCLUDE_DIR}',"
+                        " please check ROCm installation and possibly set SYCL_BUILD_PI_HIP_INCLUDE_DIR to the path of the HIP include directory for non-standard install paths.")
+  else()
+    message(FATAL_ERROR "Couldn't find the HIP include directory at '${PI_HIP_INCLUDE_DIR}',"
+                        " please set SYCL_BUILD_PI_HIP_INCLUDE_DIR to the path of the HIP include directory from the ROCm installation.")
+  endif()
+endif()
+
+# Check if HSA include path exists
+if(NOT EXISTS "${PI_HIP_HSA_INCLUDE_DIR}")
+  if("${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}" STREQUAL "")
+    message(FATAL_ERROR "Couldn't find the HSA include directory at '${PI_HIP_HSA_INCLUDE_DIR}',"
+                        " please check ROCm installation and possibly set SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR to the path of the HSA include directory for non-standard install paths.")
+  else()
+    message(FATAL_ERROR "Couldn't find the HSA include directory at '${PI_HIP_HSA_INCLUDE_DIR}',"
+                        " please set SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR to the path of the HSA include directory from the ROCm installation.")
+  endif()
+endif()
+
+# Check if HIP library path exists (AMD platform only)
+if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  if(NOT EXISTS "${PI_HIP_LIB_DIR}")
+    if("${SYCL_BUILD_PI_HIP_LIB_DIR}" STREQUAL "")
+      message(FATAL_ERROR "Couldn't find the HIP library directory at '${PI_HIP_LIB_DIR}',"
+          " please check ROCm installation and possibly set SYCL_BUILD_PI_HIP_LIB_DIR to the path of the HIP library directory for non-standard install paths.")
+    else()
+      message(FATAL_ERROR "Couldn't find the HIP library directory at '${PI_HIP_LIB_DIR}',"
+                          " please set SYCL_BUILD_PI_HIP_LIB_DIR to the path of the HIP library directory from the ROCm installation.")
+    endif()
+  endif()
+endif()
+
+# Set includes used in added library (rocmdrv)
+set(HIP_HEADERS "${PI_HIP_INCLUDE_DIR};${PI_HIP_HSA_INCLUDE_DIR}")
 
 # Create pi_hip library
 add_sycl_plugin(hip
@@ -35,7 +104,7 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
 
   set_target_properties(
     rocmdrv PROPERTIES
-      IMPORTED_LOCATION                    "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib/libamdhip64.so"
+      IMPORTED_LOCATION                    "${PI_HIP_LIB_DIR}/libamdhip64.so"
       INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
       INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
   )

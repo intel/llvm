@@ -437,6 +437,8 @@ def warn_reserved_extern_symbol: Warning<
   "it starts with '_' followed by a capital letter|"
   "it contains '__'}1">,
   InGroup<ReservedIdentifier>, DefaultIgnore;
+def warn_reserved_module_name : Warning<
+  "%0 is a reserved name for a module">, InGroup<ReservedModuleIdentifier>;
 
 def warn_parameter_size: Warning<
   "%0 is a large (%1 bytes) pass-by-value argument; "
@@ -2224,6 +2226,8 @@ def err_reference_has_multiple_inits : Error<
   "reference cannot be initialized with multiple values">;
 def err_init_non_aggr_init_list : Error<
   "initialization of non-aggregate type %0 with an initializer list">;
+def err_designated_init_for_non_aggregate : Error<
+  "initialization of non-aggregate type %0 with a designated initializer list">;
 def err_init_reference_member_uninitialized : Error<
   "reference member of type %0 uninitialized">;
 def note_uninit_reference_member : Note<
@@ -2346,8 +2350,6 @@ def err_auto_variable_cannot_appear_in_own_initializer : Error<
 def err_binding_cannot_appear_in_own_initializer : Error<
   "binding %0 cannot appear in the initializer of its own "
   "decomposition declaration">;
-def err_illegal_decl_array_of_auto : Error<
-  "'%0' declared as array of %1">;
 def err_new_array_of_auto : Error<
   "cannot allocate array of 'auto'">;
 def err_auto_not_allowed : Error<
@@ -8700,6 +8702,10 @@ def note_cuda_device_builtin_surftex_should_be_template_class : Note<
 def err_hip_invalid_args_builtin_mangled_name : Error<
     "invalid argument: symbol must be a device-side function or global variable">;
 
+def warn_hip_omp_target_directives : Warning<
+  "HIP does not support OpenMP target directives; directive has been ignored">,
+  InGroup<HIPOpenMPOffloading>, DefaultError;
+
 def warn_non_pod_vararg_with_format_string : Warning<
   "cannot pass %select{non-POD|non-trivial}0 object of type %1 to variadic "
   "%select{function|block|method|constructor}2; expected type from format "
@@ -11324,8 +11330,7 @@ def err_private_module_fragment_not_module_interface : Error<
   "private module fragment in module implementation unit">;
 def note_not_module_interface_add_export : Note<
   "add 'export' here if this is intended to be a module interface unit">;
-def err_invalid_module_name : Error<
-  "%0 is %select{an invalid|a reserved}1 name for a module">;
+def err_invalid_module_name : Error<"%0 is an invalid name for a module">;
 def err_extern_def_in_header_unit : Error<
   "non-inline external definitions are not permitted in C++ header units">;
 
@@ -11445,6 +11450,8 @@ def err_coro_invalid_addr_of_label : Error<
 let CategoryName = "Documentation Issue" in {
 def warn_not_a_doxygen_trailing_member_comment : Warning<
   "not a Doxygen trailing comment">, InGroup<Documentation>, DefaultIgnore;
+def warn_splice_in_doxygen_comment : Warning<
+  "line splicing in Doxygen comments are not supported">, InGroup<Documentation>, DefaultIgnore;
 } // end of documentation issue category
 
 let CategoryName = "Nullability Issue" in {
@@ -11989,6 +11996,8 @@ def err_hlsl_attr_invalid_type : Error<
    "attribute %0 only applies to a field or parameter of type '%1'">;
 def err_hlsl_attr_invalid_ast_node : Error<
    "attribute %0 only applies to %1">;
+def err_hlsl_entry_shader_attr_mismatch : Error<
+   "%0 attribute on entry function does not match the pipeline stage">;
 def err_hlsl_numthreads_argument_oor : Error<"argument '%select{X|Y|Z}0' to numthreads attribute cannot exceed %1">;
 def err_hlsl_numthreads_invalid : Error<"total number of threads cannot exceed %0">;
 def err_hlsl_missing_numthreads : Error<"missing numthreads attribute for %0 shader entry">;

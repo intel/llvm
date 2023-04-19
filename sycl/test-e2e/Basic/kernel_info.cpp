@@ -6,8 +6,6 @@
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
 //
-// CUDA and HIP do not currently implement global_work_size
-// UNSUPPORTED: cuda, hip
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //
@@ -38,8 +36,25 @@ int main() {
 
   const std::string krnName = krn.get_info<info::kernel::function_name>();
   assert(!krnName.empty());
-  const cl_uint krnArgCount = krn.get_info<info::kernel::num_args>();
-  assert(krnArgCount > 0);
+
+  std::string ErrMsg = "";
+  std::error_code Errc;
+  bool ExceptionWasThrown = false;
+  try {
+    const cl_uint krnArgCount = krn.get_info<info::kernel::num_args>();
+  } catch (exception &e) {
+    ErrMsg = e.what();
+    Errc = e.code();
+    ExceptionWasThrown = true;
+  }
+  assert(ExceptionWasThrown && "Invalid using of \"info::kernel::num_args\" "
+                               "query should throw an exception.");
+  assert(ErrMsg ==
+         "info::kernel::num_args descriptor may only be used to query a kernel "
+         "that resides in a kernel bundle constructed using a backend specific"
+         "interoperability function or to query a device built-in kernel");
+  assert(Errc == errc::invalid);
+
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
   const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();
@@ -54,11 +69,28 @@ int main() {
   const size_t prefWGSizeMult = krn.get_info<
       info::kernel_device_specific::preferred_work_group_size_multiple>(dev);
   assert(prefWGSizeMult > 0);
+  const cl_uint maxSgSize =
+      krn.get_info<info::kernel_device_specific::max_sub_group_size>(dev);
+  assert(0 < maxSgSize && maxSgSize <= wgSize);
+  const cl_uint compileSgSize =
+      krn.get_info<info::kernel_device_specific::compile_sub_group_size>(dev);
+  assert(compileSgSize <= maxSgSize);
+  const cl_uint maxNumSg =
+      krn.get_info<info::kernel_device_specific::max_num_sub_groups>(dev);
+  assert(0 < maxNumSg);
+  const cl_uint compileNumSg =
+      krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
+  assert(compileNumSg <= maxNumSg);
 
   try {
+    // To check (a) first if the kernel is device built-in, (b) then check if
+    // the device type is custom
+    if (!sycl::is_compatible({KernelID}, q.get_device())) {
+      assert(dev.get_info<sycl::info::device::device_type>() ==
+             sycl::info::device_type::custom);
+    }
+
     krn.get_info<sycl::info::kernel_device_specific::global_work_size>(dev);
-    assert(dev.get_info<sycl::info::device::device_type>() ==
-           sycl::info::device_type::custom);
   } catch (sycl::exception &e) {
     assert(e.code() == sycl::errc::invalid);
   }

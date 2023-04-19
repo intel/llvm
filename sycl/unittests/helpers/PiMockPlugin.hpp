@@ -345,6 +345,12 @@ inline pi_result mock_piextQueueCreate(pi_context context, pi_device device,
   *queue = createDummyHandle<pi_queue>();
   return PI_SUCCESS;
 }
+inline pi_result mock_piextQueueCreate2(pi_context context, pi_device device,
+                                        pi_queue_properties *properties,
+                                        pi_queue *queue) {
+  *queue = createDummyHandle<pi_queue>();
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piQueueGetInfo(pi_queue command_queue,
                                      pi_queue_info param_name,
@@ -387,9 +393,25 @@ mock_piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle) {
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextQueueGetNativeHandle2(pi_queue queue,
+                                                 pi_native_handle *nativeHandle,
+                                                 int32_t *nativeHandleDesc) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(queue);
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
     bool pluginOwnsNativeHandle, pi_queue *queue) {
+  *queue = reinterpret_cast<pi_queue>(nativeHandle);
+  retainDummyHandle(*queue);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
+    pi_device device, bool pluginOwnsNativeHandle,
+    pi_queue_properties *Properties, pi_queue *queue) {
   *queue = reinterpret_cast<pi_queue>(nativeHandle);
   retainDummyHandle(*queue);
   return PI_SUCCESS;
@@ -473,6 +495,15 @@ mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
                                     pi_mem *mem) {
   *mem = reinterpret_cast<pi_mem>(nativeHandle);
   retainDummyHandle(*mem);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextMemImageCreateWithNativeHandle(
+    pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *RetImage) {
+  *RetImage = reinterpret_cast<pi_mem>(NativeHandle);
+  retainDummyHandle(*RetImage);
   return PI_SUCCESS;
 }
 
@@ -1118,6 +1149,13 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piPluginGetBackendOption(pi_platform platform,
+                                               const char *frontend_option,
+                                               const char **backend_option) {
+  *backend_option = "";
   return PI_SUCCESS;
 }
 

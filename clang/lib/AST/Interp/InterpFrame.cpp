@@ -126,6 +126,10 @@ void print(llvm::raw_ostream &OS, const Pointer &P, ASTContext &Ctx,
     F = F.isArrayElement() ? F.getArray().expand() : F.getBase();
   }
 
+  // Drop the first pointer since we print it unconditionally anyway.
+  if (!Levels.empty())
+    Levels.erase(Levels.begin());
+
   printDesc(P.getDeclDesc());
   for (const auto &It : Levels) {
     if (It.inArray()) {

@@ -10,11 +10,22 @@ on:
       build_ref:
         type: string
         required: false
+      lts_matrix:
+        type: string
+        required: false
+        default: "[]"
+      lts_cmake_extra_args:
+        type: string
+        required: false
+        default: ""
 
 jobs:
   build:
     name: Build + LIT
     runs-on: [Windows, build]
+    strategy:
+      matrix:
+        include: ${{ fromJSON(inputs.lts_matrix) }}
     # TODO use cached checkout
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
@@ -29,7 +40,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         path: src
-        ref: ${{ inputs.build_ref || github.ref }}
+        ref: ${{ inputs.build_ref || github.sha }}
         fetch-depth: 1
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
@@ -40,7 +51,7 @@ jobs:
         mkdir build
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
-        IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
+        IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults ^
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
@@ -50,9 +61,9 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
     - name: Build
       id: build
+      shell: bash
       run: |
         cmake --build build --target sycl-toolchain
-        sccache --show-stats
     - name: check-llvm
       shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
@@ -80,9 +91,62 @@ jobs:
         cmake --build build --target check-xptifw
     - name: Install
       shell: bash
-      run: cmake --build build --target deploy-sycl-toolchain
+      run: |
+        # TODO replace utility installation with a single CMake target
+        cmake --build build --target utils/count/install
+        cmake --build build --target utils/not/install
+        cmake --build build --target utils/lit/install
+        cmake --build build --target utils/llvm-lit/install
+        cmake --build build --target install-llvm-size
+        cmake --build build --target install-llvm-cov
+        cmake --build build --target install-llvm-profdata
+        # TODO: Figure out why installing FileCheck does not install
+        # the FileCheck binary in the install/bin directory.
+        cmake --build build --target utils/FileCheck/install
+        cmake --build build --target install-compiler-rt
+        cmake --build build --target deploy-sycl-toolchain
+        # Copy FileCheck to install/bin for use by E2E tests.
+        cp build/bin/FileCheck.exe install/bin/.
+    - name: Pack toolchain
+      shell: bash
+      run: |
+        tar -czf llvm_sycl.tar.gz -C install .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
-        path: install/**/*
+        path: llvm_sycl.tar.gz
+
+  e2e-tests:
+    needs: build
+    if: ${{ inputs.lts_matrix != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.lts_matrix) }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
+    env: ${{ matrix.env }}
+    steps:
+    - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
+      with:
+        arch: amd64
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    # TODO: use cached_checkout
+    - uses: actions/checkout@v3
+      with:
+        persist-credentials: false
+        ref: ${{ inputs.build_ref || github.sha }}
+        path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
+    - uses: ./llvm/devops/actions/e2e-tests-win
+      name: Run SYCL End-to-End tests
+      with:
+        sycl_artifact: sycl_windows_default
+        targets: ${{ matrix.targets }}
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'

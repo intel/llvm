@@ -219,7 +219,7 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
       // Now that I is pointing to the first non-allocation-inst in the block,
       // insert our getelementptr instruction...
       //
-      Type *IdxTy = IC.getDataLayout().getIntPtrType(AI.getType());
+      Type *IdxTy = IC.getDataLayout().getIndexType(AI.getType());
       Value *NullIdx = Constant::getNullValue(IdxTy);
       Value *Idx[2] = {NullIdx, NullIdx};
       Instruction *GEP = GetElementPtrInst::CreateInBounds(
@@ -235,11 +235,12 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
   if (isa<UndefValue>(AI.getArraySize()))
     return IC.replaceInstUsesWith(AI, Constant::getNullValue(AI.getType()));
 
-  // Ensure that the alloca array size argument has type intptr_t, so that
-  // any casting is exposed early.
-  Type *IntPtrTy = IC.getDataLayout().getIntPtrType(AI.getType());
-  if (AI.getArraySize()->getType() != IntPtrTy) {
-    Value *V = IC.Builder.CreateIntCast(AI.getArraySize(), IntPtrTy, false);
+  // Ensure that the alloca array size argument has type equal to the offset
+  // size of the alloca() pointer, which, in the tyical case, is intptr_t,
+  // so that any casting is exposed early.
+  Type *PtrIdxTy = IC.getDataLayout().getIndexType(AI.getType());
+  if (AI.getArraySize()->getType() != PtrIdxTy) {
+    Value *V = IC.Builder.CreateIntCast(AI.getArraySize(), PtrIdxTy, false);
     return IC.replaceOperand(AI, 0, V);
   }
 
@@ -259,8 +260,8 @@ namespace {
 // instruction.
 class PointerReplacer {
 public:
-  PointerReplacer(InstCombinerImpl &IC, Instruction &Root)
-    : IC(IC), Root(Root) {}
+  PointerReplacer(InstCombinerImpl &IC, Instruction &Root, unsigned SrcAS)
+      : IC(IC), Root(Root), FromAS(SrcAS) {}
 
   bool collectUsers();
   void replacePointer(Value *V);
@@ -273,11 +274,21 @@ private:
     return I == &Root || Worklist.contains(I);
   }
 
+  bool isEqualOrValidAddrSpaceCast(const Instruction *I,
+                                   unsigned FromAS) const {
+    const auto *ASC = dyn_cast<AddrSpaceCastInst>(I);
+    if (!ASC)
+      return false;
+    unsigned ToAS = ASC->getDestAddressSpace();
+    return (FromAS == ToAS) || IC.isValidAddrSpaceCast(FromAS, ToAS);
+  }
+
   SmallPtrSet<Instruction *, 32> ValuesToRevisit;
   SmallSetVector<Instruction *, 4> Worklist;
   MapVector<Value *, Value *> WorkMap;
   InstCombinerImpl &IC;
   Instruction &Root;
+  unsigned FromAS;
 };
 } // end anonymous namespace
 
@@ -340,6 +351,8 @@ bool PointerReplacer::collectUsersRecursive(Instruction &I) {
     } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
       if (MI->isVolatile())
         return false;
+      Worklist.insert(Inst);
+    } else if (isEqualOrValidAddrSpaceCast(Inst, FromAS)) {
       Worklist.insert(Inst);
     } else if (Inst->isLifetimeStartOrEnd()) {
       continue;
@@ -426,6 +439,22 @@ void PointerReplacer::replace(Instruction *I) {
 
     IC.eraseInstFromFunction(*MemCpy);
     WorkMap[MemCpy] = NewI;
+  } else if (auto *ASC = dyn_cast<AddrSpaceCastInst>(I)) {
+    auto *V = getReplacement(ASC->getPointerOperand());
+    assert(V && "Operand not replaced");
+    assert(isEqualOrValidAddrSpaceCast(
+               ASC, V->getType()->getPointerAddressSpace()) &&
+           "Invalid address space cast!");
+    auto *NewV = V;
+    if (V->getType()->getPointerAddressSpace() !=
+        ASC->getType()->getPointerAddressSpace()) {
+      auto *NewI = new AddrSpaceCastInst(V, ASC->getType(), "");
+      NewI->takeName(ASC);
+      IC.InsertNewInstWith(NewI, *ASC);
+      NewV = NewI;
+    }
+    IC.replaceInstUsesWith(*ASC, NewV);
+    IC.eraseInstFromFunction(*ASC);
   } else {
     llvm_unreachable("should never reach here");
   }
@@ -435,7 +464,7 @@ void PointerReplacer::replacePointer(Value *V) {
 #ifndef NDEBUG
   auto *PT = cast<PointerType>(Root.getType());
   auto *NT = cast<PointerType>(V->getType());
-  assert(PT != NT && PT->hasSameElementTypeAs(NT) && "Invalid usage");
+  assert(PT != NT && "Invalid usage");
 #endif
   WorkMap[&Root] = V;
 
@@ -518,7 +547,7 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
         return NewI;
       }
 
-      PointerReplacer PtrReplacer(*this, AI);
+      PointerReplacer PtrReplacer(*this, AI, SrcAddrSpace);
       if (PtrReplacer.collectUsers()) {
         for (Instruction *Delete : ToDelete)
           eraseInstFromFunction(*Delete);

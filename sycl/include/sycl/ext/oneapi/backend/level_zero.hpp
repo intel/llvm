@@ -31,6 +31,10 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
+__SYCL_EXPORT queue make_queue2(const context &Context, const device &Device,
+                                pi_native_handle InteropHandle,
+                                bool IsImmCmdList, bool keep_ownership,
+                                const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -83,7 +87,8 @@ T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop,
        ownership Ownership = ownership::transfer) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
+  return make_queue(Context, Context.get_devices()[0],
+                    *(reinterpret_cast<pi_native_handle *>(&Interop)),
                     Ownership == ownership::keep);
 }
 
@@ -120,10 +125,36 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
   const device Device = device{BackendObject.Device};
-  return ext::oneapi::level_zero::make_queue(
-      TargetContext, Device,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+  bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
+      BackendObject.NativeHandle);
+  pi_native_handle Handle = IsImmCmdList
+                                ? reinterpret_cast<pi_native_handle>(
+                                      *(std::get_if<ze_command_list_handle_t>(
+                                          &BackendObject.NativeHandle)))
+                                : reinterpret_cast<pi_native_handle>(
+                                      *(std::get_if<ze_command_queue_handle_t>(
+                                          &BackendObject.NativeHandle)));
+  return ext::oneapi::level_zero::make_queue2(
+      TargetContext, Device, Handle, IsImmCmdList,
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      BackendObject.Properties);
+}
+
+// Specialization of sycl::get_native for Level-Zero backend.
+template <>
+inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
+    -> backend_return_t<backend::ext_oneapi_level_zero, queue> {
+  int32_t IsImmCmdList;
+  pi_native_handle Handle = Obj.getNative2(IsImmCmdList);
+  if (IsImmCmdList) {
+    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
+        std::in_place_index<1>,
+        reinterpret_cast<ze_command_list_handle_t>(Handle)};
+  } else {
+    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
+        std::in_place_index<0>,
+        reinterpret_cast<ze_command_queue_handle_t>(Handle)};
+  }
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.
@@ -196,6 +227,24 @@ make_buffer(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
+}
+
+// Specialization of sycl::make_image for Level-Zero backend.
+template <backend Backend, int Dimensions = 1,
+          typename AllocatorT = image_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        image<Dimensions, AllocatorT>>::type
+make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
+               &BackendObject,
+           const context &TargetContext, event AvailableEvent) {
+
+  bool OwnNativeHandle =
+      (BackendObject.Ownership == ext::oneapi::level_zero::ownership::transfer);
+
+  return image<Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.ZeImageHandle),
+      TargetContext, AvailableEvent, BackendObject.ChanOrder,
+      BackendObject.ChanType, OwnNativeHandle, BackendObject.Range);
 }
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")

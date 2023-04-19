@@ -61,6 +61,7 @@ _PI_API(piMemRelease)
 _PI_API(piMemBufferPartition)
 _PI_API(piextMemGetNativeHandle)
 _PI_API(piextMemCreateWithNativeHandle)
+_PI_API(piextMemImageCreateWithNativeHandle)
 // Program
 _PI_API(piProgramCreate)
 _PI_API(piclProgramCreateWithSource)
@@ -154,5 +155,12 @@ _PI_API(piGetDeviceAndHostTimer)
 // Device global variable
 _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
+
+_PI_API(piPluginGetBackendOption)
+
+// Queue create and get APIs for immediate commandlists
+_PI_API(piextQueueCreate2)
+_PI_API(piextQueueGetNativeHandle2)
+_PI_API(piextQueueCreateWithNativeHandle2)
 
 #undef _PI_API
