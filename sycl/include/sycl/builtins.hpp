@@ -1124,10 +1124,14 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> abs(T x) __NOEXC {
   return __sycl_std::__invoke_u_abs<T>(x);
 }
 
-// ugeninteger abs (geninteger x)
+// igeninteger abs (geninteger x)
 template <typename T>
 detail::enable_if_t<detail::is_igeninteger<T>::value, T> abs(T x) __NOEXC {
-  return __sycl_std::__invoke_s_abs<T>(x);
+  auto res = __sycl_std::__invoke_s_abs<detail::make_unsigned_t<T>>(x);
+  if constexpr (detail::is_vigeninteger<T>::value) {
+    return res.template convert<detail::vector_element_t<T>>();
+  } else
+    return detail::make_signed_t<decltype(res)>(res);
 }
 
 // ugeninteger abs_diff (geninteger x, geninteger y)
