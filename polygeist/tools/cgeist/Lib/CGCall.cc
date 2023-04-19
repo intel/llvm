@@ -278,11 +278,12 @@ ValueCategory MLIRScanner::callHelper(
     if (InputOperands.size() == 0)
       InputOperands.append(Args);
 
-    return ValueCategory(mlirclang::replaceFuncByOperation(
-                             ToCall, LTInfo.SymbolTable[ToCall.getName()],
-                             Builder, InputOperands, OutputOperands)
-                             ->getResult(0),
-                         /*isReference=*/false);
+    Operation *op = mlirclang::replaceFuncByOperation(
+        ToCall, LTInfo.SymbolTable[ToCall.getName()], Builder, InputOperands,
+        OutputOperands);
+    return op->getNumResults()
+               ? ValueCategory(op->getResult(0), /*isReference=*/false)
+               : nullptr;
   }
 
   bool IsArrayReturn = false;
@@ -1483,7 +1484,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
   } break;
   case clang::Builtin::BI__builtin_assume: {
     VisitArgs();
-    V = Builder.create<LLVM::AssumeOp>(Loc, Args[0])->getResult(0);
+    Builder.create<LLVM::AssumeOp>(Loc, Args[0]);
   } break;
   case clang::Builtin::BI__builtin_isgreater: {
     VisitArgs();

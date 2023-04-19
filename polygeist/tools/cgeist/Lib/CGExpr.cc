@@ -1891,7 +1891,9 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   NewIfOp.getThenRegion().takeBody(IfOp.getThenRegion());
   NewIfOp.getElseRegion().takeBody(IfOp.getElseRegion());
   IfOp.erase();
-  return ValueCategory(NewIfOp.getResult(0), /*isReference*/ IsReference);
+  return NewIfOp.getNumResults()
+             ? ValueCategory(NewIfOp.getResult(0), /*isReference*/ IsReference)
+             : nullptr;
 }
 
 ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *Stmt) {
