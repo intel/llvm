@@ -112,10 +112,10 @@ template<typename T>
 ```
 
 The parameter `fn` must be a C++ `Callable` object which is invocable with an
-empty parameter list.  When called from device code, normal SYCL restrictions
-apply, so `fn` must not be a function pointer or a pointer to a member
-function.  (The expectation is that most applications will pass a lambda
-expression for this parameter.)
+empty parameter list.  Normal SYCL restrictions apply to the `fn` parameter to
+`if_device`, so this parameter must not be a function pointer or a pointer to a
+member function.  The expectation is that most applications will pass a lambda
+expression for `fn`.
 
 The `if_device` function conditionally calls the object `fn` only if
 `if_device` is called from device code.  The `if_host` function conditionally
@@ -134,11 +134,16 @@ class /* unspecified */ {
 };
 ```
 
-The parameter `fn` must be a C++ `Callable` object with the same restrictions
-listed above.  The `otherwise` function calls `fn` only if the object _F_ comes
-from a previous call to `if_device` or `if_host` that did not call its `fn`
-object.  Thus, `otherwise` can be used like an "else" clause as demonstrated by
-this example:
+The parameter `fn` must be a C++ `Callable` object which is invocable with an
+empty parameter list.  When the _F_ object comes from a previous call to
+`if_host`, the `fn` parameter to `otherwise` must obey normal SYCL
+restrictions, so it must not be a function pointer or a pointer to a member
+function.
+
+The `otherwise` function calls `fn` only if the object _F_ comes from a
+previous call to `if_device` or `if_host` that did not call its `fn` object.
+Thus, `otherwise` can be used like an "else" clause as demonstrated by this
+example:
 
 ```
 namespace syclex = sycl::ext::oneapi::experimental;
