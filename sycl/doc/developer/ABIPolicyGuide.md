@@ -106,6 +106,20 @@ owners for help.
 **Note**: Features clearly marked as experimental are considered as an exception
 to this guideline.
 
-### ABI breaking changes window June 15 - September 15 2022 [CLOSED]
+### ABI breaking changes window April 18 - July 11 2023
 
-Next ABI breaking changes window is TBD.
+During this period of time ABI breaking changes will be accepted. All breaking 
+changes will still require a good justification.
+
+Whenever you need to change the existing ABI, please, follow these steps:
+
+1. Add [ABI-break] tag to your PR title.
+2. Update your PR description with rationale why breaking ABI is necessary.
+3. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
+   update test files.
+4. Increment library engineering version together with the change ("-V" postfix
+   part of version, as described above)
+
+At the end of this window we will increment major version of the DPC++ library
+
+Next ABI breaking changes window is April 2024.

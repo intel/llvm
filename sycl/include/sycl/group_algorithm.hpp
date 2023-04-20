@@ -253,7 +253,7 @@ reduce_over_group(Group g, sycl::vec<T, N> x, BinaryOperation binary_op) {
       "Result type of binary_op must match reduction accumulation type.");
   sycl::vec<T, N> result;
 
-  detail::dim_loop<N>(
+  detail::loop<N>(
       [&](size_t s) { result[s] = reduce_over_group(g, x[s], binary_op); });
   return result;
 }
