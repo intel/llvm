@@ -689,8 +689,10 @@ public:
 
 private:
   struct Rule {
+    using TupleOfThreeStringRef = std::tuple<StringRef, StringRef, StringRef>;
+
   private:
-    std::variant<StringRef, std::tuple<StringRef, StringRef, StringRef>,
+    std::variant<StringRef, TupleOfThreeStringRef,
                  std::function<std::string(Function *)>>
         Storage;
 
@@ -761,7 +763,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
     } break;
 
     case Rule::RKind::K_FlagMetadata: {
-      std::tuple<StringRef, StringRef, StringRef> Data =
+      Rule::TupleOfThreeStringRef Data =
           R.getStorage<Rule::RKind::K_FlagMetadata>();
       if (F->hasMetadata(std::get<0>(Data)))
         Result += std::get<1>(Data);
@@ -799,7 +801,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
     } break;
 
     case Rule::RKind::K_FlagAttribute: {
-      std::tuple<StringRef, StringRef, StringRef> Data =
+      Rule::TupleOfThreeStringRef Data =
           R.getStorage<Rule::RKind::K_FlagAttribute>();
       if (F->hasFnAttribute(std::get<0>(Data)))
         Result += std::get<1>(Data);
