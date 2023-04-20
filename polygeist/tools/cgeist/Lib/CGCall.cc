@@ -1116,8 +1116,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       SmallVector<Type> RTs = {TypeTranslator.translateType(
           mlirclang::anonymize(mlirclang::getLLVMType(CT, Glob.getCGM())))};
 
-      auto Ft = cast<LLVM::LLVMFunctionType>(
-          cast<LLVM::LLVMPointerType>(Args[0].getType()).getElementType());
+      auto Ft = cast<LLVM::LLVMFunctionType>(TypeTranslator.translateType(
+          mlirclang::anonymize(mlirclang::getLLVMType(
+              cast<clang::PointerType>(
+                  Expr->getCallee()->getType()->getUnqualifiedDesugaredType())
+                  ->getPointeeType(),
+              Glob.getCGM()))));
       assert(RTs[0] == Ft.getReturnType());
       if (isa<LLVM::LLVMVoidType>(RTs[0]))
         RTs.clear();
@@ -1206,7 +1210,8 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
           Builder.create<LLVM::CallOp>(
               Loc, StrcmpF,
               ValueRange({Builder.create<LLVM::BitcastOp>(
-                  Loc, Glob.getTypes().getPointerType(Builder.getIntegerType(8)),
+                  Loc,
+                  Glob.getTypes().getPointerType(Builder.getIntegerType(8)),
                   Arg)}));
         } else {
           Builder.create<memref::DeallocOp>(Loc, Arg);

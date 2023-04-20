@@ -632,7 +632,7 @@ public:
 
   ValueCategory CommonFieldLookup(clang::QualType OT,
                                   const clang::FieldDecl *FD, mlir::Value Val,
-                                  bool IsLValue);
+                                  mlir::Type ElementType, bool IsLValue);
 
   ValueCategory CommonArrayLookup(ValueCategory Val, mlir::Value Idx,
                                   bool IsImplicitRefResult,

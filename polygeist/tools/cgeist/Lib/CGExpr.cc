@@ -239,10 +239,9 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
           Num = Shape[0];
         } else if (auto PT =
                        dyn_cast<LLVM::LLVMPointerType>(ToInit.getType())) {
-          if (auto AT = dyn_cast<LLVM::LLVMArrayType>(PT.getElementType()))
+          if (auto AT = dyn_cast<LLVM::LLVMArrayType>(ElementTy))
             Num = AT.getNumElements();
-          else if (auto AT =
-                       dyn_cast<LLVM::LLVMStructType>(PT.getElementType()))
+          else if (auto AT = dyn_cast<LLVM::LLVMStructType>(ElementTy))
             Num = AT.getBody().size();
           else {
             ToInit.getType().dump();
@@ -621,9 +620,10 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
   Glob.getTypes().getMLIRType(Expr->getCallOperator()->getThisObjectType(),
                               &IsArray);
 
-  if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(T)) {
+  if (isa<mlir::LLVM::LLVMPointerType>(T)) {
     LLVMABI = true;
-    T = PT.getElementType();
+    T = Glob.getTypes().getMLIRType(
+        Expr->getCallOperator()->getThisObjectType());
   }
 
   if (auto MT = dyn_cast<MemRefType>(T)) {
@@ -656,7 +656,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
           FieldDecl *Field = Captures[VD];
           Result = CommonFieldLookup(
               cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(),
-              Field, ThisVal.val, /*isLValue*/ false);
+              Field, ThisVal.val, ThisVal.getElemTy(), /*isLValue*/ false);
           assert(CaptureKinds.find(VD) != CaptureKinds.end());
           if (CaptureKinds[VD] == LambdaCaptureKind::LCK_ByRef)
             Result = Result.dereference(Builder);
@@ -677,8 +677,12 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
     bool IsArray = false;
     Glob.getTypes().getMLIRType(Field->getType(), &IsArray);
 
+    auto ElemTy = Glob.getTypes().getMLIRType(
+        Expr->getCallOperator()->getThisObjectType());
+
     if (CK == LambdaCaptureKind::LCK_ByCopy)
       CommonFieldLookup(Expr->getCallOperator()->getThisObjectType(), Field, Op,
+                        ElemTy,
                         /*isLValue*/ false)
           .store(Builder, Result, IsArray);
     else {
@@ -710,6 +714,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
       }
 
       CommonFieldLookup(Expr->getCallOperator()->getThisObjectType(), Field, Op,
+                        ElemTy,
                         /*isLValue*/ false)
           .store(Builder, Val);
     }
@@ -803,7 +808,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
         ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
             Loc,
             Glob.getTypes().getPointerType(
-                LLVM::LLVMArrayType::get(PT.getElementType(), 0),
+                LLVM::LLVMArrayType::get(ElemTy.value(), 0),
                 PT.getAddressSpace()),
             Alloc);
       }
@@ -836,7 +841,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
       ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
           Loc,
           Glob.getTypes().getPointerType(
-              LLVM::LLVMArrayType::get(PT.getElementType(), 0),
+              LLVM::LLVMArrayType::get(ElemTy.value(), 0),
               PT.getAddressSpace()),
           Alloc);
     }
@@ -1388,7 +1393,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
       FieldDecl *Field = Captures[VD];
       ValueCategory Res = CommonFieldLookup(
           cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), Field,
-          ThisVal.val,
+          ThisVal.val, ThisVal.getElemTy(),
           isa<clang::ReferenceType>(
               Field->getType()->getUnqualifiedDesugaredType()));
       assert(CaptureKinds.find(VD) != CaptureKinds.end());
@@ -1483,7 +1488,7 @@ MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *Expr) {
 
   ValueCategory CFL = CommonFieldLookup(
       cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(),
-      Expr->getField(), ThisVal.val, /*isLValue*/ false);
+      Expr->getField(), ThisVal.val, ThisVal.getElemTy(), /*isLValue*/ false);
   assert(CFL.val);
   CFL.store(Builder, ToSet, IsArray);
   return CFL;
@@ -1531,9 +1536,10 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     llvm::errs() << "base value: " << Base.val << "\n";
   }
   assert(Base.isReference);
+  auto ElementType = Glob.getTypes().getMLIRType(OT);
   const FieldDecl *Field = cast<clang::FieldDecl>(ME->getMemberDecl());
   return CommonFieldLookup(
-      OT, Field, Base.val,
+      OT, Field, Base.val, ElementType,
       isa<clang::ReferenceType>(
           Field->getType()->getUnqualifiedDesugaredType()));
 }
@@ -1753,11 +1759,15 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             Builder.create<polygeist::Pointer2MemrefOp>(Loc, NT, Scalar),
             false);
       }
-      PT = Glob.getTypes().getPointerType(PT.getElementType(),
-                                          SPT.getAddressSpace());
-      auto Nval = Builder.create<mlir::LLVM::BitcastOp>(Loc, PT, Scalar);
+
       auto ElemTy = Glob.getTypes().getMLIRType(
           cast<clang::PointerType>(E->getType())->getPointeeType());
+      if (isa<NoneType>(ElemTy)) {
+        // void* case, set to i8
+        ElemTy = Builder.getI8Type();
+      }
+      PT = Glob.getTypes().getPointerType(ElemTy, SPT.getAddressSpace());
+      auto Nval = Builder.create<mlir::LLVM::BitcastOp>(Loc, PT, Scalar);
       return ValueCategory(Nval, /*isReference*/ false, ElemTy);
     }
 
@@ -2036,8 +2046,8 @@ ValueCategory MLIRScanner::VisitBinAssign(BinaryOperator *E) {
   assert(LHS.isReference);
   mlir::Value ToStore = RHS.getValue(Builder);
   mlir::Type SubType;
-  if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(LHS.val.getType()))
-    SubType = PT.getElementType();
+  if (isa<mlir::LLVM::LLVMPointerType>(LHS.val.getType()))
+    SubType = LHS.getElemTy();
   else
     SubType = cast<MemRefType>(LHS.val.getType()).getElementType();
 

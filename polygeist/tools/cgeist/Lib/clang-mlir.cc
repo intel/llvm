@@ -258,16 +258,17 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
       assert(Field && "initialiation expression must apply to a field");
 
       if (auto *AILE = dyn_cast<clang::ArrayInitLoopExpr>(Expr->getInit())) {
-        VisitArrayInitLoop(AILE,
-                           CommonFieldLookup(CC->getThisObjectType(), Field,
-                                             ThisVal.val, /*IsLValue*/ false));
+        VisitArrayInitLoop(
+            AILE, CommonFieldLookup(CC->getThisObjectType(), Field, ThisVal.val,
+                                    ThisVal.getElemTy(), /*IsLValue*/ false));
         continue;
       }
 
       if (auto *Cons = dyn_cast<clang::CXXConstructExpr>(Expr->getInit())) {
         VisitConstructCommon(Cons, /*name*/ nullptr, /*space*/ 0,
                              CommonFieldLookup(CC->getThisObjectType(), Field,
-                                               ThisVal.val, /*IsLValue*/ false)
+                                               ThisVal.val, ThisVal.getElemTy(),
+                                               /*IsLValue*/ false)
                                  .val);
         continue;
       }
@@ -282,6 +283,7 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
       Glob.getTypes().getMLIRType(Expr->getInit()->getType(), &IsArray);
 
       auto CFL = CommonFieldLookup(CC->getThisObjectType(), Field, ThisVal.val,
+                                   ThisVal.getElemTy(),
                                    /*IsLValue*/ false);
       assert(CFL.val);
       CFL.store(Builder, InitExpr, IsArray);
@@ -330,9 +332,7 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
             Loc, Glob.getTypes().getPointerType(MT.getElementType()), Src);
 
       Value TypeSize = Builder.create<polygeist::TypeSizeOp>(
-          Loc, Builder.getIndexType(),
-          TypeAttr::get(
-              cast<LLVM::LLVMPointerType>(V.getType()).getElementType()));
+          Loc, Builder.getIndexType(), TypeAttr::get(ThisVal.getElemTy()));
       TypeSize = Builder.create<arith::IndexCastOp>(Loc, Builder.getI64Type(),
                                                     TypeSize);
       V = Builder.create<LLVM::BitcastOp>(
@@ -557,7 +557,12 @@ Value MLIRScanner::castToMemSpace(Value Val, unsigned MemSpace) {
       .Case<LLVM::LLVMPointerType>([&](LLVM::LLVMPointerType ValType) -> Value {
         if (ValType.getAddressSpace() == MemSpace)
           return Val;
-
+        if (UseOpaquePointers) {
+          // Do not evaluate ValType.getElementType() in opaque pointer case.
+          return Builder.create<LLVM::AddrSpaceCastOp>(
+              Loc, LLVM::LLVMPointerType::get(ValType.getContext(), MemSpace),
+              Val);
+        }
         return Builder.create<LLVM::AddrSpaceCastOp>(
             Loc,
             Glob.getTypes().getPointerType(ValType.getElementType(), MemSpace),
@@ -578,16 +583,16 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
   assert(Scalar.val && Scalar.isReference);
 
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Scalar.val.getType())) {
-    if (isa<LLVM::LLVMPointerType>(*Scalar.ElementType))
+    if (isa<LLVM::LLVMPointerType>(Scalar.getElemTy()))
       return ValueCategory(Scalar.val, /*isRef*/ false, Scalar.ElementType);
 
-    if (!isa<LLVM::LLVMArrayType>(PT.getElementType())) {
+    if (!isa<LLVM::LLVMArrayType>(Scalar.getElemTy())) {
       EmittingFunctionDecl->dump();
       Function.dump();
       llvm::errs() << " sval: " << Scalar.val << "\n";
       llvm::errs() << PT << "\n";
     }
-    auto ET = cast<LLVM::LLVMArrayType>(*Scalar.ElementType).getElementType();
+    auto ET = cast<LLVM::LLVMArrayType>(Scalar.getElemTy()).getElementType();
     return ValueCategory(
         Builder.create<LLVM::GEPOp>(
             Loc, Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
@@ -1186,7 +1191,8 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
 
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                              const clang::FieldDecl *FD,
-                                             Value Val, bool IsLValue) {
+                                             Value Val, Type ElementType,
+                                             bool IsLValue) {
   assert(FD && "Attempting to lookup field of nullptr");
 
   const clang::RecordDecl *RD = FD->getParent();
@@ -1210,7 +1216,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   }
 
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
-    if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(PT.getElementType())) {
+    if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(ElementType)) {
       llvm::errs() << "Function: " << Function << "\n";
       FD->dump();
       FD->getType()->dump();
@@ -1218,7 +1224,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                    << " ST: " << *ST << "\n";
     }
 
-    Type ET = TypeSwitch<Type, Type>(PT.getElementType())
+    Type ET = TypeSwitch<Type, Type>(ElementType)
                   .Case<LLVM::LLVMStructType>([FNum](LLVM::LLVMStructType ST) {
                     return ST.getBody()[FNum];
                   })
@@ -1419,15 +1425,17 @@ Value MLIRScanner::GetAddressOfDerivedClass(
     Ptr = Builder.create<LLVM::GEPOp>(
         Loc, Ptr.getType(), Ptr, ValueRange({Offset}), /* inbounds */ true);
 
-    if (auto PT = dyn_cast<LLVM::LLVMPointerType>(NT))
-      Val = Builder.create<LLVM::BitcastOp>(
-          Loc,
-          Glob.getTypes().getPointerType(
-              PT.getElementType(),
-              cast<LLVM::LLVMPointerType>(Ptr.getType()).getAddressSpace()),
-          Ptr);
-    else
+    if (auto PT = dyn_cast<LLVM::LLVMPointerType>(NT)) {
+      if (!UseOpaquePointers)
+        Val = Builder.create<LLVM::BitcastOp>(
+            Loc,
+            Glob.getTypes().getPointerType(
+                PT.getElementType(),
+                cast<LLVM::LLVMPointerType>(Ptr.getType()).getAddressSpace()),
+            Ptr);
+    } else {
       Val = Builder.create<polygeist::Pointer2MemrefOp>(Loc, NT, Ptr);
+    }
   }
 
   return Val;
@@ -1492,7 +1500,9 @@ Value MLIRScanner::GetAddressOfBaseClass(
         Value Idx[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                        Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)};
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
-        Type ET = TypeSwitch<Type, Type>(PT.getElementType())
+        auto RecTy = Glob.getTypes().getMLIRType(
+            Glob.getCGM().getContext().getRecordType(RD));
+        Type ET = TypeSwitch<Type, Type>(RecTy)
                       .Case<sycl::AccessorType, LLVM::LLVMStructType>(
                           [FNum](auto Ty) { return Ty.getBody()[FNum]; })
                       .Case<LLVM::LLVMArrayType>([](LLVM::LLVMArrayType AT) {

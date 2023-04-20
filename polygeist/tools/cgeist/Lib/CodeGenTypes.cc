@@ -1488,10 +1488,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      AT->getElementType().getAddressSpace()));
   }
 
-  if (const auto *AT = dyn_cast<clang::VectorType>(T)) {
+  if (const auto *VT = dyn_cast<clang::VectorType>(T)) {
     bool SubRef = false;
-    auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
-    int64_t Size = AT->getNumElements();
+    auto ET = getMLIRType(VT->getElementType(), &SubRef, AllowMerge);
+    int64_t Size = VT->getNumElements();
     return mlir::VectorType::get(Size, ET);
   }
 
