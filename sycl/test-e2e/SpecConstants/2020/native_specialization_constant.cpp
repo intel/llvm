@@ -20,8 +20,9 @@ constexpr sycl::specialization_id<float> float_id(3.14f);
 int main() {
   sycl::queue Q;
   Q.submit([&](sycl::handler &cgh) {
-          cgh.single_task<class Kernel>([=](sycl::kernel_handler h) {
-        h.get_specialization_constant<float_id>();
+    cgh.single_task<class Kernel>([=](sycl::kernel_handler h) {
+      h.get_specialization_constant<float_id>();
+    });
   });
 
 #ifdef JIT
