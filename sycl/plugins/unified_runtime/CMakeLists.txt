@@ -80,6 +80,8 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/ur.cpp"
     "ur/usm_allocator.hpp"
     "ur/usm_allocator.cpp"
+    "ur/usm_allocator_config.cpp"
+    "ur/usm_allocator_config.hpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_loader_interface.cpp"

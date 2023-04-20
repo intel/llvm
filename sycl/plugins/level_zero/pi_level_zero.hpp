@@ -52,36 +52,6 @@
 #include <ur/adapters/level_zero/ur_level_zero.hpp>
 #include <ur/usm_allocator.hpp>
 
-template <class To, class From> To pi_cast(From Value) {
-  // TODO: see if more sanity checks are possible.
-  assert(sizeof(From) == sizeof(To));
-  return (To)(Value);
-}
-
-template <> uint32_t inline pi_cast(uint64_t Value) {
-  // Cast value and check that we don't lose any information.
-  uint32_t CastedValue = (uint32_t)(Value);
-  assert((uint64_t)CastedValue == Value);
-  return CastedValue;
-}
-
-// Record for a memory allocation. This structure is used to keep information
-// for each memory allocation.
-struct MemAllocRecord : _ur_object {
-  MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
-      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
-  // Currently kernel can reference memory allocations from different contexts
-  // and we need to know the context of a memory allocation when we release it
-  // in piKernelRelease.
-  // TODO: this should go away when memory isolation issue is fixed in the Level
-  // Zero runtime.
-  pi_context Context;
-
-  // Indicates if we own the native memory handle or it came from interop that
-  // asked to not transfer the ownership to SYCL RT.
-  bool OwnZeMemHandle;
-};
-
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
@@ -1003,12 +973,12 @@ struct _pi_image final : _pi_mem {
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
                                 pi_device = nullptr) override {
-    ZeHandle = pi_cast<char *>(ZeImage);
+    ZeHandle = ur_cast<char *>(ZeImage);
     return PI_SUCCESS;
   }
   virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
                                    pi_device = nullptr) override {
-    ZeHandlePtr = pi_cast<char **>(&ZeImage);
+    ZeHandlePtr = ur_cast<char **>(&ZeImage);
     return PI_SUCCESS;
   }
 
