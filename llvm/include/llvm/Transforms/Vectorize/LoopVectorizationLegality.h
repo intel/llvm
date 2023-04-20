@@ -392,6 +392,16 @@ public:
     return &PSE;
   }
 
+  Loop *getLoop() const { return TheLoop; }
+
+  LoopInfo *getLoopInfo() const { return LI; }
+
+  AssumptionCache *getAssumptionCache() const { return AC; }
+
+  ScalarEvolution *getScalarEvolution() const { return PSE.getSE(); }
+
+  DominatorTree *getDominatorTree() const { return DT; }
+
 private:
   /// Return true if the pre-header, exiting and latch blocks of \p Lp and all
   /// its nested loops are considered legal for vectorization. These legal
@@ -453,16 +463,6 @@ private:
   void addInductionPhi(PHINode *Phi, const InductionDescriptor &ID,
                        SmallPtrSetImpl<Value *> &AllowedExit);
 
-  /// If an access has a symbolic strides, this maps the pointer value to
-  /// the stride symbol.
-  const ValueToValueMap *getSymbolicStrides() const {
-    // FIXME: Currently, the set of symbolic strides is sometimes queried before
-    // it's collected.  This happens from canVectorizeWithIfConvert, when the
-    // pointer is checked to reference consecutive elements suitable for a
-    // masked access.
-    return LAI ? &LAI->getSymbolicStrides() : nullptr;
-  }
-
   /// The loop that we evaluate.
   Loop *TheLoop;
 
@@ -515,10 +515,6 @@ private:
 
   /// Holds the phi nodes that are fixed-order recurrences.
   RecurrenceSet FixedOrderRecurrences;
-
-  /// Holds instructions that need to sink past other instructions to handle
-  /// fixed-order recurrences.
-  MapVector<Instruction *, Instruction *> SinkAfter;
 
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;
