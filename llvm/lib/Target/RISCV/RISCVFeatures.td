@@ -104,7 +104,7 @@ def HasStdExtZfh : Predicate<"Subtarget->hasStdExtZfh()">,
 def NoStdExtZfh : Predicate<"!Subtarget->hasStdExtZfh()">;
 
 def HasStdExtZfhOrZfhmin
-    : Predicate<"Subtarget->hasStdExtZfh() || Subtarget->hasStdExtZfhmin()">,
+    : Predicate<"Subtarget->hasStdExtZfhOrZfhmin()">,
                 AssemblerPredicate<(any_of FeatureStdExtZfh, FeatureStdExtZfhmin),
                                    "'Zfh' (Half-Precision Floating-Point) or "
                                    "'Zfhmin' (Half-Precision Floating-Point Minimal)">;
@@ -317,7 +317,7 @@ def FeatureStdExtZca
                        "floating point loads/stores)">;
 
 def HasStdExtCOrZca
-    : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZca()">,
+    : Predicate<"Subtarget->hasStdExtCOrZca()">,
                 AssemblerPredicate<(any_of FeatureStdExtC, FeatureStdExtZca),
                                    "'C' (Compressed Instructions) or "
                                    "'Zca' (part of the C extension, excluding "
@@ -634,6 +634,14 @@ def FeatureVendorXTHeadVdot
 def HasVendorXTHeadVdot : Predicate<"Subtarget->hasVendorXTHeadVdot()">,
                                     AssemblerPredicate<(all_of FeatureVendorXTHeadVdot),
                                     "'xtheadvdot' (T-Head Vector Extensions for Dot)">;
+
+def FeatureVendorXSfvcp
+    : SubtargetFeature<"xsfvcp", "HasVendorXSfvcp", "true",
+                       "XSfvcp (SiFive Custom Vector Coprocessor Interface Instructions)",
+                       [FeatureStdExtZve32x]>;
+def HasVendorXSfvcp : Predicate<"Subtarget->hasVendorXSfvcp()">,
+                                AssemblerPredicate<(all_of FeatureVendorXSfvcp),
+                                "'XSfvcp' (SiFive Custom Vector Coprocessor Interface Instructions)">;
 
 //===----------------------------------------------------------------------===//
 // LLVM specific features and extensions

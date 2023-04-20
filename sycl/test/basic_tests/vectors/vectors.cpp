@@ -161,6 +161,7 @@ int main() {
   check_convert_from<sycl::half>();
   check_convert_from<float>();
   check_convert_from<double>();
+  check_convert_from<bool>();
 
   check_ops<int>(std::modulus(), 6, 3);
 
