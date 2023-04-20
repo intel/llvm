@@ -29,6 +29,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
@@ -94,6 +95,30 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O0")) {
+    *backend_option = "-cl-opt-disable";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-O1"sv || frontend_option == "-O2"sv ||
+      frontend_option == "-O3"sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 static cl_int getPlatformVersion(cl_platform_id plat,
@@ -1209,6 +1234,19 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
+  return PI_SUCCESS;
+}
+
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *Img) {
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  assert(Img != nullptr);
+  *Img = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -2329,6 +2367,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, piPluginGetBackendOption)
 
 #undef _PI_CL
 
