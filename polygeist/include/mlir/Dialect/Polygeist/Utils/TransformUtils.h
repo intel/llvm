@@ -44,11 +44,11 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
 bool isValidIndex(Value val);
 
 //===----------------------------------------------------------------------===//
-// Loop Versioning Utilities
+// Versioning Utilities
 //===----------------------------------------------------------------------===//
 
-/// Represents a loop versioning condition.
-class LoopVersionCondition {
+/// Represents a versioning condition.
+class VersionCondition {
 public:
   using SCFCondition = Value;
 
@@ -57,11 +57,11 @@ public:
     SmallVectorImpl<Value> &setOperands;
   };
 
-  /// Create a loop versioning condition for SCF loops.
-  LoopVersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
+  /// Create a versioning condition suitable for scf::IfOp.
+  VersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
 
-  LoopVersionCondition(AffineCondition affineCond)
-      : versionCondition(affineCond) {}
+  /// Create a versioning condition suitable for scf::IfOp.
+  VersionCondition(AffineCondition affineCond) : versionCondition(affineCond) {}
 
   bool hasSCFCondition() const {
     return std::holds_alternative<SCFCondition>(versionCondition);
@@ -85,12 +85,16 @@ private:
   std::variant<SCFCondition, AffineCondition> versionCondition;
 };
 
+//===----------------------------------------------------------------------===//
+// Loop Versioning Utilities
+//===----------------------------------------------------------------------===//
+
 /// Version a loop like operation.
 class LoopVersionBuilder {
 public:
   LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
 
-  void versionLoop(const LoopVersionCondition &) const;
+  void versionLoop(const VersionCondition &) const;
 
 protected:
   void createElseBody(scf::IfOp) const;
@@ -227,7 +231,7 @@ public:
 
   /// Version the given loop \p loop using the condition \p versionCond.
   void versionLoop(LoopLikeOpInterface loop,
-                   const LoopVersionCondition &versionCond) const;
+                   const VersionCondition &versionCond) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -240,27 +244,30 @@ class VersionConditionBuilder {
 public:
   using AccessorType = TypedValue<MemRefType>;
   using AccessorPairType = std::pair<AccessorType, AccessorType>;
-  using SCFCondition = LoopVersionCondition::SCFCondition;
-  using AffineCondition = LoopVersionCondition::AffineCondition;
+  using SCFCondition = VersionCondition::SCFCondition;
+  using AffineCondition = VersionCondition::AffineCondition;
 
   VersionConditionBuilder(
-      LoopLikeOpInterface loop,
-      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
-      : loop(loop), accessorPairs(requireNoOverlapAccessorPairs) {}
+      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs,
+      OpBuilder builder, Location loc)
+      : accessorPairs(requireNoOverlapAccessorPairs), builder(builder),
+        loc(loc) {
+    assert(!accessorPairs.empty() &&
+           "Expecting accessorPairs to have at least one pair");
+  }
 
-  std::unique_ptr<LoopVersionCondition> createCondition() const {
-    OpBuilder builder(loop);
-    Location loc = loop.getLoc();
+  std::unique_ptr<VersionCondition> createCondition() const {
     SCFCondition scfCond = createSCFCondition(builder, loc);
-    return std::make_unique<LoopVersionCondition>(scfCond);
+    return std::make_unique<VersionCondition>(scfCond);
   }
 
 private:
   /// Create a versioning condition suitable for scf::IfOp.
   SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
 
-  mutable LoopLikeOpInterface loop;
   ArrayRef<AccessorPairType> accessorPairs;
+  mutable OpBuilder builder;
+  mutable Location loc;
 };
 
 } // namespace mlir

@@ -621,8 +621,9 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
-      std::unique_ptr<LoopVersionCondition> condition =
-          VersionConditionBuilder(loop, accessorPairs).createCondition();
+      std::unique_ptr<VersionCondition> condition =
+          VersionConditionBuilder(accessorPairs, builder, loop->getLoc())
+              .createCondition();
       loopTools.versionLoop(loop, *condition);
     }
 
