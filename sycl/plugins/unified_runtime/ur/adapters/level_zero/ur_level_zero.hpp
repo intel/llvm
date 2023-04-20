@@ -76,7 +76,7 @@ enum EventsScope {
   LastCommandInBatchHostVisible
 };
 
-struct _ur_device_handle_t : _pi_object {
+struct _ur_device_handle_t : _ur_object {
   _ur_device_handle_t(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
