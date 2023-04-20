@@ -256,7 +256,7 @@ int main() {
     TEST_BUILTIN_1(cos, sycl::ext::oneapi::bfloat16);
     TEST_BUILTIN_1(sin, sycl::ext::oneapi::bfloat16);
 
-    // ceil, floor, trunc, exp, exp2, exp19, rint testing
+    // ceil, floor, trunc, exp, exp2, exp10, rint testing
     TEST_BUILTIN_1(ceil, sycl::ext::oneapi::bfloat16);
     TEST_BUILTIN_1(floor, sycl::ext::oneapi::bfloat16);
     TEST_BUILTIN_1(trunc, sycl::ext::oneapi::bfloat16);
