@@ -40,6 +40,7 @@
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -462,9 +463,23 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     if (HasLargeGRF)
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
   }
-  if (MD.getOptLevel() != -1)
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-        {"optLevel", MD.getOptLevel()});
+  {
+    // Handle sycl-optlevel property
+    int OptLevel = -1;
+    for (const Function &F : M.functions()) {
+      if (!F.hasFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL))
+        continue;
+
+      // getAsInteger returns true on error
+      if (!F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL)
+               .getValueAsString()
+               .getAsInteger(10, OptLevel))
+        break;
+    }
+
+    if (OptLevel != -1)
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"optLevel", OptLevel});
+  }
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
