@@ -3618,8 +3618,8 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
 
 pi_result piextMemImageCreateWithNativeHandle(
     pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
-    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
-    pi_mem *RetImage) {
+    [[maybe_unused]] const pi_image_format *ImageFormat,
+    [[maybe_unused]] const pi_image_desc *ImageDesc, pi_mem *RetImage) {
 
   PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
