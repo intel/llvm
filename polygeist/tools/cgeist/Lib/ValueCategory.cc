@@ -132,7 +132,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
       auto ElemTy = cast<mlir::VectorType>(getElemTy()).getElementType();
       assert(ElemTy == toStore.getType() &&
              "Vector insertion element mismatch");
-      ValueCategory Vec{builder.create<mlir::LLVM::LoadOp>(loc, val), false};
+      ValueCategory Vec{
+          builder.create<mlir::LLVM::LoadOp>(loc, getElemTy(), val), false};
       Vec = Vec.InsertElement(builder, loc, toStore, *Index);
       toStore = Vec.val;
     }
@@ -203,7 +204,7 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
 
     assert(ElementType && "Need to specify element type for pointer");
     return ValueCategory(
-        builder.create<mlir::LLVM::LoadOp>(loc, *ElementType, val),
+        builder.create<mlir::LLVM::LoadOp>(loc, getElemTy(), val),
         /*isReference*/ true, ElementType);
   }
 
@@ -268,7 +269,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
       } else {
         auto pt = cast<mlir::LLVM::LLVMPointerType>(val.getType());
         mlir::Type elty;
-        if (auto at = dyn_cast<LLVM::LLVMArrayType>(*ElementType)) {
+        if (auto at = dyn_cast<LLVM::LLVMArrayType>(getElemTy())) {
           elty = at.getElementType();
           if (smt.getShape().back() != at.getNumElements()) {
             llvm::errs() << " pt: " << pt << " smt: " << smt << "\n";
@@ -279,7 +280,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
           }
           assert(smt.getShape().back() == at.getNumElements());
         } else {
-          auto st = dyn_cast<LLVM::LLVMStructType>(*ElementType);
+          auto st = dyn_cast<LLVM::LLVMStructType>(getElemTy());
           elty = st.getBody()[0];
           assert(smt.getShape().back() == (ssize_t)st.getBody().size());
         }
@@ -306,7 +307,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                                 builder.create<ConstantIntOp>(loc, i, 32)};
           builder.create<mlir::LLVM::StoreOp>(
               loc, builder.create<mlir::memref::LoadOp>(loc, toStore.val, idx),
-              builder.create<mlir::LLVM::GEPOp>(loc, elty, val, lidx,
+              builder.create<mlir::LLVM::GEPOp>(loc, elty, getElemTy(), val,
+                                                lidx,
                                                 /* inbounds */ true));
         }
       }
@@ -338,8 +340,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         builder.create<mlir::memref::StoreOp>(
             loc,
             builder.create<mlir::LLVM::LoadOp>(
-                loc, builder.create<mlir::LLVM::GEPOp>(
-                         loc, elty, toStore.val, lidx, /* inbounds */ true)),
+                loc, elty,
+                builder.create<mlir::LLVM::GEPOp>(
+                    loc, elty, toStore.getElemTy(), toStore.val, lidx,
+                    /* inbounds */ true)),
             val, idx);
       }
     } else

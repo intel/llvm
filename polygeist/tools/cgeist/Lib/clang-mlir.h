@@ -279,7 +279,8 @@ private:
   mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
                                     llvm::ArrayRef<int64_t> Shape);
 
-  mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
+  mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T,
+                                      mlir::Type ElemTy) {
     auto &Vec = Bufs[T.getAsOpaquePointer()];
     if (I < Vec.size())
       return Vec[I];
@@ -288,7 +289,7 @@ private:
     Subbuilder.setInsertionPointToStart(AllocationScope);
 
     auto One = Subbuilder.create<mlir::arith::ConstantIntOp>(Loc, 1, 64);
-    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(Loc, T, One, 0);
+    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(Loc, T, ElemTy, One, 0);
     Vec.push_back(Rs);
     return Rs;
   }

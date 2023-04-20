@@ -389,7 +389,7 @@ Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
                 Name->getType()->getUnqualifiedDesugaredType())) {
           auto Len = Visit(Var->getSizeExpr()).getValue(Builder);
           Alloc = Builder.create<LLVM::AllocaOp>(
-              VarLoc, Glob.getTypes().getPointerType(T, MemSpace), Len);
+              VarLoc, Glob.getTypes().getPointerType(T, MemSpace), T, Len);
           Builder.create<polygeist::TrivialUseOp>(VarLoc, Alloc);
           Alloc = Builder.create<LLVM::BitcastOp>(
               VarLoc,
@@ -399,7 +399,7 @@ Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
 
       if (!Alloc) {
         Alloc = ABuilder.create<LLVM::AllocaOp>(
-            VarLoc, Glob.getTypes().getPointerType(T, MemSpace),
+            VarLoc, Glob.getTypes().getPointerType(T, MemSpace), T,
             ABuilder.create<arith::ConstantIntOp>(VarLoc, 1, 64), 0);
         if (isa<IntegerType, FloatType>(T)) {
           ABuilder.create<LLVM::StoreOp>(
@@ -596,7 +596,7 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
     return ValueCategory(
         Builder.create<LLVM::GEPOp>(
             Loc, Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
-            Scalar.val,
+            Scalar.getElemTy(), Scalar.val,
             ValueRange({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                         Builder.create<arith::ConstantIntOp>(Loc, 0, 32)}),
             /* inbounds */ true),
@@ -622,7 +622,7 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory Array, Value Idx,
   if (isa<LLVM::LLVMPointerType>(Val.getType())) {
     // TODO sub
     return ValueCategory(Builder.create<LLVM::GEPOp>(
-                             Loc, Val.getType(), Val,
+                             Loc, Val.getType(), Array.getElemTy(), Val,
                              ValueRange({Builder.create<arith::IndexCastOp>(
                                  Loc, Builder.getIntegerType(64), Idx)})),
                          /*isReference*/ true, Array.ElementType);
@@ -788,7 +788,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Ty)) {
       auto ITy = IntegerType::get(Builder.getContext(), 64);
       Next = Builder.create<LLVM::GEPOp>(
-          Loc, PT, Prev,
+          Loc, PT, Sub.getElemTy(), Prev,
           std::vector<Value>(
               {Builder.create<arith::ConstantIntOp>(Loc, 1, ITy)}));
     } else {
@@ -827,7 +827,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Ty)) {
       auto ITy = IntegerType::get(Builder.getContext(), 64);
       Next = Builder.create<LLVM::GEPOp>(
-          Loc, PT, Prev,
+          Loc, PT, Sub.getElemTy(), Prev,
           std::vector<Value>(
               {Builder.create<arith::ConstantIntOp>(Loc, -1, ITy)}));
     } else if (auto MT = dyn_cast<MemRefType>(Ty)) {
@@ -1231,7 +1231,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                   .Case<LLVM::LLVMArrayType, MemRefType>(
                       [](auto Ty) { return Ty.getElementType(); });
     Value CommonGep = Builder.create<LLVM::GEPOp>(
-        Loc, Glob.getTypes().getPointerType(ET, PT.getAddressSpace()), Val,
+        Loc, Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
+        ElementType, Val,
         ValueRange({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                     Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)}),
         /* inbounds*/ true);
@@ -1422,8 +1423,9 @@ Value MLIRScanner::GetAddressOfDerivedClass(
                                          PT.getAddressSpace()),
           Ptr);
 
-    Ptr = Builder.create<LLVM::GEPOp>(
-        Loc, Ptr.getType(), Ptr, ValueRange({Offset}), /* inbounds */ true);
+    Ptr = Builder.create<LLVM::GEPOp>(Loc, Ptr.getType(), Builder.getI8Type(),
+                                      Ptr, ValueRange({Offset}),
+                                      /* inbounds */ true);
 
     if (auto PT = dyn_cast<LLVM::LLVMPointerType>(NT)) {
       if (!UseOpaquePointers)
@@ -1510,8 +1512,8 @@ Value MLIRScanner::GetAddressOfBaseClass(
                       });
 
         Val = Builder.create<LLVM::GEPOp>(
-            Loc, Glob.getTypes().getPointerType(ET, PT.getAddressSpace()), Val,
-            Idx,
+            Loc, Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
+            RecTy, Val, Idx,
             /* inbounds */ true);
       }
     }

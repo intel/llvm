@@ -313,7 +313,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                             Loc,
                             Glob.getTypes().getPointerType(
                                 ST.getBody()[I], PT.getAddressSpace()),
-                            ToInit,
+                            ST, ToInit,
                             llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
                             /* inbounds */ true),
                         ST.getBody()[I]};
@@ -324,7 +324,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                             Loc,
                             Glob.getTypes().getPointerType(
                                 AT.getElementType(), PT.getAddressSpace()),
-                            ToInit,
+                            AT, ToInit,
                             llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
                             /* inbounds */ true),
                         AT.getElementType()};
@@ -335,7 +335,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                             Loc,
                             Glob.getTypes().getPointerType(
                                 IT, PT.getAddressSpace()),
-                            ToInit,
+                            IT, ToInit,
                             llvm::ArrayRef<mlir::LLVM::GEPArg>{GEPIndex},
                             /* inbounds */ true),
                         IT};
@@ -507,11 +507,12 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   auto Zero = Builder.create<arith::ConstantIntOp>(Loc, 0, 32);
   auto GEP0 = Builder.create<LLVM::GEPOp>(
-      Loc, Glob.getTypes().getPointerType(SubType.getBody()[0], 0), Alloca,
-      ValueRange({Zero, Zero}), /* inbounds */ true);
+      Loc, Glob.getTypes().getPointerType(SubType.getBody()[0], 0), SubType,
+      Alloca, ValueRange({Zero, Zero}), /* inbounds */ true);
   Builder.create<LLVM::StoreOp>(Loc, ArrayPtr.getValue(Builder), GEP0);
   auto GEP1 = Builder.create<LLVM::GEPOp>(
-      Loc, Glob.getTypes().getPointerType(SubType.getBody()[1], 0), Alloca,
+      Loc, Glob.getTypes().getPointerType(SubType.getBody()[1], 0), SubType,
+      Alloca,
       ValueRange({Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)}),
       /* inbounds */ true);
   ++Field;
@@ -1868,7 +1869,17 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
         llvm::dbgs() << "\n";
       }
     });
-    return ValueCategory(Lres, /*isReference*/ false, Prev.ElementType);
+    auto ElemTy = Prev.ElementType;
+    if (ElemTy && isa<LLVM::LLVMPointerType>(*ElemTy)) {
+      if (const auto *PtrTy = dyn_cast<clang::PointerType>(
+              E->getType()->getUnqualifiedDesugaredType())) {
+        ElemTy = Glob.getTypes().getMLIRType(PtrTy->getPointeeType());
+      } else if (isa<clang::BuiltinType>(
+                     E->getType()->getUnqualifiedDesugaredType())) {
+        ElemTy = Glob.getTypes().getMLIRType(E->getType());
+      }
+    }
+    return ValueCategory(Lres, /*isReference*/ false, ElemTy);
   }
   case clang::CastKind::CK_IntegralToFloating:
   case clang::CastKind::CK_FloatingToIntegral:

@@ -223,7 +223,6 @@ ValueCategory MLIRScanner::callHelper(
                                 Arg.getValue(Builder).getType()),
                 Val);
           } else
-            // TODO(Lukas)
             Val = ABuilder.create<LLVM::AllocaOp>(
                 Loc, Ty, ElemTy,
                 ABuilder.create<arith::ConstantIntOp>(Loc, 1, 64), 0);
@@ -339,10 +338,11 @@ ValueCategory MLIRScanner::callHelper(
         Blocks[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<LLVM::LoadOp>(
-                Loc,
+                Loc, ET,
                 Builder.create<LLVM::GEPOp>(
                     Loc,
                     Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
+                    L0.getElemTy(),
                     Val,
                     ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
@@ -368,10 +368,11 @@ ValueCategory MLIRScanner::callHelper(
         Threads[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<LLVM::LoadOp>(
-                Loc,
+                Loc, ET,
                 Builder.create<LLVM::GEPOp>(
                     Loc,
                     Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
+                    T0.getElemTy(),
                     Val,
                     ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
@@ -947,24 +948,27 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         auto StrcmpF = Glob.getOrCreateLLVMFunction(ToCall, FuncContext);
 
         std::vector<Value> Args;
-        std::vector<std::pair<Value, Value>> Ops;
+        std::vector<std::tuple<Value, Value, Type>> Ops;
         std::map<const void *, size_t> Counts;
         for (auto *A : Expr->arguments()) {
           auto V = GetLLVM(A);
           if (auto Toper = V.getDefiningOp<polygeist::Memref2PointerOp>()) {
             auto T = cast<LLVM::LLVMPointerType>(Toper.getType());
             auto Idx = Counts[T.getAsOpaquePointer()]++;
-            auto Aop = allocateBuffer(Idx, T);
+            auto ElemTy = Toper.getSource().getType().getElementType();
+            auto Aop = allocateBuffer(Idx, T, ElemTy);
             Args.push_back(Aop.getResult());
-            Ops.emplace_back(Aop.getResult(), Toper.getSource());
+            Ops.emplace_back(Aop.getResult(), Toper.getSource(), ElemTy);
           } else
             Args.push_back(V);
         }
         auto Called = Builder.create<LLVM::CallOp>(Loc, StrcmpF, Args);
         for (auto Pair : Ops) {
-          auto Lop = Builder.create<LLVM::LoadOp>(Loc, Pair.first);
+          auto Lop = Builder.create<LLVM::LoadOp>(Loc, std::get<2>(Pair),
+                                                  std::get<0>(Pair));
           Builder.create<memref::StoreOp>(
-              Loc, Lop, Pair.second, std::vector<Value>({getConstantIndex(0)}));
+              Loc, Lop, std::get<1>(Pair),
+              std::vector<Value>({getConstantIndex(0)}));
         }
         return ValueCategory(Called.getResult(), /*isReference*/ false);
       }
