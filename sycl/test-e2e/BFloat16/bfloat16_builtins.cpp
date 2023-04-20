@@ -244,6 +244,36 @@ int main() {
     // Insert NAN value in a to test isnan
     a[0] = a[N - 1] = NAN;
     TEST_BUILTIN_1(isnan, bool);
+
+    // Orignal input 'a[0...N-1]' are in range [-0.5, 0.5),
+    // need to update it for generic math testing.
+    // sin, cos testing
+    for (int i = 0; i < N; ++i) {
+      a[i] = (i / (float)(N - 1)) * 6.28;
+      if ((i & 0x1) == 0x1)
+        a[i] = -a[i];
+    }
+    TEST_BUILTIN_1(cos, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(sin, sycl::ext::oneapi::bfloat16);
+
+    // ceil, floor, trunc, exp, exp2, exp19, rint testing
+    TEST_BUILTIN_1(ceil, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(floor, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(trunc, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(exp, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(exp10, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(exp2, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(rint, sycl::ext::oneapi::bfloat16);
+
+    // log, log2, log10, sqrt, rsqrt testing, the input
+    // must be positive.
+    for (int i = 0; i < N; ++i)
+      a[i] = a[i] + 8.5;
+    TEST_BUILTIN_1(sqrt, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(rsqrt, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(log, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(log2, sycl::ext::oneapi::bfloat16);
+    TEST_BUILTIN_1(log10, sycl::ext::oneapi::bfloat16);
   }
   return 0;
 }
