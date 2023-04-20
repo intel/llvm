@@ -13,6 +13,7 @@
 #include <cstring>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
+#include <sycl/detail/type_list.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/id.hpp>
 #include <sycl/memory_enums.hpp>
@@ -507,14 +508,14 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 //   variants for all scalar types
 #ifndef __NVPTX__
 
+using ProhibitedTypesForShuffleEmulation =
+    type_list<double, long, long long, unsigned long, unsigned long long, half>;
+
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : bool_constant<std::is_same_v<vector_element_t<T>, double> ||
-                    std::is_same_v<vector_element_t<T>, long> ||
-                    std::is_same_v<vector_element_t<T>, unsigned long> ||
-                    std::is_same_v<vector_element_t<T>, long long> ||
-                    std::is_same_v<vector_element_t<T>, unsigned long long> ||
-                    std::is_same_v<vector_element_t<T>, half>> {};
+    : bool_constant<
+          is_contained<vector_element_t, ProhibitedTypesForShuffleEmulation>> {
+};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation
