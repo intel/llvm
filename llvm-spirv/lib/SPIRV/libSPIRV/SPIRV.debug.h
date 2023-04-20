@@ -54,6 +54,7 @@ enum Instruction {
   Source                        = 35,
   ModuleINTEL                   = 36,
   InstCount                     = 37,
+  FunctionDefinition            = 101,
   Module                        = 200,
   TypeSubrange                  = 201,
   TypeArrayDynamic              = 202,
@@ -543,9 +544,19 @@ enum {
   FlagsIdx        = 7,
   ScopeLineIdx    = 8,
   FunctionIdIdx   = 9,
+  DeclarationNonSemIdx = 9,
   DeclarationIdx  = 10,
-  TargetFunctionNameIdx  = 11,
+  // Only for NonSemantic.Schader.DebugInfo.200
+  TargetFunctionNameIdx  = 10,
   MinOperandCount = 10
+};
+}
+
+namespace FunctionDefinition {
+enum {
+  FunctionIdx     = 0,
+  DefinitionIdx   = 1,
+  OperandCount    = 2
 };
 }
 
