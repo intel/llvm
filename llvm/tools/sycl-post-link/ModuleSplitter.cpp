@@ -43,6 +43,7 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+constexpr char ATTR_OPT_LEVEL[] = "sycl-optlevel";
 
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
@@ -594,7 +595,7 @@ void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
-               << "\n";
+               << ", OptLevel:" << EntryPoints.getOptLevel() << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }

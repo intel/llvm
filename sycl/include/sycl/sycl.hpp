@@ -74,8 +74,8 @@
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
-#include <sycl/ext/oneapi/experimental/cluster_group.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>

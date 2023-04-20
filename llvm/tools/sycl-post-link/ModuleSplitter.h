@@ -55,6 +55,8 @@ struct EntryPointGroup {
   struct Properties {
     // Whether all EPs are ESIMD, SYCL or there are both kinds.
     SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+    // front-end opt level for kernel compilation
+    int OptLevel = -1;
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
@@ -64,6 +66,8 @@ struct EntryPointGroup {
                          ? HasESIMD
                          : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
       // Scope remains global
+      // OptLevel is expected to be the same for both merging EPGs
+      assert(OptLevel == Other.OptLevel && "OptLevels are not same");
       return Res;
     }
   };
@@ -87,6 +91,9 @@ struct EntryPointGroup {
   bool isSycl() const {
     return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY;
   }
+
+  // Returns opt level
+  int getOptLevel() const { return Props.OptLevel; }
 
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
@@ -141,6 +148,7 @@ public:
 
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }
+  int getOptLevel() const { return EntryPoints.getOptLevel(); }
 
   const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }

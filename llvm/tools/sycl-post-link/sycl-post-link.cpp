@@ -462,6 +462,9 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     if (HasLargeGRF)
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
   }
+  if (MD.getOptLevel() != -1)
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
+        {"optLevel", MD.getOptLevel()});
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)

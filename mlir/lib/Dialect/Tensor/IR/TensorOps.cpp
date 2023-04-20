@@ -369,11 +369,16 @@ struct TensorCastExtractSlice : public OpRewritePattern<CastOp> {
     auto extractOperand =
         tensorCast.getOperand().getDefiningOp<ExtractSliceOp>();
 
+    // Cannot fold cast to unranked tensor.
+    auto rankedResultType = tensorCast.getType().dyn_cast<RankedTensorType>();
+    if (!rankedResultType)
+      return failure();
+
     if (!extractOperand || !canFoldIntoProducerOp(tensorCast) ||
-        tensorCast.getType().getShape() == tensorCast.getSource()
-                                               .getType()
-                                               .cast<RankedTensorType>()
-                                               .getShape())
+        rankedResultType.getShape() == tensorCast.getSource()
+                                           .getType()
+                                           .cast<RankedTensorType>()
+                                           .getShape())
       return failure();
 
     SmallVector<OpFoldResult, 4> sizes = extractOperand.getMixedSizes();
@@ -383,15 +388,15 @@ struct TensorCastExtractSlice : public OpRewritePattern<CastOp> {
     for (size_t i = 0, e = sizes.size(); i < e; i++) {
       if (dimMask && dimMask->count(i))
         continue;
-      int64_t dim = tensorCast.getType().getShape()[dimIndex++];
+      int64_t dim = rankedResultType.getShape()[dimIndex++];
       if (ShapedType::isDynamic(dim))
         continue;
       sizes[i] = rewriter.getIndexAttr(dim);
     }
 
     rewriter.replaceOpWithNewOp<ExtractSliceOp>(
-        tensorCast, tensorCast.getType().cast<RankedTensorType>(),
-        extractOperand.getSource(), extractOperand.getMixedOffsets(), sizes,
+        tensorCast, rankedResultType, extractOperand.getSource(),
+        extractOperand.getMixedOffsets(), sizes,
         extractOperand.getMixedStrides());
     return success();
   }
@@ -1500,7 +1505,7 @@ struct FoldDimOfExpandShape : public OpRewritePattern<DimOp> {
       return failure();
 
     // Skip static dims. These are folded to constant ops.
-    TensorType resultType = expandShapeOp.getResultType();
+    RankedTensorType resultType = expandShapeOp.getResultType();
     if (!resultType.isDynamicDim(*dim))
       return failure();
 
@@ -1544,7 +1549,7 @@ struct FoldDimOfCollapseShape : public OpRewritePattern<DimOp> {
       return failure();
 
     // Skip static dims. These are folded to constant ops.
-    TensorType resultType = collapseShapeOp.getResultType();
+    RankedTensorType resultType = collapseShapeOp.getResultType();
     if (!resultType.isDynamicDim(*dim))
       return failure();
 
@@ -3704,6 +3709,45 @@ LogicalResult PackOp::canonicalize(PackOp packOp, PatternRewriter &rewriter) {
   return success();
 }
 
+template <typename PackOrUnpackOp>
+static bool isLikePadUnPad(PackOrUnpackOp packOp,
+                           RankedTensorType packedTensorType) {
+  static_assert(std::is_same<PackOrUnpackOp, tensor::PackOp>::value ||
+                    std::is_same<PackOrUnpackOp, tensor::UnPackOp>::value,
+                "Function meant for pack/unpack");
+  // This is a pad if packing only adds ones and we don't transpose dimensions.
+
+  // Check that we are not transposing any dimensions.
+  ArrayRef<int64_t> innerDimsPos = packOp.getInnerDimsPos();
+  int64_t numPackedDims = innerDimsPos.size();
+  auto orderedDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, numPackedDims));
+  if (orderedDims != innerDimsPos) {
+    // Dimensions don't happen in order.
+    return false;
+  }
+
+  ArrayRef<int64_t> packedShape = packedTensorType.getShape();
+  int64_t packedRank = packedTensorType.getRank();
+  // At this point we know that we are taking numPackedDims outer
+  // dimensions and pushing them all the way as the inner most dimensions.
+  // What's left on the outer most dimensions is, in this order:
+  // - the factor of the packed dimensions, then
+  // - the untouched dimensions
+  // This shifting inward of dimensions is a no-op (as opposed to a transpose)
+  // if all the dimensions that bubble outerward are ones.
+  // Therefore check that all the dimensions but the numPackedDims inner most
+  // ones are ones.
+  return llvm::all_of(
+      llvm::seq<int64_t>(0, packedRank - numPackedDims),
+      [&packedShape](int64_t i) { return packedShape[i] == 1; });
+}
+
+bool PackOp::isLikePad() {
+  auto packedTensorType =
+      (*this)->getResultTypes().front().cast<RankedTensorType>();
+  return isLikePadUnPad(*this, packedTensorType);
+}
+
 //===----------------------------------------------------------------------===//
 // UnPackOp
 //===----------------------------------------------------------------------===//
@@ -3760,6 +3804,38 @@ void UnPackOp::build(OpBuilder &builder, OperationState &state, Value source,
         builder.getDenseI64ArrayAttr(staticTileSizes));
 }
 
+Value UnPackOp::createDestinationTensor(OpBuilder &b, Location loc,
+                                        Value source,
+                                        ArrayRef<OpFoldResult> innerTileSizes,
+                                        ArrayRef<int64_t> innerDimsPos,
+                                        ArrayRef<int64_t> outerDimsPerm) {
+  AffineExpr sym0, sym1;
+  bindSymbols(b.getContext(), sym0, sym1);
+  auto dimMul = [&](OpFoldResult v1, OpFoldResult v2) -> OpFoldResult {
+    return makeComposedFoldedAffineApply(b, loc, sym0 * sym1, {v1, v2});
+  };
+
+  SmallVector<OpFoldResult> mixedSizes;
+  auto srcType = source.getType().cast<RankedTensorType>();
+  for (auto i :
+       llvm::seq<unsigned>(0, srcType.getRank() - innerTileSizes.size())) {
+    if (srcType.isDynamicDim(i))
+      mixedSizes.push_back(b.create<DimOp>(loc, source, i).getResult());
+    else
+      mixedSizes.push_back(b.getIndexAttr(srcType.getDimSize(i)));
+  }
+  if (!outerDimsPerm.empty()) {
+    applyPermutationToVector<OpFoldResult>(
+        mixedSizes, invertPermutationVector(outerDimsPerm));
+  }
+
+  for (auto [dimPos, tileSize] : llvm::zip_equal(innerDimsPos, innerTileSizes))
+    mixedSizes[dimPos] = dimMul(mixedSizes[dimPos], tileSize);
+
+  auto elemType = srcType.getElementType();
+  return b.create<tensor::EmptyOp>(loc, mixedSizes, elemType);
+}
+
 UnPackOp UnPackOp::createTransposedClone(OpBuilder &b, Location loc,
                                          Value transposedSource,
                                          ArrayRef<int64_t> innerPermutation,
@@ -3785,6 +3861,10 @@ LogicalResult UnPackOp::canonicalize(UnPackOp unPackOp,
   return success();
 }
 
+bool UnPackOp::isLikeUnPad() {
+  RankedTensorType packedTensorType = getSourceType();
+  return isLikePadUnPad(*this, packedTensorType);
+}
 //===----------------------------------------------------------------------===//
 // Common Canonicalizers and Folders.
 //===----------------------------------------------------------------------===//
