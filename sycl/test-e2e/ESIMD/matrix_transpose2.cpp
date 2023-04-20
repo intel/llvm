@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc || esimd_emulator
+// UNSUPPORTED: cuda || hip || gpu-intel-pvc
 // TODO: esimd_emulator fails due to outdated __esimd_media_ld
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
