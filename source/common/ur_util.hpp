@@ -107,11 +107,13 @@ static void throw_wrong_format_vec(const char *env_var_name) {
     throw std::invalid_argument(ex_ss.str());
 }
 
-static void throw_wrong_format_map(const char *env_var_name) {
+static void throw_wrong_format_map(const char *env_var_name,
+                                   std::string env_var_value) {
     std::stringstream ex_ss;
-    ex_ss << "Wrong format of the " << env_var_name << " environment variable!"
-          << " Proper format is: "
-             "ENV_VAR=\"param_1:value_1,value_2;param_2:value_1";
+    ex_ss << "Wrong format of the " << env_var_name
+          << " environment variable value: '" << env_var_value << "'\n"
+          << "Proper format is: "
+             "ENV_VAR=\"param_1:value_1,value_2;param_2:value_1\"";
     throw std::invalid_argument(ex_ss.str());
 }
 
@@ -188,6 +190,14 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
         return std::nullopt;
     }
 
+    auto is_quoted = [](std::string &str) {
+        return (str.front() == '\'' && str.back() == '\'') ||
+               (str.front() == '"' && str.back() == '"');
+    };
+    auto has_colon = [](std::string &str) {
+        return str.find(':') != std::string::npos;
+    };
+
     std::stringstream ss(*env_var);
     std::string key_value;
     while (std::getline(ss, key_value, main_delim)) {
@@ -195,24 +205,27 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
         std::string values;
         std::stringstream kv_ss(key_value);
 
-        if (reject_empty && key_value.find(':') == std::string::npos) {
-            throw_wrong_format_map(env_var_name);
+        if (reject_empty && !has_colon(key_value)) {
+            throw_wrong_format_map(env_var_name, *env_var);
         }
 
         std::getline(kv_ss, key, key_value_delim);
         std::getline(kv_ss, values);
         if (key.empty() || (reject_empty && values.empty()) ||
-            values.find(':') != std::string::npos ||
             map.find(key) != map.end()) {
-            throw_wrong_format_map(env_var_name);
+            throw_wrong_format_map(env_var_name, *env_var);
         }
 
         std::vector<std::string> values_vec;
         std::stringstream values_ss(values);
         std::string value;
         while (std::getline(values_ss, value, values_delim)) {
-            if (value.empty()) {
-                throw_wrong_format_map(env_var_name);
+            if (value.empty() || (has_colon(value) && !is_quoted(value))) {
+                throw_wrong_format_map(env_var_name, *env_var);
+            }
+            if (is_quoted(value)) {
+                value.erase(value.cbegin());
+                value.pop_back();
             }
             values_vec.push_back(value);
         }

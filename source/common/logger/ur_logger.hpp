@@ -78,29 +78,40 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
     std::unique_ptr<logger::Sink> sink;
 
     env_var_name << "UR_LOG_" << logger_name;
-    auto map = getenv_to_map(env_var_name.str().c_str());
-    if (!map.has_value()) {
-        return Logger(
-            std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
-    }
-
     try {
+        auto map = getenv_to_map(env_var_name.str().c_str());
+        if (!map.has_value()) {
+            return Logger(
+                std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
+        }
+
         auto kv = map->find("level");
         if (kv != map->end()) {
             auto value = kv->second.front();
             level = str_to_level(value);
+            map->erase(kv);
         }
 
         kv = map->find("flush");
         if (kv != map->end()) {
             auto value = kv->second.front();
             flush_level = str_to_level(value);
+            map->erase(kv);
         }
 
         std::vector<std::string> values = {default_output};
         kv = map->find("output");
         if (kv != map->end()) {
             values = kv->second;
+            map->erase(kv);
+        }
+
+        if (!map->empty()) {
+            std::cerr << "Wrong logger environment variable parameter: '"
+                      << map->begin()->first
+                      << "'. Default logger options are set.";
+            return Logger(
+                std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
         }
 
         sink =
@@ -108,9 +119,9 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
                 ? sink_from_str(logger_name, values[0], values[1], skip_prefix)
                 : sink_from_str(logger_name, values[0], "", skip_prefix);
     } catch (const std::invalid_argument &e) {
-        std::cerr
-            << "Error when creating a logger instance from environment variable"
-            << e.what();
+        std::cerr << "Error when creating a logger instance from the '"
+                  << env_var_name.str() << "' environment variable:\n"
+                  << e.what() << std::endl;
         return Logger(
             std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
     }

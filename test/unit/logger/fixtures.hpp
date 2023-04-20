@@ -6,25 +6,13 @@
 
 #include <gtest/gtest.h>
 
-#include "helpers.h"
 #include "logger/ur_logger.hpp"
 
 class LoggerFromEnvVar : public ::testing::Test {
   protected:
-    int ret = -1;
+    std::string logger_name = "ADAPTER_TEST";
 
-    void SetUp() override {
-        std::string env_var_value = "level:info;output:stderr";
-        ret = setenv("UR_LOG_TEST_ADAPTER", env_var_value.c_str(), 1);
-        ASSERT_EQ(ret, 0);
-        logger::init("test_adapter");
-        logger::info("{} initialized successfully!", "test_adapter");
-    }
-
-    void TearDown() override {
-        ret = unsetenv("UR_LOG_TEST_ADAPTER");
-        ASSERT_EQ(ret, 0);
-    }
+    void SetUp() override { logger::init(logger_name); }
 };
 
 class LoggerWithFileSink : public ::testing::Test {

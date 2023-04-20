@@ -18,12 +18,6 @@ TEST(LoggerFailure, NullSinkTwoParams) {
 }
 
 //////////////////////////////////////////////////////////////////////////////
-TEST_F(LoggerFromEnvVar, BasicMessage) {
-    logger::info("Test message: {}", "success");
-    logger::debug("This should not be printed: {}", 42);
-}
-
-//////////////////////////////////////////////////////////////////////////////
 TEST_F(DefaultLoggerWithFileSink, DefaultLevelNoOutput) {
     logger->info("This should not be printed: {}", 42);
     test_msg.clear();
