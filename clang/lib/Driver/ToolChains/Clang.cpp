@@ -9532,7 +9532,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     bool CreatingSyclSPIRVFatObj =
         C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-            .equals_insensitive("spirv");
+            .equals_insensitive("spirv") &&
+        !TCArgs.hasArg(options::OPT_fsycl_device_only);
     if (CreatingSyclSPIRVFatObj)
       TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
