@@ -663,7 +663,7 @@ public:
                                        StringRef IfPresentStr,
                                        StringRef IfAbsentStr = "") {
     Rules.emplace_back(Rule::RKind::K_FlagAttribute,
-                       std::tuple{AttrName, IfPresentStr, IfAbsentStr});
+                       Rule::FlagRuleData{AttrName, IfPresentStr, IfAbsentStr});
   }
 
   // Creates a simple rule, which adds one or another value to a resulting
@@ -671,8 +671,9 @@ public:
   void registerSimpleFlagMetadataRule(StringRef MetadataName,
                                       StringRef IfPresentStr,
                                       StringRef IfAbsentStr = "") {
-    Rules.emplace_back(Rule::RKind::K_FlagMetadata,
-                       std::tuple{MetadataName, IfPresentStr, IfAbsentStr});
+    Rules.emplace_back(
+        Rule::RKind::K_FlagMetadata,
+        Rule::FlagRuleData{MetadataName, IfPresentStr, IfAbsentStr});
   }
 
   // Creates a rule, which adds a list of dash-separated integers converted
@@ -689,10 +690,12 @@ public:
 
 private:
   struct Rule {
-    using TupleOfThreeStringRef = std::tuple<StringRef, StringRef, StringRef>;
+    struct FlagRuleData {
+      StringRef Name, IfPresentStr, IfAbsentStr;
+    };
 
   private:
-    std::variant<StringRef, TupleOfThreeStringRef,
+    std::variant<StringRef, FlagRuleData,
                  std::function<std::string(Function *)>>
         Storage;
 
@@ -763,12 +766,11 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
     } break;
 
     case Rule::RKind::K_FlagMetadata: {
-      Rule::TupleOfThreeStringRef Data =
-          R.getStorage<Rule::RKind::K_FlagMetadata>();
-      if (F->hasMetadata(std::get<0>(Data)))
-        Result += std::get<1>(Data);
+      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagMetadata>();
+      if (F->hasMetadata(Data.Name))
+        Result += Data.IfPresentStr;
       else
-        Result += std::get<2>(Data);
+        Result += Data.IfAbsentStr;
     } break;
 
     case Rule::RKind::K_IntegersListMetadata: {
@@ -801,12 +803,11 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
     } break;
 
     case Rule::RKind::K_FlagAttribute: {
-      Rule::TupleOfThreeStringRef Data =
-          R.getStorage<Rule::RKind::K_FlagAttribute>();
-      if (F->hasFnAttribute(std::get<0>(Data)))
-        Result += std::get<1>(Data);
+      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagAttribute>();
+      if (F->hasFnAttribute(Data.Name))
+        Result += Data.IfPresentStr;
       else
-        Result += std::get<2>(Data);
+        Result += Data.IfAbsentStr;
     } break;
     }
 
