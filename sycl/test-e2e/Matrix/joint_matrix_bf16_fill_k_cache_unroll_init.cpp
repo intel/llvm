@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -mllvm -inline-threshold=2000 %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -15,6 +15,9 @@
 // cache tiling of i and j
 // cache tiling on k as well (so no reordering is needed)
 // data reuse of A and B in physical layer
+
+// -mllvm -inline-threshold=2000 added as a workaround,
+// since IGC doesn't support some variants of IR for Joint Matrix currently
 
 #define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
 #define INIT_LIST
