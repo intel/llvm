@@ -8,13 +8,7 @@
 
 #include <sycl/sycl.hpp>
 
-// The test aims to use at least 64 registers meaning that with the maximum
-// workgroup size (assumed 1024 on most CUDA SMs), will produce a launch
-// configuration that will execution due to reaching HW limitations. Hence, we
-// are able to check the functionality of the out-of-registers (exceeded
-// max-registers-per-block) error handling in the SYCL runtime.
-
-// The test aims to use at least 64 registers meaning that with the maximum
+// The test aims to use more than 64 registers meaning that with the maximum
 // workgroup size (assumed 1024 on most CUDA SMs), will produce a launch
 // configuration that will execution due to reaching HW limitations. Hence, we
 // are able to check the functionality of the out-of-registers (exceeded
@@ -81,7 +75,21 @@ int main() {
              sycl::vec<elem_t, VEC_DIM> values2 = input2[i];
              sycl::vec<elem_t, VEC_DIM> values3 = input3[i];
              sycl::vec<elem_t, VEC_DIM> values4 = input4[i];
-             output[i] = values1 + values2 + values3 + values4;
+
+             // compute vector add
+             const auto vadd = values1 + values2 + values3 + values4;
+
+             // compute total vector elements sum
+             auto sum = elem_t(0);
+             for (int j = 0; j < VEC_DIM; j++) {
+               sum += input1[i][j];
+               sum += input2[i][j];
+               sum += input3[i][j];
+               sum += input4[i][j];
+             }
+
+             output[i] = vadd;
+             output[i] += sum;
            });
      }).wait();
   } catch (sycl::exception &e) {
