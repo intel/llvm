@@ -2076,8 +2076,27 @@ detail::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
 template <typename T>
 detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                                                              bool c) __NOEXC {
+  constexpr size_t SizeT = sizeof(T);
+
+  // sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
+  // select(sgentype a, sgentype b, igentype c). This type trait makes the
+  // proper conversion for argument c from bool to igentype, based on sgentype
+  // == T.
+  using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
+      SizeT == 1, char,
+      std::conditional_t<
+          SizeT == 2, short,
+          std::conditional_t<
+              (detail::is_contained<
+                   T, detail::type_list<long, unsigned long>>::value &&
+               (SizeT == 4 || SizeT == 8)),
+              long, // long and ulong are 32-bit on
+                    // Windows and 64-bit on Linux
+              std::conditional_t<SizeT == 4, int,
+                                 std::conditional_t<SizeT == 8, long, void>>>>>;
+
   return __sycl_std::__invoke_select<T>(
-      a, b, static_cast<detail::get_select_opencl_builtin_c_arg_type<T>>(c));
+      a, b, static_cast<get_select_opencl_builtin_c_arg_type>(c));
 }
 
 // geninteger select (geninteger a, geninteger b, igeninteger c)

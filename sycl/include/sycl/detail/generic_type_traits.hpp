@@ -811,8 +811,8 @@ using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
     std::conditional_t<
         SizeT == 2, short,
         std::conditional_t<
-            (bool_constant<is_contained<
-                 T, type_list<long, unsigned long>>::value>::value &&
+            (is_contained<
+                 T, type_list<long, unsigned long>>::value &&
              (SizeT == 4 || SizeT == 8)),
             long, // long and ulong are 32-bit on
                   // Windows and 64-bit on Linux
