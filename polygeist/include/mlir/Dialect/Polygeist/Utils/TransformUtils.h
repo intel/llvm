@@ -51,8 +51,15 @@ bool isLinkonceODR(FunctionOpInterface);
 /// Returns true if the given call is a tail call.
 bool isTailCall(CallOpInterface);
 
-/// Returns the maximum depth from a GPU kernel.
+/// Returns the maximum depth from any GPU kernel.
 /// Returns std::nullopt if the call is not called from a GPU kernel.
+/// For example:
+/// Call chains:
+///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
+///   GPUKernel2 -> func2 (depth 1)
+/// =>
+///   getMaxDepthFromAnyGPUKernel(func1) returns 1.
+///   getMaxDepthFromAnyGPUKernel(func2) returns 2.
 Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface);
 
 /// Returns true if the given function is potentially a SYCL kernel body
