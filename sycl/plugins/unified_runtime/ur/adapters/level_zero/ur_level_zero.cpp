@@ -16,8 +16,6 @@
 // Define the static class field
 std::mutex ZeCall::GlobalLock;
 
-ZeUSMImportExtension ZeUSMImport;
-
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -25,12 +23,6 @@ ZeUSMImportExtension ZeUSMImport;
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return ze2urResult(Result);                                              \
   }
-
-static const bool ExposeCSliceInAffinityPartitioning = [] {
-  const char *Flag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  return Flag ? std::atoi(Flag) != 0 : false;
-}();
 
 ur_result_t _ur_platform_handle_t::initialize() {
   // Cache driver properties
@@ -247,6 +239,8 @@ ur_result_t urPlatformGetInfo(
     // information>. Follow the same notation here.
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  case UR_PLATFORM_INFO_BACKEND:
+    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
   default:
     urPrint("piPlatformGetInfo: unrecognized ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
