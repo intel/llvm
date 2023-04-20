@@ -46,6 +46,19 @@ static bool isNoAliasArgument(Value val) {
   return !!func.getArgAttr(blockArg.getArgNumber(), noAliasAttr);
 }
 
+// Return true if the value \p val is a function argument that has the
+// 'sycl.inner.disjoint' attribute, and false otherwise.
+static bool isSYCLInnerDisjointArgument(Value val) {
+  if (!isFuncArg(val))
+    return false;
+
+  auto blockArg = cast<BlockArgument>(val);
+  auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
+  auto syclInnterDisjointAttr =
+      StringAttr::get(val.getContext(), "sycl.inner.disjoint");
+  return !!func.getArgAttr(blockArg.getArgNumber(), syclInnterDisjointAttr);
+}
+
 // Return true is the given type \p ty is a MemRef type with a SYCL element
 // type.
 static bool isMemRefOfSYCLType(Type ty) {
@@ -95,6 +108,12 @@ AliasResult sycl::AliasAnalysis::handleAccessorSubscriptAlias(Value lhs,
   Operation *lhsOp = lhs.getDefiningOp(), *rhsOp = rhs.getDefiningOp();
   auto lhsSubOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(lhsOp);
   auto rhsSubOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(rhsOp);
+
+  // Buffers in SYCL accessors with attribute 'sycl.inner.disjoint' are
+  // considered not aliased.
+  if (lhsSubOp && rhsSubOp && isSYCLInnerDisjointArgument(lhsSubOp.getAcc()) &&
+      isSYCLInnerDisjointArgument(rhsSubOp.getAcc()))
+    return AliasResult::NoAlias;
 
   auto typesDoNotAlias = [](Type lhsTy, Type rhsTy) {
     return (lhsTy != rhsTy && isMemRefOfSYCLType(rhsTy));

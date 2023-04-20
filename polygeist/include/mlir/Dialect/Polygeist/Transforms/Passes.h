@@ -33,6 +33,9 @@ void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
 
 std::unique_ptr<Pass> createArgumentPromotionPass();
+std::unique_ptr<Pass> createFunctionSpecializationPass();
+std::unique_ptr<Pass>
+createFunctionSpecializationPass(const FunctionSpecializationOptions &options);
 std::unique_ptr<Pass> createMem2RegPass();
 std::unique_ptr<Pass> createLICMPass();
 std::unique_ptr<Pass> createLICMPass(const LICMOptions &options);

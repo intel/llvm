@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   BarrierRemovalContinuation.cpp  
   CanonicalizeFor.cpp
   DetectReduction.cpp
+  FunctionSpecialization.cpp
   InnerSerialization.cpp  
   LegalizeForSPIRV.cpp  
   LICM.cpp

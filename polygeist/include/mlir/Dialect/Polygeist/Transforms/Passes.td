@@ -50,6 +50,25 @@ def DetectReduction : Pass<"detect-reduction"> {
   ];
 }
 
+def FunctionSpecialization : Pass<"function-specialization", "mlir::ModuleOp"> {
+  let summary = "Specialize functions";
+  let description = [{
+    Version the callsite from SYCL kernel to the SYCL kernel body function,
+    where the specialized version ensures SYCL accessors do not overlap.
+  }];
+  let dependentDialects = 
+      ["polygeist::PolygeistDialect", "scf::SCFDialect", "sycl::SYCLDialect"];
+  let constructor = "mlir::polygeist::createFunctionSpecializationPass()";
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+  ];
+  let statistics = [
+    Statistic<"numFunctionSpecialized", "num-function-specialized", "Number of function specialized">
+  ];
+}
+
 def Mem2Reg : Pass<"mem2reg"> {
   let summary = "Represent allocated values in SSA form.";
   let constructor = "mlir::polygeist::createMem2RegPass()";
