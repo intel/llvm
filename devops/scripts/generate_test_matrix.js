@@ -53,10 +53,9 @@ module.exports = ({core, process}) => {
 
           // Check for CUDA machines. If available, add them to
           // enabledLTSLxConfigs.
-          var cudaRegex = /aws-cuda*/g ;
           var hasCuda = false;
           if (Array.isArray(v["runs-on"]))
-            hasCuda = v["runs-on"].some(e => cudaRegex.test(e));
+            hasCuda = v["runs-on"].some(e => e.includes("aws-cuda"));
           else
             hasCuda = v["runs-on"].includes("aws-cuda")
 
