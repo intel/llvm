@@ -6,7 +6,7 @@
 ;     b[i] =  a[i] + a[i - 1]
 ; }
 ;
-define void @recurrence_1(ptr nocapture readonly %a, ptr nocapture %b, i32 %n) {
+define i32 @recurrence_1(ptr nocapture readonly %a, ptr nocapture %b, i32 %n) {
 ; CHECK-VF4UF1-LABEL: @recurrence_1
 ; CHECK-VF4UF1: for.preheader
 ; CHECK-VF4UF1: %[[SUB_1:.*]] = add i32 %n, -1
@@ -27,9 +27,7 @@ define void @recurrence_1(ptr nocapture readonly %a, ptr nocapture %b, i32 %n) {
 ; CHECK-VF4UF1: %[[MUL2:.*]] = mul i32 %[[VSCALE2]], 4
 ; CHECK-VF4UF1: %[[SUB2:.*]] = sub i32 %[[MUL2]], 1
 ; CHECK-VF4UF1: %[[VEC_RECUR_EXT:.*]] = extractelement <vscale x 4 x i32> %[[LOAD]], i32 %[[SUB2]]
-; CHECK-VF4UF1: %[[VSCALE3:.*]] = call i32 @llvm.vscale.i32()
-; CHECK-VF4UF1: %[[MUL3:.*]] = mul i32 %[[VSCALE3]], 4
-; CHECK-VF4UF1: %[[SUB3:.*]] = sub i32 %[[MUL3]], 2
+; CHECK-VF4UF1: %[[SUB3:.*]] = sub i32 %[[MUL2]], 2
 ; CHECK-VF4UF1: %[[VEC_RECUR_FOR_PHI:.*]] =  extractelement <vscale x 4 x i32> %[[LOAD]], i32 %[[SUB3]]
 entry:
   br label %for.preheader
@@ -52,7 +50,7 @@ scalar.body:
   br i1 %exitcond, label %for.exit, label %scalar.body, !llvm.loop !0
 
 for.exit:
-  ret void
+  ret i32 %0
 }
 
 ; int recurrence_2(int *a, int n) {
@@ -216,9 +214,7 @@ define i32 @extract_second_last_iteration(ptr %cval, i32 %x)  {
 ; CHECK-VF4UF2: %[[MUL2:.*]] = mul i32 %[[VSCALE2]], 4
 ; CHECK-VF4UF2: %[[SUB2:.*]] = sub i32 %[[MUL2]], 1
 ; CHECK-VF4UF2: %vector.recur.extract = extractelement <vscale x 4 x i32> %[[ADD2]], i32 %[[SUB2]]
-; CHECK-VF4UF2: %[[VSCALE3:.*]] = call i32 @llvm.vscale.i32()
-; CHECK-VF4UF2: %[[MUL3:.*]] = mul i32 %[[VSCALE3]], 4
-; CHECK-VF4UF2: %[[SUB3:.*]] = sub i32 %[[MUL3]], 2
+; CHECK-VF4UF2: %[[SUB3:.*]] = sub i32 %[[MUL2]], 2
 ; CHECK-VF4UF2: %vector.recur.extract.for.phi = extractelement <vscale x 4 x i32> %[[ADD2]], i32 %[[SUB3]]
 entry:
   br label %for.body

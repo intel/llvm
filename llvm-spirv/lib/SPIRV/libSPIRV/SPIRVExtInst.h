@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVEXTINST_H
 #define SPIRV_LIBSPIRV_SPIRVEXTINST_H
 
+#include "NonSemantic.AuxData.h"
 #include "OpenCL.std.h"
 #include "SPIRV.debug.h"
 #include "SPIRVEnum.h"
@@ -262,6 +263,16 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::Operation, "DebugOperation");
 }
 SPIRV_DEF_NAMEMAP(SPIRVDebugExtOpKind, SPIRVDebugExtOpMap)
+
+typedef NonSemanticAuxData::Instruction NonSemanticAuxDataOpKind;
+template <>
+inline void SPIRVMap<NonSemanticAuxDataOpKind, std::string>::init() {
+  add(NonSemanticAuxData::FunctionMetadata,
+      "NonSemanticAuxDataFunctionMetadata");
+  add(NonSemanticAuxData::FunctionAttribute,
+      "NonSemanticAuxDataFunctionAttribute");
+}
+SPIRV_DEF_NAMEMAP(NonSemanticAuxDataOpKind, NonSemanticAuxDataOpMap)
 
 } // namespace SPIRV
 

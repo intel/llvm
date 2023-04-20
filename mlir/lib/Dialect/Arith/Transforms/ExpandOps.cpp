@@ -235,17 +235,66 @@ struct BFloat16TruncFOpConverter : public OpRewritePattern<arith::TruncFOp> {
       return rewriter.notifyMatchFailure(op, "not a trunc of f32 to bf16.");
     }
 
+    Type i1Ty = b.getI1Type();
     Type i16Ty = b.getI16Type();
     Type i32Ty = b.getI32Type();
+    Type f32Ty = b.getF32Type();
     if (auto shapedTy = dyn_cast<ShapedType>(operandTy)) {
+      i1Ty = shapedTy.clone(i1Ty);
       i16Ty = shapedTy.clone(i16Ty);
       i32Ty = shapedTy.clone(i32Ty);
+      f32Ty = shapedTy.clone(f32Ty);
     }
 
     Value bitcast = b.create<arith::BitcastOp>(i32Ty, operand);
+
+    Value c23 = createConst(op.getLoc(), i32Ty, 23, rewriter);
+    Value c31 = createConst(op.getLoc(), i32Ty, 31, rewriter);
+    Value c23Mask = createConst(op.getLoc(), i32Ty, (1 << 23) - 1, rewriter);
+    Value expMask =
+        createConst(op.getLoc(), i32Ty, ((1 << 8) - 1) << 23, rewriter);
+    Value expMax =
+        createConst(op.getLoc(), i32Ty, ((1 << 8) - 2) << 23, rewriter);
+
+    // Grab the sign bit.
+    Value sign = b.create<arith::ShRUIOp>(bitcast, c31);
+
+    // Our mantissa rounding value depends on the sign bit and the last
+    // truncated bit.
+    Value cManRound = createConst(op.getLoc(), i32Ty, (1 << 15), rewriter);
+    cManRound = b.create<arith::SubIOp>(cManRound, sign);
+
+    // Grab out the mantissa and directly apply rounding.
+    Value man = b.create<arith::AndIOp>(bitcast, c23Mask);
+    Value manRound = b.create<arith::AddIOp>(man, cManRound);
+
+    // Grab the overflow bit and shift right if we overflow.
+    Value roundBit = b.create<arith::ShRUIOp>(manRound, c23);
+    Value manNew = b.create<arith::ShRUIOp>(manRound, roundBit);
+
+    // Grab the exponent and round using the mantissa's carry bit.
+    Value exp = b.create<arith::AndIOp>(bitcast, expMask);
+    Value expCarry = b.create<arith::AddIOp>(exp, manRound);
+    expCarry = b.create<arith::AndIOp>(expCarry, expMask);
+
+    // If the exponent is saturated, we keep the max value.
+    Value expCmp =
+        b.create<arith::CmpIOp>(arith::CmpIPredicate::uge, exp, expMax);
+    exp = b.create<arith::SelectOp>(expCmp, exp, expCarry);
+
+    // If the exponent is max and we rolled over, keep the old mantissa.
+    Value roundBitBool = b.create<arith::TruncIOp>(i1Ty, roundBit);
+    Value keepOldMan = b.create<arith::AndIOp>(expCmp, roundBitBool);
+    man = b.create<arith::SelectOp>(keepOldMan, man, manNew);
+
+    // Assemble the now rounded f32 value (as an i32).
+    Value rounded = b.create<arith::ShLIOp>(sign, c31);
+    rounded = b.create<arith::OrIOp>(rounded, exp);
+    rounded = b.create<arith::OrIOp>(rounded, man);
+
     Value c16 = createConst(op.getLoc(), i32Ty, 16, rewriter);
-    Value shl = b.create<arith::ShRUIOp>(bitcast, c16);
-    Value trunc = b.create<arith::TruncIOp>(i16Ty, shl);
+    Value shr = b.create<arith::ShRUIOp>(rounded, c16);
+    Value trunc = b.create<arith::TruncIOp>(i16Ty, shr);
     Value result = b.create<arith::BitcastOp>(resultTy, trunc);
 
     rewriter.replaceOp(op, result);
@@ -271,19 +320,22 @@ struct ArithExpandOpsPass
       arith::MinFOp
     >();
 
-    target.addDynamicallyLegalOp<arith::ExtFOp>(
-      [](arith::ExtFOp op) {
-        Type inETy = getElementTypeOrSelf(op.getOperand().getType());
-        Type outETy = getElementTypeOrSelf(op.getType());
-        return !(inETy.isBF16() && outETy.isF32());
-      });
+    if (includeBf16) {
+      arith::populateExpandBFloat16Patterns(patterns);
+      target.addDynamicallyLegalOp<arith::ExtFOp>(
+        [](arith::ExtFOp op) {
+          Type inETy = getElementTypeOrSelf(op.getOperand().getType());
+          Type outETy = getElementTypeOrSelf(op.getType());
+          return !(inETy.isBF16() && outETy.isF32());
+        });
 
-    target.addDynamicallyLegalOp<arith::TruncFOp>(
-      [](arith::TruncFOp op)  {
-        Type inETy = getElementTypeOrSelf(op.getOperand().getType());
-        Type outETy = getElementTypeOrSelf(op.getType());
-        return !(inETy.isF32() && outETy.isBF16());
-      });
+      target.addDynamicallyLegalOp<arith::TruncFOp>(
+        [](arith::TruncFOp op)  {
+          Type inETy = getElementTypeOrSelf(op.getOperand().getType());
+          Type outETy = getElementTypeOrSelf(op.getType());
+          return !(inETy.isF32() && outETy.isBF16());
+        });
+    }
 
     // clang-format on
     if (failed(applyPartialConversion(getOperation(), target,
@@ -311,9 +363,7 @@ void mlir::arith::populateArithExpandOpsPatterns(RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
     MaxMinFOpConverter<MaxFOp, arith::CmpFPredicate::UGT>,
-    MaxMinFOpConverter<MinFOp, arith::CmpFPredicate::ULT>,
-    BFloat16ExtFOpConverter,
-    BFloat16TruncFOpConverter
+    MaxMinFOpConverter<MinFOp, arith::CmpFPredicate::ULT>
    >(patterns.getContext());
   // clang-format on
 }
