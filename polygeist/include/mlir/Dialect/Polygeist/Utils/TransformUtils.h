@@ -60,7 +60,7 @@ public:
   /// Create a versioning condition suitable for scf::IfOp.
   VersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
 
-  /// Create a versioning condition suitable for scf::IfOp.
+  /// Create a versioning condition suitable for AffineIfOp.
   VersionCondition(AffineCondition affineCond) : versionCondition(affineCond) {}
 
   bool hasSCFCondition() const {
