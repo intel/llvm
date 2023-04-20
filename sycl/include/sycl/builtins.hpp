@@ -2173,19 +2173,13 @@ select(T a, T b, T2 c) __NOEXC {
 template <typename T, size_t N>
 detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
 any(marray<T, N> x) __NOEXC {
-  for (int i = 0; i < N; i++)
-    if (any(x[i]))
-      return true;
-  return false;
+  return std::any_of(x.begin(), x.end(), [](T i) { return any(i); });
 }
 
 template <typename T, size_t N>
 detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
 all(marray<T, N> x) __NOEXC {
-  for (int i = 0; i < N; i++)
-    if (!all(x[i]))
-      return false;
-  return true;
+  return std::all_of(x.begin(), x.end(), [](T i) { return all(i); });
 }
 
 template <typename T, size_t N>
