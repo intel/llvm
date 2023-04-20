@@ -278,7 +278,7 @@ bool test_native_specialization_constant(sycl::queue q) {
             q.get_context(), {q.get_device()});
     auto objectBundle = sycl::compile(inputBundle);
     auto execBundleViaLink = sycl::link(objectBundle);
-    if (!check_value(false, execBundleViaLink.native_specialization_constant(),
+    if (!check_value(true, execBundleViaLink.native_specialization_constant(),
                      "linked bundle native specialization constant"))
       return false;
   }
