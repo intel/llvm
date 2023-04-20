@@ -21,6 +21,8 @@
 #include <string_view>
 #include <thread>
 
+#define COLLECTOR_EXPORT_API __attribute__((__visibility__("default")))
+
 int IndentationLevel = 0;
 
 enum class ZEApiKind {
@@ -245,10 +247,11 @@ static std::string getResult(ze_result_t Res) {
 
 extern "C" {
 
-__attribute__((__visibility__("default"))) void
-callback(uint16_t TraceType, xpti::trace_event_data_t * /*Parent*/,
-         xpti::trace_event_data_t * /*Event*/, uint64_t /*Instance*/,
-         const void *UserData) {
+COLLECTOR_EXPORT_API void callback(uint16_t TraceType,
+                                   xpti::trace_event_data_t * /*Parent*/,
+                                   xpti::trace_event_data_t * /*Event*/,
+                                   uint64_t /*Instance*/,
+                                   const void *UserData) {
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto PrintPrefix = [] {
     if (IndentationLevel)
@@ -304,7 +307,7 @@ callback(uint16_t TraceType, xpti::trace_event_data_t * /*Parent*/,
   }
 }
 
-__attribute__((__visibility__("default"))) void init() {
+COLLECTOR_EXPORT_API void init() {
   std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
   if (PrinterType == "classic") {
     std::cerr << "Classic output is unsupported for Level Zero\n";
@@ -316,10 +319,9 @@ __attribute__((__visibility__("default"))) void init() {
 }
 
 // For unification purpose
-__attribute__((__visibility__("default"))) void finish() {}
+COLLECTOR_EXPORT_API void finish() {}
 
-__attribute__((__visibility__("default"))) void
-setIndentationLevel(int NewLevel) {
+COLLECTOR_EXPORT_API void setIndentationLevel(int NewLevel) {
   IndentationLevel = NewLevel;
 }
 }
