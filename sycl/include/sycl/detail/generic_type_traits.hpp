@@ -802,23 +802,6 @@ template <typename... Args> inline void check_vector_size() {
                 "with the same number of elements.");
 }
 
-// sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
-// select(sgentype a, sgentype b, igentype c). This type trait makes the proper
-// conversion for argument c from bool to igentype based on sgentype == T.
-template <typename T, size_t SizeT = sizeof(T)>
-using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
-    SizeT == 1, char,
-    std::conditional_t<
-        SizeT == 2, short,
-        std::conditional_t<
-            (is_contained<
-                 T, type_list<long, unsigned long>>::value &&
-             (SizeT == 4 || SizeT == 8)),
-            long, // long and ulong are 32-bit on
-                  // Windows and 64-bit on Linux
-            std::conditional_t<SizeT == 4, int,
-                               std::conditional_t<SizeT == 8, long, void>>>>>;
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
