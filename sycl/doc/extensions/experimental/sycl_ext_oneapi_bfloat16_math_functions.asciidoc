@@ -201,7 +201,6 @@ T ceil(T x);
 ===== Description
 
 Returns `x` rounded to an integral value using the round to positive infinity rounding mode
-for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
 
 ==== floor
 
