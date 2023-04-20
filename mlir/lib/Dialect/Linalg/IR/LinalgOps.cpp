@@ -580,7 +580,7 @@ struct FoldInsertPadIntoFill : public OpRewritePattern<tensor::InsertSliceOp> {
     // plus low padding sizes.
     SmallVector<OpFoldResult, 4> newOffsets;
     for (const auto &p : llvm::zip(lowPads, oldOffsets)) {
-      newOffsets.push_back(makeComposedFoldedAffineApply(
+      newOffsets.push_back(affine::makeComposedFoldedAffineApply(
           rewriter, loc, addMap, {std::get<0>(p), std::get<1>(p)}));
     }
 
@@ -1178,7 +1178,7 @@ LogicalResult MapOp::verify() {
   }
 
   // The shape of each input must match the shape of the output.
-  auto outputShape = getInit().getType().cast<ShapedType>().getShape();
+  auto outputShape = getInit().getType().getShape();
   for (Type inputArgType : TypeRange{getInputs()}) {
     auto inputElemShape = inputArgType.cast<ShapedType>().getShape();
     if (inputElemShape != outputShape) {

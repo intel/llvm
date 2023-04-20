@@ -178,11 +178,11 @@ function(create_libc_unittest fq_target_name)
     ${fq_deps_list}
   )
 
-  # LibcUnitTest and libc_test_utils should not depend on anything in LINK_LIBRARIES.
+  # LibcUnitTest should not depend on anything in LINK_LIBRARIES.
   if(NO_LIBC_UNITTEST_TEST_MAIN)
-    list(APPEND link_libraries LibcUnitTest libc_test_utils)
+    list(APPEND link_libraries LibcUnitTest)
   else()
-    list(APPEND link_libraries LibcUnitTest LibcUnitTestMain libc_test_utils)
+    list(APPEND link_libraries LibcUnitTest LibcUnitTestMain)
   endif()
 
   target_link_libraries(${fq_build_target_name} PRIVATE ${link_libraries})
@@ -421,7 +421,7 @@ function(add_integration_test test_name)
     "INTEGRATION_TEST"
     "" # No optional arguments
     "SUITE" # Single value arguments
-    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS" # Multi-value arguments
+    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS;LOADER_ARGS" # Multi-value arguments
     ${ARGN}
   )
 
@@ -485,7 +485,7 @@ function(add_integration_test test_name)
     ${fq_build_target_name}
     EXCLUDE_FROM_ALL
     # The NVIDIA 'nvlink' linker does not currently support static libraries.
-    $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${link_object_files}>
+    $<$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>:${link_object_files}>
     ${INTEGRATION_TEST_SRCS}
     ${INTEGRATION_TEST_HDRS}
   )
@@ -533,6 +533,7 @@ function(add_integration_test test_name)
     ${fq_target_name}
     COMMAND ${INTEGRATION_TEST_ENV}
             $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${gpu_loader_exe}>
+            ${INTEGRATION_TEST_LOADER_ARGS}
             $<TARGET_FILE:${fq_build_target_name}> ${INTEGRATION_TEST_ARGS}
     COMMENT "Running integration test ${fq_target_name}"
   )

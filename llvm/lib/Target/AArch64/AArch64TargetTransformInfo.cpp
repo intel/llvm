@@ -2091,6 +2091,23 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::BITCAST, MVT::nxv2i16, MVT::nxv2f16, 0 },
     { ISD::BITCAST, MVT::nxv4i16, MVT::nxv4f16, 0 },
     { ISD::BITCAST, MVT::nxv2i32, MVT::nxv2f32, 0 },
+
+    // Add cost for extending to illegal -too wide- scalable vectors.
+    // zero/sign extend are implemented by multiple unpack operations,
+    // where each operation has a cost of 1.
+    { ISD::ZERO_EXTEND, MVT::nxv16i16, MVT::nxv16i8, 2},
+    { ISD::ZERO_EXTEND, MVT::nxv16i32, MVT::nxv16i8, 6},
+    { ISD::ZERO_EXTEND, MVT::nxv16i64, MVT::nxv16i8, 14},
+    { ISD::ZERO_EXTEND, MVT::nxv8i32, MVT::nxv8i16, 2},
+    { ISD::ZERO_EXTEND, MVT::nxv8i64, MVT::nxv8i16, 6},
+    { ISD::ZERO_EXTEND, MVT::nxv4i64, MVT::nxv4i32, 2},
+
+    { ISD::SIGN_EXTEND, MVT::nxv16i16, MVT::nxv16i8, 2},
+    { ISD::SIGN_EXTEND, MVT::nxv16i32, MVT::nxv16i8, 6},
+    { ISD::SIGN_EXTEND, MVT::nxv16i64, MVT::nxv16i8, 14},
+    { ISD::SIGN_EXTEND, MVT::nxv8i32, MVT::nxv8i16, 2},
+    { ISD::SIGN_EXTEND, MVT::nxv8i64, MVT::nxv8i16, 6},
+    { ISD::SIGN_EXTEND, MVT::nxv4i64, MVT::nxv4i32, 2},
   };
 
   if (const auto *Entry = ConvertCostTableLookup(ConversionTbl, ISD,
@@ -2127,6 +2144,13 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     if (const auto *Entry = ConvertCostTableLookup(
             FP16Tbl, ISD, DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
       return AdjustCost(Entry->Cost);
+
+  // The BasicTTIImpl version only deals with CCH==TTI::CastContextHint::Normal,
+  // but we also want to include the TTI::CastContextHint::Masked case too.
+  if ((ISD == ISD::ZERO_EXTEND || ISD == ISD::SIGN_EXTEND) &&
+      CCH == TTI::CastContextHint::Masked && ST->hasSVEorSME() &&
+      TLI->isTypeLegal(DstTy))
+    CCH = TTI::CastContextHint::Normal;
 
   return AdjustCost(
       BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I));
@@ -2255,7 +2279,9 @@ InstructionCost AArch64TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
                                                    TTI::TargetCostKind CostKind,
                                                    unsigned Index, Value *Op0,
                                                    Value *Op1) {
-  return getVectorInstrCostHelper(nullptr, Val, Index, false /* HasRealUse */);
+  bool HasRealUse =
+      Opcode == Instruction::InsertElement && Op0 && !isa<UndefValue>(Op0);
+  return getVectorInstrCostHelper(nullptr, Val, Index, HasRealUse);
 }
 
 InstructionCost AArch64TTIImpl::getVectorInstrCost(const Instruction &I,

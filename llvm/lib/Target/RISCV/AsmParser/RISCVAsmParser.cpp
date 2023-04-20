@@ -2892,8 +2892,10 @@ std::unique_ptr<RISCVOperand> RISCVAsmParser::defaultFRMArgOp() const {
 
 bool RISCVAsmParser::validateInstruction(MCInst &Inst,
                                          OperandVector &Operands) {
-  if (Inst.getOpcode() == RISCV::PseudoVMSGEU_VX_M_T ||
-      Inst.getOpcode() == RISCV::PseudoVMSGE_VX_M_T) {
+  unsigned Opcode = Inst.getOpcode();
+
+  if (Opcode == RISCV::PseudoVMSGEU_VX_M_T ||
+      Opcode == RISCV::PseudoVMSGE_VX_M_T) {
     unsigned DestReg = Inst.getOperand(0).getReg();
     unsigned TempReg = Inst.getOperand(1).getReg();
     if (DestReg == TempReg) {
@@ -2902,8 +2904,6 @@ bool RISCVAsmParser::validateInstruction(MCInst &Inst,
                         "the destination register.");
     }
   }
-
-  unsigned Opcode = Inst.getOpcode();
 
   if (Opcode == RISCV::TH_LDD || Opcode == RISCV::TH_LWUD ||
       Opcode == RISCV::TH_LWD) {
@@ -2931,9 +2931,8 @@ bool RISCVAsmParser::validateInstruction(MCInst &Inst,
     return Error(Loc, "Operand must be constant 4.");
   }
 
-  const MCInstrDesc &MCID = MII.get(Inst.getOpcode());
-  RISCVII::VConstraintType Constraints = RISCVII::getConstraint(MCID.TSFlags);
-  if (Constraints == RISCVII::NoConstraint)
+  const MCInstrDesc &MCID = MII.get(Opcode);
+  if (!(MCID.TSFlags & RISCVII::ConstraintMask))
     return false;
 
   if (Opcode == RISCV::VC_V_XVW || Opcode == RISCV::VC_V_IVW ||
@@ -2941,13 +2940,13 @@ bool RISCVAsmParser::validateInstruction(MCInst &Inst,
     // Operands Opcode, Dst, uimm, Dst, Rs2, Rs1 for VC_V_XVW.
     unsigned VCIXDst = Inst.getOperand(0).getReg();
     SMLoc VCIXDstLoc = Operands[2]->getStartLoc();
-    if (Constraints & RISCVII::VS1Constraint) {
+    if (MCID.TSFlags & RISCVII::VS1Constraint) {
       unsigned VCIXRs1 = Inst.getOperand(Inst.getNumOperands() - 1).getReg();
       if (VCIXDst == VCIXRs1)
         return Error(VCIXDstLoc, "The destination vector register group cannot"
                                  " overlap the source vector register group.");
     }
-    if (Constraints & RISCVII::VS2Constraint) {
+    if (MCID.TSFlags & RISCVII::VS2Constraint) {
       unsigned VCIXRs2 = Inst.getOperand(Inst.getNumOperands() - 2).getReg();
       if (VCIXDst == VCIXRs2)
         return Error(VCIXDstLoc, "The destination vector register group cannot"
@@ -2959,19 +2958,19 @@ bool RISCVAsmParser::validateInstruction(MCInst &Inst,
   unsigned DestReg = Inst.getOperand(0).getReg();
   // Operands[1] will be the first operand, DestReg.
   SMLoc Loc = Operands[1]->getStartLoc();
-  if (Constraints & RISCVII::VS2Constraint) {
+  if (MCID.TSFlags & RISCVII::VS2Constraint) {
     unsigned CheckReg = Inst.getOperand(1).getReg();
     if (DestReg == CheckReg)
       return Error(Loc, "The destination vector register group cannot overlap"
                         " the source vector register group.");
   }
-  if ((Constraints & RISCVII::VS1Constraint) && (Inst.getOperand(2).isReg())) {
+  if ((MCID.TSFlags & RISCVII::VS1Constraint) && (Inst.getOperand(2).isReg())) {
     unsigned CheckReg = Inst.getOperand(2).getReg();
     if (DestReg == CheckReg)
       return Error(Loc, "The destination vector register group cannot overlap"
                         " the source vector register group.");
   }
-  if ((Constraints & RISCVII::VMConstraint) && (DestReg == RISCV::V0)) {
+  if ((MCID.TSFlags & RISCVII::VMConstraint) && (DestReg == RISCV::V0)) {
     // vadc, vsbc are special cases. These instructions have no mask register.
     // The destination register could not be V0.
     if (Opcode == RISCV::VADC_VVM || Opcode == RISCV::VADC_VXM ||

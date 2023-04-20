@@ -6749,7 +6749,8 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
       Opcode = AMDGPU::getMIMGOpcode(IntrOpcode, AMDGPU::MIMGEncGfx90a,
                                      NumVDataDwords, NumVAddrDwords);
       if (Opcode == -1)
-        return makeV_ILLEGAL(Op, DAG);
+        report_fatal_error(
+            "requested image instruction is not supported on this GPU");
     }
     if (Opcode == -1 &&
         Subtarget->getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS)
@@ -7911,11 +7912,6 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
     DAG.setNodeMemRefs(NewNode, {MemRef});
     return SDValue(NewNode, 0);
   }
-  case Intrinsic::amdgcn_global_atomic_fadd: {
-    if (!Subtarget->hasAtomicFaddNoRtnInsts())
-      return makeV_ILLEGAL(Op, DAG);
-    return SDValue();
-  }
   case Intrinsic::amdgcn_global_atomic_fmin:
   case Intrinsic::amdgcn_global_atomic_fmax:
   case Intrinsic::amdgcn_flat_atomic_fmin:
@@ -8506,27 +8502,6 @@ SDValue SITargetLowering::LowerINTRINSIC_VOID(SDValue Op,
     return Op;
   }
   }
-}
-
-SDValue SITargetLowering::makeV_ILLEGAL(SDValue Op, SelectionDAG & DAG) const {
-  // Create the V_ILLEGAL node.
-  SDLoc DL(Op);
-  auto Opcode = Subtarget->getGeneration() < AMDGPUSubtarget::GFX10 ?
-    AMDGPU::V_ILLEGAL_gfx6_gfx7_gfx8_gfx9 : AMDGPU::V_ILLEGAL;
-  auto EntryNode = DAG.getEntryNode();
-  auto IllegalNode = DAG.getMachineNode(Opcode, DL, MVT::Other, EntryNode);
-  auto IllegalVal = SDValue(IllegalNode, 0u);
-
-  // Add the V_ILLEGAL node to the root chain to prevent its removal.
-  auto Chains = SmallVector<SDValue, 2u>();
-  Chains.push_back(IllegalVal);
-  Chains.push_back(DAG.getRoot());
-  auto Root = DAG.getTokenFactor(SDLoc(Chains.back()), Chains);
-  DAG.setRoot(Root);
-
-  // Merge with UNDEF to satisfy return value requirements.
-  auto UndefVal = DAG.getUNDEF(Op.getValueType());
-  return DAG.getMergeValues({UndefVal, IllegalVal}, DL);
 }
 
 // The raw.(t)buffer and struct.(t)buffer intrinsics have two offset args:
@@ -11131,96 +11106,6 @@ SDValue SITargetLowering::reassociateScalarOps(SDNode *N,
   return DAG.getNode(Opc, SL, VT, Add1, Op2);
 }
 
-SDValue SITargetLowering::reassociateSub(SDNode *N, SelectionDAG &DAG) const {
-  EVT VT = N->getValueType(0);
-  if (VT != MVT::i32 && VT != MVT::i64)
-    return SDValue();
-
-  if (DAG.isBaseWithConstantOffset(SDValue(N, 0)))
-    return SDValue();
-
-  unsigned Opc = N->getOpcode();
-  SDValue Op0 = N->getOperand(0);
-  SDValue Op1 = N->getOperand(1);
-
-  if (!(Op0->isDivergent() ^ Op1->isDivergent()))
-    return SDValue();
-
-  SDLoc SL(N);
-  if (Op1->isDivergent() && Op1->hasOneUse()) {
-    unsigned Op1Opc = Op1.getOpcode();
-    if (Op1Opc != ISD::ADD && Op1Opc != ISD::SUB)
-      return SDValue();
-
-    SDValue Op2 = Op1.getOperand(1);
-    Op1 = Op1.getOperand(0);
-    if (Opc == ISD::ADD && Op1Opc == ISD::SUB) {
-      // s0 + (s1 - v0) --> (s0 + s1) - v0
-      if (!Op1->isDivergent() && Op2->isDivergent())
-        return DAG.getNode(ISD::SUB, SL, VT,
-                           DAG.getNode(ISD::ADD, SL, VT, Op0, Op1), Op2);
-      // s0 + (v0 - s1) --> (s0 - s1) + v0
-      if (Op1->isDivergent() && !Op2->isDivergent())
-        return DAG.getNode(ISD::ADD, SL, VT,
-                           DAG.getNode(ISD::SUB, SL, VT, Op0, Op2), Op1);
-    } else if (Opc == ISD::SUB) {
-      if (Op1Opc == ISD::SUB) {
-        // s0 - (s1 - v0) --> (s0 - s1) + v0
-        if (!Op1->isDivergent() && Op2->isDivergent())
-          return DAG.getNode(ISD::ADD, SL, VT,
-                             DAG.getNode(ISD::SUB, SL, VT, Op0, Op1), Op2);
-        // s0 - (v0 - s1) --> (s0 + s1) - v0
-        if (Op1->isDivergent() && !Op2->isDivergent())
-          return DAG.getNode(ISD::SUB, SL, VT,
-                             DAG.getNode(ISD::ADD, SL, VT, Op0, Op2), Op1);
-      } else if (Op1Opc == ISD::ADD) {
-        // s0 - (s1 + v0) --> (s0 - s1) - v0
-        if (Op1->isDivergent() ^ Op2->isDivergent()) {
-          if (Op1->isDivergent())
-            std::swap(Op1, Op2);
-          return DAG.getNode(ISD::SUB, SL, VT,
-                             DAG.getNode(ISD::SUB, SL, VT, Op0, Op1), Op2);
-        }
-      }
-    }
-  }
-
-  if (Op0->isDivergent() && Op0->hasOneUse()) {
-    unsigned Op0Opc = Op0.getOpcode();
-    if (Op0Opc != ISD::ADD && Op0Opc != ISD::SUB)
-      return SDValue();
-
-    SDValue Op2 = Op0.getOperand(1);
-    Op0 = Op0.getOperand(0);
-    if (!Op0->isDivergent() && Op2->isDivergent()) {
-      if (Opc == ISD::SUB) {
-        // (s1 + v0) - s0 --> (s1 - s0) + v0
-        if (Op0Opc == ISD::ADD)
-          return DAG.getNode(ISD::ADD, SL, VT,
-                             DAG.getNode(ISD::SUB, SL, VT, Op0, Op1), Op2);
-
-        // (s1 - v0) - s0 --> (s1 - s0) - v0
-        if (Op0Opc == ISD::SUB)
-          return DAG.getNode(ISD::SUB, SL, VT,
-                             DAG.getNode(ISD::SUB, SL, VT, Op0, Op1), Op2);
-      } else if (Opc == ISD::ADD && Op0Opc == ISD::SUB) {
-        // (s1 - v0) + s0 --> (s0 + s1) - v0
-        return DAG.getNode(ISD::SUB, SL, VT,
-                           DAG.getNode(ISD::ADD, SL, VT, Op0, Op1), Op2);
-      }
-    }
-
-    if (Op0->isDivergent() && !Op2->isDivergent()) {
-      // (v0 - s1) + s0 --> (s0 - s1) + v0
-      if (Opc == ISD::ADD && Op0Opc == ISD::SUB)
-        return DAG.getNode(ISD::ADD, SL, VT,
-                           DAG.getNode(ISD::SUB, SL, VT, Op1, Op2), Op0);
-    }
-  }
-
-  return SDValue();
-}
-
 static SDValue getMad64_32(SelectionDAG &DAG, const SDLoc &SL,
                            EVT VT,
                            SDValue N0, SDValue N1, SDValue N2,
@@ -11378,9 +11263,6 @@ SDValue SITargetLowering::performAddCombine(SDNode *N,
     return V;
   }
 
-  if (SDValue V = reassociateSub(N, DAG))
-    return V;
-
   if (VT != MVT::i32 || !DCI.isAfterLegalizeDAG())
     return SDValue();
 
@@ -11422,9 +11304,6 @@ SDValue SITargetLowering::performSubCombine(SDNode *N,
                                             DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
   EVT VT = N->getValueType(0);
-
-  if (SDValue V = reassociateSub(N, DAG))
-    return V;
 
   if (VT != MVT::i32)
     return SDValue();

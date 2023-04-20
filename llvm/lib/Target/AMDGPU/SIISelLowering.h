@@ -87,8 +87,6 @@ private:
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
 
-  SDValue makeV_ILLEGAL(SDValue Op, SelectionDAG &DAG) const;
-
   // The raw.tbuffer and struct.tbuffer intrinsics have two offset args: offset
   // (the offset that is included in bounds checking and swizzling, to be split
   // between the instruction's voffset and immoffset fields) and soffset (the
@@ -202,7 +200,6 @@ private:
   SDValue performInsertVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
 
   SDValue reassociateScalarOps(SDNode *N, SelectionDAG &DAG) const;
-  SDValue reassociateSub(SDNode *N, SelectionDAG &DAG) const;
   unsigned getFusedOpcode(const SelectionDAG &DAG,
                           const SDNode *N0, const SDNode *N1) const;
   SDValue tryFoldToMad64_32(SDNode *N, DAGCombinerInfo &DCI) const;

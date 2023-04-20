@@ -139,7 +139,7 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zcb", RISCVExtensionVersion{1, 0}},
     {"zcd", RISCVExtensionVersion{1, 0}},
     {"zcf", RISCVExtensionVersion{1, 0}},
-    {"zfa", RISCVExtensionVersion{0, 1}},
+    {"zfa", RISCVExtensionVersion{0, 2}},
     {"zicond", RISCVExtensionVersion{1, 0}},
     {"zvfh", RISCVExtensionVersion{0, 1}},
     {"ztso", RISCVExtensionVersion{0, 1}},
@@ -217,8 +217,6 @@ void RISCVISAInfo::addExtension(StringRef ExtName, unsigned MajorVersion,
 }
 
 static StringRef getExtensionTypeDesc(StringRef Ext) {
-  if (Ext.startswith("sx"))
-    return "non-standard supervisor-level extension";
   if (Ext.startswith("s"))
     return "standard supervisor-level extension";
   if (Ext.startswith("x"))
@@ -229,8 +227,6 @@ static StringRef getExtensionTypeDesc(StringRef Ext) {
 }
 
 static StringRef getExtensionType(StringRef Ext) {
-  if (Ext.startswith("sx"))
-    return "sx";
   if (Ext.startswith("s"))
     return "s";
   if (Ext.startswith("x"))
@@ -286,16 +282,17 @@ bool RISCVISAInfo::hasExtension(StringRef Ext) const {
 // We rank extensions in the following order:
 // -Single letter extensions in canonical order.
 // -Unknown single letter extensions in alphabetical order.
-// -Multi-letter extensions starting with 's' in alphabetical order.
 // -Multi-letter extensions starting with 'z' sorted by canonical order of
 //  the second letter then sorted alphabetically.
+// -Multi-letter extensions starting with 's' in alphabetical order.
+// -(TODO) Multi-letter extensions starting with 'zxm' in alphabetical order.
 // -X extensions in alphabetical order.
 // These flags are used to indicate the category. The first 6 bits store the
 // single letter extension rank for single letter and multi-letter extensions
 // starting with 'z'.
 enum RankFlags {
-  RF_S_EXTENSION = 1 << 6,
-  RF_Z_EXTENSION = 1 << 7,
+  RF_Z_EXTENSION = 1 << 6,
+  RF_S_EXTENSION = 1 << 7,
   RF_X_EXTENSION = 1 << 8,
 };
 
@@ -639,7 +636,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
   StringRef Exts = Arch.substr(5);
 
   // Remove multi-letter standard extensions, non-standard extensions and
-  // supervisor-level extensions. They have 'z', 'x', 's', 'sx' prefixes.
+  // supervisor-level extensions. They have 'z', 'x', 's' prefixes.
   // Parse them at the end.
   // Find the very first occurrence of 's', 'x' or 'z'.
   StringRef OtherExts;
@@ -758,7 +755,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
   // Parse the ISA string containing non-standard user-level
   // extensions, standard supervisor-level extensions and
   // non-standard supervisor-level extensions.
-  // These extensions start with 'z', 's', 'x', 'sx' prefixes, follow a
+  // These extensions start with 'z', 's', 'x' prefixes, follow a
   // canonical order, might have a version number (major, minor)
   // and are separated by a single underscore '_'.
   // Set the hardware features for the extensions that are supported.
@@ -769,7 +766,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
   OtherExts.split(Split, '_');
 
   SmallVector<StringRef, 8> AllExts;
-  std::array<StringRef, 4> Prefix{"z", "s", "x", "sx"};
+  std::array<StringRef, 4> Prefix{"z", "s", "x"};
   auto I = Prefix.begin();
   auto E = Prefix.end();
   if (Split.size() > 1 || Split[0] != "") {

@@ -1028,7 +1028,7 @@ public:
   /// FieldCollector - Collects CXXFieldDecls during parsing of C++ classes.
   std::unique_ptr<CXXFieldCollector> FieldCollector;
 
-  typedef llvm::SmallSetVector<NamedDecl *, 16> NamedDeclSetType;
+  typedef llvm::SmallSetVector<const NamedDecl *, 16> NamedDeclSetType;
 
   /// Set containing all declared private fields that are not used.
   NamedDeclSetType UnusedPrivateFields;
@@ -1677,7 +1677,7 @@ public:
   /// Determine if VD, which must be a variable or function, is an external
   /// symbol that nonetheless can't be referenced from outside this translation
   /// unit because its type has no linkage and it's not extern "C".
-  bool isExternalWithNoLinkageType(ValueDecl *VD) const;
+  bool isExternalWithNoLinkageType(const ValueDecl *VD) const;
 
   /// Obtain a sorted list of functions that are undefined but ODR-used.
   void getUndefinedButUsed(
@@ -2017,7 +2017,7 @@ public:
     };
 
     SemaDiagnosticBuilder(Kind K, SourceLocation Loc, unsigned DiagID,
-                          FunctionDecl *Fn, Sema &S, DeviceDiagnosticReason R);
+                          const FunctionDecl *Fn, Sema &S, DeviceDiagnosticReason R);
     SemaDiagnosticBuilder(SemaDiagnosticBuilder &&D);
     SemaDiagnosticBuilder(const SemaDiagnosticBuilder &) = default;
     ~SemaDiagnosticBuilder();
@@ -2098,7 +2098,7 @@ public:
     Sema &S;
     SourceLocation Loc;
     unsigned DiagID;
-    FunctionDecl *Fn;
+    const FunctionDecl *Fn;
     bool ShowCallStack;
 
     // Invariant: At most one of these Optionals has a value.
@@ -3512,9 +3512,9 @@ public:
 
   /// Diagnose that the specified declaration needs to be visible but
   /// isn't, and suggest a module import that would resolve the problem.
-  void diagnoseMissingImport(SourceLocation Loc, NamedDecl *Decl,
+  void diagnoseMissingImport(SourceLocation Loc, const NamedDecl *Decl,
                              MissingImportKind MIK, bool Recover = true);
-  void diagnoseMissingImport(SourceLocation Loc, NamedDecl *Decl,
+  void diagnoseMissingImport(SourceLocation Loc, const NamedDecl *Decl,
                              SourceLocation DeclLoc, ArrayRef<Module *> Modules,
                              MissingImportKind MIK, bool Recover);
 
@@ -4780,7 +4780,7 @@ public:
     TemplateDiscarded, // Discarded due to uninstantiated templates
     Unknown,
   };
-  FunctionEmissionStatus getEmissionStatus(FunctionDecl *Decl,
+  FunctionEmissionStatus getEmissionStatus(const FunctionDecl *Decl,
                                            bool Final = false);
   DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
 
@@ -5835,7 +5835,7 @@ public:
                               DeclarationNameInfo &NameInfo,
                               const TemplateArgumentListInfo *&TemplateArgs);
 
-  bool DiagnoseDependentMemberLookup(LookupResult &R);
+  bool DiagnoseDependentMemberLookup(const LookupResult &R);
 
   bool
   DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
@@ -13427,14 +13427,14 @@ public:
   /// Diagnostics that are emitted only if we discover that the given function
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
-  llvm::DenseMap<CanonicalDeclPtr<FunctionDecl>,
+  llvm::DenseMap<CanonicalDeclPtr<const FunctionDecl>,
                  std::vector<DeviceDeferredDiagnostic>>
       DeviceDeferredDiags;
 
   /// A pair of a canonical FunctionDecl and a SourceLocation.  When used as the
   /// key in a hashtable, both the FD and location are hashed.
   struct FunctionDeclAndLoc {
-    CanonicalDeclPtr<FunctionDecl> FD;
+    CanonicalDeclPtr<const FunctionDecl> FD;
     SourceLocation Loc;
   };
 
@@ -13448,7 +13448,7 @@ public:
   ///
   /// Functions that we can tell a priori must be emitted aren't added to this
   /// map.
-  llvm::DenseMap</* Callee = */ CanonicalDeclPtr<FunctionDecl>,
+  llvm::DenseMap</* Callee = */ CanonicalDeclPtr<const FunctionDecl>,
                  /* Caller = */ FunctionDeclAndLoc>
       DeviceKnownEmittedFns;
 
@@ -13493,8 +13493,9 @@ public:
   ///  if (diagIfOpenMPDeviceCode(Loc, diag::err_vla_unsupported))
   ///    return ExprError();
   ///  // Otherwise, continue parsing as normal.
-  SemaDiagnosticBuilder
-  diagIfOpenMPDeviceCode(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD);
+  SemaDiagnosticBuilder diagIfOpenMPDeviceCode(SourceLocation Loc,
+                                               unsigned DiagID,
+                                               const FunctionDecl *FD);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as host code".
@@ -13510,13 +13511,14 @@ public:
   ///    return ExprError();
   ///  // Otherwise, continue parsing as normal.
   SemaDiagnosticBuilder diagIfOpenMPHostCode(SourceLocation Loc,
-                                             unsigned DiagID, FunctionDecl *FD);
+                                             unsigned DiagID,
+                                             const FunctionDecl *FD);
 
   SemaDiagnosticBuilder targetDiag(SourceLocation Loc, unsigned DiagID,
-                                   FunctionDecl *FD = nullptr);
+                                   const FunctionDecl *FD = nullptr);
   SemaDiagnosticBuilder targetDiag(SourceLocation Loc,
                                    const PartialDiagnostic &PD,
-                                   FunctionDecl *FD = nullptr) {
+                                   const FunctionDecl *FD = nullptr) {
     return targetDiag(Loc, PD.getDiagID(), FD) << PD;
   }
 
@@ -14618,7 +14620,8 @@ namespace llvm {
 // SourceLocation.
 template <> struct DenseMapInfo<clang::Sema::FunctionDeclAndLoc> {
   using FunctionDeclAndLoc = clang::Sema::FunctionDeclAndLoc;
-  using FDBaseInfo = DenseMapInfo<clang::CanonicalDeclPtr<clang::FunctionDecl>>;
+  using FDBaseInfo =
+      DenseMapInfo<clang::CanonicalDeclPtr<const clang::FunctionDecl>>;
 
   static FunctionDeclAndLoc getEmptyKey() {
     return {FDBaseInfo::getEmptyKey(), clang::SourceLocation()};

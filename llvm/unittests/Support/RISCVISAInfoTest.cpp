@@ -225,17 +225,13 @@ TEST(ParseArchString, RejectsUnrecognizedExtensionNamesByDefault) {
       "unsupported standard supervisor-level extension 'smadeup'");
   EXPECT_EQ(
       toString(
-          RISCVISAInfo::parseArchString("rv64g_sxmadeup", true).takeError()),
-      "unsupported non-standard supervisor-level extension 'sxmadeup'");
-  EXPECT_EQ(
-      toString(
           RISCVISAInfo::parseArchString("rv64g_xmadeup", true).takeError()),
       "unsupported non-standard user-level extension 'xmadeup'");
 }
 
 TEST(ParseArchString, IgnoresUnrecognizedExtensionNamesWithIgnoreUnknown) {
-  for (StringRef Input : {"rv32ib", "rv32i_zmadeup", "rv64i_smadeup",
-                          "rv32i_sxmadeup", "rv64i_xmadeup"}) {
+  for (StringRef Input : {"rv32ib", "rv32i_zmadeup",
+                          "rv64i_smadeup", "rv64i_xmadeup"}) {
     auto MaybeISAInfo = RISCVISAInfo::parseArchString(Input, true, false, true);
     ASSERT_THAT_EXPECTED(MaybeISAInfo, Succeeded());
     RISCVISAInfo &Info = **MaybeISAInfo;
@@ -484,11 +480,8 @@ TEST(OrderedExtensionMap, ExtensionsAreCorrectlyOrdered) {
   for (const auto &Ext : Exts)
     ExtNames.push_back(Ext.first);
 
-  // FIXME: z* extensions should be ordered before s* extensions. The current
-  // ordering matches what is documented in RISCVISAInfo, but this doesn't
-  // match the ISA manual.
   // FIXME: 'l' and 'y' should be ordered after 'i', 'm', 'c'.
   EXPECT_THAT(ExtNames,
-              ElementsAre("i", "m", "l", "c", "y", "sbar", "sfoo", "zicsr",
-                          "zmfoo", "zfinx", "zzfoo", "xbar", "xfoo"));
+              ElementsAre("i", "m", "l", "c", "y", "zicsr", "zmfoo", "zfinx",
+                           "zzfoo", "sbar", "sfoo", "xbar", "xfoo"));
 }
