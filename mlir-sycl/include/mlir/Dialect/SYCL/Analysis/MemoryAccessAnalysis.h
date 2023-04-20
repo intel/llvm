@@ -35,37 +35,37 @@ enum MemoryAccessPattern {
   ///    |-------------------->|
   ///    |-------------------->|
   Linear = 1 << 0,
-  Reverse = 1 << 1, /// Array accessed in decreasing offset order.
 
   /// Array accessed contiguously, in decreasing offset order:
   ///    |<-------------------|
   ///    |<-------------------|
+  Reverse = 1 << 1, /// Array accessed in decreasing offset order.
   ReverseLinear = Reverse | Linear,
-  Shifted = 1 << 2, /// Array accessed starting at an offset.
 
   /// Array accessed contiguously, increasing offset order, starting at an
   /// offset:
-  ///    |  ----------------->|
-  ///    |  ----------------->|
+  ///    | |----------------->|
+  ///    | |----------------->|
+  Shifted = 1 << 2, /// Array accessed starting at an offset.
   LinearShifted = Linear | Shifted,
 
   /// Array accessed contiguously, decreasing offset order, starting at an
   /// offset:
-  ///    |<-----------------  |
-  ///    |<-----------------  |
+  ///    |<-----------------| |
+  ///    |<-----------------| |
   ReverseLinearShifted = ReverseLinear | Shifted,
-  Overlapped = 1 << 3, // Array accessed starting at different row offsets.
 
   /// Array accessed contiguously, increasing offset order, starting at
   /// different row offsets:
-  ///    |  ----------------->|
-  ///    |    --------------->|
+  ///    |------------------->|
+  ///    | |----------------->|
+  Overlapped = 1 << 3, // Array accessed starting at different row offsets.
   LinearOverlapped = Linear | Overlapped,
 
   /// Array accessed contiguously, decreasing offset order, starting at
   /// different row offsets:
-  ///    |<------------------ |
-  ///    |<----------------   |
+  ///    |<-------------------|
+  ///    |<-----------------| |
   ReverseLinearOverlapped = ReverseLinear | Overlapped,
 
   /// Array accessed in strided fashion, increasing offset order:
@@ -80,29 +80,26 @@ enum MemoryAccessPattern {
 
   /// Array accessed in strided fashion, increasing offset order, starting at
   /// an offset:
-  ///    |    x-->x-->x-->x-->|
-  ///    |x-->x-->x-->x-->x-->|
+  ///    |  |x-->x-->x-->x-->x|
+  ///    |  |x-->x-->x-->x-->x|
   StridedShifted = Strided | Shifted,
 
   /// Array accessed in strided fashion, decreasing offset order:
-  ///    |<--x<--x<--x<--x<--x|
-  ///    |<--x<--x<--x<--x<--x|
+  ///    |<--x<--x<--x<--x|  |
+  ///    |<--x<--x<--x<--x|  |
   ReverseStridedShifted = Reverse | StridedShifted,
 
   /// Array accessed in strided fashion, increasing offset order, starting at
   /// different row offsets:
-  ///    |   x-->x-->x-->x-->x|
-  ///    |       x-->x-->x-->x|
+  ///    |x-->x-->x-->x-->x  |
+  ///    | |x-->x-->x-->x-->x|
   StridedOverlapped = Strided | Overlapped,
 
   /// Array accessed in strided fashion, decreasing offset order, starting at
   /// different row offsets:
-  ///    |<--x<--x<--x        |
-  ///    |<--x<--x<--x<--x    |
+  ///    |x<--x<--x<--x<--x| |
+  ///    |  x<--x<--x<--x<--x|
   ReverseStridedOverlapped = Reverse | StridedOverlapped,
-
-  /// Array accessed in random order.
-  Random = 1 << 8
 };
 
 /// A matrix describing an array access pattern.
@@ -187,7 +184,7 @@ public:
                                   std::set<unsigned> columns) const;
 
   //===----------------------------------------------------------------------===//
-  // Queries
+  // Shape Queries
   //===----------------------------------------------------------------------===//
 
   /// Returns true if the matrix has equal number of rows and columns.
@@ -196,29 +193,67 @@ public:
   /// Returns true if the only non-zero entries are on the diagonal.
   bool isDiagonal(DataFlowSolver &solver) const;
 
+  /// Returns true if the matrix is the unit matrix.
+  bool isIdentity(DataFlowSolver &solver) const;
+
   /// Returns true if all non-zero entries are below the diagonal.
   bool isLowerTriangular(DataFlowSolver &solver) const;
-
-  /// Returns true if this is a lower triangular matrix with all non-zero
-  /// entries having unit value.
-  bool isLowerTriangularUnit(DataFlowSolver &solver) const;
 
   /// Returns true if all non-zero entries are above the diagonal.
   bool isUpperTriangular(DataFlowSolver &solver) const;
 
-  /// Returns true if this is an upper triangular matrix with all non-zero
-  /// entries having unit value.
-  bool isUpperTriangularUnit(DataFlowSolver &solver) const;
-
-  /// Returns true if the matrix is the unit matrix.
-  bool isIdentity(DataFlowSolver &solver) const;
-
-  /// Returns true if the matrix is diagonal with unit values up to the
-  /// specified \p row.
-  bool isIdentityUpTo(unsigned row, DataFlowSolver &solver) const;
-
   /// Returns true if the matrix is the filled with zero values.
   bool isZero(DataFlowSolver &solver) const;
+
+  //===----------------------------------------------------------------------===//
+  // Access Pattern Queries
+  //===----------------------------------------------------------------------===//
+
+  /// Array accessed contiguously, increasing offset order. The matrix shape is:
+  ///   |1  0|
+  ///   |0  1|
+  bool hasLinearAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed contiguously, decreasing offset order. The matrix shape is:
+  ///   |1  0|
+  ///   |0 -1|
+  bool hasReverseLinearAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed contiguously, increasing offset order, starting at
+  /// different row offsets. The matrix shape is:
+  ///   |1  0|
+  ///   |1  1|
+  bool hasLinearOverlappedAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed contiguously, decreasing  offset order, starting at
+  /// different row offsets. The matrix shape is:
+  ///   |1  0|
+  ///   |1 -1|
+  bool hasReverseLinearOverlappedAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed in strided fashion, increasing offset order. The matrix
+  /// shape is:
+  ///   |1  0|
+  ///   |0  C|  where C > 1
+  bool hasStridedAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed in strided fashion, decreasing offset order. The matrix
+  /// shape is:
+  ///   |1  0|
+  ///   |0 -C|  where -C < -1
+  bool hasReverseStridedAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed in strided fashion, increasing offset order, starting at
+  /// different row offsets. The matrix shape is:
+  ///   |1  0|
+  ///   |1  C|  where C > 1
+  bool hasStridedOverlappedAccessPattern(DataFlowSolver &solver) const;
+
+  /// Array accessed in strided fashion, decreasing offset order, starting at
+  /// different row offsets. The matrix shape is:
+  ///   |1  0|
+  ///   |1 -C|  where -C < -1
+  bool hasReverseStridedOverlappedAccessPattern(DataFlowSolver &solver) const;
 
 private:
   /// Determine whether the value at \p row and \p column is a constant integer
@@ -295,8 +330,13 @@ public:
   /// Returns true if the vector contains all zeros.
   bool isZero(DataFlowSolver &solver) const;
 
-  /// Returns true if the matrix is the filled with zero up to \p row.
-  bool isZeroUpTo(unsigned row, DataFlowSolver &solver) const;
+  /// Returns true if the vector contains all zeros and the last element has
+  /// a strictly positive constant value.
+  bool isZeroWithLastElementStrictlyPositive(DataFlowSolver &solver) const;
+
+  /// Returns true if the vector contains all zeros and the last element has
+  /// value equal to the given constant \p k.
+  bool isZeroWithLastElementEqualTo(int k, DataFlowSolver &solver) const;
 
 private:
   /// Determine whether the value at \p row is a constant integer value.
@@ -341,8 +381,8 @@ public:
 
   const OffsetVector &getOffsetVector() const { return offsets; }
 
-  /// Analyze the array access and return its classification.
-  MemoryAccessPattern classify() const;
+  /// Analyze the memory access and classify its access pattern.
+  MemoryAccessPattern classifyMemoryAccess(DataFlowSolver &solver) const;
 
 private:
   const OpTy &accessOp;      /// The array load or store operation.
