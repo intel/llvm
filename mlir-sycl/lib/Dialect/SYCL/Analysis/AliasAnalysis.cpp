@@ -31,32 +31,30 @@ static bool isFuncArg(Value val) {
       blockArg.getOwner()->getParentOp());
 }
 
-// Return true if the value \p val is a function argument that has the
-// 'llvm.noalias' attribute, and false otherwise.
-static bool isNoAliasArgument(Value val) {
+/// Return true if \p val is a function argument that has \p attr as attribute.
+static bool isArgumentWithAttribute(Value val, const Twine &attr) {
   if (!isFuncArg(val))
     return false;
 
   auto blockArg = cast<BlockArgument>(val);
   auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
-  auto noAliasAttr = StringAttr::get(
-      val.getContext(),
-      LLVM::LLVMDialect::getDialectNamespace() + "." +
-          llvm::Attribute::getNameFromAttrKind(llvm::Attribute::NoAlias));
-  return !!func.getArgAttr(blockArg.getArgNumber(), noAliasAttr);
+  auto stringAttr = StringAttr::get(val.getContext(), attr);
+  return !!func.getArgAttr(blockArg.getArgNumber(), stringAttr);
+}
+
+// Return true if the value \p val is a function argument that has the
+// 'llvm.noalias' attribute, and false otherwise.
+static bool isNoAliasArgument(Value val) {
+  return isArgumentWithAttribute(
+      val, LLVM::LLVMDialect::getDialectNamespace() + "." +
+               llvm::Attribute::getNameFromAttrKind(llvm::Attribute::NoAlias));
 }
 
 // Return true if the value \p val is a function argument that has the
 // 'sycl.inner.disjoint' attribute, and false otherwise.
 static bool isSYCLInnerDisjointArgument(Value val) {
-  if (!isFuncArg(val))
-    return false;
-
-  auto blockArg = cast<BlockArgument>(val);
-  auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
-  auto syclInnterDisjointAttr =
-      StringAttr::get(val.getContext(), "sycl.inner.disjoint");
-  return !!func.getArgAttr(blockArg.getArgNumber(), syclInnterDisjointAttr);
+  constexpr StringLiteral innerDisjointAttrName = "sycl.inner.disjoint";
+  return isArgumentWithAttribute(val, innerDisjointAttrName);
 }
 
 // Return true is the given type \p ty is a MemRef type with a SYCL element

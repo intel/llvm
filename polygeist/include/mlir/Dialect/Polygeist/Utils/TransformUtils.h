@@ -15,7 +15,6 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include <variant>
 

@@ -4,7 +4,7 @@
 // CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_gb, 4> {llvm.noalias, sycl.inner.disjoint},
 // CHECK-SAME:     %arg1: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias, sycl.inner.disjoint},
 // CHECK-SAME:     %arg2: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias, sycl.inner.disjoint},
-// CHECK-SAME:     %arg3: i32) {
+// CHECK-SAME:     %arg3: i32) attributes {llvm.linkage = #llvm.linkage<private>} {
 // CHECK-DAG: [[ALLOCA:%.*]] = memref.alloca()
 // CHECK-DAG: [[CAST:%.*]] = memref.cast [[ALLOCA]]
 // CHECK-DAG: [[ALLOCA1:%.*]] = memref.alloca()

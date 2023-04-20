@@ -33,8 +33,8 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using AccessorType = VersionConditionBuilder::AccessorType;
-using AccessorPairType = VersionConditionBuilder::AccessorPairType;
+using AccessorPtrType = VersionConditionBuilder::AccessorPtrType;
+using AccessorPtrPairType = VersionConditionBuilder::AccessorPtrPairType;
 
 static llvm::cl::opt<unsigned> functionSpecializationAccessorLimit(
     "function-specialization-accessor-limit", llvm::cl::init(5),
@@ -57,28 +57,34 @@ static bool isValidMemRefType(Type type) {
   return isa<sycl::AccessorType>(mt.getElementType());
 }
 
-/// Returns true if \p arg is a candidate argument.
-static bool isCandidateArgs(Value arg) {
-  if (!isa<AccessorType>(arg))
-    return false;
-  return isValidMemRefType(arg.getType());
+/// Returns true if \p arg is a candidate argument. Currently, all arguments
+/// with valid memref type determined by isValidMemRefType is a candidate
+/// argument, i.e., 'memref<?x!sycl.accessor>`.
+static bool isCandidateArg(Value arg) {
+  if (isValidMemRefType(arg.getType())) {
+    assert(isa<AccessorPtrType>(arg) &&
+           "Expecting valid memref type to be AccessorPtrType");
+    return true;
+  }
+  return false;
 }
 
 /// Populate \p candArgs with candidate arguments from \p call.
-static void collectCandidateArguments(CallOpInterface call,
-                                      SmallVectorImpl<AccessorType> &candArgs) {
+static void
+collectCandidateArguments(CallOpInterface call,
+                          SmallVectorImpl<AccessorPtrType> &candArgs) {
   assert(candArgs.empty() && "Expecting empty candArgs");
   for (Value arg : call.getArgOperands())
-    if (isCandidateArgs(arg))
-      candArgs.push_back(cast<AccessorType>(arg));
+    if (isCandidateArg(arg))
+      candArgs.push_back(cast<AccessorPtrType>(arg));
 }
 
 /// Returns the cloned version of \p func.
 static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
-  ModuleOp module = func->getParentOfType<ModuleOp>();
   FunctionOpInterface clonedFunc = func.clone();
   std::string newFnName = (func.getName() + ".specialized").str();
 #ifndef NDEBUG
+  ModuleOp module = func->getParentOfType<ModuleOp>();
   module->walk([newFnName](FunctionOpInterface func) {
     assert(func.getName() != newFnName &&
            "Expecting new function name to be unique");
@@ -87,19 +93,52 @@ static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
   clonedFunc.setName(newFnName);
   OpBuilder builder(func);
   builder.insert(clonedFunc);
+  privatize(clonedFunc);
   return clonedFunc;
 }
 
-/// Add attribute 'sycl.inner.disjoint' to all candidate arguments of \p func.
-static void specializeFunction(FunctionOpInterface func) {
+/// Add attribute 'sycl.inner.disjoint' to arguments of \p func that satisfy \p
+/// predicate.
+static void setInnerDisjointAttribute(FunctionOpInterface func,
+                                      std::function<bool(Value)> predicate) {
+  constexpr StringRef innerDisjointAttrName = "sycl.inner.disjoint";
   for (unsigned i = 0; i < func.getNumArguments(); ++i)
-    if (isCandidateArgs(func.getArgument(i)))
-      func.setArgAttr(i, "sycl.inner.disjoint",
+    if (predicate(func.getArgument(i)))
+      func.setArgAttr(i, innerDisjointAttrName,
                       UnitAttr::get(func->getContext()));
+}
+
+/// Update the callee of the call \p call to \p callee.
+static void updateCallee(CallOpInterface call, FunctionOpInterface callee) {
+  // TODO: find a generic way to update callee of a CallOpInterface.
+  assert(call->hasAttr("callee") &&
+         "Expecting the call to have callee attribute");
+  call->setAttr("callee",
+                SymbolRefAttr::get(callee.getContext(), callee.getName()));
 }
 
 namespace {
 
+// Original code:
+//   func.func private @callee(
+//     %arg0 : memref<?x!sycl.accessor>,
+//     %arg1 : memref<?x!sycl.accessor) {}
+//   gpu.func @caller kernel {
+//     func.call @callee(%acc1, %acc2)
+//   }
+// Optimized code:
+//   func.func private @callee.specialized(
+//     %arg0 : memref<?x!sycl.accessor> {sycl.inner.disjoint},
+//     %arg1 : memref<?x!sycl.accessor> {sycl.inner.disjoint}) {}
+//   func.func private @callee(
+//     %arg0 : memref<?x!sycl.accessor>,
+//     %arg1 : memref<?x!sycl.accessor) {}
+//   gpu.func @caller kernel {
+//     if (not_overlap(%acc1, %acc2))
+//       func.call @callee.specialized(%acc1, %acc2)
+//     else
+//       func.call @callee(%acc1, %acc2)
+//   }
 class FunctionSpecializationPass
     : public polygeist::impl::FunctionSpecializationBase<
           FunctionSpecializationPass> {
@@ -112,13 +151,16 @@ public:
 private:
   /// Returns true if \p func is a candidate.
   bool isCandidateFunction(FunctionOpInterface func) const;
-  /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap.
-  bool isCandidateAccessorPair(AccessorType acc1, AccessorType acc2) const;
+  /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
+  /// example, under strict aliasing rule, accessors with different element
+  /// types are not alias, so return false.
+  bool isCandidateAccessorPair(AccessorPtrType acc1,
+                               AccessorPtrType acc2) const;
   /// Populate \p accessorPairs with accessor pairs that should be checked for
   /// no overlap for \p call.
-  void getRequireNoOverlapAccessorPairs(
+  void collectMayOverlapAccessorPairs(
       CallOpInterface call,
-      SmallVectorImpl<AccessorPairType> &accessorPairs) const;
+      SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const;
   /// Version \p call.
   void versionCall(CallOpInterface call) const;
 };
@@ -128,42 +170,6 @@ private:
 //===----------------------------------------------------------------------===//
 // FunctionSpecializationPass
 //===----------------------------------------------------------------------===//
-
-bool FunctionSpecializationPass::isCandidateAccessorPair(
-    AccessorType acc1, AccessorType acc2) const {
-  if (acc1 == acc2)
-    return false;
-  if (relaxedAliasing)
-    return true;
-  auto acc1Ty = cast<sycl::AccessorType>(acc1.getType().getElementType());
-  auto acc2Ty = cast<sycl::AccessorType>(acc2.getType().getElementType());
-  return (acc1Ty.getType() == acc2Ty.getType());
-}
-
-void FunctionSpecializationPass::getRequireNoOverlapAccessorPairs(
-    CallOpInterface call,
-    SmallVectorImpl<AccessorPairType> &accessorPairs) const {
-  SmallVector<AccessorType> candArgs;
-  collectCandidateArguments(call, candArgs);
-  for (SmallVector<AccessorType>::iterator i = candArgs.begin();
-       i != candArgs.end(); ++i)
-    for (SmallVector<AccessorType>::iterator j = i + 1; j != candArgs.end();
-         ++j)
-      if (isCandidateAccessorPair(*i, *j))
-        accessorPairs.push_back({*i, *j});
-}
-
-void FunctionSpecializationPass::versionCall(CallOpInterface call) const {
-  SmallVector<AccessorPairType> accessorPairs;
-  getRequireNoOverlapAccessorPairs(call, accessorPairs);
-  if (accessorPairs.empty())
-    return;
-  OpBuilder builder(call);
-  std::unique_ptr<VersionCondition> condition =
-      VersionConditionBuilder(accessorPairs, builder, call->getLoc())
-          .createCondition();
-  CallVersionBuilder(call).version(*condition);
-}
 
 void FunctionSpecializationPass::runOnOperation() {
   SmallVector<FunctionOpInterface> candidates;
@@ -180,13 +186,17 @@ void FunctionSpecializationPass::runOnOperation() {
 
   for (FunctionOpInterface func : candidates) {
     FunctionOpInterface clonedFunc = cloneFunction(func);
-    specializeFunction(clonedFunc);
+    setInnerDisjointAttribute(clonedFunc, isCandidateArg);
 
     for (Operation *op : userMap.getUsers(func)) {
+      // Due to temporary condition to only allow function called directly by a
+      // GPU kernel.
+      assert(op->getParentOfType<gpu::GPUFuncOp>() &&
+             "Expecting calls only in GPU kernel");
+
       auto call = cast<CallOpInterface>(op);
       versionCall(call);
-      call->setAttr("callee", SymbolRefAttr::get(func.getContext(),
-                                                 clonedFunc.getName()));
+      updateCallee(call, clonedFunc);
     }
     ++numFunctionSpecialized;
   }
@@ -203,15 +213,17 @@ bool FunctionSpecializationPass::isCandidateFunction(
   // Temporary condition to only allow function called directly by a GPU kernel.
   // TODO: allow maximum depth of 2.
   Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
+  assert(maxDepth.has_value() && "Expecting valid maxDepth");
   if (maxDepth != 1)
     return false;
 
-  // Limit the number of accessor arguments allowed as candidate.
-  unsigned numCandidateArgs = count_if(func.getArguments(), [](Value arg) {
-    return isValidMemRefType(arg.getType());
-  });
-  if (numCandidateArgs < 2 ||
-      numCandidateArgs > functionSpecializationAccessorLimit) {
+  unsigned numCandidateArgs = count_if(func.getArguments(), isCandidateArg);
+  if (numCandidateArgs < 2) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "not a candidate: not enough candidate accessors\n");
+    return false;
+  }
+  if (numCandidateArgs > functionSpecializationAccessorLimit) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: exceed accessor limit\n");
     return false;
@@ -220,6 +232,44 @@ bool FunctionSpecializationPass::isCandidateFunction(
   LLVM_DEBUG(llvm::dbgs().indent(2)
              << "Found candidate: " << func.getName() << "\n");
   return true;
+}
+
+bool FunctionSpecializationPass::isCandidateAccessorPair(
+    AccessorPtrType acc1, AccessorPtrType acc2) const {
+  if (acc1 == acc2)
+    return false;
+
+  if (!relaxedAliasing) {
+    auto acc1Ty = cast<sycl::AccessorType>(acc1.getType().getElementType());
+    auto acc2Ty = cast<sycl::AccessorType>(acc2.getType().getElementType());
+    if (acc1Ty.getType() != acc2Ty.getType())
+      return false;
+  }
+
+  return true;
+}
+
+void FunctionSpecializationPass::collectMayOverlapAccessorPairs(
+    CallOpInterface call,
+    SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const {
+  SmallVector<AccessorPtrType> candArgs;
+  collectCandidateArguments(call, candArgs);
+  for (auto *i = candArgs.begin(); i != candArgs.end(); ++i)
+    for (auto *j = i + 1; j != candArgs.end(); ++j)
+      if (isCandidateAccessorPair(*i, *j))
+        accessorPairs.push_back({*i, *j});
+}
+
+void FunctionSpecializationPass::versionCall(CallOpInterface call) const {
+  SmallVector<AccessorPtrPairType> accessorPairs;
+  collectMayOverlapAccessorPairs(call, accessorPairs);
+  if (accessorPairs.empty())
+    return;
+  OpBuilder builder(call);
+  std::unique_ptr<VersionCondition> condition =
+      VersionConditionBuilder(accessorPairs, builder, call->getLoc())
+          .createCondition();
+  VersionBuilder(call).version(*condition);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createFunctionSpecializationPass() {

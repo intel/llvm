@@ -9,8 +9,12 @@
 !sycl_accessor_1_i32_r_gb = !sycl.accessor<[1, i32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
-  // CHECK-LABEL: func.func private @callee1.specialized(%arg0: memref<?x!sycl_accessor_1_f32_r_gb> {sycl.inner.disjoint}, %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint})
-  // CHECK-LABEL: func.func private @callee1(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>)
+  // CHECK-LABEL: func.func private @callee1.specialized(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb> {sycl.inner.disjoint}, 
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint})
+  // CHECK-LABEL: func.func private @callee1(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb>, 
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>)
   // CHECK-LABEL: gpu.func @caller1() kernel
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<1x!sycl_accessor_1_f32_r_gb>
   // CHECK-NEXT:    %cast = memref.cast %alloca : memref<1x!sycl_accessor_1_f32_r_gb> to memref<?x!sycl_accessor_1_f32_r_gb>
@@ -67,8 +71,12 @@ gpu.module @device_func {
   }
 
   // COM: No need to version as the accessor types are different.
-  // CHECK-LABEL: func.func private @callee2.specialized(%arg0: memref<?x!sycl_accessor_1_i32_r_gb> {sycl.inner.disjoint}, %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint}) {
-  // CHECK-LABEL: func.func private @callee2(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
+  // CHECK-LABEL: func.func private @callee2.specialized(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_i32_r_gb> {sycl.inner.disjoint}, 
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint}) attributes {llvm.linkage = #llvm.linkage<private>} {
+  // CHECK-LABEL: func.func private @callee2(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_i32_r_gb>, 
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
   // CHECK-LABEL: gpu.func @caller2() kernel {
   // CHECK-NEXT:    %alloca = memref.alloca() : memref<1x!sycl_accessor_1_i32_r_gb>
   // CHECK-NEXT:    %cast = memref.cast %alloca : memref<1x!sycl_accessor_1_i32_r_gb> to memref<?x!sycl_accessor_1_i32_r_gb>
