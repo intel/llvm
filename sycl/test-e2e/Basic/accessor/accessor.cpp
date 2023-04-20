@@ -1074,6 +1074,29 @@ int main() {
     assert(Data == 64);
   }
 
+  // iterator operations test for 0-dim buffer accessor
+  {
+    sycl::queue Queue;
+    int Data[] = {32, 32};
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(2));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        CGH.single_task<class acc_0_dim_assignment>([=]() {
+          *Acc.begin() = 64;
+          *Acc.rbegin() = *Acc.begin() * 2;
+        });
+      });
+      Queue.wait();
+    }
+
+    assert(Data[0] == 64 * 2);
+    assert(Data[1] == 32);
+  }
+
   // Assignment operator test for 0-dim local accessor
   {
     sycl::queue Queue;
