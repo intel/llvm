@@ -2076,22 +2076,8 @@ detail::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
 template <typename T>
 detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                                                              bool c) __NOEXC {
-  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long> ||
-                std::is_same_v<T, unsigned long>)
-    return __sycl_std::__invoke_select<T>(a, b, static_cast<long>(c));
-  else if constexpr (std::is_same_v<T, char> ||
-                     std::is_same_v<T, signed char> ||
-                     std::is_same_v<T, unsigned char>)
-    return __sycl_std::__invoke_select<T>(a, b, static_cast<char>(c));
-  else if constexpr (std::is_same_v<T, short> ||
-                     std::is_same_v<T, unsigned short> ||
-                     std::is_same_v<T, half>)
-    return __sycl_std::__invoke_select<T>(a, b, static_cast<short>(c));
-  else if constexpr (std::is_same_v<T, long long> ||
-                     std::is_same_v<T, unsigned long long>)
-    return __sycl_std::__invoke_select<T>(a, b, static_cast<long long>(c));
-  else
-    return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
+  return __sycl_std::__invoke_select<T>(
+      a, b, static_cast<detail::get_select_opencl_builtin_c_arg_type<T>>(c));
 }
 
 // geninteger select (geninteger a, geninteger b, igeninteger c)
@@ -2173,13 +2159,13 @@ select(T a, T b, T2 c) __NOEXC {
 // other marray relational functions
 
 template <typename T, size_t N>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, bool>
 any(marray<T, N> x) __NOEXC {
   return std::any_of(x.begin(), x.end(), [](T i) { return any(i); });
 }
 
 template <typename T, size_t N>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, bool>
 all(marray<T, N> x) __NOEXC {
   return std::all_of(x.begin(), x.end(), [](T i) { return all(i); });
 }

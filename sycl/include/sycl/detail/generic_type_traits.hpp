@@ -380,43 +380,15 @@ public:
   using type = decltype(check(T()));
 };
 
-// IsNonLegacyMultiPtr
-template <typename T> struct IsNonLegacyMultiPtr {
-  static constexpr bool value = false;
-};
-
-template <typename ElementType, access::address_space Space>
-struct IsNonLegacyMultiPtr<
-    multi_ptr<ElementType, Space, access::decorated::yes>> {
-  static constexpr bool value = true;
-};
-
-template <typename ElementType, access::address_space Space>
-struct IsNonLegacyMultiPtr<
-    multi_ptr<ElementType, Space, access::decorated::no>> {
-  static constexpr bool value = true;
-};
-
-// IsLegacyMultiPtr
-template <typename T> struct IsLegacyMultiPtr {
-  static constexpr bool value = false;
-};
-
-template <typename ElementType, access::address_space Space>
-struct IsLegacyMultiPtr<
-    multi_ptr<ElementType, Space, access::decorated::legacy>> {
-  static constexpr bool value = true;
-};
-
 template <typename To> struct PointerConverter {
   template <typename From> static To Convert(From *t) {
     return reinterpret_cast<To>(t);
   }
 
   template <typename From> static To Convert(From &t) {
-    if constexpr (IsNonLegacyMultiPtr<From>::value) {
+    if constexpr (is_non_legacy_multi_ptr_v<From>) {
       return detail::cast_AS<To>(t.get_decorated());
-    } else if constexpr (IsLegacyMultiPtr<From>::value) {
+    } else if constexpr (is_legacy_multi_ptr_v<From>) {
       return detail::cast_AS<To>(t.get());
     } else {
       // TODO find the better way to get the pointer to underlying data from vec
@@ -829,6 +801,23 @@ template <typename... Args> inline void check_vector_size() {
                 "The built-in function arguments must [point to|have] types "
                 "with the same number of elements.");
 }
+
+// sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
+// select(sgentype a, sgentype b, igentype c). This type trait makes the proper
+// conversion for argument c from bool to igentype based on sgentype == T.
+template <typename T, size_t SizeT = sizeof(T)>
+using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
+    SizeT == 1, char,
+    std::conditional_t<
+        SizeT == 2, short,
+        std::conditional_t<
+            (bool_constant<is_contained<
+                 T, type_list<long, unsigned long>>::value>::value &&
+             (SizeT == 4 || SizeT == 8)),
+            long, // long and ulong are 32-bit on
+                  // Windows and 64-bit on Linux
+            std::conditional_t<SizeT == 4, int,
+                               std::conditional_t<SizeT == 8, long, void>>>>>;
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
