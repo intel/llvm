@@ -4,7 +4,7 @@
 // UNSUPPORTED: hip
 // REQUIRES: fusion
 
-// Test fusion of a kernel using a math function. 
+// Test fusion of a kernel using a math function.
 
 #include <sycl/sycl.hpp>
 
@@ -57,7 +57,7 @@ int main() {
 
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out[i] == (-1.0 * static_cast<float>(i*3)) && "Computation error");
+    assert(out[i] == (-1.0 * static_cast<float>(i * 3)) && "Computation error");
   }
 
   return 0;
