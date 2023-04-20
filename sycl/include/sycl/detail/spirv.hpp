@@ -513,9 +513,8 @@ using ProhibitedTypesForShuffleEmulation =
 
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : bool_constant<
-          is_contained<vector_element_t<T>, ProhibitedTypesForShuffleEmulation>> {
-};
+    : bool_constant<is_contained<vector_element_t<T>,
+                                 ProhibitedTypesForShuffleEmulation>> {};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation
