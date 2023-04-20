@@ -753,7 +753,11 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
 
   // Function declaration descriptor
   DISubprogram *FD = nullptr;
-  if (Ops.size() > DeclarationIdx) {
+  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()) &&
+      Ops.size() > DeclarationNonSemIdx) {
+    FD = transDebugInst<DISubprogram>(
+        BM->get<SPIRVExtInst>(Ops[DeclarationNonSemIdx]));
+  } else if (Ops.size() > DeclarationIdx) {
     FD = transDebugInst<DISubprogram>(
         BM->get<SPIRVExtInst>(Ops[DeclarationIdx]));
   }
@@ -778,7 +782,7 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
     // Create targetFuncName mostly for Fortran trampoline function if it is
     // the case
     StringRef TargetFunction;
-    if (Ops.size() > TargetFunctionNameIdx) {
+    if (Ops.size() > MinOperandCount) {
       TargetFunction = getString(Ops[TargetFunctionNameIdx]);
     }
     DIS = getDIBuilder(DebugInst).createFunction(
@@ -788,11 +792,21 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
         /*Annotations*/ nullptr, TargetFunction);
   }
   DebugInstCache[DebugInst] = DIS;
-  SPIRVId RealFuncId = Ops[FunctionIdIdx];
-  FuncMap[RealFuncId] = DIS;
 
-  // Function.
-  SPIRVEntry *E = BM->getEntry(Ops[FunctionIdIdx]);
+  // At this point, we don't have info about the function definition for
+  // NonSemantic.Shader debug info. If function definition is present, it'll be
+  // translated later within the function scope.
+  // For "default" debug info we do translate function body here.
+  if (!isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+    transFunctionBody(DIS, Ops[FunctionIdIdx]);
+
+  return DIS;
+}
+
+void SPIRVToLLVMDbgTran::transFunctionBody(DISubprogram *DIS, SPIRVId FuncId) {
+  FuncMap[FuncId] = DIS;
+
+  SPIRVEntry *E = BM->getEntry(FuncId);
   if (E->getOpCode() == OpFunction) {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(E);
     llvm::Function *F = SPIRVReader->transFunction(BF);
@@ -800,7 +814,18 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
     if (!F->hasMetadata("dbg"))
       F->setMetadata("dbg", DIS);
   }
-  return DIS;
+}
+
+DINode *
+SPIRVToLLVMDbgTran::transFunctionDefinition(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::FunctionDefinition;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+
+  SPIRVExtInst *Func = BM->get<SPIRVExtInst>(Ops[FunctionIdx]);
+  DISubprogram *LLVMFunc = cast<DISubprogram>(DebugInstCache[Func]);
+
+  transFunctionBody(LLVMFunc, Ops[DefinitionIdx]);
+  return nullptr;
 }
 
 DINode *SPIRVToLLVMDbgTran::transFunctionDecl(const SPIRVExtInst *DebugInst) {
@@ -1195,6 +1220,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   case SPIRVDebug::FunctionDeclaration:
     return transFunctionDecl(DebugInst);
 
+  case SPIRVDebug::FunctionDefinition:
+    return transFunctionDefinition(DebugInst);
+
   case SPIRVDebug::GlobalVariable:
     return transGlobalVariable(DebugInst);
 
@@ -1264,6 +1292,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
   switch (DebugInst->getExtOp()) {
   case SPIRVDebug::Scope:
   case SPIRVDebug::NoScope:
+  case SPIRVDebug::FunctionDefinition:
     return nullptr;
   case SPIRVDebug::Declare: {
     using namespace SPIRVDebug::Operand::DebugDeclare;

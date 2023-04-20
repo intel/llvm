@@ -1912,6 +1912,17 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
     O << SPIRVNL() << MI.AsmTargetVec << MI.AsmVec;
   }
 
+  // At this point we know that FunctionDefinition could have been included both
+  // into DebugInstVec and into basick block of function from FuncVec.
+  // By spec we should only have this instruction to be present inside the
+  // function body, so removing it from the DebugInstVec to avoid duplication.
+  MI.DebugInstVec.erase(
+      std::remove_if(MI.DebugInstVec.begin(), MI.DebugInstVec.end(),
+                     [](SPIRVExtInst *I) {
+                       return I->getExtOp() == SPIRVDebug::FunctionDefinition;
+                     }),
+      MI.DebugInstVec.end());
+
   O << SPIRVNL() << MI.DebugInstVec << MI.AuxDataInstVec << SPIRVNL()
     << MI.FuncVec;
   return O;

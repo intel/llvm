@@ -134,6 +134,8 @@ private:
   SPIRVEntry *transDbgGlobalVariable(const DIGlobalVariable *GV);
   SPIRVEntry *transDbgFunction(const DISubprogram *Func);
 
+  SPIRVEntry *transDbgFuncDefinition(SPIRVValue *SPVFunc, SPIRVEntry *DbgFunc);
+
   // Location information
   SPIRVEntry *transDbgScope(const DIScope *S);
   SPIRVEntry *transDebugLoc(const DebugLoc &Loc, SPIRVBasicBlock *BB,

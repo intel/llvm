@@ -1135,6 +1135,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
     transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
 
   SPIRVEntry *DebugFunc = nullptr;
+  SPIRVValue *FuncDef = nullptr;
   if (!Func->isDefinition()) {
     DebugFunc =
         BM->addDebugInfo(SPIRVDebug::FunctionDeclaration, getVoidTy(), Ops);
@@ -1152,9 +1153,14 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
         SPIRVValue *SPIRVFunc = SPIRVWriter->getTranslatedValue(&F);
         assert(SPIRVFunc && "All function must be already translated");
         Ops[FunctionIdIdx] = SPIRVFunc->getId();
+        FuncDef = SPIRVFunc;
         break;
       }
     }
+    // For NonSemantic.Shader.DebugInfo we store Function Id index as a
+    // separate DebugFunctionDefinition instruction.
+    if (isNonSemanticDebugInfo())
+      Ops.pop_back();
 
     if (DISubprogram *FuncDecl = Func->getDeclaration())
       Ops.push_back(transDbgEntry(FuncDecl)->getId());
@@ -1181,7 +1187,28 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
   if (DITemplateParameterArray TPA = Func->getTemplateParams()) {
     DebugFunc = transDbgTemplateParams(TPA, DebugFunc);
   }
+
+  if (isNonSemanticDebugInfo())
+    transDbgFuncDefinition(FuncDef, DebugFunc);
+
   return DebugFunc;
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFuncDefinition(SPIRVValue *FuncDef,
+                                                       SPIRVEntry *DbgFunc) {
+  if (!isNonSemanticDebugInfo() || !FuncDef)
+    return nullptr;
+
+  using namespace SPIRVDebug::Operand::FunctionDefinition;
+  SPIRVWordVec Ops(OperandCount);
+  Ops[FunctionIdx] = DbgFunc->getId();
+  Ops[DefinitionIdx] = FuncDef->getId();
+  SPIRVFunction *F = static_cast<SPIRVFunction *>(FuncDef);
+  SPIRVBasicBlock *BB = F->getNumBasicBlock() ? F->getBasicBlock(0) : nullptr;
+  SPIRVId ExtSetId = BM->getExtInstSetId(BM->getDebugInfoEIS());
+
+  return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::FunctionDefinition,
+                        Ops, BB, BB->getInst(0));
 }
 
 // Location information
