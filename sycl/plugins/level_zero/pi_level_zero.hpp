@@ -67,7 +67,7 @@ template <> uint32_t inline pi_cast(uint64_t Value) {
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
-struct MemAllocRecord : _pi_object {
+struct MemAllocRecord : _ur_object {
   MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
       : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
   // Currently kernel can reference memory allocations from different contexts
@@ -94,7 +94,7 @@ struct _pi_platform : public _ur_platform_handle_t {
   // TODO: should be deleted when memory isolation in the context is implemented
   // in the driver.
   std::list<pi_context> Contexts;
-  pi_shared_mutex ContextsMutex;
+  ur_shared_mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -204,7 +204,7 @@ using pi_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
 
-struct _pi_context : _pi_object {
+struct _pi_context : _ur_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
@@ -261,11 +261,11 @@ struct _pi_context : _pi_object {
   // Mutex for the immediate command list. Per the Level Zero spec memory copy
   // operations submitted to an immediate command list are not allowed to be
   // called from simultaneous threads.
-  pi_mutex ImmediateCommandListMutex;
+  ur_mutex ImmediateCommandListMutex;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
-  pi_mutex ZeCommandListCacheMutex;
+  ur_mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -394,10 +394,10 @@ private:
 
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
-  pi_mutex ZeEventPoolCacheMutex;
+  ur_mutex ZeEventPoolCacheMutex;
 
   // Mutex to control operations on event caches.
-  pi_mutex EventCacheMutex;
+  ur_mutex EventCacheMutex;
 
   // Caches for events.
   std::vector<std::list<pi_event>> EventCaches{4};
@@ -411,7 +411,7 @@ private:
   }
 };
 
-struct _pi_queue : _pi_object {
+struct _pi_queue : _ur_object {
   // ForceComputeIndex, if non-negative, indicates that the queue must be fixed
   // to that particular compute CCS.
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
@@ -724,7 +724,7 @@ struct _pi_queue : _pi_object {
   active_barriers ActiveBarriers;
 
   // Besides each PI object keeping a total reference count in
-  // _pi_object::RefCount we keep special track of the queue *external*
+  // _ur_object::RefCount we keep special track of the queue *external*
   // references. This way we are able to tell when the queue is being finished
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
@@ -832,7 +832,7 @@ struct _pi_queue : _pi_object {
   bool doReuseDiscardedEvents();
 };
 
-struct _pi_mem : _pi_object {
+struct _pi_mem : _ur_object {
   // Keeps the PI context of this memory handle.
   pi_context Context;
 
@@ -992,11 +992,14 @@ struct _pi_buffer final : _pi_mem {
   } SubBuffer;
 };
 
+struct _pi_image;
+using pi_image = _pi_image *;
+
 // TODO: add proper support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image)
-      : _pi_mem(Ctx), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, bool OwnNativeHandle)
+      : _pi_mem(Ctx), ZeImage{Image}, OwnZeMemHandle{OwnNativeHandle} {}
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
                                 pi_device = nullptr) override {
@@ -1018,6 +1021,8 @@ struct _pi_image final : _pi_mem {
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
+
+  bool OwnZeMemHandle;
 };
 
 struct _pi_ze_event_list_t {
@@ -1037,7 +1042,7 @@ struct _pi_ze_event_list_t {
   // when an event is initially created.  However, it might be
   // possible to have multiple threads racing to destroy the list,
   // so this will be used to make list destruction thread-safe.
-  pi_mutex PiZeEventListMutex;
+  ur_mutex PiZeEventListMutex;
 
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.
@@ -1071,7 +1076,7 @@ struct _pi_ze_event_list_t {
   }
 };
 
-struct _pi_event : _pi_object {
+struct _pi_event : _ur_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
             pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
       : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
@@ -1147,7 +1152,7 @@ struct _pi_event : _pi_object {
   bool IsDiscarded = {false};
 
   // Besides each PI object keeping a total reference count in
-  // _pi_object::RefCount we keep special track of the event *external*
+  // _ur_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
   // externally anymore, i.e. it can't be passed as a dependency event to
   // piEnqueue* functions and explicitly waited meaning that we can do some
@@ -1168,7 +1173,7 @@ struct _pi_event : _pi_object {
   pi_result reset();
 };
 
-struct _pi_program : _pi_object {
+struct _pi_program : _ur_object {
   // Possible states of a program.
   typedef enum {
     // The program has been created from intermediate language (SPIR-V), but it
@@ -1281,7 +1286,7 @@ struct _pi_program : _pi_object {
   ze_module_build_log_handle_t ZeBuildLog;
 };
 
-struct _pi_kernel : _pi_object {
+struct _pi_kernel : _ur_object {
   _pi_kernel(ze_kernel_handle_t Kernel, bool OwnZeKernel, pi_program Program)
       : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
         MemAllocs{}, SubmissionsCount{0} {}
@@ -1358,7 +1363,7 @@ struct _pi_kernel : _pi_object {
   ZeCache<std::string> ZeKernelName;
 };
 
-struct _pi_sampler : _pi_object {
+struct _pi_sampler : _ur_object {
   _pi_sampler(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
   // Level Zero sampler handle.

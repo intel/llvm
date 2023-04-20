@@ -568,7 +568,7 @@ std::unique_ptr<T, USMDeleter> usm_malloc_shared(queue q, int n) {
   return std::move(res);
 }
 
-template <class T> static const char *type_name();
+template <class T> const char *type_name() { return typeid(T).name(); }
 #define TID(T)                                                                 \
   template <> const char *type_name<T>() { return #T; }
 TID(char) // for some reason, 'char' does not match 'int8_t' during

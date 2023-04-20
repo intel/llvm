@@ -1084,7 +1084,7 @@ protected:
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
     size_t Result = 0;
-    detail::dim_loop<Dims>([&, this](size_t I) {
+    detail::loop<Dims>([&, this](size_t I) {
       Result = Result * getMemoryRange()[I] + Id[I];
       // We've already adjusted for the accessor's offset in the __init, so
       // don't include it here in case of device.
@@ -1147,7 +1147,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
-    detail::dim_loop<AdjustedDim>([&, this](size_t I) {
+    detail::loop<AdjustedDim>([&, this](size_t I) {
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
         getOffset()[I] = Offset[I];
@@ -2252,7 +2252,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const noexcept {
     size_t TotalOffset = 0;
-    detail::dim_loop<Dimensions>([&, this](size_t I) {
+    detail::loop<Dimensions>([&, this](size_t I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
@@ -2515,7 +2515,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-    detail::dim_loop<AdjustedDim>(
+    detail::loop<AdjustedDim>(
         [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
@@ -2570,7 +2570,7 @@ protected:
   // Method which calculates linear offset for the ID using Range and Offset.
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
     size_t Result = 0;
-    detail::dim_loop<Dims>(
+    detail::loop<Dims>(
         [&, this](size_t I) { Result = Result * getSize()[I] + Id[I]; });
     return Result;
   }
@@ -3060,9 +3060,7 @@ template <typename DataT, int Dimensions = 1,
           access_mode AccessMode = access_mode::read_write>
 class __SYCL_EBO host_accessor
     : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
-                      access::placeholder::false_t>,
-      public detail::OwnerLessBase<
-          host_accessor<DataT, Dimensions, AccessMode>> {
+                      access::placeholder::false_t> {
 protected:
   using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                              access::placeholder::false_t>;
@@ -3082,6 +3080,18 @@ protected:
          id<AdjustedDim> Offset) {
     AccessorT::__init(Ptr, AccessRange, MemRange, Offset);
   }
+
+#ifndef __SYCL_DEVICE_ONLY__
+  host_accessor(const detail::AccessorImplPtr &Impl)
+      : accessor<DataT, Dimensions, AccessMode, target::host_buffer,
+                 access::placeholder::false_t>{Impl} {}
+
+  template <class Obj>
+  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+#endif // __SYCL_DEVICE_ONLY__
 
 public:
   host_accessor() : AccessorT() {}
@@ -3240,6 +3250,28 @@ public:
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
   }
+
+  // host_accessor needs to explicitly define the owner_before member functions
+  // as inheriting from OwnerLessBase causes base class conflicts.
+  // TODO: Once host_accessor is detached from accessor, inherit from
+  // OwnerLessBase instead.
+#ifndef __SYCL_DEVICE_ONLY__
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<host_accessor> &Other)
+      const noexcept {
+    return this->impl.owner_before(
+        ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  bool ext_oneapi_owner_before(const host_accessor &Other) const noexcept {
+    return this->impl.owner_before(Other.impl);
+  }
+#else
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<host_accessor> &Other)
+      const noexcept;
+  bool ext_oneapi_owner_before(const host_accessor &Other) const noexcept;
+#endif
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
@@ -3294,6 +3326,40 @@ struct hash<sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
 #else
     // getSyclObjImpl() here returns a pointer to either AccessorImplHost
     // or LocalAccessorImplHost depending on the AccessTarget.
+    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
+    return hash<decltype(AccImplPtr)>()(AccImplPtr);
+#endif
+  }
+};
+
+template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
+struct hash<sycl::host_accessor<DataT, Dimensions, AccessMode>> {
+  using AccType = sycl::host_accessor<DataT, Dimensions, AccessMode>;
+
+  size_t operator()(const AccType &A) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    // Hash is not supported on DEVICE. Just return 0 here.
+    (void)A;
+    return 0;
+#else
+    // getSyclObjImpl() here returns a pointer to AccessorImplHost.
+    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
+    return hash<decltype(AccImplPtr)>()(AccImplPtr);
+#endif
+  }
+};
+
+template <typename DataT, int Dimensions>
+struct hash<sycl::local_accessor<DataT, Dimensions>> {
+  using AccType = sycl::local_accessor<DataT, Dimensions>;
+
+  size_t operator()(const AccType &A) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    // Hash is not supported on DEVICE. Just return 0 here.
+    (void)A;
+    return 0;
+#else
+    // getSyclObjImpl() here returns a pointer to LocalAccessorImplHost.
     auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
     return hash<decltype(AccImplPtr)>()(AccImplPtr);
 #endif
