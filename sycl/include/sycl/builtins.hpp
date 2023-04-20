@@ -15,6 +15,8 @@
 #include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
 
+#include <algorithm>
+
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
