@@ -9,6 +9,7 @@ function(add_trace_test name CLI_ARGS)
         COMMAND ${CMAKE_COMMAND}
         -D TEST_FILE=${Python3_EXECUTABLE}
         -D TEST_ARGS="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/urtrace --stdout ${CLI_ARGS} $<TARGET_FILE:hello_world>"
+        -D MODE=stdout
         -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}.match
         -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
         DEPENDS ur_trace_cli hello_world

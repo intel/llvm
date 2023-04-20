@@ -35,7 +35,7 @@ inline auto str_to_level(std::string name) {
     const lvl_name lvl_names[] = {{"debug", Level::DEBUG},
                                   {"info", Level::INFO},
                                   {"warning", Level::WARN},
-                                  {"error", Level::WARN}};
+                                  {"error", Level::ERR}};
 
     for (auto const &item : lvl_names) {
         if (item.name.compare(name) == 0) {
