@@ -191,6 +191,8 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_VENDOR";
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return "PI_EXT_PLATFORM_INFO_BACKEND";
   }
   die("Unknown pi_platform_info value passed to "
       "sycl::detail::pi::platformInfoToString");
