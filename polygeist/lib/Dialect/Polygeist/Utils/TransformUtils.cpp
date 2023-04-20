@@ -86,7 +86,7 @@ struct AffineIfBuilder {
 //===----------------------------------------------------------------------===//
 
 void LoopVersionBuilder::versionLoop(
-    const LoopVersionCondition &versionCond) const {
+    const VersionCondition &versionCond) const {
   OpBuilder builder(loop);
 
   if (versionCond.hasSCFCondition()) {
@@ -399,7 +399,7 @@ void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const LoopVersionCondition &versionCond) const {
+                            const VersionCondition &versionCond) const {
   LoopVersionBuilder(loop).versionLoop(versionCond);
 }
 
