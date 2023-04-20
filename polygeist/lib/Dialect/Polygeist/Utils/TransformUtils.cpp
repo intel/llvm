@@ -123,21 +123,20 @@ static Block &getElseBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(1).front();
 }
 
-// Replace uses of the loop \p loop return value(s) with the value(s) yielded by
-// the \p ifOp operation.
-static void replaceUsesOfLoopReturnValues(LoopLikeOpInterface loop,
-                                          RegionBranchOpInterface ifOp) {
+// Replace uses of the operation \p op return value(s) with the value(s) yielded
+// by the \p ifOp operation.
+static void replaceUsesOfReturnValues(Operation *op,
+                                      RegionBranchOpInterface ifOp) {
   assert(ifOp && "Expected valid ifOp");
-  for (auto [loopVal, ifVal] :
-       llvm::zip(loop->getResults(), ifOp->getResults()))
-    loopVal.replaceUsesWithIf(ifVal, [&](OpOperand &op) {
-      Block *useBlock = op.getOwner()->getBlock();
+  for (auto [opVal, ifVal] : llvm::zip(op->getResults(), ifOp->getResults()))
+    opVal.replaceUsesWithIf(ifVal, [&](OpOperand &operand) {
+      Block *useBlock = operand.getOwner()->getBlock();
       return useBlock != &getThenBlock(ifOp);
     });
 }
 
-static void createThenBody(LoopLikeOpInterface loop, scf::IfOp ifOp) {
-  loop->moveBefore(&getThenBlock(ifOp).front());
+static void createThenBody(Operation *op, scf::IfOp ifOp) {
+  op->moveBefore(&getThenBlock(ifOp).front());
 }
 
 static void createThenBody(LoopLikeOpInterface loop, AffineIfOp ifOp) {
@@ -177,45 +176,43 @@ struct AffineIfBuilder {
 } // namespace
 
 //===----------------------------------------------------------------------===//
-// LoopVersionBuilder
+// VersionBuilder
 //===----------------------------------------------------------------------===//
 
-void LoopVersionBuilder::versionLoop(
-    const VersionCondition &versionCond) const {
-  OpBuilder builder(loop);
+void VersionBuilder::version(const VersionCondition &versionCond) const {
+  OpBuilder builder(op);
 
   if (versionCond.hasSCFCondition()) {
-    scf::IfOp ifOp =
-        SCFIfBuilder::createIfOp(versionCond.getSCFCondition(),
-                                 loop->getResults(), builder, loop.getLoc());
-    createThenBody(loop, ifOp);
+    scf::IfOp ifOp = SCFIfBuilder::createIfOp(
+        versionCond.getSCFCondition(), op->getResults(), builder, op->getLoc());
+    createThenBody(op, ifOp);
     createElseBody(ifOp);
-    replaceUsesOfLoopReturnValues(loop, ifOp);
+    replaceUsesOfReturnValues(op, ifOp);
   } else {
     assert(versionCond.hasAffineCondition() && "Expecting an affine condition");
     const auto &affineCond = versionCond.getAffineCondition();
     AffineIfOp ifOp = AffineIfBuilder::createIfOp(
-        affineCond.ifCondSet, affineCond.setOperands, loop->getResults(),
-        builder, loop.getLoc());
-    createThenBody(loop, ifOp);
+        affineCond.ifCondSet, affineCond.setOperands, op->getResults(), builder,
+        op->getLoc());
+    createThenBody(op, ifOp);
     createElseBody(ifOp);
-    replaceUsesOfLoopReturnValues(loop, ifOp);
+    replaceUsesOfReturnValues(op, ifOp);
   }
 }
 
-void LoopVersionBuilder::createElseBody(scf::IfOp ifOp) const {
+void VersionBuilder::createElseBody(scf::IfOp ifOp) const {
   Operation &origYield = getElseBlock(ifOp).back();
   OpBuilder elseBodyBuilder = ifOp.getElseBodyBuilder();
-  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
-  elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), clonedLoop->getResults());
+  Operation *clonedLoop = elseBodyBuilder.clone(*op);
+  elseBodyBuilder.create<scf::YieldOp>(op->getLoc(), clonedLoop->getResults());
   origYield.erase();
 }
 
-void LoopVersionBuilder::createElseBody(AffineIfOp ifOp) const {
+void VersionBuilder::createElseBody(AffineIfOp ifOp) const {
   OpBuilder elseBodyBuilder = ifOp.getElseBodyBuilder();
-  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
+  Operation *clonedLoop = elseBodyBuilder.clone(*op);
   if (!clonedLoop->getResults().empty())
-    elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(),
+    elseBodyBuilder.create<AffineYieldOp>(op->getLoc(),
                                           clonedLoop->getResults());
 }
 
@@ -242,7 +239,7 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 void LoopGuardBuilder::guardLoop(RegionBranchOpInterface ifOp) const {
   createThenBody(ifOp);
   createElseBody(ifOp);
-  replaceUsesOfLoopReturnValues(loop, ifOp);
+  replaceUsesOfReturnValues(loop, ifOp);
 }
 
 //===----------------------------------------------------------------------===//
@@ -495,7 +492,7 @@ void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
                             const VersionCondition &versionCond) const {
-  LoopVersionBuilder(loop).versionLoop(versionCond);
+  VersionBuilder(loop).version(versionCond);
 }
 
 //===----------------------------------------------------------------------===//
