@@ -100,7 +100,7 @@ static cl::opt<bool> TestRun("t", cl::desc("Enable test run"), cl::init(false),
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 namespace {
-inline StringRef asRef(std::string_view S) { return {S.begin(), S.size()}; }
+inline StringRef asRef(std::string_view S) { return {&*S.begin(), S.size()}; }
 class BumpPointerAllocator {
 public:
   BumpPointerAllocator()

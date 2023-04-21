@@ -804,7 +804,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
     if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
       // Overwrite Ty with IntegerLiteral's size
       Ty =
-          parsePrimitiveTypeString(StringRef(TyStr.begin(), TyStr.size()), Ctx);
+          parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()), Ctx);
     Val = ValL->getValue();
     break;
   }
@@ -821,7 +821,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   default:
     llvm_unreachable_internal("bad esimd intrinsic template parameter");
   }
-  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(Val.begin(), Val.size()),
+  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(&*Val.begin(), Val.size()),
                10);
 }
 
@@ -1496,7 +1496,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   auto PrefLen = isDevicelibFunction(F->getName())
                      ? 0
                      : StringRef(ESIMD_INTRIN_PREF1).size();
-  StringRef BaseName(BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
+  StringRef BaseName(&*BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
   const auto &Desc = getIntrinDesc(BaseName);
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
     return;
