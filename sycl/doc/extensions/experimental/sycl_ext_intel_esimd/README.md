@@ -100,7 +100,7 @@ q.parallel_for(ndr, sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(N)]] {
   float n = ...;
 
   // Invoke SIMD function:
-  // `x` values from each work-item are combined into a simd<float, N>.
+  // `x` values from each work-item are grouped into a simd<float, N>.
   // `n` is passed as a uniform scalar.
   // The vector result simd<float, N> is split to N scalar elements,
   // then assigned to each `y` of each corresponding N work-items.
