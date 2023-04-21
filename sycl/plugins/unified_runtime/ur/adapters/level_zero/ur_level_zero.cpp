@@ -239,6 +239,8 @@ ur_result_t urPlatformGetInfo(
     // information>. Follow the same notation here.
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  case UR_PLATFORM_INFO_BACKEND:
+    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
   default:
     urPrint("piPlatformGetInfo: unrecognized ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;

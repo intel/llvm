@@ -224,11 +224,10 @@ int main() {
 
   // abs (longlong)
   {
-    using ulonglong2 = s::vec<unsigned long long, 2>;
     using longlong2 = s::vec<long long, 2>;
-    ulonglong2 r{0};
+    longlong2 r{0};
     {
-      s::buffer<ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<longlong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
@@ -237,8 +236,8 @@ int main() {
         });
       });
     }
-    unsigned long long r1 = r.x();
-    unsigned long long r2 = r.y();
+    long long r1 = r.x();
+    long long r2 = r.y();
     assert(r1 == 5);
     assert(r2 == 2);
   }

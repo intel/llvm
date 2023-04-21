@@ -27,6 +27,29 @@ struct sub_group;
 namespace experimental {
 template <typename Group, std::size_t Extent> class group_with_scratchpad;
 
+template <class T> struct is_fixed_topology_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_fixed_topology_group_v =
+    is_fixed_topology_group<T>::value;
+
+#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
+template <> struct is_fixed_topology_group<root_group> : std::true_type {};
+#endif
+
+template <int Dimensions>
+struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
+
+template <>
+struct is_fixed_topology_group<sycl::ext::oneapi::sub_group> : std::true_type {
+};
+
+template <class T> struct is_user_constructed_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_user_constructed_group_v =
+    is_user_constructed_group<T>::value;
+
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
 
@@ -291,6 +314,43 @@ struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
 };
 
 template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
+
+// is_multi_ptr
+template <typename T> struct is_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+struct is_multi_ptr<multi_ptr<ElementType, Space, IsDecorated>>
+    : std::true_type {};
+
+template <class T>
+inline constexpr bool is_multi_ptr_v = is_multi_ptr<T>::value;
+
+// is_non_legacy_multi_ptr
+template <typename T> struct is_non_legacy_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_non_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::yes>> : std::true_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_non_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::no>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_non_legacy_multi_ptr_v =
+    is_non_legacy_multi_ptr<T>::value;
+
+// is_legacy_multi_ptr
+template <typename T> struct is_legacy_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::legacy>> : std::true_type {
+};
+
+template <class T>
+inline constexpr bool is_legacy_multi_ptr_v = is_legacy_multi_ptr<T>::value;
 
 // remove_pointer_t
 template <typename T> struct remove_pointer_impl {
