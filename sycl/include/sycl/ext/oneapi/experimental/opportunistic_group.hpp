@@ -40,7 +40,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return detail::CallerPositionInMask(Mask);
+    return sycl::detail::CallerPositionInMask(Mask);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);

@@ -27,6 +27,29 @@ struct sub_group;
 namespace experimental {
 template <typename Group, std::size_t Extent> class group_with_scratchpad;
 
+template <class T> struct is_fixed_topology_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_fixed_topology_group_v =
+    is_fixed_topology_group<T>::value;
+
+#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
+template <> struct is_fixed_topology_group<root_group> : std::true_type {};
+#endif
+
+template <int Dimensions>
+struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
+
+template <>
+struct is_fixed_topology_group<sycl::ext::oneapi::sub_group> : std::true_type {
+};
+
+template <class T> struct is_user_constructed_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_user_constructed_group_v =
+    is_user_constructed_group<T>::value;
+
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
 
