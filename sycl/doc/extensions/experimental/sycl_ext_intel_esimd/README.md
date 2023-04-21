@@ -108,7 +108,7 @@ q.parallel_for(ndr, sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(N)]] {
 });
 ```
 
-Currently, compilation of programs with invoke_simd() calls requires few additional compilation options. Also, running such programs may require setting additional parameter for GPU driver:
+Currently, compilation of programs with `invoke_simd` calls requires a few additional compilation options. Also, running such programs may require setting additional parameters for the GPU driver:
 ```bash
 # compile: pass -fsycl-allow-func-ptr because by default the function pointers
 # are not allowed in SYCL/ESIMD programs.
