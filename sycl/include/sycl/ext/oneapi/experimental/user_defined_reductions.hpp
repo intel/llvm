@@ -44,7 +44,7 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
 
 // ---- reduce_over_group
 template <typename GroupHelper, typename T, typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
 reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
     return sycl::reduce_over_group(group_helper.get_group(), x, binary_op);

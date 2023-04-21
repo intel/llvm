@@ -350,7 +350,7 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename Ptr, class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<Ptr>::type>::value &&
