@@ -80,7 +80,7 @@ the same application.
 
 SYCL kernels can call ESIMD functions using the special `invoke_simd` API.
 More details are available in [invoke_simd spec](../sycl_ext_oneapi_invoke_simd.asciidoc)
-Also, see for more [test cases here](../../../../test-e2e/InvokeSimd/)
+Test cases are available [here](../../../../test-e2e/InvokeSimd/)
 
 ```cpp
 constexpr int N = 8;
