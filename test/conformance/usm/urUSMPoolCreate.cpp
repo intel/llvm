@@ -4,8 +4,9 @@
 #include <uur/fixtures.h>
 
 using urUSMPoolCreateTest = uur::urContextTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolCreateTest);
 
-TEST_F(urUSMPoolCreateTest, Success) {
+TEST_P(urUSMPoolCreateTest, Success) {
     ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                  UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
     ur_usm_pool_handle_t pool = nullptr;
@@ -14,7 +15,7 @@ TEST_F(urUSMPoolCreateTest, Success) {
     EXPECT_SUCCESS(urUSMPoolDestroy(context, pool));
 }
 
-TEST_F(urUSMPoolCreateTest, InvalidNullHandleContext) {
+TEST_P(urUSMPoolCreateTest, InvalidNullHandleContext) {
     ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                  UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
     ur_usm_pool_handle_t pool = nullptr;
@@ -22,20 +23,20 @@ TEST_F(urUSMPoolCreateTest, InvalidNullHandleContext) {
                      urUSMPoolCreate(nullptr, &pool_desc, &pool));
 }
 
-TEST_F(urUSMPoolCreateTest, InvalidNullPointerPoolDesc) {
+TEST_P(urUSMPoolCreateTest, InvalidNullPointerPoolDesc) {
     ur_usm_pool_handle_t pool = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urUSMPoolCreate(context, nullptr, &pool));
 }
 
-TEST_F(urUSMPoolCreateTest, InvalidNullPointerPool) {
+TEST_P(urUSMPoolCreateTest, InvalidNullPointerPool) {
     ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                  UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urUSMPoolCreate(context, &pool_desc, nullptr));
 }
 
-TEST_F(urUSMPoolCreateTest, InvalidEnumerationFlags) {
+TEST_P(urUSMPoolCreateTest, InvalidEnumerationFlags) {
     ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                  UR_USM_POOL_FLAG_FORCE_UINT32};
     ur_usm_pool_handle_t pool = nullptr;
