@@ -83,6 +83,16 @@ umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
                                const char **ppMessage);
 
 ///
+/// \brief Retrieve recommended page size for a given allocation size.
+/// \param hProvider handle to the memory provider
+/// \param size allocation size
+/// \param pageSize [out] will be updated with recommended page size.
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
+enum uma_result_t
+umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
+                                        size_t size, size_t *pageSize);
+
+///
 /// \brief Retrieve minumum possible page size used by memory region referenced by given ptr
 /// \param hProvider handle to the memory provider
 /// \param ptr pointer to memory allocated by this memory provider

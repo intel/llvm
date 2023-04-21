@@ -64,6 +64,11 @@ auto memoryProviderMakeUnique(Args &&...args) {
             noexcept(reinterpret_cast<T *>(obj)->get_last_result(args...)));
         return reinterpret_cast<T *>(obj)->get_last_result(args...);
     };
+    ops.get_recommended_page_size = [](void *obj, auto... args) {
+        static_assert(noexcept(
+            reinterpret_cast<T *>(obj)->get_recommended_page_size(args...)));
+        return reinterpret_cast<T *>(obj)->get_recommended_page_size(args...);
+    };
     ops.get_min_page_size = [](void *obj, auto... args) {
         static_assert(
             noexcept(reinterpret_cast<T *>(obj)->get_min_page_size(args...)));

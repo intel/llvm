@@ -71,6 +71,13 @@ void *umaMemoryProviderGetPriv(uma_memory_provider_handle_t hProvider) {
 }
 
 enum uma_result_t
+umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
+                                        size_t size, size_t *pageSize) {
+    return hProvider->ops.get_recommended_page_size(hProvider->provider_priv,
+                                                    size, pageSize);
+}
+
+enum uma_result_t
 umaMemoryProviderGetMinPageSize(uma_memory_provider_handle_t hProvider,
                                 void *ptr, size_t *pageSize) {
     return hProvider->ops.get_min_page_size(hProvider->provider_priv, ptr,
