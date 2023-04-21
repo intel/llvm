@@ -73,11 +73,7 @@ int main() {
           }
 
           bool AnyResult = sycl::any_of_group(BallotGroup, (LID == 0));
-          if (Predicate) {
-            AnyAcc[WI] = (AnyResult == true);
-          } else {
-            AnyAcc[WI] = (AnyResult == false);
-          }
+          AnyAcc[WI] = (AnyResult == true);
 
           bool AllResult = sycl::all_of_group(BallotGroup, Predicate);
           if (Predicate) {
