@@ -94,6 +94,62 @@ pi_result map_ur_error(ur_result_t result) {
   }
 }
 
+pi_mem_type map_ur_mem_type(ur_mem_type_t mem_type) {
+  switch (mem_type) {
+  case UR_MEM_TYPE_BUFFER:
+  default:
+    return PI_MEM_TYPE_BUFFER;
+  case UR_MEM_TYPE_IMAGE2D:
+    return PI_MEM_TYPE_IMAGE2D;
+  case UR_MEM_TYPE_IMAGE3D:
+    return PI_MEM_TYPE_IMAGE3D;
+  case UR_MEM_TYPE_IMAGE2D_ARRAY:
+    return PI_MEM_TYPE_IMAGE2D_ARRAY;
+  case UR_MEM_TYPE_IMAGE1D:
+    return PI_MEM_TYPE_IMAGE1D;
+  case UR_MEM_TYPE_IMAGE1D_ARRAY:
+    return PI_MEM_TYPE_IMAGE1D_ARRAY;
+  case UR_MEM_TYPE_IMAGE1D_BUFFER:
+    return PI_MEM_TYPE_IMAGE1D_BUFFER;
+  }
+}
+
+template <typename TypeOut, typename TypeFlag>
+inline pi_result
+ConvertInputBitfield(pi_bitfield in, TypeOut *out,
+                     const std::unordered_map<pi_bitfield, TypeFlag> &map) {
+  *out = 0;
+  for (auto &[FlagPI, FlagUR] : map) {
+    if (in & FlagPI) {
+      *out |= FlagUR;
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
+// Convert bitfield flags from PI to UR for MemFlags
+inline pi_result pi2urMemFlags(pi_mem_flags piFlags, ur_mem_flags_t *urFlags) {
+  static const std::unordered_map<pi_mem_flags, ur_mem_flags_t> MemFlagsMap = {
+      {PI_MEM_FLAGS_ACCESS_RW, UR_MEM_FLAG_READ_WRITE},
+      {PI_MEM_ACCESS_READ_ONLY, UR_MEM_FLAG_READ_ONLY},
+      {PI_MEM_FLAGS_HOST_PTR_USE, UR_MEM_FLAG_USE_HOST_POINTER},
+      {PI_MEM_FLAGS_HOST_PTR_COPY, UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER},
+      {PI_MEM_FLAGS_HOST_PTR_ALLOC, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+  };
+
+  return ConvertInputBitfield(piFlags, urFlags, MemFlagsMap);
+}
+
+// Convert bitfield flags from PI to UR for MapFlags
+inline pi_result pi2urMapFlags(pi_mem_flags piFlags, ur_mem_flags_t *urFlags) {
+  static const std::unordered_map<pi_bitfield, ur_map_flag_t> MapFlagsMap = {
+      {PI_MAP_READ, UR_MAP_FLAG_READ},
+      {PI_MAP_WRITE, UR_MAP_FLAG_WRITE},
+  };
+  return ConvertInputBitfield(piFlags, urFlags, MapFlagsMap);
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -400,245 +456,6 @@ pi_result cuda_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
   return retError;
 }
 
-/// Creates a PI Memory object using a CUDA memory allocation.
-/// Can trigger a manual copy depending on the mode.
-/// \TODO Implement USE_HOST_PTR using cuHostRegister
-///
-pi_result
-cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                       void *host_ptr, pi_mem *ret_mem,
-                       [[maybe_unused]] const pi_mem_properties *properties) {
-  // Need input memory object
-  assert(ret_mem != nullptr);
-  assert((properties == nullptr || *properties == 0) &&
-         "no mem properties goes to cuda RT yet");
-  // Currently, USE_HOST_PTR is not implemented using host register
-  // since this triggers a weird segfault after program ends.
-  // Setting this constant to true enables testing that behavior.
-  const bool enableUseHostPtr = false;
-  const bool performInitialCopy =
-      (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
-      ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && !enableUseHostPtr);
-  pi_result retErr = PI_SUCCESS;
-  pi_mem retMemObj = nullptr;
-
-  try {
-    ScopedContext active(context);
-    CUdeviceptr ptr;
-    _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
-        _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
-
-    if ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && enableUseHostPtr) {
-      retErr = PI_CHECK_ERROR(
-          cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
-      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr;
-    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
-      retErr = PI_CHECK_ERROR(cuMemAllocHost(&host_ptr, size));
-      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
-    } else {
-      retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
-      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-        allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
-      }
-    }
-
-    if (retErr == PI_SUCCESS) {
-      pi_mem parentBuffer = nullptr;
-
-      auto piMemObj = std::unique_ptr<_pi_mem>(
-          new _pi_mem{context, parentBuffer, allocMode, ptr, host_ptr, size});
-      if (piMemObj != nullptr) {
-        retMemObj = piMemObj.release();
-        if (performInitialCopy) {
-          // Operates on the default stream of the current CUDA context.
-          retErr = PI_CHECK_ERROR(cuMemcpyHtoD(ptr, host_ptr, size));
-          // Synchronize with default stream implicitly used by cuMemcpyHtoD
-          // to make buffer data available on device before any other PI call
-          // uses it.
-          if (retErr == PI_SUCCESS) {
-            CUstream defaultStream = 0;
-            retErr = PI_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-          }
-        }
-      } else {
-        retErr = PI_ERROR_OUT_OF_HOST_MEMORY;
-      }
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  *ret_mem = retMemObj;
-
-  return retErr;
-}
-
-/// Decreases the reference count of the Mem object.
-/// If this is zero, calls the relevant CUDA Free function
-/// \return PI_SUCCESS unless deallocation error
-///
-pi_result cuda_piMemRelease(pi_mem memObj) {
-  assert((memObj != nullptr) && "PI_ERROR_INVALID_MEM_OBJECTS");
-
-  pi_result ret = PI_SUCCESS;
-
-  try {
-
-    // Do nothing if there are other references
-    if (memObj->decrement_reference_count() > 0) {
-      return PI_SUCCESS;
-    }
-
-    // make sure memObj is released in case PI_CHECK_ERROR throws
-    std::unique_ptr<_pi_mem> uniqueMemObj(memObj);
-
-    if (memObj->is_sub_buffer()) {
-      return PI_SUCCESS;
-    }
-
-    ScopedContext active(uniqueMemObj->get_context());
-
-    if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
-      switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
-        break;
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
-        ret = PI_CHECK_ERROR(
-            cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-        break;
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
-        ret = PI_CHECK_ERROR(
-            cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-      };
-    } else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
-      ret = PI_CHECK_ERROR(
-          cuSurfObjectDestroy(uniqueMemObj->mem_.surface_mem_.get_surface()));
-      ret = PI_CHECK_ERROR(
-          cuArrayDestroy(uniqueMemObj->mem_.surface_mem_.get_array()));
-    }
-
-  } catch (pi_result err) {
-    ret = err;
-  } catch (...) {
-    ret = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  if (ret != PI_SUCCESS) {
-    // A reported CUDA error is either an implementation or an asynchronous CUDA
-    // error for which it is unclear if the function that reported it succeeded
-    // or not. Either way, the state of the program is compromised and likely
-    // unrecoverable.
-    sycl::detail::pi::die(
-        "Unrecoverable program state reached in cuda_piMemRelease");
-  }
-
-  return PI_SUCCESS;
-}
-
-/// Implements a buffer partition in the CUDA backend.
-/// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
-/// as an offset over an existing CUDA allocation.
-///
-pi_result cuda_piMemBufferPartition(
-    pi_mem parent_buffer, pi_mem_flags flags,
-    [[maybe_unused]] pi_buffer_create_type buffer_create_type,
-    void *buffer_create_info, pi_mem *memObj) {
-  assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
-  assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
-  assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
-
-  // Default value for flags means PI_MEM_FLAGS_ACCCESS_RW.
-  if (flags == 0) {
-    flags = PI_MEM_FLAGS_ACCESS_RW;
-  }
-
-  assert((flags == PI_MEM_FLAGS_ACCESS_RW) && "PI_ERROR_INVALID_VALUE");
-  assert((buffer_create_type == PI_BUFFER_CREATE_TYPE_REGION) &&
-         "PI_ERROR_INVALID_VALUE");
-  assert((buffer_create_info != nullptr) && "PI_ERROR_INVALID_VALUE");
-  assert(memObj != nullptr);
-
-  const auto bufferRegion =
-      *reinterpret_cast<pi_buffer_region>(buffer_create_info);
-  assert((bufferRegion.size != 0u) && "PI_ERROR_INVALID_BUFFER_SIZE");
-
-  assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
-         "Overflow");
-  assert(((bufferRegion.origin + bufferRegion.size) <=
-          parent_buffer->mem_.buffer_mem_.get_size()) &&
-         "PI_ERROR_INVALID_BUFFER_SIZE");
-  // Retained indirectly due to retaining parent buffer below.
-  pi_context context = parent_buffer->context_;
-  _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
-      _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
-
-  assert(parent_buffer->mem_.buffer_mem_.ptr_ !=
-         _pi_mem::mem_::buffer_mem_::native_type{0});
-  _pi_mem::mem_::buffer_mem_::native_type ptr =
-      parent_buffer->mem_.buffer_mem_.ptr_ + bufferRegion.origin;
-
-  void *hostPtr = nullptr;
-  if (parent_buffer->mem_.buffer_mem_.hostPtr_) {
-    hostPtr = static_cast<char *>(parent_buffer->mem_.buffer_mem_.hostPtr_) +
-              bufferRegion.origin;
-  }
-
-  std::unique_ptr<_pi_mem> retMemObj{nullptr};
-  try {
-    retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
-        context, parent_buffer, allocMode, ptr, hostPtr, bufferRegion.size}};
-  } catch (pi_result err) {
-    *memObj = nullptr;
-    return err;
-  } catch (...) {
-    *memObj = nullptr;
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  *memObj = retMemObj.release();
-  return PI_SUCCESS;
-}
-
-pi_result cuda_piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
-  sycl::detail::pi::die("cuda_piMemGetInfo not implemented");
-}
-
-/// Gets the native CUDA handle of a PI mem object
-///
-/// \param[in] mem The PI mem to get the native CUDA object of.
-/// \param[out] nativeHandle Set to the native handle of the PI mem object.
-///
-/// \return PI_SUCCESS
-pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
-                                       pi_native_handle *nativeHandle) {
-  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI mem object from a CUDA mem handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI mem object from.
-/// \param[in] context The PI context of the memory allocation.
-/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
-/// it came from interop that asked to not transfer the ownership to SYCL RT.
-/// \param[out] mem Set to the PI mem object created from native handle.
-///
-/// \return TBD
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_context,
-                                              bool, pi_mem *) {
-  sycl::detail::pi::die(
-      "Creation of PI mem from native handle not implemented");
-  return {};
-}
-
 /// Created a PI image mem object from a CUDA image mem handle.
 /// TODO: Implement this.
 /// NOTE: The created PI object takes ownership of the native handle.
@@ -818,176 +635,6 @@ pi_result cuda_piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
                                      pi_uint32, const pi_event *, pi_event *) {
   sycl::detail::pi::die("Not implemented in CUDA backend");
   return {};
-}
-
-/// \TODO Not implemented
-pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
-                                const pi_image_format *image_format,
-                                const pi_image_desc *image_desc, void *host_ptr,
-                                pi_mem *ret_mem) {
-  // Need input memory object
-  assert(ret_mem != nullptr);
-  const bool performInitialCopy = (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
-                                  ((flags & PI_MEM_FLAGS_HOST_PTR_USE));
-  pi_result retErr = PI_SUCCESS;
-
-  // We only support RBGA channel order
-  // TODO: check SYCL CTS and spec. May also have to support BGRA
-  if (image_format->image_channel_order !=
-      pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
-    sycl::detail::pi::die(
-        "cuda_piMemImageCreate only supports RGBA channel order");
-  }
-
-  // We have to use cuArray3DCreate, which has some caveats. The height and
-  // depth parameters must be set to 0 produce 1D or 2D arrays. image_desc gives
-  // a minimum value of 1, so we need to convert the answer.
-  CUDA_ARRAY3D_DESCRIPTOR array_desc;
-  array_desc.NumChannels = 4; // Only support 4 channel image
-  array_desc.Flags = 0;       // No flags required
-  array_desc.Width = image_desc->image_width;
-  if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
-    array_desc.Height = 0;
-    array_desc.Depth = 0;
-  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
-    array_desc.Height = image_desc->image_height;
-    array_desc.Depth = 0;
-  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
-    array_desc.Height = image_desc->image_height;
-    array_desc.Depth = image_desc->image_depth;
-  }
-
-  // We need to get this now in bytes for calculating the total image size later
-  size_t pixel_type_size_bytes;
-
-  switch (image_format->image_channel_data_type) {
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
-    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
-    pixel_type_size_bytes = 1;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
-    array_desc.Format = CU_AD_FORMAT_SIGNED_INT8;
-    pixel_type_size_bytes = 1;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
-    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
-    array_desc.Format = CU_AD_FORMAT_SIGNED_INT16;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
-    array_desc.Format = CU_AD_FORMAT_HALF;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
-    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
-    pixel_type_size_bytes = 4;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
-    array_desc.Format = CU_AD_FORMAT_SIGNED_INT32;
-    pixel_type_size_bytes = 4;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
-    array_desc.Format = CU_AD_FORMAT_FLOAT;
-    pixel_type_size_bytes = 4;
-    break;
-  default:
-    sycl::detail::pi::die(
-        "cuda_piMemImageCreate given unsupported image_channel_data_type");
-  }
-
-  // When a dimension isn't used image_desc has the size set to 1
-  size_t pixel_size_bytes =
-      pixel_type_size_bytes * 4; // 4 is the only number of channels we support
-  size_t image_size_bytes = pixel_size_bytes * image_desc->image_width *
-                            image_desc->image_height * image_desc->image_depth;
-
-  ScopedContext active(context);
-  CUarray image_array;
-  retErr = PI_CHECK_ERROR(cuArray3DCreate(&image_array, &array_desc));
-
-  try {
-    if (performInitialCopy) {
-      // We have to use a different copy function for each image dimensionality
-      if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
-        retErr = PI_CHECK_ERROR(
-            cuMemcpyHtoA(image_array, 0, host_ptr, image_size_bytes));
-      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
-        CUDA_MEMCPY2D cpy_desc;
-        memset(&cpy_desc, 0, sizeof(cpy_desc));
-        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
-        cpy_desc.srcHost = host_ptr;
-        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
-        cpy_desc.dstArray = image_array;
-        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
-        cpy_desc.Height = image_desc->image_height;
-        retErr = PI_CHECK_ERROR(cuMemcpy2D(&cpy_desc));
-      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
-        CUDA_MEMCPY3D cpy_desc;
-        memset(&cpy_desc, 0, sizeof(cpy_desc));
-        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
-        cpy_desc.srcHost = host_ptr;
-        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
-        cpy_desc.dstArray = image_array;
-        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
-        cpy_desc.Height = image_desc->image_height;
-        cpy_desc.Depth = image_desc->image_depth;
-        retErr = PI_CHECK_ERROR(cuMemcpy3D(&cpy_desc));
-      }
-    }
-
-    // CUDA_RESOURCE_DESC is a union of different structs, shown here
-    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
-    // We need to fill it as described here to use it for a surface or texture
-    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__SURFOBJECT.html
-    // CUDA_RESOURCE_DESC::resType must be CU_RESOURCE_TYPE_ARRAY and
-    // CUDA_RESOURCE_DESC::res::array::hArray must be set to a valid CUDA array
-    // handle.
-    // CUDA_RESOURCE_DESC::flags must be set to zero
-
-    CUDA_RESOURCE_DESC image_res_desc;
-    image_res_desc.res.array.hArray = image_array;
-    image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
-    image_res_desc.flags = 0;
-
-    CUsurfObject surface;
-    retErr = PI_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
-
-    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
-        context, image_array, surface, image_desc->image_type, host_ptr});
-
-    if (piMemObj == nullptr) {
-      return PI_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    *ret_mem = piMemObj.release();
-  } catch (pi_result err) {
-    cuArrayDestroy(image_array);
-    return err;
-  } catch (...) {
-    cuArrayDestroy(image_array);
-    return PI_ERROR_UNKNOWN;
-  }
-
-  return retErr;
-}
-
-/// \TODO Not implemented
-pi_result cuda_piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *,
-                                 size_t *) {
-  sycl::detail::pi::die("cuda_piMemImageGetInfo not implemented");
-  return {};
-}
-
-pi_result cuda_piMemRetain(pi_mem mem) {
-  assert(mem != nullptr);
-  assert(mem->get_reference_count() > 0);
-  mem->increment_reference_count();
-  return PI_SUCCESS;
 }
 
 /// General 3D memory copy operation.
@@ -1460,7 +1107,8 @@ pi_result cuda_piEnqueueMemImageRead(
     size_t byteOffsetX = origin[0] * elementByteSize * arrayDesc.NumChannels;
     size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region[0];
 
-    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    pi_mem_type imgType =
+        map_ur_mem_type(image->mem_.surface_mem_.get_image_type());
     if (imgType == PI_MEM_TYPE_IMAGE1D) {
       retErr = PI_CHECK_ERROR(
           cuMemcpyAtoHAsync(ptr, array, byteOffsetX, bytesToCopy, cuStream));
@@ -1530,7 +1178,8 @@ cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     size_t byteOffsetX = origin[0] * elementByteSize * arrayDesc.NumChannels;
     size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region[0];
 
-    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    pi_mem_type imgType =
+        map_ur_mem_type(image->mem_.surface_mem_.get_image_type());
     if (imgType == PI_MEM_TYPE_IMAGE1D) {
       retErr = PI_CHECK_ERROR(
           cuMemcpyHtoAAsync(array, byteOffsetX, ptr, bytesToCopy, cuStream));
@@ -1601,7 +1250,8 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
         src_origin[0] * elementByteSize * dstArrayDesc.NumChannels;
     size_t bytesToCopy = elementByteSize * srcArrayDesc.NumChannels * region[0];
 
-    pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
+    pi_mem_type imgType =
+        map_ur_mem_type(src_image->mem_.surface_mem_.get_image_type());
     if (imgType == PI_MEM_TYPE_IMAGE1D) {
       retErr = PI_CHECK_ERROR(cuMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
                                            srcByteOffsetX, bytesToCopy));
@@ -1669,7 +1319,10 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto hostPtr = buffer->mem_.buffer_mem_.map_to_ptr(offset, map_flags);
+  // TODO(ur): Remove conversion when this is ported to UR.
+  ur_map_flags_t map_flags_ur;
+  pi2urMapFlags(map_flags, &map_flags_ur);
+  auto hostPtr = buffer->mem_.buffer_mem_.map_to_ptr(offset, map_flags_ur);
   *ret_map = buffer->mem_.buffer_mem_.get_map_ptr();
   if (hostPtr) {
     ret_err = PI_SUCCESS;
@@ -2477,15 +2130,16 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextQueueCreateWithNativeHandle2,
          pi2ur::piextQueueCreateWithNativeHandle2)
   // Memory
-  _PI_CL(piMemBufferCreate, cuda_piMemBufferCreate)
-  _PI_CL(piMemImageCreate, cuda_piMemImageCreate)
-  _PI_CL(piMemGetInfo, cuda_piMemGetInfo)
-  _PI_CL(piMemImageGetInfo, cuda_piMemImageGetInfo)
-  _PI_CL(piMemRetain, cuda_piMemRetain)
-  _PI_CL(piMemRelease, cuda_piMemRelease)
-  _PI_CL(piMemBufferPartition, cuda_piMemBufferPartition)
-  _PI_CL(piextMemGetNativeHandle, cuda_piextMemGetNativeHandle)
-  _PI_CL(piextMemCreateWithNativeHandle, cuda_piextMemCreateWithNativeHandle)
+  _PI_CL(piMemBufferCreate, pi2ur::piMemBufferCreate)
+  _PI_CL(piMemImageCreate, pi2ur::piMemImageCreate)
+  _PI_CL(piMemGetInfo, pi2ur::piMemGetInfo)
+  _PI_CL(piMemImageGetInfo, pi2ur::piMemImageGetInfo)
+  _PI_CL(piMemRetain, pi2ur::piMemRetain)
+  _PI_CL(piMemRelease, pi2ur::piMemRelease)
+  _PI_CL(piMemBufferPartition, pi2ur::piMemBufferPartition)
+  _PI_CL(piextMemGetNativeHandle, pi2ur::piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, pi2ur::piextMemCreateWithNativeHandle)
+
   // Program
   _PI_CL(piProgramCreate, pi2ur::piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, pi2ur::piclProgramCreateWithSource)

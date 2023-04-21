@@ -76,6 +76,8 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/sampler.hpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/tracing.cpp"
+    "../unified_runtime/ur/adapters/cuda/memory.cpp"
+    "../unified_runtime/ur/adapters/cuda/memory.hpp"
     # --- 
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
