@@ -137,7 +137,7 @@ extension.
 - The [Device library extensions](../../../design/DeviceLibExtensions.rst)
 
 #### Unsupported standard SYCL APIs:
-- Local accessors a not implemented yet. Local memory can be allocated and accessed via explicit device-side API;
+- Local accessors are not implemented yet. Local memory can be allocated and accessed via the explicit device-side API;
 - 2D and 3D accessors;
 - Constant accessors;
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
