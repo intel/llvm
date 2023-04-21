@@ -1215,6 +1215,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
   }
 
+  llvm::dbgs() << "Val: " << Val << ", " << Val.getType() << "\n";
+
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
     if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(ElementType)) {
       llvm::errs() << "Function: " << Function << "\n";
@@ -1248,10 +1250,14 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
           CommonGep);
     }
 
-    if (IsLValue)
+    if (IsLValue) {
       CommonGep = ValueCategory(CommonGep, /*isReference*/ true, ElemTy)
                       .getValue(Builder);
-
+      if (auto MT = dyn_cast<MemRefType>(*ElemTy)) {
+        ElemTy = MT.getElementType();
+      }
+    }
+    
     return ValueCategory(CommonGep, /*isReference*/ true, ElemTy);
   }
 
@@ -1291,7 +1297,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
               return std::pair<Value, Type>{
                   Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
                                                         getConstantIndex(FNum)),
-                  ElemType};
+                  ElemType.getElementType()};
             })
             .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
                   sycl::AccessorSubscriptType, sycl::AtomicType,

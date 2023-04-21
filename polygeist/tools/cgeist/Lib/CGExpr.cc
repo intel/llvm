@@ -1870,7 +1870,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       }
     });
     auto ElemTy = Prev.ElementType;
-    if (ElemTy && isa<LLVM::LLVMPointerType>(*ElemTy)) {
+    if (ElemTy && isa<LLVM::LLVMPointerType, MemRefType>(*ElemTy)) {
       if (const auto *PtrTy = dyn_cast<clang::PointerType>(
               E->getType()->getUnqualifiedDesugaredType())) {
         ElemTy = Glob.getTypes().getMLIRType(PtrTy->getPointeeType());
@@ -2524,7 +2524,11 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
           << "Not handling atomics. Should perform RMW operation here.\n";
   });
 
-  ValueCategory LHS{LHSLV.getValue(Builder), false, LHSLV.ElementType};
+  auto ET = LHSLV.ElementType;
+  if (ET && isa<MemRefType>(*ET)) {
+    ET = cast<MemRefType>(*ET).getElementType();
+  }
+  ValueCategory LHS{LHSLV.getValue(Builder), false, ET};
   if (!PromotionTypeLHS.isNull())
     LHS = EmitScalarConversion(LHS, LHSTy, PromotionTypeLHS, E->getExprLoc());
   else
