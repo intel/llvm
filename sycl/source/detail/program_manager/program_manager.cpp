@@ -622,7 +622,6 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     if (!DeviceCodeWasInCache)
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
-
     return BuiltProgram.release();
   };
 
@@ -640,12 +639,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
-  RT::PiProgram ResProgram = BuildResult->Ptr.load();
-
-  // Set the compiled PiProgram to HostPipe entry.
-  setCompiledProgramForHostPipeEntry(Img, ResProgram);
-
-  return ResProgram;
+  return BuildResult->Ptr.load();
 }
 
 std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
@@ -1711,26 +1705,6 @@ HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
   return Entry->second;
 }
 
-void ProgramManager::setCompiledProgramForHostPipeEntry(
-    const RTDeviceBinaryImage &BinImage, RT::PiProgram program) {
-  std::lock_guard HostPipesGuard(m_HostPipesMutex);
-  auto HostPipes = BinImage.getHostPipes();
-
-  for (const pi_device_binary_property &HostPipe : HostPipes) {
-    auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
-
-    if (ExistingHostPipe != m_HostPipes.end()) {
-      if (!ExistingHostPipe->second->mPiProgram) // First time to set
-        ExistingHostPipe->second->setPiProgram(program);
-      else
-        assert(ExistingHostPipe->second->mPiProgram == program &&
-               "Set hostpipe entry with different PiPrograms.");
-    } else {
-      assert("The hostpipe should be already initialized");
-    }
-  }
-}
-
 device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     RTDeviceBinaryImage *BinImage, const context &Ctx, const device &Dev) {
   const bundle_state ImgState = getBinImageState(BinImage);
@@ -2302,7 +2276,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   RT::PiProgram ResProgram = BuildResult->Ptr.load();
 
-  setCompiledProgramForHostPipeEntry(Img, ResProgram);
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
   // other devices.

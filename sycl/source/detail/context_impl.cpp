@@ -426,6 +426,38 @@ std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
   return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
+/// Gets a program associated with a HostPipe Entry from the cache.
+std::optional<RT::PiProgram>
+context_impl::getProgramForHostPipe(const device &Device,
+                                    HostPipeMapEntry *HostPipeEntry) {
+  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
+
+  auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
+  auto &KeyMap = LockedCache.get().KeyMap;
+  auto &Cache = LockedCache.get().Cache;
+  RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
+  uint32_t ImgId = HostPipeEntry->getDevBinImage()->getImageID();
+  auto OuterKey = std::make_pair(ImgId, DevHandle);
+  size_t NProgs = KeyMap.count(OuterKey);
+  // If the cache has multiple programs for the hostpipe, we cannot
+  // proceed.
+  if (NProgs > 1)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "More than one image exists with the host pipe.");
+
+  if (NProgs == 1) {
+    auto KeyMappingsIt = KeyMap.find(OuterKey);
+    assert(KeyMappingsIt != KeyMap.end());
+    auto CachedProgIt = Cache.find(KeyMappingsIt->second);
+    assert(CachedProgIt != Cache.end());
+    BuildRes = &CachedProgIt->second;
+  }
+
+  if (!BuildRes)
+    return std::nullopt;
+  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

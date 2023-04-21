@@ -215,6 +215,9 @@ public:
   std::optional<RT::PiProgram>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
+  /// Gets a program associated with a HostPipe Entry from the cache.
+  std::optional<RT::PiProgram>
+  getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
