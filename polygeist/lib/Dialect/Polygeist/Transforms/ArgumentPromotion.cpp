@@ -326,10 +326,10 @@ void Candidate::modifyCallee() {
   funcOp.setType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
 
-  // Change the linkage from linkonce_odr to internal.
+  // Change the linkage from linkonce_odr to private.
   // There can be globals of the same name (with linkonce_odr linkage) in
   // another translation unit. As they have different arguments, we need to
-  // change the linkage of the modified function to internal.
+  // change the linkage of the modified function to private.
   if (isLinkonceODR(funcOp))
     privatize(funcOp);
 

@@ -23,7 +23,7 @@ using namespace mlir;
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-static constexpr StringRef linkageAttrName = "llvm.linkage";
+static constexpr StringLiteral linkageAttrName = "llvm.linkage";
 bool mlir::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
