@@ -482,7 +482,6 @@ public:
     RT::PiDevice Device = MDevice->getHandleRef();
     const detail::plugin &Plugin = getPlugin();
 
-    assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
     RT::PiQueueProperties Properties[] = {
         PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
     if (has_property<ext::intel::property::queue::compute_index>()) {

@@ -2571,7 +2571,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
         ExecKernel->MHostKernel->call(NDRDesc,
                                       getEvent()->getHostProfilingInfo());
       } else {
-        assert(MQueue->getPlugin().getBackend() ==
+        assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
 
         MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
