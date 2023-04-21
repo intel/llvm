@@ -118,9 +118,14 @@ class MemoryAccessMatrix {
 public:
   MemoryAccessMatrix() = delete;
   MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
+  MemoryAccessMatrix(const MemoryAccessMatrix &) = default;
 
   /// Construct a matrix with the specified number of rows and columns.
   MemoryAccessMatrix(unsigned nRows, unsigned nColumns);
+
+  /// Construct a matrix from a initializer list.
+  MemoryAccessMatrix(
+      std::initializer_list<std::initializer_list<Value>> initList);
 
   /// Access the element at the specified \p row and \p column.
   Value &at(unsigned row, unsigned column) {
@@ -156,8 +161,8 @@ public:
   /// Set the specified \p row to \p elems.
   void setRow(unsigned row, ArrayRef<Value> elems);
 
-  /// Fill \p row with the given \p value.
-  void fillRow(unsigned row, Value value);
+  /// Fill \p row with the given value \p val.
+  void fillRow(unsigned row, Value val);
 
   /// Add an extra row at the bottom of the matrix.
   unsigned appendRow();
@@ -171,6 +176,12 @@ public:
 
   /// Set the specified \p column to \p elems.
   void setColumn(unsigned col, ArrayRef<Value> elems);
+
+  /// Fill \p col with the given value \p val.
+  void fillColumn(unsigned col, Value val);
+
+  /// Fill the matrix with the given value \p val.
+  void fill(Value val);
 
   /// Construct a new matrix containing the specified \p rows.
   MemoryAccessMatrix getRows(std::set<unsigned> rows) const;
@@ -190,6 +201,9 @@ public:
   /// Returns true if the matrix has equal number of rows and columns.
   bool isSquare() const;
 
+  /// Returns true if the matrix is the filled with zero values.
+  bool isZero(DataFlowSolver &solver) const;
+
   /// Returns true if the only non-zero entries are on the diagonal.
   bool isDiagonal(DataFlowSolver &solver) const;
 
@@ -201,9 +215,6 @@ public:
 
   /// Returns true if all non-zero entries are above the diagonal.
   bool isUpperTriangular(DataFlowSolver &solver) const;
-
-  /// Returns true if the matrix is the filled with zero values.
-  bool isZero(DataFlowSolver &solver) const;
 
   //===----------------------------------------------------------------------===//
   // Access Pattern Queries
@@ -285,9 +296,13 @@ class OffsetVector {
 public:
   OffsetVector() = delete;
   OffsetVector(OffsetVector &&) = default;
+  OffsetVector(const OffsetVector &) = default;
 
   /// Construct an offset vector with the specified number of rows.
   OffsetVector(unsigned nRows);
+
+  /// Construct an offset vector from an initialization list.
+  OffsetVector(std::initializer_list<Value> initList);
 
   /// Access the offset at the specified \p row.
   Value &at(unsigned row) {
@@ -316,8 +331,8 @@ public:
   /// Set the specified \p row to the given \p offset value.
   void setOffset(unsigned row, Value offset);
 
-  /// Fill the offset vector with the given \p value.
-  void fill(Value value);
+  /// Fill the offset vector with the given value \p val.
+  void fill(Value val);
 
   /// Add an extra element at the bottom of the offset vector and set it to the
   /// given \p offset value.

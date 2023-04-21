@@ -6,6 +6,9 @@ add_mlir_dialect_library(MLIRSYCLAnalysis
   ${MLIR_SYCL_INCLUDE_DIR}/mlir/Analysis
 
   LINK_LIBS PUBLIC
-  MLIRSYCLDialect
+  MLIRAffineDialect
   MLIRAnalysis
+  MLIRArithDialect
+  MLIRMemRefDialect  
+  MLIRSYCLDialect
   )
