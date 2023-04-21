@@ -57,7 +57,8 @@ def KernelDisjointSpecialization : Pass<"kernel-disjoint-specialization", "mlir:
     where the specialized version ensures SYCL accessors do not overlap.
   }];
   let dependentDialects = 
-      ["polygeist::PolygeistDialect", "scf::SCFDialect", "sycl::SYCLDialect"];
+      ["memref::MemRefDialect", "polygeist::PolygeistDialect",
+       "scf::SCFDialect", "sycl::SYCLDialect"];
   let constructor = "mlir::polygeist::createKernelDisjointSpecializationPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 

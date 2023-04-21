@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/Polygeist/IR/Polygeist.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/Support/Debug.h"
 
@@ -33,8 +34,9 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using AccessorPtrType = VersionConditionBuilder::AccessorPtrType;
-using AccessorPtrPairType = VersionConditionBuilder::AccessorPtrPairType;
+using AccessorPtrType = polygeist::VersionConditionBuilder::AccessorPtrType;
+using AccessorPtrPairType =
+    polygeist::VersionConditionBuilder::AccessorPtrPairType;
 
 static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
     DEBUG_TYPE "-accessor-limit", llvm::cl::init(5),
@@ -93,7 +95,7 @@ static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
   FunctionOpInterface clonedFunc = func.clone();
   clonedFunc.setName(newFnName);
   builder.insert(clonedFunc);
-  privatize(clonedFunc);
+  polygeist::privatize(clonedFunc);
   return clonedFunc;
 }
 
@@ -156,15 +158,16 @@ private:
   /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
   /// example, under strict aliasing rule, accessors with different element
   /// types are not alias, so return false.
-  bool isCandidateAccessorPair(AccessorPtrType acc1,
-                               AccessorPtrType acc2) const;
+  bool isCandidateAccessorPair(AccessorPtrType acc1, AccessorPtrType acc2,
+                               const AliasAnalysis &aliasAnalysis) const;
   /// Populate \p accessorPairs with accessor pairs that should be checked for
   /// no overlap for \p call.
   void collectMayOverlapAccessorPairs(
-      CallOpInterface call,
-      SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const;
+      CallOpInterface call, SmallVectorImpl<AccessorPtrPairType> &accessorPairs,
+      const AliasAnalysis &aliasAnalysis) const;
   /// Version \p call.
-  void versionCall(CallOpInterface call) const;
+  void versionCall(CallOpInterface call,
+                   const AliasAnalysis &aliasAnalysis) const;
 };
 
 } // namespace
@@ -174,6 +177,9 @@ private:
 //===----------------------------------------------------------------------===//
 
 void KernelDisjointSpecializationPass::runOnOperation() {
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
+
   SmallVector<FunctionOpInterface> candidates;
   getOperation()->walk([&](FunctionOpInterface func) {
     LLVM_DEBUG(llvm::dbgs()
@@ -197,7 +203,7 @@ void KernelDisjointSpecializationPass::runOnOperation() {
              "Expecting calls only in GPU kernel");
 
       auto call = cast<CallOpInterface>(op);
-      versionCall(call);
+      versionCall(call, aliasAnalysis);
       updateCallee(call, clonedFunc);
     }
     ++numFunctionSpecialized;
@@ -206,7 +212,7 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 
 bool KernelDisjointSpecializationPass::isCandidateFunction(
     FunctionOpInterface func) const {
-  if (!isPotentialKernelBodyFunc(func)) {
+  if (!polygeist::isPotentialKernelBodyFunc(func)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: not a potential kernel body function\n");
     return false;
@@ -214,7 +220,7 @@ bool KernelDisjointSpecializationPass::isCandidateFunction(
 
   // Temporary condition to only allow function called directly by a GPU kernel.
   // TODO: allow maximum depth of 2.
-  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
+  Optional<unsigned> maxDepth = polygeist::getMaxDepthFromAnyGPUKernel(func);
   assert(maxDepth.has_value() && "Expecting valid maxDepth");
   if (maxDepth != 1)
     return false;
@@ -237,8 +243,11 @@ bool KernelDisjointSpecializationPass::isCandidateFunction(
 }
 
 bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
-    AccessorPtrType acc1, AccessorPtrType acc2) const {
+    AccessorPtrType acc1, AccessorPtrType acc2,
+    const AliasAnalysis &aliasAnalysis) const {
   assert(acc1 != acc2 && "Expecting the input accessors to be different");
+  if (const_cast<AliasAnalysis &>(aliasAnalysis).alias(acc1, acc2).isNo())
+    return false;
 
   if (!relaxedAliasing) {
     auto acc1Ty = cast<sycl::AccessorType>(acc1.getType().getElementType());
@@ -251,26 +260,27 @@ bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
 }
 
 void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
-    CallOpInterface call,
-    SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const {
+    CallOpInterface call, SmallVectorImpl<AccessorPtrPairType> &accessorPairs,
+    const AliasAnalysis &aliasAnalysis) const {
   SmallVector<AccessorPtrType> candArgs;
   collectCandidateArguments(call, candArgs);
   for (auto *i = candArgs.begin(); i != candArgs.end(); ++i)
     for (auto *j = i + 1; j != candArgs.end(); ++j)
-      if (isCandidateAccessorPair(*i, *j))
+      if (isCandidateAccessorPair(*i, *j, aliasAnalysis))
         accessorPairs.push_back({*i, *j});
 }
 
-void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
+void KernelDisjointSpecializationPass::versionCall(
+    CallOpInterface call, const AliasAnalysis &aliasAnalysis) const {
   SmallVector<AccessorPtrPairType> accessorPairs;
-  collectMayOverlapAccessorPairs(call, accessorPairs);
+  collectMayOverlapAccessorPairs(call, accessorPairs, aliasAnalysis);
   if (accessorPairs.empty())
     return;
   OpBuilder builder(call);
-  std::unique_ptr<VersionCondition> condition =
-      VersionConditionBuilder(accessorPairs, builder, call->getLoc())
+  std::unique_ptr<polygeist::VersionCondition> condition =
+      polygeist::VersionConditionBuilder(accessorPairs, builder, call->getLoc())
           .createCondition();
-  VersionBuilder(call).version(*condition);
+  polygeist::VersionBuilder(call).version(*condition);
 }
 
 std::unique_ptr<Pass>
