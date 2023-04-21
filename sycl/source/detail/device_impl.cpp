@@ -441,53 +441,54 @@ std::string device_impl::getDeviceName() const {
   return MDeviceName;
 }
 
-/* On first call this function queries for device timestamp
-   along with host synchronized timestamp
-   and stores it in memeber varaible deviceTimePair.
-   Subsequent calls to this function would just retrieve the host timestamp ,
-   compute difference against the host timestamp in deviceTimePair
-   and calculate the device timestamp based on the difference.
-   deviceTimePair is refreshed with new device and host timestamp after a
-   certain interval (determined by timeTillRefresh) to account for clock drift
-   between host and device.
-*/
-
+// On first call this function queries for device timestamp
+// along with host synchronized timestamp and stores it in memeber varaible
+// MDeviceHostBaseTime. Subsequent calls to this function would just retrieve
+// the host timestamp, compute difference against the host timestamp in
+// MDeviceHostBaseTime and calculate the device timestamp based on the
+// difference.
+//
+// The MDeviceHostBaseTime is refreshed with new device and host timestamp
+// after a certain interval (determined by TimeTillRefresh) to account for
+// clock drift between host and device.
+//
 uint64_t device_impl::getCurrentDeviceTime() {
+  using namespace std::chrono;
+  uint64_t HostTime =
+      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+          .count();
+  if (MIsHostDevice) {
+    return HostTime;
+  }
+
   // To account for potential clock drift between host clock and device clock.
   // The value set is arbitrary: 200 seconds
-  constexpr uint64_t timeTillRefresh = 200e9;
+  constexpr uint64_t TimeTillRefresh = 200e9;
+  uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
 
-  uint64_t hostTime;
-  if (MIsHostDevice) {
-    using namespace std::chrono;
-    return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-        .count();
+  if (Diff > TimeTillRefresh || Diff <= 0) {
+    auto Plugin = getPlugin();
+    auto Result =
+        Plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+            MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
+
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      char *p = nullptr;
+      Plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
+      std::string errorMsg(p ? p : "");
+      throw sycl::feature_not_supported(
+          "Device and/or backend does not support querying timestamp: " +
+              errorMsg,
+          Result);
+    } else {
+      Plugin.checkPiResult(Result);
+    }
+    // Until next sync we will compute device time based on the host time
+    // returned in HostTime, so make this our base host time.
+    MDeviceHostBaseTime.second = HostTime;
+    Diff = 0;
   }
-  auto plugin = getPlugin();
-  RT::PiResult result =
-      plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-          MDevice, nullptr, &hostTime);
-  plugin.checkPiResult(result == PI_ERROR_INVALID_OPERATION ? PI_SUCCESS
-                                                            : result);
-
-  if (result == PI_ERROR_INVALID_OPERATION) {
-    char *p = nullptr;
-    plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
-    std::string errorMsg(p ? p : "");
-    throw sycl::feature_not_supported(
-        "Device and/or backend does not support querying timestamp: " +
-            errorMsg,
-        result);
-  }
-  uint64_t diff = hostTime - MDeviceHostBaseTime.second;
-
-  if (diff > timeTillRefresh || diff <= 0) {
-    plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
-        MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-    diff = 0;
-  }
-
-  return MDeviceHostBaseTime.first + diff;
+  return MDeviceHostBaseTime.first + Diff;
 }
 
 } // namespace detail

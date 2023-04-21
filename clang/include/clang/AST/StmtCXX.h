@@ -75,7 +75,8 @@ class CXXTryStmt final : public Stmt,
   unsigned NumHandlers;
   size_t numTrailingObjects(OverloadToken<Stmt *>) const { return NumHandlers; }
 
-  CXXTryStmt(SourceLocation tryLoc, Stmt *tryBlock, ArrayRef<Stmt*> handlers);
+  CXXTryStmt(SourceLocation tryLoc, CompoundStmt *tryBlock,
+             ArrayRef<Stmt *> handlers);
   CXXTryStmt(EmptyShell Empty, unsigned numHandlers)
     : Stmt(CXXTryStmtClass), NumHandlers(numHandlers) { }
 
@@ -84,7 +85,7 @@ class CXXTryStmt final : public Stmt,
 
 public:
   static CXXTryStmt *Create(const ASTContext &C, SourceLocation tryLoc,
-                            Stmt *tryBlock, ArrayRef<Stmt*> handlers);
+                            CompoundStmt *tryBlock, ArrayRef<Stmt *> handlers);
 
   static CXXTryStmt *Create(const ASTContext &C, EmptyShell Empty,
                             unsigned numHandlers);
@@ -374,9 +375,10 @@ public:
   }
 
   /// Retrieve the body of the coroutine as written. This will be either
-  /// a CompoundStmt or a TryStmt.
-  Stmt *getBody() const {
-    return getStoredStmts()[SubStmt::Body];
+  /// a CompoundStmt. If the coroutine is in function-try-block, we will
+  /// wrap the CXXTryStmt into a CompoundStmt to keep consistency.
+  CompoundStmt *getBody() const {
+    return cast<CompoundStmt>(getStoredStmts()[SubStmt::Body]);
   }
 
   Stmt *getPromiseDeclStmt() const {

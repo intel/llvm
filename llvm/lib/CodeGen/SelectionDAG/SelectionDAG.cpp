@@ -4820,6 +4820,13 @@ bool SelectionDAG::canCreateUndefOrPoison(SDValue Op, const APInt &DemandedElts,
     return ConsiderFlags && (Op->getFlags().hasNoSignedWrap() ||
                              Op->getFlags().hasNoUnsignedWrap());
 
+  case ISD::INSERT_VECTOR_ELT:{
+    // Ensure that the element index is in bounds.
+    EVT VecVT = Op.getOperand(0).getValueType();
+    KnownBits KnownIdx = computeKnownBits(Op.getOperand(2), Depth + 1);
+    return KnownIdx.getMaxValue().uge(VecVT.getVectorMinNumElements());
+  }
+
   default:
     // Allow the target to implement this method for its nodes.
     if (Opcode >= ISD::BUILTIN_OP_END || Opcode == ISD::INTRINSIC_WO_CHAIN ||
@@ -5047,6 +5054,10 @@ static bool haveNoCommonBitsSetCommutative(SDValue A, SDValue B) {
                                       SDValue Other) {
     if (SDValue NotOperand =
             getBitwiseNotOperand(Not, Mask, /* AllowUndefs */ true)) {
+      if (NotOperand->getOpcode() == ISD::ZERO_EXTEND ||
+          NotOperand->getOpcode() == ISD::TRUNCATE)
+        NotOperand = NotOperand->getOperand(0);
+
       if (Other == NotOperand)
         return true;
       if (Other->getOpcode() == ISD::AND)
@@ -5055,6 +5066,13 @@ static bool haveNoCommonBitsSetCommutative(SDValue A, SDValue B) {
     }
     return false;
   };
+
+  if (A->getOpcode() == ISD::ZERO_EXTEND || A->getOpcode() == ISD::TRUNCATE)
+    A = A->getOperand(0);
+
+  if (B->getOpcode() == ISD::ZERO_EXTEND || B->getOpcode() == ISD::TRUNCATE)
+    B = B->getOperand(0);
+
   if (A->getOpcode() == ISD::AND)
     return MatchNoCommonBitsPattern(A->getOperand(0), A->getOperand(1), B) ||
            MatchNoCommonBitsPattern(A->getOperand(1), A->getOperand(0), B);
@@ -8371,7 +8389,7 @@ SDValue SelectionDAG::getLoadVP(ISD::MemIndexedMode AM,
   SDValue Ops[] = {Chain, Ptr, Offset, Mask, EVL};
   FoldingSetNodeID ID;
   AddNodeIDNode(ID, ISD::VP_LOAD, VTs, Ops);
-  ID.AddInteger(VT.getRawBits());
+  ID.AddInteger(MemVT.getRawBits());
   ID.AddInteger(getSyntheticNodeSubclassData<VPLoadSDNode>(
       dl.getIROrder(), VTs, AM, ExtType, IsExpanding, MemVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
@@ -9433,8 +9451,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
            "STRICT_FP_ROUND result type should be vector iff the operand "
            "type is vector!");
     assert((!VTList.VTs[0].isVector() ||
-            VTList.VTs[0].getVectorNumElements() ==
-            Ops[1].getValueType().getVectorNumElements()) &&
+            VTList.VTs[0].getVectorElementCount() ==
+                Ops[1].getValueType().getVectorElementCount()) &&
            "Vector element count mismatch!");
     assert(VTList.VTs[0].isFloatingPoint() &&
            Ops[1].getValueType().isFloatingPoint() &&
@@ -11641,6 +11659,21 @@ MaybeAlign SelectionDAG::InferPtrAlign(SDValue Ptr) const {
   }
 
   return std::nullopt;
+}
+
+/// Split the scalar node with EXTRACT_ELEMENT using the provided
+/// VTs and return the low/high part.
+std::pair<SDValue, SDValue> SelectionDAG::SplitScalar(const SDValue &N,
+                                                      const SDLoc &DL,
+                                                      const EVT &LoVT,
+                                                      const EVT &HiVT) {
+  assert(!LoVT.isVector() && !HiVT.isVector() && !N.getValueType().isVector() &&
+         "Split node must be a scalar type");
+  SDValue Lo =
+      getNode(ISD::EXTRACT_ELEMENT, DL, LoVT, N, getIntPtrConstant(0, DL));
+  SDValue Hi =
+      getNode(ISD::EXTRACT_ELEMENT, DL, HiVT, N, getIntPtrConstant(1, DL));
+  return std::make_pair(Lo, Hi);
 }
 
 /// GetSplitDestVTs - Compute the VTs needed for the low/hi parts of a type

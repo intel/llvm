@@ -22,91 +22,6 @@
 
 #include "ur_level_zero_common.hpp"
 
-// Returns the ze_structure_type_t to use in .stype of a structured descriptor.
-// Intentionally not defined; will give an error if no proper specialization
-template <class T> ze_structure_type_t getZeStructureType();
-template <class T> zes_structure_type_t getZesStructureType();
-
-// The helpers to properly default initialize Level-Zero descriptor and
-// properties structures.
-template <class T> struct ZeStruct : public T {
-  ZeStruct() : T{} { // zero initializes base struct
-    this->stype = getZeStructureType<T>();
-    this->pNext = nullptr;
-  }
-};
-
-template <class T> struct ZesStruct : public T {
-  ZesStruct() : T{} { // zero initializes base struct
-    this->stype = getZesStructureType<T>();
-    this->pNext = nullptr;
-  }
-};
-
-// Controls Level Zero calls serialization to w/a Level Zero driver being not MT
-// ready. Recognized values (can be used as a bit mask):
-enum {
-  ZeSerializeNone =
-      0, // no locking or blocking (except when SYCL RT requested blocking)
-  ZeSerializeLock = 1, // locking around each ZE_CALL
-  ZeSerializeBlock =
-      2, // blocking ZE calls, where supported (usually in enqueue commands)
-};
-static const uint32_t ZeSerialize = [] {
-  const char *SerializeMode = std::getenv("ZE_SERIALIZE");
-  const uint32_t SerializeModeValue =
-      SerializeMode ? std::atoi(SerializeMode) : 0;
-  return SerializeModeValue;
-}();
-
-// This class encapsulates actions taken along with a call to Level Zero API.
-class ZeCall {
-private:
-  // The global mutex that is used for total serialization of Level Zero calls.
-  static std::mutex GlobalLock;
-
-public:
-  ZeCall() {
-    if ((ZeSerialize & ZeSerializeLock) != 0) {
-      GlobalLock.lock();
-    }
-  }
-  ~ZeCall() {
-    if ((ZeSerialize & ZeSerializeLock) != 0) {
-      GlobalLock.unlock();
-    }
-  }
-
-  // The non-static version just calls static one.
-  ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
-                     const char *ZeArgs, bool TraceError = true);
-};
-
-// Controls Level Zero calls tracing.
-enum DebugLevel {
-  ZE_DEBUG_NONE = 0x0,
-  ZE_DEBUG_BASIC = 0x1,
-  ZE_DEBUG_VALIDATION = 0x2,
-  ZE_DEBUG_CALL_COUNT = 0x4,
-  ZE_DEBUG_ALL = -1
-};
-
-const int ZeDebug = [] {
-  const char *DebugMode = std::getenv("ZE_DEBUG");
-  return DebugMode ? std::atoi(DebugMode) : ZE_DEBUG_NONE;
-}();
-
-// Prints to stderr if ZE_DEBUG allows it
-void zePrint(const char *Format, ...);
-
-// This function will ensure compatibility with both Linux and Windows for
-// setting environment variables.
-bool setEnvVar(const char *name, const char *value);
-
-// Perform traced call to L0 without checking for errors
-#define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
-  ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
-
 struct _ur_platform_handle_t;
 // using ur_platform_handle_t = _ur_platform_handle_t *;
 struct _ur_device_handle_t;
@@ -135,7 +50,7 @@ struct _ur_platform_handle_t : public _ur_platform {
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> PiDevicesCache;
-  pi_shared_mutex PiDevicesCacheMutex;
+  ur_shared_mutex PiDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.
@@ -161,7 +76,7 @@ enum EventsScope {
   LastCommandInBatchHostVisible
 };
 
-struct _ur_device_handle_t : _pi_object {
+struct _ur_device_handle_t : _ur_object {
   _ur_device_handle_t(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
@@ -287,37 +202,3 @@ struct _ur_device_handle_t : _pi_object {
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
-
-// TODO: make it into a ur_device_handle_t class member
-const std::pair<int, int>
-getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device);
-
-class ZeUSMImportExtension {
-  // Pointers to functions that import/release host memory into USM
-  ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
-                                                void *, size_t) = nullptr;
-  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
-                                                 void *) = nullptr;
-
-public:
-  // Whether user has requested Import/Release, and platform supports it.
-  bool Enabled;
-
-  ZeUSMImportExtension() : Enabled{false} {}
-
-  void setZeUSMImport(_ur_platform_handle_t *Platform);
-  void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
-                     size_t Size);
-  void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
-};
-
-// Helper wrapper for working with USM import extension in Level Zero.
-extern ZeUSMImportExtension ZeUSMImport;
-
-// This will count the calls to Level-Zero
-extern std::map<const char *, int> *ZeCallCount;
-
-// Some opencl extensions we know are supported by all Level Zero devices.
-constexpr char ZE_SUPPORTED_EXTENSIONS[] =
-    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
-    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";

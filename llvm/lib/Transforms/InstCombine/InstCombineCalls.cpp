@@ -531,11 +531,6 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
     return IC.replaceInstUsesWith(II, ConstantInt::getNullValue(II.getType()));
   }
 
-  // If the operand is a select with constant arm(s), try to hoist ctlz/cttz.
-  if (auto *Sel = dyn_cast<SelectInst>(Op0))
-    if (Instruction *R = IC.FoldOpIntoSelect(II, Sel))
-      return R;
-
   if (IsTZ) {
     // cttz(-x) -> cttz(x)
     if (match(Op0, m_Neg(m_Value(X))))
@@ -653,11 +648,6 @@ static Instruction *foldCtpop(IntrinsicInst &II, InstCombinerImpl &IC) {
     Value *NarrowPop = IC.Builder.CreateUnaryIntrinsic(Intrinsic::ctpop, X);
     return CastInst::Create(Instruction::ZExt, NarrowPop, Ty);
   }
-
-  // If the operand is a select with constant arm(s), try to hoist ctpop.
-  if (auto *Sel = dyn_cast<SelectInst>(Op0))
-    if (Instruction *R = IC.FoldOpIntoSelect(II, Sel))
-      return R;
 
   KnownBits Known(BitWidth);
   IC.computeKnownBits(Op0, Known, 0, &II);
@@ -1614,11 +1604,6 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
 
     if (Instruction *SAdd = matchSAddSubSat(*II))
       return SAdd;
-
-    if (match(I1, m_ImmConstant()))
-      if (auto *Sel = dyn_cast<SelectInst>(I0))
-        if (Instruction *R = FoldOpIntoSelect(*II, Sel))
-          return R;
 
     if (Value *NewMinMax = reassociateMinMaxWithConstants(II, Builder))
       return replaceInstUsesWith(*II, NewMinMax);
@@ -3070,6 +3055,31 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   }
   }
 
+  // Try to fold intrinsic into select operands. This is legal if:
+  //  * The intrinsic is speculatable.
+  //  * The select condition is not a vector, or the intrinsic does not
+  //    perform cross-lane operations.
+  switch (IID) {
+  case Intrinsic::ctlz:
+  case Intrinsic::cttz:
+  case Intrinsic::ctpop:
+  case Intrinsic::umin:
+  case Intrinsic::umax:
+  case Intrinsic::smin:
+  case Intrinsic::smax:
+  case Intrinsic::usub_sat:
+  case Intrinsic::uadd_sat:
+  case Intrinsic::ssub_sat:
+  case Intrinsic::sadd_sat:
+    for (Value *Op : II->args())
+      if (auto *Sel = dyn_cast<SelectInst>(Op))
+        if (Instruction *R = FoldOpIntoSelect(*II, Sel))
+          return R;
+    [[fallthrough]];
+  default:
+    break;
+  }
+
   if (Instruction *Shuf = foldShuffledIntrinsicOperands(II, Builder))
     return Shuf;
 
@@ -3114,49 +3124,6 @@ Instruction *InstCombinerImpl::visitInvokeInst(InvokeInst &II) {
 // CallBrInst simplification
 Instruction *InstCombinerImpl::visitCallBrInst(CallBrInst &CBI) {
   return visitCallBase(CBI);
-}
-
-/// If this cast does not affect the value passed through the varargs area, we
-/// can eliminate the use of the cast.
-static bool isSafeToEliminateVarargsCast(const CallBase &Call,
-                                         const DataLayout &DL,
-                                         const CastInst *const CI,
-                                         const int ix) {
-  if (!CI->isLosslessCast())
-    return false;
-
-  // If this is a GC intrinsic, avoid munging types.  We need types for
-  // statepoint reconstruction in SelectionDAG.
-  // TODO: This is probably something which should be expanded to all
-  // intrinsics since the entire point of intrinsics is that
-  // they are understandable by the optimizer.
-  if (isa<GCStatepointInst>(Call) || isa<GCRelocateInst>(Call) ||
-      isa<GCResultInst>(Call))
-    return false;
-
-  // Opaque pointers are compatible with any byval types.
-  PointerType *SrcTy = cast<PointerType>(CI->getOperand(0)->getType());
-  if (SrcTy->isOpaque())
-    return true;
-
-  // The size of ByVal or InAlloca arguments is derived from the type, so we
-  // can't change to a type with a different size.  If the size were
-  // passed explicitly we could avoid this check.
-  if (!Call.isPassPointeeByValueArgument(ix))
-    return true;
-
-  // The transform currently only handles type replacement for byval, not other
-  // type-carrying attributes.
-  if (!Call.isByValArgument(ix))
-    return false;
-
-  Type *SrcElemTy = SrcTy->getNonOpaquePointerElementType();
-  Type *DstElemTy = Call.getParamByValType(ix);
-  if (!SrcElemTy->isSized() || !DstElemTy->isSized())
-    return false;
-  if (DL.getTypeAllocSize(SrcElemTy) != DL.getTypeAllocSize(DstElemTy))
-    return false;
-  return true;
 }
 
 Instruction *InstCombinerImpl::tryOptimizeCall(CallInst *CI) {
@@ -3406,32 +3373,6 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
 
   if (IntrinsicInst *II = findInitTrampoline(Callee))
     return transformCallThroughTrampoline(Call, *II);
-
-  // TODO: Drop this transform once opaque pointer transition is done.
-  FunctionType *FTy = Call.getFunctionType();
-  if (FTy->isVarArg()) {
-    int ix = FTy->getNumParams();
-    // See if we can optimize any arguments passed through the varargs area of
-    // the call.
-    for (auto I = Call.arg_begin() + FTy->getNumParams(), E = Call.arg_end();
-         I != E; ++I, ++ix) {
-      CastInst *CI = dyn_cast<CastInst>(*I);
-      if (CI && isSafeToEliminateVarargsCast(Call, DL, CI, ix)) {
-        replaceUse(*I, CI->getOperand(0));
-
-        // Update the byval type to match the pointer type.
-        // Not necessary for opaque pointers.
-        PointerType *NewTy = cast<PointerType>(CI->getOperand(0)->getType());
-        if (!NewTy->isOpaque() && Call.isByValArgument(ix)) {
-          Call.removeParamAttr(ix, Attribute::ByVal);
-          Call.addParamAttr(ix, Attribute::getWithByValType(
-                                    Call.getContext(),
-                                    NewTy->getNonOpaquePointerElementType()));
-        }
-        Changed = true;
-      }
-    }
-  }
 
   if (isa<InlineAsm>(Callee) && !Call.doesNotThrow()) {
     InlineAsm *IA = cast<InlineAsm>(Callee);
@@ -3702,6 +3643,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
         Callee->getAttributes().hasParamAttr(i, Attribute::ByVal))
       return false; // Cannot transform to or from byval.
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     // If the parameter is passed as a byval argument, then we have to have a
     // sized type and the sized type has to have the same size as the old type.
     if (ParamTy != ActTy && CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
@@ -3719,6 +3661,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
           return false;
       }
     }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   if (Callee->isDeclaration()) {
@@ -3779,6 +3722,10 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     // type. Note that we made sure all incompatible ones are safe to drop.
     AttributeMask IncompatibleAttrs = AttributeFuncs::typeIncompatible(
         ParamTy, AttributeFuncs::ASK_SAFE_TO_DROP);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    ArgAttrs.push_back(
+        CallerPAL.getParamAttrs(i).removeAttributes(Ctx, IncompatibleAttrs));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if (CallerPAL.hasParamAttr(i, Attribute::ByVal) &&
         !ParamTy->isOpaquePointerTy()) {
       AttrBuilder AB(Ctx, CallerPAL.getParamAttrs(i).removeAttributes(
@@ -3789,6 +3736,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
       ArgAttrs.push_back(
           CallerPAL.getParamAttrs(i).removeAttributes(Ctx, IncompatibleAttrs));
     }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // If the function takes more arguments than the call was taking, add them

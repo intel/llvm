@@ -373,7 +373,8 @@ multiclass VPatExtendSDNode_V<list<SDNode> ops, string inst_name, string suffix,
   }
 }
 
-multiclass VPatConvertI2FPSDNode_V<SDNode vop, string instruction_name> {
+multiclass VPatConvertI2FPSDNode_V<SDPatternOperator vop,
+                                   string instruction_name> {
   foreach fvti = AllFloatVectors in {
     defvar ivti = GetIntVTypeInfo<fvti>.Vti;
     def : Pat<(fvti.Vector (vop (ivti.Vector ivti.RegClass:$rs1))),
@@ -382,7 +383,8 @@ multiclass VPatConvertI2FPSDNode_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatConvertFP2ISDNode_V<SDNode vop, string instruction_name> {
+multiclass VPatConvertFP2ISDNode_V<SDPatternOperator vop,
+                                   string instruction_name> {
   foreach fvti = AllFloatVectors in {
     defvar ivti = GetIntVTypeInfo<fvti>.Vti;
     def : Pat<(ivti.Vector (vop (fvti.Vector fvti.RegClass:$rs1))),
@@ -391,7 +393,8 @@ multiclass VPatConvertFP2ISDNode_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatWConvertI2FPSDNode_V<SDNode vop, string instruction_name> {
+multiclass VPatWConvertI2FPSDNode_V<SDPatternOperator vop,
+                                    string instruction_name> {
   foreach vtiToWti = AllWidenableIntToFloatVectors in {
     defvar ivti = vtiToWti.Vti;
     defvar fwti = vtiToWti.Wti;
@@ -401,7 +404,8 @@ multiclass VPatWConvertI2FPSDNode_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatWConvertFP2ISDNode_V<SDNode vop, string instruction_name> {
+multiclass VPatWConvertFP2ISDNode_V<SDPatternOperator vop,
+                                    string instruction_name> {
   foreach fvtiToFWti = AllWidenableFloatVectors in {
     defvar fvti = fvtiToFWti.Vti;
     defvar iwti = GetIntVTypeInfo<fvtiToFWti.Wti>.Vti;
@@ -411,7 +415,8 @@ multiclass VPatWConvertFP2ISDNode_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatNConvertI2FPSDNode_W<SDNode vop, string instruction_name> {
+multiclass VPatNConvertI2FPSDNode_W<SDPatternOperator vop,
+                                    string instruction_name> {
   foreach fvtiToFWti = AllWidenableFloatVectors in {
     defvar fvti = fvtiToFWti.Vti;
     defvar iwti = GetIntVTypeInfo<fvtiToFWti.Wti>.Vti;
@@ -421,7 +426,8 @@ multiclass VPatNConvertI2FPSDNode_W<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatNConvertFP2ISDNode_W<SDNode vop, string instruction_name> {
+multiclass VPatNConvertFP2ISDNode_W<SDPatternOperator vop,
+                                    string instruction_name> {
   foreach vtiToWti = AllWidenableIntToFloatVectors in {
     defvar vti = vtiToWti.Vti;
     defvar fwti = vtiToWti.Wti;
@@ -939,59 +945,59 @@ foreach fvti = AllFloatVectors in {
   // NOTE: We choose VFMADD because it has the most commuting freedom. So it
   // works best with how TwoAddressInstructionPass tries commuting.
   defvar suffix = fvti.LMul.MX;
-  def : Pat<(fvti.Vector (fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
-                              fvti.RegClass:$rs2)),
+  def : Pat<(fvti.Vector (any_fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
+                                  fvti.RegClass:$rs2)),
             (!cast<Instruction>("PseudoVFMADD_VV_"# suffix)
                  fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
-  def : Pat<(fvti.Vector (fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
-                              (fneg fvti.RegClass:$rs2))),
+  def : Pat<(fvti.Vector (any_fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
+                                  (fneg fvti.RegClass:$rs2))),
             (!cast<Instruction>("PseudoVFMSUB_VV_"# suffix)
                  fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
-  def : Pat<(fvti.Vector (fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
-                              (fneg fvti.RegClass:$rs2))),
+  def : Pat<(fvti.Vector (any_fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
+                                  (fneg fvti.RegClass:$rs2))),
             (!cast<Instruction>("PseudoVFNMADD_VV_"# suffix)
                  fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
-  def : Pat<(fvti.Vector (fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
-                              fvti.RegClass:$rs2)),
+  def : Pat<(fvti.Vector (any_fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
+                                  fvti.RegClass:$rs2)),
             (!cast<Instruction>("PseudoVFNMSUB_VV_"# suffix)
                  fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
 
   // The choice of VFMADD here is arbitrary, vfmadd.vf and vfmacc.vf are equally
   // commutable.
-  def : Pat<(fvti.Vector (fma (SplatFPOp fvti.ScalarRegClass:$rs1),
-                              fvti.RegClass:$rd, fvti.RegClass:$rs2)),
+  def : Pat<(fvti.Vector (any_fma (SplatFPOp fvti.ScalarRegClass:$rs1),
+                                  fvti.RegClass:$rd, fvti.RegClass:$rs2)),
             (!cast<Instruction>("PseudoVFMADD_V" # fvti.ScalarSuffix # "_" # suffix)
                  fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
-  def : Pat<(fvti.Vector (fma (SplatFPOp fvti.ScalarRegClass:$rs1),
-                              fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
+  def : Pat<(fvti.Vector (any_fma (SplatFPOp fvti.ScalarRegClass:$rs1),
+                                  fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
             (!cast<Instruction>("PseudoVFMSUB_V" # fvti.ScalarSuffix # "_" # suffix)
                  fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
 
-  def : Pat<(fvti.Vector (fma (SplatFPOp fvti.ScalarRegClass:$rs1),
-                              (fneg fvti.RegClass:$rd), (fneg fvti.RegClass:$rs2))),
+  def : Pat<(fvti.Vector (any_fma (SplatFPOp fvti.ScalarRegClass:$rs1),
+                                  (fneg fvti.RegClass:$rd), (fneg fvti.RegClass:$rs2))),
             (!cast<Instruction>("PseudoVFNMADD_V" # fvti.ScalarSuffix # "_" # suffix)
                  fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
-  def : Pat<(fvti.Vector (fma (SplatFPOp fvti.ScalarRegClass:$rs1),
-                              (fneg fvti.RegClass:$rd), fvti.RegClass:$rs2)),
+  def : Pat<(fvti.Vector (any_fma (SplatFPOp fvti.ScalarRegClass:$rs1),
+                                  (fneg fvti.RegClass:$rd), fvti.RegClass:$rs2)),
             (!cast<Instruction>("PseudoVFNMSUB_V" # fvti.ScalarSuffix # "_" # suffix)
                  fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
 
   // The splat might be negated.
-  def : Pat<(fvti.Vector (fma (fneg (SplatFPOp fvti.ScalarRegClass:$rs1)),
-                              fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
+  def : Pat<(fvti.Vector (any_fma (fneg (SplatFPOp fvti.ScalarRegClass:$rs1)),
+                                  fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
             (!cast<Instruction>("PseudoVFNMADD_V" # fvti.ScalarSuffix # "_" # suffix)
                  fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
-  def : Pat<(fvti.Vector (fma (fneg (SplatFPOp fvti.ScalarRegClass:$rs1)),
-                              fvti.RegClass:$rd, fvti.RegClass:$rs2)),
+  def : Pat<(fvti.Vector (any_fma (fneg (SplatFPOp fvti.ScalarRegClass:$rs1)),
+                                  fvti.RegClass:$rd, fvti.RegClass:$rs2)),
             (!cast<Instruction>("PseudoVFNMSUB_V" # fvti.ScalarSuffix # "_" # suffix)
                  fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
                  fvti.AVL, fvti.Log2SEW, TAIL_AGNOSTIC)>;
@@ -1080,22 +1086,22 @@ foreach fvti = AllFloatVectors in {
 }
 
 // 13.17. Vector Single-Width Floating-Point/Integer Type-Convert Instructions
-defm : VPatConvertFP2ISDNode_V<fp_to_sint, "PseudoVFCVT_RTZ_X_F_V">;
-defm : VPatConvertFP2ISDNode_V<fp_to_uint, "PseudoVFCVT_RTZ_XU_F_V">;
-defm : VPatConvertI2FPSDNode_V<sint_to_fp, "PseudoVFCVT_F_X_V">;
-defm : VPatConvertI2FPSDNode_V<uint_to_fp, "PseudoVFCVT_F_XU_V">;
+defm : VPatConvertFP2ISDNode_V<any_fp_to_sint, "PseudoVFCVT_RTZ_X_F_V">;
+defm : VPatConvertFP2ISDNode_V<any_fp_to_uint, "PseudoVFCVT_RTZ_XU_F_V">;
+defm : VPatConvertI2FPSDNode_V<any_sint_to_fp, "PseudoVFCVT_F_X_V">;
+defm : VPatConvertI2FPSDNode_V<any_uint_to_fp, "PseudoVFCVT_F_XU_V">;
 
 // 13.18. Widening Floating-Point/Integer Type-Convert Instructions
-defm : VPatWConvertFP2ISDNode_V<fp_to_sint, "PseudoVFWCVT_RTZ_X_F_V">;
-defm : VPatWConvertFP2ISDNode_V<fp_to_uint, "PseudoVFWCVT_RTZ_XU_F_V">;
-defm : VPatWConvertI2FPSDNode_V<sint_to_fp, "PseudoVFWCVT_F_X_V">;
-defm : VPatWConvertI2FPSDNode_V<uint_to_fp, "PseudoVFWCVT_F_XU_V">;
+defm : VPatWConvertFP2ISDNode_V<any_fp_to_sint, "PseudoVFWCVT_RTZ_X_F_V">;
+defm : VPatWConvertFP2ISDNode_V<any_fp_to_uint, "PseudoVFWCVT_RTZ_XU_F_V">;
+defm : VPatWConvertI2FPSDNode_V<any_sint_to_fp, "PseudoVFWCVT_F_X_V">;
+defm : VPatWConvertI2FPSDNode_V<any_uint_to_fp, "PseudoVFWCVT_F_XU_V">;
 
 // 13.19. Narrowing Floating-Point/Integer Type-Convert Instructions
-defm : VPatNConvertFP2ISDNode_W<fp_to_sint, "PseudoVFNCVT_RTZ_X_F_W">;
-defm : VPatNConvertFP2ISDNode_W<fp_to_uint, "PseudoVFNCVT_RTZ_XU_F_W">;
-defm : VPatNConvertI2FPSDNode_W<sint_to_fp, "PseudoVFNCVT_F_X_W">;
-defm : VPatNConvertI2FPSDNode_W<uint_to_fp, "PseudoVFNCVT_F_XU_W">;
+defm : VPatNConvertFP2ISDNode_W<any_fp_to_sint, "PseudoVFNCVT_RTZ_X_F_W">;
+defm : VPatNConvertFP2ISDNode_W<any_fp_to_uint, "PseudoVFNCVT_RTZ_XU_F_W">;
+defm : VPatNConvertI2FPSDNode_W<any_sint_to_fp, "PseudoVFNCVT_F_X_W">;
+defm : VPatNConvertI2FPSDNode_W<any_uint_to_fp, "PseudoVFNCVT_F_XU_W">;
 foreach fvtiToFWti = AllWidenableFloatVectors in {
   defvar fvti = fvtiToFWti.Vti;
   defvar fwti = fvtiToFWti.Wti;

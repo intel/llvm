@@ -65,6 +65,7 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
+#include <tuple>
 #include <utility>
 
 using namespace llvm;
@@ -161,6 +162,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Cases("aarch64elf", "aarch64linux", {ELF64LEKind, EM_AARCH64})
           .Cases("aarch64elfb", "aarch64linuxb", {ELF64BEKind, EM_AARCH64})
           .Cases("armelf", "armelf_linux_eabi", {ELF32LEKind, EM_ARM})
+          .Cases("armelfb", "armelfb_linux_eabi", {ELF32BEKind, EM_ARM})
           .Case("elf32_x86_64", {ELF32LEKind, EM_X86_64})
           .Cases("elf32btsmip", "elf32btsmipn32", {ELF32BEKind, EM_MIPS})
           .Cases("elf32ltsmip", "elf32ltsmipn32", {ELF32LEKind, EM_MIPS})
@@ -346,11 +348,17 @@ static void checkOptions() {
   if (config->fixCortexA8 && config->emachine != EM_ARM)
     error("--fix-cortex-a8 is only supported on ARM targets");
 
+  if (config->fixCortexA8 && !config->isLE)
+    error("--fix-cortex-a8 is not supported on big endian targets");
+  
   if (config->tocOptimize && config->emachine != EM_PPC64)
     error("--toc-optimize is only supported on PowerPC64 targets");
 
   if (config->pcRelOptimize && config->emachine != EM_PPC64)
     error("--pcrel-optimize is only supported on PowerPC64 targets");
+
+  if (config->relaxGP && config->emachine != EM_RISCV)
+    error("--relax-gp is only supported on RISC-V targets");
 
   if (config->pie && config->shared)
     error("-shared and -pie may not be used together");
@@ -1019,6 +1027,14 @@ static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
   return ret;
 }
 
+// Parse options of the form "old;new[;extra]".
+static std::tuple<StringRef, StringRef, StringRef>
+getOldNewOptionsExtra(opt::InputArgList &args, unsigned id) {
+  auto [oldDir, second] = getOldNewOptions(args, id);
+  auto [newDir, extraDir] = second.split(';');
+  return {oldDir, newDir, extraDir};
+}
+
 // Parse the symbol ordering file and warn for any duplicate entries.
 static SmallVector<StringRef, 0> getSymbolOrderingFile(MemoryBufferRef mb) {
   SetVector<StringRef, SmallVector<StringRef, 0>> names;
@@ -1206,6 +1222,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
   config->relax = args.hasFlag(OPT_relax, OPT_no_relax, true);
+  config->relaxGP = args.hasFlag(OPT_relax_gp, OPT_no_relax_gp, false);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
 
@@ -1247,8 +1264,9 @@ static void readConfigs(opt::InputArgList &args) {
   config->thinLTOIndexOnlyArg = args.getLastArgValue(OPT_thinlto_index_only_eq);
   config->thinLTOObjectSuffixReplace =
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
-  config->thinLTOPrefixReplace =
-      getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  std::tie(config->thinLTOPrefixReplaceOld, config->thinLTOPrefixReplaceNew,
+           config->thinLTOPrefixReplaceNativeObject) =
+      getOldNewOptionsExtra(args, OPT_thinlto_prefix_replace_eq);
   if (config->thinLTOEmitIndexFiles && !config->thinLTOIndexOnly) {
     if (args.hasArg(OPT_thinlto_object_suffix_replace_eq))
       error("--thinlto-object-suffix-replace is not supported with "
@@ -1256,6 +1274,11 @@ static void readConfigs(opt::InputArgList &args) {
     else if (args.hasArg(OPT_thinlto_prefix_replace_eq))
       error("--thinlto-prefix-replace is not supported with "
             "--thinlto-emit-index-files");
+  }
+  if (!config->thinLTOPrefixReplaceNativeObject.empty() &&
+      config->thinLTOIndexOnlyArg.empty()) {
+    error("--thinlto-prefix-replace=old_dir;new_dir;obj_dir must be used with "
+          "--thinlto-index-only=");
   }
   config->thinLTOModulesToCompile =
       args::getStrings(args, OPT_thinlto_single_module_eq);
@@ -1399,8 +1422,12 @@ static void readConfigs(opt::InputArgList &args) {
     config->mllvmOpts.emplace_back(arg->getValue());
   }
 
+  config->threadCount = parallel::strategy.compute_thread_count();
+
   // --threads= takes a positive integer and provides the default value for
-  // --thinlto-jobs=.
+  // --thinlto-jobs=. If unspecified, cap the number of threads since
+  // overhead outweighs optimization for used parallel algorithms for the
+  // non-LTO parts.
   if (auto *arg = args.getLastArg(OPT_threads)) {
     StringRef v(arg->getValue());
     unsigned threads = 0;
@@ -1409,10 +1436,12 @@ static void readConfigs(opt::InputArgList &args) {
             arg->getValue() + "'");
     parallel::strategy = hardware_concurrency(threads);
     config->thinLTOJobs = v;
+  } else if (config->threadCount > 16) {
+    log("set maximum concurrency to 16, specify --threads= to change");
+    parallel::strategy = hardware_concurrency(16);
   }
   if (auto *arg = args.getLastArg(OPT_thinlto_jobs_eq))
     config->thinLTOJobs = arg->getValue();
-  config->threadCount = parallel::strategy.compute_thread_count();
 
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");

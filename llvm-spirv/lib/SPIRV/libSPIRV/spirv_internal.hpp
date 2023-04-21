@@ -69,10 +69,11 @@ enum InternalOp {
   IOpJointMatrixUSMadINTEL = 6129,
   IOpJointMatrixUUMadINTEL = 6130,
   IOpArithmeticFenceINTEL = 6145,
+  IOpTypeJointMatrixINTELv2 = 6184,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
-  IOpConvertFToTF32INTEL = 6426,
+  IOpRoundFToTF32INTEL = 6426,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
   IOpJointMatrixGetElementCoordINTEL = 6440,
@@ -101,7 +102,7 @@ enum InternalCapability {
   ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityComplexFloatMulDivINTEL = 6414,
-  ICapabilityTensorFloat32ConversionINTEL = 6425,
+  ICapabilityTensorFloat32RoundingINTEL = 6425,
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
   ICapabilityJointMatrixTF32ComponentTypeINTEL = 6436,
@@ -149,6 +150,7 @@ _SPIRV_OP(Capability, JointMatrixBF16ComponentTypeINTEL)
 _SPIRV_OP(Capability, JointMatrixPackedInt2ComponentTypeINTEL)
 _SPIRV_OP(Capability, JointMatrixPackedInt4ComponentTypeINTEL)
 _SPIRV_OP(Op, TypeJointMatrixINTEL)
+_SPIRV_OP(Op, TypeJointMatrixINTELv2)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
@@ -170,8 +172,8 @@ _SPIRV_OP(Capability, MaskedGatherScatterINTEL)
 _SPIRV_OP(Op, MaskedGatherINTEL)
 _SPIRV_OP(Op, MaskedScatterINTEL)
 
-_SPIRV_OP(Capability, TensorFloat32ConversionINTEL)
-_SPIRV_OP(Op, ConvertFToTF32INTEL)
+_SPIRV_OP(Capability, TensorFloat32RoundingINTEL)
+_SPIRV_OP(Op, RoundFToTF32INTEL)
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =

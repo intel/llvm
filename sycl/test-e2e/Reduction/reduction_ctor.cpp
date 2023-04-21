@@ -25,7 +25,7 @@ void test_reducer(Reduction &Redu, T A, T B) {
 
   typename Reduction::binary_operation BOp;
   T ExpectedValue = BOp(A, B);
-  assert(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0) &&
+  assert(ExpectedValue == *detail::ReducerAccess{Reducer}.getElement(0) &&
          "Wrong result of binary operation.");
   assert(
       toBool(Reducer.identity() == Redu.getIdentityContainer().getIdentity()) &&
@@ -40,7 +40,7 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
 
   T ExpectedValue = BOp(A, B);
   assert(
-      toBool(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0)) &&
+      toBool(ExpectedValue == *detail::ReducerAccess{Reducer}.getElement(0)) &&
       "Wrong result of binary operation.");
   assert(
       toBool(Reducer.identity() == Redu.getIdentityContainer().getIdentity()) &&

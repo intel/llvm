@@ -207,7 +207,7 @@ listed architectures.  The following code snippet illustrates the technique:
 
 ```
 namespace sycl {
-namespace ext::oneapi::exprimental {
+namespace ext::oneapi::experimental {
 
 enum class architecture {
   x86_64,
@@ -217,7 +217,7 @@ enum class architecture {
   // ...
 };
 
-} // namespace ext::oneapi::exprimental
+} // namespace ext::oneapi::experimental
 
 namespace detail {
 
@@ -281,44 +281,43 @@ constexpr static bool device_architecture_is() {
 template<bool MakeCall>
 class if_architecture_helper {
  public:
-  template<ext::oneapi::exprimental::architecture ...Archs, typename T,
-           typename ...Args>
-  constexpr auto else_if_architecture_is(T fnTrue, Args ...args) {
+  template<ext::oneapi::experimental::architecture ...Archs, typename T>
+  constexpr auto else_if_architecture_is(T fnTrue) {
     if constexpr (MakeCall && device_architecture_is<Archs...>()) {
-      fnTrue(args...);
+      fnTrue();
       return if_architecture_helper<false>{};
     } else {
       return if_architecture_helper<MakeCall>{};
     }
   }
 
-  template<typename T, typename ...Args>
-  constexpr void otherwise(T fn, Args ...args) {
+  template<typename T>
+  constexpr void otherwise(T fn) {
     if constexpr (MakeCall) {
-      fn(args...);
+      fn();
     }
   }
 };
 
 } // namespace detail
 
-namespace ext::oneapi::exprimental {
+namespace ext::oneapi::experimental {
 
-template<architecture ...Archs, typename T, typename ...Args>
-constexpr static auto if_architecture_is(T fnTrue, Args ...args) {
+template<architecture ...Archs, typename T>
+constexpr static auto if_architecture_is(T fnTrue) {
   static_assert(detail::allowable_aot_mode<Archs...>(),
     "The if_architecture_is function may only be used when AOT "
     "compiling with '-fsycl-targets=spir64_x86_64' or "
     "'-fsycl-targets=intel_gpu_*'");
   if constexpr (detail::device_architecture_is<Archs...>()) {
-    fnTrue(args...);
+    fnTrue();
     return detail::if_architecture_helper<false>{};
   } else {
     return detail::if_architecture_helper<true>{};
   }
 }
 
-} // namespace ext::oneapi::exprimental
+} // namespace ext::oneapi::experimental
 } // namespace sycl
 ```
 

@@ -483,6 +483,7 @@ cc_library(
         ":diagnostic_defs_gen",
         ":sema_attr_gen",
         "//llvm:Core",
+        "//llvm:FrontendDebug",
         "//llvm:FrontendOpenMP",
         "//llvm:Instrumentation",
         "//llvm:MC",
@@ -1377,7 +1378,7 @@ cc_library(
         "lib/Driver",
     ],
     linkopts = select({
-        "@bazel_tools//src/conditions:windows": ["version.lib"],
+        "@platforms//os:windows": ["version.lib"],
         "//conditions:default": [],
     }),
     textual_hdrs = glob([
@@ -1391,6 +1392,7 @@ cc_library(
         ":parse",
         ":static_analyzer_checkers_gen",
         "//llvm:BinaryFormat",
+        "//llvm:FrontendDebug",
         "//llvm:Instrumentation",
         "//llvm:MC",
         "//llvm:Object",
@@ -1574,6 +1576,7 @@ cc_library(
         "//llvm:BitstreamReader",
         "//llvm:BitstreamWriter",
         "//llvm:Core",
+        "//llvm:FrontendDebug",
         "//llvm:Linker",
         "//llvm:MC",
         "//llvm:Option",
@@ -1878,7 +1881,7 @@ cc_plugin_library(
     ]),
     hdrs = glob(["include/clang-c/*.h"]),
     copts = select({
-        "@bazel_tools//src/conditions:windows": ["-D_CINDEX_LIB_"],
+        "@platforms//os:windows": ["-D_CINDEX_LIB_"],
         "//conditions:default": [],
     }),
     strip_include_prefix = "include",
@@ -1967,7 +1970,7 @@ cc_binary(
     testonly = 1,
     srcs = ["tools/c-arcmt-test/c-arcmt-test.c"],
     copts = select({
-        "@bazel_tools//src/conditions:windows": [],
+        "@platforms//os:windows": [],
         "//conditions:default": ["-std=gnu99"],
     }),
     stamp = 0,

@@ -1372,16 +1372,39 @@ static SDValue performANDCombine(SDNode *N, SelectionDAG &DAG,
     if (CN->getZExtValue() <= 0xfff)
       return SDValue();
 
-    // Return if the mask doesn't start at position 0.
-    if (SMIdx)
+    // Return if the MSB exceeds.
+    if (SMIdx + SMLen > ValTy.getSizeInBits())
       return SDValue();
 
-    lsb = 0;
+    if (SMIdx > 0) {
+      // Omit if the constant has more than 2 uses. This a conservative
+      // decision. Whether it is a win depends on the HW microarchitecture.
+      // However it should always be better for 1 and 2 uses.
+      if (CN->use_size() > 2)
+        return SDValue();
+      // Return if the constant can be composed by a single LU12I.W.
+      if ((CN->getZExtValue() & 0xfff) == 0)
+        return SDValue();
+      // Return if the constand can be composed by a single ADDI with
+      // the zero register.
+      if (CN->getSExtValue() >= -2048 && CN->getSExtValue() < 0)
+        return SDValue();
+    }
+
+    lsb = SMIdx;
     NewOperand = FirstOperand;
   }
+
   msb = lsb + SMLen - 1;
-  return DAG.getNode(LoongArchISD::BSTRPICK, DL, ValTy, NewOperand,
-                     DAG.getConstant(msb, DL, GRLenVT),
+  SDValue NR0 = DAG.getNode(LoongArchISD::BSTRPICK, DL, ValTy, NewOperand,
+                            DAG.getConstant(msb, DL, GRLenVT),
+                            DAG.getConstant(lsb, DL, GRLenVT));
+  if (FirstOperandOpc == ISD::SRA || FirstOperandOpc == ISD::SRL || lsb == 0)
+    return NR0;
+  // Try to optimize to
+  //   bstrpick $Rd, $Rs, msb, lsb
+  //   slli     $Rd, $Rd, lsb
+  return DAG.getNode(ISD::SHL, DL, ValTy, NR0,
                      DAG.getConstant(lsb, DL, GRLenVT));
 }
 
@@ -3131,12 +3154,38 @@ bool LoongArchTargetLowering::decomposeMulByConstant(LLVMContext &Context,
   if (VT.getSizeInBits() > Subtarget.getGRLen())
     return false;
 
-  // Break MUL into (SLLI + ADD/SUB) or ALSL.
   if (auto *ConstNode = dyn_cast<ConstantSDNode>(C.getNode())) {
     const APInt &Imm = ConstNode->getAPIntValue();
+    // Break MUL into (SLLI + ADD/SUB) or ALSL.
     if ((Imm + 1).isPowerOf2() || (Imm - 1).isPowerOf2() ||
         (1 - Imm).isPowerOf2() || (-1 - Imm).isPowerOf2())
       return true;
+    // Break MUL into (ALSL x, (SLLI x, imm0), imm1).
+    if (ConstNode->hasOneUse() &&
+        ((Imm - 2).isPowerOf2() || (Imm - 4).isPowerOf2() ||
+         (Imm - 8).isPowerOf2() || (Imm - 16).isPowerOf2()))
+      return true;
+    // Break (MUL x, imm) into (ADD (SLLI x, s0), (SLLI x, s1)),
+    // in which the immediate has two set bits. Or Break (MUL x, imm)
+    // into (SUB (SLLI x, s0), (SLLI x, s1)), in which the immediate
+    // equals to (1 << s0) - (1 << s1).
+    if (ConstNode->hasOneUse() && !(Imm.sge(-2048) && Imm.sle(4095))) {
+      unsigned Shifts = Imm.countr_zero();
+      // Reject immediates which can be composed via a single LUI.
+      if (Shifts >= 12)
+        return false;
+      // Reject multiplications can be optimized to
+      // (SLLI (ALSL x, x, 1/2/3/4), s).
+      APInt ImmPop = Imm.ashr(Shifts);
+      if (ImmPop == 3 || ImmPop == 5 || ImmPop == 9 || ImmPop == 17)
+        return false;
+      // We do not consider the case `(-Imm - ImmSmall).isPowerOf2()`,
+      // since it needs one more instruction than other 3 cases.
+      APInt ImmSmall = APInt(Imm.getBitWidth(), 1ULL << Shifts, true);
+      if ((Imm - ImmSmall).isPowerOf2() || (Imm + ImmSmall).isPowerOf2() ||
+          (ImmSmall - Imm).isPowerOf2())
+        return true;
+    }
   }
 
   return false;

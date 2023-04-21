@@ -48,7 +48,9 @@ struct Red {
   }
 
   void init() {
-    initInputData(InBuf, CorrectOut, BOp, NWorkItems);
+    std::optional<T> CorrectOutOpt;
+    initInputData(InBuf, CorrectOutOpt, BOp, NWorkItems);
+    CorrectOut = *CorrectOutOpt;
     if (!PropList.template has_property<
             property::reduction::initialize_to_identity>())
       CorrectOut = BOp(CorrectOut, InitVal);
@@ -125,30 +127,22 @@ int test(queue &Q, size_t NWorkItems, size_t WGSize, RedTys... Reds) {
   Q.submit([&](handler &CGH) {
      auto InAcc = sycl::detail::make_tuple(
          accessor(Reds.InBuf, CGH, sycl::read_only)...);
-     auto SyclReds = std::forward_as_tuple(Reds.createRed(CGH)...);
-     std::apply(
-         [&](auto... SyclReds) {
-           CGH.parallel_for<Name>(
-               NDR, SyclReds..., [=](nd_item<1> NDIt, auto &...Reducers) {
-                 static_assert(sizeof...(Reducers) == 4 ||
-                               sizeof...(Reducers) == 2);
-                 // No C++20, so don't have explicit template param lists in
-                 // lambda and can't unfold std::integer_sequence to write
-                 // generic code here.
-                 auto ReducersTuple = std::forward_as_tuple(Reducers...);
-                 size_t I = NDIt.get_global_id(0);
+     CGH.parallel_for<Name>(
+         NDR, Reds.createRed(CGH)..., [=](nd_item<1> NDIt, auto &...Reducers) {
+           static_assert(sizeof...(Reducers) == 4 || sizeof...(Reducers) == 2);
+           // No C++20, so don't have explicit template param lists in
+           // lambda and can't unfold std::integer_sequence to write
+           // generic code here.
+           auto ReducersTuple = std::forward_as_tuple(Reducers...);
+           size_t I = NDIt.get_global_id(0);
 
-                 std::get<0>(ReducersTuple).combine(std::get<0>(InAcc)[I]);
-                 std::get<1>(ReducersTuple).combine(std::get<1>(InAcc)[I]);
-                 if constexpr (sizeof...(Reds) == 4) {
-                   std::get<2>(ReducersTuple).combine(std::get<2>(InAcc)[I]);
-                   std::get<3>(ReducersTuple).combine(std::get<3>(InAcc)[I]);
-                 }
-
-                 return;
-               });
-         },
-         SyclReds);
+           std::get<0>(ReducersTuple).combine(std::get<0>(InAcc)[I]);
+           std::get<1>(ReducersTuple).combine(std::get<1>(InAcc)[I]);
+           if constexpr (sizeof...(Reds) == 4) {
+             std::get<2>(ReducersTuple).combine(std::get<2>(InAcc)[I]);
+             std::get<3>(ReducersTuple).combine(std::get<3>(InAcc)[I]);
+           }
+         });
    }).wait();
 
   int NumErrors = (0 + ... + Reds.checkResult(NDR));

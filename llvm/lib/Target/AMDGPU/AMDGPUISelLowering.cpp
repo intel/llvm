@@ -556,7 +556,7 @@ bool AMDGPUTargetLowering::mayIgnoreSignedZero(SDValue Op) const {
 //===----------------------------------------------------------------------===//
 
 LLVM_READNONE
-static bool fnegFoldsIntoOp(unsigned Opc) {
+static bool fnegFoldsIntoOpcode(unsigned Opc) {
   switch (Opc) {
   case ISD::FADD:
   case ISD::FSUB:
@@ -583,9 +583,28 @@ static bool fnegFoldsIntoOp(unsigned Opc) {
   case AMDGPUISD::FMED3:
     // TODO: handle llvm.amdgcn.fma.legacy
     return true;
+  case ISD::BITCAST:
+    llvm_unreachable("bitcast is special cased");
   default:
     return false;
   }
+}
+
+static bool fnegFoldsIntoOp(const SDNode *N) {
+  unsigned Opc = N->getOpcode();
+  if (Opc == ISD::BITCAST) {
+    // TODO: Is there a benefit to checking the conditions performFNegCombine
+    // does? We don't for the other cases.
+    SDValue BCSrc = N->getOperand(0);
+    if (BCSrc.getOpcode() == ISD::BUILD_VECTOR) {
+      return BCSrc.getNumOperands() == 2 &&
+             BCSrc.getOperand(1).getValueSizeInBits() == 32;
+    }
+
+    return BCSrc.getOpcode() == ISD::SELECT && BCSrc.getValueType() == MVT::f32;
+  }
+
+  return fnegFoldsIntoOpcode(Opc);
 }
 
 /// \p returns true if the operation will definitely need to use a 64-bit
@@ -1878,13 +1897,13 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
   SDValue Zero = DAG.getConstant(0, DL, HalfVT);
 
   //HiLo split
+  SDValue LHS_Lo, LHS_Hi;
   SDValue LHS = Op.getOperand(0);
-  SDValue LHS_Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, LHS, Zero);
-  SDValue LHS_Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, LHS, One);
+  std::tie(LHS_Lo, LHS_Hi) = DAG.SplitScalar(LHS, DL, HalfVT, HalfVT);
 
+  SDValue RHS_Lo, RHS_Hi;
   SDValue RHS = Op.getOperand(1);
-  SDValue RHS_Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, RHS, Zero);
-  SDValue RHS_Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, RHS, One);
+  std::tie(RHS_Lo, RHS_Hi) = DAG.SplitScalar(RHS, DL, HalfVT, HalfVT);
 
   if (DAG.MaskedValueIsZero(RHS, APInt::getHighBitsSet(64, 32)) &&
       DAG.MaskedValueIsZero(LHS, APInt::getHighBitsSet(64, 32))) {
@@ -1942,10 +1961,9 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     SDValue Neg_RHS = DAG.getNode(ISD::SUB, DL, VT, Zero64, RHS);
     SDValue Mullo1 = DAG.getNode(ISD::MUL, DL, VT, Neg_RHS, Rcp64);
     SDValue Mulhi1 = DAG.getNode(ISD::MULHU, DL, VT, Rcp64, Mullo1);
-    SDValue Mulhi1_Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, Mulhi1,
-                                    Zero);
-    SDValue Mulhi1_Hi =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, Mulhi1, One);
+    SDValue Mulhi1_Lo, Mulhi1_Hi;
+    std::tie(Mulhi1_Lo, Mulhi1_Hi) =
+        DAG.SplitScalar(Mulhi1, DL, HalfVT, HalfVT);
     SDValue Add1_Lo = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Rcp_Lo,
                                   Mulhi1_Lo, Zero1);
     SDValue Add1_Hi = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Rcp_Hi,
@@ -1956,10 +1974,9 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     // Second round of UNR.
     SDValue Mullo2 = DAG.getNode(ISD::MUL, DL, VT, Neg_RHS, Add1);
     SDValue Mulhi2 = DAG.getNode(ISD::MULHU, DL, VT, Add1, Mullo2);
-    SDValue Mulhi2_Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, Mulhi2,
-                                    Zero);
-    SDValue Mulhi2_Hi =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, Mulhi2, One);
+    SDValue Mulhi2_Lo, Mulhi2_Hi;
+    std::tie(Mulhi2_Lo, Mulhi2_Hi) =
+        DAG.SplitScalar(Mulhi2, DL, HalfVT, HalfVT);
     SDValue Add2_Lo = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Add1_Lo,
                                   Mulhi2_Lo, Zero1);
     SDValue Add2_Hi = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Add1_Hi,
@@ -1971,8 +1988,8 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
 
     SDValue Mul3 = DAG.getNode(ISD::MUL, DL, VT, RHS, Mulhi3);
 
-    SDValue Mul3_Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, Mul3, Zero);
-    SDValue Mul3_Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, HalfVT, Mul3, One);
+    SDValue Mul3_Lo, Mul3_Hi;
+    std::tie(Mul3_Lo, Mul3_Hi) = DAG.SplitScalar(Mul3, DL, HalfVT, HalfVT);
     SDValue Sub1_Lo = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, LHS_Lo,
                                   Mul3_Lo, Zero1);
     SDValue Sub1_Hi = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, LHS_Hi,
@@ -3775,7 +3792,7 @@ AMDGPUTargetLowering::foldFreeOpFromSelect(TargetLowering::DAGCombinerInfo &DCI,
 
     if (NewLHS.hasOneUse()) {
       unsigned Opc = NewLHS.getOpcode();
-      if (LHS.getOpcode() == ISD::FNEG && fnegFoldsIntoOp(Opc))
+      if (LHS.getOpcode() == ISD::FNEG && fnegFoldsIntoOp(NewLHS.getNode()))
         ShouldFoldNeg = false;
       if (LHS.getOpcode() == ISD::FABS && Opc == ISD::FMUL)
         ShouldFoldNeg = false;
@@ -3917,8 +3934,6 @@ static unsigned inverseMinMax(unsigned Opc) {
 /// \return true if it's profitable to try to push an fneg into its source
 /// instruction.
 bool AMDGPUTargetLowering::shouldFoldFNegIntoSrc(SDNode *N, SDValue N0) {
-  unsigned Opc = N0.getOpcode();
-
   // If the input has multiple uses and we can either fold the negate down, or
   // the other uses cannot, give up. This both prevents unprofitable
   // transformations and infinite loops: we won't repeatedly try to fold around
@@ -3929,7 +3944,7 @@ bool AMDGPUTargetLowering::shouldFoldFNegIntoSrc(SDNode *N, SDValue N0) {
     if (allUsesHaveSourceMods(N, 0))
       return false;
   } else {
-    if (fnegFoldsIntoOp(Opc) &&
+    if (fnegFoldsIntoOp(N0.getNode()) &&
         (allUsesHaveSourceMods(N) || !allUsesHaveSourceMods(N0.getNode())))
       return false;
   }
@@ -4133,6 +4148,62 @@ SDValue AMDGPUTargetLowering::performFNegCombine(SDNode *N,
   case ISD::SELECT: {
     // fneg (select c, a, b) -> select c, (fneg a), (fneg b)
     // TODO: Invert conditions of foldFreeOpFromSelect
+    return SDValue();
+  }
+  case ISD::BITCAST: {
+    SDLoc SL(N);
+    SDValue BCSrc = N0.getOperand(0);
+    if (BCSrc.getOpcode() == ISD::BUILD_VECTOR) {
+      SDValue HighBits = BCSrc.getOperand(BCSrc.getNumOperands() - 1);
+      if (HighBits.getValueType().getSizeInBits() != 32 ||
+          !fnegFoldsIntoOp(HighBits.getNode()))
+        return SDValue();
+
+      // f64 fneg only really needs to operate on the high half of of the
+      // register, so try to force it to an f32 operation to help make use of
+      // source modifiers.
+      //
+      //
+      // fneg (f64 (bitcast (build_vector x, y))) ->
+      // f64 (bitcast (build_vector (bitcast i32:x to f32),
+      //                            (fneg (bitcast i32:y to f32)))
+
+      SDValue CastHi = DAG.getNode(ISD::BITCAST, SL, MVT::f32, HighBits);
+      SDValue NegHi = DAG.getNode(ISD::FNEG, SL, MVT::f32, CastHi);
+      SDValue CastBack =
+          DAG.getNode(ISD::BITCAST, SL, HighBits.getValueType(), NegHi);
+
+      SmallVector<SDValue, 8> Ops(BCSrc->op_begin(), BCSrc->op_end());
+      Ops.back() = CastBack;
+      DCI.AddToWorklist(NegHi.getNode());
+      SDValue Build =
+          DAG.getNode(ISD::BUILD_VECTOR, SL, BCSrc.getValueType(), Ops);
+      SDValue Result = DAG.getNode(ISD::BITCAST, SL, VT, Build);
+
+      if (!N0.hasOneUse())
+        DAG.ReplaceAllUsesWith(N0, DAG.getNode(ISD::FNEG, SL, VT, Result));
+      return Result;
+    }
+
+    if (BCSrc.getOpcode() == ISD::SELECT && VT == MVT::f32) {
+      // fneg (bitcast (f32 (select cond, i32:lhs, i32:rhs))) ->
+      //   select cond, (bitcast i32:lhs to f32), (bitcast i32:rhs to f32)
+      SDValue LHS =
+          DAG.getNode(ISD::BITCAST, SL, MVT::f32, BCSrc.getOperand(1));
+      SDValue RHS =
+          DAG.getNode(ISD::BITCAST, SL, MVT::f32, BCSrc.getOperand(2));
+
+      SDValue NegLHS = DAG.getNode(ISD::FNEG, SL, MVT::f32, LHS);
+      SDValue NegRHS = DAG.getNode(ISD::FNEG, SL, MVT::f32, RHS);
+
+      SDValue NewSelect = DAG.getNode(ISD::SELECT, SL, MVT::f32,
+                                      BCSrc.getOperand(0), NegLHS, NegRHS);
+      if (!BCSrc.hasOneUse())
+        DAG.ReplaceAllUsesWith(BCSrc,
+                               DAG.getNode(ISD::FNEG, SL, VT, NewSelect));
+      return NewSelect;
+    }
+
     return SDValue();
   }
   default:
@@ -4518,7 +4589,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(CALL)
   NODE_NAME_CASE(TC_RETURN)
   NODE_NAME_CASE(TRAP)
-  NODE_NAME_CASE(RET_FLAG)
+  NODE_NAME_CASE(RET_GLUE)
   NODE_NAME_CASE(RETURN_TO_EPILOG)
   NODE_NAME_CASE(ENDPGM)
   NODE_NAME_CASE(DWORDADDR)
