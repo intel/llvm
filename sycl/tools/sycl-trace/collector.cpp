@@ -52,8 +52,11 @@ public:
   const std::string IndentFuncName = "setIndentationLevel";
 
   bool initPrinters() {
-    const std::string CollectorDir = getCurrentDSODir() + "/" + MLibraryName;
-    MHandle = dlopen(CollectorDir.c_str(), RTLD_LAZY);
+    std::string Path = getCurrentDSODir();
+    if (Path.empty())
+      return false;
+    Path += "/" + MLibraryName;
+    MHandle = dlopen(Path.c_str(), RTLD_LAZY);
     if (!MHandle) {
       std::cerr << "Cannot load library: " << dlerror() << '\n';
       return false;
@@ -104,26 +107,26 @@ public:
   }
 
   void clear() {
-    MInitPtr = NULL;
-    MFinishPtr = NULL;
-    MCallbackPtr = NULL;
-    MSetIndentationLevelPtr = NULL;
+    MInitPtr = nullptr;
+    MFinishPtr = nullptr;
+    MCallbackPtr = nullptr;
+    MSetIndentationLevelPtr = nullptr;
 
     if (MHandle)
       dlclose(MHandle);
-    MHandle = NULL;
+    MHandle = nullptr;
   }
 
 private:
   std::string MLibraryName;
   int MIndentationLevel = 0;
 
-  void *MHandle = NULL;
+  void *MHandle = nullptr;
 
-  void *MInitPtr = NULL;
-  void *MFinishPtr = NULL;
-  void *MCallbackPtr = NULL;
-  void *MSetIndentationLevelPtr = NULL;
+  void *MInitPtr = nullptr;
+  void *MFinishPtr = nullptr;
+  void *MCallbackPtr = nullptr;
+  void *MSetIndentationLevelPtr = nullptr;
 } zeCollectorLibrary("libze_trace_collector.so"),
     cudaCollectorLibrary("libcuda_trace_collector.so");
 
