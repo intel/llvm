@@ -39,15 +39,17 @@ static bool isArgumentWithAttribute(Value val, const Twine &attr) {
   auto blockArg = cast<BlockArgument>(val);
   auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
   auto stringAttr = StringAttr::get(val.getContext(), attr);
-  return !!func.getArgAttr(blockArg.getArgNumber(), stringAttr);
+  return (func.getArgAttr(blockArg.getArgNumber(), stringAttr) != nullptr);
 }
 
 // Return true if the value \p val is a function argument that has the
 // 'llvm.noalias' attribute, and false otherwise.
 static bool isNoAliasArgument(Value val) {
   return isArgumentWithAttribute(
-      val, LLVM::LLVMDialect::getDialectNamespace() + "." +
-               llvm::Attribute::getNameFromAttrKind(llvm::Attribute::NoAlias));
+      val, Twine(LLVM::LLVMDialect::getDialectNamespace())
+               .concat(".")
+               .concat(llvm::Attribute::getNameFromAttrKind(
+                   llvm::Attribute::NoAlias)));
 }
 
 // Return true if the value \p val is a function argument that has the

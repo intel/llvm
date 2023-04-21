@@ -81,7 +81,6 @@ collectCandidateArguments(CallOpInterface call,
 
 /// Returns the cloned version of \p func.
 static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
-  FunctionOpInterface clonedFunc = func.clone();
   std::string newFnName = (func.getName() + ".specialized").str();
 #ifndef NDEBUG
   ModuleOp module = func->getParentOfType<ModuleOp>();
@@ -90,8 +89,9 @@ static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
            "Expecting new function name to be unique");
   });
 #endif // NDEBUG
-  clonedFunc.setName(newFnName);
   OpBuilder builder(func);
+  FunctionOpInterface clonedFunc = func.clone();
+  clonedFunc.setName(newFnName);
   builder.insert(clonedFunc);
   privatize(clonedFunc);
   return clonedFunc;
@@ -99,8 +99,10 @@ static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
 
 /// Add attribute 'sycl.inner.disjoint' to arguments of \p func that satisfy \p
 /// predicate.
+template <typename Pred,
+          typename = std::enable_if_t<std::is_invocable_r_v<bool, Pred, Value>>>
 static void setInnerDisjointAttribute(FunctionOpInterface func,
-                                      std::function<bool(Value)> predicate) {
+                                      Pred predicate) {
   constexpr StringRef innerDisjointAttrName = "sycl.inner.disjoint";
   for (unsigned i = 0; i < func.getNumArguments(); ++i)
     if (predicate(func.getArgument(i)))
@@ -236,8 +238,7 @@ bool FunctionSpecializationPass::isCandidateFunction(
 
 bool FunctionSpecializationPass::isCandidateAccessorPair(
     AccessorPtrType acc1, AccessorPtrType acc2) const {
-  if (acc1 == acc2)
-    return false;
+  assert(acc1 != acc2 && "Expecting the input accessors to be different");
 
   if (!relaxedAliasing) {
     auto acc1Ty = cast<sycl::AccessorType>(acc1.getType().getElementType());
