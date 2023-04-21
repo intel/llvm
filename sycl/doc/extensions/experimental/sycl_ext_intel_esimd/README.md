@@ -132,7 +132,7 @@ extension.
 > **Note**: Some restrictions are not enforced by the compiler, which may lead to
 > undefined program behavior if violated.
 
-#### Features not supported with ESIMD extension:
+#### Features not supported with the ESIMD extension:
 - The [C and C++ Standard libraries support](../supported/C-CXX-StandardLibrary.rst)
 - The [Device library extensions](../../../design/DeviceLibExtensions.rst)
 
