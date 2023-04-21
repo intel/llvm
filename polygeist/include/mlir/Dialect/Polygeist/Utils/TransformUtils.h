@@ -35,6 +35,8 @@ class IfOp;
 class ParallelOp;
 } // namespace scf
 
+namespace polygeist {
+
 //===----------------------------------------------------------------------===//
 // Utility Functions
 //===----------------------------------------------------------------------===//
@@ -297,6 +299,7 @@ private:
   mutable Location loc;
 };
 
+} // namespace polygeist
 } // namespace mlir
 
 #endif // MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H

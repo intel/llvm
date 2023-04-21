@@ -18,27 +18,28 @@
 #include <optional>
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool mlir::isLinkonceODR(FunctionOpInterface func) {
+bool mlir::polygeist::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void mlir::privatize(FunctionOpInterface func) {
+void mlir::polygeist::privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool mlir::isTailCall(CallOpInterface call) {
+bool mlir::polygeist::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -91,13 +92,14 @@ static void getMaxDepthFromAnyGPUKernel(
   funcMaxDepthMap[func] = maxDepth;
 }
 
-Optional<unsigned> mlir::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+Optional<unsigned>
+mlir::polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
   DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
   ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
-bool mlir::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   // The function must be defined, and private or with linkonce_odr linkage.
   if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
     return false;
