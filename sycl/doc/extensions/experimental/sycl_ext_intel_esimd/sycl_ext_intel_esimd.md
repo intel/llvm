@@ -3,7 +3,7 @@
 ## Introduction
 
 The main motivation for introducing the "Explicit SIMD" SYCL extension 
-(or simply "ESIMD") is enabling low-level efficient programming for Intel graphics
+(or simply "ESIMD") is enabling efficient low-level programming for Intel graphics
 architectures. It provides APIs close to the Intel GPU ISA
 yet allows to write explicitly vectorized device code.
 
