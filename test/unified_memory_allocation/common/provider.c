@@ -38,6 +38,14 @@ static enum uma_result_t nullGetLastResult(void *provider, const char **ppMsg) {
     return UMA_RESULT_SUCCESS;
 }
 
+static enum uma_result_t nullGetRecommendedPageSize(void *provider, size_t size,
+                                                    size_t *pageSize) {
+    (void)provider;
+    (void)size;
+    (void)pageSize;
+    return UMA_RESULT_SUCCESS;
+}
+
 static enum uma_result_t nullGetPageSize(void *provider, void *ptr,
 
                                          size_t *pageSize) {
@@ -70,6 +78,7 @@ uma_memory_provider_handle_t nullProviderCreate(void) {
         .alloc = nullAlloc,
         .free = nullFree,
         .get_last_result = nullGetLastResult,
+        .get_recommended_page_size = nullGetRecommendedPageSize,
         .get_min_page_size = nullGetPageSize,
         .purge_lazy = nullPurgeLazy,
         .purge_force = nullPurgeForce};
@@ -123,6 +132,15 @@ static enum uma_result_t traceGetLastResult(void *provider,
                                           ppMsg);
 }
 
+static enum uma_result_t
+traceGetRecommendedPageSize(void *provider, size_t size, size_t *pageSize) {
+    struct traceParams *traceProvider = (struct traceParams *)provider;
+
+    traceProvider->trace("get_recommended_page_size");
+    return umaMemoryProviderGetRecommendedPageSize(
+        traceProvider->hUpstreamProvider, size, pageSize);
+}
+
 static enum uma_result_t traceGetPageSize(void *provider, void *ptr,
 
                                           size_t *pageSize) {
@@ -161,6 +179,7 @@ traceProviderCreate(uma_memory_provider_handle_t hUpstreamProvider,
         .alloc = traceAlloc,
         .free = traceFree,
         .get_last_result = traceGetLastResult,
+        .get_recommended_page_size = traceGetRecommendedPageSize,
         .get_min_page_size = traceGetPageSize,
         .purge_lazy = tracePurgeLazy,
         .purge_force = tracePurgeForce};

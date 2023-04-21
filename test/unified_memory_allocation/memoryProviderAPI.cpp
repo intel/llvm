@@ -36,6 +36,12 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(calls["get_last_result"], 1);
     ASSERT_EQ(calls.size(), ++call_count);
 
+    ret = umaMemoryProviderGetRecommendedPageSize(tracingProvider.get(), 0,
+                                                  nullptr);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(calls["get_recommended_page_size"], 1);
+    ASSERT_EQ(calls.size(), ++call_count);
+
     ret = umaMemoryProviderGetMinPageSize(tracingProvider.get(), nullptr,
                                           nullptr);
     ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
