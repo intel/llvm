@@ -29,6 +29,8 @@ group_barrier(Group G, memory_scope FenceScope = Group::fence_scope) {
 #ifdef __SYCL_DEVICE_ONLY__
   detail::spirv::ControlBarrier(G, FenceScope, memory_order::seq_cst);
 #else
+  (void)G;
+  (void)FenceScope;
   throw sycl::runtime_error("Barriers are not supported on host device",
                             PI_ERROR_INVALID_DEVICE);
 #endif
