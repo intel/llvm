@@ -473,8 +473,13 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       // getAsInteger returns true on error
       if (!F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL)
                .getValueAsString()
-               .getAsInteger(10, OptLevel))
-        break;
+               .getAsInteger(10, OptLevel)) {
+        // It is expected that device-code split has separated kernels with
+        // different values of sycl-optlevel attribute. Therefore, it is enough
+        // to only look at the first function with such attribute to compute
+        // the property for the whole device image.
+         break;
+      }
     }
 
     if (OptLevel != -1)

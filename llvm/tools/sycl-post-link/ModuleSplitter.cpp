@@ -658,7 +658,7 @@ public:
   }
 
   // Creates a simple rule, which adds one or another value to a resulting
-  // identifier based on a presence of a metadata on a function.
+  // identifier based on the presence of a metadata on a function.
   void registerSimpleFlagAttributeRule(StringRef AttrName,
                                        StringRef IfPresentStr,
                                        StringRef IfAbsentStr = "") {
@@ -667,7 +667,7 @@ public:
   }
 
   // Creates a simple rule, which adds one or another value to a resulting
-  // identifier based on a presence of a metadata on a function.
+  // identifier based on the presence of a metadata on a function.
   void registerSimpleFlagMetadataRule(StringRef MetadataName,
                                       StringRef IfPresentStr,
                                       StringRef IfAbsentStr = "") {
@@ -791,13 +791,13 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
       if (F->hasMetadata(MetadataName)) {
         MDNode *MDN = F->getMetadata(MetadataName);
 
-        SmallVector<unsigned, 8> Values;
+        SmallVector<std::uint64_t, 8> Values;
         for (const MDOperand &MDOp : MDN->operands())
           Values.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
 
         llvm::sort(Values);
 
-        for (unsigned V : Values)
+        for (std::uint64_t V : Values)
           Result += "-" + std::to_string(V);
       }
     } break;
@@ -880,8 +880,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Groups.reserve(EntryPointsMap.size());
     // Start with properties of a source module
     EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-    for (auto &It : EntryPointsMap)
-      Groups.emplace_back(It.first, std::move(It.second), MDProps);
+    for (auto &[Key, EntryPoints] : EntryPointsMap)
+      Groups.emplace_back(Key, std::move(EntryPoints), MDProps);
   }
 
   bool DoSplit = (Mode != SPLIT_NONE &&
