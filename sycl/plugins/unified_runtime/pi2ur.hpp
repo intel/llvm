@@ -491,11 +491,10 @@ inline pi_result piPlatformGetInfo(pi_platform Platform,
 
   size_t SizeInOut = ParamValueSize;
   auto UrPlatform = reinterpret_cast<ur_platform_handle_t>(Platform);
-  HANDLE_ERRORS(urPlatformGetInfo(UrPlatform, UrParamName, ParamValueSize,
+  HANDLE_ERRORS(urPlatformGetInfo(UrPlatform, UrParamName, SizeInOut,
                                   ParamValue, ParamValueSizeRet));
 
   ur2piPlatformInfoValue(UrParamName, ParamValueSize, &SizeInOut, ParamValue);
-
   return PI_SUCCESS;
 }
 
