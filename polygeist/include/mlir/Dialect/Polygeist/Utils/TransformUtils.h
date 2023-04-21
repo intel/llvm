@@ -111,22 +111,20 @@ private:
   std::variant<SCFCondition, AffineCondition> versionCondition;
 };
 
-//===----------------------------------------------------------------------===//
-// Loop Versioning Utilities
-//===----------------------------------------------------------------------===//
-
-/// Version a loop like operation.
-class LoopVersionBuilder {
+/// Version an operation.
+class VersionBuilder {
 public:
-  LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
+  VersionBuilder(Operation *op) : op(op) {
+    assert(op && "Expecting valid operation");
+  }
 
-  void versionLoop(const VersionCondition &) const;
+  void version(const VersionCondition &) const;
 
 protected:
   void createElseBody(scf::IfOp) const;
   void createElseBody(AffineIfOp) const;
 
-  mutable LoopLikeOpInterface loop; /// The loop to version.
+  mutable Operation *op; // The operation to version.
 };
 
 //===----------------------------------------------------------------------===//
