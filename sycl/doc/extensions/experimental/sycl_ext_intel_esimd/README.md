@@ -83,6 +83,10 @@ More details are available in [invoke_simd spec](../sycl_ext_oneapi_invoke_simd.
 Test cases are available [here](../../../../test-e2e/InvokeSimd/)
 
 ```cpp
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+#include <sycl/sycl.hpp>
+
 constexpr int N = 8;
 
 namespace seoe = sycl::ext::oneapi::experimental::simd;
@@ -111,11 +115,11 @@ q.parallel_for(ndr, sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(N)]] {
 Currently, compilation of programs with `invoke_simd` calls requires a few additional compilation options. Also, running such programs may require setting additional parameters for the GPU driver:
 ```bash
 # compile: pass -fsycl-allow-func-ptr because by default the function pointers
-# are not allowed in SYCL/ESIMD programs.
-# Also pass -fno-sycl-device-code-split-esimd to keep invoke_simd() caller
-# and callee in same module.
+# are not allowed in SYCL/ESIMD programs;
+# also pass -fno-sycl-device-code-split-esimd to keep invoke_simd() caller
+# and callee in the same module.
 clang++ -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o invoke_simd
-# run the program
+# run the program:
 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 invoke_simd
 ```
 
