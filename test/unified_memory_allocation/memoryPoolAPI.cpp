@@ -9,6 +9,7 @@
 
 #include "memoryPool.hpp"
 
+#include <array>
 #include <string>
 #include <unordered_map>
 
@@ -107,6 +108,28 @@ TEST_F(test, memoryPoolWithCustomProviders) {
     }
 }
 
+TEST_F(test, retrieveMemoryProviders) {
+    static constexpr size_t numProviders = 4;
+    std::array<uma_memory_provider_handle_t, numProviders> providers = {
+        (uma_memory_provider_handle_t)0x1, (uma_memory_provider_handle_t)0x2,
+        (uma_memory_provider_handle_t)0x3, (uma_memory_provider_handle_t)0x4};
+
+    auto [ret, pool] = uma::poolMakeUnique<uma_test::proxy_pool>(
+        providers.data(), numProviders);
+
+    std::array<uma_memory_provider_handle_t, numProviders> retProviders;
+    size_t numProvidersRet = 0;
+
+    ret = umaPoolGetMemoryProviders(pool.get(), 0, nullptr, &numProvidersRet);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(numProvidersRet, numProviders);
+
+    ret = umaPoolGetMemoryProviders(pool.get(), numProviders,
+                                    retProviders.data(), nullptr);
+    ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
+    ASSERT_EQ(retProviders, providers);
+}
+
 template <typename Pool>
 static auto
 makePool(std::function<uma::provider_unique_handle_t()> makeProvider) {
@@ -184,4 +207,17 @@ TEST_P(poolInitializeTest, errorPropagation) {
     auto ret = uma::poolMakeUnique<pool>(providers, 1, this->GetParam());
     ASSERT_EQ(ret.first, this->GetParam());
     ASSERT_EQ(ret.second, nullptr);
+}
+
+TEST_F(test, retrieveMemoryProvidersError) {
+    static constexpr size_t numProviders = 4;
+    std::array<uma_memory_provider_handle_t, numProviders> providers = {
+        (uma_memory_provider_handle_t)0x1, (uma_memory_provider_handle_t)0x2,
+        (uma_memory_provider_handle_t)0x3, (uma_memory_provider_handle_t)0x4};
+
+    auto [ret, pool] = uma::poolMakeUnique<uma_test::proxy_pool>(
+        providers.data(), numProviders);
+
+    ret = umaPoolGetMemoryProviders(pool.get(), 1, providers.data(), nullptr);
+    ASSERT_EQ(ret, UMA_RESULT_ERROR_INVALID_ARGUMENT);
 }
