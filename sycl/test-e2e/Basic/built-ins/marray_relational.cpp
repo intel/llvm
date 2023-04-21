@@ -25,6 +25,25 @@
     }                                                                          \
   }
 
+#define TEST2(FUNC, TYPE, EXPECTED, N, ...)                                    \
+  {                                                                            \
+    {                                                                          \
+      TYPE result[1];                                                          \
+      {                                                                        \
+        sycl::buffer<TYPE> b(result, sycl::range{1});                          \
+        deviceQueue.submit([&](sycl::handler &cgh) {                           \
+          sycl::accessor res_access{b, cgh};                                   \
+          cgh.single_task([=]() {                                              \
+            int res = FUNC(__VA_ARGS__);                                       \
+            for (int i = 0; i < N; i++)                                        \
+              res_access[0] = res;                                             \
+          });                                                                  \
+        });                                                                    \
+      }                                                                        \
+      assert(result[0] == EXPECTED[0]);                                        \
+    }                                                                          \
+  }
+
 #define EXPECTED(TYPE, ...) ((TYPE[]){__VA_ARGS__})
 
 int main() {
@@ -36,6 +55,10 @@ int main() {
   sycl::marray<float, 2> ma4{2.0, 2.0};
   sycl::marray<float, 3> ma5{2.0, 2.0, 1.0};
   sycl::marray<float, 3> ma6{1.0, 5.0, 8.0};
+  sycl::marray<int, 3> ma7{50, 2, 31};
+  sycl::marray<float, 2> ma8{1.0, 1.0};
+  sycl::marray<float, 2> ma9{0.5, 0.5};
+  sycl::marray<float, 2> ma10{2.0, 2.0};
   sycl::marray<bool, 3> c(1, 0, 1);
 
   TEST(sycl::isequal, bool, EXPECTED(bool, 1, 1), 2, ma1, ma2);
@@ -52,6 +75,9 @@ int main() {
   TEST(sycl::isordered, bool, EXPECTED(bool, 1, 1), 2, ma1, ma2);
   TEST(sycl::isunordered, bool, EXPECTED(bool, 0, 0), 2, ma1, ma2);
   TEST(sycl::signbit, bool, EXPECTED(bool, 0, 0), 2, ma1);
+  TEST2(sycl::all, int, EXPECTED(bool, false), 3, ma7);
+  TEST2(sycl::any, int, EXPECTED(bool, false), 3, ma7);
+  TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2, ma8, ma9, ma10);
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0, 8.0), 3, ma5, ma6, c);
 
   return 0;

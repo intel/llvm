@@ -10,6 +10,7 @@
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
@@ -82,9 +83,6 @@ enum class DeviceLibExt : std::uint32_t {
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
-  // TODO use a custom dynamic bitset instead to make initialization simpler.
-  using KernelArgMask = std::vector<bool>;
-
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
@@ -148,7 +146,7 @@ public:
                                   const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
-  std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
+  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *, RT::PiProgram>
   getOrCreateKernel(OSModuleHandle M, const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
                     const std::string &KernelName, const program_impl *Prg);
@@ -179,13 +177,21 @@ public:
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
+  /// \param NativePrg the PI program associated with the kernel.
+  /// \param KernelName the name of the kernel.
+  const KernelArgMask *
+  getEliminatedKernelArgMask(pi::PiProgram NativePrg,
+                             const std::string &KernelName);
+
+  /// Returns the mask for eliminated kernel arguments for the requested kernel
+  /// within the native program.
   /// \param M identifies the OS module the kernel comes from (multiple OS
   ///        modules may have kernels with the same name).
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
-  KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
-                                           pi::PiProgram NativePrg,
-                                           const std::string &KernelName);
+  const KernelArgMask *
+  getEliminatedKernelArgMask(OSModuleHandle M, pi::PiProgram NativePrg,
+                             const std::string &KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name.
@@ -283,7 +289,7 @@ public:
                            const std::vector<device> &Devs,
                            const property_list &PropList);
 
-  std::pair<RT::PiKernel, std::mutex *>
+  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, const std::string &KernelName,
                     const property_list &PropList, RT::PiProgram Program);
 

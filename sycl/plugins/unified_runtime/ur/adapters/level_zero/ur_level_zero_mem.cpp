@@ -7,3 +7,9 @@
 //===-----------------------------------------------------------------===//
 
 #include "ur_level_zero_mem.hpp"
+
+bool ShouldUseUSMAllocator() {
+  // Enable allocator by default if it's not explicitly disabled
+  return std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR") == nullptr;
+}
+const bool UseUSMAllocator = ShouldUseUSMAllocator();
