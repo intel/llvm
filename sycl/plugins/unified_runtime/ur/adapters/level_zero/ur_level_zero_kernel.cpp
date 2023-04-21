@@ -434,7 +434,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(
                         ///< bytes of data being queried by propName.
 ) {
 
-  UrL0ReturnHelper ReturnValue(PropSize, KernelInfo, PropSizeRet);
+  UrReturnHelper ReturnValue(PropSize, KernelInfo, PropSizeRet);
 
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   switch (ParamName) {
@@ -492,7 +492,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
     size_t *ParamValueSizeRet ///< [out][optional] pointer to the actual size in
                               ///< bytes of data being queried by propName.
 ) {
-  UrL0ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  UrReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   switch (ParamName) {
