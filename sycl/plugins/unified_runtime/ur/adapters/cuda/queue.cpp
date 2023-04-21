@@ -122,6 +122,9 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
               const ur_queue_properties_t *pProps, ur_queue_handle_t *phQueue) {
   try {
     std::unique_ptr<ur_queue_handle_t_> queueImpl{nullptr};
+    UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    UR_ASSERT(phQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
     if (hContext->get_device() != hDevice) {
       *phQueue = nullptr;
@@ -167,7 +170,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  assert(hQueue != nullptr);
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   assert(hQueue->get_reference_count() > 0);
 
   hQueue->increment_reference_count();
@@ -175,7 +178,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  assert(hQueue != nullptr);
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   if (hQueue->decrement_reference_count() > 0) {
     return UR_RESULT_SUCCESS;
@@ -206,9 +209,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
   try {
-
-    assert(hQueue !=
-           nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
+    UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
     ScopedContext active(hQueue->get_context());
 
     hQueue->sync_streams</*ResetUsed=*/true>([&result](CUstream s) {
@@ -231,12 +232,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  (void)hQueue;
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ur_native_handle_t *phNativeQueue) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(phNativeQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   ScopedContext active(hQueue->get_context());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->get_next_compute_stream());
@@ -285,7 +289,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t propValueSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
 
@@ -321,6 +326,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   default:
     break;
   }
-  sycl::detail::ur::die("Queue info request not implemented");
-  return {};
+
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
