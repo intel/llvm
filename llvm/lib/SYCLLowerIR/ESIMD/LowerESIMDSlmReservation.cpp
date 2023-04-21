@@ -635,6 +635,11 @@ size_t lowerSLMReservationCalls(Module &M) {
   // - now set each kernel's SLMSize metadata to the pre-calculated value
   for (auto &E : Kernel2MaxSLM) {
     int MaxSLM = E.second;
+    // Clamp negative values to 0. MaxSLM could have been not estimated, e.g.
+    // due to having __esimd_slm_init with non-const operand (specialization
+    // constant case).
+    if (MaxSLM < 0)
+      MaxSLM = 0;
     llvm::Value *MaxSLMv =
         llvm::ConstantInt::get(Type::getInt32Ty(M.getContext()), MaxSLM);
     const Function *Kernel = E.first;
