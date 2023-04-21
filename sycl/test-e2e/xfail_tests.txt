@@ -84,6 +84,7 @@ Basic/built-ins.cpp
 Basic/built-ins/marray_common.cpp
 Basic/built-ins/marray_geometric.cpp
 Basic/built-ins/marray_math.cpp
+Basic/built-ins/marray_relational.cpp
 Basic/device_event.cpp
 Basic/device_implicitly_copyable.cpp
 Basic/diagnostics/non-uniform-wk-gp-test.cpp
@@ -174,6 +175,13 @@ KernelFusion/struct_with_array.cpp
 KernelParams/array-kernel-param-nested-run.cpp
 KernelParams/array-kernel-param-run.cpp
 KernelParams/union_kernel_param.cpp
+NonUniformGroups/ballot_group.cpp
+NonUniformGroups/ballot_group_algorithms.cpp
+NonUniformGroups/cluster_group.cpp
+NonUniformGroups/is_user_constructed.cpp
+NonUniformGroups/opportunistic_group.cpp
+NonUniformGroups/opportunistic_group.cpp
+NonUniformGroups/tangle_group.cpp
 OptionalKernelFeatures/is_compatible.cpp
 Plugin/interop-level-zero-buffer-multi-dim.cpp
 Printf/char.cpp
