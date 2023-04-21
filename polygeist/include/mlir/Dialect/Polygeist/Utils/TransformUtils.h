@@ -268,13 +268,13 @@ public:
 /// overlap.
 class VersionConditionBuilder {
 public:
-  using AccessorType = TypedValue<MemRefType>;
-  using AccessorPairType = std::pair<AccessorType, AccessorType>;
+  using AccessorPtrType = TypedValue<MemRefType>;
+  using AccessorPtrPairType = std::pair<AccessorPtrType, AccessorPtrType>;
   using SCFCondition = VersionCondition::SCFCondition;
   using AffineCondition = VersionCondition::AffineCondition;
 
   VersionConditionBuilder(
-      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs,
+      ArrayRef<AccessorPtrPairType> requireNoOverlapAccessorPairs,
       OpBuilder builder, Location loc)
       : accessorPairs(requireNoOverlapAccessorPairs), builder(builder),
         loc(loc) {
@@ -291,7 +291,7 @@ private:
   /// Create a versioning condition suitable for scf::IfOp.
   SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
 
-  ArrayRef<AccessorPairType> accessorPairs;
+  ArrayRef<AccessorPtrPairType> accessorPairs;
   mutable OpBuilder builder;
   mutable Location loc;
 };
