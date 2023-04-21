@@ -78,7 +78,7 @@ the same application.
 
 ### SYCL and ESIMD interoperability
 
-SYCL kernels can call ESIMD functions using special invoke_simd() API.
+SYCL kernels can call ESIMD functions using the special `invoke_simd` API.
 Please see more details in [invoke_simd spec](../sycl_ext_oneapi_invoke_simd.asciidoc)
 Also, see for more [test cases here](../../../../test-e2e/InvokeSimd/)
 
