@@ -478,7 +478,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
         // different values of sycl-optlevel attribute. Therefore, it is enough
         // to only look at the first function with such attribute to compute
         // the property for the whole device image.
-         break;
+        break;
       }
     }
 
