@@ -9654,12 +9654,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
   const bool IsHIPKernel =
       M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
-  const bool IsOpenMPkernel =
-      M.getLangOpts().OpenMPIsDevice &&
-      (F->getCallingConv() == llvm::CallingConv::AMDGPU_KERNEL);
 
   // TODO: This should be moved to language specific attributes instead.
-  if (IsHIPKernel || IsOpenMPkernel)
+  if (IsHIPKernel)
     F->addFnAttr("uniform-work-group-size", "true");
 
   // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
