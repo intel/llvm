@@ -394,9 +394,9 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   MDeviceGlobalInitEvents.clear();
 }
 
-std::optional<RT::PiProgram>
-context_impl::getProgramForDevImgs(const device &Device,
-                                   std::set<std::uintptr_t> &ImgIdentifiers) {
+std::optional<RT::PiProgram> context_impl::getProgramForDevImgs(
+    const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
+    const std::string &ObjectTypeName) {
 
   KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
   {
@@ -413,9 +413,9 @@ context_impl::getProgramForDevImgs(const device &Device,
       // already found a program in the cache with the device_global or host
       // pipe we cannot proceed.
       if (NProgs > 1 || (BuildRes && NProgs == 1))
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "More than one image exists with the device_global or host pipe.");
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "More than one image exists with the " +
+                                  ObjectTypeName + ".");
 
       auto KeyMappingsIt = KeyMap.find(OuterKey);
       assert(KeyMappingsIt != KeyMap.end());
@@ -431,7 +431,8 @@ context_impl::getProgramForDevImgs(const device &Device,
 
 std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
     const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
-  return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers);
+  return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers,
+                              "device_global");
 }
 /// Gets a program associated with a HostPipe Entry from the cache.
 std::optional<RT::PiProgram>
@@ -440,7 +441,7 @@ context_impl::getProgramForHostPipe(const device &Device,
   // One HostPipe entry belongs to one Img
   std::set<std::uintptr_t> ImgIdentifiers;
   ImgIdentifiers.insert(HostPipeEntry->getDevBinImage()->getImageID());
-  return getProgramForDevImgs(Device, ImgIdentifiers);
+  return getProgramForDevImgs(Device, ImgIdentifiers, "host_pipe");
 }
 
 } // namespace detail
