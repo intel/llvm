@@ -219,6 +219,11 @@ public:
   std::optional<RT::PiProgram>
   getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
 
+  /// Gets a program associated with Dev / Images pairs.
+  std::optional<RT::PiProgram>
+  getProgramForDevImgs(const device &Device,
+                       std::set<std::uintptr_t> &ImgIdentifiers);
+
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:

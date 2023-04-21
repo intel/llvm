@@ -394,26 +394,29 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   MDeviceGlobalInitEvents.clear();
 }
 
-std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
-    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+std::optional<RT::PiProgram>
+context_impl::getProgramForDevImgs(const device &Device,
+                                   std::set<std::uintptr_t> &ImgIdentifiers) {
+
   KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
     RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
-    for (std::uintptr_t ImageIDs : DeviceGlobalEntry->MImageIdentifiers) {
+    for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey = std::make_pair(ImageIDs, DevHandle);
       size_t NProgs = KeyMap.count(OuterKey);
       if (NProgs == 0)
         continue;
       // If the cache has multiple programs for the identifiers or if we have
-      // already found a program in the cache with the device_global, we cannot
-      // proceed.
+      // already found a program in the cache with the device_global or host
+      // pipe we cannot proceed.
       if (NProgs > 1 || (BuildRes && NProgs == 1))
         throw sycl::exception(
             make_error_code(errc::invalid),
-            "More than one image exists with the device_global.");
+            "More than one image exists with the device_global or host pipe.");
+
       auto KeyMappingsIt = KeyMap.find(OuterKey);
       assert(KeyMappingsIt != KeyMap.end());
       auto CachedProgIt = Cache.find(KeyMappingsIt->second);
@@ -426,36 +429,18 @@ std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
   return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
+std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
+    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+  return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers);
+}
 /// Gets a program associated with a HostPipe Entry from the cache.
 std::optional<RT::PiProgram>
 context_impl::getProgramForHostPipe(const device &Device,
                                     HostPipeMapEntry *HostPipeEntry) {
-  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
-
-  auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
-  auto &KeyMap = LockedCache.get().KeyMap;
-  auto &Cache = LockedCache.get().Cache;
-  RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
-  uint32_t ImgId = HostPipeEntry->getDevBinImage()->getImageID();
-  auto OuterKey = std::make_pair(ImgId, DevHandle);
-  size_t NProgs = KeyMap.count(OuterKey);
-  // If the cache has multiple programs for the hostpipe, we cannot
-  // proceed.
-  if (NProgs > 1)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "More than one image exists with the host pipe.");
-
-  if (NProgs == 1) {
-    auto KeyMappingsIt = KeyMap.find(OuterKey);
-    assert(KeyMappingsIt != KeyMap.end());
-    auto CachedProgIt = Cache.find(KeyMappingsIt->second);
-    assert(CachedProgIt != Cache.end());
-    BuildRes = &CachedProgIt->second;
-  }
-
-  if (!BuildRes)
-    return std::nullopt;
-  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+  // One HostPipe entry belongs to one Img
+  std::set<std::uintptr_t> ImgIdentifiers;
+  ImgIdentifiers.insert(HostPipeEntry->getDevBinImage()->getImageID());
+  return getProgramForDevImgs(Device, ImgIdentifiers);
 }
 
 } // namespace detail
