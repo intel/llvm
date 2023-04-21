@@ -2053,9 +2053,9 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dims> get_range() const {
-    if constexpr (Dimensions == 0) {
+    if constexpr (Dimensions == 0)
       return range<1>{1};
-    } else
+    else
       return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
   }
 
