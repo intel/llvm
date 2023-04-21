@@ -114,7 +114,7 @@ Currently, compilation of programs with invoke_simd() calls requires few additio
 # are not allowed in SYCL/ESIMD programs.
 # Also pass -fno-sycl-device-code-split-esimd to keep invoke_simd() caller
 # and callee in same module.
-clang++ -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr
+clang++ -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o invoke_simd
 # run the program
 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 invoke_simd
 ```
