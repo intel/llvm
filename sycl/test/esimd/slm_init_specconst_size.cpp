@@ -22,7 +22,7 @@ int main() {
           [=](sycl::kernel_handler kh) SYCL_ESIMD_KERNEL {
             slm_init(kh.get_specialization_constant<Size>());
           });
-      // CHECK: define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E11Kernel3Name(i8 addrspace(1)* noundef align 1 "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #1
+      // CHECK: define weak_odr dso_local spir_kernel void @{{.*}}(i8 addrspace(1)* noundef align 1 "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #1
     });
   }
 
