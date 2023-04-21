@@ -540,7 +540,7 @@ SPIRVId LLVMToSPIRVDbgTran::getDebugInfoNoneId() {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
   using namespace SPIRVDebug::Operand::CompilationUnit;
-  SPIRVWordVec Ops(OperandCount);
+  SPIRVWordVec Ops(MinOperandCount);
   Ops[SPIRVDebugInfoVersionIdx] = SPIRVDebug::DebugInfoVersion;
   Ops[DWARFVersionIdx] = M->getDwarfVersion();
   Ops[SourceIdx] = getSource(CU)->getId();
@@ -553,7 +553,17 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
   if (isNonSemanticDebugInfo())
     transformToConstant(
         Ops, {SPIRVDebugInfoVersionIdx, DWARFVersionIdx, LanguageIdx});
-  BM->addModuleProcessed(SPIRVDebug::ProducerPrefix + CU->getProducer().str());
+
+  if (isNonSemanticDebugInfo()) {
+    if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+      Ops.push_back(BM->getString(CU->getProducer().str())->getId());
+    }
+  } else {
+    // TODO: Remove this workaround once we switch to NonSemantic.Shader.* debug
+    // info by default
+    BM->addModuleProcessed(SPIRVDebug::ProducerPrefix +
+                           CU->getProducer().str());
+  }
   // Cache CU in a member.
   SPIRVCUMap[CU] = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::CompilationUnit, getVoidTy(), Ops));

@@ -156,7 +156,7 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
 
   using namespace SPIRVDebug::Operand::CompilationUnit;
-  assert(Ops.size() == OperandCount && "Invalid number of operands");
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
   // We must preserve only one Dwarf version module level metadata
   // UpgradeDebugInfo from llvm/lib/IR/AutoUpgrade.cpp has already done all
   // work for us during linking stage leaving a single Dwarf version in the
@@ -172,8 +172,21 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst) {
     SourceLang = convertSPIRVSourceLangToDWARFNonSemanticDbgInfo(SourceLang);
   else
     SourceLang = convertSPIRVSourceLangToDWARF(SourceLang);
-  auto Producer = findModuleProducer();
+
   BuilderMap[DebugInst->getId()] = std::make_unique<DIBuilder>(*M);
+
+  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_100) {
+    return BuilderMap[DebugInst->getId()]->createCompileUnit(
+        SourceLang, getFile(Ops[SourceIdx]), "spirv", false, "", 0);
+  }
+  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+    StringRef Producer = getString(Ops[ProducerIdx]);
+    return BuilderMap[DebugInst->getId()]->createCompileUnit(
+        SourceLang, getFile(Ops[SourceIdx]), Producer, false, "", 0);
+  }
+  // TODO: Remove this workaround once we switch to NonSemantic.Shader.* debug
+  // info by default
+  auto Producer = findModuleProducer();
   return BuilderMap[DebugInst->getId()]->createCompileUnit(
       SourceLang, getFile(Ops[SourceIdx]), Producer, false, "", 0);
 }

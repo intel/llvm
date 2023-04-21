@@ -290,7 +290,9 @@ enum {
   DWARFVersionIdx          = 1,
   SourceIdx                = 2,
   LanguageIdx              = 3,
-  OperandCount             = 4
+  // For NonSemantic.Shader.DebugInfo.200
+  ProducerIdx              = 4,
+  MinOperandCount          = 4
 };
 }
 
