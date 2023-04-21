@@ -235,6 +235,14 @@ public:
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
 
+  // Get backend option.
+  void getBackendOption(pi_platform platform, const char *frontend_option,
+                        const char **backend_option) const {
+    RT::PiResult Err = call_nocheck<PiApiKind::piPluginGetBackendOption>(
+        platform, frontend_option, backend_option);
+    checkPiResult(Err);
+  }
+
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   // The function is expected to be called in a thread safe manner.

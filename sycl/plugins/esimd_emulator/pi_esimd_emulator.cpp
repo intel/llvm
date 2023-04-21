@@ -39,6 +39,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -165,6 +166,24 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for esimd emulator.
+// TODO: Determine correct string to be passed.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 using IDBuilder = sycl::detail::Builder;
@@ -464,6 +483,11 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
 
   case PI_PLATFORM_INFO_EXTENSIONS:
     return ReturnValue("");
+
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return getInfo<pi_platform_backend>(
+        ParamValueSize, ParamValue, ParamValueSizeRet,
+        PI_EXT_PLATFORM_BACKEND_UNKNOWN); // TODO: add ESIMD to UR?
 
   default:
     // TODO: implement other parameters
@@ -1314,6 +1338,12 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextMemImageCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, const pi_image_format *,
+                                              const pi_image_desc *, pi_mem *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -2082,7 +2112,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);

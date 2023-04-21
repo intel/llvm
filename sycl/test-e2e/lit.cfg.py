@@ -11,6 +11,7 @@ import lit.formats
 import lit.util
 
 from lit.llvm import llvm_config
+from lit.llvm.subst import ToolSubst, FindTool
 
 # Configuration file for the 'lit' test runner.
 
@@ -33,6 +34,9 @@ config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = config.sycl_obj_root
+
+# allow expanding substitutions that are based on other substitutions
+config.recursiveExpansionLimit = 10
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = ['COMPILER_PATH', 'RC_DEBUG_OPTIONS',
@@ -126,6 +130,11 @@ if lit_config.params.get('matrix-xmx8', False):
 if lit_config.params.get('ze_debug'):
     config.ze_debug = lit_config.params.get('ze_debug')
     lit_config.note("ZE_DEBUG: "+config.ze_debug)
+
+# Make sure that any dynamic checks below are done in the build directory and
+# not where the sources are located. This is important for the in-tree
+# configuration (as opposite to the standalone one).
+os.chdir(config.sycl_obj_root)
 
 # check if compiler supports CL command line options
 cl_options=False
@@ -385,7 +394,6 @@ config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
 if config.run_launcher:
     config.substitutions.append(('%e2e_tests_root', config.test_source_root))
-    config.recursiveExpansionLimit = 10
 
 if config.sycl_be == 'ext_oneapi_cuda' or (config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'NVIDIA'):
     config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
@@ -393,9 +401,6 @@ elif config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'AMD':
     config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa" ) )
 else:
     config.substitutions.append( ('%sycl_triple',  "spir64" ) )
-
-if find_executable('sycl-ls'):
-    config.available_features.add('sycl-ls')
 
 # TODO properly set XPTIFW include and runtime dirs
 xptifw_lib_dir = os.path.join(config.dpcpp_root_dir, 'lib')
@@ -413,17 +418,32 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(os.path.join(xptifw_include
     else:
         config.substitutions.append(('%xptifw_lib', " -L{} -lxptifw -I{} ".format(xptifw_lib_dir, xptifw_includes)))
 
+# Tools for which we add a corresponding feature when available.
+feature_tools = [
+  ToolSubst('llvm-spirv', unresolved='ignore'),
+  ToolSubst('llvm-link', unresolved='ignore'),
+]
 
-llvm_tools = ["llvm-spirv", "llvm-link"]
-for llvm_tool in llvm_tools:
-  llvm_tool_path = find_executable(llvm_tool)
-  if llvm_tool_path:
-    lit_config.note("Found " + llvm_tool)
-    config.available_features.add(llvm_tool)
-    config.substitutions.append( ('%' + llvm_tool.replace('-', '_'),
-                                  os.path.realpath(llvm_tool_path)) )
-  else:
-    lit_config.warning("Can't find " + llvm_tool)
+tools = [
+  ToolSubst('FileCheck', unresolved='ignore'),
+  # not is only substituted in certain circumstances; this is lit's default
+  # behaviour.
+  ToolSubst(r'\| \bnot\b', command=FindTool('not'),
+    verbatim=True, unresolved='ignore'),
+  ToolSubst('sycl-ls', unresolved='ignore'),
+] + feature_tools
+
+# Try and find each of these tools in the llvm tools directory or the PATH, in
+# that order. If found, they will be added as substitutions with the full path
+# to the tool. This allows us to support both in-tree builds and standalone
+# builds, where the tools may be externally defined.
+llvm_config.add_tool_substitutions(tools, [config.llvm_tools_dir,
+                                           os.environ.get('PATH', '')])
+for tool in feature_tools:
+    if tool.was_resolved:
+        config.available_features.add(tool.key)
+    else:
+        lit_config.warning("Can't find " + tool.key)
 
 if find_executable('cmc'):
     config.available_features.add('cm-compiler')

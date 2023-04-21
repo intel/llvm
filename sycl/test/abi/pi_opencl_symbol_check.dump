@@ -21,7 +21,9 @@ piKernelSetExecInfo
 piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
+piPlatformGetInfo
 piPlatformsGet
+piPluginGetBackendOption
 piPluginGetLastError
 piPluginInit
 piProgramCreate
@@ -48,6 +50,7 @@ piextKernelSetArgPointer
 piextKernelSetArgSampler
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
+piextMemImageCreateWithNativeHandle
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextProgramCreateWithNativeHandle
