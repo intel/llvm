@@ -48,6 +48,9 @@ bool isValidIndex(Value val);
 /// Returns true if the given function has 'linkonce_odr' LLVM  linkage.
 bool isLinkonceODR(FunctionOpInterface);
 
+/// Change the linkage and visibility of the given function to private.
+void privatize(FunctionOpInterface);
+
 /// Returns true if the given call is a tail call.
 bool isTailCall(CallOpInterface);
 
