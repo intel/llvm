@@ -50,9 +50,18 @@ module.exports = ({core, process}) => {
           } else {
             v["env"] = {};
           }
+
+          // Check for CUDA machines. If available, add them to
+          // enabledLTSLxConfigs.
+          var hasCuda = false;
+          if (Array.isArray(v["runs-on"]))
+            hasCuda = v["runs-on"].some(e => e.includes("aws-cuda"));
+          else
+            hasCuda = v["runs-on"].includes("aws-cuda")
+
           if (v["runs-on"].includes("Windows"))
             enabledLTSWnConfigs.push(v);
-          else if (v["runs-on"].includes("Linux"))
+          else if (v["runs-on"].includes("Linux") || hasCuda)
             enabledLTSLxConfigs.push(v);
           else
             console.error("runs-on OS is not recognized");

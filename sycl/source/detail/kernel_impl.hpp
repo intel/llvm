@@ -214,6 +214,18 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {
+  if constexpr (std::is_same_v<
+                    Param, info::kernel_device_specific::global_work_size>) {
+    bool isDeviceCustom = Device.get_info<info::device::device_type>() ==
+                          info::device_type::custom;
+    if (!isDeviceCustom && !isBuiltInKernel(Device))
+      throw exception(
+          sycl::make_error_code(errc::invalid),
+          "info::kernel_device_specific::global_work_size descriptor may only "
+          "be used if the device type is device_type::custom or if the kernel "
+          "is a built-in kernel.");
+  }
+
   if (is_host()) {
     return get_kernel_device_specific_info_host<Param>(Device);
   }
