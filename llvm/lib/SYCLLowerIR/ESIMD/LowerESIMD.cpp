@@ -777,7 +777,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
-  id::StringView Val;
+  std::string_view Val;
   switch (Conv) {
   case ESIMDIntrinDesc::GenXArgConversion::NONE:
     // Default fallback case, if we cannot deduce bitsize
@@ -800,7 +800,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   switch (Args[N]->getKind()) {
   case id::Node::KIntegerLiteral: {
     auto *ValL = castNode(Args[N], IntegerLiteral);
-    const id::StringView &TyStr = ValL->getType();
+    const std::string_view &TyStr = ValL->getType();
     if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
       // Overwrite Ty with IntegerLiteral's size
       Ty =
@@ -1487,7 +1487,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
                                "bad ESIMD intrinsic: ", MnglName);
 
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
-  id::StringView BaseNameV = FE->getName()->getBaseName();
+  std::string_view BaseNameV = FE->getName()->getBaseName();
 
   auto PrefLen = isDevicelibFunction(F->getName())
                      ? 0
