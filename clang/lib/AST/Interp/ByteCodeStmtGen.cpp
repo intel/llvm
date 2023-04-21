@@ -102,6 +102,9 @@ bool ByteCodeStmtGen<Emitter>::visitFunc(const FunctionDecl *F) {
       return false;
 
     for (const auto *Init : Ctor->inits()) {
+      // Scope needed for the initializers.
+      BlockScope<Emitter> Scope(this);
+
       const Expr *InitExpr = Init->getInit();
       if (const FieldDecl *Member = Init->getMember()) {
         const Record::Field *F = R->getField(Member);
@@ -224,6 +227,9 @@ bool ByteCodeStmtGen<Emitter>::visitCompoundStmt(
 template <class Emitter>
 bool ByteCodeStmtGen<Emitter>::visitDeclStmt(const DeclStmt *DS) {
   for (auto *D : DS->decls()) {
+    if (isa<StaticAssertDecl, TagDecl, TypedefNameDecl>(D))
+      continue;
+
     const auto *VD = dyn_cast<VarDecl>(D);
     if (!VD)
       return false;

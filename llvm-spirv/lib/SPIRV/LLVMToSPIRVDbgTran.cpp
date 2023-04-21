@@ -572,6 +572,11 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgBaseType(const DIBasicType *BT) {
   auto Encoding = static_cast<dwarf::TypeKind>(BT->getEncoding());
   SPIRVDebug::EncodingTag EncTag = SPIRVDebug::Unspecified;
   SPIRV::DbgEncodingMap::find(Encoding, &EncTag);
+  // Unset encoding if it's complex and NonSemantic.Shader.DebugInfo.200 is not
+  // enabled
+  if (EncTag == SPIRVDebug::Complex &&
+      BM->getDebugInfoEIS() != SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    EncTag = SPIRVDebug::Unspecified;
   Ops[EncodingIdx] = EncTag;
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {EncodingIdx});
@@ -1009,8 +1014,16 @@ LLVMToSPIRVDbgTran::transDbgTemplateParameter(const DITemplateParameter *TP) {
   Ops[ValueIdx] = getDebugInfoNoneId();
   if (TP->getTag() == dwarf::DW_TAG_template_value_parameter) {
     const DITemplateValueParameter *TVP = cast<DITemplateValueParameter>(TP);
-    Constant *C = cast<ConstantAsMetadata>(TVP->getValue())->getValue();
-    Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
+    if (auto *TVVal = TVP->getValue()) {
+      Constant *C = cast<ConstantAsMetadata>(TVVal)->getValue();
+      Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
+    } else {
+      // intel/llvm customization for opaque pointers begin
+      SPIRVType *TyPtr = SPIRVWriter->transType(
+          PointerType::get(Type::getInt8Ty(M->getContext()), 0));
+      // customization end
+      Ops[ValueIdx] = BM->addNullConstant(TyPtr)->getId();
+    }
   }
   Ops[SourceIdx] = getDebugInfoNoneId();
   Ops[LineIdx] = 0;   // This version of DITemplateParameter has no line number

@@ -205,6 +205,11 @@ def SDT_RISCVI2FPOp_RM_VL  : SDTypeProfile<1, 4, [
   SDTCisVT<4, XLenVT> // Rounding mode
 ]>;
 
+def SDT_RISCVSETCCOP_VL : SDTypeProfile<1, 6, [
+  SDTCVecEltisVT<0, i1>, SDTCisVec<1>, SDTCisSameNumEltsAs<0, 1>,
+  SDTCisSameAs<1, 2>, SDTCisVT<3, OtherVT>, SDTCisSameAs<0, 4>,
+  SDTCisSameAs<0, 5>, SDTCisVT<6, XLenVT>]>;
+
 // Float -> Int
 def riscv_vfcvt_xu_f_vl : SDNode<"RISCVISD::VFCVT_XU_F_VL", SDT_RISCVFP2IOp_VL>;
 def riscv_vfcvt_x_f_vl : SDNode<"RISCVISD::VFCVT_X_F_VL", SDT_RISCVFP2IOp_VL>;
@@ -214,24 +219,43 @@ def riscv_vfcvt_rm_x_f_vl : SDNode<"RISCVISD::VFCVT_RM_X_F_VL", SDT_RISCVFP2IOp_
 def riscv_vfcvt_rtz_xu_f_vl : SDNode<"RISCVISD::VFCVT_RTZ_XU_F_VL", SDT_RISCVFP2IOp_VL>;
 def riscv_vfcvt_rtz_x_f_vl  : SDNode<"RISCVISD::VFCVT_RTZ_X_F_VL",  SDT_RISCVFP2IOp_VL>;
 
+def riscv_strict_vfcvt_rtz_xu_f_vl : SDNode<"RISCVISD::STRICT_VFCVT_RTZ_XU_F_VL", SDT_RISCVFP2IOp_VL, [SDNPHasChain]>;
+def riscv_strict_vfcvt_rtz_x_f_vl  : SDNode<"RISCVISD::STRICT_VFCVT_RTZ_X_F_VL",  SDT_RISCVFP2IOp_VL, [SDNPHasChain]>;
+
+def any_riscv_vfcvt_rtz_xu_f_vl : PatFrags<(ops node:$src, node:$mask, node:$vl),
+                            [(riscv_vfcvt_rtz_xu_f_vl node:$src, node:$mask, node:$vl),
+                             (riscv_strict_vfcvt_rtz_xu_f_vl node:$src, node:$mask, node:$vl)]>;
+def any_riscv_vfcvt_rtz_x_f_vl : PatFrags<(ops node:$src, node:$mask, node:$vl),
+                            [(riscv_vfcvt_rtz_x_f_vl node:$src, node:$mask, node:$vl),
+                             (riscv_strict_vfcvt_rtz_x_f_vl node:$src, node:$mask, node:$vl)]>;
+
 // Int -> Float
 def riscv_sint_to_fp_vl : SDNode<"RISCVISD::SINT_TO_FP_VL", SDT_RISCVI2FPOp_VL>;
 def riscv_uint_to_fp_vl : SDNode<"RISCVISD::UINT_TO_FP_VL", SDT_RISCVI2FPOp_VL>;
 def riscv_vfcvt_rm_f_xu_vl : SDNode<"RISCVISD::VFCVT_RM_F_XU_VL", SDT_RISCVI2FPOp_RM_VL>;
 def riscv_vfcvt_rm_f_x_vl : SDNode<"RISCVISD::VFCVT_RM_F_X_VL", SDT_RISCVI2FPOp_RM_VL>;
 
+def riscv_strict_sint_to_fp_vl : SDNode<"RISCVISD::STRICT_SINT_TO_FP_VL", SDT_RISCVI2FPOp_VL, [SDNPHasChain]>;
+def riscv_strict_uint_to_fp_vl : SDNode<"RISCVISD::STRICT_UINT_TO_FP_VL", SDT_RISCVI2FPOp_VL, [SDNPHasChain]>;
+
+def any_riscv_sint_to_fp_vl : PatFrags<(ops node:$src, node:$mask, node:$vl),
+                            [(riscv_sint_to_fp_vl node:$src, node:$mask, node:$vl),
+                             (riscv_strict_sint_to_fp_vl node:$src, node:$mask, node:$vl)]>;
+def any_riscv_uint_to_fp_vl : PatFrags<(ops node:$src, node:$mask, node:$vl),
+                            [(riscv_uint_to_fp_vl node:$src, node:$mask, node:$vl),
+                             (riscv_strict_uint_to_fp_vl node:$src, node:$mask, node:$vl)]>;
 
 def riscv_vfround_noexcept_vl: SDNode<"RISCVISD::VFROUND_NOEXCEPT_VL", SDT_RISCVFPUnOp_VL>;
 
-def riscv_setcc_vl : SDNode<"RISCVISD::SETCC_VL",
-                            SDTypeProfile<1, 6, [SDTCVecEltisVT<0, i1>,
-                                                 SDTCisVec<1>,
-                                                 SDTCisSameNumEltsAs<0, 1>,
-                                                 SDTCisSameAs<1, 2>,
-                                                 SDTCisVT<3, OtherVT>,
-                                                 SDTCisSameAs<0, 4>,
-                                                 SDTCisSameAs<0, 5>,
-                                                 SDTCisVT<6, XLenVT>]>>;
+def riscv_setcc_vl : SDNode<"RISCVISD::SETCC_VL", SDT_RISCVSETCCOP_VL>;
+def riscv_strict_fsetcc_vl : SDNode<"RISCVISD::STRICT_FSETCC_VL", SDT_RISCVSETCCOP_VL, [SDNPHasChain]>;
+def riscv_strict_fsetccs_vl : SDNode<"RISCVISD::STRICT_FSETCCS_VL", SDT_RISCVSETCCOP_VL, [SDNPHasChain]>;
+def any_riscv_fsetcc_vl : PatFrags<(ops node:$lhs, node:$rhs, node:$cc, node:$merge, node:$mask, node:$vl),
+                            [(riscv_setcc_vl node:$lhs, node:$rhs, node:$cc, node:$merge, node:$mask, node:$vl),
+                             (riscv_strict_fsetcc_vl node:$lhs, node:$rhs, node:$cc, node:$merge, node:$mask, node:$vl)]>;
+def any_riscv_fsetccs_vl : PatFrags<(ops node:$lhs, node:$rhs, node:$cc, node:$merge, node:$mask, node:$vl),
+                            [(riscv_setcc_vl node:$lhs, node:$rhs, node:$cc, node:$merge, node:$mask, node:$vl),
+                             (riscv_strict_fsetccs_vl node:$lhs, node:$rhs, node:$cc, node:$merge, node:$mask, node:$vl)]>;
 
 def riscv_vrgather_vx_vl : SDNode<"RISCVISD::VRGATHER_VX_VL",
                                   SDTypeProfile<1, 5, [SDTCisVec<0>,
@@ -897,36 +921,36 @@ multiclass VPatIntegerSetCCVL_VIPlus1_Swappable<VTypeInfo vti,
                                 vti.Log2SEW)>;
 }
 
-multiclass VPatFPSetCCVL_VV_VF_FV<CondCode cc,
+multiclass VPatFPSetCCVL_VV_VF_FV<SDPatternOperator vop, CondCode cc,
                                   string inst_name,
                                   string swapped_op_inst_name> {
   foreach fvti = AllFloatVectors in {
-    def : Pat<(fvti.Mask (riscv_setcc_vl (fvti.Vector fvti.RegClass:$rs1),
-                                         fvti.RegClass:$rs2,
-                                         cc,
-                                         VR:$merge,
-                                         (fvti.Mask V0),
-                                         VLOpFrag)),
+    def : Pat<(fvti.Mask (vop (fvti.Vector fvti.RegClass:$rs1),
+                               fvti.RegClass:$rs2,
+                               cc,
+                               VR:$merge,
+                               (fvti.Mask V0),
+                               VLOpFrag)),
               (!cast<Instruction>(inst_name#"_VV_"#fvti.LMul.MX#"_MASK")
                   VR:$merge, fvti.RegClass:$rs1,
                   fvti.RegClass:$rs2, (fvti.Mask V0),
                   GPR:$vl, fvti.Log2SEW)>;
-    def : Pat<(fvti.Mask (riscv_setcc_vl (fvti.Vector fvti.RegClass:$rs1),
-                                         (SplatFPOp fvti.ScalarRegClass:$rs2),
-                                         cc,
-                                         VR:$merge,
-                                         (fvti.Mask V0),
-                                         VLOpFrag)),
+    def : Pat<(fvti.Mask (vop (fvti.Vector fvti.RegClass:$rs1),
+                              (SplatFPOp fvti.ScalarRegClass:$rs2),
+                              cc,
+                              VR:$merge,
+                              (fvti.Mask V0),
+                              VLOpFrag)),
               (!cast<Instruction>(inst_name#"_V"#fvti.ScalarSuffix#"_"#fvti.LMul.MX#"_MASK")
                   VR:$merge, fvti.RegClass:$rs1,
                   fvti.ScalarRegClass:$rs2, (fvti.Mask V0),
                   GPR:$vl, fvti.Log2SEW)>;
-    def : Pat<(fvti.Mask (riscv_setcc_vl (SplatFPOp fvti.ScalarRegClass:$rs2),
-                                         (fvti.Vector fvti.RegClass:$rs1),
-                                         cc,
-                                         VR:$merge,
-                                         (fvti.Mask V0),
-                                         VLOpFrag)),
+    def : Pat<(fvti.Mask (vop (SplatFPOp fvti.ScalarRegClass:$rs2),
+                              (fvti.Vector fvti.RegClass:$rs1),
+                              cc,
+                              VR:$merge,
+                              (fvti.Mask V0),
+                              VLOpFrag)),
               (!cast<Instruction>(swapped_op_inst_name#"_V"#fvti.ScalarSuffix#"_"#fvti.LMul.MX#"_MASK")
                   VR:$merge, fvti.RegClass:$rs1,
                   fvti.ScalarRegClass:$rs2, (fvti.Mask V0),
@@ -950,7 +974,7 @@ multiclass VPatExtendVL_V<SDNode vop, string inst_name, string suffix,
 
 // Single width converting
 
-multiclass VPatConvertFP2IVL_V<SDNode vop, string instruction_name> {
+multiclass VPatConvertFP2IVL_V<SDPatternOperator vop, string instruction_name> {
   foreach fvti = AllFloatVectors in {
     defvar ivti = GetIntVTypeInfo<fvti>.Vti;
     def : Pat<(ivti.Vector (vop (fvti.Vector fvti.RegClass:$rs1),
@@ -975,7 +999,7 @@ multiclass VPatConvertFP2I_RM_VL_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatConvertI2FPVL_V<SDNode vop, string instruction_name> {
+multiclass VPatConvertI2FPVL_V<SDPatternOperator vop, string instruction_name> {
   foreach fvti = AllFloatVectors in {
     defvar ivti = GetIntVTypeInfo<fvti>.Vti;
     def : Pat<(fvti.Vector (vop (ivti.Vector ivti.RegClass:$rs1),
@@ -1001,7 +1025,7 @@ multiclass VPatConvertI2FP_RM_VL_V<SDNode vop, string instruction_name> {
 
 // Widening converting
 
-multiclass VPatWConvertFP2IVL_V<SDNode vop, string instruction_name> {
+multiclass VPatWConvertFP2IVL_V<SDPatternOperator vop, string instruction_name> {
   foreach fvtiToFWti = AllWidenableFloatVectors in {
     defvar fvti = fvtiToFWti.Vti;
     defvar iwti = GetIntVTypeInfo<fvtiToFWti.Wti>.Vti;
@@ -1027,7 +1051,8 @@ multiclass VPatWConvertFP2I_RM_VL_V<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatWConvertI2FPVL_V<SDNode vop, string instruction_name> {
+multiclass VPatWConvertI2FPVL_V<SDPatternOperator vop,
+                                string instruction_name> {
   foreach vtiToWti = AllWidenableIntToFloatVectors in {
     defvar ivti = vtiToWti.Vti;
     defvar fwti = vtiToWti.Wti;
@@ -1055,7 +1080,8 @@ multiclass VPatWConvertI2FP_RM_VL_V<SDNode vop, string instruction_name> {
 
 // Narrowing converting
 
-multiclass VPatNConvertFP2IVL_W<SDNode vop, string instruction_name> {
+multiclass VPatNConvertFP2IVL_W<SDPatternOperator vop,
+                                string instruction_name> {
   // Reuse the same list of types used in the widening nodes, but just swap the
   // direction of types around so we're converting from Wti -> Vti
   foreach vtiToWti = AllWidenableIntToFloatVectors in {
@@ -1083,7 +1109,8 @@ multiclass VPatNConvertFP2I_RM_VL_W<SDNode vop, string instruction_name> {
   }
 }
 
-multiclass VPatNConvertI2FPVL_W<SDNode vop, string instruction_name> {
+multiclass VPatNConvertI2FPVL_W<SDPatternOperator vop,
+                                string instruction_name> {
   foreach fvtiToFWti = AllWidenableFloatVectors in {
     defvar fvti = fvtiToFWti.Vti;
     defvar iwti = GetIntVTypeInfo<fvtiToFWti.Wti>.Vti;
@@ -1829,17 +1856,22 @@ defm : VPatBinaryFPVL_VV_VF<riscv_fminnum_vl, "PseudoVFMIN">;
 defm : VPatBinaryFPVL_VV_VF<riscv_fmaxnum_vl, "PseudoVFMAX">;
 
 // 13.13. Vector Floating-Point Compare Instructions
-defm : VPatFPSetCCVL_VV_VF_FV<SETEQ,  "PseudoVMFEQ", "PseudoVMFEQ">;
-defm : VPatFPSetCCVL_VV_VF_FV<SETOEQ, "PseudoVMFEQ", "PseudoVMFEQ">;
-
-defm : VPatFPSetCCVL_VV_VF_FV<SETNE,  "PseudoVMFNE", "PseudoVMFNE">;
-defm : VPatFPSetCCVL_VV_VF_FV<SETUNE, "PseudoVMFNE", "PseudoVMFNE">;
-
-defm : VPatFPSetCCVL_VV_VF_FV<SETLT,  "PseudoVMFLT", "PseudoVMFGT">;
-defm : VPatFPSetCCVL_VV_VF_FV<SETOLT, "PseudoVMFLT", "PseudoVMFGT">;
-
-defm : VPatFPSetCCVL_VV_VF_FV<SETLE,  "PseudoVMFLE", "PseudoVMFGE">;
-defm : VPatFPSetCCVL_VV_VF_FV<SETOLE, "PseudoVMFLE", "PseudoVMFGE">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetcc_vl, SETEQ,
+                              "PseudoVMFEQ", "PseudoVMFEQ">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetcc_vl, SETOEQ,
+                              "PseudoVMFEQ", "PseudoVMFEQ">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetcc_vl, SETNE,
+                              "PseudoVMFNE", "PseudoVMFNE">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetcc_vl, SETUNE,
+                              "PseudoVMFNE", "PseudoVMFNE">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetccs_vl, SETLT,
+                              "PseudoVMFLT", "PseudoVMFGT">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetccs_vl, SETOLT,
+                              "PseudoVMFLT", "PseudoVMFGT">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetccs_vl, SETLE,
+                              "PseudoVMFLE", "PseudoVMFGE">;
+defm : VPatFPSetCCVL_VV_VF_FV<any_riscv_fsetccs_vl, SETOLE,
+                              "PseudoVMFLE", "PseudoVMFGE">;
 
 foreach vti = AllFloatVectors in {
   // 13.8. Vector Floating-Point Square-Root Instruction
@@ -2002,11 +2034,11 @@ foreach fvti = AllFloatVectors in {
   defm : VPatConvertFP2I_RM_VL_V<riscv_vfcvt_rm_xu_f_vl, "PseudoVFCVT_RM_XU_F_V">;
   defm : VPatConvertFP2I_RM_VL_V<riscv_vfcvt_rm_x_f_vl, "PseudoVFCVT_RM_X_F_V">;
 
-  defm : VPatConvertFP2IVL_V<riscv_vfcvt_rtz_xu_f_vl, "PseudoVFCVT_RTZ_XU_F_V">;
-  defm : VPatConvertFP2IVL_V<riscv_vfcvt_rtz_x_f_vl, "PseudoVFCVT_RTZ_X_F_V">;
+  defm : VPatConvertFP2IVL_V<any_riscv_vfcvt_rtz_xu_f_vl, "PseudoVFCVT_RTZ_XU_F_V">;
+  defm : VPatConvertFP2IVL_V<any_riscv_vfcvt_rtz_x_f_vl, "PseudoVFCVT_RTZ_X_F_V">;
 
-  defm : VPatConvertI2FPVL_V<riscv_uint_to_fp_vl, "PseudoVFCVT_F_XU_V">;
-  defm : VPatConvertI2FPVL_V<riscv_sint_to_fp_vl, "PseudoVFCVT_F_X_V">;
+  defm : VPatConvertI2FPVL_V<any_riscv_uint_to_fp_vl, "PseudoVFCVT_F_XU_V">;
+  defm : VPatConvertI2FPVL_V<any_riscv_sint_to_fp_vl, "PseudoVFCVT_F_X_V">;
 
   defm : VPatConvertI2FP_RM_VL_V<riscv_vfcvt_rm_f_xu_vl, "PseudoVFCVT_RM_F_XU_V">;
   defm : VPatConvertI2FP_RM_VL_V<riscv_vfcvt_rm_f_x_vl, "PseudoVFCVT_RM_F_X_V">;
@@ -2017,11 +2049,11 @@ foreach fvti = AllFloatVectors in {
   defm : VPatWConvertFP2I_RM_VL_V<riscv_vfcvt_rm_xu_f_vl, "PseudoVFWCVT_RM_XU_F_V">;
   defm : VPatWConvertFP2I_RM_VL_V<riscv_vfcvt_rm_x_f_vl, "PseudoVFWCVT_RM_X_F_V">;
 
-  defm : VPatWConvertFP2IVL_V<riscv_vfcvt_rtz_xu_f_vl, "PseudoVFWCVT_RTZ_XU_F_V">;
-  defm : VPatWConvertFP2IVL_V<riscv_vfcvt_rtz_x_f_vl, "PseudoVFWCVT_RTZ_X_F_V">;
+  defm : VPatWConvertFP2IVL_V<any_riscv_vfcvt_rtz_xu_f_vl, "PseudoVFWCVT_RTZ_XU_F_V">;
+  defm : VPatWConvertFP2IVL_V<any_riscv_vfcvt_rtz_x_f_vl, "PseudoVFWCVT_RTZ_X_F_V">;
 
-  defm : VPatWConvertI2FPVL_V<riscv_uint_to_fp_vl, "PseudoVFWCVT_F_XU_V">;
-  defm : VPatWConvertI2FPVL_V<riscv_sint_to_fp_vl, "PseudoVFWCVT_F_X_V">;
+  defm : VPatWConvertI2FPVL_V<any_riscv_uint_to_fp_vl, "PseudoVFWCVT_F_XU_V">;
+  defm : VPatWConvertI2FPVL_V<any_riscv_sint_to_fp_vl, "PseudoVFWCVT_F_X_V">;
 
   defm : VPatWConvertI2FP_RM_VL_V<riscv_vfcvt_rm_f_xu_vl, "PseudoVFWCVT_RM_F_XU_V">;
   defm : VPatWConvertI2FP_RM_VL_V<riscv_vfcvt_rm_f_x_vl, "PseudoVFWCVT_RM_F_X_V">;
@@ -2044,11 +2076,11 @@ foreach fvti = AllFloatVectors in {
   defm : VPatNConvertFP2I_RM_VL_W<riscv_vfcvt_rm_xu_f_vl, "PseudoVFNCVT_RM_XU_F_W">;
   defm : VPatNConvertFP2I_RM_VL_W<riscv_vfcvt_rm_x_f_vl, "PseudoVFNCVT_RM_X_F_W">;
 
-  defm : VPatNConvertFP2IVL_W<riscv_vfcvt_rtz_xu_f_vl, "PseudoVFNCVT_RTZ_XU_F_W">;
-  defm : VPatNConvertFP2IVL_W<riscv_vfcvt_rtz_x_f_vl, "PseudoVFNCVT_RTZ_X_F_W">;
+  defm : VPatNConvertFP2IVL_W<any_riscv_vfcvt_rtz_xu_f_vl, "PseudoVFNCVT_RTZ_XU_F_W">;
+  defm : VPatNConvertFP2IVL_W<any_riscv_vfcvt_rtz_x_f_vl, "PseudoVFNCVT_RTZ_X_F_W">;
 
-  defm : VPatNConvertI2FPVL_W<riscv_uint_to_fp_vl, "PseudoVFNCVT_F_XU_W">;
-  defm : VPatNConvertI2FPVL_W<riscv_sint_to_fp_vl, "PseudoVFNCVT_F_X_W">;
+  defm : VPatNConvertI2FPVL_W<any_riscv_uint_to_fp_vl, "PseudoVFNCVT_F_XU_W">;
+  defm : VPatNConvertI2FPVL_W<any_riscv_sint_to_fp_vl, "PseudoVFNCVT_F_X_W">;
 
   defm : VPatNConvertI2FP_RM_VL_W<riscv_vfcvt_rm_f_xu_vl, "PseudoVFNCVT_RM_F_XU_W">;
   defm : VPatNConvertI2FP_RM_VL_W<riscv_vfcvt_rm_f_x_vl, "PseudoVFNCVT_RM_F_X_W">;

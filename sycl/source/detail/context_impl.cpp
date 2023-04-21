@@ -423,7 +423,7 @@ std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
   }
   if (!BuildRes)
     return std::nullopt;
-  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+  return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
 } // namespace detail

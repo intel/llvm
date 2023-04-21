@@ -44,7 +44,7 @@
           cgh.single_task([=]() {                                              \
             sycl::multi_ptr<sycl::marray<PTR_TYPE, DIM>,                       \
                             sycl::access::address_space::global_space,         \
-                            sycl::access::decorated::yes>                      \
+                            sycl::access::decorated::no>                       \
                 ptr(res_ptr_access);                                           \
             sycl::marray<MARRAY_ELEM_TYPE, DIM> res = FUNC(__VA_ARGS__, ptr);  \
             for (int i = 0; i < DIM; i++)                                      \

@@ -796,8 +796,7 @@ bool X86AsmBackend::padInstructionViaPrefix(MCRelaxableFragment &RF,
   const unsigned MaxPossiblePad = std::min(15 - OldSize, RemainingSize);
   const unsigned RemainingPrefixSize = [&]() -> unsigned {
     SmallString<15> Code;
-    raw_svector_ostream VecOS(Code);
-    Emitter.emitPrefix(RF.getInst(), VecOS, STI);
+    Emitter.emitPrefix(RF.getInst(), Code, STI);
     assert(Code.size() < 15 && "The number of prefixes must be less than 15.");
 
     // TODO: It turns out we need a decent amount of plumbing for the target
@@ -844,8 +843,7 @@ bool X86AsmBackend::padInstructionViaRelaxation(MCRelaxableFragment &RF,
 
   SmallVector<MCFixup, 4> Fixups;
   SmallString<15> Code;
-  raw_svector_ostream VecOS(Code);
-  Emitter.encodeInstruction(Relaxed, VecOS, Fixups, *RF.getSubtargetInfo());
+  Emitter.encodeInstruction(Relaxed, Code, Fixups, *RF.getSubtargetInfo());
   const unsigned OldSize = RF.getContents().size();
   const unsigned NewSize = Code.size();
   assert(NewSize >= OldSize && "size decrease during relaxation?");

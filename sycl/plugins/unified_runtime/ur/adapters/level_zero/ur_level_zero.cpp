@@ -16,8 +16,6 @@
 // Define the static class field
 std::mutex ZeCall::GlobalLock;
 
-ZeUSMImportExtension ZeUSMImport;
-
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -25,12 +23,6 @@ ZeUSMImportExtension ZeUSMImport;
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return ze2urResult(Result);                                              \
   }
-
-static const bool ExposeCSliceInAffinityPartitioning = [] {
-  const char *Flag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  return Flag ? std::atoi(Flag) != 0 : false;
-}();
 
 ur_result_t _ur_platform_handle_t::initialize() {
   // Cache driver properties
@@ -247,6 +239,8 @@ ur_result_t urPlatformGetInfo(
     // information>. Follow the same notation here.
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  case UR_PLATFORM_INFO_BACKEND:
+    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
   default:
     urPrint("piPlatformGetInfo: unrecognized ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -282,7 +276,7 @@ ur_result_t urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<pi_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
@@ -662,25 +656,26 @@ ur_result_t urDeviceGetInfo(
     ze_device_fp_flags_t ZeSingleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp32flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      SingleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{SingleFPValue});
   }
@@ -689,25 +684,25 @@ ur_result_t urDeviceGetInfo(
     ze_device_fp_flags_t ZeHalfFPCapabilities =
         Device->ZeDeviceModuleProperties->fp16flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{HalfFPValue});
   }
@@ -716,25 +711,26 @@ ur_result_t urDeviceGetInfo(
     ze_device_fp_flags_t ZeDoubleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp64flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      DoubleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{DoubleFPValue});
   }
@@ -1291,7 +1287,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
-  std::shared_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
@@ -1306,7 +1302,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
 // Check the device cache and load it if necessary.
 ur_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
-  std::scoped_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::scoped_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return UR_RESULT_SUCCESS;
