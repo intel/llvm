@@ -1,4 +1,4 @@
-//===- FunctionSpecialization.cpp - Specialize functions ------------------===//
+//===- KernelDisjointSpecialization.cpp - Specialize kernel body functions ===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,11 +23,11 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/Support/Debug.h"
 
-#define DEBUG_TYPE "function-specialization"
+#define DEBUG_TYPE "kernel-disjoint-specialization"
 
 namespace mlir {
 namespace polygeist {
-#define GEN_PASS_DEF_FUNCTIONSPECIALIZATION
+#define GEN_PASS_DEF_KERNELDISJOINTSPECIALIZATION
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
 } // namespace polygeist
 } // namespace mlir
@@ -36,8 +36,8 @@ using namespace mlir;
 using AccessorPtrType = VersionConditionBuilder::AccessorPtrType;
 using AccessorPtrPairType = VersionConditionBuilder::AccessorPtrPairType;
 
-static llvm::cl::opt<unsigned> functionSpecializationAccessorLimit(
-    "function-specialization-accessor-limit", llvm::cl::init(5),
+static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
+    DEBUG_TYPE "-accessor-limit", llvm::cl::init(5),
     llvm::cl::desc(
         "Maximum number of accessors allowed for function specialization"));
 
@@ -141,12 +141,12 @@ namespace {
 //     else
 //       func.call @callee(%acc1, %acc2)
 //   }
-class FunctionSpecializationPass
-    : public polygeist::impl::FunctionSpecializationBase<
-          FunctionSpecializationPass> {
+class KernelDisjointSpecializationPass
+    : public polygeist::impl::KernelDisjointSpecializationBase<
+          KernelDisjointSpecializationPass> {
 public:
-  using FunctionSpecializationBase<
-      FunctionSpecializationPass>::FunctionSpecializationBase;
+  using KernelDisjointSpecializationBase<
+      KernelDisjointSpecializationPass>::KernelDisjointSpecializationBase;
 
   void runOnOperation() override;
 
@@ -170,10 +170,10 @@ private:
 } // namespace
 
 //===----------------------------------------------------------------------===//
-// FunctionSpecializationPass
+// KernelDisjointSpecializationPass
 //===----------------------------------------------------------------------===//
 
-void FunctionSpecializationPass::runOnOperation() {
+void KernelDisjointSpecializationPass::runOnOperation() {
   SmallVector<FunctionOpInterface> candidates;
   getOperation()->walk([&](FunctionOpInterface func) {
     LLVM_DEBUG(llvm::dbgs()
@@ -204,7 +204,7 @@ void FunctionSpecializationPass::runOnOperation() {
   }
 }
 
-bool FunctionSpecializationPass::isCandidateFunction(
+bool KernelDisjointSpecializationPass::isCandidateFunction(
     FunctionOpInterface func) const {
   if (!isPotentialKernelBodyFunc(func)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
@@ -225,7 +225,7 @@ bool FunctionSpecializationPass::isCandidateFunction(
                << "not a candidate: not enough candidate accessors\n");
     return false;
   }
-  if (numCandidateArgs > functionSpecializationAccessorLimit) {
+  if (numCandidateArgs > KernelDisjointSpecializationAccessorLimit) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: exceed accessor limit\n");
     return false;
@@ -236,7 +236,7 @@ bool FunctionSpecializationPass::isCandidateFunction(
   return true;
 }
 
-bool FunctionSpecializationPass::isCandidateAccessorPair(
+bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
     AccessorPtrType acc1, AccessorPtrType acc2) const {
   assert(acc1 != acc2 && "Expecting the input accessors to be different");
 
@@ -250,7 +250,7 @@ bool FunctionSpecializationPass::isCandidateAccessorPair(
   return true;
 }
 
-void FunctionSpecializationPass::collectMayOverlapAccessorPairs(
+void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
     CallOpInterface call,
     SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const {
   SmallVector<AccessorPtrType> candArgs;
@@ -261,7 +261,7 @@ void FunctionSpecializationPass::collectMayOverlapAccessorPairs(
         accessorPairs.push_back({*i, *j});
 }
 
-void FunctionSpecializationPass::versionCall(CallOpInterface call) const {
+void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
   SmallVector<AccessorPtrPairType> accessorPairs;
   collectMayOverlapAccessorPairs(call, accessorPairs);
   if (accessorPairs.empty())
@@ -273,10 +273,11 @@ void FunctionSpecializationPass::versionCall(CallOpInterface call) const {
   VersionBuilder(call).version(*condition);
 }
 
-std::unique_ptr<Pass> mlir::polygeist::createFunctionSpecializationPass() {
-  return std::make_unique<FunctionSpecializationPass>();
+std::unique_ptr<Pass>
+mlir::polygeist::createKernelDisjointSpecializationPass() {
+  return std::make_unique<KernelDisjointSpecializationPass>();
 }
-std::unique_ptr<Pass> mlir::polygeist::createFunctionSpecializationPass(
-    const FunctionSpecializationOptions &options) {
-  return std::make_unique<FunctionSpecializationPass>(options);
+std::unique_ptr<Pass> mlir::polygeist::createKernelDisjointSpecializationPass(
+    const KernelDisjointSpecializationOptions &options) {
+  return std::make_unique<KernelDisjointSpecializationPass>(options);
 }

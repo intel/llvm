@@ -33,25 +33,25 @@ void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
 
 std::unique_ptr<Pass> createArgumentPromotionPass();
-std::unique_ptr<Pass> createFunctionSpecializationPass();
-std::unique_ptr<Pass>
-createFunctionSpecializationPass(const FunctionSpecializationOptions &options);
-std::unique_ptr<Pass> createMem2RegPass();
-std::unique_ptr<Pass> createLICMPass();
-std::unique_ptr<Pass> createLICMPass(const LICMOptions &options);
-std::unique_ptr<Pass> createLoopRestructurePass();
-std::unique_ptr<Pass> createInnerSerializationPass();
-std::unique_ptr<Pass> replaceAffineCFGPass();
-std::unique_ptr<Pass> createOpenMPOptPass();
-std::unique_ptr<Pass> createCanonicalizeForPass();
-std::unique_ptr<Pass> createRaiseSCFToAffinePass();
+std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> createCPUifyPass();
 std::unique_ptr<Pass> createCPUifyPass(const SCFCPUifyOptions &options);
-std::unique_ptr<Pass> createBarrierRemovalContinuation();
-std::unique_ptr<Pass> detectReductionPass();
-std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createCanonicalizeForPass();
+std::unique_ptr<Pass> createInnerSerializationPass();
+std::unique_ptr<Pass> createKernelDisjointSpecializationPass();
+std::unique_ptr<Pass> createKernelDisjointSpecializationPass(
+    const KernelDisjointSpecializationOptions &options);
+std::unique_ptr<Pass> createLICMPass();
+std::unique_ptr<Pass> createLICMPass(const LICMOptions &options);
 std::unique_ptr<Pass> createLegalizeForSPIRVPass();
+std::unique_ptr<Pass> createLoopRestructurePass();
+std::unique_ptr<Pass> createMem2RegPass();
+std::unique_ptr<Pass> createOpenMPOptPass();
+std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createRaiseSCFToAffinePass();
+std::unique_ptr<Pass> createRemoveTrivialUsePass();
+std::unique_ptr<Pass> detectReductionPass();
+std::unique_ptr<Pass> replaceAffineCFGPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

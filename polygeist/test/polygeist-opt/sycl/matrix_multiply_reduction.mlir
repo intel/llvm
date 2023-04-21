@@ -1,4 +1,4 @@
-// RUN: polygeist-opt -arg-promotion -function-specialization -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
+// RUN: polygeist-opt -arg-promotion -kernel-disjoint-specialization -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
 
 // CHECK-LABEL: func.func private @matrix_multiply_reduction
 // CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_gb, 4> {llvm.noalias, sycl.inner.disjoint},

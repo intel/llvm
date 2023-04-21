@@ -50,15 +50,15 @@ def DetectReduction : Pass<"detect-reduction"> {
   ];
 }
 
-def FunctionSpecialization : Pass<"function-specialization", "mlir::ModuleOp"> {
-  let summary = "Specialize functions";
+def KernelDisjointSpecialization : Pass<"kernel-disjoint-specialization", "mlir::ModuleOp"> {
+  let summary = "Specialize SYCL kernel body functions";
   let description = [{
     Version the callsite from SYCL kernel to the SYCL kernel body function,
     where the specialized version ensures SYCL accessors do not overlap.
   }];
   let dependentDialects = 
       ["polygeist::PolygeistDialect", "scf::SCFDialect", "sycl::SYCLDialect"];
-  let constructor = "mlir::polygeist::createFunctionSpecializationPass()";
+  let constructor = "mlir::polygeist::createKernelDisjointSpecializationPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
            /*default=*/"false", 
