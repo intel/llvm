@@ -181,6 +181,8 @@ unavailable.
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **dump_ir**: - compiler can / cannot dump IR;
+ * **llvm-spirv** - llvm-spirv tool availability;
+ * **llvm-link** - llvm-link tool availability;
 
 ## llvm-lit parameters
 

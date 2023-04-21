@@ -65,6 +65,9 @@
 ! HELP-NEXT: -mmlir <value>         Additional arguments to forward to MLIR's option processing
 ! HELP-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! HELP-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
+! HELP-NEXT: --offload-device-only   Only compile for the offloading device.
+! HELP-NEXT: --offload-host-device   Only compile for the offloading host.
+! HELP-NEXT: --offload-host-only     Only compile for the offloading host.
 ! HELP-NEXT: -o <file>              Write output to <file>
 ! HELP-NEXT: -pedantic              Warn on language extensions
 ! HELP-NEXT: -print-effective-triple Print the effective target triple
@@ -145,6 +148,7 @@
 ! HELP-FC1-NEXT: -fno-stack-arrays      Allocate array temporaries on the heap (default)
 ! HELP-FC1-NEXT: -fopenacc              Enable OpenACC
 ! HELP-FC1-NEXT: -fopenmp-is-device     Generate code only for an OpenMP target device.
+! HELP-FC1-NEXT: -fopenmp-target-debug  Enable debugging in the OpenMP offloading device RTL
 ! HELP-FC1-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! HELP-FC1-NEXT: -fpass-plugin=<dsopath> Load pass plugin from a dynamic shared object file (only with new pass manager).
 ! HELP-FC1-NEXT: -freciprocal-math      Allow division operations to be reassociated
