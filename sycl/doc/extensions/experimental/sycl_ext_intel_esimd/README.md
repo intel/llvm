@@ -116,7 +116,7 @@ Currently, compilation of programs with invoke_simd() calls requires few additio
 # and callee in same module.
 clang++ -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr
 # run the program
-env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1
+IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 invoke_simd
 ```
 
 ### ESIMD_EMULATOR backend
