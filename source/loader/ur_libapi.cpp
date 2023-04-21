@@ -2778,11 +2778,17 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hNativeKernel`
 ///         + `NULL == hContext`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pProperties`
 ///         + `NULL == phKernel`
 ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program associated with the kernel
+    const ur_kernel_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
@@ -2792,7 +2798,8 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
+    return pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
+                                     pProperties, phKernel);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -240,6 +240,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
     UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_properties_t
     UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3610,6 +3611,18 @@ urKernelGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urKernelCreateWithNativeHandle.
+typedef struct ur_kernel_native_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an interoperability
+                               ///< operation in the application that asked to not transfer the ownership to
+                               ///< the unified-runtime.
+
+} ur_kernel_native_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime kernel object from native kernel handle.
 ///
 /// @details
@@ -3625,13 +3638,17 @@ urKernelGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hNativeKernel`
 ///         + `NULL == hContext`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pProperties`
 ///         + `NULL == phKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t hContext,     ///< [in] handle of the context object
-    ur_kernel_handle_t *phKernel      ///< [out] pointer to the handle of the kernel object created.
+    ur_native_handle_t hNativeKernel,                 ///< [in] the native handle of the kernel.
+    ur_context_handle_t hContext,                     ///< [in] handle of the context object
+    ur_program_handle_t hProgram,                     ///< [in] handle of the program associated with the kernel
+    const ur_kernel_native_properties_t *pProperties, ///< [in] pointer to properties struct
+    ur_kernel_handle_t *phKernel                      ///< [out] pointer to the handle of the kernel object created.
 );
 
 #if !defined(__GNUC__)
@@ -5920,6 +5937,8 @@ typedef struct ur_kernel_get_native_handle_params_t {
 typedef struct ur_kernel_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeKernel;
     ur_context_handle_t *phContext;
+    ur_program_handle_t *phProgram;
+    const ur_kernel_native_properties_t **ppProperties;
     ur_kernel_handle_t **pphKernel;
 } ur_kernel_create_with_native_handle_params_t;
 

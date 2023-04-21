@@ -408,6 +408,19 @@ params:
       desc: |
             [out] a pointer to the native handle of the kernel.
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelCreateWithNativeHandle."
+class: $xKernel
+name: $x_kernel_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] Indicates UR owns the native handle or if it came from an interoperability
+            operation in the application that asked to not transfer the ownership to
+            the unified-runtime.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime kernel object from native kernel handle."
 class: $xKernel
@@ -426,6 +439,12 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program associated with the kernel"
+    - type: "const $x_kernel_native_properties_t*"
+      name: pProperties
+      desc: "[in] pointer to properties struct"
     - type: "$x_kernel_handle_t*"
       name: phKernel
       desc: |

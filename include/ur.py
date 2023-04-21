@@ -216,6 +216,7 @@ class ur_structure_type_v(IntEnum):
     QUEUE_PROPERTIES = 14                           ## ::ur_queue_properties_t
     QUEUE_INDEX_PROPERTIES = 15                     ## ::ur_queue_properties_t
     CONTEXT_NATIVE_PROPERTIES = 16                  ## ::ur_context_native_properties_t
+    KERNEL_NATIVE_PROPERTIES = 17                   ## ::ur_kernel_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1327,6 +1328,18 @@ class ur_kernel_exec_info_t(c_int):
 
 
 ###############################################################################
+## @brief Properties for for ::urKernelCreateWithNativeHandle.
+class ur_kernel_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an interoperability
+                                                                        ## operation in the application that asked to not transfer the ownership to
+                                                                        ## the unified-runtime.
+    ]
+
+###############################################################################
 ## @brief Query queue info
 class ur_queue_info_v(IntEnum):
     CONTEXT = 0                                     ## [::ur_queue_handle_t] context associated with this queue.
@@ -1987,9 +2000,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelCreateWithNativeHandle
 if __use_win_types:
-    _urKernelCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_kernel_handle_t) )
+    _urKernelCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, ur_program_handle_t, POINTER(ur_kernel_native_properties_t), POINTER(ur_kernel_handle_t) )
 else:
-    _urKernelCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_kernel_handle_t) )
+    _urKernelCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, ur_program_handle_t, POINTER(ur_kernel_native_properties_t), POINTER(ur_kernel_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgValue
