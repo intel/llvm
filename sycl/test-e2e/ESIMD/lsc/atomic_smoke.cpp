@@ -328,7 +328,10 @@ bool test(queue q, const Config &cfg) {
   range<1> glob_rng(n_threads);
   range<1> loc_rng(cfg.threads_per_group);
   nd_range<1> rng(glob_rng, loc_rng);
-
+  auto mask = cfg.masked_lane;
+  auto repeat = cfg.repeat;
+  auto start = cfg.start_ind;
+  auto stride = cfg.stride;
   try {
     buffer<T, 1> buf(arr, range<1>(size));
     auto e = q.submit([&](handler &cgh) {
@@ -337,14 +340,13 @@ bool test(queue q, const Config &cfg) {
           rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
             int i = ii;
 #ifndef USE_SCALAR_OFFSET
-            simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
-                                     cfg.stride * sizeof(T));
+            simd<Toffset, N> offsets(start * sizeof(T), stride * sizeof(T));
 #else
             Toffset offsets = 0;
 #endif
             simd_mask<N> m = 1;
-            if (cfg.masked_lane < N)
-              m[cfg.masked_lane] = 0;
+            if (mask < N)
+              m[mask] = 0;
           // barrier to achieve better contention:
 #if USE_FULL_BARRIER
             // Full global barrier, works only with LSC atomics
@@ -359,7 +361,7 @@ bool test(queue q, const Config &cfg) {
 #endif // USE_FULL_BARRIER
 
             // the atomic operation itself applied in a loop:
-            for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
+            for (int cnt = 0; cnt < repeat; ++cnt) {
               if constexpr (n_args == 0) {
                 atomic_update<op, T, N>(accessor, offsets, m);
               } else if constexpr (n_args == 1) {
