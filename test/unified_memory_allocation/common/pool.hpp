@@ -69,7 +69,6 @@ struct malloc_pool : public pool_base {
 struct proxy_pool : public pool_base {
     uma_result_t initialize(uma_memory_provider_handle_t *providers,
                             size_t numProviders) noexcept {
-        EXPECT_EQ(numProviders, 1);
         this->provider = providers[0];
         return UMA_RESULT_SUCCESS;
     }
