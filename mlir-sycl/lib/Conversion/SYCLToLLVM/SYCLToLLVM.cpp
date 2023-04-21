@@ -2329,8 +2329,10 @@ void mlir::populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
   typeConverter.addTypeAttributeConversion(
       [](BaseMemRefType, AccessAddrSpaceAttr addrSpace)
           -> TypeConverter::AttributeConversionResult {
-        return IntegerAttr::get(IntegerType::get(addrSpace.getContext(), 64),
-                                static_cast<int64_t>(addrSpace.getValue()));
+        return IntegerAttr::get(
+            IntegerType::get(addrSpace.getContext(), 64),
+            // SPIR-V mapping. Will need to change for other targets.
+            static_cast<int64_t>(addrSpace.getValue()));
       });
 
   // Same order as in SYCLOps.td
