@@ -10,6 +10,7 @@
 
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/backend.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -41,11 +42,19 @@ public:
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
-      : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
+      : platform_impl(APlatform, std::make_shared<plugin>(APlugin)) {}
 
   explicit platform_impl(RT::PiPlatform APlatform,
                          std::shared_ptr<plugin> APlugin)
-      : MPlatform(APlatform), MPlugin(APlugin) {}
+      : MPlatform(APlatform), MPlugin(APlugin) {
+
+    // Find out backend of the platform
+    RT::PiPlatformBackend PiBackend;
+    APlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
+        APlatform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(RT::PiPlatformBackend),
+        &PiBackend, nullptr);
+    MBackend = convertBackend(PiBackend);
+  }
 
   ~platform_impl() = default;
 
@@ -130,9 +139,13 @@ public:
   /// Sets the platform implementation to use another plugin.
   ///
   /// \param PluginPtr is a pointer to a plugin instance
-  void setPlugin(std::shared_ptr<plugin> PluginPtr) {
+  /// \param Backend is the backend that we want this platform to use
+  void setPlugin(std::shared_ptr<plugin> PluginPtr, backend Backend) {
     assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = std::move(PluginPtr);
+    // Make sure that the given plugin supports wanted backend
+    assert(MPlugin->hasBackend(Backend) && "Plugin does not serve backend");
+    MBackend = Backend;
   }
 
   /// Gets the native handle of the SYCL platform.

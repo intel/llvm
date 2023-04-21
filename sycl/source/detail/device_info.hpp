@@ -160,17 +160,17 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 
 // Helper function to allow using the specialization of get_device_info_impl
 // for string return type in other specializations.
-inline std::string get_device_info_string(const DeviceImplPtr &Dev,
-                                          RT::PiDeviceInfo InfoCode) {
+inline std::string
+device_impl::get_device_info_string(RT::PiDeviceInfo InfoCode) const {
   size_t resultSize = 0;
-  Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(), InfoCode, 0, nullptr, &resultSize);
+  getPlugin().call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
+                                               nullptr, &resultSize);
   if (resultSize == 0) {
     return std::string();
   }
   std::unique_ptr<char[]> result(new char[resultSize]);
-  Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
+  getPlugin().call<PiApiKind::piDeviceGetInfo>(
+      getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
 
   return std::string(result.get());
 }
@@ -178,7 +178,7 @@ inline std::string get_device_info_string(const DeviceImplPtr &Dev,
 // Specialization for string return type, variable return size
 template <typename Param> struct get_device_info_impl<std::string, Param> {
   static std::string get(const DeviceImplPtr &Dev) {
-    return get_device_info_string(Dev, PiInfoCode<Param>::value);
+    return Dev->get_device_info_string(PiInfoCode<Param>::value);
   }
 };
 
@@ -209,8 +209,8 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
 // Specialization for device version
 template <> struct get_device_info_impl<std::string, info::device::version> {
   static std::string get(const DeviceImplPtr &Dev) {
-    return get_device_info_string(Dev,
-                                  PiInfoCode<info::device::version>::value);
+    return Dev->get_device_info_string(
+        PiInfoCode<info::device::version>::value);
   }
 };
 
@@ -346,8 +346,8 @@ template <>
 struct get_device_info_impl<std::vector<kernel_id>,
                             info::device::built_in_kernel_ids> {
   static std::vector<kernel_id> get(const DeviceImplPtr &Dev) {
-    std::string result = get_device_info_string(
-        Dev, PiInfoCode<info::device::built_in_kernels>::value);
+    std::string result = Dev->get_device_info_string(
+        PiInfoCode<info::device::built_in_kernels>::value);
     auto names = split_string(result, ';');
 
     std::vector<kernel_id> ids;
@@ -364,8 +364,8 @@ template <>
 struct get_device_info_impl<std::vector<std::string>,
                             info::device::built_in_kernels> {
   static std::vector<std::string> get(const DeviceImplPtr &Dev) {
-    std::string result = get_device_info_string(
-        Dev, PiInfoCode<info::device::built_in_kernels>::value);
+    std::string result = Dev->get_device_info_string(
+        PiInfoCode<info::device::built_in_kernels>::value);
     return split_string(result, ';');
   }
 };

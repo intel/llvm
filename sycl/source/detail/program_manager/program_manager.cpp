@@ -1058,8 +1058,8 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
   std::string DevExtList =
-      get_device_info_string(Context->getPlatformImpl()->getDeviceImpl(Device),
-                             PiInfoCode<info::device::extensions>::value);
+      Context->getPlatformImpl()->getDeviceImpl(Device)->get_device_info_string(
+          PiInfoCode<info::device::extensions>::value);
   const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not

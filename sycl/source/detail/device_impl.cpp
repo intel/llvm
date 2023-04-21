@@ -143,8 +143,7 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
     // TODO: implement extension management for host device;
     return false;
   std::string AllExtensionNames =
-      get_device_info_string(MPlatform->getDeviceImpl(MDevice),
-                             PiInfoCode<info::device::extensions>::value);
+      get_device_info_string(PiInfoCode<info::device::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 

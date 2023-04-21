@@ -239,7 +239,12 @@ public:
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }
 
+  /// @brief  Get the platform impl serving this device
+  /// @return PlatformImplPtr
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+
+  /// Get device info string
+  std::string get_device_info_string(RT::PiDeviceInfo InfoCode) const;
 
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
