@@ -10,6 +10,7 @@
 
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
@@ -73,6 +74,18 @@ public:
 
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
+
+  /// Returns the backend of this platform.
+  backend getBackend(void) const { return MBackend; }
+
+  /// Get backend option.
+  void getBackendOption(const char *frontend_option,
+                        const char **backend_option) const {
+    const auto &Plugin = getPlugin();
+    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piPluginGetBackendOption>(
+        MPlatform, frontend_option, backend_option);
+    Plugin.checkPiResult(Err);
+  }
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
@@ -197,6 +210,8 @@ private:
 
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
+  backend MBackend;
+
   std::shared_ptr<plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
