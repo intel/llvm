@@ -41,7 +41,7 @@ __SYCL_EXPORT event make_event(const context &Context,
 
 // Construction of SYCL platform.
 template <typename T, typename std::enable_if_t<
-                          std::is_same<T, platform>::value> * = nullptr>
+                          std::is_same_v<T, platform>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop) {
@@ -50,7 +50,7 @@ T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
 
 // Construction of SYCL device.
 template <typename T,
-          typename std::enable_if_t<std::is_same<T, device>::value> * = nullptr>
+          typename std::enable_if_t<std::is_same_v<T, device>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
 T make(const platform &Platform,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -67,8 +67,8 @@ T make(const platform &Platform,
 ///        native context handle. Default is that SYCL RT does, so it destroys
 ///        the native handle when the created SYCL object goes out of life.
 ///
-template <typename T, typename std::enable_if<
-                          std::is_same<T, context>::value>::type * = nullptr>
+template <typename T, std::enable_if_t<
+                          std::is_same_v<T, context>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
 T make(const std::vector<device> &DeviceList,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -81,7 +81,7 @@ T make(const std::vector<device> &DeviceList,
 
 // Construction of SYCL queue.
 template <typename T,
-          typename std::enable_if_t<std::is_same<T, queue>::value> * = nullptr>
+          typename std::enable_if_t<std::is_same_v<T, queue>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -94,7 +94,7 @@ T make(const context &Context,
 
 // Construction of SYCL event.
 template <typename T,
-          typename std::enable_if_t<std::is_same<T, event>::value> * = nullptr>
+          typename std::enable_if_t<std::is_same_v<T, event>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -202,8 +202,8 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 // Specialization of sycl::make_buffer with event for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
@@ -217,8 +217,8 @@ make_buffer(
 // Specialization of sycl::make_buffer for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
@@ -232,8 +232,8 @@ make_buffer(
 // Specialization of sycl::make_image for Level-Zero backend.
 template <backend Backend, int Dimensions = 1,
           typename AllocatorT = image_allocator>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        image<Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                        image<Dimensions, AllocatorT>>
 make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
                &BackendObject,
            const context &TargetContext, event AvailableEvent) {

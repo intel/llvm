@@ -305,7 +305,7 @@ protected:
       AccessMode == access::mode::discard_read_write;
 
   constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
-  static constexpr bool IsConst = std::is_const<DataT>::value;
+  static constexpr bool IsConst = std::is_const_v<DataT>;
 
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
@@ -362,7 +362,7 @@ protected:
 };
 
 template <typename DataT> constexpr access::mode accessModeFromConstness() {
-  if constexpr (std::is_const<DataT>::value)
+  if constexpr (std::is_const_v<DataT>)
     return access::mode::read;
   else
     return access::mode::read_write;
@@ -373,49 +373,49 @@ constexpr access::mode deduceAccessMode() {
   // property_list = {} is not properly detected by deduction guide,
   // when parameter is passed without curly braces: access(buffer, no_init)
   // thus simplest approach is to check 2 last arguments for being a tag
-  if constexpr (std::is_same<MayBeTag1,
-                             mode_tag_t<access::mode::read>>::value ||
-                std::is_same<MayBeTag2,
-                             mode_tag_t<access::mode::read>>::value) {
+  if constexpr (std::is_same_v<MayBeTag1,
+                             mode_tag_t<access::mode::read>> ||
+                std::is_same_v<MayBeTag2,
+                             mode_tag_t<access::mode::read>>) {
     return access::mode::read;
   }
 
-  if constexpr (std::is_same<MayBeTag1,
-                             mode_tag_t<access::mode::write>>::value ||
-                std::is_same<MayBeTag2,
-                             mode_tag_t<access::mode::write>>::value) {
+  if constexpr (std::is_same_v<MayBeTag1,
+                             mode_tag_t<access::mode::write>> ||
+                std::is_same_v<MayBeTag2,
+                             mode_tag_t<access::mode::write>>) {
     return access::mode::write;
   }
 
   if constexpr (
-      std::is_same<MayBeTag1,
+      std::is_same_v<MayBeTag1,
                    mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value ||
-      std::is_same<MayBeTag2,
+                                     access::target::constant_buffer>> ||
+      std::is_same_v<MayBeTag2,
                    mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value) {
+                                     access::target::constant_buffer>>) {
     return access::mode::read;
   }
 
-  if constexpr (std::is_same<
+  if constexpr (std::is_same_v<
                     MayBeTag1,
                     mode_target_tag_t<access::mode::read,
-                                      access::target::host_task>>::value ||
-                std::is_same<
+                                      access::target::host_task>> ||
+                std::is_same_v<
                     MayBeTag2,
                     mode_target_tag_t<access::mode::read,
-                                      access::target::host_task>>::value) {
+                                      access::target::host_task>>) {
     return access::mode::read;
   }
 
-  if constexpr (std::is_same<
+  if constexpr (std::is_same_v<
                     MayBeTag1,
                     mode_target_tag_t<access::mode::write,
-                                      access::target::host_task>>::value ||
-                std::is_same<
+                                      access::target::host_task>> ||
+                std::is_same_v<
                     MayBeTag2,
                     mode_target_tag_t<access::mode::write,
-                                      access::target::host_task>>::value) {
+                                      access::target::host_task>>) {
     return access::mode::write;
   }
 
@@ -425,34 +425,34 @@ constexpr access::mode deduceAccessMode() {
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::target deduceAccessTarget(access::target defaultTarget) {
   if constexpr (
-      std::is_same<MayBeTag1,
+      std::is_same_v<MayBeTag1,
                    mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value ||
-      std::is_same<MayBeTag2,
+                                     access::target::constant_buffer>> ||
+      std::is_same_v<MayBeTag2,
                    mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value) {
+                                     access::target::constant_buffer>>) {
     return access::target::constant_buffer;
   }
 
   if constexpr (
-      std::is_same<MayBeTag1,
+      std::is_same_v<MayBeTag1,
                    mode_target_tag_t<access::mode::read,
-                                     access::target::host_task>>::value ||
-      std::is_same<MayBeTag2,
+                                     access::target::host_task>> ||
+      std::is_same_v<MayBeTag2,
                    mode_target_tag_t<access::mode::read,
-                                     access::target::host_task>>::value ||
-      std::is_same<MayBeTag1,
+                                     access::target::host_task>> ||
+      std::is_same_v<MayBeTag1,
                    mode_target_tag_t<access::mode::write,
-                                     access::target::host_task>>::value ||
-      std::is_same<MayBeTag2,
+                                     access::target::host_task>> ||
+      std::is_same_v<MayBeTag2,
                    mode_target_tag_t<access::mode::write,
-                                     access::target::host_task>>::value ||
-      std::is_same<MayBeTag1,
+                                     access::target::host_task>> ||
+      std::is_same_v<MayBeTag1,
                    mode_target_tag_t<access::mode::read_write,
-                                     access::target::host_task>>::value ||
-      std::is_same<MayBeTag2,
+                                     access::target::host_task>> ||
+      std::is_same_v<MayBeTag2,
                    mode_target_tag_t<access::mode::read_write,
-                                     access::target::host_task>>::value) {
+                                     access::target::host_task>>) {
     return access::target::host_task;
   }
 
@@ -653,10 +653,10 @@ private:
   constexpr static bool IsImageAccessAnyRead =
       (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
 
-  static_assert(std::is_same<DataT, vec<opencl::cl_int, 4>>::value ||
-                    std::is_same<DataT, vec<opencl::cl_uint, 4>>::value ||
-                    std::is_same<DataT, vec<opencl::cl_float, 4>>::value ||
-                    std::is_same<DataT, vec<opencl::cl_half, 4>>::value,
+  static_assert(std::is_same_v<DataT, vec<opencl::cl_int, 4>> ||
+                    std::is_same_v<DataT, vec<opencl::cl_uint, 4>> ||
+                    std::is_same_v<DataT, vec<opencl::cl_float, 4>> ||
+                    std::is_same_v<DataT, vec<opencl::cl_half, 4>>,
                 "The data type of an image accessor must be only cl_int4, "
                 "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
 
@@ -1098,7 +1098,7 @@ protected:
 
   template <typename T, int Dims>
   struct IsSameAsBuffer
-      : std::bool_constant<std::is_same<T, DataT>::value && (Dims > 0) &&
+      : std::bool_constant<std::is_same_v<T, DataT> && (Dims > 0) &&
                            (Dims == Dimensions)> {};
 
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
@@ -1260,8 +1260,8 @@ public:
   // 4.7.6.9.1. Interface for buffer command accessors
   // value_type is defined as const DataT for read_only accessors, DataT
   // otherwise
-  using value_type = typename std::conditional<AccessMode == access_mode::read,
-                                               const DataT, DataT>::type;
+  using value_type = std::conditional_t<AccessMode == access_mode::read,
+                                               const DataT, DataT>;
   using reference = value_type &;
   using const_reference = const DataT &;
 
@@ -1337,7 +1337,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename std::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && Dims == 0 &&
+                std::is_same_v<T, DataT> && Dims == 0 &&
                 (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))> * =
                 nullptr>
   accessor(
@@ -1370,7 +1370,7 @@ public:
             typename... PropTypes,
             typename std::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && Dims == 0 &&
+                std::is_same_v<T, DataT> && Dims == 0 &&
                 (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))> * =
                 nullptr>
   accessor(
@@ -1403,7 +1403,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = typename std::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && (Dims == 0) &&
+                std::is_same_v<T, DataT> && (Dims == 0) &&
                 (IsGlobalBuf || IsHostBuf || IsConstantBuf || IsHostTask)>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1435,7 +1435,7 @@ public:
             typename... PropTypes,
             typename = typename std::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && (Dims == 0) &&
+                std::is_same_v<T, DataT> && (Dims == 0) &&
                 (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -3066,7 +3066,7 @@ protected:
 
   template <typename T, int Dims>
   struct IsSameAsBuffer
-      : std::bool_constant<std::is_same<T, DataT>::value && (Dims > 0) &&
+      : std::bool_constant<std::is_same_v<T, DataT> && (Dims > 0) &&
                            (Dims == Dimensions)> {};
 
   void
@@ -3117,7 +3117,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = typename std::enable_if_t<
-                std::is_same<T, DataT>::value && Dims == 0>>
+                std::is_same_v<T, DataT> && Dims == 0>>
   host_accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},

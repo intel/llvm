@@ -31,8 +31,8 @@ template <typename...> struct is_one_of {
 template <typename Checked, typename First, typename... Other>
 struct is_one_of<Checked, First, Other...> {
   static constexpr bool value =
-      std::is_same<typename std::remove_const<Checked>::type,
-                   typename std::remove_const<First>::type>::value ||
+      std::is_same_v<std::remove_const_t<Checked>,
+                   std::remove_const_t<First>> ||
       is_one_of<Checked, Other...>::value;
 };
 template <typename Checked, typename... T>
