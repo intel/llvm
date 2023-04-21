@@ -1521,6 +1521,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     const clang::Type *PTT = PointeeType->getUnqualifiedDesugaredType();
 
     if (PTT->isVoidType()) {
+      if (UseOpaquePointers) {
+        // No need to determine the correct element type for void* in an opaque
+        // pointer world.
+        return LLVM::LLVMPointerType::get(
+            TheModule->getContext(), CGM.getContext().getTargetAddressSpace(
+                                         PointeeType.getAddressSpace()));
+      }
       llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
       return TypeTranslator.translateType(Ty);
     }

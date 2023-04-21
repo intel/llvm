@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
 
 struct A {
     int x;
@@ -17,15 +17,18 @@ int ptr(struct B* v) {
     return v->x;
 }
 
-// CHECK:   func @_Z3refR1B(%arg0: !llvm.ptr<struct<(struct<(i32, f64)>, ptr<i8>)>>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i32, f64)>, ptr<i8>)>>) -> !llvm.ptr<struct<(i32, f64)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(i32, f64)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %2 = llvm.load %1 : !llvm.ptr<i32>
-// CHECK-NEXT:     return %2 : i32
-// CHECK-NEXT:   }
-// CHECK:   func @_Z3ptrP1B(%arg0: !llvm.ptr<struct<(struct<(i32, f64)>, ptr<i8>)>>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i32, f64)>, ptr<i8>)>>) -> !llvm.ptr<struct<(i32, f64)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(i32, f64)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %2 = llvm.load %1 : !llvm.ptr<i32>
-// CHECK-NEXT:     return %2 : i32
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z3refR1B(
+// CHECK-SAME:                         %[[VAL_0:.*]]: !llvm.ptr) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(i32, f64)>, ptr)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, f64)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> i32
+// CHECK-NEXT:      return %[[VAL_3]] : i32
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_Z3ptrP1B(
+// CHECK-SAME:                         %[[VAL_0:.*]]: !llvm.ptr) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(i32, f64)>, ptr)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, f64)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> i32
+// CHECK-NEXT:      return %[[VAL_3]] : i32
+// CHECK-NEXT:    }

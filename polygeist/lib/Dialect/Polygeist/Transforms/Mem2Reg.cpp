@@ -1445,14 +1445,19 @@ bool Mem2Reg::forwardStoreToLoad(
       [&](Value orig, ValueOrPlaceholder *replacement) -> ValueOrPlaceholder * {
     assert(replacement);
     replacement->materialize(/*full*/ false);
-    assert(orig.getType() == elType);
+    // TODO(Lukas): The following assert has been deactivated, as elType will
+    // be 'null' for opaque pointers.
+    // assert(orig.getType() == elType);
     if (replacement->overwritten) {
       loadOps.erase(orig.getDefiningOp());
       return metaMap.get(orig);
-    } else if (replacement->val) {
+    }
+    if (replacement->val) {
       changed = true;
       assert(orig != replacement->val);
-      assert(replacement->val.getType() == elType);
+      // TODO(Lukas): The following assert has been deactivated, as elType will
+      // be 'null' for opaque pointers.
+      // assert(replacement->val.getType() == elType);
       assert(orig.getType() == replacement->val.getType() &&
              "mismatched load type");
       LLVM_DEBUG(llvm::dbgs() << " replaced " << orig << " with "

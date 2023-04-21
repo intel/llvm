@@ -64,7 +64,7 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
     return val;
   auto loc = builder.getUnknownLoc();
   if (isa<mlir::LLVM::LLVMPointerType>(val.getType())) {
-    return builder.create<mlir::LLVM::LoadOp>(loc, val);
+    return builder.create<mlir::LLVM::LoadOp>(loc, getElemTy(), val);
   }
   if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
     assert(mt.getShape().size() == 1 && "must have shape 1");

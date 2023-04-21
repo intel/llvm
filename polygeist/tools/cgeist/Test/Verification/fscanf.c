@@ -1,5 +1,7 @@
 // RUN: cgeist %s -O2 %stdinclude --function=alloc -S --raise-scf-to-affine=false | FileCheck %s
 
+// TODO(Lukas): Failure related to addressof?
+
 #include <stdio.h>
 #include <stdlib.h>
 

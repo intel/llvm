@@ -1215,8 +1215,6 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
   }
 
-  llvm::dbgs() << "Val: " << Val << ", " << Val.getType() << "\n";
-
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
     if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(ElementType)) {
       llvm::errs() << "Function: " << Function << "\n";
@@ -1257,7 +1255,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
         ElemTy = MT.getElementType();
       }
     }
-    
+
     return ValueCategory(CommonGep, /*isReference*/ true, ElemTy);
   }
 
@@ -1632,9 +1630,22 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
     Types.push_back(TypeTranslator.translateType(
         mlirclang::anonymize(mlirclang::getLLVMType(CC->getThisType(), CGM))));
 
-  for (auto *Parm : FD->parameters())
-    Types.push_back(TypeTranslator.translateType(mlirclang::anonymize(
-        mlirclang::getLLVMType(Parm->getOriginalType(), CGM))));
+  for (auto *Parm : FD->parameters()) {
+    if (UseOpaquePointers &&
+        isa<clang::PointerType>(
+            Parm->getOriginalType()->getUnqualifiedDesugaredType())) {
+      Types.push_back(LLVM::LLVMPointerType::get(
+          Module->getContext(),
+          CGM.getContext().getTargetAddressSpace(
+              cast<clang::PointerType>(
+                  Parm->getOriginalType()->getUnqualifiedDesugaredType())
+                  ->getPointeeType()
+                  .getAddressSpace())));
+    } else {
+      Types.push_back(TypeTranslator.translateType(mlirclang::anonymize(
+          mlirclang::getLLVMType(Parm->getOriginalType(), CGM))));
+    }
+  }
 
   auto RT = TypeTranslator.translateType(
       mlirclang::anonymize(mlirclang::getLLVMType(FD->getReturnType(), CGM)));
