@@ -2201,6 +2201,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program associated with the kernel
+    const ur_kernel_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
@@ -2212,13 +2216,13 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     }
 
     ur_kernel_create_with_native_handle_params_t params = {
-        &hNativeKernel, &hContext, &phKernel};
+        &hNativeKernel, &hContext, &hProgram, &pProperties, &phKernel};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
                              "urKernelCreateWithNativeHandle", &params);
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
+    ur_result_t result = pfnCreateWithNativeHandle(
+        hNativeKernel, hContext, hProgram, pProperties, phKernel);
 
     context.notify_end(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
                        "urKernelCreateWithNativeHandle", &params, &result,
