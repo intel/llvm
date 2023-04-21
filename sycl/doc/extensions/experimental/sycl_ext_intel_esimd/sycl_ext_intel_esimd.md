@@ -11,7 +11,7 @@ Explicit SIMD provides the following key features complementary to SYCL:
 - Manual vectorization of device code using the `simd` class mapped to Intel GPU's
   general register file. This allows to write efficient code not relying on
   further widening by the compiler, as with traditional SPMD programming.
-- Low-level APIs efficiently mapped to Intel GPU architecture, such as block loads/stores/gathers/scatters, explicit cache hints, GPU inline assembly, etc.
+- Low-level APIs efficiently mapped to the Intel GPU architecture, such as block loads/stores/gathers/scatters, explicit cache hints, GPU inline assembly, etc.
 
 Explicit SIMD though have some [restrictions](./README.md#restrictions) as well.
 
