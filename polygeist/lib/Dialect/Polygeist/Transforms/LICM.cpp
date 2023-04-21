@@ -41,8 +41,9 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using AccessorPtrType = VersionConditionBuilder::AccessorPtrType;
-using AccessorPtrPairType = VersionConditionBuilder::AccessorPtrPairType;
+using AccessorPtrType = polygeist::VersionConditionBuilder::AccessorPtrType;
+using AccessorPtrPairType =
+    polygeist::VersionConditionBuilder::AccessorPtrPairType;
 
 static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
     "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),
@@ -613,7 +614,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
-  LoopTools loopTools;
+  polygeist::LoopTools loopTools;
   loopTools.guardLoop(loop);
 
   size_t numOpsHoisted = 0;
@@ -623,8 +624,9 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
-      std::unique_ptr<VersionCondition> condition =
-          VersionConditionBuilder(accessorPairs, builder, loop->getLoc())
+      std::unique_ptr<polygeist::VersionCondition> condition =
+          polygeist::VersionConditionBuilder(accessorPairs, builder,
+                                             loop->getLoc())
               .createCondition();
       loopTools.versionLoop(loop, *condition);
     }

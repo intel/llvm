@@ -330,8 +330,8 @@ void Candidate::modifyCallee() {
   // There can be globals of the same name (with linkonce_odr linkage) in
   // another translation unit. As they have different arguments, we need to
   // change the linkage of the modified function to private.
-  if (isLinkonceODR(funcOp))
-    privatize(funcOp);
+  if (polygeist::isLinkonceODR(funcOp))
+    polygeist::privatize(funcOp);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
 }
@@ -558,7 +558,8 @@ bool ArgumentPromotionPass::isCandidateCallable(
   Operation *op = callableOp;
   auto funcOp = cast<FunctionOpInterface>(op);
   // The function must be defined, and private or with linkonce_odr linkage.
-  if (funcOp.isExternal() || (!funcOp.isPrivate() && !isLinkonceODR(funcOp))) {
+  if (funcOp.isExternal() ||
+      (!funcOp.isPrivate() && !polygeist::isLinkonceODR(funcOp))) {
     LLVM_DEBUG(
         llvm::dbgs().indent(2)
         << "not a candidate: not defined or private or linkonce_odr linkage\n");
@@ -575,7 +576,7 @@ bool ArgumentPromotionPass::isCandidateCallable(
   // in a function that is called directly by a GPU kernel.
   // TODO: Could generalize by checking that the call chain from the GPU kernel
   // are all candidates.
-  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(funcOp);
+  Optional<unsigned> maxDepth = polygeist::getMaxDepthFromAnyGPUKernel(funcOp);
   assert(maxDepth.has_value() &&
          "Expecting func to be called from a GPU kernel");
   assert(maxDepth.value() != 0 && "Expecting func is not itself a GPU kernel");

@@ -553,10 +553,9 @@ bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
   return false;
 }
 
-void mlir::fully2ComposeAffineMapAndOperands(PatternRewriter &builder,
-                                             AffineMap *map,
-                                             SmallVectorImpl<Value> *operands,
-                                             DominanceInfo &DI) {
+void mlir::polygeist::fully2ComposeAffineMapAndOperands(
+    PatternRewriter &builder, AffineMap *map, SmallVectorImpl<Value> *operands,
+    DominanceInfo &DI) {
   IRMapping indexMap;
   for (auto op : *operands) {
     SmallVector<IndexCastOp> attempt;
@@ -894,7 +893,7 @@ struct CanonicalizeAffineIf : public OpRewritePattern<AffineIfOp> {
 };
 */
 
-bool mlir::isValidIndex(Value val) {
+bool mlir::polygeist::isValidIndex(Value val) {
   if (isValidSymbolInt(val))
     return true;
 
