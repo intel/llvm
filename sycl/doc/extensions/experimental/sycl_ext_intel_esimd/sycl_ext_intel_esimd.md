@@ -101,7 +101,7 @@ inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
 - Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
   translation unit and in the same program.
-- Interoperability between regular SYCL and ESIMD kernels is supported one way only.
+- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
   Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.
 - Local accessors are not supported yet. Local memory is allocated and accessed
   via explicit device-side API.
