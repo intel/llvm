@@ -658,7 +658,7 @@ public:
 } // unnamed namespace
 
 static StringRef stringify(const itanium_demangle::NameType *Node) {
-  const itanium_demangle::StringView Str = Node->getName();
+  const std::string_view Str = Node->getName();
   return StringRef(Str.begin(), Str.size());
 }
 
