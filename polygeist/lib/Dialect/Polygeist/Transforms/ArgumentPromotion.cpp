@@ -53,28 +53,6 @@ using namespace mlir;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Returns true if the callable operation \p callableOp has linkonce_odr
-/// linkage, and false otherwise.
-static constexpr StringRef linkageAttrName = "llvm.linkage";
-static bool isLinkonceODR(CallableOpInterface callableOp) {
-  if (!callableOp->hasAttr(linkageAttrName))
-    return false;
-  auto attr = dyn_cast<LLVM::LinkageAttr>(callableOp->getAttr(linkageAttrName));
-  assert(attr && "Expecting LLVM::LinkageAttr");
-  return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
-}
-
-// Change the linkage of \p callableOp from linkonce_odr to internal.
-// There can be globals of the same name (with linkonce_odr linkage) in another
-// translation unit. As they have different arguments, we need to change the
-// linkage of the modified function to internal.
-static void privatize(CallableOpInterface callableOp) {
-  assert(isLinkonceODR(callableOp) && "Expecting linkonce_odr callableOp");
-  callableOp->setAttr(linkageAttrName,
-                      mlir::LLVM::LinkageAttr::get(callableOp->getContext(),
-                                                   LLVM::Linkage::Internal));
-}
-
 /// Returns true if \p type is 'memref<?xstruct<>>', and false otherwise.
 static bool isValidMemRefType(Type type) {
   auto mt = dyn_cast<MemRefType>(type);
@@ -347,8 +325,13 @@ void Candidate::modifyCallee() {
 
   funcOp.setType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
-  if (isLinkonceODR(callableOp))
-    privatize(callableOp);
+
+  // Change the linkage from linkonce_odr to internal.
+  // There can be globals of the same name (with linkonce_odr linkage) in
+  // another translation unit. As they have different arguments, we need to
+  // change the linkage of the modified function to internal.
+  if (isLinkonceODR(funcOp))
+    privatize(funcOp);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
 }

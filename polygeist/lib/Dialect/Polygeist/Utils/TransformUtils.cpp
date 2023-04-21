@@ -23,12 +23,19 @@ using namespace mlir;
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
+static constexpr StringRef linkageAttrName = "llvm.linkage";
 bool mlir::isLinkonceODR(FunctionOpInterface func) {
-  constexpr StringRef linkageAttrName = "llvm.linkage";
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
+}
+
+void mlir::privatize(FunctionOpInterface func) {
+  func->setAttr(
+      linkageAttrName,
+      LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
+  func.setPrivate();
 }
 
 bool mlir::isTailCall(CallOpInterface call) {

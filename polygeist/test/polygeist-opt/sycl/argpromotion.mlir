@@ -151,9 +151,9 @@ gpu.module @device_func {
   // COM: Test that the a call to a linkonce_odr function is modified.
   // COM: This function is a candidate, check that it is transformed correctly.
   func.func @callee6(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-    // CHECK-LABEL: func.func @callee6
+    // CHECK-LABEL: func.func private @callee6
     // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias})
-    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<internal>} {
+    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<private>} {
     func.return
   }
   gpu.func @test6() kernel {
