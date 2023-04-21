@@ -315,7 +315,8 @@ struct is_non_legacy_multi_ptr<
     multi_ptr<ElementType, Space, access::decorated::no>> : std::true_type {};
 
 template <class T>
-inline constexpr bool is_non_legacy_multi_ptr_v = is_multi_ptr<T>::value;
+inline constexpr bool is_non_legacy_multi_ptr_v =
+    is_non_legacy_multi_ptr<T>::value;
 
 // is_legacy_multi_ptr
 template <typename T> struct is_legacy_multi_ptr : std::false_type {};
@@ -326,7 +327,7 @@ struct is_legacy_multi_ptr<
 };
 
 template <class T>
-inline constexpr bool is_legacy_multi_ptr_v = is_multi_ptr<T>::value;
+inline constexpr bool is_legacy_multi_ptr_v = is_legacy_multi_ptr<T>::value;
 
 // remove_pointer_t
 template <typename T> struct remove_pointer_impl {
