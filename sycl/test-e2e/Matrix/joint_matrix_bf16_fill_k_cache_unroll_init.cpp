@@ -44,6 +44,6 @@ using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-static constexpr unsigned int SG_SZ = 16;
+#define SG_SZ 16
 
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

@@ -20,14 +20,14 @@ constexpr unsigned int recordThresh = 10;
 #define MATRIX_K MATRIX_SIZE
 
 #define tM 8
-#define tN 16
+#define tN SG_SZ
 #define tK 16
 
 #ifndef MCACHE1
 #define MCACHE1 32
 #endif
 #ifndef NCACHE1
-#define NCACHE1 64
+#define NCACHE1 (SG_SZ*4)
 #endif
 #ifndef KCACHE1
 #define KCACHE1 16
@@ -76,7 +76,7 @@ static constexpr void manually_unroll_loop(F &&f) {
 
 template <unsigned int rowsA, unsigned int colsA, unsigned int rowsB,
           unsigned int colsB, unsigned int vnniFactor, typename TOperand,
-          typename TResult, unsigned int sgSize = 16>
+          typename TResult, unsigned int sgSize = SG_SZ>
 double joint_matmul(TOperand *A, TOperand *A2, TOperand *B, TOperand *B2,
                     TResult *C, queue &q, int i) {
   range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * sgSize}; // X/128,Y/128
