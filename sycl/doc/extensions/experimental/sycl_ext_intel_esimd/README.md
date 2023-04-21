@@ -148,5 +148,5 @@ done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store
 #### Other restrictions:
 
 - Only Intel GPU device is supported.
-- Interoperability between regular SYCL and ESIMD kernels is supported one way only.
+- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
   Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.
