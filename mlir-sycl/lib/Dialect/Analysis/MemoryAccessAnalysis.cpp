@@ -164,7 +164,7 @@ MemoryAccessMatrix::getColumns(std::set<unsigned> columns) const {
   MemoryAccessMatrix subMatrix(nRows, columns.size());
   unsigned pos = 0;
   for (unsigned colNum : columns)
-    subMatrix.setColumn(pos++, getRow(colNum));
+    subMatrix.setColumn(pos++, getColumn(colNum));
   return subMatrix;
 }
 
