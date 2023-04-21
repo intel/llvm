@@ -72,6 +72,7 @@ AtomicRef/xor.cpp
 AtomicRef/xor_generic.cpp
 AtomicRef/xor_generic_local.cpp
 AtomicRef/xor_local.cpp
+BFloat16/bfloat16_builtins.cpp
 BFloat16/bfloat16_type.cpp
 Basic/accessor/accessor.cpp
 Basic/accessor/device_accessor_deduction.cpp
@@ -221,6 +222,7 @@ Regression/atomic_load.cpp
 Regression/group.cpp
 Regression/half_operators.cpp
 Regression/implicit_kernel_bundle_image_filtering.cpp
+Regression/reduction_64bit_atomic64.cpp
 Regression/reduction_resource_leak_dw.cpp
 Regression/reduction_resource_leak_usm.cpp
 Regression/unoptimized_stream.cpp

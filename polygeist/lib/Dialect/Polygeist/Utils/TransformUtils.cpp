@@ -8,14 +8,121 @@
 
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <optional>
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
+
+static constexpr StringLiteral linkageAttrName = "llvm.linkage";
+bool mlir::polygeist::isLinkonceODR(FunctionOpInterface func) {
+  if (!func->hasAttr(linkageAttrName))
+    return false;
+  auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
+  return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
+}
+
+void mlir::polygeist::privatize(FunctionOpInterface func) {
+  func->setAttr(
+      linkageAttrName,
+      LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
+  func.setPrivate();
+}
+
+bool mlir::polygeist::isTailCall(CallOpInterface call) {
+  if (!call->getBlock()->hasNoSuccessors())
+    return false;
+  Operation *nextOp = call->getNextNode();
+  return (nextOp->hasTrait<OpTrait::IsTerminator>() ||
+          isRegionReturnLike(nextOp));
+}
+
+/// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
+/// func and its callers.
+static void getMaxDepthFromAnyGPUKernel(
+    FunctionOpInterface func,
+    DenseMap<FunctionOpInterface, Optional<unsigned>> &funcMaxDepthMap) {
+  assert(!funcMaxDepthMap.contains(func) &&
+         "Expecting maximum depth of func is not already calculated");
+
+  // A function that does not reside in a GPU module cannot be called from a GPU
+  // kernel.
+  if (!func->getParentOfType<gpu::GPUModuleOp>()) {
+    funcMaxDepthMap[func] = std::nullopt;
+    return;
+  }
+
+  Operation *op = func;
+  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
+    if (gpuFunc.isKernel()) {
+      funcMaxDepthMap[func] = 0;
+      return;
+    }
+
+  ModuleOp module = func->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+  Optional<unsigned> maxDepth = std::nullopt;
+  for (Operation *call : userMap.getUsers(func)) {
+    auto caller = call->getParentOfType<FunctionOpInterface>();
+    if (!funcMaxDepthMap.contains(caller))
+      getMaxDepthFromAnyGPUKernel(caller, funcMaxDepthMap);
+    Optional<unsigned> callerDepth = funcMaxDepthMap[caller];
+
+    // Caller not called from a GPU kernel.
+    if (!callerDepth.has_value())
+      continue;
+
+    unsigned depth = 1 + callerDepth.value();
+    if (!maxDepth.has_value())
+      maxDepth = depth;
+    else if (depth > maxDepth.value())
+      maxDepth = depth;
+  }
+  funcMaxDepthMap[func] = maxDepth;
+}
+
+Optional<unsigned>
+mlir::polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+  DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
+  ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
+  return funcMaxDepthMap[func];
+}
+
+bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+  // The function must be defined, and private or with linkonce_odr linkage.
+  if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
+    return false;
+
+  ModuleOp module = func->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+
+  if (!all_of(userMap.getUsers(func), [](Operation *op) {
+        if (auto call = dyn_cast<CallOpInterface>(op))
+          return isTailCall(call);
+        return false;
+      }))
+    return false;
+
+  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
+  // The function must to called from GPU kernel.
+  if (!maxDepth.has_value())
+    return false;
+  // The function should be called directly by a GPU kernel, or called by a
+  // function that directly called by a GPU kernel.
+  return (maxDepth.value() == 1 || maxDepth.value() == 2);
+}
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(0).front();
@@ -25,21 +132,20 @@ static Block &getElseBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(1).front();
 }
 
-// Replace uses of the loop \p loop return value(s) with the value(s) yielded by
-// the \p ifOp operation.
-static void replaceUsesOfLoopReturnValues(LoopLikeOpInterface loop,
-                                          RegionBranchOpInterface ifOp) {
+// Replace uses of the operation \p op return value(s) with the value(s) yielded
+// by the \p ifOp operation.
+static void replaceUsesOfReturnValues(Operation *op,
+                                      RegionBranchOpInterface ifOp) {
   assert(ifOp && "Expected valid ifOp");
-  for (auto [loopVal, ifVal] :
-       llvm::zip(loop->getResults(), ifOp->getResults()))
-    loopVal.replaceUsesWithIf(ifVal, [&](OpOperand &op) {
-      Block *useBlock = op.getOwner()->getBlock();
+  for (auto [opVal, ifVal] : llvm::zip(op->getResults(), ifOp->getResults()))
+    opVal.replaceUsesWithIf(ifVal, [&](OpOperand &operand) {
+      Block *useBlock = operand.getOwner()->getBlock();
       return useBlock != &getThenBlock(ifOp);
     });
 }
 
-static void createThenBody(LoopLikeOpInterface loop, scf::IfOp ifOp) {
-  loop->moveBefore(&getThenBlock(ifOp).front());
+static void createThenBody(Operation *op, scf::IfOp ifOp) {
+  op->moveBefore(&getThenBlock(ifOp).front());
 }
 
 static void createThenBody(LoopLikeOpInterface loop, AffineIfOp ifOp) {
@@ -79,45 +185,43 @@ struct AffineIfBuilder {
 } // namespace
 
 //===----------------------------------------------------------------------===//
-// LoopVersionBuilder
+// VersionBuilder
 //===----------------------------------------------------------------------===//
 
-void LoopVersionBuilder::versionLoop(
-    const LoopVersionCondition &versionCond) const {
-  OpBuilder builder(loop);
+void VersionBuilder::version(const VersionCondition &versionCond) const {
+  OpBuilder builder(op);
 
   if (versionCond.hasSCFCondition()) {
-    scf::IfOp ifOp =
-        SCFIfBuilder::createIfOp(versionCond.getSCFCondition(),
-                                 loop->getResults(), builder, loop.getLoc());
-    createThenBody(loop, ifOp);
+    scf::IfOp ifOp = SCFIfBuilder::createIfOp(
+        versionCond.getSCFCondition(), op->getResults(), builder, op->getLoc());
+    createThenBody(op, ifOp);
     createElseBody(ifOp);
-    replaceUsesOfLoopReturnValues(loop, ifOp);
+    replaceUsesOfReturnValues(op, ifOp);
   } else {
     assert(versionCond.hasAffineCondition() && "Expecting an affine condition");
     const auto &affineCond = versionCond.getAffineCondition();
     AffineIfOp ifOp = AffineIfBuilder::createIfOp(
-        affineCond.ifCondSet, affineCond.setOperands, loop->getResults(),
-        builder, loop.getLoc());
-    createThenBody(loop, ifOp);
+        affineCond.ifCondSet, affineCond.setOperands, op->getResults(), builder,
+        op->getLoc());
+    createThenBody(op, ifOp);
     createElseBody(ifOp);
-    replaceUsesOfLoopReturnValues(loop, ifOp);
+    replaceUsesOfReturnValues(op, ifOp);
   }
 }
 
-void LoopVersionBuilder::createElseBody(scf::IfOp ifOp) const {
+void VersionBuilder::createElseBody(scf::IfOp ifOp) const {
   Operation &origYield = getElseBlock(ifOp).back();
   OpBuilder elseBodyBuilder = ifOp.getElseBodyBuilder();
-  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
-  elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), clonedLoop->getResults());
+  Operation *clonedLoop = elseBodyBuilder.clone(*op);
+  elseBodyBuilder.create<scf::YieldOp>(op->getLoc(), clonedLoop->getResults());
   origYield.erase();
 }
 
-void LoopVersionBuilder::createElseBody(AffineIfOp ifOp) const {
+void VersionBuilder::createElseBody(AffineIfOp ifOp) const {
   OpBuilder elseBodyBuilder = ifOp.getElseBodyBuilder();
-  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
+  Operation *clonedLoop = elseBodyBuilder.clone(*op);
   if (!clonedLoop->getResults().empty())
-    elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(),
+    elseBodyBuilder.create<AffineYieldOp>(op->getLoc(),
                                           clonedLoop->getResults());
 }
 
@@ -144,7 +248,7 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 void LoopGuardBuilder::guardLoop(RegionBranchOpInterface ifOp) const {
   createThenBody(ifOp);
   createElseBody(ifOp);
-  replaceUsesOfLoopReturnValues(loop, ifOp);
+  replaceUsesOfReturnValues(loop, ifOp);
 }
 
 //===----------------------------------------------------------------------===//
@@ -396,6 +500,141 @@ void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const LoopVersionCondition &versionCond) const {
-  LoopVersionBuilder(loop).versionLoop(versionCond);
+                            const VersionCondition &versionCond) const {
+  VersionBuilder(loop).version(versionCond);
+}
+
+//===----------------------------------------------------------------------===//
+// VersionConditionBuilder
+//===----------------------------------------------------------------------===//
+
+template <typename OpTy>
+static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
+                           ValueRange arguments, StringRef functionName,
+                           StringRef typeName) {
+  NamedAttrList attrs;
+  SmallVector<Type> argumentTypes;
+  for (Value argument : arguments)
+    argumentTypes.push_back(argument.getType());
+  attrs.set(sycl::SYCLDialect::getArgumentTypesAttrName(),
+            builder.getTypeArrayAttr(argumentTypes));
+  attrs.set(sycl::SYCLDialect::getFunctionNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
+  attrs.set(sycl::SYCLDialect::getTypeNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
+  return builder.create<OpTy>(loc, resTy, ValueRange(arguments), attrs);
+}
+
+static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
+                                           unsigned index, OpBuilder builder,
+                                           Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return createMethodOp<sycl::SYCLIDGetOp>(
+      builder, loc, MemRefType::get(ShapedType::kDynamic, resTy), {id, indexOp},
+      "operator[]", "id");
+}
+
+static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                                 unsigned index,
+                                                 OpBuilder builder,
+                                                 Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return createMethodOp<sycl::SYCLRangeGetOp>(builder, loc, resTy,
+                                              {range, indexOp}, "get", "range");
+}
+
+static sycl::SYCLAccessorGetRangeOp
+createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor, OpBuilder builder,
+                             Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const auto rangeTy = cast<sycl::RangeType>(
+      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
+  return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
+      builder, loc, rangeTy, accessor, "get_range", "accessor");
+}
+
+static sycl::SYCLAccessorSubscriptOp
+createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
+                              TypedValue<MemRefType> id, OpBuilder builder,
+                              Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const auto MT = cast<MemRefType>(
+      cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
+  return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
+      builder, loc, MT, {accessor, id}, "operator[]", "accessor");
+}
+
+static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
+                                  OpBuilder builder, Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const auto idTy = cast<sycl::IDType>(
+      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  for (unsigned i = 0; i < accTy.getDimension(); ++i) {
+    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
+  }
+  return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
+}
+
+static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
+                                OpBuilder builder, Location loc) {
+  const auto accTy =
+      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
+  auto range = builder.create<memref::AllocaOp>(
+      loc, MemRefType::get(1, getRangeOp.getType()));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  builder.create<memref::StoreOp>(loc, getRangeOp, range, zeroIndex);
+  const auto idTy = cast<sycl::IDType>(
+      cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  unsigned dim = accTy.getDimension();
+  for (unsigned i = 0; i < dim; ++i) {
+    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
+    auto index = (i == dim - 1)
+                     ? rangeGetOp
+                     : builder.create<arith::SubIOp>(loc, rangeGetOp, one);
+    builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
+  }
+  return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
+}
+
+VersionConditionBuilder::SCFCondition
+VersionConditionBuilder::createSCFCondition(OpBuilder builder,
+                                            Location loc) const {
+  auto GetMemref2PointerOp = [&](Value op) {
+    auto MT = cast<MemRefType>(op.getType());
+    return builder.create<polygeist::Memref2PointerOp>(
+        loc,
+        LLVM::LLVMPointerType::get(MT.getElementType(),
+                                   MT.getMemorySpaceAsInt()),
+        op);
+  };
+
+  Value condition;
+  for (const AccessorPtrPairType &accessorPair : accessorPairs) {
+    Value begin1 = getSYCLAccessorBegin(accessorPair.first, builder, loc);
+    Value end1 = getSYCLAccessorEnd(accessorPair.first, builder, loc);
+    Value begin2 = getSYCLAccessorBegin(accessorPair.second, builder, loc);
+    Value end2 = getSYCLAccessorEnd(accessorPair.second, builder, loc);
+    auto beforeCond = builder.create<LLVM::ICmpOp>(
+        loc, LLVM::ICmpPredicate::ule, GetMemref2PointerOp(end1),
+        GetMemref2PointerOp(begin2));
+    auto afterCond = builder.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::uge,
+                                                  GetMemref2PointerOp(begin1),
+                                                  GetMemref2PointerOp(end2));
+    Value orOp = builder.create<arith::OrIOp>(loc, beforeCond, afterCond);
+    condition =
+        condition ? builder.create<arith::AndIOp>(loc, condition, orOp) : orOp;
+  }
+  return condition;
 }

@@ -41,9 +41,12 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using AccessorPtrType = polygeist::VersionConditionBuilder::AccessorPtrType;
+using AccessorPtrPairType =
+    polygeist::VersionConditionBuilder::AccessorPtrPairType;
 
 static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
-    "enable-licm-sycl-accessor-versioning", llvm::cl::init(false),
+    "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),
     llvm::cl::desc("Enable loop versioning for SYCL accessors in LICM"));
 
 static llvm::cl::opt<unsigned> LICMSYCLAccessorPairsLimit(
@@ -321,8 +324,6 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
 /// This class represents an operation in a loop that is potentially invariant
 /// (if a condition is satisfied). The class tracks a list of operations (in the
 /// same loop) that need to be hoisted for this operation to be hoisted.
-using AccessorType = TypedValue<MemRefType>;
-using AccessorPairType = std::pair<AccessorType, AccessorType>;
 class LICMCandidate {
 public:
   LICMCandidate(Operation &op) : op(op) {}
@@ -335,11 +336,12 @@ public:
 
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
 
-  ArrayRef<AccessorPairType> getRequireNoOverlapAccessorPairs() const {
+  ArrayRef<AccessorPtrPairType> getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
 
-  void addRequireNoOverlapAccessorPairs(AccessorType acc1, AccessorType acc2) {
+  void addRequireNoOverlapAccessorPairs(AccessorPtrType acc1,
+                                        AccessorPtrType acc2) {
     requireNoOverlapAccessorPairs.push_back({acc1, acc2});
   }
 
@@ -349,168 +351,12 @@ private:
   SmallVector<Operation *> prerequisites;
   /// Pairs of accessors that are required to not overlap for this operation to
   /// be invariant.
-  SmallVector<AccessorPairType> requireNoOverlapAccessorPairs;
-};
-
-//===----------------------------------------------------------------------===//
-// VersionConditionBuilder
-//===----------------------------------------------------------------------===//
-
-class VersionConditionBuilder {
-public:
-  VersionConditionBuilder(
-      LoopLikeOpInterface loop,
-      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
-      : loop(loop), accessorPairs(requireNoOverlapAccessorPairs) {}
-
-  using SCFCondition = LoopVersionCondition::SCFCondition;
-  using AffineCondition = LoopVersionCondition::AffineCondition;
-
-  std::unique_ptr<LoopVersionCondition> createCondition() const {
-    OpBuilder builder(loop);
-    Location loc = loop.getLoc();
-    SCFCondition scfCond = createSCFCondition(builder, loc);
-    return std::make_unique<LoopVersionCondition>(scfCond);
-  }
-
-private:
-  /// Create a loop versioning condition suitable for scf::IfOp.
-  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const {
-    auto GetMemref2PointerOp = [&](Value op) {
-      auto MT = cast<MemRefType>(op.getType());
-      return builder.create<polygeist::Memref2PointerOp>(
-          loc,
-          LLVM::LLVMPointerType::get(MT.getElementType(),
-                                     MT.getMemorySpaceAsInt()),
-          op);
-    };
-
-    Value condition;
-    for (const AccessorPairType &accessorPair : accessorPairs) {
-      Value begin1 = getSYCLAccessorBegin(accessorPair.first, builder, loc);
-      Value end1 = getSYCLAccessorEnd(accessorPair.first, builder, loc);
-      Value begin2 = getSYCLAccessorBegin(accessorPair.second, builder, loc);
-      Value end2 = getSYCLAccessorEnd(accessorPair.second, builder, loc);
-      auto beforeCond = builder.create<LLVM::ICmpOp>(
-          loc, LLVM::ICmpPredicate::ule, GetMemref2PointerOp(end1),
-          GetMemref2PointerOp(begin2));
-      auto afterCond = builder.create<LLVM::ICmpOp>(
-          loc, LLVM::ICmpPredicate::uge, GetMemref2PointerOp(begin1),
-          GetMemref2PointerOp(end2));
-      Value orOp = builder.create<arith::OrIOp>(loc, beforeCond, afterCond);
-      condition = condition
-                      ? builder.create<arith::AndIOp>(loc, condition, orOp)
-                      : orOp;
-    }
-    return condition;
-  }
-
-  template <typename OpTy>
-  static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
-                             ValueRange arguments, StringRef functionName,
-                             StringRef typeName) {
-    NamedAttrList attrs;
-    SmallVector<Type> argumentTypes;
-    for (Value argument : arguments)
-      argumentTypes.push_back(argument.getType());
-    attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
-              builder.getTypeArrayAttr(argumentTypes));
-    attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
-              FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
-    attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
-              FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
-    return builder.create<OpTy>(loc, resTy, ValueRange(arguments), attrs);
-  }
-
-  static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
-                                             unsigned index, OpBuilder builder,
-                                             Location loc) {
-    const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-    const auto resTy = builder.getIndexType();
-    return createMethodOp<sycl::SYCLIDGetOp>(
-        builder, loc, MemRefType::get(ShapedType::kDynamic, resTy),
-        {id, indexOp}, "operator[]", "id");
-  }
-
-  static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
-                                                   unsigned index,
-                                                   OpBuilder builder,
-                                                   Location loc) {
-    const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-    const auto resTy = builder.getIndexType();
-    return createMethodOp<sycl::SYCLRangeGetOp>(
-        builder, loc, resTy, {range, indexOp}, "get", "range");
-  }
-
-  static sycl::SYCLAccessorGetRangeOp
-  createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor,
-                               OpBuilder builder, Location loc) {
-    const auto accTy =
-        cast<sycl::AccessorType>(accessor.getType().getElementType());
-    const auto rangeTy = cast<sycl::RangeType>(
-        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
-    return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
-        builder, loc, rangeTy, accessor, "get_range", "accessor");
-  }
-
-  static sycl::SYCLAccessorSubscriptOp
-  createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
-                                TypedValue<MemRefType> id, OpBuilder builder,
-                                Location loc) {
-    const auto accTy =
-        cast<sycl::AccessorType>(accessor.getType().getElementType());
-    const auto MT = cast<MemRefType>(
-        cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
-    return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
-        builder, loc, MT, {accessor, id}, "operator[]", "accessor");
-  }
-
-  static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
-                                    OpBuilder builder, Location loc) {
-    const auto accTy =
-        cast<sycl::AccessorType>(accessor.getType().getElementType());
-    const auto idTy = cast<sycl::IDType>(
-        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
-    auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-    const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-    for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-      Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
-      builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
-    }
-    return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
-  }
-
-  static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
-                                  OpBuilder builder, Location loc) {
-    const auto accTy =
-        cast<sycl::AccessorType>(accessor.getType().getElementType());
-    Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
-    auto range = builder.create<memref::AllocaOp>(
-        loc, MemRefType::get(1, getRangeOp.getType()));
-    const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-    builder.create<memref::StoreOp>(loc, getRangeOp, range, zeroIndex);
-    const auto idTy = cast<sycl::IDType>(
-        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
-    auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-    const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
-    unsigned dim = accTy.getDimension();
-    for (unsigned i = 0; i < dim; ++i) {
-      Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
-      Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
-      auto index = (i == dim - 1)
-                       ? rangeGetOp
-                       : builder.create<arith::SubIOp>(loc, rangeGetOp, one);
-      builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
-    }
-    return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
-  }
-
-  mutable LoopLikeOpInterface loop;
-  ArrayRef<AccessorPairType> accessorPairs;
+  SmallVector<AccessorPtrPairType> requireNoOverlapAccessorPairs;
 };
 
 /// Return the accessor used by \p op if found, and nullptr otherwise.
-static Optional<AccessorType> getAccessorUsedByOperation(const Operation &op) {
+static Optional<AccessorPtrType>
+getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
         .Case<AffineLoadOp, AffineStoreOp>(
@@ -554,8 +400,8 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
       continue;
     }
 
-    Optional<AccessorType> opAccessor = getAccessorUsedByOperation(op);
-    Optional<AccessorType> otherAccessor = getAccessorUsedByOperation(other);
+    Optional<AccessorPtrType> opAccessor = getAccessorUsedByOperation(op);
+    Optional<AccessorPtrType> otherAccessor = getAccessorUsedByOperation(other);
     if (opAccessor.has_value() && otherAccessor.has_value())
       if (*opAccessor != *otherAccessor &&
           loop.isDefinedOutsideOfLoop(*opAccessor) &&
@@ -739,10 +585,9 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    ArrayRef<AccessorPairType> accessorPairs =
+    ArrayRef<AccessorPtrPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
-    // Currently only version for single accessor pair.
     bool willVersion = requireVersioning && EnableLICMSYCLAccessorVersioning &&
                        numVersion < LICMVersionLimit &&
                        accessorPairs.size() <= LICMSYCLAccessorPairsLimit;
@@ -769,18 +614,20 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
-  LoopTools loopTools;
+  polygeist::LoopTools loopTools;
   loopTools.guardLoop(loop);
 
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    ArrayRef<AccessorPairType> accessorPairs =
+    ArrayRef<AccessorPtrPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
-      std::unique_ptr<LoopVersionCondition> condition =
-          VersionConditionBuilder(loop, accessorPairs).createCondition();
+      std::unique_ptr<polygeist::VersionCondition> condition =
+          polygeist::VersionConditionBuilder(accessorPairs, builder,
+                                             loop->getLoc())
+              .createCondition();
       loopTools.versionLoop(loop, *condition);
     }
 

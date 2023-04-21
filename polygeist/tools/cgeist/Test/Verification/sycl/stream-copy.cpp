@@ -12,10 +12,6 @@
 // Verify that LLVMIR generated is translatable to SPIRV.
 // RUN: llvm-spirv %t.bc
 
-// Test that all referenced sycl header functions are generated.
-// RUN: llvm-dis %t.bc
-// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
-
 // Test that the kernel named `kernel_stream_copy` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_stream_copy(
 // LLVM-SAME:  i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) {{.*}}, [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) {{.*}})

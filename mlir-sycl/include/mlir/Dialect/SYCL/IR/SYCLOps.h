@@ -6,17 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_OPS_H_
-#define MLIR_SYCL_OPS_H_
+#ifndef MLIR_DIALECT_SYCL_IR_SYCLOPS_H
+#define MLIR_DIALECT_SYCL_IR_SYCLOPS_H
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpTraits.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTraits.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 
-/// Include the header file containing the declaration of the sycl operation
-/// interfaces.
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLMethodOpInterface.h"
 
 namespace mlir {
 namespace sycl {
@@ -28,9 +26,6 @@ inline bool isSYCLOperation(Operation *op) {
   return isa<sycl::SYCLDialect>(op->getDialect());
 }
 
-template <typename T>
-using isSYCLMethod = std::is_base_of<SYCLMethodOpInterface::Trait<T>, T>;
-
 } // namespace sycl
 } // namespace mlir
 
@@ -39,4 +34,4 @@ using isSYCLMethod = std::is_base_of<SYCLMethodOpInterface::Trait<T>, T>;
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 
-#endif // MLIR_SYCL_OPS_H_
+#endif // MLIR_DIALECT_SYCL_IR_SYCLOPS_H

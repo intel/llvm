@@ -34,6 +34,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "arg-promotion"
@@ -51,28 +52,6 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 // Helper Functions
 //===----------------------------------------------------------------------===//
-
-/// Returns true if the callable operation \p callableOp has linkonce_odr
-/// linkage, and false otherwise.
-static constexpr StringRef linkageAttrName = "llvm.linkage";
-static bool isLinkonceODR(CallableOpInterface callableOp) {
-  if (!callableOp->hasAttr(linkageAttrName))
-    return false;
-  auto attr = dyn_cast<LLVM::LinkageAttr>(callableOp->getAttr(linkageAttrName));
-  assert(attr && "Expecting LLVM::LinkageAttr");
-  return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
-}
-
-// Change the linkage of \p callableOp from linkonce_odr to internal.
-// There can be globals of the same name (with linkonce_odr linkage) in another
-// translation unit. As they have different arguments, we need to change the
-// linkage of the modified function to internal.
-static void privatize(CallableOpInterface callableOp) {
-  assert(isLinkonceODR(callableOp) && "Expecting linkonce_odr callableOp");
-  callableOp->setAttr(linkageAttrName,
-                      mlir::LLVM::LinkageAttr::get(callableOp->getContext(),
-                                                   LLVM::Linkage::Internal));
-}
 
 /// Returns true if \p type is 'memref<?xstruct<>>', and false otherwise.
 static bool isValidMemRefType(Type type) {
@@ -346,8 +325,13 @@ void Candidate::modifyCallee() {
 
   funcOp.setType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
-  if (isLinkonceODR(callableOp))
-    privatize(callableOp);
+
+  // Change the linkage from linkonce_odr to private.
+  // There can be globals of the same name (with linkonce_odr linkage) in
+  // another translation unit. As they have different arguments, we need to
+  // change the linkage of the modified function to private.
+  if (polygeist::isLinkonceODR(funcOp))
+    polygeist::privatize(funcOp);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
 }
@@ -489,6 +473,8 @@ void ArgumentPromotionPass::collectCandidates(
           if (isCandidateOperand(pos, callOp, aliasAnalysis))
             candidateOps.push_back({callOp->getOperand(pos), pos});
         }
+        if (candidateOps.empty())
+          return;
         candidateOperandMap.insert({callOp, std::move(candidateOps)});
       }
 
@@ -514,11 +500,11 @@ void ArgumentPromotionPass::collectCandidates(
 }
 
 bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
-  // Only tail calls are candidates.
+  // Only calls in function exiting blocks are candidates.
   if (!callOp->getBlock()->hasNoSuccessors()) {
     LLVM_DEBUG({
       llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-      llvm::dbgs().indent(2) << "not a tail call\n";
+      llvm::dbgs().indent(2) << "not in an existing block\n";
     });
     return false;
   }
@@ -569,23 +555,14 @@ bool ArgumentPromotionPass::isCandidateOperand(
 
 bool ArgumentPromotionPass::isCandidateCallable(
     CallableOpInterface callableOp) {
-  ModuleOp module = getOperation();
-  SymbolTableCollection symTable;
-  SymbolUserMap userMap(symTable, module);
-  [[maybe_unused]] StringRef callableName =
-      cast<SymbolOpInterface>(callableOp.getOperation()).getName();
-
-  // The function must be defined.
-  auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
-  if (!sym || sym.isDeclaration()) {
-    LLVM_DEBUG(llvm::dbgs().indent(2) << "not a candidate: not defined\n");
-    return false;
-  }
-
-  // The function must be private or with linkonce_odr linkage.
-  if (!sym.isPrivate() && !isLinkonceODR(callableOp)) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "not a candidate: not private or linkonce_odr linkage\n");
+  Operation *op = callableOp;
+  auto funcOp = cast<FunctionOpInterface>(op);
+  // The function must be defined, and private or with linkonce_odr linkage.
+  if (funcOp.isExternal() ||
+      (!funcOp.isPrivate() && !polygeist::isLinkonceODR(funcOp))) {
+    LLVM_DEBUG(
+        llvm::dbgs().indent(2)
+        << "not a candidate: not defined or private or linkonce_odr linkage\n");
     return false;
   }
 
@@ -599,19 +576,15 @@ bool ArgumentPromotionPass::isCandidateCallable(
   // in a function that is called directly by a GPU kernel.
   // TODO: Could generalize by checking that the call chain from the GPU kernel
   // are all candidates.
-  for (Operation *call : userMap.getUsers(callableOp)) {
-    if (call->getParentOfType<gpu::GPUFuncOp>())
-      continue;
-
-    auto funcOp = call->getParentOfType<FunctionOpInterface>();
-    if (!funcOp || !llvm::all_of(userMap.getUsers(funcOp), [](Operation *call) {
-          return call->getParentOfType<gpu::GPUFuncOp>();
-        })) {
-      LLVM_DEBUG(llvm::dbgs().indent(2)
-                 << "not a candidate: found call site that is neither in a GPU "
-                    "kernel nor in a function called by a GPU kernel\n");
-      return false;
-    }
+  Optional<unsigned> maxDepth = polygeist::getMaxDepthFromAnyGPUKernel(funcOp);
+  assert(maxDepth.has_value() &&
+         "Expecting func to be called from a GPU kernel");
+  assert(maxDepth.value() != 0 && "Expecting func is not itself a GPU kernel");
+  if (maxDepth.value() > 2) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "not a candidate: found call site that is called by a GPU "
+                  "kernel with depth more than 2.\n");
+    return false;
   }
 
   return true;
@@ -628,8 +601,6 @@ bool ArgumentPromotionPass::haveSameCandidateOperands(
 
   auto it = candidateOperandMap.cbegin();
   const Candidate::CandidateOperands &firstCandOps = it->second;
-  if (firstCandOps.empty())
-    return false;
 
   ++it;
   for (; it != candidateOperandMap.cend(); ++it) {

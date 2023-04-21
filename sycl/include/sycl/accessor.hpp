@@ -3336,4 +3336,38 @@ struct hash<sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
   }
 };
 
+template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
+struct hash<sycl::host_accessor<DataT, Dimensions, AccessMode>> {
+  using AccType = sycl::host_accessor<DataT, Dimensions, AccessMode>;
+
+  size_t operator()(const AccType &A) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    // Hash is not supported on DEVICE. Just return 0 here.
+    (void)A;
+    return 0;
+#else
+    // getSyclObjImpl() here returns a pointer to AccessorImplHost.
+    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
+    return hash<decltype(AccImplPtr)>()(AccImplPtr);
+#endif
+  }
+};
+
+template <typename DataT, int Dimensions>
+struct hash<sycl::local_accessor<DataT, Dimensions>> {
+  using AccType = sycl::local_accessor<DataT, Dimensions>;
+
+  size_t operator()(const AccType &A) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    // Hash is not supported on DEVICE. Just return 0 here.
+    (void)A;
+    return 0;
+#else
+    // getSyclObjImpl() here returns a pointer to LocalAccessorImplHost.
+    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
+    return hash<decltype(AccImplPtr)>()(AccImplPtr);
+#endif
+  }
+};
+
 } // namespace std

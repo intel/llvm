@@ -22,7 +22,9 @@ namespace mlir {
 class AffineForOp;
 class AffineIfOp;
 class AffineParallelOp;
+class CallOpInterface;
 class DominanceInfo;
+class FunctionOpInterface;
 class LoopLikeOpInterface;
 class PatternRewriter;
 class RegionBranchOpInterface;
@@ -32,6 +34,8 @@ class ForOp;
 class IfOp;
 class ParallelOp;
 } // namespace scf
+
+namespace polygeist {
 
 //===----------------------------------------------------------------------===//
 // Utility Functions
@@ -43,12 +47,39 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
 
+/// Returns true if the given function has 'linkonce_odr' LLVM  linkage.
+bool isLinkonceODR(FunctionOpInterface);
+
+/// Change the linkage and visibility of the given function to private.
+void privatize(FunctionOpInterface);
+
+/// Returns true if the given call is a tail call.
+bool isTailCall(CallOpInterface);
+
+/// Returns the maximum depth from any GPU kernel.
+/// Returns std::nullopt if the call is not called from a GPU kernel.
+/// For example:
+/// Call chains:
+///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
+///   GPUKernel2 -> func2 (depth 1)
+/// =>
+///   getMaxDepthFromAnyGPUKernel(func1) returns 1.
+///   getMaxDepthFromAnyGPUKernel(func2) returns 2.
+Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface);
+
+/// Returns true if the given function is potentially a SYCL kernel body
+/// function. The SYCL kernel body function is created by SemaSYCL in clang for
+/// the body of the SYCL kernel, e.g., code in parallel_for.
+/// TODO: add an attribute to the call operator of the SYCL kernel functor in
+/// SemaSYCL in clang, to identify SYCL kernel body function accurately.
+bool isPotentialKernelBodyFunc(FunctionOpInterface);
+
 //===----------------------------------------------------------------------===//
-// Loop Versioning Utilities
+// Versioning Utilities
 //===----------------------------------------------------------------------===//
 
-/// Represents a loop versioning condition.
-class LoopVersionCondition {
+/// Represents a versioning condition.
+class VersionCondition {
 public:
   using SCFCondition = Value;
 
@@ -57,11 +88,11 @@ public:
     SmallVectorImpl<Value> &setOperands;
   };
 
-  /// Create a loop versioning condition for SCF loops.
-  LoopVersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
+  /// Create a versioning condition suitable for scf::IfOp.
+  VersionCondition(SCFCondition scfCond) : versionCondition(scfCond) {}
 
-  LoopVersionCondition(AffineCondition affineCond)
-      : versionCondition(affineCond) {}
+  /// Create a versioning condition suitable for AffineIfOp.
+  VersionCondition(AffineCondition affineCond) : versionCondition(affineCond) {}
 
   bool hasSCFCondition() const {
     return std::holds_alternative<SCFCondition>(versionCondition);
@@ -85,18 +116,20 @@ private:
   std::variant<SCFCondition, AffineCondition> versionCondition;
 };
 
-/// Version a loop like operation.
-class LoopVersionBuilder {
+/// Version an operation.
+class VersionBuilder {
 public:
-  LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
+  VersionBuilder(Operation *op) : op(op) {
+    assert(op && "Expecting valid operation");
+  }
 
-  void versionLoop(const LoopVersionCondition &) const;
+  void version(const VersionCondition &) const;
 
 protected:
   void createElseBody(scf::IfOp) const;
   void createElseBody(AffineIfOp) const;
 
-  mutable LoopLikeOpInterface loop; /// The loop to version.
+  mutable Operation *op; // The operation to version.
 };
 
 //===----------------------------------------------------------------------===//
@@ -227,9 +260,46 @@ public:
 
   /// Version the given loop \p loop using the condition \p versionCond.
   void versionLoop(LoopLikeOpInterface loop,
-                   const LoopVersionCondition &versionCond) const;
+                   const VersionCondition &versionCond) const;
 };
 
+//===----------------------------------------------------------------------===//
+// VersionConditionBuilder
+//===----------------------------------------------------------------------===//
+
+/// Build a version condition to check if the given list of accessor pairs
+/// overlap.
+class VersionConditionBuilder {
+public:
+  using AccessorPtrType = TypedValue<MemRefType>;
+  using AccessorPtrPairType = std::pair<AccessorPtrType, AccessorPtrType>;
+  using SCFCondition = VersionCondition::SCFCondition;
+  using AffineCondition = VersionCondition::AffineCondition;
+
+  VersionConditionBuilder(
+      ArrayRef<AccessorPtrPairType> requireNoOverlapAccessorPairs,
+      OpBuilder builder, Location loc)
+      : accessorPairs(requireNoOverlapAccessorPairs), builder(builder),
+        loc(loc) {
+    assert(!accessorPairs.empty() &&
+           "Expecting accessorPairs to have at least one pair");
+  }
+
+  std::unique_ptr<VersionCondition> createCondition() const {
+    SCFCondition scfCond = createSCFCondition(builder, loc);
+    return std::make_unique<VersionCondition>(scfCond);
+  }
+
+private:
+  /// Create a versioning condition suitable for scf::IfOp.
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
+
+  ArrayRef<AccessorPtrPairType> accessorPairs;
+  mutable OpBuilder builder;
+  mutable Location loc;
+};
+
+} // namespace polygeist
 } // namespace mlir
 
 #endif // MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H

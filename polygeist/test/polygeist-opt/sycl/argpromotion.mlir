@@ -57,7 +57,7 @@ gpu.module @device_func {
     // CHECK-NEXT:    %c1 = arith.constant 1 : index
     // CHECK-NEXT:    [[ARG1:%.*]] = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi64>
     // CHECK-NEXT:    {{.*}} = call @callee1([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xi64>) -> i64
-    %alloca = memref.alloca() : memref<i64>        
+    %alloca = memref.alloca() : memref<i64>
     %0 = func.call @callee1(%arg0) : (memref<?x!llvm.struct<(i32, i64)>>) -> i64
     %1 = memref.load %alloca[] : memref<i64>
     %add = arith.addi %0, %1 : i64
@@ -101,11 +101,11 @@ gpu.module @device_func {
     // CHECK-LABEL: func.func private @callee4
     // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?x!llvm.struct<(f32)>>) {
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
-    // CHECK:         {{.*}} = sycl.addrspacecast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    // CHECK:         {{.*}} = memref.memory_space_cast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     // CHECK-NEXT:    {{.*}} = affine.load %arg0[0] : memref<?xi32>
     %c0 = arith.constant 0 : index
     %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
-    %1 = sycl.addrspacecast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    %1 = memref.memory_space_cast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     %2 = affine.load %0[0] : memref<?xi32>
     func.return
   }  
@@ -127,11 +127,11 @@ gpu.module @device_func {
     // CHECK-LABEL: func.func private @callee5
     // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?xi32> {llvm.noalias}) {
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
-    // CHECK:         {{.*}} = sycl.addrspacecast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    // CHECK:         {{.*}} = memref.memory_space_cast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xi32>
     %c0 = arith.constant 0 : index
     %0 = "polygeist.subindex"(%arg1, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
-    %1 = sycl.addrspacecast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    %1 = memref.memory_space_cast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     %2 = affine.load %0[0] : memref<?xi32>
     func.return
   }
@@ -151,9 +151,9 @@ gpu.module @device_func {
   // COM: Test that the a call to a linkonce_odr function is modified.
   // COM: This function is a candidate, check that it is transformed correctly.
   func.func @callee6(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-    // CHECK-LABEL: func.func @callee6
+    // CHECK-LABEL: func.func private @callee6
     // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias})
-    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<internal>} {
+    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<private>} {
     func.return
   }
   gpu.func @test6() kernel {
