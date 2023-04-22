@@ -2669,6 +2669,7 @@ __ESIMD_API std::enable_if_t<
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2745,6 +2746,7 @@ __ESIMD_API std::enable_if_t<
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2828,6 +2830,7 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2913,6 +2916,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2966,6 +2970,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
 #else
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -3022,6 +3027,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
 #else
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =

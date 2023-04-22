@@ -660,11 +660,14 @@ bool test_int_types(queue q, const Config &cfg) {
 template <int N, template <class, int> class Op>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
-  // TODO: Enable testing of half is supported in HW.
-  // auto dev = q.get_device();
-  // if (dev.has(sycl::aspect::fp16)) {
-  //  passed &= test<sycl::half, N, Op>(q, cfg);
-  //}
+  if constexpr (std::is_same_v<Op, ImplLSCFmax> ||
+                std::is_same_v<Op, ImplLSCFmin> ||
+                std::is_same_v<Op, ImplLSCFcmpwr>) {
+    auto dev = q.get_device();
+    if (dev.has(sycl::aspect::fp16)) {
+      passed &= test<sycl::half, N, Op>(q, cfg);
+    }
+  }
   passed &= test<float, N, Op>(q, cfg);
   passed &= test<double, N, Op>(q, cfg);
   return passed;
