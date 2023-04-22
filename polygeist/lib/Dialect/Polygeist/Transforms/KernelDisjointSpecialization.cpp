@@ -85,11 +85,19 @@ collectCandidateArguments(CallOpInterface call,
 static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
   std::string newFnName = (func.getName() + ".specialized").str();
 #ifndef NDEBUG
-  ModuleOp module = func->getParentOfType<ModuleOp>();
-  module->walk([newFnName](FunctionOpInterface func) {
-    assert(func.getName() != newFnName &&
-           "Expecting new function name to be unique");
-  });
+  auto *symbolTable = func->getParentWithTrait<OpTrait::SymbolTable>();
+  assert(symbolTable && "Expecting valid symbol table");
+  bool alreadyDefined =
+      llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
+        return llvm::any_of(block, [&](auto &op) {
+          if (&op == func.getOperation())
+            return false;
+          auto nameAttr = op.template getAttrOfType<StringAttr>(
+              SymbolTable::getSymbolAttrName());
+          return nameAttr && nameAttr.getValue() == func.getName();
+        });
+      });
+  assert(!alreadyDefined && "Expecting function not already defined");
 #endif // NDEBUG
   OpBuilder builder(func);
   FunctionOpInterface clonedFunc = func.clone();
