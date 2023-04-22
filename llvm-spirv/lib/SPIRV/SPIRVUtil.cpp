@@ -729,7 +729,7 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
     while (true) {
       if (auto *VendorTy = dyn_cast<VendorExtQualType>(Pointee)) {
         Pointee = VendorTy->getTy();
-        StringRef Qualifier(VendorTy->getExt().begin(),
+        StringRef Qualifier(&*VendorTy->getExt().begin(),
                             VendorTy->getExt().size());
         if (Qualifier.consume_front("AS")) {
           Qualifier.getAsInteger(10, AS);
