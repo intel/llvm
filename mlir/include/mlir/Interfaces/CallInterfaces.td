@@ -41,6 +41,16 @@ def CallOpInterface : OpInterface<"CallOpInterface"> {
       "::mlir::CallInterfaceCallable", "getCallableForCallee"
     >,
     InterfaceMethod<[{
+        Sets the callee of this call-like operation. A `callee` is either a
+        reference to a symbol, via SymbolRefAttr, or a reference to a defined
+        SSA value. If the reference is an SSA value, the SSA value corresponds
+        to a region of a lambda-like operation.
+      }],
+      "void", "setCalleeFromCallable", (ins "::mlir::CallInterfaceCallable":$callee), [{}], [{
+          llvm_unreachable("setCalleeFromCallable not implemented");
+      }]
+    >,
+    InterfaceMethod<[{
         Returns the operands within this call that are used as arguments to the
         callee.
       }],

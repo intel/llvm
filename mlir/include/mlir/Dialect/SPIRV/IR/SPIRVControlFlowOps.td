@@ -242,6 +242,11 @@ def SPIRV_FunctionCallOp : SPIRV_Op<"FunctionCall", [
     $callee `(` $arguments `)` attr-dict `:`
       functional-type($arguments, results)
   }];
+
+  let extraClassDeclaration = [{
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(::mlir::CallInterfaceCallable callee);
+  }];
 }
 
 // -----

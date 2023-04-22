@@ -271,6 +271,11 @@ def Async_CallOp : Async_Op<"call",
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr("callee", dyn_cast<SymbolRefAttr>(callee));
+    }
   }];
 
   let assemblyFormat = [{

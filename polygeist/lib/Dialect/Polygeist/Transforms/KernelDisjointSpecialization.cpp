@@ -112,15 +112,6 @@ static void setInnerDisjointAttribute(FunctionOpInterface func,
                       UnitAttr::get(func->getContext()));
 }
 
-/// Update the callee of the call \p call to \p callee.
-static void updateCallee(CallOpInterface call, FunctionOpInterface callee) {
-  // TODO: find a generic way to update callee of a CallOpInterface.
-  assert(call->hasAttr("callee") &&
-         "Expecting the call to have callee attribute");
-  call->setAttr("callee",
-                SymbolRefAttr::get(callee.getContext(), callee.getName()));
-}
-
 namespace {
 
 // Original code:
@@ -204,7 +195,10 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 
       auto call = cast<CallOpInterface>(op);
       versionCall(call, aliasAnalysis);
-      updateCallee(call, clonedFunc);
+
+      /// Update the callee of call to clonedFunc.
+      call.setCalleeFromCallable(
+          SymbolRefAttr::get(clonedFunc.getContext(), clonedFunc.getName()));
     }
     ++numFunctionSpecialized;
   }
