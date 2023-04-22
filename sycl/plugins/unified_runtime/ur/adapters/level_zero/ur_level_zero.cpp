@@ -1089,11 +1089,11 @@ _ur_device_handle_t::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-  // Immediate command lists will be used by default only on Linux PVC.
+  // Immediate command lists will be used by default only on Linux DG2 or PVC.
 #ifdef _WIN32
     return NotUsed;
 #else
-    return isPVC() ? PerQueue : NotUsed;
+    return (isPVC() || isDG2()) ? PerQueue : NotUsed;
 #endif
 
   switch (ImmediateCommandlistsSetting) {

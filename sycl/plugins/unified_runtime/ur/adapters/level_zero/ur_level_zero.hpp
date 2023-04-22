@@ -184,6 +184,9 @@ struct _ur_device_handle_t : _ur_object {
   // Is this a Data Center GPU Max series (aka PVC).
   bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
 
+  // Is this a DG2 GPU.
+  bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
+
   // Does this device represent a single compute slice?
   bool isCCS() const {
     return QueueGroup[_ur_device_handle_t::queue_group_info_t::Compute]
