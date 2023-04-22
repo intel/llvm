@@ -41,12 +41,12 @@ namespace fp {
 ///
 enum class FPAccuracy { High, Medium, Low, SYCL, CUDA };
 
-// Returns the required accuracy, in terms of ulp, for an fpbuiltin intrinsic
-// given the intrinsic ID, the base type for the operation, and the required
-// accuracy level (as an enumerated identifier).
-//
-// If the supplied intrinsic ID and type do not identify an operation for
-// which required accuracy is available, this function will not return a value.
+/// Returns the required accuracy, in terms of ulp, for an fpbuiltin intrinsic
+/// given the intrinsic ID, the base type for the operation, and the required
+/// accuracy level (as an enumerated identifier).
+///
+/// If the supplied intrinsic ID and type do not identify an operation for
+/// which required accuracy is available, this function will not return a value.
 std::optional<float> getAccuracyForFPBuiltin(Intrinsic::ID, const Type *,
                                              FPAccuracy);
 
