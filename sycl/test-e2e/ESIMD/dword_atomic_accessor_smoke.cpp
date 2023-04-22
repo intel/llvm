@@ -12,6 +12,8 @@
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// TODO add support for __esimd_dword_atomic on esimd_emulator
+// XFAIL: esimd_emulator
 
 // This macro enforces usage of dword atomics in the included test.
 #define USE_DWORD_ATOMICS
