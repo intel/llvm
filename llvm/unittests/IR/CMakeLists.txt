@@ -23,7 +23,7 @@ add_llvm_unittest(IRTests
   DemandedBitsTest.cpp
   DominatorTreeTest.cpp
   DominatorTreeBatchUpdatesTest.cpp
-  FPAccuracyTest.cpp # INTEL
+  FPAccuracyTest.cpp
   FunctionTest.cpp
   PassBuilderCallbacksTest.cpp
   IRBuilderTest.cpp
