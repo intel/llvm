@@ -95,10 +95,9 @@ static std::string deviceToString(device Device) {
 }
 
 static void applyFuncOnFilteredArgs(
-    const ProgramManager::KernelArgMask &EliminatedArgMask,
-    std::vector<ArgDesc> &Args,
+    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
-  if (EliminatedArgMask.empty()) {
+  if (!EliminatedArgMask) {
     for (ArgDesc &Arg : Args) {
       Func(Arg, Arg.MIndex);
     }
@@ -116,11 +115,11 @@ static void applyFuncOnFilteredArgs(
       // Handle potential gaps in set arguments (e. g. if some of them are
       // set on the user side).
       for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-        if (!EliminatedArgMask[Idx])
+        if (!(*EliminatedArgMask)[Idx])
           ++NextTrueIndex;
       LastIndex = Arg.MIndex;
 
-      if (EliminatedArgMask[Arg.MIndex])
+      if ((*EliminatedArgMask)[Arg.MIndex])
         continue;
 
       Func(Arg, NextTrueIndex);
@@ -1948,6 +1947,7 @@ void ExecCGCommand::emitInstrumentationData() {
       RT::PiProgram Program = nullptr;
       RT::PiKernel Kernel = nullptr;
       std::mutex *KernelMutex = nullptr;
+      const KernelArgMask *EliminatedArgMask = nullptr;
 
       std::shared_ptr<kernel_impl> SyclKernelImpl;
       std::shared_ptr<device_image_impl> DeviceImageImpl;
@@ -1964,25 +1964,21 @@ void ExecCGCommand::emitInstrumentationData() {
                 KernelCG->MKernelName);
         kernel SyclKernel =
             KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-        Program = detail::getSyclObjImpl(SyclKernel)
-                      ->getDeviceImage()
-                      ->get_program_ref();
+        std::shared_ptr<kernel_impl> KernelImpl =
+            detail::getSyclObjImpl(SyclKernel);
+
+        EliminatedArgMask = KernelImpl->getKernelArgMask();
+        Program = KernelImpl->getDeviceImage()->get_program_ref();
       } else if (nullptr != KernelCG->MSyclKernel) {
         auto SyclProg = KernelCG->MSyclKernel->getProgramImpl();
         Program = SyclProg->getHandleRef();
+        if (!KernelCG->MSyclKernel->isCreatedFromSource())
+          EliminatedArgMask = KernelCG->MSyclKernel->getKernelArgMask();
       } else {
-        std::tie(Kernel, KernelMutex, Program) =
+        std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 KernelCG->MOSModuleHandle, MQueue->getContextImplPtr(),
                 MQueue->getDeviceImplPtr(), KernelCG->MKernelName, nullptr);
-      }
-
-      ProgramManager::KernelArgMask EliminatedArgMask;
-      if (nullptr == KernelCG->MSyclKernel ||
-          !KernelCG->MSyclKernel->isCreatedFromSource()) {
-        EliminatedArgMask =
-            detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-                KernelCG->MOSModuleHandle, Program, KernelCG->MKernelName);
       }
 
       applyFuncOnFilteredArgs(EliminatedArgMask, KernelCG->MArgs, FilterArgs);
@@ -2093,8 +2089,7 @@ static pi_result SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-    RT::PiEvent *OutEvent,
-    const ProgramManager::KernelArgMask &EliminatedArgMask,
+    RT::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   const detail::plugin &Plugin = Queue->getPlugin();
 
@@ -2236,6 +2231,7 @@ pi_int32 enqueueImpKernel(
   RT::PiKernel Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   RT::PiProgram Program = nullptr;
+  const KernelArgMask *EliminatedArgMask;
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
@@ -2258,7 +2254,7 @@ pi_int32 enqueueImpKernel(
 
     Program = DeviceImageImpl->get_program_ref();
 
-    std::tie(Kernel, KernelMutex) =
+    std::tie(Kernel, KernelMutex, EliminatedArgMask) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             KernelBundleImplPtr->get_context(), KernelName,
             /*PropList=*/{}, Program);
@@ -2270,7 +2266,7 @@ pi_int32 enqueueImpKernel(
     Program = SyclProg->getHandleRef();
     if (SyclProg->is_cacheable()) {
       RT::PiKernel FoundKernel = nullptr;
-      std::tie(FoundKernel, KernelMutex, std::ignore) =
+      std::tie(FoundKernel, KernelMutex, EliminatedArgMask, std::ignore) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
               OSModuleHandle, ContextImpl, DeviceImpl, KernelName,
               SyclProg.get());
@@ -2283,9 +2279,10 @@ pi_int32 enqueueImpKernel(
       // reuse and return existing SYCL kernels from make_native to avoid
       // their duplication in such cases.
       KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
+      EliminatedArgMask = MSyclKernel->getKernelArgMask();
     }
   } else {
-    std::tie(Kernel, KernelMutex, Program) =
+    std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
   }
@@ -2309,12 +2306,6 @@ pi_int32 enqueueImpKernel(
   }
 
   pi_result Error = PI_SUCCESS;
-  ProgramManager::KernelArgMask EliminatedArgMask;
-  if (nullptr == MSyclKernel || !MSyclKernel->isCreatedFromSource()) {
-    EliminatedArgMask =
-        detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-            OSModuleHandle, Program, KernelName);
-  }
   {
     assert(KernelMutex);
     std::lock_guard<std::mutex> Lock(*KernelMutex);

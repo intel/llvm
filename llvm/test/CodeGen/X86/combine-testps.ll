@@ -187,6 +187,28 @@ define i32 @testpsnzc_256_signbit(<8 x float> %c, <8 x float> %d, i32 %a, i32 %b
   ret i32 %t6
 }
 
+define void @combine_testp_v8f32(<8 x i32> %x){
+; CHECK-LABEL: combine_testp_v8f32:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vxorps %xmm1, %xmm1, %xmm1
+; CHECK-NEXT:    vcmptrueps %ymm1, %ymm1, %ymm1
+; CHECK-NEXT:    vtestps %ymm1, %ymm0
+; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    retq
+entry:
+  %xor.i.i.i.i.i.i.i.i.i = xor <8 x i32> %x, <i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1>
+  %.cast.i.i.i.i.i.i = bitcast <8 x i32> %xor.i.i.i.i.i.i.i.i.i to <8 x float>
+  %0 = call i32 @llvm.x86.avx.vtestz.ps.256(<8 x float> %.cast.i.i.i.i.i.i, <8 x float> %.cast.i.i.i.i.i.i)
+  %cmp.i.not.i.i.i.i.i.i = icmp eq i32 %0, 0
+  br i1 %cmp.i.not.i.i.i.i.i.i, label %if.end3.i.i.i.i.i.i, label %end
+
+if.end3.i.i.i.i.i.i:                              ; preds = %entry
+  ret void
+
+end: ; preds = %entry
+  ret void
+}
+
 declare i32 @llvm.x86.avx.vtestz.ps(<4 x float>, <4 x float>) nounwind readnone
 declare i32 @llvm.x86.avx.vtestc.ps(<4 x float>, <4 x float>) nounwind readnone
 declare i32 @llvm.x86.avx.vtestnzc.ps(<4 x float>, <4 x float>) nounwind readnone

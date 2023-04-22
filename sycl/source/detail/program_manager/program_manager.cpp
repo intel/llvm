@@ -169,7 +169,8 @@ getOrBuild(KernelProgramCache &KPCache, GetCachedBuildFT &&GetCachedBuild,
 
   // only the building thread will run this
   try {
-    RetT *Desired = Build();
+    BuildResult->Val = Build();
+    RetT *Desired = &BuildResult->Val;
 
 #ifndef NDEBUG
     RetT *Expected = nullptr;
@@ -532,8 +533,6 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   // kernel built with different options is present in the fat binary.
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
-  using PiProgramT = KernelProgramCache::PiProgramT;
-
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -676,14 +675,14 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return Cache.getOrInsertProgram(CacheKey);
   };
 
-  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
+  auto BuildResult = getOrBuild<RT::PiProgram, compile_program_error>(
       Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
-  return BuildResult->Ptr.load();
+  return *BuildResult->Ptr.load();
 }
 
-std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
+std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *, RT::PiProgram>
 ProgramManager::getOrCreateKernel(OSModuleHandle M,
                                   const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
@@ -695,7 +694,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
               << KernelName << ")\n";
   }
 
-  using PiKernelT = KernelProgramCache::PiKernelT;
+  using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
@@ -717,31 +716,35 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   RT::PiProgram Program =
       getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
 
-  auto BuildF = [&Program, &KernelName, &ContextImpl] {
-    PiKernelT *Result = nullptr;
+  auto BuildF = [this, &Program, &KernelName, &ContextImpl, M] {
+    RT::PiKernel Kernel = nullptr;
 
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     Plugin.call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
-        Program, KernelName.c_str(), &Result);
+        Program, KernelName.c_str(), &Kernel);
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
                                                 sizeof(pi_bool), &PI_TRUE);
 
-    return Result;
+    const KernelArgMask *ArgMask =
+        getEliminatedKernelArgMask(M, Program, KernelName);
+    return std::make_pair(Kernel, ArgMask);
   };
 
   auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
-  auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
+  auto BuildResult = getOrBuild<KernelArgMaskPairT, invalid_object_error>(
       Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
-  auto ret_val = std::make_tuple(BuildResult->Ptr.load(),
-                                 &(BuildResult->MBuildResultMutex), Program);
+  const KernelArgMaskPairT &KernelArgMaskPair = *BuildResult->Ptr.load();
+  auto ret_val = std::make_tuple(KernelArgMaskPair.first,
+                                 &(BuildResult->MBuildResultMutex),
+                                 KernelArgMaskPair.second, Program);
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }
@@ -1181,23 +1184,6 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   return Program;
 }
 
-static ProgramManager::KernelArgMask
-createKernelArgMask(const ByteArray &Bytes) {
-  const int NBytesForSize = 8;
-  const int NBitsInElement = 8;
-  std::uint64_t SizeInBits = 0;
-  for (int I = 0; I < NBytesForSize; ++I)
-    SizeInBits |= static_cast<std::uint64_t>(Bytes[I]) << I * NBitsInElement;
-
-  ProgramManager::KernelArgMask Result;
-  for (std::uint64_t I = 0; I < SizeInBits; ++I) {
-    std::uint8_t Byte = Bytes[NBytesForSize + (I / NBitsInElement)];
-    Result.push_back(Byte & (1 << (I % NBitsInElement)));
-  }
-
-  return Result;
-}
-
 void ProgramManager::cacheKernelUsesAssertInfo(OSModuleHandle M,
                                                RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
@@ -1538,26 +1524,28 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
     return 0xFFFFFFFF;
 }
 
-// TODO consider another approach with storing the masks in the integration
-// header instead.
-ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
-    OSModuleHandle M, pi::PiProgram NativePrg, const std::string &KernelName) {
-  // If instructed to use a spv file, assume no eliminated arguments.
-  if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
-    return {};
-
+// This version does not check m_UseSpvFile, but it's used in the kernel_bundle
+// path, which does not currently check it and always uses images from the fat
+// binary anyway.
+// TODO consider making m_UseSpvFile interact with kernel bundles as well.
+const KernelArgMask *
+ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
+                                           const std::string &KernelName) {
   // Bail out if there are no eliminated kernel arg masks in our images
   if (m_EliminatedKernelArgMasks.empty())
-    return {};
+    return nullptr;
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     auto ImgIt = NativePrograms.find(NativePrg);
     if (ImgIt != NativePrograms.end()) {
       auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second);
-      if (MapIt != m_EliminatedKernelArgMasks.end())
-        return MapIt->second[KernelName];
-      return {};
+      if (MapIt != m_EliminatedKernelArgMasks.end()) {
+        auto ArgMaskMapIt = MapIt->second.find(KernelName);
+        if (ArgMaskMapIt != MapIt->second.end())
+          return &MapIt->second[KernelName];
+      }
+      return nullptr;
     }
   }
 
@@ -1566,11 +1554,21 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
   for (auto &Elem : m_EliminatedKernelArgMasks) {
     auto ArgMask = Elem.second.find(KernelName);
     if (ArgMask != Elem.second.end())
-      return ArgMask->second;
+      return &ArgMask->second;
   }
 
   // The kernel is not generated by DPCPP stack, so a mask doesn't exist for it
-  return {};
+  return nullptr;
+}
+
+// TODO consider another approach with storing the masks in the integration
+// header instead.
+const KernelArgMask *ProgramManager::getEliminatedKernelArgMask(
+    OSModuleHandle M, pi::PiProgram NativePrg, const std::string &KernelName) {
+  // If instructed to use a spv file, assume no eliminated arguments.
+  if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
+    return nullptr;
+  return getEliminatedKernelArgMask(NativePrg, KernelName);
 }
 
 static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
@@ -2225,8 +2223,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
-  using PiProgramT = KernelProgramCache::PiProgramT;
-
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -2310,12 +2306,12 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   };
 
   // TODO: Throw SYCL2020 style exception
-  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
+  auto BuildResult = getOrBuild<RT::PiProgram, compile_program_error>(
       Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
-  RT::PiProgram ResProgram = BuildResult->Ptr.load();
+  RT::PiProgram ResProgram = *BuildResult->Ptr.load();
 
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
@@ -2334,8 +2330,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second.first = PiDeviceAdd;
-    getOrBuild<PiProgramT, compile_program_error>(Cache, GetCachedBuildF,
-                                                  CacheOtherDevices);
+    getOrBuild<RT::PiProgram, compile_program_error>(Cache, GetCachedBuildF,
+                                                     CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
@@ -2354,41 +2350,45 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }
 
-std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
-    const context &Context, const std::string &KernelName,
-    const property_list &PropList, RT::PiProgram Program) {
+std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *>
+ProgramManager::getOrCreateKernel(const context &Context,
+                                  const std::string &KernelName,
+                                  const property_list &PropList,
+                                  RT::PiProgram Program) {
 
   (void)PropList;
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
-  using PiKernelT = KernelProgramCache::PiKernelT;
-
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
-  auto BuildF = [&Program, &KernelName, &Ctx] {
-    PiKernelT *Result = nullptr;
+  auto BuildF = [this, &Program, &KernelName, &Ctx] {
+    RT::PiKernel Kernel = nullptr;
 
     const detail::plugin &Plugin = Ctx->getPlugin();
     Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
-                                           &Result);
+                                           &Kernel);
 
-    Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
                                                 sizeof(pi_bool), &PI_TRUE);
 
-    return Result;
+    const KernelArgMask *KernelArgMask =
+        getEliminatedKernelArgMask(Program, KernelName);
+    return std::make_pair(Kernel, KernelArgMask);
   };
 
   auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
-  auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, GetCachedBuildF, BuildF);
+  auto BuildResult =
+      getOrBuild<KernelProgramCache::KernelArgMaskPairT, invalid_object_error>(
+          Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
-  return std::make_pair(BuildResult->Ptr.load(),
-                        &(BuildResult->MBuildResultMutex));
+  return std::make_tuple(BuildResult->Ptr.load()->first,
+                         &(BuildResult->MBuildResultMutex),
+                         BuildResult->Ptr.load()->second);
 }
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
