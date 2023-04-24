@@ -7,9 +7,9 @@
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
-template <size_t ClusterSize> class TestKernel;
+template <size_t PartitionSize> class TestKernel;
 
-template <size_t ClusterSize> void test() {
+template <size_t PartitionSize> void test() {
   sycl::queue Q;
 
   auto SGSizes = Q.get_device().get_info<sycl::info::device::sub_group_sizes>();
@@ -30,24 +30,24 @@ template <size_t ClusterSize> void test() {
           auto WI = item.get_global_id();
           auto SG = item.get_sub_group();
 
-          auto ClusterGroup = syclex::get_cluster_group<ClusterSize>(SG);
+          auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
 
           bool Match = true;
-          Match &= (ClusterGroup.get_group_id() == (WI / ClusterSize));
-          Match &= (ClusterGroup.get_local_id() == (WI % ClusterSize));
-          Match &= (ClusterGroup.get_group_range() == (32 / ClusterSize));
-          Match &= (ClusterGroup.get_local_range() == ClusterSize);
+          Match &= (Partition.get_group_id() == (WI / PartitionSize));
+          Match &= (Partition.get_local_id() == (WI % PartitionSize));
+          Match &= (Partition.get_group_range() == (32 / PartitionSize));
+          Match &= (Partition.get_local_range() == PartitionSize);
           MatchAcc[WI] = Match;
-          LeaderAcc[WI] = ClusterGroup.leader();
+          LeaderAcc[WI] = Partition.leader();
         };
-    CGH.parallel_for<TestKernel<ClusterSize>>(NDR, KernelFunc);
+    CGH.parallel_for<TestKernel<PartitionSize>>(NDR, KernelFunc);
   });
 
   sycl::host_accessor MatchAcc{MatchBuf, sycl::read_only};
   sycl::host_accessor LeaderAcc{LeaderBuf, sycl::read_only};
   for (int WI = 0; WI < 32; ++WI) {
     assert(MatchAcc[WI] == true);
-    assert(LeaderAcc[WI] == ((WI % ClusterSize) == 0));
+    assert(LeaderAcc[WI] == ((WI % PartitionSize) == 0));
   }
 }
 
