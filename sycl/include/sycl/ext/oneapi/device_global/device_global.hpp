@@ -35,8 +35,8 @@ namespace detail {
 template <typename T, typename = void>
 struct HasArrowOperator : std::false_type {};
 template <typename T>
-struct HasArrowOperator<
-    T, sycl::detail::void_t<decltype(std::declval<T>().operator->())>>
+struct HasArrowOperator<T,
+                        std::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
 // Base class for device_global.
@@ -75,7 +75,7 @@ public:
 template <typename T, typename... Props>
 class device_global_base<
     T, properties_t<Props...>,
-    sycl::detail::enable_if_t<properties_t<Props...>::template has_property<
+    std::enable_if_t<properties_t<Props...>::template has_property<
         device_image_scope_key>()>> {
 protected:
   T val{};
