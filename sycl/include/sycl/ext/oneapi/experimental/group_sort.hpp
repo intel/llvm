@@ -100,8 +100,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 
 // ---- joint_sort
 template <typename Group, typename Iter, typename Sorter>
-std::enable_if_t<detail::is_sorter<Sorter, Group, Iter>::value,
-                        void>
+std::enable_if_t<detail::is_sorter<Sorter, Group, Iter>::value, void>
 joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   sorter(group, first, last);
@@ -117,8 +116,7 @@ joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
 }
 
 template <typename Group, typename Iter, typename Compare, size_t Extent>
-std::enable_if_t<!detail::is_sorter<Compare, Group, Iter>::value,
-                        void>
+std::enable_if_t<!detail::is_sorter<Compare, Group, Iter>::value, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last, Compare comp) {
   joint_sort(exec.get_group(), first, last,

@@ -373,49 +373,42 @@ constexpr access::mode deduceAccessMode() {
   // property_list = {} is not properly detected by deduction guide,
   // when parameter is passed without curly braces: access(buffer, no_init)
   // thus simplest approach is to check 2 last arguments for being a tag
-  if constexpr (std::is_same_v<MayBeTag1,
-                             mode_tag_t<access::mode::read>> ||
-                std::is_same_v<MayBeTag2,
-                             mode_tag_t<access::mode::read>>) {
+  if constexpr (std::is_same_v<MayBeTag1, mode_tag_t<access::mode::read>> ||
+                std::is_same_v<MayBeTag2, mode_tag_t<access::mode::read>>) {
     return access::mode::read;
   }
 
-  if constexpr (std::is_same_v<MayBeTag1,
-                             mode_tag_t<access::mode::write>> ||
-                std::is_same_v<MayBeTag2,
-                             mode_tag_t<access::mode::write>>) {
+  if constexpr (std::is_same_v<MayBeTag1, mode_tag_t<access::mode::write>> ||
+                std::is_same_v<MayBeTag2, mode_tag_t<access::mode::write>>) {
     return access::mode::write;
   }
 
-  if constexpr (
-      std::is_same_v<MayBeTag1,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>> ||
-      std::is_same_v<MayBeTag2,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>) {
-    return access::mode::read;
-  }
-
   if constexpr (std::is_same_v<
                     MayBeTag1,
                     mode_target_tag_t<access::mode::read,
-                                      access::target::host_task>> ||
+                                      access::target::constant_buffer>> ||
                 std::is_same_v<
                     MayBeTag2,
                     mode_target_tag_t<access::mode::read,
-                                      access::target::host_task>>) {
+                                      access::target::constant_buffer>>) {
     return access::mode::read;
   }
 
-  if constexpr (std::is_same_v<
-                    MayBeTag1,
-                    mode_target_tag_t<access::mode::write,
-                                      access::target::host_task>> ||
-                std::is_same_v<
-                    MayBeTag2,
-                    mode_target_tag_t<access::mode::write,
-                                      access::target::host_task>>) {
+  if constexpr (std::is_same_v<MayBeTag1,
+                               mode_target_tag_t<access::mode::read,
+                                                 access::target::host_task>> ||
+                std::is_same_v<MayBeTag2,
+                               mode_target_tag_t<access::mode::read,
+                                                 access::target::host_task>>) {
+    return access::mode::read;
+  }
+
+  if constexpr (std::is_same_v<MayBeTag1,
+                               mode_target_tag_t<access::mode::write,
+                                                 access::target::host_task>> ||
+                std::is_same_v<MayBeTag2,
+                               mode_target_tag_t<access::mode::write,
+                                                 access::target::host_task>>) {
     return access::mode::write;
   }
 
@@ -424,35 +417,30 @@ constexpr access::mode deduceAccessMode() {
 
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::target deduceAccessTarget(access::target defaultTarget) {
-  if constexpr (
-      std::is_same_v<MayBeTag1,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>> ||
-      std::is_same_v<MayBeTag2,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>) {
+  if constexpr (std::is_same_v<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::constant_buffer>> ||
+                std::is_same_v<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::constant_buffer>>) {
     return access::target::constant_buffer;
   }
 
   if constexpr (
-      std::is_same_v<MayBeTag1,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::host_task>> ||
-      std::is_same_v<MayBeTag2,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::host_task>> ||
-      std::is_same_v<MayBeTag1,
-                   mode_target_tag_t<access::mode::write,
-                                     access::target::host_task>> ||
-      std::is_same_v<MayBeTag2,
-                   mode_target_tag_t<access::mode::write,
-                                     access::target::host_task>> ||
-      std::is_same_v<MayBeTag1,
-                   mode_target_tag_t<access::mode::read_write,
-                                     access::target::host_task>> ||
-      std::is_same_v<MayBeTag2,
-                   mode_target_tag_t<access::mode::read_write,
-                                     access::target::host_task>>) {
+      std::is_same_v<MayBeTag1, mode_target_tag_t<access::mode::read,
+                                                  access::target::host_task>> ||
+      std::is_same_v<MayBeTag2, mode_target_tag_t<access::mode::read,
+                                                  access::target::host_task>> ||
+      std::is_same_v<MayBeTag1, mode_target_tag_t<access::mode::write,
+                                                  access::target::host_task>> ||
+      std::is_same_v<MayBeTag2, mode_target_tag_t<access::mode::write,
+                                                  access::target::host_task>> ||
+      std::is_same_v<MayBeTag1, mode_target_tag_t<access::mode::read_write,
+                                                  access::target::host_task>> ||
+      std::is_same_v<MayBeTag2, mode_target_tag_t<access::mode::read_write,
+                                                  access::target::host_task>>) {
     return access::target::host_task;
   }
 
@@ -1260,8 +1248,8 @@ public:
   // 4.7.6.9.1. Interface for buffer command accessors
   // value_type is defined as const DataT for read_only accessors, DataT
   // otherwise
-  using value_type = std::conditional_t<AccessMode == access_mode::read,
-                                               const DataT, DataT>;
+  using value_type =
+      std::conditional_t<AccessMode == access_mode::read, const DataT, DataT>;
   using reference = value_type &;
   using const_reference = const DataT &;
 
@@ -3116,8 +3104,8 @@ public:
   // -------+---------+-------+----+----------+--------------
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = typename std::enable_if_t<
-                std::is_same_v<T, DataT> && Dims == 0>>
+            typename = typename std::enable_if_t<std::is_same_v<T, DataT> &&
+                                                 Dims == 0>>
   host_accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},

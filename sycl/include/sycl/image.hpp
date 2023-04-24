@@ -29,8 +29,7 @@ template <int D, typename A> class image;
 
 // 'friend'
 template <backend Backend, int D, typename A>
-std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
-                        image<D, A>>
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero, image<D, A>>
 make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
            const context &TargetContext, event AvailableEvent = {});
 
@@ -435,8 +434,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<
-      std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -523,7 +521,7 @@ private:
 
   template <backend Backend, int D, typename A>
   friend std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
-                                 image<D, A>>
+                          image<D, A>>
   make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
              const context &TargetContext, event AvailableEvent);
 

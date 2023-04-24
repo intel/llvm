@@ -60,11 +60,10 @@ constexpr size_t MAX_ARRAY_SIZE =
 constexpr unsigned FLUSH_BUF_OFFSET_SIZE = 2;
 
 template <class F, class T = void>
-using EnableIfFP =
-    typename std::enable_if_t<std::is_same_v<F, float> ||
-                                  std::is_same_v<F, double> ||
-                                  std::is_same_v<F, half>,
-                              T>;
+using EnableIfFP = typename std::enable_if_t<std::is_same_v<F, float> ||
+                                                 std::is_same_v<F, double> ||
+                                                 std::is_same_v<F, half>,
+                                             T>;
 
 using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
                                     sycl::access::target::global_buffer,
@@ -143,8 +142,7 @@ inline void reverseBuf(char *Buf, unsigned Len) {
 }
 
 template <typename T>
-inline std::make_unsigned_t<T>getAbsVal(const T Val,
-                                                      const int Base) {
+inline std::make_unsigned_t<T> getAbsVal(const T Val, const int Base) {
   return ((Base == 10) && (Val < 0)) ? -Val : Val;
 }
 
@@ -962,9 +960,9 @@ private:
   friend const stream &operator<<(const stream &, const char);
   friend const stream &operator<<(const stream &, const char *);
   template <typename ValueType>
-  friend typename std::enable_if_t<std::is_integral_v<ValueType>,
-                                   const stream &>
-  operator<<(const stream &, const ValueType &);
+  friend
+      typename std::enable_if_t<std::is_integral_v<ValueType>, const stream &>
+      operator<<(const stream &, const ValueType &);
   friend const stream &operator<<(const stream &, const float &);
   friend const stream &operator<<(const stream &, const double &);
   friend const stream &operator<<(const stream &, const half &);
@@ -1044,8 +1042,7 @@ inline const stream &operator<<(const stream &Out, const bool &RHS) {
 
 // Integral
 template <typename ValueType>
-inline typename std::enable_if_t<std::is_integral_v<ValueType>,
-                                 const stream &>
+inline typename std::enable_if_t<std::is_integral_v<ValueType>, const stream &>
 operator<<(const stream &Out, const ValueType &RHS) {
   detail::writeIntegral(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset,
                         Out.get_flags(), Out.get_width(), RHS);

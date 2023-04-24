@@ -232,9 +232,8 @@ template <typename T> struct LShift {
 };
 
 template <typename T, typename R>
-using is_int_to_int =
-    std::integral_constant<bool, std::is_integral_v<T> &&
-                                     std::is_integral_v<R>>;
+using is_int_to_int = std::integral_constant<bool, std::is_integral_v<T> &&
+                                                       std::is_integral_v<R>>;
 
 template <typename T, typename R>
 using is_sint_to_sint =
@@ -252,10 +251,9 @@ using is_sint_to_from_uint = std::integral_constant<
               (is_sigeninteger<T>::value && is_sugeninteger<R>::value)>;
 
 template <typename T, typename R>
-using is_sint_to_float =
-    std::integral_constant<bool, std::is_integral_v<T> &&
-                                     !(std::is_unsigned_v<T>) &&
-                                     detail::is_floating_point<R>::value>;
+using is_sint_to_float = std::integral_constant<
+    bool, std::is_integral_v<T> &&
+              !(std::is_unsigned_v<T>)&&detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_uint_to_float =
@@ -293,8 +291,8 @@ std::enable_if_t<std::is_same_v<T, R>, R> convertImpl(T Value) {
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
 std::enable_if_t<!std::is_same_v<T, R> && (is_int_to_int<T, R>::value ||
-                                                is_int_to_float<T, R>::value ||
-                                                is_float_to_float<T, R>::value),
+                                           is_int_to_float<T, R>::value ||
+                                           is_float_to_float<T, R>::value),
                  R>
 convertImpl(T Value) {
   return static_cast<R>(Value);
@@ -761,10 +759,9 @@ public:
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
-  typename std::enable_if_t<
-      !std::is_same_v<Ty, rel_t> &&
-          std::is_convertible_v<vec_data_t<Ty>, rel_t>,
-      vec &>
+  typename std::enable_if_t<!std::is_same_v<Ty, rel_t> &&
+                                std::is_convertible_v<vec_data_t<Ty>, rel_t>,
+                            vec &>
   operator=(const vec<rel_t, NumElements> &Rhs) {
     *this = Rhs.template as<vec>();
     return *this;
@@ -775,13 +772,13 @@ public:
   using EnableIfNotHostHalf = typename std::enable_if_t<
       !std::is_same_v<DataT, sycl::detail::half_impl::half> ||
           !std::is_same_v<sycl::detail::half_impl::StorageT,
-                        sycl::detail::host_half_impl::half>,
+                          sycl::detail::host_half_impl::half>,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename std::enable_if_t<
       std::is_same_v<DataT, sycl::detail::half_impl::half> &&
           std::is_same_v<sycl::detail::half_impl::StorageT,
-                       sycl::detail::host_half_impl::half>,
+                         sycl::detail::host_half_impl::half>,
       T>;
 
   template <typename Ty = DataT>
@@ -1423,9 +1420,8 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp {
   using DataT = typename VecT::element_type;
-  using CommonDataT =
-      std::common_type_t<typename OperationLeftT::DataT,
-                                typename OperationRightT::DataT>;
+  using CommonDataT = std::common_type_t<typename OperationLeftT::DataT,
+                                         typename OperationRightT::DataT>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;
@@ -2253,8 +2249,7 @@ struct is_device_copyable : std::false_type {};
 // so that they are candidates only for non-trivially-copyable types.
 // Otherwise, there are several candidates and the compiler can't decide.
 template <typename T>
-struct is_device_copyable<
-    T, std::enable_if_t<std::is_trivially_copyable_v<T>>>
+struct is_device_copyable<T, std::enable_if_t<std::is_trivially_copyable_v<T>>>
     : std::true_type {};
 
 template <typename T>
@@ -2314,15 +2309,15 @@ struct is_device_copyable<
 // not trivially copyable (if the element type is trivially copyable, the marray
 // is device copyable by default).
 template <typename T, std::size_t N>
-struct is_device_copyable<
-    sycl::marray<T, N>, std::enable_if_t<is_device_copyable<T>::value &&
-                                         !std::is_trivially_copyable_v<T>>>
+struct is_device_copyable<sycl::marray<T, N>,
+                          std::enable_if_t<is_device_copyable<T>::value &&
+                                           !std::is_trivially_copyable_v<T>>>
     : std::true_type {};
 
 // array is device copyable if element type is device copyable
 template <typename T, std::size_t N>
-struct is_device_copyable<
-    T[N], std::enable_if_t<!std::is_trivially_copyable_v<T>>>
+struct is_device_copyable<T[N],
+                          std::enable_if_t<!std::is_trivially_copyable_v<T>>>
     : is_device_copyable<T> {};
 
 template <typename T>

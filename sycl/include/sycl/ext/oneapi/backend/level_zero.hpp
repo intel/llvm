@@ -40,8 +40,8 @@ __SYCL_EXPORT event make_event(const context &Context,
                                bool keep_ownership = false);
 
 // Construction of SYCL platform.
-template <typename T, typename std::enable_if_t<
-                          std::is_same_v<T, platform>> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same_v<T, platform>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop) {
@@ -67,8 +67,7 @@ T make(const platform &Platform,
 ///        native context handle. Default is that SYCL RT does, so it destroys
 ///        the native handle when the created SYCL object goes out of life.
 ///
-template <typename T, std::enable_if_t<
-                          std::is_same_v<T, context>> * = nullptr>
+template <typename T, std::enable_if_t<std::is_same_v<T, context>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
 T make(const std::vector<device> &DeviceList,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -203,7 +202,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
@@ -218,7 +217,7 @@ make_buffer(
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
@@ -233,7 +232,7 @@ make_buffer(
 template <backend Backend, int Dimensions = 1,
           typename AllocatorT = image_allocator>
 std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
-                        image<Dimensions, AllocatorT>>
+                 image<Dimensions, AllocatorT>>
 make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
                &BackendObject,
            const context &TargetContext, event AvailableEvent) {

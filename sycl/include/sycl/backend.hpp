@@ -246,8 +246,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
 
 template <backend Backend>
 std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakePlatform == true,
-    platform>
+    detail::InteropFeatureSupportMap<Backend>::MakePlatform == true, platform>
 make_platform(
     const typename backend_traits<Backend>::template input_type<platform>
         &BackendObject) {
@@ -256,8 +255,8 @@ make_platform(
 }
 
 template <backend Backend>
-std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakeDevice == true, device>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeDevice == true,
+                 device>
 make_device(const typename backend_traits<Backend>::template input_type<device>
                 &BackendObject) {
   return detail::make_device(detail::pi::cast<pi_native_handle>(BackendObject),
@@ -265,9 +264,8 @@ make_device(const typename backend_traits<Backend>::template input_type<device>
 }
 
 template <backend Backend>
-std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakeContext == true,
-    context>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeContext == true,
+                 context>
 make_context(
     const typename backend_traits<Backend>::template input_type<context>
         &BackendObject,
@@ -277,8 +275,8 @@ make_context(
 }
 
 template <backend Backend>
-std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
+                 queue>
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
@@ -301,8 +299,8 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
 }
 
 template <backend Backend>
-std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
+                 event>
 make_event(const typename backend_traits<Backend>::template input_type<event>
                &BackendObject,
            const context &TargetContext) {
@@ -312,12 +310,12 @@ make_event(const typename backend_traits<Backend>::template input_type<event>
 
 template <backend Backend>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
-std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>
-    make_event(
-        const typename backend_traits<Backend>::template input_type<event>
-            &BackendObject,
-        const context &TargetContext, bool KeepOwnership) {
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
+                 event> make_event(const typename backend_traits<Backend>::
+                                       template input_type<event>
+                                           &BackendObject,
+                                   const context &TargetContext,
+                                   bool KeepOwnership) {
   return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, KeepOwnership, Backend);
 }
@@ -325,9 +323,9 @@ std::enable_if_t<
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
-                                true &&
-                            Backend != backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>
+                         true &&
+                     Backend != backend::ext_oneapi_level_zero,
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
             const context &TargetContext, event AvailableEvent = {}) {
@@ -338,10 +336,9 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
 
 template <backend Backend, int Dimensions = 1,
           typename AllocatorT = image_allocator>
-std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeImage ==
-                                true &&
-                            Backend != backend::ext_oneapi_level_zero,
-                        image<Dimensions, AllocatorT>>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeImage == true &&
+                     Backend != backend::ext_oneapi_level_zero,
+                 image<Dimensions, AllocatorT>>
 make_image(const typename backend_traits<Backend>::template input_type<
                image<Dimensions, AllocatorT>> &BackendObject,
            const context &TargetContext, event AvailableEvent = {}) {
@@ -360,9 +357,9 @@ make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
 }
 
 template <backend Backend, bundle_state State>
-std::enable_if_t<
-    detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle == true,
-    kernel_bundle<State>>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle ==
+                     true,
+                 kernel_bundle<State>>
 make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
                        kernel_bundle<State>> &BackendObject,
                    const context &TargetContext) {

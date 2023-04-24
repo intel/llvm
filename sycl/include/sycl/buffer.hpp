@@ -165,9 +165,9 @@ public:
                       const T (*)[]>>,
                   decltype(std::declval<Container>().size())>;
   template <class It>
-  using EnableIfItInputIterator = std::enable_if_t<
-      std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,
-                          std::input_iterator_tag>>;
+  using EnableIfItInputIterator = std::enable_if_t<std::is_convertible_v<
+      typename std::iterator_traits<It>::iterator_category,
+      std::input_iterator_tag>>;
   template <typename ItA, typename ItB>
   using EnableIfSameNonConstIterators = typename std::enable_if_t<
       std::is_same_v<ItA, ItB> && !std::is_const_v<ItA>, ItA>;
@@ -588,8 +588,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<
-      std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -674,10 +673,10 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  std::enable_if_t<
-      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
-                                (sizeof(ReinterpretT) != sizeof(T))),
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>
+  std::enable_if_t<(ReinterpretDim == 1) &&
+                       ((dimensions != ReinterpretDim) ||
+                        (sizeof(ReinterpretT) != sizeof(T))),
+                   buffer<ReinterpretT, ReinterpretDim, AllocatorT>>
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)

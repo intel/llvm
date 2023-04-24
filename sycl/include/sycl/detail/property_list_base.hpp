@@ -48,9 +48,8 @@ protected:
 
   // Compile-time-constant properties are simply skipped
   template <typename... PropsT, class PropT>
-  typename std::enable_if_t<
-      !std::is_base_of_v<PropertyWithDataBase, PropT> &&
-      !std::is_base_of_v<DataLessPropertyBase, PropT>>
+  typename std::enable_if_t<!std::is_base_of_v<PropertyWithDataBase, PropT> &&
+                            !std::is_base_of_v<DataLessPropertyBase, PropT>>
   ctorHelper(PropT &, PropsT... Props) {
     ctorHelper(Props...);
   }

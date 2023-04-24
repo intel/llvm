@@ -36,8 +36,7 @@ template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
       (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
        std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
-       std::is_same_v<T, long long> ||
-       std::is_same_v<T, unsigned long long> ||
+       std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
        std::is_same_v<T, float> || std::is_same_v<T, double> ||
        std::is_pointer_v<T>);
 };
@@ -412,9 +411,8 @@ private:
 // Partial specialization for floating-point types
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
-class atomic_ref_impl<
-    T, DefaultOrder, DefaultScope, AddressSpace,
-    typename std::enable_if_t<std::is_floating_point_v<T>>>
+class atomic_ref_impl<T, DefaultOrder, DefaultScope, AddressSpace,
+                      typename std::enable_if_t<std::is_floating_point_v<T>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:

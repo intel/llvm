@@ -191,8 +191,8 @@ public:
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
                        std::is_pointer_v<RelayT>,
-                   RelayT>
-      &operator->() noexcept {
+                   RelayT> &
+  operator->() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
@@ -200,8 +200,8 @@ public:
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
                        std::is_pointer_v<RelayT>,
-                   const RelayT>
-      &operator->() const noexcept {
+                   const RelayT> &
+  operator->() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }

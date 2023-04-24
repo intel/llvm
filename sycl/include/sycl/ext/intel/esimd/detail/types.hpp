@@ -51,8 +51,7 @@ using simd_mask_elem_type = unsigned short;
 template <int N> using simd_mask_type = simd_mask_impl<simd_mask_elem_type, N>;
 
 template <typename T>
-static inline constexpr bool is_esimd_scalar_v =
-    std::is_arithmetic_v<T>;
+static inline constexpr bool is_esimd_scalar_v = std::is_arithmetic_v<T>;
 
 template <typename T>
 using is_esimd_scalar = typename std::bool_constant<is_esimd_scalar_v<T>>;

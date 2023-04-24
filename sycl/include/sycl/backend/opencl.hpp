@@ -33,8 +33,8 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
                                  const std::string &Extension);
 
 // Construction of SYCL platform.
-template <typename T, typename std::enable_if_t<
-                          std::is_same_v<T, platform>> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same_v<T, platform>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename detail::interop<backend::opencl, T>::type Interop) {
   return make_platform(detail::pi::cast<pi_native_handle>(Interop));
@@ -49,8 +49,8 @@ T make(typename detail::interop<backend::opencl, T>::type Interop) {
 }
 
 // Construction of SYCL context.
-template <typename T, typename std::enable_if_t<std::is_same_v<T, context>>
-                          * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same_v<T, context>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
 T make(typename detail::interop<backend::opencl, T>::type Interop) {
   return make_context(detail::pi::cast<pi_native_handle>(Interop));

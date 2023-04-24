@@ -323,13 +323,12 @@ std::enable_if_t<(detail::is_generic_group<Group>::value &&
 template <typename Group, typename V, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
     "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
-std::enable_if_t<(detail::is_sub_group<Group>::value &&
-                  std::is_trivially_copyable_v<T> &&
-                  std::is_trivially_copyable_v<V> &&
-                  (!detail::is_arithmetic<T>::value ||
-                   !detail::is_arithmetic<V>::value ||
-                   !detail::is_native_op<T, BinaryOperation>::value)),
-                 T> reduce(Group g, V x, T init, BinaryOperation op) {
+std::enable_if_t<
+    (detail::is_sub_group<Group>::value && std::is_trivially_copyable_v<T> &&
+     std::is_trivially_copyable_v<V> &&
+     (!detail::is_arithmetic<T>::value || !detail::is_arithmetic<V>::value ||
+      !detail::is_native_op<T, BinaryOperation>::value)),
+    T> reduce(Group g, V x, T init, BinaryOperation op) {
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));

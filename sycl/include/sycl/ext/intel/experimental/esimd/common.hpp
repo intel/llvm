@@ -232,12 +232,11 @@ template <cache_hint Hint> class cache_hint_wrap {
   template <cache_hint...> struct is_one_of_t;
   template <cache_hint Last>
   struct is_one_of_t<Last>
-      : std::conditional_t<Last == Hint, std::true_type, std::false_type> {
-  };
+      : std::conditional_t<Last == Hint, std::true_type, std::false_type> {};
   template <cache_hint Head, cache_hint... Tail>
   struct is_one_of_t<Head, Tail...>
-      : std::conditional_t<Head == Hint, std::true_type,
-                         is_one_of_t<Tail...>> {};
+      : std::conditional_t<Head == Hint, std::true_type, is_one_of_t<Tail...>> {
+  };
 
 public:
   constexpr operator cache_hint() const { return Hint; }

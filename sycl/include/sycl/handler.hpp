@@ -545,8 +545,7 @@ private:
 
   // For 'sycl::id<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  std::enable_if_t<std::is_same_v<ArgT, sycl::id<Dims>>,
-                          KernelType *>
+  std::enable_if_t<std::is_same_v<ArgT, sycl::id<Dims>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -562,8 +561,7 @@ private:
 
   // For 'sycl::nd_item<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  std::enable_if_t<std::is_same_v<ArgT, sycl::nd_item<Dims>>,
-                          KernelType *>
+  std::enable_if_t<std::is_same_v<ArgT, sycl::nd_item<Dims>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -579,8 +577,7 @@ private:
 
   // For 'sycl::item<Dims, without_offset>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  std::enable_if_t<std::is_same_v<ArgT, sycl::item<Dims, false>>,
-                          KernelType *>
+  std::enable_if_t<std::is_same_v<ArgT, sycl::item<Dims, false>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -598,8 +595,7 @@ private:
 
   // For 'sycl::item<Dims, with_offset>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  std::enable_if_t<std::is_same_v<ArgT, sycl::item<Dims, true>>,
-                          KernelType *>
+  std::enable_if_t<std::is_same_v<ArgT, sycl::item<Dims, true>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -637,8 +633,7 @@ private:
   // for 'void(sycl::group<Dims>)' since 'void(sycl::group<Dims>)' is not
   // supported in ESIMD.
   template <class KernelType, typename ArgT, int Dims>
-  std::enable_if_t<std::is_same_v<ArgT, sycl::group<Dims>>,
-                          KernelType *>
+  std::enable_if_t<std::is_same_v<ArgT, sycl::group<Dims>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
         new detail::HostKernel<KernelType, ArgT, Dims>(KernelFunc));
@@ -921,9 +916,8 @@ private:
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<
         std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-        std::conditional_t<
-            std::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
-            LambdaArgType>>;
+        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                           item<Dims>, LambdaArgType>>;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1562,7 +1556,7 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;              // Interop
+        || is_same_type<cl_mem, T>::value;         // Interop
   };
 
   /// Sets argument for OpenCL interoperability kernels.

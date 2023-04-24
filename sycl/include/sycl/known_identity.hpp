@@ -24,34 +24,34 @@ using IsPlus =
                        std::is_same_v<BinaryOperation, sycl::plus<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsMultiplies = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::multiplies<T>> ||
-    std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
+using IsMultiplies =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::multiplies<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsMinimum = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
-    std::is_same_v<BinaryOperation, sycl::minimum<void>>>;
+using IsMinimum =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::minimum<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsMaximum = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
-    std::is_same_v<BinaryOperation, sycl::maximum<void>>>;
+using IsMaximum =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::maximum<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsBitAND = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::bit_and<T>> ||
-    std::is_same_v<BinaryOperation, sycl::bit_and<void>>>;
+using IsBitAND =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_and<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::bit_and<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsBitOR = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::bit_or<T>> ||
-    std::is_same_v<BinaryOperation, sycl::bit_or<void>>>;
+using IsBitOR =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_or<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::bit_or<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsBitXOR = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::bit_xor<T>> ||
-    std::is_same_v<BinaryOperation, sycl::bit_xor<void>>>;
+using IsBitXOR =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_xor<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::bit_xor<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsLogicalAND = std::bool_constant<
@@ -59,14 +59,13 @@ using IsLogicalAND = std::bool_constant<
     std::is_same_v<BinaryOperation, sycl::logical_and<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalOR = std::bool_constant<
-    std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
-    std::is_same_v<BinaryOperation, sycl::logical_or<void>>>;
+using IsLogicalOR =
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::logical_or<void>>>;
 
 template <typename T>
-using isComplex =
-    std::bool_constant<std::is_same_v<T, std::complex<float>> ||
-                       std::is_same_v<T, std::complex<double>>>;
+using isComplex = std::bool_constant<std::is_same_v<T, std::complex<float>> ||
+                                     std::is_same_v<T, std::complex<double>>>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
