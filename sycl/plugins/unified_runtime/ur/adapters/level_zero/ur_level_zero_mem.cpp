@@ -2338,7 +2338,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
+static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
   ZE2UR_CALL(zeMemFree, (Context->ZeContext, Ptr));
   return UR_RESULT_SUCCESS;
 }

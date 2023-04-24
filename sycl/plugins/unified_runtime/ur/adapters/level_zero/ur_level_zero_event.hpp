@@ -52,19 +52,6 @@ const bool ReuseDiscardedEvents = [] {
   return std::stoi(ReuseDiscardedEventsFlag) > 0;
 }();
 
-// Maximum number of events that can be present in an event ZePool is captured
-// here. Setting it to 256 gave best possible performance for several
-// benchmarks.
-const uint32_t MaxNumEventsPerPool = [] {
-  const auto MaxNumEventsPerPoolEnv =
-      std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
-  uint32_t Result =
-      MaxNumEventsPerPoolEnv ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
-  if (Result <= 0)
-    Result = 256;
-  return Result;
-}();
-
 const bool FilterEventWaitList = [] {
   const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
   const bool RetVal = Ret ? std::stoi(Ret) : 1;

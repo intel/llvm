@@ -55,8 +55,6 @@ ur_result_t enqueueMemCopyRectHelper(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 
-ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr);
-
 // Exception type to pass allocation errors
 class UsmAllocationException {
   const ur_result_t Error;

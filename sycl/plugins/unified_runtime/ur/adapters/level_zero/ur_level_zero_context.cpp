@@ -403,6 +403,19 @@ ur_result_t ur_context_handle_t_::finalize() {
   return UR_RESULT_SUCCESS;
 }
 
+// Maximum number of events that can be present in an event ZePool is captured
+// here. Setting it to 256 gave best possible performance for several
+// benchmarks.
+static const pi_uint32 MaxNumEventsPerPool = [] {
+  const auto MaxNumEventsPerPoolEnv =
+      std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
+  uint32_t Result =
+      MaxNumEventsPerPoolEnv ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
+  if (Result <= 0)
+    Result = 256;
+  return Result;
+}();
+
 ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
     bool ProfilingEnabled) {
