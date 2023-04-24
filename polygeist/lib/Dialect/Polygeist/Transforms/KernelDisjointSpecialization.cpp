@@ -20,7 +20,6 @@
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/Polygeist/IR/Polygeist.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
-#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/Support/Debug.h"
 
@@ -161,16 +160,15 @@ private:
   /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
   /// example, under strict aliasing rule, accessors with different element
   /// types are not alias, so return false.
-  bool isCandidateAccessorPair(AccessorPtrType acc1, AccessorPtrType acc2,
-                               const AliasAnalysis &aliasAnalysis) const;
+  bool isCandidateAccessorPair(AccessorPtrType acc1,
+                               AccessorPtrType acc2) const;
   /// Populate \p accessorPairs with accessor pairs that should be checked for
   /// no overlap for \p call.
   void collectMayOverlapAccessorPairs(
-      CallOpInterface call, SmallVectorImpl<AccessorPtrPairType> &accessorPairs,
-      const AliasAnalysis &aliasAnalysis) const;
+      CallOpInterface call,
+      SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const;
   /// Version \p call.
-  void versionCall(CallOpInterface call,
-                   const AliasAnalysis &aliasAnalysis) const;
+  void versionCall(CallOpInterface call) const;
 };
 
 } // namespace
@@ -180,9 +178,6 @@ private:
 //===----------------------------------------------------------------------===//
 
 void KernelDisjointSpecializationPass::runOnOperation() {
-  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
-
   SmallVector<FunctionOpInterface> candidates;
   getOperation()->walk([&](FunctionOpInterface func) {
     LLVM_DEBUG(llvm::dbgs()
@@ -206,7 +201,7 @@ void KernelDisjointSpecializationPass::runOnOperation() {
              "Expecting calls only in GPU kernel");
 
       auto call = cast<CallOpInterface>(op);
-      versionCall(call, aliasAnalysis);
+      versionCall(call);
 
       /// Update the callee of call to clonedFunc.
       call.setCalleeFromCallable(
@@ -249,12 +244,8 @@ bool KernelDisjointSpecializationPass::isCandidateFunction(
 }
 
 bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
-    AccessorPtrType acc1, AccessorPtrType acc2,
-    const AliasAnalysis &aliasAnalysis) const {
+    AccessorPtrType acc1, AccessorPtrType acc2) const {
   assert(acc1 != acc2 && "Expecting the input accessors to be different");
-  if (const_cast<AliasAnalysis &>(aliasAnalysis).alias(acc1, acc2).isNo())
-    return false;
-
   if (!relaxedAliasing) {
     auto acc1Ty = cast<sycl::AccessorType>(acc1.getType().getElementType());
     auto acc2Ty = cast<sycl::AccessorType>(acc2.getType().getElementType());
@@ -266,20 +257,19 @@ bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
 }
 
 void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
-    CallOpInterface call, SmallVectorImpl<AccessorPtrPairType> &accessorPairs,
-    const AliasAnalysis &aliasAnalysis) const {
+    CallOpInterface call,
+    SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const {
   SmallVector<AccessorPtrType> candArgs;
   collectCandidateArguments(call, candArgs);
   for (auto *i = candArgs.begin(); i != candArgs.end(); ++i)
     for (auto *j = i + 1; j != candArgs.end(); ++j)
-      if (isCandidateAccessorPair(*i, *j, aliasAnalysis))
+      if (isCandidateAccessorPair(*i, *j))
         accessorPairs.push_back({*i, *j});
 }
 
-void KernelDisjointSpecializationPass::versionCall(
-    CallOpInterface call, const AliasAnalysis &aliasAnalysis) const {
+void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
   SmallVector<AccessorPtrPairType> accessorPairs;
-  collectMayOverlapAccessorPairs(call, accessorPairs, aliasAnalysis);
+  collectMayOverlapAccessorPairs(call, accessorPairs);
   if (accessorPairs.empty())
     return;
   OpBuilder builder(call);

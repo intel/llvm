@@ -62,49 +62,22 @@ gpu.module @device_func {
     gpu.return
   }
 
-  // COM: No need to version as the %arg0 and %arg1 do not alias (from different malloc).
-  // CHECK-LABEL: func.func private @callee2.specialized(
-  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb> {sycl.inner.disjoint}, 
-  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint}) attributes {llvm.linkage = #llvm.linkage<private>} {
-  // CHECK-LABEL: func.func private @callee2(
-  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb>, 
-  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
-  // CHECK-LABEL: gpu.func @caller2() kernel {
-  // CHECK-NEXT:    %alloca = memref.alloca() : memref<1x!sycl_accessor_1_f32_r_gb>
-  // CHECK-NEXT:    %cast = memref.cast %alloca : memref<1x!sycl_accessor_1_f32_r_gb> to memref<?x!sycl_accessor_1_f32_r_gb>
-  // CHECK-NEXT:    %alloca_0 = memref.alloca() : memref<1x!sycl_accessor_1_f32_w_gb>
-  // CHECK-NEXT:    %cast_1 = memref.cast %alloca_0 : memref<1x!sycl_accessor_1_f32_w_gb> to memref<?x!sycl_accessor_1_f32_w_gb>
-  // CHECK-NEXT:    func.call @callee2.specialized(%cast, %cast_1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
-  // CHECK-NEXT:    gpu.return
-  // CHECK-NEXT:  }
-  func.func private @callee2(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
-    return
-  }
-  gpu.func @caller2() kernel {
-    %alloca = memref.alloca() : memref<1x!sycl_accessor_1_f32_r_gb>
-    %cast = memref.cast %alloca : memref<1x!sycl_accessor_1_f32_r_gb> to memref<?x!sycl_accessor_1_f32_r_gb>
-    %alloca_0 = memref.alloca() : memref<1x!sycl_accessor_1_f32_w_gb>
-    %cast_1 = memref.cast %alloca_0 : memref<1x!sycl_accessor_1_f32_w_gb> to memref<?x!sycl_accessor_1_f32_w_gb>
-    func.call @callee2(%cast, %cast_1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
-    gpu.return
-  }
-
   // COM: No need to version as the accessor types are different.
-  // CHECK-LABEL: func.func private @callee3.specialized(
+  // CHECK-LABEL: func.func private @callee2.specialized(
   // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_i32_r_gb> {sycl.inner.disjoint}, 
   // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint}) attributes {llvm.linkage = #llvm.linkage<private>} {
-  // CHECK-LABEL: func.func private @callee3(
+  // CHECK-LABEL: func.func private @callee2(
   // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_i32_r_gb>, 
   // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
-  // CHECK-LABEL: gpu.func @caller3(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) kernel {
-  // CHECK-NEXT:    func.call @callee3.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_1_i32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
+  // CHECK-LABEL: gpu.func @caller2(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) kernel {
+  // CHECK-NEXT:    func.call @callee2.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_1_i32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
   // CHECK-NEXT:    gpu.return
   // CHECK-NEXT:  }
-  func.func private @callee3(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
+  func.func private @callee2(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
     return
   }
-  gpu.func @caller3(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) kernel {
-    func.call @callee3(%arg0, %arg1) : (memref<?x!sycl_accessor_1_i32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
+  gpu.func @caller2(%arg0: memref<?x!sycl_accessor_1_i32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) kernel {
+    func.call @callee2(%arg0, %arg1) : (memref<?x!sycl_accessor_1_i32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
     gpu.return
   }
 }
