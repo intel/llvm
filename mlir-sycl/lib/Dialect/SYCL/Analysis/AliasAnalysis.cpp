@@ -55,8 +55,8 @@ static bool isNoAliasArgument(Value val) {
 // Return true if the value \p val is a function argument that has the
 // 'sycl.inner.disjoint' attribute, and false otherwise.
 static bool isSYCLInnerDisjointArgument(Value val) {
-  constexpr StringLiteral innerDisjointAttrName = "sycl.inner.disjoint";
-  return isArgumentWithAttribute(val, innerDisjointAttrName);
+  return isArgumentWithAttribute(val,
+                                 sycl::SYCLDialect::getInnerDisjointAttrName());
 }
 
 // Return true is the given type \p ty is a MemRef type with a SYCL element

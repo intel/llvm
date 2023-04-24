@@ -31,6 +31,8 @@ def SYCL_Dialect : Dialect {
     static constexpr llvm::StringRef getMangledFunctionNameAttrName() { return "MangledFunctionName"; }
     static constexpr llvm::StringRef getTypeNameAttrName() { return "TypeName"; }
 
+    static StringLiteral getInnerDisjointAttrName() { return "sycl.inner.disjoint"; }
+
     /// Each operation will be registered as usual in an MLIR dialect
     /// and also will be registered as a SYCL method if it implements one.
     template <typename... Args> void addOperations();

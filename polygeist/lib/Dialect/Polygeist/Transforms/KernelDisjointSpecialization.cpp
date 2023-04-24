@@ -93,9 +93,12 @@ static void getUniqueFnName(std::string &newFnName, Operation *symbolTable) {
       });
     });
   };
+  std::string fnName = newFnName;
   unsigned counter = 0;
-  while (alreadyDefined(newFnName))
-    newFnName += ("." + std::to_string(counter));
+  while (alreadyDefined(newFnName)) {
+    ++counter;
+    newFnName = fnName + ("." + std::to_string(counter));
+  }
 }
 
 /// Returns the cloned version of \p func.
@@ -116,10 +119,9 @@ template <typename Pred,
           typename = std::enable_if_t<std::is_invocable_r_v<bool, Pred, Value>>>
 static void setInnerDisjointAttribute(FunctionOpInterface func,
                                       Pred predicate) {
-  constexpr StringLiteral innerDisjointAttrName = "sycl.inner.disjoint";
   for (unsigned i = 0; i < func.getNumArguments(); ++i)
     if (predicate(func.getArgument(i)))
-      func.setArgAttr(i, innerDisjointAttrName,
+      func.setArgAttr(i, sycl::SYCLDialect::getInnerDisjointAttrName(),
                       UnitAttr::get(func->getContext()));
 }
 
