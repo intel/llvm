@@ -116,7 +116,7 @@ template <typename Pred,
           typename = std::enable_if_t<std::is_invocable_r_v<bool, Pred, Value>>>
 static void setInnerDisjointAttribute(FunctionOpInterface func,
                                       Pred predicate) {
-  constexpr StringRef innerDisjointAttrName = "sycl.inner.disjoint";
+  constexpr StringLiteral innerDisjointAttrName = "sycl.inner.disjoint";
   for (unsigned i = 0; i < func.getNumArguments(); ++i)
     if (predicate(func.getArgument(i)))
       func.setArgAttr(i, innerDisjointAttrName,
