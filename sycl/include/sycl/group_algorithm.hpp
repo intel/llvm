@@ -130,9 +130,9 @@ using is_arithmetic_or_complex =
 
 template <typename T>
 struct is_vector_arithmetic_or_complex
-    : bool_constant<is_vec<T>::value &&
-                    (is_arithmetic<T>::value ||
-                     is_complex<vector_element_t<T>>::value)> {};
+    : std::bool_constant<is_vec<T>::value &&
+                         (is_arithmetic<T>::value ||
+                          is_complex<vector_element_t<T>>::value)> {};
 
 // ---- is_plus_or_multiplies_if_complex
 template <typename T, typename BinaryOperation>
@@ -147,21 +147,21 @@ using is_plus_or_multiplies_if_complex = std::integral_constant<
 // TODO: identiy_for_ga_op should be replaced with known_identity once the other
 // callers of known_identity support complex numbers.
 template <typename T, class BinaryOperation>
-constexpr detail::enable_if_t<
+constexpr std::enable_if_t<
     (is_complex<T>::value && is_plus<T, BinaryOperation>::value), T>
 identity_for_ga_op() {
   return {0, 0};
 }
 
 template <typename T, class BinaryOperation>
-constexpr detail::enable_if_t<
+constexpr std::enable_if_t<
     (is_complex<T>::value && is_multiplies<T, BinaryOperation>::value), T>
 identity_for_ga_op() {
   return {1, 0};
 }
 
 template <typename T, class BinaryOperation>
-constexpr detail::enable_if_t<!is_complex<T>::value, T> identity_for_ga_op() {
+constexpr std::enable_if_t<!is_complex<T>::value, T> identity_for_ga_op() {
   return sycl::known_identity_v<BinaryOperation, T>;
 }
 
@@ -191,12 +191,12 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 //        scalar arithmetic, complex (plus only), and vector arithmetic
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (detail::is_scalar_arithmetic<T>::value ||
-                      (detail::is_complex<T>::value &&
-                       detail::is_multiplies<T, BinaryOperation>::value)) &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  (detail::is_scalar_arithmetic<T>::value ||
+                   (detail::is_complex<T>::value &&
+                    detail::is_multiplies<T, BinaryOperation>::value)) &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -217,11 +217,11 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 // complex specialization. T is std::complex<float> or similar.
 //   binary op is  sycl::plus<std::complex<float>>
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_complex<T>::value &&
-                     detail::is_native_op<T, sycl::plus<T>>::value &&
-                     detail::is_plus<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_complex<T>::value &&
+                  detail::is_native_op<T, sycl::plus<T>>::value &&
+                  detail::is_plus<T, BinaryOperation>::value),
+                 T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
@@ -238,7 +238,7 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, int N, class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      detail::is_vector_arithmetic_or_complex<sycl::vec<T, N>>::value &&
      detail::is_native_op<sycl::vec<T, N>, BinaryOperation>::value),
@@ -261,7 +261,7 @@ reduce_over_group(Group g, sycl::vec<T, N> x, BinaryOperation binary_op) {
 //   four argument variant of reduce_over_group specialized twice
 //       (scalar arithmetic || complex), and vector_arithmetic
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
      (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
@@ -287,12 +287,12 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_vector_arithmetic_or_complex<V>::value &&
-                     detail::is_vector_arithmetic_or_complex<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<V, BinaryOperation>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -316,7 +316,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 
 // ---- joint_reduce
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<Ptr>::type>::value &&
@@ -351,7 +351,7 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename Ptr, class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<Ptr>::type>::value &&
@@ -375,7 +375,7 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
 
 // ---- any_of_group
 template <typename Group>
-detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny(g, pred);
@@ -388,14 +388,14 @@ any_of_group(Group g, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-detail::enable_if_t<is_group_v<Group>, bool> any_of_group(Group g, T x,
-                                                          Predicate pred) {
+std::enable_if_t<is_group_v<Group>, bool> any_of_group(Group g, T x,
+                                                       Predicate pred) {
   return any_of_group(g, pred(x));
 }
 
 // ---- joint_any_of
 template <typename Group, typename Ptr, class Predicate>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
 joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -415,7 +415,7 @@ joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 
 // ---- all_of_group
 template <typename Group>
-detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll(g, pred);
@@ -428,14 +428,14 @@ all_of_group(Group g, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group g, T x, Predicate pred) {
   return all_of_group(g, pred(x));
 }
 
 // ---- joint_all_of
 template <typename Group, typename Ptr, class Predicate>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
 joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -455,7 +455,7 @@ joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 
 // ---- none_of_group
 template <typename Group>
-detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll(g, !pred);
@@ -468,14 +468,14 @@ none_of_group(Group g, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
+std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group g, T x, Predicate pred) {
   return none_of_group(g, pred(x));
 }
 
 // ---- joint_none_of
 template <typename Group, typename Ptr, class Predicate>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
 joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -494,10 +494,10 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
@@ -513,10 +513,10 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
@@ -532,10 +532,10 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::SubgroupShuffleXor(x, mask);
@@ -551,10 +551,10 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 select_from_group(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::SubgroupShuffle(x, local_id);
@@ -570,10 +570,10 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
@@ -587,10 +587,10 @@ group_broadcast(Group g, T x, typename Group::id_type local_id) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return group_broadcast(
@@ -606,10 +606,10 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (std::is_trivially_copyable<T>::value ||
-                      detail::is_vec<T>::value)),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  (std::is_trivially_copyable<T>::value ||
+                   detail::is_vec<T>::value)),
+                 T>
 group_broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
   return group_broadcast(g, x, 0);
@@ -626,12 +626,12 @@ group_broadcast(Group g, T x) {
 //   the three argument version is specialized thrice: scalar, complex, and
 //   vector
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (detail::is_scalar_arithmetic<T>::value ||
-                      (detail::is_complex<T>::value &&
-                       detail::is_multiplies<T, BinaryOperation>::value)) &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  (detail::is_scalar_arithmetic<T>::value ||
+                   (detail::is_complex<T>::value &&
+                    detail::is_multiplies<T, BinaryOperation>::value)) &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value ||
@@ -651,11 +651,11 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 // complex specialization. T is std::complex<float> or similar.
 //   binary op is  sycl::plus<std::complex<float>>
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_complex<T>::value &&
-                     detail::is_native_op<T, sycl::plus<T>>::value &&
-                     detail::is_plus<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_complex<T>::value &&
+                  detail::is_native_op<T, sycl::plus<T>>::value &&
+                  detail::is_plus<T, BinaryOperation>::value),
+                 T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
@@ -672,10 +672,10 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_vector_arithmetic_or_complex<T>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -694,12 +694,12 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 // four argument version of exclusive_scan_over_group is specialized twice
 // once for vector_arithmetic, once for (scalar_arithmetic || complex)
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_vector_arithmetic_or_complex<V>::value &&
-                     detail::is_vector_arithmetic_or_complex<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<V, BinaryOperation>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -716,7 +716,7 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
      (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
@@ -752,7 +752,7 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 // ---- joint_exclusive_scan
 template <typename Group, typename InPtr, typename OutPtr, typename T,
           class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
@@ -810,7 +810,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
@@ -840,10 +840,10 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 //   the three argument version is specialized thrice: vector, scalar, and
 //   complex
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_vector_arithmetic_or_complex<T>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -860,12 +860,12 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (detail::is_scalar_arithmetic<T>::value ||
-                      (detail::is_complex<T>::value &&
-                       detail::is_multiplies<T, BinaryOperation>::value)) &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  (detail::is_scalar_arithmetic<T>::value ||
+                   (detail::is_complex<T>::value &&
+                    detail::is_multiplies<T, BinaryOperation>::value)) &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value ||
@@ -884,11 +884,11 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 
 // complex specializaiton
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_complex<T>::value &&
-                     detail::is_native_op<T, sycl::plus<T>>::value &&
-                     detail::is_plus<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_complex<T>::value &&
+                  detail::is_native_op<T, sycl::plus<T>>::value &&
+                  detail::is_plus<T, BinaryOperation>::value),
+                 T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
@@ -907,7 +907,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 // four argument version of inclusive_scan_over_group is specialized twice
 // once for (scalar_arithmetic || complex) and once for vector_arithmetic
 template <typename Group, typename V, class BinaryOperation, typename T>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
      (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
@@ -935,12 +935,12 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_vector_arithmetic_or_complex<V>::value &&
-                     detail::is_vector_arithmetic_or_complex<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<V, BinaryOperation>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -958,7 +958,7 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 // ---- joint_inclusive_scan
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation, typename T>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
@@ -1015,7 +1015,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
-detail::enable_if_t<
+std::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
