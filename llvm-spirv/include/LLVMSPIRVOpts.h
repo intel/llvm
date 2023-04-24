@@ -90,7 +90,9 @@ enum class DebugInfoEIS : uint32_t {
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
-  using ExtensionsStatusMap = std::map<ExtensionID, bool>;
+  // Unset optional means not directly specified by user
+  using ExtensionsStatusMap = std::map<ExtensionID, std::optional<bool>>;
+
   using ArgList = llvm::SmallVector<llvm::StringRef, 4>;
 
   TranslatorOpts() = default;
@@ -107,11 +109,14 @@ public:
     if (ExtStatusMap.end() == I)
       return false;
 
-    return I->second;
+    return I->second && *I->second;
   }
 
   void setAllowedToUseExtension(ExtensionID Extension, bool Allow = true) {
-    ExtStatusMap[Extension] = Allow;
+    // Only allow using the extension if it has not already been disabled
+    auto I = ExtStatusMap.find(Extension);
+    if (I == ExtStatusMap.end() || !I->second || (*I->second) == true)
+      ExtStatusMap[Extension] = Allow;
   }
 
   VersionNumber getMaxVersion() const { return MaxVersion; }
@@ -121,6 +126,10 @@ public:
   bool isSPIRVMemToRegEnabled() const { return SPIRVMemToReg; }
 
   void setMemToRegEnabled(bool Mem2Reg) { SPIRVMemToReg = Mem2Reg; }
+
+  bool preserveAuxData() const { return PreserveAuxData; }
+
+  void setPreserveAuxData(bool ArgValue) { PreserveAuxData = ArgValue; }
 
   void setGenKernelArgNameMDEnabled(bool ArgNameMD) {
     GenKernelArgNameMD = ArgNameMD;
@@ -230,6 +239,8 @@ private:
   // Add a workaround to preserve OpenCL kernel_arg_type and
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
+
+  bool PreserveAuxData = false;
 };
 
 } // namespace SPIRV

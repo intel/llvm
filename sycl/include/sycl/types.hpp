@@ -1488,6 +1488,19 @@ class SwizzleOp {
       SwizzleOp<const VecT, GetOp<DataT>, GetOp<DataT>, GetOp, Indices...>;
 
 public:
+  using element_type = DataT;
+
+  const DataT &operator[](int i) const {
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    return (*m_Vector)[Idxs[i]];
+  }
+
+  template <typename _T = VecT>
+  std::enable_if_t<!std::is_const_v<_T>, DataT> &operator[](int i) {
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    return (*m_Vector)[Idxs[i]];
+  }
+
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getNumElements(); }

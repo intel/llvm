@@ -37,7 +37,7 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
+  size_t runOnFunction(Function &F, SmallPtrSetImpl<Type *> &);
 };
 
 ModulePass *createSYCLLowerESIMDPass();

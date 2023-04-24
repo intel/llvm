@@ -361,7 +361,9 @@ public:
 
   /// Commit the current stored underlying raw vector to memory.
   /// This is required when using inline assembly with private global variables.
-  void commit() { __esimd_vstore<RawTy, N>(&M_data, M_data); }
+  __SYCL_DEPRECATED(
+      "commit is deprecated and will be removed in a future release")
+  void commit() {}
 
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.
