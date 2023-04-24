@@ -103,7 +103,7 @@ void GenericCall(const Functor &ApplyToBytes) {
   }
 }
 
-template <typename Group> bool GroupAll(Group g, bool pred) {
+template <typename Group> bool GroupAll(Group, bool pred) {
   return __spirv_GroupAll(group_scope<Group>::value, pred);
 }
 template <typename ParentGroup>
@@ -124,7 +124,7 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
 #endif
 }
 
-template <typename Group> bool GroupAny(Group g, bool pred) {
+template <typename Group> bool GroupAny(Group, bool pred) {
   return __spirv_GroupAny(group_scope<Group>::value, pred);
 }
 template <typename ParentGroup>
@@ -241,7 +241,7 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   }
 #elif defined(__NVPTX__)
     sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
-    return __nvvm_shfl_sync_idx_i32(MemberMask[0], x, LocalId, 31); //31 not 32 as docs suggest.
+    return __nvvm_shfl_sync_idx_i32(MemberMask[0], x, LocalId, 31);
 #endif
 }
 

@@ -34,7 +34,6 @@ int main() {
           // Split into odd and even work-items via control flow.
           // Branches deliberately duplicated to test impact of optimizations.
           // This only reliably works with optimizations disabled right now.
-
           if (item.get_global_id() % 2 == 0) {
             auto TangleGroup = syclex::get_tangle_group(SG);
 
