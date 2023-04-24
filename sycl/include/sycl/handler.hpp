@@ -183,8 +183,8 @@ struct GetMergedKernelProperties<
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
-typename detail::enable_if_t<std::is_same<ValT, size_t>::value ||
-                             std::is_same<ValT, unsigned long long>::value>
+typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
+                          std::is_same<ValT, unsigned long long>::value>
 checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
@@ -194,8 +194,8 @@ checkValueRangeImpl(ValT V) {
 #endif
 
 template <int Dims, typename T>
-typename detail::enable_if_t<std::is_same<T, range<Dims>>::value ||
-                             std::is_same<T, id<Dims>>::value>
+typename std::enable_if_t<std::is_same<T, range<Dims>>::value ||
+                          std::is_same<T, id<Dims>>::value>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -232,7 +232,7 @@ void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
 }
 
 template <int Dims, typename T>
-typename detail::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
+typename std::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
@@ -281,7 +281,7 @@ private:
   KernelType KernelFunc;
 };
 
-using sycl::detail::enable_if_t;
+using std::enable_if_t;
 using sycl::detail::queue_impl;
 
 } // namespace detail
@@ -341,8 +341,8 @@ private:
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
 
   /// Stores copy of Arg passed to the MArgsStorage.
-  template <typename T, typename F = typename detail::remove_const_t<
-                            typename detail::remove_reference_t<T>>>
+  template <typename T, typename F = typename std::remove_const_t<
+                            typename std::remove_reference_t<T>>>
   F *storePlainArg(T &&Arg) {
     MArgsStorage.emplace_back(sizeof(T));
     auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
@@ -476,7 +476,7 @@ private:
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
-  typename detail::enable_if_t<AccessTarget != access::target::local, void>
+  typename std::enable_if_t<AccessTarget != access::target::local, void>
   setArgHelper(
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
@@ -767,7 +767,7 @@ private:
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
             access::placeholder IsPHSrc, access::placeholder IsPHDst>
-  detail::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
+  std::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
     if (!MIsHost &&
@@ -798,7 +798,7 @@ private:
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
             access::placeholder IsPHSrc, access::placeholder IsPHDst>
-  detail::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
+  std::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
     if (!MIsHost)
@@ -819,7 +819,7 @@ private:
   /// \param Dst is a pointer to destination memory.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0)>
+  std::enable_if_t<(Dim > 0)>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     range<Dim> Range = Src.get_range();
@@ -827,7 +827,7 @@ private:
         class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          using TSrcNonConst = typename std::remove_const_t<TSrc>;
           (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
         });
   }
@@ -839,12 +839,12 @@ private:
   /// \param Dst is a pointer to destination memory.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0>
+  std::enable_if_t<Dim == 0>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
-          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          using TSrcNonConst = typename std::remove_const_t<TSrc>;
           *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
         });
   }
@@ -855,7 +855,7 @@ private:
   /// \param Dst is a destination SYCL accessor.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0)>
+  std::enable_if_t<(Dim > 0)>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
@@ -874,7 +874,7 @@ private:
   /// \param Dst is a destination SYCL accessor.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0>
+  std::enable_if_t<Dim == 0>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
@@ -1467,11 +1467,10 @@ private:
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
   template <typename FuncT>
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void(interop_handle)>::value>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void()>::value ||
+                   detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
   host_task_impl(FuncT &&Func) {
     throwIfActionIsCreated();
 
@@ -1549,17 +1548,16 @@ public:
   void depends_on(const std::vector<event> &Events);
 
   template <typename T>
-  using remove_cv_ref_t =
-      typename detail::remove_cv_t<detail::remove_reference_t<T>>;
+  using remove_cv_ref_t = typename std::remove_cv_t<std::remove_reference_t<T>>;
 
   template <typename U, typename T>
   using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
-        std::is_trivially_copyable<detail::remove_reference_t<T>>::value
+        std::is_trivially_copyable<std::remove_reference_t<T>>::value
 #if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
-            && std::is_standard_layout<detail::remove_reference_t<T>>::value
+            && std::is_standard_layout<std::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
@@ -1574,7 +1572,7 @@ public:
   /// \param ArgIndex is a positional number of argument to be set.
   /// \param Arg is an argument value to be set.
   template <typename T>
-  typename detail::enable_if_t<ShouldEnableSetArg<T>::value, void>
+  typename std::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
@@ -1655,11 +1653,10 @@ public:
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void(interop_handle)>::value>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void()>::value ||
+                   detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
   host_task(FuncT &&Func) {
     host_task_impl(Func);
   }
