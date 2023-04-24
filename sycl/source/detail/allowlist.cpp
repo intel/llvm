@@ -364,7 +364,7 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
 
   int InsertIDx = 0;
   for (RT::PiDevice Device : PiDevices) {
-    auto DeviceImpl = PlatformImpl->getDeviceImpl(Device);
+    auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     RT::PiDeviceType PiDevType;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
