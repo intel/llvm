@@ -801,13 +801,13 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 49,                      ///< [uint32_t] max number of __const declared arguments in a kernel
     UR_DEVICE_INFO_LOCAL_MEM_TYPE = 50,                         ///< [::ur_device_local_mem_type_t] local memory type
     UR_DEVICE_INFO_LOCAL_MEM_SIZE = 51,                         ///< [uint64_t] local memory size in bytes
-    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,               ///< [bool] support error correction to global and local memory
-    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,                    ///< [bool] unified host device memory
+    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,               ///< [::ur_bool_t] support error correction to global and local memory
+    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,                    ///< [::ur_bool_t] unified host device memory
     UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION = 54,             ///< [size_t] profiling timer resolution in nanoseconds
-    UR_DEVICE_INFO_ENDIAN_LITTLE = 55,                          ///< [bool] little endian byte order
-    UR_DEVICE_INFO_AVAILABLE = 56,                              ///< [bool] device is available
-    UR_DEVICE_INFO_COMPILER_AVAILABLE = 57,                     ///< [bool] device compiler is available
-    UR_DEVICE_INFO_LINKER_AVAILABLE = 58,                       ///< [bool] device linker is available
+    UR_DEVICE_INFO_ENDIAN_LITTLE = 55,                          ///< [::ur_bool_t] little endian byte order
+    UR_DEVICE_INFO_AVAILABLE = 56,                              ///< [::ur_bool_t] device is available
+    UR_DEVICE_INFO_COMPILER_AVAILABLE = 57,                     ///< [::ur_bool_t] device compiler is available
+    UR_DEVICE_INFO_LINKER_AVAILABLE = 58,                       ///< [::ur_bool_t] device linker is available
     UR_DEVICE_INFO_EXECUTION_CAPABILITIES = 59,                 ///< [::ur_device_exec_capability_flags_t] device kernel execution
                                                                 ///< capability bit-field
     UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60,             ///< [::ur_queue_flags_t] device command queue property bit-field
