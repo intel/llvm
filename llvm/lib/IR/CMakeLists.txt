@@ -22,6 +22,7 @@ add_llvm_component_library(LLVMCore
   Dominators.cpp
   EHPersonalities.cpp
   FPEnv.cpp
+  FPAccuracy.cpp
   Function.cpp
   GCStrategy.cpp
   GVMaterializer.cpp

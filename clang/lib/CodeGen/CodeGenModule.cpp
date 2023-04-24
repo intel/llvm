@@ -7854,10 +7854,12 @@ void CodeGenModule::moveLazyEmissionStates(CodeGenModule *NewBuilder) {
 }
 
 void CodeGenModule::getFPAccuracyFuncAttributes(StringRef Name,
-                                                llvm::AttributeList &AttrList) {
+                                                llvm::AttributeList &AttrList,
+                                                unsigned ID,
+                                                const llvm::Type *FuncType) {
   llvm::AttrBuilder FuncAttrs(getLLVMContext());
-  getDefaultFunctionAttributes(Name, /*HasOptNone*/ false,
-                               /*AttrOnCallSite*/ true, FuncAttrs);
+  getDefaultFunctionFPAccuracyAttributes(Name, FuncAttrs, ID,
+                                         FuncType);
   AttrList = llvm::AttributeList::get(
       getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
 }

@@ -38,6 +38,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/FPAccuracy.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <optional>
 using namespace clang;
@@ -1836,14 +1837,30 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
          Module.getLangOpts().Sanitize.has(SanitizerKind::Return);
 }
 
-void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
-                                                 bool HasOptnone,
-                                                 bool AttrOnCallSite,
-                                               llvm::AttrBuilder &FuncAttrs) {
+llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracy) {
+  StringRef AccuracyVal;
+  if (FPAccuracy == "high")
+    return llvm::fp::FPAccuracy::High;
+  else if (FPAccuracy == "medium")
+    return llvm::fp::FPAccuracy::Medium;
+  else if (FPAccuracy == "low")
+    return llvm::fp::FPAccuracy::Low;
+  else if (FPAccuracy == "sycl")
+    return llvm::fp::FPAccuracy::SYCL;
+  else if (FPAccuracy == "cuda")
+    return llvm::fp::FPAccuracy::CUDA;
+  else
+    llvm_unreachable("Unexpected type for FPAccuracy");
+}
+
+void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
+    StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
+    const llvm::Type *FuncType) {
   for (const auto &M : getLangOpts().FPAccuracyMap) {
     llvm::StringSet<> FuncOwnAttrs;
-    FuncAttrs.addAttribute("fpaccuracy=", M.second);
-    FuncOwnAttrs.insert(M.first);
+    StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+        ID, FuncType, convertFPAccuracy(M.second));
+    FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
   }
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     llvm::StringSet<> FuncOwnAttrs;
@@ -1851,11 +1868,18 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
       for (const std::pair<std::string, std::string> &AttrPair :
            FuncMapIt->second) {
-        FuncAttrs.addAttribute("fpaccuracy=", AttrPair.second);
-        FuncOwnAttrs.insert(AttrPair.first);
+        StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+            ID, FuncType, convertFPAccuracy(AttrPair.second));
+        FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
       }
     }
   }
+}
+
+void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
+                                                 bool HasOptnone,
+                                                 bool AttrOnCallSite,
+                                               llvm::AttrBuilder &FuncAttrs) {
   // OptimizeNoneAttr takes precedence over -Os or -Oz. No warning needed.
   if (!HasOptnone) {
     if (CodeGenOpts.OptimizeSize)
@@ -5410,6 +5434,12 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                              Callee.getAbstractInfo(), Attrs, CallingConv,
                              /*AttrOnCallSite=*/true,
                              /*IsThunk=*/false);
+
+  if (CGM.getCodeGenOpts().FPAccuracy && CalleePtr->getName() == "sincos") {
+    CGM.getFPAccuracyFuncAttributes(
+        CalleePtr->getName(), Attrs, llvm::Intrinsic::fpbuiltin_sincos,
+        CGM.getTypes().ConvertType(CallArgs[0].getType()));
+  }
 
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
     if (FD->hasAttr<StrictFPAttr>())

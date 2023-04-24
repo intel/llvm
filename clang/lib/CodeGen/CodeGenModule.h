@@ -1592,7 +1592,8 @@ public:
   void moveLazyEmissionStates(CodeGenModule *NewBuilder);
 
   void getFPAccuracyFuncAttributes(StringRef Name,
-                                   llvm::AttributeList &AttrList);
+                                   llvm::AttributeList &AttrList, unsigned ID,
+                                   const llvm::Type *FuncType);
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
@@ -1781,6 +1782,10 @@ private:
   void getDefaultFunctionAttributes(StringRef Name, bool HasOptnone,
                                     bool AttrOnCallSite,
                                     llvm::AttrBuilder &FuncAttrs);
+
+  void getDefaultFunctionFPAccuracyAttributes(StringRef Name,
+                                              llvm::AttrBuilder &FuncAttrs,
+                                              unsigned ID, const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);
