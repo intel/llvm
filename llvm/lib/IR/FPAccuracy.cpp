@@ -30,51 +30,51 @@ static bool isFPBuiltinIntrinsic(Intrinsic::ID IID) {
   }
 }
 
-static std::optional<float> LookupSyclFloatAccuracy(Intrinsic::ID IID) {
+static StringRef LookupSyclFloatAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SYCL_FLOAT_ACCURACY, SDA, CFA, CDA)             \
   case Intrinsic::INTRINSIC:                                                   \
     return SYCL_FLOAT_ACCURACY;
 #include "llvm/IR/FPAccuracy.def"
   default:
-    return std::nullopt;
+    return StringRef();
   }
 }
 
-static std::optional<float> LookupSyclDoubleAccuracy(Intrinsic::ID IID) {
+static StringRef LookupSyclDoubleAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SFA, SYCL_DOUBLE_ACCURACY, CFA, CDA)            \
   case Intrinsic::INTRINSIC:                                                   \
     return SYCL_DOUBLE_ACCURACY;
 #include "llvm/IR/FPAccuracy.def"
   default:
-    return std::nullopt;
+    return StringRef();
   }
 }
 
-static std::optional<float> LookupCudaFloatAccuracy(Intrinsic::ID IID) {
+static StringRef LookupCudaFloatAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SFA, SDA, CUDA_FLOAT_ACCURACY, CDA)             \
   case Intrinsic::INTRINSIC:                                                   \
     return CUDA_FLOAT_ACCURACY;
 #include "llvm/IR/FPAccuracy.def"
   default:
-    return std::nullopt;
+    return StringRef();
   }
 }
 
-static std::optional<float> LookupCudaDoubleAccuracy(Intrinsic::ID IID) {
+static StringRef LookupCudaDoubleAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SFA, SDA, CFA, CUDA_DOUBLE_ACCURACY)            \
   case Intrinsic::INTRINSIC:                                                   \
     return CUDA_DOUBLE_ACCURACY;
 #include "llvm/IR/FPAccuracy.def"
   default:
-    return std::nullopt;
+    return StringRef();
   }
 }
 
-std::optional<float> fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
+StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
                                                  const Type *Ty,
                                                  fp::FPAccuracy AccuracyLevel) {
   assert(isFPBuiltinIntrinsic(IID) && "Invalid intrinsic ID for FPAccuracy");
@@ -92,17 +92,17 @@ std::optional<float> fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
 
   // High and medium accuracy have the same requirement for all functions
   if (AccuracyLevel == fp::FPAccuracy::High)
-    return 1.0f;
+    return "1.0f";
   if (AccuracyLevel == fp::FPAccuracy::Medium)
-    return 4.0f;
+    return "4.0f";
 
   // Low accuracy is computed in terms of accurate bits, so it depends on the
   // type
   if (AccuracyLevel == fp::FPAccuracy::Low) {
     if (Ty->isFloatTy())
-      return 8192.0f;
+      return "8192.0f";
     if (Ty->isDoubleTy())
-      return 1 << 26; // 2^(53-26-1) == 26-bits of accuracy
+      return "67108864.0f"; // 2^(53-26-1) == 26-bits of accuracy
 
     // Other types are not supported
     llvm_unreachable("Unexpected type for FPAccuracy");

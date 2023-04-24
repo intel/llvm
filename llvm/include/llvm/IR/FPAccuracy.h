@@ -47,8 +47,7 @@ enum class FPAccuracy { High, Medium, Low, SYCL, CUDA };
 ///
 /// If the supplied intrinsic ID and type do not identify an operation for
 /// which required accuracy is available, this function will not return a value.
-std::optional<float> getAccuracyForFPBuiltin(Intrinsic::ID, const Type *,
-                                             FPAccuracy);
+StringRef getAccuracyForFPBuiltin(Intrinsic::ID, const Type *, FPAccuracy);
 
 } // namespace fp
 
