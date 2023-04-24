@@ -71,7 +71,7 @@ static bool isCandidateArg(Value arg) {
   return false;
 }
 
-/// Populate \p candArgs with candidate arguments from \p call.
+/// Populates \p candArgs with candidate arguments from \p call.
 static void
 collectCandidateArguments(CallOpInterface call,
                           SmallVectorImpl<AccessorPtrType> &candArgs) {
@@ -81,24 +81,28 @@ collectCandidateArguments(CallOpInterface call,
       candArgs.push_back(cast<AccessorPtrType>(arg));
 }
 
+/// Updates \p newFnName to a unique function name if it is already defined.
+static void getUniqueFnName(std::string &newFnName, Operation *symbolTable) {
+  assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
+         "Expecting symbol table");
+  auto alreadyDefined = [&symbolTable](std::string fnName) {
+    return llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
+      return llvm::any_of(block, [&](auto &op) {
+        auto nameAttr = op.template getAttrOfType<StringAttr>(
+            SymbolTable::getSymbolAttrName());
+        return nameAttr && nameAttr.getValue() == fnName;
+      });
+    });
+  };
+  unsigned counter = 0;
+  while (alreadyDefined(newFnName))
+    newFnName += ("." + std::to_string(counter));
+}
+
 /// Returns the cloned version of \p func.
 static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
   std::string newFnName = (func.getName() + ".specialized").str();
-#ifndef NDEBUG
-  auto *symbolTable = func->getParentWithTrait<OpTrait::SymbolTable>();
-  assert(symbolTable && "Expecting valid symbol table");
-  bool alreadyDefined =
-      llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
-        return llvm::any_of(block, [&](auto &op) {
-          if (&op == func.getOperation())
-            return false;
-          auto nameAttr = op.template getAttrOfType<StringAttr>(
-              SymbolTable::getSymbolAttrName());
-          return nameAttr && nameAttr.getValue() == func.getName();
-        });
-      });
-  assert(!alreadyDefined && "Expecting function not already defined");
-#endif // NDEBUG
+  getUniqueFnName(newFnName, func->getParentWithTrait<OpTrait::SymbolTable>());
   OpBuilder builder(func);
   FunctionOpInterface clonedFunc = func.clone();
   clonedFunc.setName(newFnName);
@@ -107,7 +111,7 @@ static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
   return clonedFunc;
 }
 
-/// Add attribute 'sycl.inner.disjoint' to arguments of \p func that satisfy \p
+/// Adds attribute 'sycl.inner.disjoint' to arguments of \p func that satisfy \p
 /// predicate.
 template <typename Pred,
           typename = std::enable_if_t<std::is_invocable_r_v<bool, Pred, Value>>>
