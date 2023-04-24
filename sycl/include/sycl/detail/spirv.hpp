@@ -167,22 +167,23 @@ bool GroupAny(
 // types.
 template <typename T>
 using is_native_broadcast =
-    bool_constant<detail::is_arithmetic<T>::value &&
-                  !std::is_same<T, half>::value && !detail::is_vec<T>::value>;
+    std::bool_constant<detail::is_arithmetic<T>::value &&
+                       !std::is_same<T, half>::value &&
+                       !detail::is_vec<T>::value>;
 
 template <typename T, typename IdT = size_t>
-using EnableIfNativeBroadcast = detail::enable_if_t<
+using EnableIfNativeBroadcast = std::enable_if_t<
     is_native_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 // Bitcast broadcasts can be implemented using a single SPIR-V GroupBroadcast
 // intrinsic, but require type-punning via an appropriate integer type
 template <typename T>
-using is_bitcast_broadcast = bool_constant<
+using is_bitcast_broadcast = std::bool_constant<
     !is_native_broadcast<T>::value && std::is_trivially_copyable<T>::value &&
     (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8)>;
 
 template <typename T, typename IdT = size_t>
-using EnableIfBitcastBroadcast = detail::enable_if_t<
+using EnableIfBitcastBroadcast = std::enable_if_t<
     is_bitcast_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 template <typename T>
@@ -194,20 +195,21 @@ using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
 // - At most one 32-bit, 16-bit and 8-bit chunk left over
 template <typename T>
 using is_generic_broadcast =
-    bool_constant<!is_native_broadcast<T>::value &&
-                  !is_bitcast_broadcast<T>::value &&
-                  std::is_trivially_copyable<T>::value>;
+    std::bool_constant<!is_native_broadcast<T>::value &&
+                       !is_bitcast_broadcast<T>::value &&
+                       std::is_trivially_copyable<T>::value>;
 
 template <typename T, typename IdT = size_t>
-using EnableIfGenericBroadcast = detail::enable_if_t<
+using EnableIfGenericBroadcast = std::enable_if_t<
     is_generic_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 // FIXME: Disable widening once all backends support all data types.
 template <typename T>
-using WidenOpenCLTypeTo32_t = conditional_t<
+using WidenOpenCLTypeTo32_t = std::conditional_t<
     std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
-    conditional_t<std::is_same<T, cl_uchar>() || std::is_same<T, cl_ushort>(),
-                  cl_uint, T>>;
+    std::conditional_t<std::is_same<T, cl_uchar>() ||
+                           std::is_same<T, cl_ushort>(),
+                       cl_uint, T>>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type
@@ -406,7 +408,7 @@ static inline constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
                       memory_scope Scope, memory_order Success,
                       memory_order Failure, T Desired, T Expected) {
@@ -420,7 +422,7 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
                       memory_scope Scope, memory_order Success,
                       memory_order Failure, T Desired, T Expected) {
@@ -438,7 +440,7 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -449,7 +451,7 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   using I = detail::make_unsinged_integer_t<T>;
@@ -462,7 +464,7 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value>
+inline typename std::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -473,7 +475,7 @@ AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value>
+inline typename std::enable_if_t<std::is_floating_point<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
@@ -486,7 +488,7 @@ AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -497,7 +499,7 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
@@ -512,7 +514,7 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -523,7 +525,7 @@ AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicISub(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -534,7 +536,7 @@ AtomicISub(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -545,7 +547,7 @@ AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicAnd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -556,7 +558,7 @@ AtomicAnd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicOr(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
          memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -567,7 +569,7 @@ AtomicOr(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicXor(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -578,7 +580,7 @@ AtomicXor(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -589,7 +591,7 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -600,7 +602,7 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -611,7 +613,7 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
@@ -631,11 +633,11 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : bool_constant<std::is_same_v<vector_element_t<T>, double>> {};
+    : std::bool_constant<std::is_same_v<vector_element_t<T>, double>> {};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation
-    : bool_constant<
+    : std::bool_constant<
           (detail::get_vec_size<T>::size > 1) &&
           TypeIsProhibitedForShuffleEmulation<vector_element_t<T>>::value> {};
 
@@ -962,13 +964,13 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
       Group##Instruction(Group G, T x) {                                       \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
-    using OCLT =                                                               \
-        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
-                          std::is_same<ConvertedT, cl_short>(),                \
-                      cl_int,                                                  \
-                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
-                                        std::is_same<ConvertedT, cl_ushort>(), \
-                                    cl_uint, ConvertedT>>;                     \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
                                           static_cast<unsigned int>(Op), Arg); \
@@ -980,13 +982,13 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
       ext::oneapi::experimental::ballot_group<ParentGroup> g, T x) {           \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
-    using OCLT =                                                               \
-        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
-                          std::is_same<ConvertedT, cl_short>(),                \
-                      cl_int,                                                  \
-                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
-                                        std::is_same<ConvertedT, cl_ushort>(), \
-                                    cl_uint, ConvertedT>>;                     \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
     OCLT Arg = x;                                                              \
     /* ballot_group partitions its parent into two groups (0 and 1) */         \
     /* We have to force each group down different control flow */              \
