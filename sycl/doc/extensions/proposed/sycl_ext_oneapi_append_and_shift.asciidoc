@@ -105,7 +105,7 @@ _Constraints_: Available only if `std::is_same_v<std::decay_t<Group>, sub_group>
 
 _Preconditions_: `delta` must be the same value for all work-items in the group.
 
-_Returns_: The value `c` of the work-item with group local id `id-delta`, if `id-delta` is greater or equal 0, and `n` of the work-item with group local id `sg_size+(id-delta)`, otherwise. If `id-delta` is less than `-sg_size` (which may happen if `delta` is greater than `sg_size`), the return value is undefined.
+_Returns_: The value `c` of the work-item with group local id `id-delta` if `id-delta` is greater than or equal to 0, and `n` of the work-item with group local id `sg_size+(id-delta)` otherwise. If `id-delta` is less than `-sg_size` (which may happen if `delta` is greater than `sg_size`), the return value is undefined.
 
 
 === Possible Implementation
