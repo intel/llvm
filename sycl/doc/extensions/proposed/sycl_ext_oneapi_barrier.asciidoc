@@ -1,0 +1,251 @@
+= sycl_ext_oneapi_barrier
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension defines a `sycl::ext::oneapi::experimental::barrier` class
+aligned with the `std::barrier` class defined in {cpp}20. This extension may
+also be considered a generalization of the existing
+link:../experimental/sycl_ext_oneapi_cuda_async_barrier.asciidoc[sycl_ext_oneapi_cuda_async_barrier]
+extension for non-CUDA backends.
+
+`sycl::ext::oneapi::experimental::barrier` is _not_ a general replacement for
+`sycl::group_barrier`, and is intended for usage by experts seeking to
+synchronize subsets of threads of execution that do not necessarily correspond
+to groups of work-items.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_BARRIER` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== `barrier` class
+
+The `sycl::ext::oneapi::experimental::barrier` class has the same interface as
+the `std::barrier` class from {cpp}20, with an additional `Scope` template
+parameter denoting a memory scope broad enough to contain all threads of
+execution that are able to use the barrier.
+
+[NOTE]
+====
+The threads of execution that are synchronized by this barrier may be a
+combination of host threads and device threads (i.e. work-items), if the
+barrier is visible to all threads of execution and has a sufficiently broad
+scope.
+====
+
+This extension specification provides a brief overview of the functionality of
+the `barrier` class. If there are any differences in the definitions of this
+functionality, the wording in the {cpp}20 specification takes precedence.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <sycl::memory_scope Scope, class CompletionFunction = __unspecified__>
+  class barrier {
+  public:
+    using arrival_token = __unspecified__;
+
+    static constexpr ptrdiff_t max() noexcept;
+
+    constexpr explicit barrier(ptrdiff_t expected,
+                               CompletionFunction f = CompletionFunction());
+    ~barrier();
+
+    barrier(const barrier&) = delete;
+    barrier& operator=(const barrier&) = delete;
+
+    [[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
+    void wait(arrival_token&& arrival) const;
+
+    void arrive_and_wait();
+    void arrive_and_drop();
+  };
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[source,c++]
+----
+static constexpr ptrdiff_t max() noexcept;
+----
+_Returns_: The maximum number of threads of execution that can be synchronized
+by any `barrier` with the specified `Scope` and `CompletionFunction`.
+
+[source,c++]
+----
+constexpr explicit barrier(ptrdiff_t expected, CompletionFunction f = CompletionFunction());
+----
+_Effects_: Initializes the barrier with the given expected count and completion
+function, and begins the first phase of the barrier.
+
+[source,c++]
+----
+[[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
+----
+_Effects_: The calling thread of execution arrives at the barrier and decreases
+the expected count by `update`.
+
+_Returns_: An `arrival_token` that can be passed to `wait`.
+
+[source,c++]
+----
+void wait(arrival_token&& arrival) const;
+----
+_Effects_: Blocks the calling thread of execution until the end of the barrier
+phase associated with `arrival`.
+
+[NOTE]
+====
+Because calling `wait` blocks the calling thread of execution, it may prevent
+forward progress. Unlike `group_barrier`, the member functions of `barrier` do
+not provide additional scheduling guarantees; it is a user's responsibility to
+ensure that calls to `wait` are compatible with the forward progress guarantees
+provided by an implementation.
+====
+
+[source,c++]
+----
+void arrive_and_wait();
+----
+_Effects_: Equivalent to `wait(arrive())`.
+
+[source,c++]
+----
+void arrive_and_drop();
+----
+_Effects_: The calling thread of execution arrives at the barrier, decreases
+the number of threads of execution expected in the next phase, and decreases
+the expected count of the current phase by 1.
+
+
+=== `group_arrive` and `group_wait`
+
+This extension provides two convenience functions for `arrive` and `wait` with
+additional convergence requirements, to simplify reasoning about forward
+progress guarantees in common situations. Both of these functions act as
+synchronization points for all work-items in a group.
+
+[source,c++]
+----
+template <typename Group, typename Barrier>
+[[nodiscard]] group_arrival_token group_arrive(Group g, Barrier b);
+----
+_Effects_: Waits for all work-items in group `g` to reach this point of
+execution, then signals that all work-items have arrived at barrier `b` and
+decreases the expected count by `g.get_group_linear_range()`.
+
+_Returns_: A `group_arrival_token` that can be passed to `group_wait`.
+
+[NOTE]
+====
+Implementations may decrease the expected count via a call to `arrive(1)` from
+each work-item in the group, or via a single call to
+`arrive(g.get_group_linear_range())` from the elected leader of the group.
+====
+
+[source,c++]
+----
+template <typename Group>
+void group_wait(Group g, group_arrival_token&& arrival);
+----
+_Effects_: Waits for all work-items in group `g` to reach this point of
+execution, then blocks all work-items in group `g` until the end of the barrier
+phase associated with `arrival`.
+
+[NOTE]
+====
+Implementations may block the work-items in group `g` via a call to `wait` from
+each work-item in the group, or via a single call to `wait` from the elected
+leader of the group.
+====
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+Certain backend/hardware combinations will be able to leverage dedicated
+support for barriers with "split" arrive and wait. For example, the CUDA
+backend targeting NVIDIA GPUs can implement the `barrier` class using PTX
+`mbarrier` objects.
+
+Backend/hardware combinations without dedicated support for "split" barriers
+should emulate them using atomic operations, being careful to avoid introducing
+additional blocking behaviors that are not mentioned by this specification.
+
+
+== Issues
+
+None.
