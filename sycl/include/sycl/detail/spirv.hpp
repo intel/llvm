@@ -1010,13 +1010,13 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
       T x) {                                                                   \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
-    using OCLT =                                                               \
-        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
-                          std::is_same<ConvertedT, cl_short>(),                \
-                      cl_int,                                                  \
-                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
-                                        std::is_same<ConvertedT, cl_ushort>(), \
-                                    cl_uint, ConvertedT>>;                     \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
     OCLT Arg = x;                                                              \
     constexpr auto Scope = group_scope<ParentGroup>::value;                    \
     /* SPIR-V only defines a ClusteredReduce, with no equivalents for scan. */ \
