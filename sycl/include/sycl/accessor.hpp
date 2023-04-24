@@ -2839,9 +2839,17 @@ public:
   bool empty() const noexcept { return this->size() == 0; }
 
   iterator begin() const noexcept {
-    return &this->operator[](id<Dimensions>());
+    if constexpr (Dimensions == 0)
+      return local_acc::getQualifiedPtr();
+    else
+      return &this->operator[](id<Dimensions>());
   }
-  iterator end() const noexcept { return begin() + this->size(); }
+  iterator end() const noexcept {
+    if constexpr (Dimensions == 0)
+      return begin() + 1;
+    else
+      return begin() + this->size();
+  }
 
   const_iterator cbegin() const noexcept { return const_iterator(begin()); }
   const_iterator cend() const noexcept { return const_iterator(end()); }

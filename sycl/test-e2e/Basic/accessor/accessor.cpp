@@ -980,6 +980,19 @@ int main() {
     }
     assert(vec1[7] == 4 && vec2[15] == 4);
   }
+
+  // 0-dim host_accessor iterator
+  {
+    std::vector<int> vec1(8);
+    {
+      sycl::buffer<int> buf1(vec1.data(), vec1.size());
+      sycl::host_accessor<int, 0> acc1(buf1);
+      *acc1.begin() = 4;
+      *acc1.rbegin() += 4;
+    }
+    assert(vec1[0] == 8);
+  }
+
   // Test swap() on basic accessor
   {
     std::vector<int> vec1(8), vec2(16);
@@ -1111,6 +1124,29 @@ int main() {
         sycl::local_accessor<int, 0> LocalAcc(CGH);
         CGH.single_task<class local_acc_0_dim_assignment>([=]() {
           LocalAcc = 64;
+          Acc = LocalAcc;
+        });
+      });
+    }
+
+    assert(Data == 64);
+  }
+
+  // Assignment operator test for 0-dim local accessor iterator
+  {
+    sycl::queue Queue;
+    int Data = 0;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        sycl::local_accessor<int, 0> LocalAcc(CGH);
+        CGH.single_task<class local_acc_0_dim_iter_assignment>([=]() {
+          *LocalAcc.begin() = 32;
+          *LocalAcc.rbegin() += 32;
           Acc = LocalAcc;
         });
       });
