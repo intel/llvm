@@ -1586,6 +1586,7 @@ public:
   ///
   /// This function is an APInt version of std::countr_zero. It counts the number
   /// of zeros from the least significant bit to the first set bit.
+  ///
   /// \returns BitWidth if the value is zero, otherwise returns the number of
   /// zeros from the least significant bit to the first one bit.
   unsigned countr_zero() const {
