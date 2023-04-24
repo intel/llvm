@@ -213,7 +213,7 @@ T floor(T x);
 
 ===== Description
 
-Round to integral value using the round to negative infinity rounding mode
+Returns `x` rounded to an integral value using the round to negative infinity rounding mode
 for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
 
 ==== cos
@@ -333,7 +333,7 @@ T rint(T x);
 
 ===== Description
 
-Round to integral value using the round to nearest even rounding mode
+Returns `x` rounded to an integral value using the round to nearest even rounding mode
 for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
 
 ==== sqrt
@@ -373,7 +373,7 @@ T trunc(T x);
 
 ===== Description
 
-Round to integral value using the round to zero rounding mode
+Returns `x` rounded to an integral value using the round to zero rounding mode
 for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
 
 == Issues
