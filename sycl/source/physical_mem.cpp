@@ -24,8 +24,8 @@ physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
       SyclDevice, SyclContext, NumBytes);
 }
 
-void physical_mem::map(const void *Ptr, size_t NumBytes,
-                       address_access_mode Mode, size_t Offset) const {
+void *physical_mem::map(uintptr_t Ptr, size_t NumBytes,
+                        address_access_mode Mode, size_t Offset) const {
   return impl->map(Ptr, NumBytes, Mode, Offset);
 }
 

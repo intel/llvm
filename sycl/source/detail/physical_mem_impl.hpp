@@ -52,14 +52,16 @@ public:
     Plugin.call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
   }
 
-  void map(const void *Ptr, size_t NumBytes,
-           ext::oneapi::experimental::address_access_mode Mode,
-           size_t Offset) const {
+  void *map(uintptr_t Ptr, size_t NumBytes,
+            ext::oneapi::experimental::address_access_mode Mode,
+            size_t Offset) const {
     RT::PiVirtualAccessFlags AccessFlags = AccessModeToVirtualAccessFlags(Mode);
     const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextVirtualMemMap>(MContext->getHandleRef(), Ptr,
-                                               NumBytes, MPhysicalMem, Offset,
-                                               AccessFlags);
+    void *ResultPtr = reinterpret_cast<void *>(Ptr);
+    Plugin.call<PiApiKind::piextVirtualMemMap>(
+        MContext->getHandleRef(), ResultPtr, NumBytes, MPhysicalMem, Offset,
+        AccessFlags);
+    return ResultPtr;
   }
 
   context get_context() const {

@@ -73,8 +73,8 @@ __SYCL_EXPORT size_t get_recommended_mem_granularity(
   return Granularity;
 }
 
-__SYCL_EXPORT void *reserve_virtual_mem(const void *Start, size_t NumBytes,
-                                        const context &SyclContext) {
+__SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,
+                                            const context &SyclContext) {
   std::vector<device> Devs = SyclContext.get_devices();
   if (std::any_of(Devs.cbegin(), Devs.cend(), [](const device &Dev) {
         return !Dev.has(aspect::ext_oneapi_virtual_mem);
@@ -89,17 +89,18 @@ __SYCL_EXPORT void *reserve_virtual_mem(const void *Start, size_t NumBytes,
   const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
   void *OutPtr = nullptr;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemReserve>(
-      ContextImpl->getHandleRef(), Start, NumBytes, &OutPtr);
-  return OutPtr;
+      ContextImpl->getHandleRef(), reinterpret_cast<void *>(Start), NumBytes,
+      &OutPtr);
+  return reinterpret_cast<uintptr_t>(OutPtr);
 }
 
-__SYCL_EXPORT void free_virtual_mem(const void *Ptr, size_t NumBytes,
+__SYCL_EXPORT void free_virtual_mem(uintptr_t Ptr, size_t NumBytes,
                                     const context &SyclContext) {
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
   const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemFree>(
-      ContextImpl->getHandleRef(), Ptr, NumBytes);
+      ContextImpl->getHandleRef(), reinterpret_cast<void *>(Ptr), NumBytes);
 }
 
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,

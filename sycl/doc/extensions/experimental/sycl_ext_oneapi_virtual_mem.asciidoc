@@ -96,10 +96,9 @@ supports.
 Working with virtual address ranges and the underlying physical memory requires
 the user to align and adjust in accordance with a specified minimum granularity.
 
-Some devices may have a recommended granularity that is different from the
-minimum granularity. In such cases, the reasoning for a different recommended
-granularity is unspecified. Devices may return the same minimum granularity as
-the recommended granularity.
+In addition, contexts may specify a recommended granularity for a given device
+to potentially achieve higher performance. Distinction between minimum and
+recommended is specified by the context and may vary between devices.
 
 The interfaces for querying these granularities are defined as:
 
@@ -121,31 +120,31 @@ size_t get_recommended_mem_granularity(const physical_mem &syclPhysicalMem);
 |=====================
 |Function |Description
 
-|`size_t get_minimum_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext)` |
-Returns the minimum granularity of physical and virtual memory allocations of
-byte size `numBytes`.
+|`size_t get_minimum_mem_granularity(const device &syclDevice, const context &syclContext)` |
+Returns the minimum granularity of physical and virtual memory allocations on
+`syclDevice` in the `syclContext`.
 
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
 
-|`size_t get_minimum_mem_granularity(size_t numBytes, const queue &syclQueue)` |
-Same as `get_minimum_mem_granularity(numBytes, syclQueue.get_device(), syclQueue.get_context())`.
+|`size_t get_minimum_mem_granularity(const queue &syclQueue)` |
+Same as `get_minimum_mem_granularity(syclQueue.get_device(), syclQueue.get_context())`.
 
-|`size_t get_minimum_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem)` |
-Same as `get_minimum_mem_granularity(numBytes, syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
+|`size_t get_minimum_mem_granularity(const physical_mem &syclPhysicalMem)` |
+Same as `get_minimum_mem_granularity(syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
 
-|`size_t get_recommended_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext)` |
+|`size_t get_recommended_mem_granularity(const device &syclDevice, const context &syclContext)` |
 Returns the recommended granularity of physical and virtual memory allocations
-of byte size `numBytes`.
+on `syclDevice` in the `syclContext`.
 
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
 
-|`size_t get_recommended_mem_granularity(size_t numBytes, const queue &syclQueue)` |
-Same as `get_recommended_mem_granularity(numBytes, syclQueue.get_device(), syclQueue.get_context())`.
+|`size_t get_recommended_mem_granularity(const queue &syclQueue)` |
+Same as `get_recommended_mem_granularity(syclQueue.get_device(), syclQueue.get_context())`.
 
-|`size_t get_recommended_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem)` |
-Same as `get_recommended_mem_granularity(numBytes, syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
+|`size_t get_recommended_mem_granularity(const physical_mem &syclPhysicalMem)` |
+Same as `get_recommended_mem_granularity(syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
 
 |=====================
 
@@ -164,20 +163,10 @@ virtual address range are defined as:
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-enum class address_access_mode : /*unspecified*/ {
-  none,
-  read,
-  read_write
-};
+uintptr_t reserve_virtual_mem(uintptr_t start, size_t numBytes, const context &syclContext);
+uintptr_t reserve_virtual_mem(size_t numBytes, const context &syclContext);
 
-void *reserve_virtual_mem(const void *start, size_t numBytes, const context &syclContext);
-void *reserve_virtual_mem(size_t numBytes, const context &syclContext);
-
-void free_virtual_mem(const void* ptr, size_t numBytes, const context &syclContext);
-
-void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext);
-
-address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext);
+void free_virtual_mem(uintptr_t ptr, size_t numBytes, const context &syclContext);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -186,7 +175,7 @@ address_access_mode get_access_mode(const void *ptr, size_t numBytes, const cont
 |=====================
 |Function |Description
 
-|`void *reserve_virtual_mem(const void *start, size_t numBytes, const context &syclContext)` |
+|`uintptr_t reserve_virtual_mem(uintptr_t start, size_t numBytes, const context &syclContext)` |
 Reserves a virtual memory range in `syclContext` with `numBytes` bytes.
 
 `start` specifies the requested start of the new virtual memory range
@@ -202,10 +191,10 @@ If any of the devices in `syclContext` does not have
 `aspect::ext_oneapi_virtual_mem` the call throws an exception with
 `errc::feature_not_supported`.
 
-|`void *reserve_virtual_mem(size_t numBytes, const device &syclDevice, const context &syclContext)` |
-Same as `reserve_virtual_mem(nullptr, numBytes, syclDevice, syclContext)`.
+|`uintptr_t reserve_virtual_mem(size_t numBytes, const device &syclDevice, const context &syclContext)` |
+Same as `reserve_virtual_mem(0, numBytes, syclDevice, syclContext)`.
 
-|`void free_virtual_mem(const void* ptr, size_t numBytes, const context &syclContext)` |
+|`void free_virtual_mem(uintptr_t ptr, size_t numBytes, const context &syclContext)` |
 Frees a virtual memory range specified by `ptr` and `numBytes`. `ptr` must be
 the same as returned by a call to `reserve_virtual_mem` and `numBytes` must be
 the same as the size of the range specified in the reservation call.
@@ -213,18 +202,6 @@ the same as the size of the range specified in the reservation call.
 The virtual memory range must not currently be mapped to physical memory. A call
 to this function with a mapped virtual memory range results in undefined
 behavior.
-
-|`void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext)` |
-Sets the access mode of a virtual memory range specified by `ptr` and
-`numBytes`.
-
-Writing to any address in the virtual memory range with access mode set to
-`address_access_mode::read` results in undefined behavior.
-
-|`address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
-Returns the access mode of the virtual memory range specified by `ptr` and
-`numBytes`. If the virtual memory range is inaccessible `std::nullopt` is
-returned.
 
 |=====================
 
@@ -239,6 +216,12 @@ the `physical_mem` class is added. This new class is defined as:
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
+enum class address_access_mode : /*unspecified*/ {
+  none,
+  read,
+  read_write
+};
+
 class physical_mem {
 public:
   physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes);
@@ -246,8 +229,8 @@ public:
 
   /* -- common interface members -- */
 
-  void map(const void *ptr, size_t numBytes, size_t offset = 0) const;
-  void map(const void *ptr, size_t numBytes, address_access_mode mode, size_t offset = 0) const;
+  void *map(uintptr_t ptr, size_t numBytes, size_t offset = 0) const;
+  void *map(uintptr_t ptr, size_t numBytes, address_access_mode mode, size_t offset = 0) const;
 
   context get_context() const;
   device get_device() const;
@@ -278,20 +261,24 @@ be a multiple of the minimum granularity, as returned by a call to
 |`physical_mem(const queue &syclQueue, size_t numBytes)` |
 Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
 
-|`void map(const void *ptr, size_t numBytes, size_t offset = 0)` |
+|`void *map(uintptr_t ptr, size_t numBytes, size_t offset = 0)` |
 Same as `map(ptr, numBytes, address_access_mode::none, offset)`.
 
-|`void map(const void *ptr, size_t numBytes, address_access_mode mode, size_t offset = 0)` |
+|`void *map(uintptr_t ptr, size_t numBytes, address_access_mode mode, size_t offset = 0)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
 memory corresponding to this instance of `physical_mem`, starting at an offset
 of `offset` bytes.
 
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
-the access range is accessible after the call. Otherwise, it considered
-inaccessible and accessing it will result in undefined behavior.
+the returned pointer is accessible after the call as read-only or read-write
+respectively. Otherwise, it considered inaccessible and accessing it will result
+in undefined behavior.
 
 Writing to any address in the virtual memory range with access mode set to
 `access_mode::read` results in undefined behavior.
+
+An accessible pointer behaves the same as a pointer to device USM memory and can
+be used in place of a device USM pointer in any interface accepting one.
 
 |`context get_context() const` |
 Returns the SYCL context associated with the instance of `physical_mem`.
@@ -305,13 +292,17 @@ Returns the size of the corresponding physical memory in bytes.
 |============================
 
 Virtual memory address ranges are mapped to the a `physical_mem` through the
-`map` member functions. However, to unmap the virtual memory range the user
-only needs to know the context associated with the `physical_mem` the address
-range was mapped to. As such, the corresponding `unmap` is a free function
-defined as:
+`map` member functions, where the access mode can also be specified.
+To further get or set the access mode of a mapped virtual address range, the
+user does not need to know the associated `physical_mem` and can just call the
+following free functions.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
+
+void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext);
+
+address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext);
 
 void unmap(const void *ptr, size_t numBytes, const context &syclContext);
 
@@ -322,14 +313,35 @@ void unmap(const void *ptr, size_t numBytes, const context &syclContext);
 |=====================
 |Function |Description
 
+|`void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext)` |
+Sets the access mode of a virtual memory range specified by `ptr` and
+`numBytes`.
+
+If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
+`ptr` pointer is accessible after the call as read-only or read-write
+respectively. Otherwise, it is considered inaccessible and accessing it will result
+in undefined behavior.
+
+Writing to any address in the virtual memory range with access mode set to
+`address_access_mode::read` results in undefined behavior.
+
+An accessible pointer behaves the same as a pointer to device USM memory and can
+be used in place of a device USM pointer in any interface accepting one.
+
+|`address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
+Returns the access mode of the virtual memory range specified by `ptr` and
+`numBytes`. If the virtual memory range is inaccessible `std::nullopt` is
+returned.
+
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
-must not be a proper sub-range of a previously mapped range. `syclContext`
-must be the same as the context returned by the `get_context()` member function
-on the `physical_mem` the address range is currently mapped to.
+must not be a proper sub-range of a previously mapped range, but `ptr` and
+`numBytes` may span multiple contiguous ranges. `syclContext` must be the same
+as the context returned by the `get_context()` member function on the
+`physical_mem` the address ranges are currently mapped to.
 
-After this call, the range will again be ready to be mapped through a call to
-`physical_mem::map()`.
+After this call, the full range will again be ready to be mapped through a calls
+to `physical_mem::map()`.
 
 |=====================

@@ -18,10 +18,9 @@ public:
 
   ~VirtualVector() {
     // Free all mapped ranges.
-    for (const VirtualAddressRange &VARange : MVARanges) {
-      syclext::unmap(VARange.Ptr, VARange.Size, MContext);
+    syclext::unmap(MBasePtr, MByteSize, MContext);
+    for (const VirtualAddressRange &VARange : MVARanges)
       syclext::free_virtual_mem(VARange.Ptr, VARange.Size, MContext);
-    }
     // Physical memory allocations will be freed when the physical_mem objects
     // die with MPhysicalMems.
   }
@@ -39,8 +38,8 @@ public:
     size_t AlignedNewVARangeSize = AlignedNewByteSize - MByteSize;
 
     // Try to reserve virtual memory at the end of the existing one.
-    void *CurrentEnd = reinterpret_cast<char *>(MBasePtr) + MByteSize;
-    void *NewVAPtr = syclext::reserve_virtual_mem(
+    uintptr_t CurrentEnd = reinterpret_cast<uintptr_t>(MBasePtr) + MByteSize;
+    uintptr_t NewVAPtr = syclext::reserve_virtual_mem(
         CurrentEnd, AlignedNewVARangeSize, MContext);
 
     // If we failed to get a ptr to the end of the current range, we need to
@@ -82,16 +81,16 @@ private:
            MGranularity;
   }
 
-  void *RecreateAddressRange(size_t AlignedNewByteSize) {
+  uintptr_t RecreateAddressRange(size_t AlignedNewByteSize) {
     // Reserve the full range.
-    void *NewFullVAPtr =
+    uintptr_t NewFullVAPtr =
         syclext::reserve_virtual_mem(AlignedNewByteSize, MContext);
 
     // Unmap the old virtual address in its entirety.
     syclext::unmap(MBasePtr, MByteSize, MContext);
 
     // Remap all existing ranges.
-    char *NewEnd = reinterpret_cast<char *>(NewFullVAPtr);
+    uintptr_t NewEnd = NewFullVAPtr;
     for (const syclext::physical_mem &PhysicalMem : MPhysicalMems) {
       PhysicalMem.map(NewEnd, PhysicalMem.size(),
                       syclext::address_access_mode::read_write);
@@ -114,9 +113,9 @@ private:
   }
 
   struct VirtualAddressRange {
-    VirtualAddressRange(void *Ptr, size_t Size) : Ptr{Ptr}, Size{Size} {}
+    VirtualAddressRange(uintptr_t Ptr, size_t Size) : Ptr{Ptr}, Size{Size} {}
 
-    void *Ptr;
+    uintptr_t Ptr;
     size_t Size;
   };
 

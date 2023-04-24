@@ -48,14 +48,15 @@ get_recommended_mem_granularity(const physical_mem &SyclPhysicalMem) {
                                          SyclPhysicalMem.get_context());
 }
 
-__SYCL_EXPORT void *reserve_virtual_mem(const void *Start, size_t NumBytes,
-                                        const context &SyclContext);
+__SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,
+                                            const context &SyclContext);
 
-inline void *reserve_virtual_mem(size_t NumBytes, const context &SyclContext) {
-  return reserve_virtual_mem(nullptr, NumBytes, SyclContext);
+inline uintptr_t reserve_virtual_mem(size_t NumBytes,
+                                     const context &SyclContext) {
+  return reserve_virtual_mem(0, NumBytes, SyclContext);
 }
 
-__SYCL_EXPORT void free_virtual_mem(const void *Ptr, size_t NumBytes,
+__SYCL_EXPORT void free_virtual_mem(uintptr_t Ptr, size_t NumBytes,
                                     const context &SyclContext);
 
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
