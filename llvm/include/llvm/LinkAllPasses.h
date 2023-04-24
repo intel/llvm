@@ -155,7 +155,6 @@ namespace {
       (void) llvm::createPrintModulePass(os);
       (void) llvm::createPrintFunctionPass(os);
       (void) llvm::createModuleDebugInfoPrinterPass();
-      (void) llvm::createLintLegacyPassPass();
       (void) llvm::createSinkingPass();
       (void) llvm::createLowerAtomicPass();
       (void) llvm::createMemDepPrinter();

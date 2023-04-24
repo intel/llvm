@@ -4027,7 +4027,8 @@ public:
   // would match the 'p = (i8*)nullptr + n' idiom for casting a pointer-sized
   // integer to a pointer.
   static bool isNullPointerArithmeticExtension(ASTContext &Ctx, Opcode Opc,
-                                               Expr *LHS, Expr *RHS);
+                                               const Expr *LHS,
+                                               const Expr *RHS);
 
   static bool classof(const Stmt *S) {
     return S->getStmtClass() >= firstBinaryOperatorConstant &&

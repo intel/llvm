@@ -7085,16 +7085,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       Current = NewCurrent;
 
-      // Use the current host action in any of the offloading actions, if
-      // required.
-      if (!UseNewOffloadingDriver)
-        if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
-          break;
-
       // Try to build the offloading actions and add the result as a dependency
       // to the host.
       if (UseNewOffloadingDriver)
         Current = BuildOffloadingActions(C, Args, I, Current);
+      // Use the current host action in any of the offloading actions, if
+      // required.
+      else if (OffloadBuilder->addHostDependenceToDeviceActions(Current,
+                                                                InputArg,
+                                                                Args))
+        break;
 
       if (Current->getType() == types::TY_Nothing)
         break;
