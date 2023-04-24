@@ -18,10 +18,11 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
-                         KernelBundleImplPtr KernelBundleImpl)
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
   // Enable USM indirect access for interoperability kernels.
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
@@ -34,11 +35,13 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
                          ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-                         KernelBundleImplPtr KernelBundleImpl)
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
       MProgramImpl(std::move(ProgramImpl)),
       MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
 
   RT::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
@@ -54,10 +57,12 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
-                         KernelBundleImplPtr KernelBundleImpl)
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
 
   // kernel_impl shared ownership of kernel handle
   if (!is_host()) {

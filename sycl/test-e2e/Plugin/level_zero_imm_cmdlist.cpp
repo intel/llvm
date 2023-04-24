@@ -1,12 +1,13 @@
-// REQUIRES: level_zero, level_zero_dev_kit
+// REQUIRES: linux, gpu-intel-pvc, level_zero, level_zero_dev_kit
 //
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 //
 // CHECK-NOT: zeCommandListCreate(
 // CHECK: zeCommandListCreateImmediate(
 
-// The test checks that immediate commandlists are used and not regular ones.
+// This test checks that immediate commandlists are used and not regular ones on
+// PVC Linux.
 
 #include <sycl/sycl.hpp>
 
