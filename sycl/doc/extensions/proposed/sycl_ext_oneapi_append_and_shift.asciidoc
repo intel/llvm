@@ -52,7 +52,7 @@ The proposed extension of sycl::shift_group_left takes two values, the "current"
 
 Similarly, the proposed extension of `sycl::shift_group_right` returns `c` of the work-item with group local id `id-delta`, if `id-delta` is greater or equal 0 and `n` of the work-item with group local id `sg_size+(id-delta)`, otherwise.
 
-While this feature can easily be reproduced manually, is indicated below in the section "possible implementation", an extension is feasible since the underlying `pass:[__]spirv_SubgroupShuffleDownINTEL` and `pass:[__]spirv_SubgroupShuffleUpINTEL` already take the proposed two values and support the required capabilities.
+While this feature can easily be reproduced manually, as indicated below in the section "possible implementation", an extension is feasible since the underlying `pass:[__]spirv_SubgroupShuffleDownINTEL` and `pass:[__]spirv_SubgroupShuffleUpINTEL` already take the proposed two values and support the required capabilities.
 Note that there are multiple alternatives for the API suggested below ("append_and_shift_group_*"). For example, 
 
 
