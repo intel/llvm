@@ -660,9 +660,10 @@ bool test_int_types(queue q, const Config &cfg) {
 template <int N, template <class, int> class Op>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
-  if constexpr (Op<sycl::half, N>::atomic_op == LSCAtomicOp::fmax ||
-                Op<sycl::half, N>::atomic_op == LSCAtomicOp::fmin ||
-                Op<sycl::half, N>::atomic_op == LSCAtomicOp::fcmpxchg) {
+  if constexpr (std::is_same_v<Op<sycl::half, N>, ImplLSCFmax<sycl::half, N>> ||
+                std::is_same_v<Op<sycl::half, N>, ImplLSCFmin<sycl::half, N>> ||
+                std::is_same_v<Op<sycl::half, N>,
+                               ImplLSCFcmpwr<sycl::half, N>>) {
     auto dev = q.get_device();
     if (dev.has(sycl::aspect::fp16)) {
       passed &= test<sycl::half, N, Op>(q, cfg);
