@@ -54,7 +54,6 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
       }
     }
   }
-  __builtin_unreachable();
   return Count;
 }
 

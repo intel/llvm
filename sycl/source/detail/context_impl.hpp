@@ -215,6 +215,15 @@ public:
   std::optional<RT::PiProgram>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
+  /// Gets a program associated with a HostPipe Entry from the cache.
+  std::optional<RT::PiProgram>
+  getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
+
+  /// Gets a program associated with Dev / Images pairs.
+  std::optional<RT::PiProgram>
+  getProgramForDevImgs(const device &Device,
+                       const std::set<std::uintptr_t> &ImgIdentifiers,
+                       const std::string &ObjectTypeName);
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 

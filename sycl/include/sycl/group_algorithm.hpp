@@ -208,6 +208,7 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<__spv::GroupOperation::Reduce>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
@@ -379,6 +380,7 @@ any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny(g, pred);
 #else
+  (void)g;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
@@ -418,6 +420,7 @@ all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll(g, pred);
 #else
+  (void)g;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
@@ -457,6 +460,7 @@ none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll(g, !pred);
 #else
+  (void)g;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
@@ -574,6 +578,7 @@ group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
+  (void)g;
   (void)x;
   (void)local_id;
   throw runtime_error("Group algorithms are not supported on host.",
@@ -637,6 +642,7 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
@@ -870,6 +876,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
