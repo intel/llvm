@@ -794,7 +794,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // used.
   if (!EnvVar) {
     if (Device->ImmCommandListUsed)
-      return std::pair<int, int>(-1, -1);   // No copy engines can be used.
+      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
   std::string CopyEngineRange = EnvVar;
@@ -845,8 +845,12 @@ ur_device_handle_t_::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-    // Change this to PerQueue as default after more testing.
+  // Change this to PerQueue as default after more testing.
+#ifdef _WIN32
     return NotUsed;
+#else
+    return isPVC() ? PerQueue : NotUsed;
+#endif
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -861,76 +865,6 @@ ur_device_handle_t_::useImmediateCommandLists() {
 
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                                             int SubSubDeviceIndex) {
-  uint32_t numQueueGroups = 0;
-  ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
-             (ZeDevice, &numQueueGroups, nullptr));
-  if (numQueueGroups == 0) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
-  std::vector<ZeStruct<ze_command_queue_group_properties_t>>
-      QueueGroupProperties(numQueueGroups);
-  ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
-             (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
-
-  // Initialize ordinal and compute queue group properties
-  for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (QueueGroupProperties[i].flags &
-        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
-          i;
-      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
-          .ZeProperties = QueueGroupProperties[i];
-      break;
-    }
-  }
-
-  // Reinitialize a sub-sub-device with its own ordinal, index.
-  // Our sub-sub-device representation is currently [Level-Zero sub-device
-  // handle + Level-Zero compute group/engine index]. Only the specified
-  // index queue will be used to submit work to the sub-sub-device.
-  if (SubSubDeviceOrdinal >= 0) {
-    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
-        SubSubDeviceOrdinal;
-    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeIndex =
-        SubSubDeviceIndex;
-  } else { // Proceed with initialization for root and sub-device
-    // How is it possible that there are no "compute" capabilities?
-    if (QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal <
-        0) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
-
-    if (CopyEngineRequested((ur_device_handle_t)this)) {
-      for (uint32_t i = 0; i < numQueueGroups; i++) {
-        if (((QueueGroupProperties[i].flags &
-              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-            (QueueGroupProperties[i].flags &
-             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
-          if (QueueGroupProperties[i].numQueues == 1) {
-            QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal = i;
-            QueueGroup[queue_group_info_t::MainCopy].ZeProperties =
-                QueueGroupProperties[i];
-          } else {
-            QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal = i;
-            QueueGroup[queue_group_info_t::LinkCopy].ZeProperties =
-                QueueGroupProperties[i];
-            break;
-          }
-        }
-      }
-      if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        urPrint("NOTE: main blitter/copy engine is not available\n");
-      else
-        urPrint("NOTE: main blitter/copy engine is available\n");
-
-      if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        urPrint("NOTE: link blitter/copy engines are not available\n");
-      else
-        urPrint("NOTE: link blitter/copy engines are available\n");
-    }
-  }
-
   // Maintain various device properties cache.
   // Note that we just describe here how to compute the data.
   // The real initialization is upon first access.
@@ -1000,6 +934,76 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 
   if (ImmCommandListUsed == ImmCmdlistMode::NotUsed) {
     ZeEventsScope = DeviceEventsSetting;
+  }
+
+  uint32_t numQueueGroups = 0;
+  ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
+             (ZeDevice, &numQueueGroups, nullptr));
+  if (numQueueGroups == 0) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
+  std::vector<ZeStruct<ze_command_queue_group_properties_t>>
+      QueueGroupProperties(numQueueGroups);
+  ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
+             (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
+
+  // Initialize ordinal and compute queue group properties
+  for (uint32_t i = 0; i < numQueueGroups; i++) {
+    if (QueueGroupProperties[i].flags &
+        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
+          i;
+      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
+          .ZeProperties = QueueGroupProperties[i];
+      break;
+    }
+  }
+
+  // Reinitialize a sub-sub-device with its own ordinal, index.
+  // Our sub-sub-device representation is currently [Level-Zero sub-device
+  // handle + Level-Zero compute group/engine index]. Only the specified
+  // index queue will be used to submit work to the sub-sub-device.
+  if (SubSubDeviceOrdinal >= 0) {
+    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
+        SubSubDeviceOrdinal;
+    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeIndex =
+        SubSubDeviceIndex;
+  } else { // Proceed with initialization for root and sub-device
+           // How is it possible that there are no "compute" capabilities?
+    if (QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal <
+        0) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+
+    if (CopyEngineRequested((ur_device_handle_t)this)) {
+      for (uint32_t i = 0; i < numQueueGroups; i++) {
+        if (((QueueGroupProperties[i].flags &
+              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+            (QueueGroupProperties[i].flags &
+             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+          if (QueueGroupProperties[i].numQueues == 1) {
+            QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal = i;
+            QueueGroup[queue_group_info_t::MainCopy].ZeProperties =
+                QueueGroupProperties[i];
+          } else {
+            QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal = i;
+            QueueGroup[queue_group_info_t::LinkCopy].ZeProperties =
+                QueueGroupProperties[i];
+            break;
+          }
+        }
+      }
+      if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
+        urPrint("NOTE: main blitter/copy engine is not available\n");
+      else
+        urPrint("NOTE: main blitter/copy engine is available\n");
+
+      if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
+        urPrint("NOTE: link blitter/copy engines are not available\n");
+      else
+        urPrint("NOTE: link blitter/copy engines are available\n");
+    }
   }
 
   return UR_RESULT_SUCCESS;
