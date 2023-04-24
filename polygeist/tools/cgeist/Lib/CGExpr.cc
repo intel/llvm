@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/WithColor.h"
 
@@ -1064,6 +1065,22 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
   return Attrs;
 }
 
+static Operation *
+tryToCreateOperation(OpBuilder &builder, Location loc, StringAttr opName,
+                     ValueRange operands, TypeRange types = {},
+                     ArrayRef<NamedAttribute> attributes = {}) {
+  Operation *op = builder.create(loc, opName, operands, types, attributes);
+  if (failed(mlir::verify(op))) {
+    LLVM_DEBUG(
+        llvm::dbgs()
+            << "Operation failed to verify. The operation will be erased.\n";
+        op->print(llvm::dbgs()));
+    op->erase();
+    return nullptr;
+  }
+  return op;
+}
+
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
     llvm::StringRef TypeName, llvm::StringRef FunctionName,
     mlir::ValueRange Operands, llvm::Optional<mlir::Type> ReturnType,
@@ -1097,20 +1114,71 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
   LLVM_DEBUG(llvm::dbgs() << "Attempting to insert operation " << OptOpName
                           << " to replace SYCL method call.\n");
 
-  sycl::SYCLMethodOpInterface op = Builder.create(
-      Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
+  Operation *op = tryToCreateOperation(
+      Builder, Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
       ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{},
       getSYCLMethodOpAttrs(Builder, Operands.getTypes(), TypeName, FunctionName,
                            MangledFunctionName));
-  if (failed(mlir::verify(op))) {
-    LLVM_DEBUG(
-        llvm::dbgs()
-            << "Operation failed to verify. The operation will be erased.\n";
-        op.print(llvm::dbgs()));
-    op.erase();
+  if (!op)
     return std::nullopt;
-  }
   return op;
+}
+
+Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
+                                            Location Loc) {
+  constexpr std::size_t NumNDBuiltins{7};
+  constexpr std::size_t Num1DBuiltins{5};
+  // Sorted array
+  constexpr std::array<std::pair<llvm::StringLiteral, llvm::StringLiteral>,
+                       NumNDBuiltins + Num1DBuiltins>
+      BuiltinToOpNameMap{{
+#define ADD_BUILTIN(name, opname)                                              \
+  { #name, opname::getOperationName() }
+#define ADD_INIT_BUILTIN(name, opname) ADD_BUILTIN(init##name, opname)
+#define ADD_SUBGROUP_BUILTIN(name, opname) ADD_BUILTIN(__spirv_##name, opname)
+          // __spirv_.*
+          ADD_SUBGROUP_BUILTIN(NumSubgroups, sycl::SYCLNumSubGroupsOp),
+          ADD_SUBGROUP_BUILTIN(SubgroupId, sycl::SYCLSubGroupIDOp),
+          ADD_SUBGROUP_BUILTIN(SubgroupLocalInvocationId,
+                               sycl::SYCLSubGroupLocalIDOp),
+          ADD_SUBGROUP_BUILTIN(SubgroupMaxSize, sycl::SYCLSubGroupMaxSizeOp),
+          ADD_SUBGROUP_BUILTIN(SubgroupSize, sycl::SYCLSubGroupSizeOp),
+          // init.*
+          ADD_INIT_BUILTIN(GlobalInvocationId, sycl::SYCLGlobalIDOp),
+          ADD_INIT_BUILTIN(GlobalOffset, sycl::SYCLGlobalOffsetOp),
+          ADD_INIT_BUILTIN(GlobalSize, sycl::SYCLNumWorkItemsOp),
+          ADD_INIT_BUILTIN(LocalInvocationId, sycl::SYCLLocalIDOp),
+          ADD_INIT_BUILTIN(NumWorkgroups, sycl::SYCLNumWorkGroupsOp),
+          ADD_INIT_BUILTIN(WorkgroupId, sycl::SYCLWorkGroupIDOp),
+          ADD_INIT_BUILTIN(WorkgroupSize, sycl::SYCLWorkGroupSizeOp),
+#undef ADD_INIT_BUILTIN
+#undef ADD_SUBGROUP_BUILTIN_BUILTIN
+#undef ADD_BUILTIN
+      }};
+
+  const auto BuiltinName = Callee->getNameAsString();
+
+  LLVM_DEBUG(llvm::dbgs() << "Trying to replace call to " << BuiltinName
+                          << "with a sycl operation.\n";);
+
+  const auto *Iter = llvm::lower_bound(
+      BuiltinToOpNameMap, BuiltinName,
+      [](const auto &el, auto name) { return el.first < name; });
+  if (Iter == BuiltinToOpNameMap.end() || Iter->first != BuiltinName) {
+    LLVM_DEBUG(llvm::dbgs()
+                   << BuiltinName << " did not match any valid function.\n";);
+    return nullptr;
+  }
+
+  StringRef OpName(Iter->second);
+
+  LLVM_DEBUG(llvm::dbgs() << "Replacing " << BuiltinName << " with " << OpName
+                          << "\n");
+
+  mlir::Type OpType = Glob.getTypes().getMLIRType(Callee->getReturnType());
+
+  return tryToCreateOperation(Builder, Loc, Builder.getStringAttr(OpName),
+                              /*operands=*/{}, /*types=*/OpType);
 }
 
 mlir::Operation *
@@ -1140,7 +1208,7 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
   if (const auto *CallExpr = dyn_cast<clang::CallExpr>(Expr))
     Func = CallExpr->getCalleeDecl()->getAsFunction();
 
-  if (Func)
+  if (Func) {
     if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) !=
         mlirclang::NamespaceKind::Other) {
       auto OptFuncType = llvm::Optional<llvm::StringRef>{std::nullopt};
@@ -1164,7 +1232,18 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
       if (!Op)
         Op = Builder.create<mlir::sycl::SYCLCallOp>(
             Loc, OptRetType, OptFuncType, Func->getNameAsString(), Name, Args);
+    } else {
+      auto *ND = llvm::dyn_cast_or_null<clang::NamespaceDecl>(
+          Func->getEnclosingNamespaceContext());
+      const auto *II = ND ? ND->getIdentifier() : nullptr;
+      if (!ND || (II && II->isStr("__spirv"))) {
+        // SPIR-V builtin functions are declared either in the global namespace
+        // or in __spirv.
+        const auto Loc = getMLIRLocation(Expr->getExprLoc());
+        Op = createSYCLBuiltinOp(Func, Loc);
+      }
     }
+  }
 
   return Op;
 }
