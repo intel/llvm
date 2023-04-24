@@ -2576,6 +2576,11 @@ CallInterfaceCallable spirv::FunctionCallOp::getCallableForCallee() {
   return (*this)->getAttrOfType<SymbolRefAttr>(kCallee);
 }
 
+void spirv::FunctionCallOp::setCalleeFromCallable(
+    CallInterfaceCallable callee) {
+  (*this)->setAttr(kCallee, dyn_cast<SymbolRefAttr>(callee));
+}
+
 Operation::operand_range spirv::FunctionCallOp::getArgOperands() {
   return getArguments();
 }

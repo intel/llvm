@@ -290,6 +290,11 @@ def SYCLConstructorOp : SYCL_Op<"constructor",
       return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
     }
 
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr(getMangledFunctionNameAttrName(), dyn_cast<SymbolRefAttr>(callee));
+    }
+
     /// Get the argument operands to the called function, this is required by the
     /// call interface.
     operand_range getArgOperands() {
@@ -404,6 +409,11 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
     /// the call interface.
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
+    }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr(getMangledFunctionNameAttrName(), dyn_cast<SymbolRefAttr>(callee));
     }
 
     /// Get the argument operands to the called function, this is required by the
