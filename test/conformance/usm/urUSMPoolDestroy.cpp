@@ -22,18 +22,19 @@ struct urUSMPoolDestroyTest : uur::urQueueTest {
 
     ur_usm_pool_handle_t pool = nullptr;
 };
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolDestroyTest);
 
-TEST_F(urUSMPoolDestroyTest, Success) {
+TEST_P(urUSMPoolDestroyTest, Success) {
     ASSERT_SUCCESS(urUSMPoolDestroy(context, pool));
     pool = nullptr; // prevent double-delete
 }
 
-TEST_F(urUSMPoolDestroyTest, InvalidNullHandleContext) {
+TEST_P(urUSMPoolDestroyTest, InvalidNullHandleContext) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urUSMPoolDestroy(nullptr, pool));
 }
 
-TEST_F(urUSMPoolDestroyTest, InvalidNullHandlePool) {
+TEST_P(urUSMPoolDestroyTest, InvalidNullHandlePool) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urUSMPoolDestroy(context, nullptr));
 }
