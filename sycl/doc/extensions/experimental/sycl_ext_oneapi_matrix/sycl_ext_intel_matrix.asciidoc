@@ -123,7 +123,6 @@ enum class layout {
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-
 Consequently, the layout argument `layout` in `joint_matrix_load` can
 take `ext_intel_packed` as argument to specify that the data has
 already been transformed into VNNI format. in this case, `stride`
@@ -166,132 +165,20 @@ void joint_matrix_store(Group g,
 The function `joint_matrix_apply` in `sycl_ext_oneapi_matrix` provides
 a way for the application to apply the same operation on every element
 of the matrix. However, some algorithms require the application to
-know the coordinates of each element as it operates on
-them. In this case, the operation depends on the element index of the
-matrix or the operation takes multiple elements as operands (such as a
-sum of all elements in a row for example). Quantization that is needed
-for conversion between low precision types like `int8_t` and `fp32`
-uses such piece-wise operations.
+know the coordinates of each element as it operates on them. In this
+case, the joint matrix index must be known in order to reason about
+the matrix view and extract the relevant piece such as a sum of all
+elements in a row for example. For instance, quantization that is
+needed for conversion between low precision types like `int8_t` and `fp32`
+uses such logic.
 
-==== Explicit conversion with mapping from SIMD to SPMD
-The data elements in a `joint_matrix` are distributed or shared across
-the work-items in the Group in an implementation-defined way. There is
-no fixed allocation of matrix elements owned by a `joint_matrix`
-instance to the WIs comprising the group used to instantiate it. For
-instance, the matrix is a shared entity among the work items in the
-case of the AMX backend because the AMX tile that holds the matrix
-data is a 2d register that is shared among the work items. Therefore
-the partitioning among the WIs is implementation defined. However, it
-is necessary to allocate WIs to specific elements of the matrix in
-order to perform element-wise operations. In order to be able to
-perform element-wise operations in a general and efficient way, we
-provide a conversion function from the `joint_matrix` domain that is
-owned by a group of work items to the portion that is owned by each
-work item. This enables the WI to perform piece-wise operations on the
-matrix within the SYCL SPMD programming model.
-
-We introduce a new function `get_wi_data` that provides a view of the
-portion of the matrix that is owned by the current WI. The indexing
-provided inside the `wi_data` class accesses only the portion of the
-current WI and returns  `wi_element`. This latter holds a reference to
-the original joint_matrix that `wi_data` was constructed from. This
-means that modifying `wi_data` also modifies the corresponding joint
-matrix elements. Users can use the `=` operator to update the element
-of the `joint_matrix` represented by the `wi_element` after the
-element-wise operation.
-
-Using `get_wi_data`, it is not possible to know which portions of data
-are owned by each thread in the group as this is implementation
-defined and changes from one backend to the other. For general
-piece-wise operations such as summing the rows of a matrix, the WI
-data to joint matrix mapping coordinates information must be known in
-order to reason about the matrix view and extract the relevant
-piece. However, for element-wise operations where the same operation
-is performed on all the elements of the matrix, having all the WIs in
-the group apply the operation inside a loop iterating over the
-`length` of `wi_data` guarantees the whole matrix element-wise operation.
-
-Note that `get_wi_data` cannot return a fixed size array length
-because the length of the WI portion is a runtime variable for the
-following reasons:
-
-1- The main compilation mode of SYCL is JIT compilation and
-partitioning among WIs is implementation defined.
-
-2- Sub group size is not generally fixed.
-
-The code listing below shows a synopsis of these new APIs.
-
-```c++
-namespace sycl::ext::intel::experimental::matrix {
-
-wi_data<group, T, Use, Rows, Cols, Layout> get_wi_data(Group g,
- joint_matrix<Group, T, Use, Rows, Cols, Layout> Mat);
-
-template <typename T, size_t Rows, size_t Cols, use Use, layout
-Layout, typename Group>
-class wi_data {
-  size_t length();
-  wi_element<T, Rows, Cols, Use, Layout, Group> operator[](size_t i);
-};
-template <typename T, size_t Rows, size_t Cols,
-          use Use, layout Layout,
-          typename Group = sycl::sub_group>
-class wi_element {
-  operator T();
-  wi_element &operator=(const T &rhs);
-  wi_element &operator+=(const T &rhs);
-  wi_element &operator-=(const T &rhs);
-  wi_element &operator*=(const T &rhs);
-  wi_element &operator/=(const T &rhs);
-
-  std::tuple<size_t, size_t> get_coord();
-};
-
-} // namespace sycl::ext::intel::experimental::matrix
-```
-
-In the following example `wi_data_c` is a reference to the WI owned
-portion of the joint matrix `matC`. As such `wi_data_c[i] OP rhs`
-updates the corresponding matrix element in the joint_matrix `matC`.
-Vectorization along the sub group dimension will get enabled
-automatically to vectorize the contiguous portion of the matrix.
-
-
-```c++
-auto wi_data_c = get_wi_data(sg, matC);
-for (int i = 0; i < wi_data_c.length(); i++)
-  wi_data_c[i] *= alpha;    // Note that the indexing here "i"
-  //is in the vector owned by a WI, not in the matrix C
-```
-
-==== Work-item data to joint matrix mapping coordinates
-The `wi_data` and `wi_element` classes provide access to the matrix
-elements that are local to the calling work-item. However, the
-distribution of matrix elements to each work-item is
-implementation-defined, so application code cannot assume any fixed
-distribution. Instead, application code can use the `get_coord` method
-to query the matrix coordinates of an individual `wi_element`.
-
-`get_coord` returns [row,col] coordinates of the current object
-`wi_element` of the joint matrix.  The code above results into the following:
-
-```c++
-auto data = get_wi_data(sg, tA);
-// each WI calculates local sum of rows
-for (int i = 0; i < data.length(); ++i) {
-  auto [row, col] = data[i].get_coord();
-  sum_local_rows[row] += data[i];
-}
-```
-
-==== Extending `joint_matrix_apply` with the mapping coordinates
 This extension adds a new form of the `joint_matrix_apply` function in
 the `sycl::ext::intel::matrix` namespace that allows the application
 to perform an operation on each element of the matrix. This function
 is similar to the form in `sycl_ext_oneapi_joint_matrix`, but it also
 provides the matrix coordinates of each element to the callback
 function:
+
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
 
@@ -414,7 +301,7 @@ q.submit([&](sycl::handler& cgh) {
     sub_group sg = item.get_sub_group();
     joint_matrix<sub_group, int8_t, use::a, tM, tK, layout::row_major> tA;
     joint_matrix<sub_group, int8_t, use::b, tK, tN,
-                 layout::ext_intel_packed> tB; 
+                 layout::ext_intel_packed> tB;
     joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
     joint_matrix_fill(sg, tC, 0);
     for (int k = 0; k < K; k += tK) {

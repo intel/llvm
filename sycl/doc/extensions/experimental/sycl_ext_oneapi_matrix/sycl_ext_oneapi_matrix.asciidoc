@@ -99,7 +99,7 @@ This extension adds a new class named `joint_matrix`, which represents
 a small 2-dimensional matrix that supports native operations in
 hardware. There are a number of template parameters, namely the group
 scope, the type of the elements, the matrix use, the shape, and the
-memory layout of the matrix. This results in the following description:
+memory layout of the matrix.  This results in the following description:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -109,17 +109,25 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout::dynamic : /*unspecified*/ >
 struct joint_matrix {
   joint_matrix();
+  joint_matrix(const joint_matrix &);
+  joint_matrix &operator=(const joint_matrix &);
 };
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
+Note that the declaration of the matrix along with the copy
+constructor and assignment must appear in converged control flow.
+
 ==== Group Memory Scope
-In this API, we use the terminology of `joint_matrix` instead of plain
-`matrix` to emphasize that the matrix is shared among a group of work
-items and is not private to each work item. The group scope is added
-as an additional template parameter. This extension currently supports
-only the sub-group scope, so the `Group` template parameter must be
-`sycl::sub_group`. In this case, a matrix is declared as follows:
+Most operations on the joint_matrix are group functions, meaning that
+all work items in a group collectively perform an operation on the
+same matrix. The `Group` template parameter specifies the execution
+scope of the work-items in the group. The `joint_matrix` is shared among the
+work items in the group and is not private to each work item. This
+extension currently supports only the sub-group scope, so the `Group`
+template parameter must be `sycl::sub_group`, and group operations for
+the joint matrix must be done collectively by the work-items in a
+single sub-group. In this case, a matrix is declared as follows:
 
 ```c++
 joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA;
@@ -266,7 +274,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename Ta, typename Tb, typename Tc,
   std::size_t M, std::size_t K, std::size_t N,
-            layout LayoutA, layout LayoutB>
+  layout LayoutA, layout LayoutB, typename Td = Tc>
 joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic>
 joint_matrix_mad(Group g,
     joint_matrix<Group, Ta, use::a, M, K, LayoutA> A,
@@ -534,7 +542,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 // This is the validation form, when all template parameters are
 // specified.
 template<sycl::ext::oneapi::experimental::architecture Dev, typename
-Ta=void, typename Tb=void, typename Taccumulator=void, size_t sM=0,
+Ta=void, typename Tb=void, typename Tc=void, typename Td=Tc, size_t sM=0,
 size_t sN=0, size_t sK=0>
 struct matrix_params {
   // An implementation typically uses static_assert here to trigger a
@@ -552,15 +560,17 @@ struct matrix_params {
   using joint_matrix_b = joint_matrix<Group, Tb, use::b, sK, sN, Layout>;
 
   template <typename Group>
-  using joint_matrix_accumulator = joint_matrix<Group, Taccumulator,
-  use::accumulator, sM, sN>;
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, sM, sN>;
+
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, sM, sN>;
 };
 
 // This is the default values form, where the matrix dimensions are
 // omitted.
 template<sycl::ext::oneapi::experimental::architecture Dev, typename
-Ta, typename Tb, typename Taccumulator>
-struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
+Ta, typename Tb, typename Tc, typename Td>
+struct matrix_params<Dev, Ta, Tb, Tc, Td, 0, 0, 0> {
   // An implementation typically uses static_assert here to trigger a
   // compilation error when the matrix types are not supported by the
   // device identified by "Dev".
@@ -576,8 +586,11 @@ struct matrix_params<Dev, Ta, Tb, Taccumulator, 0, 0, 0> {
   using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
 
   template <typename Group>
-  using joint_matrix_accumulator = joint_matrix<Group, Taccumulator,
-  use::accumulator, M, N>;
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+  template <typename Group>
 };
 
 } // namespace sycl::ext::oneapi::experimental::matrix
@@ -606,7 +619,7 @@ size_t NDRangeN = N / myparams::N;
 // device code: the matrices are constructed using the default dimensions
 myparams::joint_matrix_a<sub_group, layout::row_major> sub_a;
 myparams::joint_matrix_b<sub_group, layout::row_major> sub_b;
-myparams::joint_matrix_accumulator<sub_group> sub_c;
+myparams::joint_matrix_c<sub_group> sub_c;
 
 ```
 ==== Runtime Query
@@ -663,7 +676,8 @@ struct combination {
   uint32_t ksize;
   matrix_type atype;
   matrix_type btype;
-  matrix_type accumulatortype;
+  matrix_type ctype;
+  matrix_type dtype;
 };
 
 } // namespace sycl::ext::oneapi::experimental::matrix
@@ -688,7 +702,7 @@ discrete number of element sizes, each of these members is non-zero,
 and the value tells one of the supported element sizes. By contrast,
 if the matrix hardware supports a continuous number of element sizes,
 each of these members has the value zero
-|`atype`, `btype`, `accumulatortype`| indicates the types supported in
+|`atype`, `btype`, `ctype`, `dtype`| indicates the types supported in
 the combination. these are of type `matrix_type` which tells the list
 of types that are supported for the A, B, and accumulator matrices in
 the `T` template parameter as follows: +
@@ -709,13 +723,14 @@ the `T` template parameter as follows: +
 
 ===== Runtime Query Example:
 ```c++
-// Ta, Tb, Taccumulator are the types used in applications
+// Ta, Tb, Tc, and Td are the types used in applications
 std::vector<combination> combinations =
            device.get_info<info::device::matrix::combinations>();
 for (int i = 0; sizeof(combinations); i++) {
   if (Ta == combinations[i].atype &&
       Tb == combinations[i].btype &&
-      Tc == combinations[i].accumulatortype) {
+      Tc == combinations[i].ctype &&
+      Td == combinations[i].dtype) {
     // joint matrix GEMM kernel can be called using these sizes
     joint_matrix_gemm(combinations[i].msize,
          combinations[i].nsize, combinations[i].ksize);
@@ -736,7 +751,7 @@ This is currently available in
 
 [frame="none",options="header"]
 |======================
-| A type | B type | Accumulator type | M | N | K
+| A type | B type | Accumulator type (`ctype` = `dtype`) | M | N | K
 | `matrix_type::uint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 | `matrix_type::uint8`  | `matrix_type::int8` |
