@@ -31,6 +31,12 @@ def SYCL_Dialect : Dialect {
     static constexpr llvm::StringRef getMangledFunctionNameAttrName() { return "MangledFunctionName"; }
     static constexpr llvm::StringRef getTypeNameAttrName() { return "TypeName"; }
 
+    /// In the example below, %p0 and %p1 are not aliased.
+    /// void func(%arg0 : memref<?x!sycl.accessor> {sycl.inner.disjoint},
+    ///           %arg1 : memref<?x!sycl.accessor> {sycl.inner.disjoint}) {
+    ///   %p0 = sycl.accessor.subscript %arg0(%id0)
+    ///   %p1 = sycl.accessor.subscript %arg1(%id1)
+    /// }
     static StringLiteral getInnerDisjointAttrName() { return "sycl.inner.disjoint"; }
 
     /// Each operation will be registered as usual in an MLIR dialect
