@@ -27,6 +27,8 @@ struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <typename ParentGroup> class tangle_group;
+class opportunistic_group;
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -70,6 +72,16 @@ template <size_t PartitionSize, typename ParentGroup>
 struct group_scope<sycl::ext::oneapi::experimental::fixed_size_group<
     PartitionSize, ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
+};
+
+template <typename ParentGroup>
+struct group_scope<sycl::ext::oneapi::experimental::tangle_group<ParentGroup>> {
+  static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
+};
+
+template <>
+struct group_scope<::sycl::ext::oneapi::experimental::opportunistic_group> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
 // Generic shuffles and broadcasts may require multiple calls to
@@ -135,6 +147,16 @@ bool GroupAll(
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
       static_cast<uint32_t>(pred), PartitionSize);
 }
+template <typename ParentGroup>
+bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
+  return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
+}
+template <typename Group>
+bool GroupAll(const ext::oneapi::experimental::opportunistic_group &,
+              bool pred) {
+  return __spirv_GroupNonUniformAll(
+      group_scope<ext::oneapi::experimental::opportunistic_group>::value, pred);
+}
 
 template <typename Group> bool GroupAny(Group, bool pred) {
   return __spirv_GroupAny(group_scope<Group>::value, pred);
@@ -160,6 +182,15 @@ bool GroupAny(
       group_scope<ParentGroup>::value,
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
       static_cast<uint32_t>(pred), PartitionSize);
+}
+template <typename ParentGroup>
+bool GroupAny(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
+  return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
+}
+bool GroupAny(const ext::oneapi::experimental::opportunistic_group &,
+              bool pred) {
+  return __spirv_GroupNonUniformAny(
+      group_scope<ext::oneapi::experimental::opportunistic_group>::value, pred);
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
@@ -280,6 +311,45 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   // partition, and it's unclear which will be faster in practice.
   return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value, OCLX,
                                         OCLId);
+}
+template <typename ParentGroup, typename T, typename IdT>
+EnableIfNativeBroadcast<T, IdT>
+GroupBroadcast(ext::oneapi::experimental::tangle_group<ParentGroup> g, T x,
+               IdT local_id) {
+  // Remap local_id to its original numbering in ParentGroup.
+  auto LocalId = detail::IdToMaskPosition(g, local_id);
+
+  // TODO: Refactor to avoid duplication after design settles.
+  using GroupIdT = typename GroupId<ParentGroup>::type;
+  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
+  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
+  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+
+  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value, OCLX,
+                                          OCLId);
+}
+template <typename T, typename IdT>
+EnableIfNativeBroadcast<T, IdT>
+GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
+               IdT local_id) {
+  // Remap local_id to its original numbering in sub-group
+  auto LocalId = detail::IdToMaskPosition(g, local_id);
+
+  // TODO: Refactor to avoid duplication after design settles.
+  using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
+  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
+  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
+  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+
+  return __spirv_GroupNonUniformBroadcast(
+      group_scope<ext::oneapi::experimental::opportunistic_group>::value, OCLX,
+      OCLId);
 }
 
 template <typename Group, typename T, typename IdT>
@@ -956,6 +1026,18 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 #endif
 }
 
+template <typename Group>
+struct is_tangle_or_opportunistic_group : std::false_type {};
+
+template <typename ParentGroup>
+struct is_tangle_or_opportunistic_group<
+    sycl::ext::oneapi::experimental::tangle_group<ParentGroup>>
+    : std::true_type {};
+
+template <>
+struct is_tangle_or_opportunistic_group<
+    sycl::ext::oneapi::experimental::opportunistic_group> : std::true_type {};
+
 // TODO: Refactor to avoid duplication after design settles
 #define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction)                          \
   template <__spv::GroupOperation Op, typename Group, typename T>              \
@@ -1037,6 +1119,24 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
       }                                                                        \
       return tmp;                                                              \
     }                                                                          \
+  }                                                                            \
+  template <__spv::GroupOperation Op, typename Group, typename T>              \
+  inline typename std::enable_if_t<                                            \
+      is_tangle_or_opportunistic_group<Group>::value, T>                       \
+      Group##Instruction(Group, T x) {                                         \
+    using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
+                                                                               \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
+    OCLT Arg = x;                                                              \
+    OCLT Ret = __spirv_GroupNonUniform##Instruction(                           \
+        group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
+    return Ret;                                                                \
   }
 
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin)
