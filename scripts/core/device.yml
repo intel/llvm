@@ -250,19 +250,19 @@ etors:
     - name: LOCAL_MEM_SIZE
       desc: "[uint64_t] local memory size in bytes"
     - name: ERROR_CORRECTION_SUPPORT
-      desc: "[bool] support error correction to global and local memory"
+      desc: "[$x_bool_t] support error correction to global and local memory"
     - name: HOST_UNIFIED_MEMORY
-      desc: "[bool] unified host device memory"
+      desc: "[$x_bool_t] unified host device memory"
     - name: PROFILING_TIMER_RESOLUTION
       desc: "[size_t] profiling timer resolution in nanoseconds"
     - name: ENDIAN_LITTLE
-      desc: "[bool] little endian byte order"
+      desc: "[$x_bool_t] little endian byte order"
     - name: AVAILABLE
-      desc: "[bool] device is available"
+      desc: "[$x_bool_t] device is available"
     - name: COMPILER_AVAILABLE
-      desc: "[bool] device compiler is available"
+      desc: "[$x_bool_t] device compiler is available"
     - name: LINKER_AVAILABLE
-      desc: "[bool] device linker is available"
+      desc: "[$x_bool_t] device linker is available"
     - name: EXECUTION_CAPABILITIES
       desc: "[$x_device_exec_capability_flags_t] device kernel execution capability bit-field"
     - name: QUEUE_ON_DEVICE_PROPERTIES

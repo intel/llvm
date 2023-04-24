@@ -2267,10 +2267,10 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
-        const bool *tptr = (const bool *)ptr;
-        if (sizeof(bool) > size) {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(bool) << ")";
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
@@ -2281,10 +2281,10 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
-        const bool *tptr = (const bool *)ptr;
-        if (sizeof(bool) > size) {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(bool) << ")";
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
@@ -2309,10 +2309,10 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_ENDIAN_LITTLE: {
-        const bool *tptr = (const bool *)ptr;
-        if (sizeof(bool) > size) {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(bool) << ")";
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
@@ -2323,10 +2323,10 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_AVAILABLE: {
-        const bool *tptr = (const bool *)ptr;
-        if (sizeof(bool) > size) {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(bool) << ")";
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
@@ -2337,10 +2337,10 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
-        const bool *tptr = (const bool *)ptr;
-        if (sizeof(bool) > size) {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(bool) << ")";
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
@@ -2351,10 +2351,10 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_LINKER_AVAILABLE: {
-        const bool *tptr = (const bool *)ptr;
-        if (sizeof(bool) > size) {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(bool) << ")";
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
