@@ -192,18 +192,18 @@ TEST(MatrixTest, SubMatrix) {
     EXPECT_EQ(subMatrix.getNumRows(), 3u);
     EXPECT_EQ(subMatrix.getNumColumns(), 2u);
     for (size_t row = 0; row < 3; ++row) {
-      for (size_t col = 0; col < 2; ++col)
-        EXPECT_EQ(subMatrix(row, col), col == 0 ? one : two);
+      EXPECT_EQ(subMatrix(row, 0), one);
+      EXPECT_EQ(subMatrix(row, 1), two);
     }
   }
 
   {
-    MemoryAccessMatrix subMatrix = matrix.getSubMatrix({0, 1}, {0, 1});
+    MemoryAccessMatrix subMatrix = matrix.getSubMatrix({0, 1}, {0, 2});
     EXPECT_EQ(subMatrix.getNumRows(), 2u);
     EXPECT_EQ(subMatrix.getNumColumns(), 2u);
     for (size_t row = 0; row < 2; ++row) {
-      for (size_t col = 0; col < 2; ++col)
-        EXPECT_EQ(subMatrix(row, col), row == 0 && col == 1 ? zero : one);
+      EXPECT_EQ(subMatrix(row, 0), one);
+      EXPECT_EQ(subMatrix(row, 1), two);
     }
   }
 }
@@ -255,7 +255,9 @@ TEST(MatrixTest, Shapes) {
   {
     // clang-format off
     MemoryAccessMatrix matrix(
-        {{one, zero, zero}, {zero, one, zero}, {zero, zero, two}});
+        {{one,  zero, zero}, 
+         {zero, one,  zero}, 
+         {zero, zero, two}});
     // clang-format on
 
     EXPECT_THAT(matrix.isDiagonal(solver), true);

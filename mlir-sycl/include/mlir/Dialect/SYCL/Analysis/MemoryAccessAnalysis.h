@@ -219,10 +219,10 @@ public:
   /// Return true if the matrix is the unit matrix.
   bool isIdentity(DataFlowSolver &solver) const;
 
-  /// Return true if all non-zero entries are below the diagonal.
+  /// Return true if all zero entries are above the diagonal.
   bool isLowerTriangular(DataFlowSolver &solver) const;
 
-  /// Return true if all non-zero entries are above the diagonal.
+  /// Return true if all zero entries are below the diagonal.
   bool isUpperTriangular(DataFlowSolver &solver) const;
 
   //===----------------------------------------------------------------------===//

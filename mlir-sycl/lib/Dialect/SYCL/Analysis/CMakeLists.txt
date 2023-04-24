@@ -7,6 +7,5 @@ add_mlir_dialect_library(MLIRSYCLAnalysis
 
   LINK_LIBS PUBLIC
   MLIRAnalysis
-  MLIRArithDialect
   MLIRSYCLDialect
   )
