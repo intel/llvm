@@ -426,7 +426,7 @@ std::optional<RT::PiProgram> context_impl::getProgramForDevImgs(
   }
   if (!BuildRes)
     return std::nullopt;
-  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+  return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
 std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(

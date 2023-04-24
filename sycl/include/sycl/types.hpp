@@ -739,7 +739,7 @@ template <typename Type, int NumElements> class vec {
   template <size_t... Is>
   constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
                 std::index_sequence<Is...>)
-      : m_Data{Arr[Is]...} {}
+      : m_Data{vec_data_t<DataT>(static_cast<DataT>(Arr[Is]))...} {}
 
 public:
   using element_type = DataT;
@@ -1488,6 +1488,19 @@ class SwizzleOp {
       SwizzleOp<const VecT, GetOp<DataT>, GetOp<DataT>, GetOp, Indices...>;
 
 public:
+  using element_type = DataT;
+
+  const DataT &operator[](int i) const {
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    return (*m_Vector)[Idxs[i]];
+  }
+
+  template <typename _T = VecT>
+  std::enable_if_t<!std::is_const_v<_T>, DataT> &operator[](int i) {
+    std::array<int, getNumElements()> Idxs{Indexes...};
+    return (*m_Vector)[Idxs[i]];
+  }
+
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getNumElements(); }

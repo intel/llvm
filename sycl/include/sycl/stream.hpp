@@ -743,6 +743,17 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream
     : public detail::OwnerLessBase<stream> {
+private:
+#ifndef __SYCL_DEVICE_ONLY__
+  // Constructor for recreating a stream.
+  stream(std::shared_ptr<detail::stream_impl> Impl,
+         detail::GlobalBufAccessorT GlobalBuf,
+         detail::GlobalOffsetAccessorT GlobalOffset,
+         detail::GlobalBufAccessorT GlobalFlushBuf)
+      : impl{Impl}, GlobalBuf{GlobalBuf}, GlobalOffset{GlobalOffset},
+        GlobalFlushBuf{GlobalFlushBuf} {}
+#endif
+
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
@@ -810,6 +821,10 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
+
+  // NOTE: Some members are required for reconstructing the stream, but are not
+  // part of the implementation class. If more members are added, they should
+  // also be added to the weak_object specialization for streams.
 
   // Accessor to the global stream buffer. Global buffer contains all output
   // from the kernel.
@@ -941,6 +956,8 @@ private:
 #endif
 
   friend class handler;
+
+  template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
   friend const stream &operator<<(const stream &, const char);
   friend const stream &operator<<(const stream &, const char *);
