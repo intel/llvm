@@ -64,8 +64,8 @@ public:
     // Create new physical memory allocation and map the new range to it.
     syclext::physical_mem NewPhysicalMem{MDevice, MContext,
                                          AlignedNewVARangeSize};
-    NewPhysicalMem.map(NewVAPtr, AlignedNewVARangeSize, 0,
-                       sycl::access_mode::read_write);
+    NewPhysicalMem.map(NewVAPtr, AlignedNewVARangeSize,
+                       syclext::address_access_mode::read_write);
     MPhysicalMems.push_back(std::move(NewPhysicalMem));
 
     // Update the byte size of the vector.
@@ -93,8 +93,8 @@ private:
     // Remap all existing ranges.
     char *NewEnd = reinterpret_cast<char *>(NewFullVAPtr);
     for (const syclext::physical_mem &PhysicalMem : MPhysicalMems) {
-      PhysicalMem.map(NewEnd, PhysicalMem.size(), 0,
-                      sycl::access_mode::read_write);
+      PhysicalMem.map(NewEnd, PhysicalMem.size(),
+                      syclext::address_access_mode::read_write);
       NewEnd += PhysicalMem.size();
     }
 

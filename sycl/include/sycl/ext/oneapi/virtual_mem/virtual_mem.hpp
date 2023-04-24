@@ -59,14 +59,15 @@ __SYCL_EXPORT void free_virtual_mem(const void *Ptr, size_t NumBytes,
                                     const context &SyclContext);
 
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
-                                   access_mode Mode,
+                                   address_access_mode Mode,
                                    const context &SyclContext);
 
 __SYCL_EXPORT void set_inaccessible(const void *Ptr, size_t NumBytes,
                                     const context &SyclContext);
 
-__SYCL_EXPORT std::optional<access_mode>
-get_access_mode(const void *Ptr, size_t NumBytes, const context &SyclContext);
+__SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
+                                                  size_t NumBytes,
+                                                  const context &SyclContext);
 
 __SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,
                          const context &SyclContext);

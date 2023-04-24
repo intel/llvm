@@ -103,7 +103,7 @@ __SYCL_EXPORT void free_virtual_mem(const void *Ptr, size_t NumBytes,
 }
 
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
-                                   access_mode Mode,
+                                   address_access_mode Mode,
                                    const context &SyclContext) {
   sycl::detail::RT::PiVirtualAccessFlags AccessFlags =
       sycl::detail::AccessModeToVirtualAccessFlags(Mode);
@@ -114,17 +114,9 @@ __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
       ContextImpl->getHandleRef(), Ptr, NumBytes, AccessFlags);
 }
 
-__SYCL_EXPORT void set_inaccessible(const void *Ptr, size_t NumBytes,
-                                    const context &SyclContext) {
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
-  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemSetAccess>(
-      ContextImpl->getHandleRef(), Ptr, NumBytes, 0);
-}
-
-__SYCL_EXPORT std::optional<access_mode>
-get_access_mode(const void *Ptr, size_t NumBytes, const context &SyclContext) {
+__SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
+                                                  size_t NumBytes,
+                                                  const context &SyclContext) {
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
   const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -143,10 +135,10 @@ get_access_mode(const void *Ptr, size_t NumBytes, const context &SyclContext) {
       sizeof(RT::PiVirtualAccessFlags), &AccessFlags, nullptr);
 
   if (AccessFlags & PI_VIRTUAL_ACCESS_FLAG_RW)
-    return access_mode::read_write;
+    return address_access_mode::read_write;
   if (AccessFlags & PI_VIRTUAL_ACCESS_FLAG_READ_ONLY)
-    return access_mode::read;
-  return std::nullopt;
+    return address_access_mode::read;
+  return address_access_mode::none;
 }
 
 __SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,

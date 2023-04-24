@@ -14,22 +14,24 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-inline RT::PiVirtualAccessFlags
-AccessModeToVirtualAccessFlags(access_mode Mode) {
+inline RT::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
+    ext::oneapi::experimental::address_access_mode Mode) {
   switch (Mode) {
-  case access_mode::read:
+  case ext::oneapi::experimental::address_access_mode::read:
     return PI_VIRTUAL_ACCESS_FLAG_READ_ONLY;
-  case access_mode::read_write:
+  case ext::oneapi::experimental::address_access_mode::read_write:
     return PI_VIRTUAL_ACCESS_FLAG_RW;
+  case ext::oneapi::experimental::address_access_mode::none:
+    return 0;
   default:
     throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid access mode. Must either be "
-                          "access_mode::read or access_mode::read_write.");
+                          "Invalid address_access_mode.");
   }
 }
 
@@ -50,14 +52,9 @@ public:
     Plugin.call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
   }
 
-  void map(const void *Ptr, size_t NumBytes, size_t Offset) const {
-    const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextVirtualMemMap>(
-        MContext->getHandleRef(), Ptr, NumBytes, MPhysicalMem, Offset, 0);
-  }
-
-  void map(const void *Ptr, size_t NumBytes, size_t Offset,
-           access_mode Mode) const {
+  void map(const void *Ptr, size_t NumBytes,
+           ext::oneapi::experimental::address_access_mode Mode,
+           size_t Offset) const {
     RT::PiVirtualAccessFlags AccessFlags = AccessModeToVirtualAccessFlags(Mode);
     const plugin &Plugin = MContext->getPlugin();
     Plugin.call<PiApiKind::piextVirtualMemMap>(MContext->getHandleRef(), Ptr,

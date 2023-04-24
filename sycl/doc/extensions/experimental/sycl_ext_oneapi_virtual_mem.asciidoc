@@ -164,16 +164,20 @@ virtual address range are defined as:
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
+enum class address_access_mode : /*unspecified*/ {
+  none,
+  read,
+  read_write
+};
+
 void *reserve_virtual_mem(const void *start, size_t numBytes, const context &syclContext);
 void *reserve_virtual_mem(size_t numBytes, const context &syclContext);
 
 void free_virtual_mem(const void* ptr, size_t numBytes, const context &syclContext);
 
-void set_access_mode(const void *ptr, size_t numBytes, access_mode mode, const context &syclContext);
+void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext);
 
-void set_inaccessible(const void *ptr, size_t numBytes, const context &syclContext);
-
-std::optional<access_mode> get_access_mode(const void *ptr, size_t numBytes, const context &syclContext);
+address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -210,20 +214,14 @@ The virtual memory range must not currently be mapped to physical memory. A call
 to this function with a mapped virtual memory range results in undefined
 behavior.
 
-|`void set_access_mode(const void *ptr, size_t numBytes, access_mode mode, const context &syclContext)` |
+|`void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext)` |
 Sets the access mode of a virtual memory range specified by `ptr` and
-`numBytes`. `mode` must either be `access_mode::read` or
-`access_mode::read_write`.
+`numBytes`.
 
 Writing to any address in the virtual memory range with access mode set to
-`access_mode::read` results in undefined behavior.
+`address_access_mode::read` results in undefined behavior.
 
-|`void set_inaccessible(const void *ptr, size_t numBytes, const context &syclContext)` |
-Sets a virtual memory range, specified by `ptr` and `numBytes`, as inaccessible.
-Accessing an address in an inaccessible virtual memory range results in
-undefined behavior.
-
-|`std::optional<access_mode> get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
+|`address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
 Returns the access mode of the virtual memory range specified by `ptr` and
 `numBytes`. If the virtual memory range is inaccessible `std::nullopt` is
 returned.
@@ -248,8 +246,8 @@ public:
 
   /* -- common interface members -- */
 
-  void map(const void *ptr, size_t numBytes, size_t offset) const;
-  void map(const void *ptr, size_t numBytes, size_t offset, access_mode mode) const;
+  void map(const void *ptr, size_t numBytes, size_t offset = 0) const;
+  void map(const void *ptr, size_t numBytes, address_access_mode mode, size_t offset = 0) const;
 
   context get_context() const;
   device get_device() const;
@@ -280,23 +278,17 @@ be a multiple of the minimum granularity, as returned by a call to
 |`physical_mem(const queue &syclQueue, size_t numBytes)` |
 Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
 
-|`void map(const void *ptr, size_t numBytes, size_t offset)` |
+|`void map(const void *ptr, size_t numBytes, size_t offset = 0)` |
+Same as `map(ptr, numBytes, address_access_mode::none, offset)`.
+
+|`void map(const void *ptr, size_t numBytes, address_access_mode mode, size_t offset = 0)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
 memory corresponding to this instance of `physical_mem`, starting at an offset
 of `offset` bytes.
 
-The virtual memory range is inaccessible after this call and can be made
-accessible through a call to `set_access_mode`. Accessing an address in an
-inaccessible virtual memory range results in undefined behavior.
-
-|`void map(const void *ptr, size_t numBytes, size_t offset, access_mode mode)` |
-Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
-memory corresponding to this instance of `physical_mem`, starting at an offset
-of `offset` bytes.
-
-After this call the virtual memory range is accessible on the corresponding
-device in the access mode specified by `mode`. `mode` must either be
-`access_mode::read` or `access_mode::read_write`.
+If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
+the access range is accessible after the call. Otherwise, it considered
+inaccessible and accessing it will result in undefined behavior.
 
 Writing to any address in the virtual memory range with access mode set to
 `access_mode::read` results in undefined behavior.
