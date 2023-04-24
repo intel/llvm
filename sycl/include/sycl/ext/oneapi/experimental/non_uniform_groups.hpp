@@ -11,12 +11,14 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <sycl/types.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/types.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 template <size_t ClusterSize, typename ParentGroup> class cluster_group;
 }
+
 namespace detail {
 
 inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask) {
@@ -41,7 +43,7 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
 }
 #endif
 
-// todo "inline" works?
+// todo "inline" works correctly in nvptx backend too?
 template <typename NonUniformGroup>
 inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
   return Group.Mask;
@@ -68,7 +70,6 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
       }
     }
   }
-  __builtin_unreachable();
   return Count;
 }
 

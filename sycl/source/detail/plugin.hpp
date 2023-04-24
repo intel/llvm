@@ -177,10 +177,14 @@ public:
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
     uint64_t CorrelationIDWithArgs = 0;
     unsigned char *ArgsDataPtr = nullptr;
+    using PackCallArgumentsTy =
+        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
+    auto ArgsData =
+        xptiTraceEnabled()
+            ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
+            : PackCallArgumentsTy{};
     // TODO check if stream is observed when corresponding API is present.
     if (xptiTraceEnabled()) {
-      auto ArgsData =
-          packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
       ArgsDataPtr = ArgsData.data();
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
           static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
@@ -230,6 +234,14 @@ public:
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
+
+  // Get backend option.
+  void getBackendOption(pi_platform platform, const char *frontend_option,
+                        const char **backend_option) const {
+    RT::PiResult Err = call_nocheck<PiApiKind::piPluginGetBackendOption>(
+        platform, frontend_option, backend_option);
+    checkPiResult(Err);
+  }
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.

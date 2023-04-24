@@ -978,13 +978,18 @@ public:
         MatrixInsts.push_back(&I);
       }
 
-    // Second, try to fuse candidates.
+    // Second, try to lower any dot products
     SmallPtrSet<Instruction *, 16> FusedInsts;
     for (CallInst *CI : MaybeFusableInsts)
+      lowerDotProduct(CI, FusedInsts, getFastMathFlags(CI));
+
+    // Third, try to fuse candidates.
+    for (CallInst *CI : MaybeFusableInsts)
       LowerMatrixMultiplyFused(CI, FusedInsts);
+
     Changed = !FusedInsts.empty();
 
-    // Third, lower remaining instructions with shape information.
+    // Fourth, lower remaining instructions with shape information.
     for (Instruction *Inst : MatrixInsts) {
       if (FusedInsts.count(Inst))
         continue;
@@ -1309,6 +1314,104 @@ public:
         U.set(Flattened);
       }
     }
+  }
+
+  /// Special case for MatMul lowering. Prevents scalar loads of row-major
+  /// vectors Lowers to vector reduction add instead of sequential add if
+  /// reassocation is enabled.
+  void lowerDotProduct(CallInst *MatMul,
+                       SmallPtrSet<Instruction *, 16> &FusedInsts,
+                       FastMathFlags FMF) {
+    if (FusedInsts.contains(MatMul) ||
+        MatrixLayout != MatrixLayoutTy::ColumnMajor)
+      return;
+    ShapeInfo LShape(MatMul->getArgOperand(2), MatMul->getArgOperand(3));
+    ShapeInfo RShape(MatMul->getArgOperand(3), MatMul->getArgOperand(4));
+
+    if (LShape.NumRows != 1 || RShape.NumColumns != 1) // not a dot product
+      return;
+
+    Value *LHS = MatMul->getArgOperand(0);
+    Value *RHS = MatMul->getArgOperand(1);
+
+    Type *ElementType = cast<VectorType>(LHS->getType())->getElementType();
+    bool IsIntVec = ElementType->isIntegerTy();
+
+    // Floating point reductions require reassocation.
+    if (!IsIntVec && !FMF.allowReassoc())
+      return;
+
+    auto IsSupportedArg = [](Value *Op, unsigned N) {
+      if (!isa<Instruction>(Op))
+        return true;
+      return match(
+          Op, m_OneUse(m_CombineOr(
+                  m_Load(m_Value()),
+                  m_Intrinsic<Intrinsic::matrix_column_major_load>(
+                      m_Value(), m_SpecificInt(N)))));
+    };
+    if (!IsSupportedArg(LHS, RShape.NumColumns))
+      return;
+
+    // We compare the costs of a vector.reduce.add to sequential add.
+    int AddOpCode = IsIntVec ? Instruction::Add : Instruction::FAdd;
+    FastMathFlags FMFReassoc;
+    FMFReassoc.setAllowReassoc();
+    InstructionCost ReductionCost = TTI.getArithmeticReductionCost(
+        AddOpCode, cast<VectorType>(LHS->getType()), FMFReassoc);
+    InstructionCost SequentialAddCost =
+        TTI.getArithmeticInstrCost(AddOpCode, ElementType) *
+        (LShape.NumColumns - 1);
+    if (ReductionCost >= SequentialAddCost)
+      return;
+
+    FusedInsts.insert(MatMul);
+    IRBuilder<> Builder(MatMul);
+    auto FlattenArg = [&Builder, &FusedInsts](Value *Op) -> Value * {
+      // Matmul must be the only user of loads because we don't use LowerLoad
+      // for row vectors (LowerLoad results in scalar loads and shufflevectors
+      // instead of single vector load).
+      if (!match(Op, m_CombineOr(
+                         m_Load(m_Value()),
+                         m_Intrinsic<Intrinsic::matrix_column_major_load>()))) {
+        return Op;
+      }
+      FusedInsts.insert(cast<Instruction>(Op));
+
+      // If vector uses the builtin load, lower to a LoadInst
+      Value *Ptr;
+      if (match(Op, m_Intrinsic<Intrinsic::matrix_column_major_load>(
+                        m_Value(Ptr)))) {
+        auto *NewLoad = Builder.CreateLoad(Op->getType(), Ptr);
+        Op->replaceAllUsesWith(NewLoad);
+        cast<Instruction>(Op)->eraseFromParent();
+        return NewLoad;
+      }
+      return Op;
+    };
+    LHS = FlattenArg(LHS);
+
+    // Insert mul/fmul and llvm.vector.reduce.fadd
+    Value *Mul =
+        IsIntVec ? Builder.CreateMul(LHS, RHS) : Builder.CreateFMul(LHS, RHS);
+
+    Value *Result;
+    if (IsIntVec)
+      Result = Builder.CreateAddReduce(Mul);
+    else {
+      Result = Builder.CreateFAddReduce(
+          ConstantFP::get(cast<VectorType>(LHS->getType())->getElementType(),
+                          0.0),
+          Mul);
+      cast<Instruction>(Result)->setFastMathFlags(FMF);
+    }
+
+    // pack scalar back into a matrix and then replace matmul inst
+    Result = Builder.CreateInsertElement(PoisonValue::get(MatMul->getType()),
+                                         Result, uint64_t(0));
+    MatMul->replaceAllUsesWith(Result);
+    FusedInsts.insert(MatMul);
+    ToRemove.push_back(MatMul);
   }
 
   /// Compute \p Result += \p A * \p B for input matrices with left-associating

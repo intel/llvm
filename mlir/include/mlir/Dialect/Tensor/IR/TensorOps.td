@@ -974,8 +974,8 @@ class Tensor_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
     Tensor_Op<mnemonic, !listconcat(traits, [
       DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
       Pure])>,
-    Arguments<(ins AnyTensor:$src, IndexListArrayAttr:$reassociation)>,
-    Results<(outs AnyTensor:$result)> {
+    Arguments<(ins AnyRankedTensor:$src, IndexListArrayAttr:$reassociation)>,
+    Results<(outs AnyRankedTensor:$result)> {
 
   code commonExtraClassDeclaration = [{
     static StringRef getReassociationAttrStrName() { return "reassociation"; }
@@ -989,7 +989,7 @@ class Tensor_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
               return indexAttr.cast<IntegerAttr>().getInt();
             })));
       return reassociationIndices;
-    };
+    }
     RankedTensorType getSrcType() {
       return getSrc().getType().cast<RankedTensorType>();
     }
@@ -1210,7 +1210,7 @@ def Tensor_PadOp : Tensor_Op<"pad", [
   }];
 
   let arguments = (ins
-    AnyTensor:$source,
+    AnyRankedTensor:$source,
     Variadic<Index>:$low,
     Variadic<Index>:$high,
     DenseI64ArrayAttr:$static_low,
@@ -1219,7 +1219,7 @@ def Tensor_PadOp : Tensor_Op<"pad", [
 
   let regions = (region SizedRegion<1>:$region);
 
-  let results = (outs AnyTensor:$result);
+  let results = (outs AnyRankedTensor:$result);
 
   // TODO: Remove custom<InferType> when AllTypesMatch supports opt. operands.
   let assemblyFormat = [{
@@ -1678,8 +1678,8 @@ class Tensor_RelayoutOp<string mnemonic, list<Trait> traits = []> :
                    "$_self">])> {
 
   code commonExtraClassDeclaration = [{
-    size_t getSourceRank() { return getSource().getType().getRank(); };
-    size_t getDestRank() { return getDest().getType().getRank(); };
+    size_t getSourceRank() { return getSourceType().getRank(); };
+    size_t getDestRank() { return getDestType().getRank(); };
     RankedTensorType getSourceType() {
       return getSource().getType().cast<RankedTensorType>(); };
     RankedTensorType getDestType() {
@@ -1817,6 +1817,13 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
                                  Location loc,
                                  ArrayRef<int64_t> innerPermutation,
                                  ArrayRef<int64_t> outerPermutation);
+
+    /// Check if this PackOp is like a simple pad operation.
+    /// In other words, this operation:
+    /// 1. adds useless dimensions (dimension of size 1),
+    /// 2. pads the other ones, and
+    /// 3. doesn't shuffle the dimensions
+    bool isLikePad();
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -1874,6 +1881,10 @@ def Tensor_UnPackOp : Tensor_RelayoutOp<"unpack"> {
   ];
 
   let extraClassDeclaration = commonExtraClassDeclaration # [{
+    static Value createDestinationTensor(OpBuilder &b, Location loc,
+        Value source, ArrayRef<OpFoldResult> innerTileSizes,
+        ArrayRef<int64_t> innerDimsPos, ArrayRef<int64_t> outerDimsPerm);
+
     /// Build and return a new UnPackOp that is a clone of the current UnPackOp
     /// with (innerDimsPos, innerTiles) (resp. outerDimsPerm) are permuted by 
     /// innerPermutation (resp. outerPermutation).
@@ -1888,6 +1899,12 @@ def Tensor_UnPackOp : Tensor_RelayoutOp<"unpack"> {
                                    Value transposedSource,
                                    ArrayRef<int64_t> innerPermutation,
                                    ArrayRef<int64_t> outerPermutation);
+
+    /// Check if this UnPackOp is like a simple unpad operation.
+    /// In other words, this operation:
+    /// 1. drops useless dimensions (dimension of size 1), and
+    /// 2. reduces dimensions in place (i.e., no tranpose.)
+    bool isLikeUnPad();
   }];
 
   let hasCanonicalizeMethod = 1;

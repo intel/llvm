@@ -192,14 +192,12 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 //        scalar arithmetic, complex (plus only), and vector arithmetic
 
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE detail::enable_if_t<
-    ((is_group_v<std::decay_t<Group>> ||
-      ext::oneapi::experimental::is_user_constructed_group_v<
-          Group>)&&(detail::is_scalar_arithmetic<T>::value ||
-                    (detail::is_complex<T>::value &&
-                     detail::is_multiplies<T, BinaryOperation>::value)) &&
-     detail::is_native_op<T, BinaryOperation>::value),
-    T>
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                     (detail::is_scalar_arithmetic<T>::value ||
+                      (detail::is_complex<T>::value &&
+                       detail::is_multiplies<T, BinaryOperation>::value)) &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -226,6 +224,7 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #endif
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
@@ -270,7 +269,7 @@ reduce_over_group(Group g, sycl::vec<T, N> x, BinaryOperation binary_op) {
       "Result type of binary_op must match reduction accumulation type.");
   sycl::vec<T, N> result;
 
-  detail::dim_loop<N>(
+  detail::loop<N>(
       [&](size_t s) { result[s] = reduce_over_group(g, x[s], binary_op); });
   return result;
 }
@@ -332,29 +331,6 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 // ---- joint_reduce
-template <typename Group, typename Ptr, class BinaryOperation>
-detail::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
-     detail::is_arithmetic_or_complex<
-         typename detail::remove_pointer<Ptr>::type>::value &&
-     detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<Ptr>::type, BinaryOperation>::value),
-    typename detail::remove_pointer<Ptr>::type>
-joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-#ifdef __SYCL_DEVICE_ONLY__
-  using T = typename detail::remove_pointer<Ptr>::type;
-  T init = detail::identity_for_ga_op<T, BinaryOperation>();
-  return joint_reduce(g, first, last, init, binary_op);
-#else
-  (void)g;
-  (void)first;
-  (void)last;
-  (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif
-}
-
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
@@ -390,6 +366,29 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 #endif
 }
 
+template <typename Group, typename Ptr, class BinaryOperation>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<Ptr>::type>::value &&
+     detail::is_plus_or_multiplies_if_complex<
+         typename detail::remove_pointer<Ptr>::type, BinaryOperation>::value),
+    typename detail::remove_pointer<Ptr>::type>
+joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using T = typename detail::remove_pointer<Ptr>::type;
+  T init = detail::identity_for_ga_op<T, BinaryOperation>();
+  return joint_reduce(g, first, last, init, binary_op);
+#else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)binary_op;
+  throw runtime_error("Group algorithms are not supported on host.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
 // ---- any_of_group
 template <typename Group>
 detail::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
@@ -397,6 +396,7 @@ any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny(g, pred);
 #else
+  (void)g;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
@@ -436,6 +436,7 @@ all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll(g, pred);
 #else
+  (void)g;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
@@ -475,6 +476,7 @@ none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll(g, !pred);
 #else
+  (void)g;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
@@ -592,6 +594,7 @@ group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
+  (void)g;
   (void)x;
   (void)local_id;
   throw runtime_error("Group algorithms are not supported on host.",
@@ -655,6 +658,7 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
@@ -888,6 +892,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif

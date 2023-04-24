@@ -16,6 +16,7 @@
 #include "Boolean.h"
 #include "Floating.h"
 #include "Function.h"
+#include "FunctionPointer.h"
 #include "InterpFrame.h"
 #include "InterpStack.h"
 #include "InterpState.h"
@@ -1485,26 +1486,29 @@ inline bool ArrayElemPtrPop(InterpState &S, CodePtr OpPC) {
   return NarrowPtr(S, OpPC);
 }
 
-inline bool CheckGlobalCtor(InterpState &S, CodePtr &PC) {
+inline bool CheckGlobalCtor(InterpState &S, CodePtr OpPC) {
   const Pointer &Obj = S.Stk.peek<Pointer>();
-  return CheckCtorCall(S, PC, Obj);
+  return CheckCtorCall(S, OpPC, Obj);
 }
 
-inline bool Call(InterpState &S, CodePtr &PC, const Function *Func) {
-  auto NewFrame = std::make_unique<InterpFrame>(S, Func, PC);
-  Pointer ThisPtr;
+inline bool Call(InterpState &S, CodePtr OpPC, const Function *Func) {
   if (Func->hasThisPointer()) {
-    ThisPtr = NewFrame->getThis();
-    if (!CheckInvoke(S, PC, ThisPtr))
+    size_t ThisOffset =
+        Func->getArgSize() + (Func->hasRVO() ? primSize(PT_Ptr) : 0);
+
+    const Pointer &ThisPtr = S.Stk.peek<Pointer>(ThisOffset);
+
+    if (!CheckInvoke(S, OpPC, ThisPtr))
       return false;
 
     if (S.checkingPotentialConstantExpression())
       return false;
   }
 
-  if (!CheckCallable(S, PC, Func))
+  if (!CheckCallable(S, OpPC, Func))
     return false;
 
+  auto NewFrame = std::make_unique<InterpFrame>(S, Func, OpPC);
   InterpFrame *FrameBefore = S.Current;
   S.Current = NewFrame.get();
 
@@ -1536,6 +1540,22 @@ inline bool CallBI(InterpState &S, CodePtr &PC, const Function *Func) {
   }
   S.Current = FrameBefore;
   return false;
+}
+
+inline bool CallPtr(InterpState &S, CodePtr OpPC) {
+  const FunctionPointer &FuncPtr = S.Stk.pop<FunctionPointer>();
+
+  const Function *F = FuncPtr.getFunction();
+  if (!F || !F->isConstexpr())
+    return false;
+
+  return Call(S, OpPC, F);
+}
+
+inline bool GetFnPtr(InterpState &S, CodePtr &PC, const Function *Func) {
+  assert(Func);
+  S.Stk.push<FunctionPointer>(Func);
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

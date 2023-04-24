@@ -1,7 +1,7 @@
 ;; The test serves a purpose to check if Atomic load instruction is being
 ;; annotated by SPIRITTAnnotations pass
 ;;
-;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/AtomicRef/load.cpp
+;; Compiled from https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/AtomicRef/load.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only load.cpp -o load.bc
 

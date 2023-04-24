@@ -228,7 +228,7 @@ void ASTStmtReader::VisitIfStmt(IfStmt *S) {
   if (HasElse)
     S->setElse(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
   if (HasInit)
     S->setInit(Record.readSubStmt());
 
@@ -253,7 +253,7 @@ void ASTStmtReader::VisitSwitchStmt(SwitchStmt *S) {
   if (HasInit)
     S->setInit(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
 
   S->setSwitchLoc(readSourceLocation());
   S->setLParenLoc(readSourceLocation());
@@ -279,7 +279,7 @@ void ASTStmtReader::VisitWhileStmt(WhileStmt *S) {
   S->setCond(Record.readSubExpr());
   S->setBody(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
 
   S->setWhileLoc(readSourceLocation());
   S->setLParenLoc(readSourceLocation());
@@ -299,7 +299,7 @@ void ASTStmtReader::VisitForStmt(ForStmt *S) {
   VisitStmt(S);
   S->setInit(Record.readSubStmt());
   S->setCond(Record.readSubExpr());
-  S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+  S->setConditionVariableDeclStmt(cast_or_null<DeclStmt>(Record.readSubStmt()));
   S->setInc(Record.readSubExpr());
   S->setBody(Record.readSubStmt());
   S->setForLoc(readSourceLocation());
@@ -1226,8 +1226,8 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       auto *Field = readDeclAs<FieldDecl>();
       SourceLocation DotLoc = readSourceLocation();
       SourceLocation FieldLoc = readSourceLocation();
-      Designators.push_back(Designator(Field->getIdentifier(), DotLoc,
-                                       FieldLoc));
+      Designators.push_back(Designator::CreateFieldDesignator(
+          Field->getIdentifier(), DotLoc, FieldLoc));
       Designators.back().setField(Field);
       break;
     }
@@ -1236,7 +1236,8 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       const IdentifierInfo *Name = Record.readIdentifier();
       SourceLocation DotLoc = readSourceLocation();
       SourceLocation FieldLoc = readSourceLocation();
-      Designators.push_back(Designator(Name, DotLoc, FieldLoc));
+      Designators.push_back(Designator::CreateFieldDesignator(Name, DotLoc,
+                                                              FieldLoc));
       break;
     }
 
@@ -1244,7 +1245,9 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       unsigned Index = Record.readInt();
       SourceLocation LBracketLoc = readSourceLocation();
       SourceLocation RBracketLoc = readSourceLocation();
-      Designators.push_back(Designator(Index, LBracketLoc, RBracketLoc));
+      Designators.push_back(Designator::CreateArrayDesignator(Index,
+                                                              LBracketLoc,
+                                                              RBracketLoc));
       break;
     }
 
@@ -1253,8 +1256,8 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       SourceLocation LBracketLoc = readSourceLocation();
       SourceLocation EllipsisLoc = readSourceLocation();
       SourceLocation RBracketLoc = readSourceLocation();
-      Designators.push_back(Designator(Index, LBracketLoc, EllipsisLoc,
-                                       RBracketLoc));
+      Designators.push_back(Designator::CreateArrayRangeDesignator(
+          Index, LBracketLoc, EllipsisLoc, RBracketLoc));
       break;
     }
     }

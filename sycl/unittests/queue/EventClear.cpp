@@ -72,7 +72,7 @@ pi_result redefinedEventRelease(pi_event event) {
 }
 
 void preparePiMock(unittest::PiMock &Mock) {
-  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate2>(
       redefinedQueueCreateEx);
   Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefineAfter<detail::PiApiKind::piEventGetInfo>(

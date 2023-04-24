@@ -31,7 +31,7 @@ template <int NumElems, bool IsAcc, int ResultOffset = 0> int test_to_copy() {
   sycl::queue queue;
   constexpr int NumSelectedElems = NumElems / 3;
   constexpr int Stride = 2;
-  constexpr int Offset = 6;
+  constexpr int Offset = 4;
 
   shared_allocator<DataT> allocator(queue);
   shared_vector<DataT> result(NumElems + ResultOffset, allocator);

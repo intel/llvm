@@ -478,19 +478,22 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     size_t DemangledNameLenStart = NameSpaceStart + 11;
     size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
     size_t Len = 0;
-    if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
-            .getAsInteger(10, Len)) {
-      SPIRVDBG(errs() << "Error in extracting integer value");
-      return false;
+    if (!Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+             .getAsInteger(10, Len)) {
+      DemangledName = Name.substr(Start, Len);
+      return true;
     }
-    DemangledName = Name.substr(Start, Len);
-  } else {
-    size_t Start = Name.find_first_not_of("0123456789", 2);
-    size_t Len = 0;
-    Name.substr(2, Start - 2).getAsInteger(10, Len);
-    DemangledName = Name.substr(Start, Len);
+    SPIRVDBG(errs() << "Error in extracting integer value");
+    return false;
   }
-  return DemangledName.size() != 0;
+  size_t Start = Name.find_first_not_of("0123456789", 2);
+  size_t Len = 0;
+  if (!Name.substr(2, Start - 2).getAsInteger(10, Len)) {
+    DemangledName = Name.substr(Start, Len);
+    return true;
+  }
+  SPIRVDBG(errs() << "Error in extracting integer value");
+  return false;
 }
 
 // Check if a mangled type Name is unsigned
@@ -1906,14 +1909,15 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   return true;
 }
 
-void setAttrByCalledFunc(CallInst *Call) {
+CallInst *setAttrByCalledFunc(CallInst *Call) {
   Function *F = Call->getCalledFunction();
   assert(F);
   if (F->isIntrinsic()) {
-    return;
+    return Call;
   }
   Call->setCallingConv(F->getCallingConv());
   Call->setAttributes(F->getAttributes());
+  return Call;
 }
 
 bool isSPIRVBuiltinVariable(GlobalVariable *GV,
@@ -1963,6 +1967,75 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 // %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
 // %5 = insertelement <3 x i64> %3, i64 %4, i32 2
 // %6 = extractelement <3 x i64> %5, i32 0
+
+/// Recursively look through the uses of a global variable, including casts or
+/// gep offsets, to find all loads of the variable. Gep offsets that are non-0
+/// are accumulated in the AccumulatedOffset parameter, which will eventually be
+/// used to figure out which index of a variable is being used.
+static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
+                                    Function *ReplacementFunc) {
+  const DataLayout &DL = ReplacementFunc->getParent()->getDataLayout();
+  SmallVector<Instruction *, 4> InstsToRemove;
+  for (User *U : V->users()) {
+    if (auto *Cast = dyn_cast<CastInst>(U)) {
+      replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc);
+      InstsToRemove.push_back(Cast);
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+      APInt NewOffset = AccumulatedOffset.sextOrTrunc(
+          DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
+      if (!GEP->accumulateConstantOffset(DL, NewOffset))
+        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc);
+      InstsToRemove.push_back(GEP);
+    } else if (auto *Load = dyn_cast<LoadInst>(U)) {
+      // Figure out which index the accumulated offset corresponds to. If we
+      // have a weird offset (e.g., trying to load byte 7), bail out.
+      Type *ScalarTy = ReplacementFunc->getReturnType();
+      APInt Index;
+      uint64_t Remainder;
+      APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
+                     Index, Remainder);
+      if (Remainder != 0)
+        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+
+      IRBuilder<> Builder(Load);
+      Value *Replacement;
+      if (ReplacementFunc->getFunctionType()->getNumParams() == 0) {
+        if (Load->getType() != ScalarTy)
+          llvm_unreachable("Illegal use of a SPIR-V builtin variable");
+        Replacement =
+            setAttrByCalledFunc(Builder.CreateCall(ReplacementFunc, {}));
+      } else {
+        // The function has an index parameter.
+        if (auto *VecTy = dyn_cast<FixedVectorType>(Load->getType())) {
+          if (!Index.isZero())
+            llvm_unreachable("Illegal use of a SPIR-V builtin variable");
+          Replacement = UndefValue::get(VecTy);
+          for (unsigned I = 0; I < VecTy->getNumElements(); I++) {
+            Replacement = Builder.CreateInsertElement(
+                Replacement,
+                setAttrByCalledFunc(
+                    Builder.CreateCall(ReplacementFunc, {Builder.getInt32(I)})),
+                Builder.getInt32(I));
+          }
+        } else if (Load->getType() == ScalarTy) {
+          Replacement = setAttrByCalledFunc(Builder.CreateCall(
+              ReplacementFunc, {Builder.getInt32(Index.getZExtValue())}));
+        } else {
+          llvm_unreachable("Illegal load type of a SPIR-V builtin variable");
+        }
+      }
+      Load->replaceAllUsesWith(Replacement);
+      InstsToRemove.push_back(Load);
+    } else {
+      llvm_unreachable("Illegal use of a SPIR-V builtin variable");
+    }
+  }
+
+  for (Instruction *I : InstsToRemove)
+    I->eraseFromParent();
+}
+
 bool lowerBuiltinVariableToCall(GlobalVariable *GV,
                                 SPIRVBuiltinVariableKind Kind) {
   // There might be dead constant users of GV (for example, SPIRVLowerConstExpr
@@ -1998,113 +2071,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func->setDoesNotAccessMemory();
   }
 
-  // Collect instructions in these containers to remove them later.
-  std::vector<Instruction *> Loads;
-  std::vector<Instruction *> Casts;
-  std::vector<Instruction *> GEPs;
-
-  auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
-    auto *Call = CallInst::Create(Func, Arg, "", I);
-    Call->takeName(I);
-    setAttrByCalledFunc(Call);
-    SPIRVDBG(dbgs() << "[lowerBuiltinVariableToCall] " << *I << " -> " << *Call
-                    << '\n';)
-    I->replaceAllUsesWith(Call);
-  };
-
-  // If HasIndexArg is true, we create 3 built-in calls and insertelement to
-  // get 3-element vector filled with ids and replace uses of Load instruction
-  // with this vector.
-  // If HasIndexArg is false, the result of the Load instruction is the value
-  // which should be replaced with the Func.
-  // Returns true if Load was replaced, false otherwise.
-  auto ReplaceIfLoad = [&](User *I) {
-    auto *LD = dyn_cast<LoadInst>(I);
-    if (!LD)
-      return false;
-    std::vector<Value *> Vectors;
-    Loads.push_back(LD);
-    if (HasIndexArg) {
-      auto *VecTy = cast<FixedVectorType>(GVTy);
-      Value *EmptyVec = UndefValue::get(VecTy);
-      Vectors.push_back(EmptyVec);
-      const DebugLoc &DLoc = LD->getDebugLoc();
-      for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
-        auto *Idx = ConstantInt::get(Type::getInt32Ty(C), I);
-        auto *Call = CallInst::Create(Func, {Idx}, "", LD);
-        if (DLoc)
-          Call->setDebugLoc(DLoc);
-        setAttrByCalledFunc(Call);
-        auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
-        if (DLoc)
-          Insert->setDebugLoc(DLoc);
-        Insert->insertAfter(Call);
-        Vectors.push_back(Insert);
-      }
-
-      Value *Ptr = LD->getPointerOperand();
-
-      if (isa<FixedVectorType>(LD->getType())) {
-        LD->replaceAllUsesWith(Vectors.back());
-      } else {
-        auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);
-        assert(GEP && "Unexpected pattern!");
-        assert(GEP->getNumIndices() == 2 && "Unexpected pattern!");
-        Value *Idx = GEP->getOperand(2);
-        Value *Vec = Vectors.back();
-        auto *NewExtract = ExtractElementInst::Create(Vec, Idx);
-        NewExtract->insertAfter(cast<Instruction>(Vec));
-        LD->replaceAllUsesWith(NewExtract);
-      }
-
-    } else {
-      Replace({}, LD);
-    }
-
-    return true;
-  };
-
-  // Go over the GV users, find Load and ExtractElement instructions and
-  // replace them with the corresponding function call.
-  for (auto *UI : GV->users()) {
-    // There might or might not be an addrspacecast instruction.
-    if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
-      Casts.push_back(ASCast);
-      for (auto *CastUser : ASCast->users()) {
-        if (ReplaceIfLoad(CastUser))
-          continue;
-        if (auto *GEP = dyn_cast<GetElementPtrInst>(CastUser)) {
-          GEPs.push_back(GEP);
-          for (auto *GEPUser : GEP->users()) {
-            if (!ReplaceIfLoad(GEPUser))
-              llvm_unreachable("Unexpected pattern!");
-          }
-        } else {
-          llvm_unreachable("Unexpected pattern!");
-        }
-      }
-    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(UI)) {
-      GEPs.push_back(GEP);
-      for (auto *GEPUser : GEP->users()) {
-        if (!ReplaceIfLoad(GEPUser))
-          llvm_unreachable("Unexpected pattern!");
-      }
-    } else if (!ReplaceIfLoad(UI)) {
-      llvm_unreachable("Unexpected pattern!");
-    }
-  }
-
-  auto Erase = [](std::vector<Instruction *> &ToErase) {
-    for (Instruction *I : ToErase) {
-      assert(I->hasNUses(0));
-      I->eraseFromParent();
-    }
-  };
-  // Order of erasing is important.
-  Erase(Loads);
-  Erase(GEPs);
-  Erase(Casts);
-
+  replaceUsesOfBuiltinVar(GV, APInt(64, 0), Func);
   return true;
 }
 

@@ -151,6 +151,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
+  (void)g;
   (void)x;
   (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",

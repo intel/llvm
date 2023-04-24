@@ -35,6 +35,7 @@ template <typename T, int N> void check_vector_size() {
   constexpr auto length = (N == 3 ? 4 : N);
   assert(Vec.size() == N);
   assert(Vec.byte_size() == sizeof(T) * length);
+  static_assert(noexcept(Vec.byte_size()));
 }
 
 int main() {

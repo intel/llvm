@@ -281,7 +281,8 @@ void MatcherGen::EmitLeafMatchCode(const TreePatternNode *N) {
     return;
   }
 
-  if (LeafRec->getName() == "immAllOnesV") {
+  if (LeafRec->getName() == "immAllOnesV" ||
+      LeafRec->getName() == "immAllZerosV") {
     // If this is the root of the dag we're matching, we emit a redundant opcode
     // check to ensure that this gets folded into the normal top-level
     // OpcodeSwitch.
@@ -291,19 +292,11 @@ void MatcherGen::EmitLeafMatchCode(const TreePatternNode *N) {
       const SDNodeInfo &NI = CGP.getSDNodeInfo(CGP.getSDNodeNamed(Name));
       AddMatcher(new CheckOpcodeMatcher(NI));
     }
-    return AddMatcher(new CheckImmAllOnesVMatcher());
-  }
-  if (LeafRec->getName() == "immAllZerosV") {
-    // If this is the root of the dag we're matching, we emit a redundant opcode
-    // check to ensure that this gets folded into the normal top-level
-    // OpcodeSwitch.
-    if (N == Pattern.getSrcPattern()) {
-      MVT VT = N->getSimpleType(0);
-      StringRef Name = VT.isScalableVector() ? "splat_vector" : "build_vector";
-      const SDNodeInfo &NI = CGP.getSDNodeInfo(CGP.getSDNodeNamed(Name));
-      AddMatcher(new CheckOpcodeMatcher(NI));
-    }
-    return AddMatcher(new CheckImmAllZerosVMatcher());
+    if (LeafRec->getName() == "immAllOnesV")
+      AddMatcher(new CheckImmAllOnesVMatcher());
+    else
+      AddMatcher(new CheckImmAllZerosVMatcher());
+    return;
   }
 
   errs() << "Unknown leaf kind: " << *N << "\n";
@@ -610,16 +603,17 @@ bool MatcherGen::EmitMatcherCode(unsigned Variant) {
     // Get the slot we recorded the value in from the name on the node.
     unsigned RecNodeEntry = MatchedComplexPatterns[i].second;
 
-    const ComplexPattern &CP = *N->getComplexPatternInfo(CGP);
+    const ComplexPattern *CP = N->getComplexPatternInfo(CGP);
+    assert(CP && "Not a valid ComplexPattern!");
 
     // Emit a CheckComplexPat operation, which does the match (aborting if it
     // fails) and pushes the matched operands onto the recorded nodes list.
-    AddMatcher(new CheckComplexPatMatcher(CP, RecNodeEntry,
-                                          N->getName(), NextRecordedOperandNo));
+    AddMatcher(new CheckComplexPatMatcher(*CP, RecNodeEntry, N->getName(),
+                                          NextRecordedOperandNo));
 
     // Record the right number of operands.
-    NextRecordedOperandNo += CP.getNumOperands();
-    if (CP.hasProperty(SDNPHasChain)) {
+    NextRecordedOperandNo += CP->getNumOperands();
+    if (CP->hasProperty(SDNPHasChain)) {
       // If the complex pattern has a chain, then we need to keep track of the
       // fact that we just recorded a chain input.  The chain input will be
       // matched as the last operand of the predicate if it was successful.
@@ -702,12 +696,12 @@ void MatcherGen::EmitResultLeafAsOperand(const TreePatternNode *N,
     }
 
     if (Def->getName() == "undef_tied_input") {
-      std::array<MVT::SimpleValueType, 1> ResultVTs = {{ N->getSimpleType(0) }};
-      std::array<unsigned, 0> InstOps;
+      MVT::SimpleValueType ResultVT = N->getSimpleType(0);
       auto IDOperandNo = NextRecordedOperandNo++;
-      AddMatcher(new EmitNodeMatcher("TargetOpcode::IMPLICIT_DEF",
-                                     ResultVTs, InstOps, false, false, false,
-                                     false, -1, IDOperandNo));
+      Record *ImpDef = Def->getRecords().getDef("IMPLICIT_DEF");
+      CodeGenInstruction &II = CGP.getTargetInfo().getInstruction(ImpDef);
+      AddMatcher(new EmitNodeMatcher(II, ResultVT, std::nullopt, false, false,
+                                     false, false, -1, IDOperandNo));
       ResultOps.push_back(IDOperandNo);
       return;
     }
@@ -988,11 +982,9 @@ EmitResultInstructionAsOperand(const TreePatternNode *N,
   assert((!ResultVTs.empty() || TreeHasOutGlue || NodeHasChain) &&
          "Node has no result");
 
-  AddMatcher(new EmitNodeMatcher(II.Namespace.str()+"::"+II.TheDef->getName().str(),
-                                 ResultVTs, InstOps,
-                                 NodeHasChain, TreeHasInGlue, TreeHasOutGlue,
-                                 NodeHasMemRefs, NumFixedArityOperands,
-                                 NextRecordedOperandNo));
+  AddMatcher(new EmitNodeMatcher(II, ResultVTs, InstOps, NodeHasChain,
+                                 TreeHasInGlue, TreeHasOutGlue, NodeHasMemRefs,
+                                 NumFixedArityOperands, NextRecordedOperandNo));
 
   // The non-chain and non-glue results of the newly emitted node get recorded.
   for (unsigned i = 0, e = ResultVTs.size(); i != e; ++i) {

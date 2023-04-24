@@ -48,6 +48,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
@@ -60,8 +61,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -852,11 +853,29 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   SI.registerCallbacks(PIC, &MAM);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
-  if (CodeGenOpts.EnableAssignmentTracking) {
+  // Handle the assignment tracking feature options.
+  switch (CodeGenOpts.getAssignmentTrackingMode()) {
+  case CodeGenOptions::AssignmentTrackingOpts::Forced:
     PB.registerPipelineStartEPCallback(
         [&](ModulePassManager &MPM, OptimizationLevel Level) {
           MPM.addPass(AssignmentTrackingPass());
         });
+    break;
+  case CodeGenOptions::AssignmentTrackingOpts::Enabled:
+    // Disable assignment tracking in LTO builds for now as the performance
+    // cost is too high. Disable for LLDB tuning due to llvm.org/PR43126.
+    if (!CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.PrepareForLTO &&
+        CodeGenOpts.getDebuggerTuning() != llvm::DebuggerKind::LLDB) {
+      PB.registerPipelineStartEPCallback(
+          [&](ModulePassManager &MPM, OptimizationLevel Level) {
+            // Only use assignment tracking if optimisations are enabled.
+            if (Level != OptimizationLevel::O0)
+              MPM.addPass(AssignmentTrackingPass());
+          });
+    }
+    break;
+  case CodeGenOptions::AssignmentTrackingOpts::Disabled:
+    break;
   }
 
   // Enable verify-debuginfo-preserve-each for new PM.
@@ -1026,6 +1045,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
                                                 /*ValidateAspects=*/false));
+
+      // Add attribute corresponding to optimization level.
+      MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
 
       // Add SPIRITTAnnotations pass to the pass manager if
       // -fsycl-instrument-device-code option was passed. This option can be

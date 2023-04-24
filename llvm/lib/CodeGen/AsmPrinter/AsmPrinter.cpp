@@ -133,7 +133,7 @@ static cl::opt<std::string> BasicBlockProfileDump(
     "mbb-profile-dump", cl::Hidden,
     cl::desc("Basic block profile dump for external cost modelling. If "
              "matching up BBs with afterwards, the compilation must be "
-             "performed with -fbasic-block-sections=labels. Enabling this "
+             "performed with -basic-block-sections=labels. Enabling this "
              "flag during in-process ThinLTO is not supported."));
 
 const char DWARFGroupName[] = "dwarf";
@@ -1627,6 +1627,7 @@ void AsmPrinter::emitFunctionBody() {
   // Print out code for the function.
   bool HasAnyRealCode = false;
   int NumInstsInFunction = 0;
+  bool IsEHa = MMI->getModule()->getModuleFlag("eh-asynch");
 
   bool CanDoExtraAnalysis = ORE->allowExtraAnalysis(DEBUG_TYPE);
   for (auto &MBB : *MF) {
@@ -1665,9 +1666,24 @@ void AsmPrinter::emitFunctionBody() {
         emitFrameAlloc(MI);
         break;
       case TargetOpcode::ANNOTATION_LABEL:
-      case TargetOpcode::EH_LABEL:
       case TargetOpcode::GC_LABEL:
         OutStreamer->emitLabel(MI.getOperand(0).getMCSymbol());
+        break;
+      case TargetOpcode::EH_LABEL:
+        OutStreamer->emitLabel(MI.getOperand(0).getMCSymbol());
+        // For AsynchEH, insert a Nop if followed by a trap inst
+        //   Or the exception won't be caught.
+        //   (see MCConstantExpr::create(1,..) in WinException.cpp)
+        //  Ignore SDiv/UDiv because a DIV with Const-0 divisor
+        //    must have being turned into an UndefValue.
+        //  Div with variable opnds won't be the first instruction in
+        //  an EH region as it must be led by at least a Load
+        {
+          auto MI2 = std::next(MI.getIterator());
+          if (IsEHa && MI2 != MBB.end() &&
+              (MI2->mayLoadOrStore() || MI2->mayRaiseFPException()))
+            emitNops(1);
+        }
         break;
       case TargetOpcode::INLINEASM:
       case TargetOpcode::INLINEASM_BR:
@@ -1908,14 +1924,19 @@ void AsmPrinter::emitFunctionBody() {
 
   OutStreamer->addBlankLine();
 
-  // Output MBB numbers, function names, and frequencies if the flag to dump
+  // Output MBB ids, function names, and frequencies if the flag to dump
   // MBB profile information has been set
   if (MBBProfileDumpFileOutput) {
+    if (!MF->hasBBLabels())
+      MF->getContext().reportError(
+          SMLoc(),
+          "Unable to find BB labels for MBB profile dump. -mbb-profile-dump "
+          "must be called with -basic-block-sections=labels");
     MachineBlockFrequencyInfo &MBFI =
         getAnalysis<LazyMachineBlockFrequencyInfoPass>().getBFI();
     for (const auto &MBB : *MF) {
       *MBBProfileDumpFileOutput.get()
-          << MF->getName() << "," << MBB.getNumber() << ","
+          << MF->getName() << "," << MBB.getBBID() << ","
           << MBFI.getBlockFreqRelativeToEntryBlock(&MBB) << "\n";
     }
   }
@@ -3369,7 +3390,8 @@ static void emitGlobalConstantLargeInt(const ConstantInt *CI, AsmPrinter &AP) {
       ExtraBitsSize = alignTo(ExtraBitsSize, 8);
       ExtraBits = Realigned.getRawData()[0] &
         (((uint64_t)-1) >> (64 - ExtraBitsSize));
-      Realigned.lshrInPlace(ExtraBitsSize);
+      if (BitWidth >= 64)
+        Realigned.lshrInPlace(ExtraBitsSize);
     } else
       ExtraBits = Realigned.getRawData()[BitWidth / 64];
   }

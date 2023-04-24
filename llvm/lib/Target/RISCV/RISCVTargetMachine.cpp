@@ -80,10 +80,10 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRISCVTarget() {
   initializeRISCVGatherScatterLoweringPass(*PR);
   initializeRISCVCodeGenPreparePass(*PR);
   initializeRISCVMergeBaseOffsetOptPass(*PR);
-  initializeRISCVSExtWRemovalPass(*PR);
-  initializeRISCVStripWSuffixPass(*PR);
+  initializeRISCVOptWInstrsPass(*PR);
   initializeRISCVPreRAExpandPseudoPass(*PR);
   initializeRISCVExpandPseudoPass(*PR);
+  initializeRISCVInsertNTLHInstsPass(*PR);
   initializeRISCVInsertVSETVLIPass(*PR);
   initializeRISCVDAGToDAGISelPass(*PR);
   initializeRISCVInitUndefPass(*PR);
@@ -280,11 +280,11 @@ TargetPassConfig *RISCVTargetMachine::createPassConfig(PassManagerBase &PM) {
 void RISCVPassConfig::addIRPasses() {
   addPass(createAtomicExpandPass());
 
-  if (getOptLevel() != CodeGenOpt::None)
+  if (getOptLevel() != CodeGenOpt::None) {
     addPass(createRISCVGatherScatterLoweringPass());
-
-  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createInterleavedAccessPass());
     addPass(createRISCVCodeGenPreparePass());
+  }
 
   TargetPassConfig::addIRPasses();
 }
@@ -349,6 +349,7 @@ void RISCVPassConfig::addPreEmitPass() {
 
 void RISCVPassConfig::addPreEmitPass2() {
   addPass(createRISCVExpandPseudoPass());
+  addPass(createRISCVInsertNTLHInstsPass());
 
   // Schedule the expansion of AMOs at the last possible moment, avoiding the
   // possibility for other passes to break the requirements for forward
@@ -362,8 +363,7 @@ void RISCVPassConfig::addMachineSSAOptimization() {
     addPass(&MachineCombinerID);
 
   if (TM->getTargetTriple().getArch() == Triple::riscv64) {
-    addPass(createRISCVSExtWRemovalPass());
-    addPass(createRISCVStripWSuffixPass());
+    addPass(createRISCVOptWInstrsPass());
   }
 }
 

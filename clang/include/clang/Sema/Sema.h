@@ -1580,6 +1580,9 @@ public:
   /// A stack of expression evaluation contexts.
   SmallVector<ExpressionEvaluationContextRecord, 8> ExprEvalContexts;
 
+  // Set of failed immediate invocations to avoid double diagnosing.
+  llvm::SmallPtrSet<ConstantExpr *, 4> FailedImmediateInvocations;
+
   /// Emit a warning for all pending noderef expressions that we recorded.
   void WarnOnPendingNoDerefs(ExpressionEvaluationContextRecord &Rec);
 
@@ -2544,6 +2547,10 @@ private:
   };
   /// The modules we're currently parsing.
   llvm::SmallVector<ModuleScope, 16> ModuleScopes;
+
+  /// For an interface unit, this is the implicitly imported interface unit.
+  clang::Module *ThePrimaryInterface = nullptr;
+
   /// The explicit global module fragment of the current translation unit.
   /// The explicit Global Module Fragment, as specified in C++
   /// [module.global.frag].
@@ -7383,10 +7390,9 @@ public:
                         Expr *TrailingRequiresClause);
 
   /// Number lambda for linkage purposes if necessary.
-  void handleLambdaNumbering(
-      CXXRecordDecl *Class, CXXMethodDecl *Method,
-      std::optional<std::tuple<bool, unsigned, unsigned, Decl *>> Mangling =
-          std::nullopt);
+  void handleLambdaNumbering(CXXRecordDecl *Class, CXXMethodDecl *Method,
+                             std::optional<CXXRecordDecl::LambdaNumbering>
+                                 NumberingOverride = std::nullopt);
 
   /// Endow the lambda scope info with the relevant properties.
   void buildLambdaScope(sema::LambdaScopeInfo *LSI, CXXMethodDecl *CallOperator,
@@ -8384,6 +8390,8 @@ public:
                                 SourceLocation EqualLoc,
                                 ParsedType DefaultArg, bool HasTypeConstraint);
 
+  bool CheckTypeConstraint(TemplateIdAnnotation *TypeConstraint);
+
   bool ActOnTypeConstraint(const CXXScopeSpec &SS,
                            TemplateIdAnnotation *TypeConstraint,
                            TemplateTypeParmDecl *ConstrainedParameter,
@@ -8402,7 +8410,8 @@ public:
                             SourceLocation EllipsisLoc);
 
   bool AttachTypeConstraint(AutoTypeLoc TL,
-                            NonTypeTemplateParmDecl *ConstrainedParameter,
+                            NonTypeTemplateParmDecl *NewConstrainedParm,
+                            NonTypeTemplateParmDecl *OrigConstrainedParm,
                             SourceLocation EllipsisLoc);
 
   bool RequireStructuralType(QualType T, SourceLocation Loc);
@@ -8736,24 +8745,31 @@ public:
     /// template<int Value> struct integer_c;
     /// X<integer_c> xic;
     /// \endcode
-    TPL_TemplateTemplateArgumentMatch
+    TPL_TemplateTemplateArgumentMatch,
+
+    /// We are determining whether the template-parameters are equivalent
+    /// according to C++ [temp.over.link]/6. This comparison does not consider
+    /// constraints.
+    ///
+    /// \code
+    /// template<C1 T> void f(T);
+    /// template<C2 T> void f(T);
+    /// \endcode
+    TPL_TemplateParamsEquivalent,
   };
 
   bool TemplateParameterListsAreEqual(
       const NamedDecl *NewInstFrom, TemplateParameterList *New,
       const NamedDecl *OldInstFrom, TemplateParameterList *Old, bool Complain,
       TemplateParameterListEqualKind Kind,
-      SourceLocation TemplateArgLoc = SourceLocation(),
-      bool PartialOrdering = false);
+      SourceLocation TemplateArgLoc = SourceLocation());
 
   bool TemplateParameterListsAreEqual(
       TemplateParameterList *New, TemplateParameterList *Old, bool Complain,
       TemplateParameterListEqualKind Kind,
-      SourceLocation TemplateArgLoc = SourceLocation(),
-      bool PartialOrdering = false) {
+      SourceLocation TemplateArgLoc = SourceLocation()) {
     return TemplateParameterListsAreEqual(nullptr, New, nullptr, Old, Complain,
-                                          Kind, TemplateArgLoc,
-                                          PartialOrdering);
+                                          Kind, TemplateArgLoc);
   }
 
   bool CheckTemplateDeclScope(Scope *S, TemplateParameterList *TemplateParams);
@@ -14434,7 +14450,7 @@ public:
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
-  void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
+  void copySYCLKernelAttrs(CXXMethodDecl *CallOperator);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();

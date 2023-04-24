@@ -1709,10 +1709,11 @@ static void createFramePtr(coro::Shape &Shape) {
 static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
   auto *CB = Shape.CoroBegin;
   LLVMContext &C = CB->getContext();
+  Function *F = CB->getFunction();
   IRBuilder<> Builder(C);
   StructType *FrameTy = Shape.FrameTy;
   Value *FramePtr = Shape.FramePtr;
-  DominatorTree DT(*CB->getFunction());
+  DominatorTree DT(*F);
   SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
 
   // Create a GEP with the given index into the coroutine frame for the original
@@ -1846,6 +1847,21 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
               SpillAlignment, E.first->getName() + Twine(".reload"));
 
         TinyPtrVector<DbgDeclareInst *> DIs = FindDbgDeclareUses(Def);
+        // Try best to find dbg.declare. If the spill is a temp, there may not
+        // be a direct dbg.declare. Walk up the load chain to find one from an
+        // alias.
+        if (F->getSubprogram()) {
+          auto *CurDef = Def;
+          while (DIs.empty() && isa<LoadInst>(CurDef)) {
+            auto *LdInst = cast<LoadInst>(CurDef);
+            // Only consider ptr to ptr same type load.
+            if (LdInst->getPointerOperandType() != LdInst->getType())
+              break;
+            CurDef = LdInst->getPointerOperand();
+            DIs = FindDbgDeclareUses(CurDef);
+          }
+        }
+
         for (DbgDeclareInst *DDI : DIs) {
           bool AllowUnresolved = false;
           // This dbg.declare is preserved for all coro-split function
@@ -1930,11 +1946,13 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
       DVI->replaceUsesOfWith(Alloca, G);
 
     for (Instruction *I : UsersToUpdate) {
-      // It is meaningless to remain the lifetime intrinsics refer for the
+      // It is meaningless to retain the lifetime intrinsics refer for the
       // member of coroutine frames and the meaningless lifetime intrinsics
       // are possible to block further optimizations.
-      if (I->isLifetimeStartOrEnd())
+      if (I->isLifetimeStartOrEnd()) {
+        I->eraseFromParent();
         continue;
+      }
 
       I->replaceUsesOfWith(Alloca, G);
     }

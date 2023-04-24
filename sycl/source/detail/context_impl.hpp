@@ -215,6 +215,15 @@ public:
   std::optional<RT::PiProgram>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
+  /// Gets a program associated with a HostPipe Entry from the cache.
+  std::optional<RT::PiProgram>
+  getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
+
+  /// Gets a program associated with Dev / Images pairs.
+  std::optional<RT::PiProgram>
+  getProgramForDevImgs(const device &Device,
+                       const std::set<std::uintptr_t> &ImgIdentifiers,
+                       const std::string &ObjectTypeName);
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
@@ -269,6 +278,21 @@ private:
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
 };
+
+template <typename T, typename Capabilities>
+void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+                                    std::vector<T> &CapabilityList) {
+  for (const sycl::device &Device : Devices) {
+    std::vector<T> NewCapabilityList;
+    std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

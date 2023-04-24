@@ -344,7 +344,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
 
     // Compilation unit
     case dwarf::DW_TAG_compile_unit:
-      return transDbgCompilationUnit(cast<DICompileUnit>(DIEntry));
+      return transDbgCompileUnit(cast<DICompileUnit>(DIEntry));
 
     // Templates
     case dwarf::DW_TAG_template_type_parameter:
@@ -539,8 +539,7 @@ SPIRVId LLVMToSPIRVDbgTran::getDebugInfoNoneId() {
 
 // Compilation unit
 
-SPIRVEntry *
-LLVMToSPIRVDbgTran::transDbgCompilationUnit(const DICompileUnit *CU) {
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
   using namespace SPIRVDebug::Operand::CompilationUnit;
   SPIRVWordVec Ops(OperandCount);
   Ops[SPIRVDebugInfoVersionIdx] = SPIRVDebug::DebugInfoVersion;
@@ -573,6 +572,11 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgBaseType(const DIBasicType *BT) {
   auto Encoding = static_cast<dwarf::TypeKind>(BT->getEncoding());
   SPIRVDebug::EncodingTag EncTag = SPIRVDebug::Unspecified;
   SPIRV::DbgEncodingMap::find(Encoding, &EncTag);
+  // Unset encoding if it's complex and NonSemantic.Shader.DebugInfo.200 is not
+  // enabled
+  if (EncTag == SPIRVDebug::Complex &&
+      BM->getDebugInfoEIS() != SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    EncTag = SPIRVDebug::Unspecified;
   Ops[EncodingIdx] = EncTag;
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {EncodingIdx});
@@ -977,7 +981,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInheritance(const DIDerivedType *DT) {
   Ops[FlagsIdx] = transDebugFlags(DT);
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {FlagsIdx});
-  return BM->addDebugInfo(SPIRVDebug::Inheritance, getVoidTy(), Ops);
+  return BM->addDebugInfo(SPIRVDebug::TypeInheritance, getVoidTy(), Ops);
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgPtrToMember(const DIDerivedType *DT) {
@@ -992,7 +996,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgPtrToMember(const DIDerivedType *DT) {
 SPIRVEntry *
 LLVMToSPIRVDbgTran::transDbgTemplateParams(DITemplateParameterArray TPA,
                                            const SPIRVEntry *Target) {
-  using namespace SPIRVDebug::Operand::Template;
+  using namespace SPIRVDebug::Operand::TypeTemplate;
   SPIRVWordVec Ops(MinOperandCount);
   Ops[TargetIdx] = Target->getId();
   for (DITemplateParameter *TP : TPA) {
@@ -1003,15 +1007,23 @@ LLVMToSPIRVDbgTran::transDbgTemplateParams(DITemplateParameterArray TPA,
 
 SPIRVEntry *
 LLVMToSPIRVDbgTran::transDbgTemplateParameter(const DITemplateParameter *TP) {
-  using namespace SPIRVDebug::Operand::TemplateParameter;
+  using namespace SPIRVDebug::Operand::TypeTemplateParameter;
   SPIRVWordVec Ops(OperandCount);
   Ops[NameIdx] = BM->getString(TP->getName().str())->getId();
   Ops[TypeIdx] = transDbgEntry(TP->getType())->getId();
   Ops[ValueIdx] = getDebugInfoNoneId();
   if (TP->getTag() == dwarf::DW_TAG_template_value_parameter) {
     const DITemplateValueParameter *TVP = cast<DITemplateValueParameter>(TP);
-    Constant *C = cast<ConstantAsMetadata>(TVP->getValue())->getValue();
-    Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
+    if (auto *TVVal = TVP->getValue()) {
+      Constant *C = cast<ConstantAsMetadata>(TVVal)->getValue();
+      Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
+    } else {
+      // intel/llvm customization for opaque pointers begin
+      SPIRVType *TyPtr = SPIRVWriter->transType(
+          PointerType::get(Type::getInt8Ty(M->getContext()), 0));
+      // customization end
+      Ops[ValueIdx] = BM->addNullConstant(TyPtr)->getId();
+    }
   }
   Ops[SourceIdx] = getDebugInfoNoneId();
   Ops[LineIdx] = 0;   // This version of DITemplateParameter has no line number
@@ -1023,7 +1035,7 @@ LLVMToSPIRVDbgTran::transDbgTemplateParameter(const DITemplateParameter *TP) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgTemplateTemplateParameter(
     const DITemplateValueParameter *TVP) {
-  using namespace SPIRVDebug::Operand::TemplateTemplateParameter;
+  using namespace SPIRVDebug::Operand::TypeTemplateTemplateParameter;
   SPIRVWordVec Ops(OperandCount);
   assert(isa<MDString>(TVP->getValue()));
   MDString *Val = cast<MDString>(TVP->getValue());
@@ -1040,7 +1052,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgTemplateTemplateParameter(
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgTemplateParameterPack(
     const DITemplateValueParameter *TVP) {
-  using namespace SPIRVDebug::Operand::TemplateParameterPack;
+  using namespace SPIRVDebug::Operand::TypeTemplateParameterPack;
   SPIRVWordVec Ops(MinOperandCount);
   assert(isa<MDNode>(TVP->getValue()));
   MDNode *Params = cast<MDNode>(TVP->getValue());
@@ -1120,7 +1132,8 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
 
   SPIRVEntry *DebugFunc = nullptr;
   if (!Func->isDefinition()) {
-    DebugFunc = BM->addDebugInfo(SPIRVDebug::FunctionDecl, getVoidTy(), Ops);
+    DebugFunc =
+        BM->addDebugInfo(SPIRVDebug::FunctionDeclaration, getVoidTy(), Ops);
   } else {
     // Here we add operands specific function definition
     using namespace SPIRVDebug::Operand::Function;

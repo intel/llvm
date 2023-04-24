@@ -136,6 +136,8 @@ template <typename T> struct vector_element {
 };
 template <class T> using vector_element_t = typename vector_element<T>::type;
 
+template <class T> using marray_element_t = typename T::value_type;
+
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
   using type = B;
@@ -237,6 +239,13 @@ template <typename T> struct make_unsigned {
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
 };
 
+template <typename T, size_t N> struct make_unsigned<marray<T, N>> {
+  using base_type = marray_element_t<marray<T, N>>;
+  using new_type_wo_cv_qualifiers =
+      make_unsigned_impl_t<remove_cv_t<base_type>>;
+  using type = marray<copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>, N>;
+};
+
 template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
 
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
@@ -307,6 +316,43 @@ struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
 };
 
 template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
+
+// is_multi_ptr
+template <typename T> struct is_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+struct is_multi_ptr<multi_ptr<ElementType, Space, IsDecorated>>
+    : std::true_type {};
+
+template <class T>
+inline constexpr bool is_multi_ptr_v = is_multi_ptr<T>::value;
+
+// is_non_legacy_multi_ptr
+template <typename T> struct is_non_legacy_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_non_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::yes>> : std::true_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_non_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::no>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_non_legacy_multi_ptr_v =
+    is_non_legacy_multi_ptr<T>::value;
+
+// is_legacy_multi_ptr
+template <typename T> struct is_legacy_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::legacy>> : std::true_type {
+};
+
+template <class T>
+inline constexpr bool is_legacy_multi_ptr_v = is_legacy_multi_ptr<T>::value;
 
 // remove_pointer_t
 template <typename T> struct remove_pointer_impl {
@@ -384,6 +430,15 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
+  static constexpr bool found = !std::is_same<upper_type, void>::value;
+  using type = conditional_t<found, new_type, void>;
+};
+
+template <typename T, size_t N>
+struct make_larger_impl<marray<T, N>, marray<T, N>> {
+  using base_type = marray_element_t<marray<T, N>>;
+  using upper_type = typename make_larger_impl<base_type, base_type>::type;
+  using new_type = marray<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;
   using type = conditional_t<found, new_type, void>;
 };
