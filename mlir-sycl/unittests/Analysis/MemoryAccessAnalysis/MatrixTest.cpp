@@ -40,6 +40,20 @@ TEST(MatrixTest, RowAndColumnSize) {
   EXPECT_EQ(matrix.getNumColumns(), 3u);
 }
 
+TEST(MatrixTest, Init) {
+  MLIRContext ctx;
+  OpBuilder builder = getBuilder(ctx);
+  Location loc = builder.getUnknownLoc();
+  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
+
+  // clang-format off
+  MemoryAccessMatrix matrix({{zero, zero}, 
+                             {zero, zero}});
+  // clang-format on
+  EXPECT_EQ(matrix.getNumRows(), 2u);
+  EXPECT_EQ(matrix.getNumColumns(), 2u);
+}
+
 TEST(MatrixTest, ReadWrite) {
   MLIRContext ctx;
   OpBuilder builder = getBuilder(ctx);
@@ -165,27 +179,32 @@ TEST(MatrixTest, SubMatrix) {
     MemoryAccessMatrix subMatrix = matrix.getRows({0, 2});
     EXPECT_EQ(subMatrix.getNumRows(), 2u);
     EXPECT_EQ(subMatrix.getNumColumns(), 3u);
-    for (unsigned row = 0; row < 2; ++row)
-      for (unsigned col = 0; col < 3; ++col)
-        EXPECT_EQ(subMatrix(row, col), row == 0 ? zero : two);
+    for (unsigned col = 0; col < 3; ++col) {
+      EXPECT_EQ(subMatrix(0, col), zero);
+      EXPECT_EQ(subMatrix(1, col), two);
+    }
   }
 
   {
-    MemoryAccessMatrix subMatrix = matrix.getColumns({0, 2});
+    matrix.fillColumn(0, one);
+    matrix.fillColumn(2, two);
+    MemoryAccessMatrix subMatrix = matrix.getColumns({2, 0});
     EXPECT_EQ(subMatrix.getNumRows(), 3u);
     EXPECT_EQ(subMatrix.getNumColumns(), 2u);
-    for (unsigned row = 0; row < 3; ++row)
+    for (unsigned row = 0; row < 3; ++row) {
       for (unsigned col = 0; col < 2; ++col)
-        EXPECT_EQ(subMatrix(row, col), row == 0 ? zero : row == 1 ? one : two);
+        EXPECT_EQ(subMatrix(row, col), col == 0 ? one : two);
+    }
   }
 
   {
     MemoryAccessMatrix subMatrix = matrix.getSubMatrix({0, 1}, {0, 1});
     EXPECT_EQ(subMatrix.getNumRows(), 2u);
     EXPECT_EQ(subMatrix.getNumColumns(), 2u);
-    for (unsigned row = 0; row < 2; ++row)
+    for (unsigned row = 0; row < 2; ++row) {
       for (unsigned col = 0; col < 2; ++col)
-        EXPECT_EQ(subMatrix(row, col), row == 0 ? zero : one);
+        EXPECT_EQ(subMatrix(row, col), row == 0 && col == 1 ? zero : one);
+    }
   }
 }
 
@@ -209,55 +228,72 @@ TEST(MatrixTest, Shapes) {
   if (failed(solver.initializeAndRun(funcOp)))
     assert(false);
 
-  MemoryAccessMatrix matrix(3, 3);
-  matrix.fill(zero);
+  {
+    // Create the zero matrix.
+    MemoryAccessMatrix matrix(3, 3);
+    matrix.fill(zero);
 
-  EXPECT_THAT(matrix.isSquare(), true);
-  EXPECT_THAT(matrix.isZero(solver), true);
-  EXPECT_THAT(matrix.isIdentity(solver), false);
+    EXPECT_THAT(matrix.isSquare(), true);
+    EXPECT_THAT(matrix.isZero(solver), true);
+    EXPECT_THAT(matrix.isIdentity(solver), false);
+  }
 
-  for (unsigned row = 0; row < 3; ++row)
-    matrix(row, row) = one;
+  {
+    // Create the identity matrix.
+    MemoryAccessMatrix matrix(3, 3);
+    matrix.fill(zero);
+    for (unsigned row = 0; row < 3; ++row)
+      matrix(row, row) = one;
 
-  EXPECT_THAT(matrix.isZero(solver), false);
-  EXPECT_THAT(matrix.isDiagonal(solver), true);
-  EXPECT_THAT(matrix.isIdentity(solver), true);
-  EXPECT_THAT(matrix.isLowerTriangular(solver), false);
-  EXPECT_THAT(matrix.isUpperTriangular(solver), false);
+    EXPECT_THAT(matrix.isZero(solver), false);
+    EXPECT_THAT(matrix.isDiagonal(solver), true);
+    EXPECT_THAT(matrix.isIdentity(solver), true);
+    EXPECT_THAT(matrix.isLowerTriangular(solver), false);
+    EXPECT_THAT(matrix.isUpperTriangular(solver), false);
+  }
 
-  matrix(2, 2) = two;
+  {
+    // clang-format off
+    MemoryAccessMatrix matrix(
+        {{one, zero, zero}, {zero, one, zero}, {zero, zero, two}});
+    // clang-format on
 
-  EXPECT_THAT(matrix.isDiagonal(solver), true);
-  EXPECT_THAT(matrix.isIdentity(solver), false);
+    EXPECT_THAT(matrix.isDiagonal(solver), true);
+    EXPECT_THAT(matrix.isIdentity(solver), false);
+  }
 
-  for (unsigned row = 0; row < 3; ++row)
-    for (unsigned col = 0; col < 3; ++col) {
-      if (col <= row)
-        matrix(row, col) = two;
-    }
+  {
+    // clang-format off
+    MemoryAccessMatrix matrix(
+      {{one, zero, zero}, 
+       {two, two,  zero}, 
+       {two, two,  one}});
+    // clang-format on
 
-  EXPECT_THAT(matrix.isZero(solver), false);
-  EXPECT_THAT(matrix.isDiagonal(solver), false);
-  EXPECT_THAT(matrix.isIdentity(solver), false);
-  EXPECT_THAT(matrix.isLowerTriangular(solver), true);
-  EXPECT_THAT(matrix.isUpperTriangular(solver), false);
+    EXPECT_THAT(matrix.isZero(solver), false);
+    EXPECT_THAT(matrix.isDiagonal(solver), false);
+    EXPECT_THAT(matrix.isIdentity(solver), false);
+    EXPECT_THAT(matrix.isLowerTriangular(solver), true);
+    EXPECT_THAT(matrix.isUpperTriangular(solver), false);
+  }
 
-  for (unsigned row = 0; row < 3; ++row)
-    for (unsigned col = 0; col < 3; ++col) {
-      if (col < row)
-        matrix(row, col) = zero;
-      if (col > row)
-        matrix(row, col) = one;
-    }
+  {
+    // clang-format off
+    MemoryAccessMatrix matrix(
+      {{one,  two,  two}, 
+       {zero, two,  two}, 
+       {zero, zero, one}});
+    // clang-format on
 
-  EXPECT_THAT(matrix.isZero(solver), false);
-  EXPECT_THAT(matrix.isDiagonal(solver), false);
-  EXPECT_THAT(matrix.isIdentity(solver), false);
-  EXPECT_THAT(matrix.isLowerTriangular(solver), false);
-  EXPECT_THAT(matrix.isUpperTriangular(solver), true);
+    EXPECT_THAT(matrix.isZero(solver), false);
+    EXPECT_THAT(matrix.isDiagonal(solver), false);
+    EXPECT_THAT(matrix.isIdentity(solver), false);
+    EXPECT_THAT(matrix.isLowerTriangular(solver), false);
+    EXPECT_THAT(matrix.isUpperTriangular(solver), true);
+  }
 }
 
-TEST(MatrixTest, PatterClassification) {
+TEST(MatrixTest, PatternClassification) {
   MLIRContext ctx;
   OpBuilder builder = getBuilder(ctx);
   Location loc = builder.getUnknownLoc();

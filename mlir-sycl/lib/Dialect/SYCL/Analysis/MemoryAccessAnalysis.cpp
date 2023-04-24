@@ -24,7 +24,7 @@ using namespace mlir::sycl;
 
 /// Determine whether a value is an known integer value.
 static Optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
-  if (!isa<IntegerType>(val.getType()))
+  if (!val.getType().isIntOrIndex())
     return std::nullopt;
 
   auto *inferredRange =
@@ -603,43 +603,43 @@ MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
 
     if (matrix.hasStridedOverlappedAccessPattern(solver))
       return MemoryAccessPattern::StridedOverlapped;
-  } else {
-    if (matrix.hasLinearAccessPattern(solver) &&
-        offsets.isZeroWithLastElementStrictlyPositive(solver))
-      return MemoryAccessPattern::LinearShifted;
 
-    if (matrix.hasReverseLinearAccessPattern(solver) &&
-        offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1,
-                                             solver))
-      return MemoryAccessPattern::ReverseLinear;
-
-    if (matrix.hasReverseLinearAccessPattern(solver) &&
-        offsets.isZeroWithLastElementStrictlyPositive(solver))
-      return MemoryAccessPattern::ReverseLinearShifted;
-
-    if (matrix.hasReverseLinearOverlappedAccessPattern(solver) &&
-        offsets.isZeroWithLastElementStrictlyPositive(solver))
-      return MemoryAccessPattern::ReverseLinearOverlapped;
-
-    if (matrix.hasReverseStridedAccessPattern(solver) &&
-        offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1,
-                                             solver))
-      return MemoryAccessPattern::ReverseStrided;
-
-    if (matrix.hasStridedAccessPattern(solver) &&
-        offsets.isZeroWithLastElementStrictlyPositive(solver))
-      return MemoryAccessPattern::StridedShifted;
-
-    if (matrix.hasReverseStridedAccessPattern(solver) &&
-        offsets.isZeroWithLastElementStrictlyPositive(solver))
-      return MemoryAccessPattern::ReverseStridedShifted;
-
-    if (matrix.hasReverseStridedOverlappedAccessPattern(solver) &&
-        offsets.isZeroWithLastElementStrictlyPositive(solver))
-      return MemoryAccessPattern::ReverseStridedOverlapped;
+    return MemoryAccessPattern::Unknown;
   }
 
-  return MemoryAccessPattern::Unkown;
+  if (matrix.hasLinearAccessPattern(solver) &&
+      offsets.isZeroWithLastElementStrictlyPositive(solver))
+    return MemoryAccessPattern::LinearShifted;
+
+  if (matrix.hasReverseLinearAccessPattern(solver) &&
+      offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1, solver))
+    return MemoryAccessPattern::ReverseLinear;
+
+  if (matrix.hasReverseLinearAccessPattern(solver) &&
+      offsets.isZeroWithLastElementStrictlyPositive(solver))
+    return MemoryAccessPattern::ReverseLinearShifted;
+
+  if (matrix.hasReverseLinearOverlappedAccessPattern(solver) &&
+      offsets.isZeroWithLastElementStrictlyPositive(solver))
+    return MemoryAccessPattern::ReverseLinearOverlapped;
+
+  if (matrix.hasReverseStridedAccessPattern(solver) &&
+      offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1, solver))
+    return MemoryAccessPattern::ReverseStrided;
+
+  if (matrix.hasStridedAccessPattern(solver) &&
+      offsets.isZeroWithLastElementStrictlyPositive(solver))
+    return MemoryAccessPattern::StridedShifted;
+
+  if (matrix.hasReverseStridedAccessPattern(solver) &&
+      offsets.isZeroWithLastElementStrictlyPositive(solver))
+    return MemoryAccessPattern::ReverseStridedShifted;
+
+  if (matrix.hasReverseStridedOverlappedAccessPattern(solver) &&
+      offsets.isZeroWithLastElementStrictlyPositive(solver))
+    return MemoryAccessPattern::ReverseStridedOverlapped;
+
+  return MemoryAccessPattern::Unknown;
 }
 
 namespace mlir {

@@ -29,7 +29,7 @@ namespace sycl {
 
 /// Classify array access patterns.
 enum MemoryAccessPattern {
-  Unkown = 0,
+  Unknown = 0,
 
   /// Array accessed contiguously, in increasing offset order:
   ///    |-------------------->|
@@ -164,11 +164,12 @@ public:
   /// Fill \p row with the given value \p val.
   void fillRow(unsigned row, Value val);
 
-  /// Add an extra row at the bottom of the matrix.
+  /// Add an extra row at the bottom of the matrix and return the row index of
+  /// the new row. The new row is uninitialized.
   unsigned appendRow();
 
   /// Add an extra row at the bottom of the matrix and copy the given elements
-  /// \p elems into the new row.
+  /// \p elems into the new row. Return the row index of the new row.
   unsigned appendRow(ArrayRef<Value> elems);
 
   /// Get a copy of the specified \p column.
@@ -184,13 +185,21 @@ public:
   void fill(Value val);
 
   /// Construct a new matrix containing the specified \p rows.
+  /// Note: because \p rows is an ordered set, asking for rows {1,0} causes
+  /// a new access matrix with rows zero and one (in that order) to be returned.
   MemoryAccessMatrix getRows(std::set<unsigned> rows) const;
 
   /// Construct a new matrix containing the specified \p columns.
+  /// Note: because \p columns is an ordered set, asking for columns {1,0}
+  /// causes a new access matrix with columns zero and one (in that order) to be
+  /// returned.
   MemoryAccessMatrix getColumns(std::set<unsigned> columns) const;
 
   /// Construct a new matrix containing the sub-matrix specified by \p rows and
   /// \p columns.
+  /// Note: because \p rows and \p columns are ordered sets, the sub matrix
+  /// returned contains a sub-view or the original matrix (row, columns selected
+  /// are in the same order as in the original matrix).
   MemoryAccessMatrix getSubMatrix(std::set<unsigned> rows,
                                   std::set<unsigned> columns) const;
 
@@ -198,22 +207,22 @@ public:
   // Shape Queries
   //===----------------------------------------------------------------------===//
 
-  /// Returns true if the matrix has equal number of rows and columns.
+  /// Return true if the matrix has equal number of rows and columns.
   bool isSquare() const;
 
-  /// Returns true if the matrix is the filled with zero values.
+  /// Return true if the matrix is the filled with zero values.
   bool isZero(DataFlowSolver &solver) const;
 
-  /// Returns true if the only non-zero entries are on the diagonal.
+  /// Return true if the only non-zero entries are on the diagonal.
   bool isDiagonal(DataFlowSolver &solver) const;
 
-  /// Returns true if the matrix is the unit matrix.
+  /// Return true if the matrix is the unit matrix.
   bool isIdentity(DataFlowSolver &solver) const;
 
-  /// Returns true if all non-zero entries are below the diagonal.
+  /// Return true if all non-zero entries are below the diagonal.
   bool isLowerTriangular(DataFlowSolver &solver) const;
 
-  /// Returns true if all non-zero entries are above the diagonal.
+  /// Return true if all non-zero entries are above the diagonal.
   bool isUpperTriangular(DataFlowSolver &solver) const;
 
   //===----------------------------------------------------------------------===//
@@ -267,8 +276,8 @@ public:
   bool hasReverseStridedOverlappedAccessPattern(DataFlowSolver &solver) const;
 
 private:
-  /// Determine whether the value at \p row and \p column is a constant integer
-  /// value.
+  /// Return the value at row \p row and column \p column if it is an integer
+  /// constant and std::nullopt otherwise.
   Optional<APInt> getConstIntegerValue(unsigned row, unsigned column,
                                        DataFlowSolver &solver) const;
 
@@ -335,26 +344,27 @@ public:
   void fill(Value val);
 
   /// Add an extra element at the bottom of the offset vector and set it to the
-  /// given \p offset value.
+  /// given \p offset value. Return the new element index.
   unsigned append(Value offset);
 
   //===----------------------------------------------------------------------===//
   // Queries
   //===----------------------------------------------------------------------===//
 
-  /// Returns true if the vector contains all zeros.
+  /// Return true if the vector contains all zeros.
   bool isZero(DataFlowSolver &solver) const;
 
-  /// Returns true if the vector contains all zeros and the last element has
+  /// Return true if the vector contains all zeros and the last element has
   /// a strictly positive constant value.
   bool isZeroWithLastElementStrictlyPositive(DataFlowSolver &solver) const;
 
-  /// Returns true if the vector contains all zeros and the last element has
+  /// Return true if the vector contains all zeros and the last element has
   /// value equal to the given constant \p k.
   bool isZeroWithLastElementEqualTo(int k, DataFlowSolver &solver) const;
 
 private:
-  /// Determine whether the value at \p row is a constant integer value.
+  /// Return the element at row \p row if it is a integer constant or
+  /// std::nullopt otherwise.
   Optional<APInt> getConstIntegerValue(unsigned row,
                                        DataFlowSolver &solver) const;
 
@@ -409,6 +419,7 @@ template <typename OpTy>
 inline raw_ostream &operator<<(raw_ostream &os,
                                const MemoryAccess<OpTy> &access) {
   os << "--- MemoryAccess ---\n\n";
+  os << "Operation: " << access.getAccessOp() << "\n";
   os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
   os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
   os << "\n------------------\n";
