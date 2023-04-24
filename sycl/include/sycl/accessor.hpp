@@ -1275,7 +1275,7 @@ public:
 
   using iterator = typename detail::accessor_iterator<value_type, AdjustedDim>;
   using const_iterator =
-      typename detail::accessor_iterator<const value_type, Dimensions>;
+      typename detail::accessor_iterator<const value_type, AdjustedDim>;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =

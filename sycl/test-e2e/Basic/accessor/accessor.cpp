@@ -988,9 +988,11 @@ int main() {
       sycl::buffer<int> buf1(vec1.data(), vec1.size());
       sycl::host_accessor<int, 0> acc1(buf1);
       *acc1.begin() = 4;
-      *acc1.rbegin() += 4;
+      auto value = *acc1.cbegin();
+      value += *acc1.crbegin();
+      *acc1.rbegin() += value;
     }
-    assert(vec1[0] == 8);
+    assert(vec1[0] == 12);
   }
 
   // Test swap() on basic accessor
@@ -1100,13 +1102,15 @@ int main() {
         sycl::accessor<int, 0> Acc(DataBuffer, CGH);
         CGH.single_task<class acc_0_dim_iter_assignment>([=]() {
           *Acc.begin() = 64;
-          *Acc.rbegin() += 64;
+          auto value = *Acc.cbegin();
+          value += *Acc.crbegin();
+          *Acc.rbegin() += value;
         });
       });
       Queue.wait();
     }
 
-    assert(Data[0] == 64 * 2);
+    assert(Data[0] == 64 * 3);
     assert(Data[1] == 32);
   }
 
@@ -1146,13 +1150,15 @@ int main() {
         sycl::local_accessor<int, 0> LocalAcc(CGH);
         CGH.single_task<class local_acc_0_dim_iter_assignment>([=]() {
           *LocalAcc.begin() = 32;
-          *LocalAcc.rbegin() += 32;
+          auto value = *LocalAcc.cbegin();
+          value += *LocalAcc.crbegin();
+          *LocalAcc.rbegin() += value;
           Acc = LocalAcc;
         });
       });
     }
 
-    assert(Data == 64);
+    assert(Data == 96);
   }
 
   // host_accessor hash
