@@ -48,7 +48,7 @@ This is a proposed extension specification, intended to gather community feedbac
 
 The current specification and implementation of `sycl::shift_group_left` returns "the value of x from the work-item whose group local id (`id`) is delta larger than that of the calling work-item." If `id+delta` is greater or equal than the group's linear size (`sg_size`), then the value returned is unspecified. An equivalent problem occurs for `sycl::shift_group_right` if `id-delta < 0`.
 
-The proposed extension of sycl::shift_group_left takes two values, the "current" value `c` and the "next" value `n`. If `id+delta` is less than the group's linear size, the function returns `c` of the work-item with group local id `id+delta`. If `id+delta` is greater or equal than the group's linear size, the function returns `n` of the work-item with the group local id `id+delta-sg_size`. Thus, in all cases the return value is defined and valid.
+The proposed extension of sycl::shift_group_left takes two values, the "current" value `c` and the "next" value `n`. If `id+delta` is less than the group's linear size, the function returns `c` of the work-item with group local id `id+delta`. If `id+delta` is greater than or equal to the group's linear size, the function returns `n` of the work-item with the group local id `id+delta-sg_size`. Thus, in all cases the return value is defined and valid.
 
 Similarly, the proposed extension of `sycl::shift_group_right` returns `c` of the work-item with group local id `id-delta`, if `id-delta` is greater than or equal to 0 and `n` of the work-item with group local id `sg_size+(id-delta)`, otherwise.
 
