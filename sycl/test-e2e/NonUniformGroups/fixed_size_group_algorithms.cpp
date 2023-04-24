@@ -47,7 +47,7 @@ template <size_t PartitionSize> void test() {
           // Split into partitions of fixed size
           auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
 
-          // Check all other members' writes are visible after a barrier
+          // Check all other members' writes are visible after a barrier.
           TmpAcc[WI] = 1;
           sycl::group_barrier(Partition);
           size_t Visible = 0;
@@ -58,7 +58,7 @@ template <size_t PartitionSize> void test() {
           }
           BarrierAcc[WI] = (Visible == PartitionSize);
 
-          // Simple check of group algorithms
+          // Simple check of group algorithms.
           uint32_t OriginalLID = SG.get_local_linear_id();
           uint32_t LID = Partition.get_local_linear_id();
 

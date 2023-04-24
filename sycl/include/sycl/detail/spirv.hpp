@@ -263,7 +263,7 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   // Remap local_id to its original numbering in ParentGroup
   auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
 
-  // TODO: Refactor to avoid duplication after design settles
+  // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
