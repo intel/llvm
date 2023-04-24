@@ -73,13 +73,13 @@ TEST(MatrixTest, SwapRows) {
   Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
 
   MemoryAccessMatrix matrix(5, 5);
-  for (unsigned row = 0; row < 5; ++row)
-    for (unsigned col = 0; col < 5; ++col)
+  for (size_t row = 0; row < 5; ++row)
+    for (size_t col = 0; col < 5; ++col)
       matrix(row, col) = row == 2 ? one : zero;
 
   matrix.swapRows(2, 0);
-  for (unsigned row = 0; row < 5; ++row)
-    for (unsigned col = 0; col < 5; ++col)
+  for (size_t row = 0; row < 5; ++row)
+    for (size_t col = 0; col < 5; ++col)
       EXPECT_EQ(matrix(row, col), row == 0 ? one : zero);
 }
 
@@ -91,14 +91,14 @@ TEST(MatrixTest, SwapColumns) {
   Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
 
   MemoryAccessMatrix matrix(5, 5);
-  for (unsigned row = 0; row < 5; ++row)
-    for (unsigned col = 0; col < 5; ++col)
+  for (size_t row = 0; row < 5; ++row)
+    for (size_t col = 0; col < 5; ++col)
       matrix(row, col) = col == 3 ? one : zero;
 
   matrix.swapColumns(3, 1);
 
-  for (unsigned row = 0; row < 5; ++row)
-    for (unsigned col = 0; col < 5; ++col)
+  for (size_t row = 0; row < 5; ++row)
+    for (size_t col = 0; col < 5; ++col)
       EXPECT_EQ(matrix(row, col), col == 1 ? one : zero);
 }
 
@@ -118,8 +118,8 @@ TEST(MatrixTest, SetGetFillRow) {
 
   matrix.setRow(0, row);
 
-  for (unsigned row = 0; row < 2; ++row)
-    for (unsigned col = 0; col < 5; ++col)
+  for (size_t row = 0; row < 2; ++row)
+    for (size_t col = 0; col < 5; ++col)
       EXPECT_EQ(matrix(row, col), one);
 }
 
@@ -135,8 +135,8 @@ TEST(MatrixTest, AppendRow) {
   matrix.appendRow(elems);
   EXPECT_EQ(matrix.getNumRows(), 2u);
 
-  for (unsigned row = 0; row < 2; ++row)
-    for (unsigned col = 0; col < 5; ++col)
+  for (size_t row = 0; row < 2; ++row)
+    for (size_t col = 0; col < 5; ++col)
       EXPECT_EQ(matrix(row, col), one);
 }
 
@@ -158,7 +158,7 @@ TEST(MatrixTest, GetSetColumn) {
   column[0] = one;
   matrix.setColumn(1, column);
 
-  for (unsigned row = 0; row < 2; ++row)
+  for (size_t row = 0; row < 2; ++row)
     EXPECT_EQ(matrix(row, 1), one);
 }
 
@@ -179,7 +179,7 @@ TEST(MatrixTest, SubMatrix) {
     MemoryAccessMatrix subMatrix = matrix.getRows({0, 2});
     EXPECT_EQ(subMatrix.getNumRows(), 2u);
     EXPECT_EQ(subMatrix.getNumColumns(), 3u);
-    for (unsigned col = 0; col < 3; ++col) {
+    for (size_t col = 0; col < 3; ++col) {
       EXPECT_EQ(subMatrix(0, col), zero);
       EXPECT_EQ(subMatrix(1, col), two);
     }
@@ -191,8 +191,8 @@ TEST(MatrixTest, SubMatrix) {
     MemoryAccessMatrix subMatrix = matrix.getColumns({2, 0});
     EXPECT_EQ(subMatrix.getNumRows(), 3u);
     EXPECT_EQ(subMatrix.getNumColumns(), 2u);
-    for (unsigned row = 0; row < 3; ++row) {
-      for (unsigned col = 0; col < 2; ++col)
+    for (size_t row = 0; row < 3; ++row) {
+      for (size_t col = 0; col < 2; ++col)
         EXPECT_EQ(subMatrix(row, col), col == 0 ? one : two);
     }
   }
@@ -201,8 +201,8 @@ TEST(MatrixTest, SubMatrix) {
     MemoryAccessMatrix subMatrix = matrix.getSubMatrix({0, 1}, {0, 1});
     EXPECT_EQ(subMatrix.getNumRows(), 2u);
     EXPECT_EQ(subMatrix.getNumColumns(), 2u);
-    for (unsigned row = 0; row < 2; ++row) {
-      for (unsigned col = 0; col < 2; ++col)
+    for (size_t row = 0; row < 2; ++row) {
+      for (size_t col = 0; col < 2; ++col)
         EXPECT_EQ(subMatrix(row, col), row == 0 && col == 1 ? zero : one);
     }
   }
@@ -242,7 +242,7 @@ TEST(MatrixTest, Shapes) {
     // Create the identity matrix.
     MemoryAccessMatrix matrix(3, 3);
     matrix.fill(zero);
-    for (unsigned row = 0; row < 3; ++row)
+    for (size_t row = 0; row < 3; ++row)
       matrix(row, row) = one;
 
     EXPECT_THAT(matrix.isZero(solver), false);

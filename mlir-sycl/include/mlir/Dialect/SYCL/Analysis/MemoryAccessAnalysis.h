@@ -28,7 +28,7 @@ class DataFlowSolver;
 namespace sycl {
 
 /// Classify array access patterns.
-enum MemoryAccessPattern {
+enum MemoryAccessPattern : uint32_t {
   Unknown = 0,
 
   /// Array accessed contiguously, in increasing offset order:
@@ -119,67 +119,67 @@ public:
   MemoryAccessMatrix() = delete;
   MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
   MemoryAccessMatrix(const MemoryAccessMatrix &) = default;
+  MemoryAccessMatrix &operator=(MemoryAccessMatrix &&) = default;
+  MemoryAccessMatrix &operator=(const MemoryAccessMatrix &) = default;
 
   /// Construct a matrix with the specified number of rows and columns.
-  MemoryAccessMatrix(unsigned nRows, unsigned nColumns);
+  MemoryAccessMatrix(size_t nRows, size_t nColumns);
 
-  /// Construct a matrix from a initializer list.
+  /// Construct a matrix from an initializer list.
   MemoryAccessMatrix(
       std::initializer_list<std::initializer_list<Value>> initList);
 
   /// Access the element at the specified \p row and \p column.
-  Value &at(unsigned row, unsigned column) {
+  Value &at(size_t row, size_t column) {
     assert(row < nRows && "Row outside of range");
     assert(column < nColumns && "Column outside of range");
     return data[row * nColumns + column];
   }
 
-  Value at(unsigned row, unsigned column) const {
+  Value at(size_t row, size_t column) const {
     assert(row < nRows && "Row outside of range");
     assert(column < nColumns && "Column outside of range");
     return data[row * nColumns + column];
   }
 
-  Value &operator()(unsigned row, unsigned column) { return at(row, column); }
-  Value operator()(unsigned row, unsigned column) const {
-    return at(row, column);
-  }
+  Value &operator()(size_t row, size_t column) { return at(row, column); }
+  Value operator()(size_t row, size_t column) const { return at(row, column); }
 
   /// Swap \p column with \p otherColumn.
-  void swapColumns(unsigned column, unsigned otherColumn);
+  void swapColumns(size_t column, size_t otherColumn);
 
   /// Swap \p row with \p otherRow.
-  void swapRows(unsigned row, unsigned otherRow);
+  void swapRows(size_t row, size_t otherRow);
 
-  unsigned getNumRows() const { return nRows; }
+  size_t getNumRows() const { return nRows; }
 
-  unsigned getNumColumns() const { return nColumns; }
+  size_t getNumColumns() const { return nColumns; }
 
   /// Get a copy of the specified \p row.
-  SmallVector<Value> getRow(unsigned row) const;
+  SmallVector<Value> getRow(size_t row) const;
 
   /// Set the specified \p row to \p elems.
-  void setRow(unsigned row, ArrayRef<Value> elems);
+  void setRow(size_t row, ArrayRef<Value> elems);
 
   /// Fill \p row with the given value \p val.
-  void fillRow(unsigned row, Value val);
+  void fillRow(size_t row, Value val);
 
   /// Add an extra row at the bottom of the matrix and return the row index of
   /// the new row. The new row is uninitialized.
-  unsigned appendRow();
+  size_t appendRow();
 
   /// Add an extra row at the bottom of the matrix and copy the given elements
   /// \p elems into the new row. Return the row index of the new row.
-  unsigned appendRow(ArrayRef<Value> elems);
+  size_t appendRow(ArrayRef<Value> elems);
 
   /// Get a copy of the specified \p column.
-  SmallVector<Value> getColumn(unsigned column) const;
+  SmallVector<Value> getColumn(size_t column) const;
 
   /// Set the specified \p column to \p elems.
-  void setColumn(unsigned col, ArrayRef<Value> elems);
+  void setColumn(size_t col, ArrayRef<Value> elems);
 
   /// Fill \p col with the given value \p val.
-  void fillColumn(unsigned col, Value val);
+  void fillColumn(size_t col, Value val);
 
   /// Fill the matrix with the given value \p val.
   void fill(Value val);
@@ -187,21 +187,21 @@ public:
   /// Construct a new matrix containing the specified \p rows.
   /// Note: because \p rows is an ordered set, asking for rows {1,0} causes
   /// a new access matrix with rows zero and one (in that order) to be returned.
-  MemoryAccessMatrix getRows(std::set<unsigned> rows) const;
+  MemoryAccessMatrix getRows(std::set<size_t> rows) const;
 
   /// Construct a new matrix containing the specified \p columns.
   /// Note: because \p columns is an ordered set, asking for columns {1,0}
   /// causes a new access matrix with columns zero and one (in that order) to be
   /// returned.
-  MemoryAccessMatrix getColumns(std::set<unsigned> columns) const;
+  MemoryAccessMatrix getColumns(std::set<size_t> columns) const;
 
   /// Construct a new matrix containing the sub-matrix specified by \p rows and
   /// \p columns.
   /// Note: because \p rows and \p columns are ordered sets, the sub matrix
   /// returned contains a sub-view or the original matrix (row, columns selected
   /// are in the same order as in the original matrix).
-  MemoryAccessMatrix getSubMatrix(std::set<unsigned> rows,
-                                  std::set<unsigned> columns) const;
+  MemoryAccessMatrix getSubMatrix(std::set<size_t> rows,
+                                  std::set<size_t> columns) const;
 
   //===----------------------------------------------------------------------===//
   // Shape Queries
@@ -278,17 +278,17 @@ public:
 private:
   /// Return the value at row \p row and column \p column if it is an integer
   /// constant and std::nullopt otherwise.
-  Optional<APInt> getConstIntegerValue(unsigned row, unsigned column,
+  Optional<APInt> getConstIntegerValue(size_t row, size_t column,
                                        DataFlowSolver &solver) const;
 
 private:
-  unsigned nRows, nColumns;
+  size_t nRows, nColumns;
   SmallVector<Value> data;
 };
 
 inline raw_ostream &operator<<(raw_ostream &os,
                                const MemoryAccessMatrix &matrix) {
-  for (unsigned row = 0; row < matrix.getNumRows(); ++row) {
+  for (size_t row = 0; row < matrix.getNumRows(); ++row) {
     llvm::interleave(
         matrix.getRow(row), os, [&os](Value elem) { os << elem; }, " ");
     os << '\n';
@@ -306,46 +306,48 @@ public:
   OffsetVector() = delete;
   OffsetVector(OffsetVector &&) = default;
   OffsetVector(const OffsetVector &) = default;
+  OffsetVector &operator=(OffsetVector &&) = default;
+  OffsetVector &operator=(const OffsetVector &) = default;
 
   /// Construct an offset vector with the specified number of rows.
-  OffsetVector(unsigned nRows);
+  explicit OffsetVector(size_t nRows);
 
   /// Construct an offset vector from an initialization list.
   OffsetVector(std::initializer_list<Value> initList);
 
   /// Access the offset at the specified \p row.
-  Value &at(unsigned row) {
+  Value &at(size_t row) {
     assert(row < nRows && "Row outside of range");
     return offsets[row];
   }
 
-  Value at(unsigned row) const {
+  Value at(size_t row) const {
     assert(row < nRows && "Row outside of range");
     return offsets[row];
   }
 
-  Value &operator()(unsigned row) { return at(row); }
-  Value operator()(unsigned row) const { return at(row); }
+  Value &operator[](size_t row) { return at(row); }
+  Value operator[](size_t row) const { return at(row); }
 
   /// Swap \p row with \p otherRow.
-  void swapRows(unsigned row, unsigned otherRow);
+  void swapRows(size_t row, size_t otherRow);
 
-  unsigned getNumRows() const { return nRows; }
+  size_t getNumRows() const { return nRows; }
 
   ArrayRef<Value> getOffsets() const { return offsets; }
 
   /// Get the offset value at the specified \p row.
-  Value getOffset(unsigned row) const;
+  Value getOffset(size_t row) const;
 
   /// Set the specified \p row to the given \p offset value.
-  void setOffset(unsigned row, Value offset);
+  void setOffset(size_t row, Value offset);
 
   /// Fill the offset vector with the given value \p val.
   void fill(Value val);
 
   /// Add an extra element at the bottom of the offset vector and set it to the
   /// given \p offset value. Return the new element index.
-  unsigned append(Value offset);
+  size_t append(Value offset);
 
   //===----------------------------------------------------------------------===//
   // Queries
@@ -365,11 +367,11 @@ public:
 private:
   /// Return the element at row \p row if it is a integer constant or
   /// std::nullopt otherwise.
-  Optional<APInt> getConstIntegerValue(unsigned row,
+  Optional<APInt> getConstIntegerValue(size_t row,
                                        DataFlowSolver &solver) const;
 
 private:
-  unsigned nRows;
+  size_t nRows;
   SmallVector<Value> offsets;
 };
 
