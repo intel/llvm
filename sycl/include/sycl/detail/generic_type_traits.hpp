@@ -386,9 +386,15 @@ template <typename To> struct PointerConverter {
   }
 
   template <typename From> static To Convert(From &t) {
-    // TODO find the better way to get the pointer to underlying data from vec
-    // class
-    return reinterpret_cast<To>(t.get());
+    if constexpr (is_non_legacy_multi_ptr_v<From>) {
+      return detail::cast_AS<To>(t.get_decorated());
+    } else if constexpr (is_legacy_multi_ptr_v<From>) {
+      return detail::cast_AS<To>(t.get());
+    } else {
+      // TODO find the better way to get the pointer to underlying data from vec
+      // class
+      return reinterpret_cast<To>(t.get());
+    }
   }
 };
 

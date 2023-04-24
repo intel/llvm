@@ -15,6 +15,8 @@
 #include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
 
+#include <algorithm>
+
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
@@ -1082,12 +1084,14 @@ detail::enable_if_t<detail::is_ugeninteger<T>::value, T> abs(T x) __NOEXC {
   return __sycl_std::__invoke_u_abs<T>(x);
 }
 
-// ugeninteger abs (geninteger x)
+// igeninteger abs (geninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_igeninteger<T>::value,
-                    detail::make_unsigned_t<T>>
-abs(T x) __NOEXC {
-  return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<T>>(x);
+detail::enable_if_t<detail::is_igeninteger<T>::value, T> abs(T x) __NOEXC {
+  auto res = __sycl_std::__invoke_s_abs<detail::make_unsigned_t<T>>(x);
+  if constexpr (detail::is_vigeninteger<T>::value) {
+    return res.template convert<detail::vector_element_t<T>>();
+  } else
+    return detail::make_signed_t<decltype(res)>(res);
 }
 
 // ugeninteger abs_diff (geninteger x, geninteger y)
@@ -1434,9 +1438,8 @@ mul24(T x, T y) __NOEXC {
 
 #define __SYCL_MARRAY_INTEGER_FUNCTION_ABS_I_OVERLOAD(NAME, ARG, ...)          \
   template <typename T, size_t N>                                              \
-  std::enable_if_t<detail::is_igeninteger<T>::value,                           \
-                   marray<detail::make_unsigned_t<T>, N>>                      \
-  NAME(marray<T, N> ARG) __NOEXC {                                             \
+  std::enable_if_t<detail::is_igeninteger<T>::value, marray<T, N>> NAME(       \
+      marray<T, N> ARG) __NOEXC {                                              \
     __SYCL_MARRAY_INTEGER_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)            \
   }
 
@@ -2073,19 +2076,27 @@ detail::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
 template <typename T>
 detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                                                              bool c) __NOEXC {
-  return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
-}
+  constexpr size_t SizeT = sizeof(T);
 
-// mgentype select (mgentype a, mgentype b, marray<bool, { N }> c)
-template <typename T,
-          typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>
-sycl::marray<detail::marray_element_t<T>, T::size()>
-select(T a, T b, sycl::marray<bool, T::size()> c) __NOEXC {
-  sycl::marray<detail::marray_element_t<T>, T::size()> res;
-  for (int i = 0; i < a.size(); i++) {
-    res[i] = select(a[i], b[i], c[i]);
-  }
-  return res;
+  // sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
+  // select(sgentype a, sgentype b, igentype c). This type trait makes the
+  // proper conversion for argument c from bool to igentype, based on sgentype
+  // == T.
+  using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
+      SizeT == 1, char,
+      std::conditional_t<
+          SizeT == 2, short,
+          std::conditional_t<
+              (detail::is_contained<
+                   T, detail::type_list<long, unsigned long>>::value &&
+               (SizeT == 4 || SizeT == 8)),
+              long, // long and ulong are 32-bit on
+                    // Windows and 64-bit on Linux
+              std::conditional_t<SizeT == 4, int,
+                                 std::conditional_t<SizeT == 8, long, void>>>>>;
+
+  return __sycl_std::__invoke_select<T>(
+      a, b, static_cast<get_select_opencl_builtin_c_arg_type>(c));
 }
 
 // geninteger select (geninteger a, geninteger b, igeninteger c)
@@ -2162,6 +2173,40 @@ detail::enable_if_t<detail::is_svgenfloath<T>::value &&
 select(T a, T b, T2 c) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_select<T>(a, b, c);
+}
+
+// other marray relational functions
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, bool>
+any(marray<T, N> x) __NOEXC {
+  return std::any_of(x.begin(), x.end(), [](T i) { return any(i); });
+}
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_sigeninteger<T>::value, bool>
+all(marray<T, N> x) __NOEXC {
+  return std::all_of(x.begin(), x.end(), [](T i) { return all(i); });
+}
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_gentype<T>::value, marray<T, N>>
+bitselect(marray<T, N> a, marray<T, N> b, marray<T, N> c) __NOEXC {
+  marray<T, N> res;
+  for (int i = 0; i < N; i++) {
+    res[i] = bitselect(a[i], b[i], c[i]);
+  }
+  return res;
+}
+
+template <typename T, size_t N>
+detail::enable_if_t<detail::is_gentype<T>::value, marray<T, N>>
+select(marray<T, N> a, marray<T, N> b, marray<bool, N> c) __NOEXC {
+  marray<T, N> res;
+  for (int i = 0; i < N; i++) {
+    res[i] = select(a[i], b[i], c[i]);
+  }
+  return res;
 }
 
 namespace native {

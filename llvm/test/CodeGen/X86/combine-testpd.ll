@@ -187,6 +187,28 @@ define i32 @testpdz_256_signbit(<4 x double> %c, <4 x double> %d, i32 %a, i32 %b
   ret i32 %t6
 }
 
+define void @combine_testp_v4f64(<4 x i64> %x){
+; CHECK-LABEL: combine_testp_v4f64:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vxorps %xmm1, %xmm1, %xmm1
+; CHECK-NEXT:    vcmptrueps %ymm1, %ymm1, %ymm1
+; CHECK-NEXT:    vtestpd %ymm1, %ymm0
+; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    retq
+entry:
+  %xor.i.i.i.i.i.i.i.i.i = xor <4 x i64> %x, <i64 -1, i64 -1, i64 -1, i64 -1>
+  %.cast.i.i.i.i.i.i = bitcast <4 x i64> %xor.i.i.i.i.i.i.i.i.i to <4 x double>
+  %0 = call i32 @llvm.x86.avx.vtestz.pd.256(<4 x double> %.cast.i.i.i.i.i.i, <4 x double> %.cast.i.i.i.i.i.i)
+  %cmp.i.not.i.i.i.i.i.i = icmp eq i32 %0, 0
+  br i1 %cmp.i.not.i.i.i.i.i.i, label %if.end3.i.i.i.i.i.i, label %end
+
+if.end3.i.i.i.i.i.i:                              ; preds = %entry
+  ret void
+
+end: ; preds = %entry
+  ret void
+}
+
 declare i32 @llvm.x86.avx.vtestz.pd(<2 x double>, <2 x double>) nounwind readnone
 declare i32 @llvm.x86.avx.vtestc.pd(<2 x double>, <2 x double>) nounwind readnone
 declare i32 @llvm.x86.avx.vtestnzc.pd(<2 x double>, <2 x double>) nounwind readnone

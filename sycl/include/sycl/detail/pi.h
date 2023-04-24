@@ -88,6 +88,7 @@
 // piextQueueGetNativeHandle2
 // 12.28 Added piextMemImageCreateWithNativeHandle for creating images from
 // native handles.
+// 12.29 Support PI_EXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 28
@@ -164,7 +165,8 @@ typedef enum {
   PI_PLATFORM_INFO_NAME = 0x0902,
   PI_PLATFORM_INFO_PROFILE = 0x0900,
   PI_PLATFORM_INFO_VENDOR = 0x0903,
-  PI_PLATFORM_INFO_VERSION = 0x0901
+  PI_PLATFORM_INFO_VERSION = 0x0901,
+  PI_EXT_PLATFORM_INFO_BACKEND = 0x21000 // returns pi_platform_backend
 } _pi_platform_info;
 
 typedef enum {
@@ -201,6 +203,14 @@ typedef enum : pi_uint64 {
                                    ///< dedicated accelerator.
   PI_DEVICE_TYPE_CUSTOM = (1 << 4) ///< A PI device that is a custom device.
 } _pi_device_type;
+
+typedef enum {
+  PI_EXT_PLATFORM_BACKEND_UNKNOWN = 0, ///< The backend is not a recognized one
+  PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO = 1, ///< The backend is Level Zero
+  PI_EXT_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
+  PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
+  PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
+} _pi_platform_backend;
 
 typedef enum {
   PI_DEVICE_MEM_CACHE_TYPE_NONE = 0x0,
@@ -648,6 +658,7 @@ typedef enum {
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
+using pi_platform_backend = _pi_platform_backend;
 using pi_device_type = _pi_device_type;
 using pi_device_mem_cache_type = _pi_device_mem_cache_type;
 using pi_device_local_mem_type = _pi_device_local_mem_type;
