@@ -34,6 +34,30 @@ TEST_P(urUSMDeviceAllocTest, Success) {
     EXPECT_SUCCESS(urEventRelease(event));
 }
 
+TEST_P(urUSMDeviceAllocTest, SuccessWithDescriptors) {
+
+    ur_usm_device_desc_t usm_device_desc{UR_STRUCTURE_TYPE_USM_DEVICE_DESC,
+                                         nullptr,
+                                         /* device flags*/ 0};
+
+    ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_device_desc,
+                           /* common usm flags */ 0,
+                           /* mem advice flags*/ UR_USM_ADVICE_FLAG_DEFAULT};
+    void *ptr = nullptr;
+    size_t allocation_size = sizeof(int);
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &usm_desc, nullptr,
+                                    allocation_size, &ptr));
+
+    ur_event_handle_t event = nullptr;
+    uint8_t pattern = 0;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
+    EXPECT_SUCCESS(urEventRelease(event));
+}
+
 TEST_P(urUSMDeviceAllocTest, InvalidNullHandleContext) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(

@@ -1128,6 +1128,10 @@ class ur_usm_desc_t(Structure):
 
 ###############################################################################
 ## @brief USM host allocation descriptor type.
+## 
+## @details
+##     - Specify these properties in ::urUSMHostAlloc and ::urUSMSharedAlloc
+##       via ::ur_usm_desc_t as part of a `pNext` chain.
 class ur_usm_host_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_HOST_DESC
@@ -1137,6 +1141,10 @@ class ur_usm_host_desc_t(Structure):
 
 ###############################################################################
 ## @brief USM device allocation descriptor type.
+## 
+## @details
+##     - Specify these properties in ::urUSMDeviceAlloc and ::urUSMSharedAlloc
+##       via ::ur_usm_desc_t as part of a `pNext` chain.
 class ur_usm_device_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
@@ -1156,6 +1164,10 @@ class ur_usm_pool_desc_t(Structure):
 
 ###############################################################################
 ## @brief USM pool limits descriptor type
+## 
+## @details
+##     - Specify these properties in ::urUSMPoolCreate via ::ur_usm_pool_desc_t
+##       as part of a `pNext` chain.
 class ur_usm_pool_limits_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be

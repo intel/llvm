@@ -2437,6 +2437,10 @@ typedef struct ur_usm_desc_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM host allocation descriptor type.
+///
+/// @details
+///     - Specify these properties in ::urUSMHostAlloc and ::urUSMSharedAlloc
+///       via ::ur_usm_desc_t as part of a `pNext` chain.
 typedef struct ur_usm_host_desc_t {
     ur_structure_type_t stype;     ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_HOST_DESC
     const void *pNext;             ///< [in][optional] pointer to extension-specific structure
@@ -2446,6 +2450,10 @@ typedef struct ur_usm_host_desc_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM device allocation descriptor type.
+///
+/// @details
+///     - Specify these properties in ::urUSMDeviceAlloc and ::urUSMSharedAlloc
+///       via ::ur_usm_desc_t as part of a `pNext` chain.
 typedef struct ur_usm_device_desc_t {
     ur_structure_type_t stype;       ///< [in] type of this structure, must be
                                      ///< ::UR_STRUCTURE_TYPE_USM_DEVICE_DESC
@@ -2465,6 +2473,10 @@ typedef struct ur_usm_pool_desc_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool limits descriptor type
+///
+/// @details
+///     - Specify these properties in ::urUSMPoolCreate via ::ur_usm_pool_desc_t
+///       as part of a `pNext` chain.
 typedef struct ur_usm_pool_limits_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
                                ///< ::UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC
@@ -2486,6 +2498,7 @@ typedef struct ur_usm_pool_limits_desc_t {
 ///       must not reside on the same page.
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
+///     - See also ::ur_usm_host_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2527,6 +2540,7 @@ urUSMHostAlloc(
 ///       must not reside on the same page.
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
+///     - See also ::ur_usm_device_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2570,6 +2584,8 @@ urUSMDeviceAlloc(
 ///       must not reside on the same page.
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
+///     - See also ::ur_usm_host_desc_t.
+///     - See also ::ur_usm_device_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2654,6 +2670,7 @@ urUSMGetMemAllocInfo(
 /// @details
 ///     - UR can create multiple instances of the pool depending on allocation
 ///       requests.
+///     - See also ::ur_usm_pool_limits_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
