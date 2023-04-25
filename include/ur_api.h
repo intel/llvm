@@ -856,7 +856,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_GPU_EU_SLICES = 92,                          ///< [uint32_t] return Intel GPU number of slices
     UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 93,                ///< [uint32_t] return Intel GPU number of subslices per slice
     UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 94,                   ///< [uint32_t] return max memory bandwidth in Mb/s
-    UR_DEVICE_INFO_IMAGE_SRGB = 95,                             ///< [::ur_bool_t] image is SRGB
+    UR_DEVICE_INFO_IMAGE_SRGB = 95,                             ///< [::ur_bool_t] device supports sRGB images
     UR_DEVICE_INFO_ATOMIC_64 = 96,                              ///< [::ur_bool_t] support 64 bit atomics
     UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 97,       ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                                 ///< memory order capabilities

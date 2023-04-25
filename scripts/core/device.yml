@@ -341,7 +341,7 @@ etors:
     - name: MAX_MEMORY_BANDWIDTH
       desc: "[uint32_t] return max memory bandwidth in Mb/s"
     - name: IMAGE_SRGB
-      desc: "[$x_bool_t] image is SRGB"
+      desc: "[$x_bool_t] device supports sRGB images"
     - name: ATOMIC_64
       desc: "[$x_bool_t] support 64 bit atomics"
     - name: ATOMIC_MEMORY_ORDER_CAPABILITIES

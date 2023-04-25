@@ -508,7 +508,7 @@ class ur_device_info_v(IntEnum):
     GPU_EU_SLICES = 92                              ## [uint32_t] return Intel GPU number of slices
     GPU_SUBSLICES_PER_SLICE = 93                    ## [uint32_t] return Intel GPU number of subslices per slice
     MAX_MEMORY_BANDWIDTH = 94                       ## [uint32_t] return max memory bandwidth in Mb/s
-    IMAGE_SRGB = 95                                 ## [::ur_bool_t] image is SRGB
+    IMAGE_SRGB = 95                                 ## [::ur_bool_t] device supports sRGB images
     ATOMIC_64 = 96                                  ## [::ur_bool_t] support 64 bit atomics
     ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                     ## memory order capabilities
