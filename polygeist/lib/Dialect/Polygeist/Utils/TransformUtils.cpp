@@ -562,6 +562,7 @@ createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
                               Location loc) {
   const auto accTy =
       cast<sycl::AccessorType>(accessor.getType().getElementType());
+  assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
   const auto MT = MemRefType::get(
       ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
