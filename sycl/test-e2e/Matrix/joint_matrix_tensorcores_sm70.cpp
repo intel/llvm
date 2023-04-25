@@ -1,10 +1,11 @@
 
 // REQUIRES: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_70 %s -o %t.out
-// RUN: %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // This tests the unified matrix extension interfaces for the cuda backend.
-// This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx, where sm_xx >= sm_70.
+// This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,
+// where sm_xx >= sm_70.
 
 #include "joint_matrix_apply_cuda.hpp"
 #include "joint_matrix_gemm_cuda.hpp"
