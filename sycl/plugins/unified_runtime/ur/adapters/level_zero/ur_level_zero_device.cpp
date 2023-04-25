@@ -89,7 +89,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t Device,  ///< [in] handle of the device instance
     ur_device_info_t ParamName, ///< [in] type of the info to retrieve
-    size_t propSize,  ///< [in] the number of bytes pointed to by pDeviceInfo.
+    size_t propSize,  ///< [in] the number of bytes pointed to by ParamValue.
     void *ParamValue, ///< [out][optional] array of bytes holding the info.
                       ///< If propSize is not equal to or greater than the real
                       ///< number of bytes needed to return the info then the
@@ -130,8 +130,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(UUID, sizeof(UUID));
   }
   case UR_DEVICE_INFO_ATOMIC_64:
-    return ReturnValue(uint32_t{Device->ZeDeviceModuleProperties->flags &
-                                ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS});
+    return ReturnValue(static_cast<ur_bool_t>(Device->ZeDeviceModuleProperties->flags &
+                                ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS));
   case UR_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
@@ -195,9 +195,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
@@ -255,17 +255,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         uint64_t{Device->ZeDeviceComputeProperties->maxSharedLocalMemory});
   case UR_DEVICE_INFO_IMAGE_SUPPORTED:
     return ReturnValue(
-        uint32_t{Device->ZeDeviceImageProperties->maxImageDims1D > 0});
+        static_cast<ur_bool_t>(Device->ZeDeviceImageProperties->maxImageDims1D > 0));
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
-    return ReturnValue(uint32_t{(Device->ZeDeviceProperties->flags &
-                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0});
+    return ReturnValue(static_cast<ur_bool_t>((Device->ZeDeviceProperties->flags &
+                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0));
   case UR_DEVICE_INFO_AVAILABLE:
-    return ReturnValue(uint32_t{ZeDevice ? true : false});
+    return ReturnValue(static_cast<ur_bool_t>(ZeDevice ? true : false));
   case UR_DEVICE_INFO_VENDOR:
     // TODO: Level-Zero does not return vendor's name at the moment
     // only the ID.
     return ReturnValue("Intel(R) Corporation");
   case UR_DEVICE_INFO_DRIVER_VERSION:
+  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
     return ReturnValue(Device->Platform->ZeDriverVersion.c_str());
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
@@ -346,7 +347,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-    return ReturnValue(uint32_t{true});
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceModuleProperties->printfBufferSize});
@@ -363,12 +364,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(ur_device_exec_capability_flag_t{
         UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL});
   case UR_DEVICE_INFO_ENDIAN_LITTLE:
-    return ReturnValue(uint32_t{true});
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-    return ReturnValue(uint32_t{Device->ZeDeviceProperties->flags &
-                                ZE_DEVICE_PROPERTY_FLAG_ECC});
+    return ReturnValue(static_cast<ur_bool_t>(Device->ZeDeviceProperties->flags &
+                                ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    return ReturnValue(size_t{Device->ZeDeviceProperties->timerResolution});
+    return ReturnValue(static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
     return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
@@ -402,7 +403,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(
         uint32_t{Device->ZeDeviceImageProperties->maxWriteImageArgs});
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
-    uint64_t SingleFPValue = 0;
+    ur_device_fp_capability_flags_t SingleFPValue = 0;
     ze_device_fp_flags_t ZeSingleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp32flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeSingleFPCapabilities) {
@@ -427,10 +428,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       SingleFPValue |=
           UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
-    return ReturnValue(uint64_t{SingleFPValue});
+    return ReturnValue(SingleFPValue);
   }
   case UR_DEVICE_INFO_HALF_FP_CONFIG: {
-    uint64_t HalfFPValue = 0;
+    ur_device_fp_capability_flags_t HalfFPValue = 0;
     ze_device_fp_flags_t ZeHalfFPCapabilities =
         Device->ZeDeviceModuleProperties->fp16flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeHalfFPCapabilities) {
@@ -454,10 +455,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeHalfFPCapabilities) {
       HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
-    return ReturnValue(uint64_t{HalfFPValue});
+    return ReturnValue(HalfFPValue);
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    uint64_t DoubleFPValue = 0;
+    ur_device_fp_capability_flags_t DoubleFPValue = 0;
     ze_device_fp_flags_t ZeDoubleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp64flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeDoubleFPCapabilities) {
@@ -482,7 +483,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       DoubleFPValue |=
           UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
-    return ReturnValue(uint64_t{DoubleFPValue});
+    return ReturnValue(DoubleFPValue);
   }
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
     return ReturnValue(size_t{Device->ZeDeviceImageProperties->maxImageDims2D});
@@ -537,7 +538,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     // TODO: Not supported yet. Needs to be updated after support is added.
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
@@ -617,7 +618,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(AddressBuffer);
   }
 
-  case UR_EXT_DEVICE_INFO_FREE_MEMORY: {
+  case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
                       UR_RESULT_SUCCESS);
@@ -698,11 +699,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
                      Device->ZeDeviceProperties->numSlices;
     return ReturnValue(uint32_t{count});
   }
+  case UR_DEVICE_INFO_GPU_EU_SLICES: {
+    return ReturnValue(uint32_t{Device->ZeDeviceProperties->numSlices});
+  }
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
     return ReturnValue(
         uint32_t{Device->ZeDeviceProperties->physicalEUSimdWidth});
-  case UR_EXT_DEVICE_INFO_GPU_SLICES:
-    return ReturnValue(uint32_t{Device->ZeDeviceProperties->numSlices});
   case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
     return ReturnValue(
         uint32_t{Device->ZeDeviceProperties->numSubslicesPerSlice});
@@ -710,7 +712,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
     // currently not supported in level zero runtime
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_BFLOAT16: {
@@ -766,8 +768,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    return ReturnValue(0);
+    ur_queue_flags_t queue_flags = 0;
+    return ReturnValue(queue_flags);
   }
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
+    return ReturnValue(static_cast<uint32_t>(0));  //__read_write attribute currently undefinde in opencl
+  }
+
 
   default:
     urPrint("Unsupported ParamName in urGetDeviceInfo\n");

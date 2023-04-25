@@ -858,7 +858,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_DEVICE_ID;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_FREE_MEMORY;
+    InfoType = (ur_device_info_t)UR_DEVICE_INFO_GLOBAL_MEM_FREE;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_MEMORY_CLOCK_RATE;
@@ -870,7 +870,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES;
     break;
   case PI_DEVICE_INFO_GPU_SLICES:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_GPU_SLICES;
+    InfoType = (ur_device_info_t)UR_DEVICE_INFO_GPU_EU_SLICES;
     break;
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
     InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE;
@@ -879,7 +879,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU;
     break;
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH;
+    InfoType = (ur_device_info_t)UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH;
     break;
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_BFLOAT16;
