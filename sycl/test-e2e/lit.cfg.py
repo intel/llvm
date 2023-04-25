@@ -246,7 +246,10 @@ lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 config.substitutions.append( ('%sycl_be', config.sycl_be) )
 # Use short names for LIT rules
 config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
-config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)) )
+be_run_substitute = "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)
+if config.run_launcher:
+    be_run_substitute += " {}".format(config.run_launcher)
+config.substitutions.append( ('%BE_RUN_PLACEHOLDER', be_run_substitute) )
 
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')
