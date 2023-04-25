@@ -1555,6 +1555,7 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 ///       must not reside on the same page.
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
+///     - See also ::ur_usm_host_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1605,6 +1606,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
 ///       must not reside on the same page.
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
+///     - See also ::ur_usm_device_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1657,6 +1659,8 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
 ///       must not reside on the same page.
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
+///     - See also ::ur_usm_host_desc_t.
+///     - See also ::ur_usm_device_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1768,6 +1772,7 @@ ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 /// @details
 ///     - UR can create multiple instances of the pool depending on allocation
 ///       requests.
+///     - See also ::ur_usm_pool_limits_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

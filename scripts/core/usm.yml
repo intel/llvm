@@ -148,6 +148,9 @@ members:
 --- #--------------------------------------------------------------------------
 type: struct 
 desc: "USM host allocation descriptor type."
+details:
+  - Specify these properties in $xUSMHostAlloc and $xUSMSharedAlloc via $x_usm_desc_t
+    as part of a `pNext` chain.
 class: $xUSM
 name: $x_usm_host_desc_t
 base: $x_base_desc_t
@@ -158,6 +161,9 @@ members:
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "USM device allocation descriptor type."
+details:
+  - Specify these properties in $xUSMDeviceAlloc and $xUSMSharedAlloc via $x_usm_desc_t
+    as part of a `pNext` chain.
 class: $xUSM
 name: $x_usm_device_desc_t
 base: $x_base_desc_t
@@ -178,6 +184,9 @@ members:
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "USM pool limits descriptor type"
+details:
+  - Specify these properties in $xUSMPoolCreate via $x_usm_pool_desc_t
+    as part of a `pNext` chain.
 class: $xUSM
 name: $x_usm_pool_limits_desc_t
 base: $x_base_desc_t
@@ -200,6 +209,7 @@ details:
   - "Otherwise, the behavior is implementation-defined."
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
   - "Any flags/hints passed through pUSMDesc only affect the single allocation."
+  - "See also $x_usm_host_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -240,6 +250,7 @@ details:
   - "Otherwise, the behavior is implementation-defined."
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
   - "Any flags/hints passed through pUSMDesc only affect the single allocation."
+  - "See also $x_usm_device_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -283,6 +294,8 @@ details:
   - "Otherwise, the behavior is implementation-defined."
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
   - "Any flags/hints passed through pUSMDesc only affect the single allocation."
+  - "See also $x_usm_host_desc_t."
+  - "See also $x_usm_device_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -368,6 +381,7 @@ name: PoolCreate
 ordinal: "0"
 details:
   - "UR can create multiple instances of the pool depending on allocation requests."
+  - "See also $x_usm_pool_limits_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext
