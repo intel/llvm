@@ -94,6 +94,15 @@ the `std::barrier` class from {cpp}20, with an additional `Scope` template
 parameter denoting a memory scope broad enough to contain all threads of
 execution that are able to use the barrier.
 
+The meaning of the `Scope` template parameter is similar to the meaning of the
+scope associated with a `sycl::atomic_ref`, and is orthogonal to the memory
+space in which the barrier object itself is allocated. The `Scope` template
+is effectively a promise that the barrier will only be used to synchronize
+threads of execution within the same scope, which may allow an implementation
+to improve performance. If the scope associated with a barrier is
+insufficiently broad to contain all threads of execution that attempt to use
+the barrier, behavior is undefined.
+
 [NOTE]
 ====
 The threads of execution that are synchronized by this barrier may be a
