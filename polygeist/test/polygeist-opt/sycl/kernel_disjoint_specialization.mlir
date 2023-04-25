@@ -17,10 +17,10 @@
 gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
   // CHECK-LABEL: func.func private @callee1.specialized(
-  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb> {sycl.inner.disjoint}, 
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb> {sycl.inner.disjoint},
   // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint})
   // CHECK-LABEL: func.func private @callee1(
-  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb>, 
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb>,
   // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>)
   // CHECK-LABEL: gpu.func @caller1(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) kernel {
 
@@ -148,6 +148,37 @@ gpu.module @device_func {
   }
   gpu.func @caller3(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_accessor_2_f32_w_gb>) kernel {
     func.call @callee3(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_accessor_2_f32_w_gb>) -> ()
+    gpu.return
+  }
+
+  // COM: Check callee (@callee4) called indirectly from GPU kernel (@wrapper4).
+  // CHECK-LABEL: func.func private @callee4.specialized(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb> {sycl.inner.disjoint},
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb> {sycl.inner.disjoint})
+  // CHECK-LABEL: func.func private @callee4(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb>,
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>)
+  // CHECK-LABEL: func.func @caller4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) {
+  // CHECK:         scf.if %{{.*}} {
+  // CHECK-NEXT:      func.call @callee4.specialized(%0, %1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
+  // CHECK-NEXT:    } else {
+  // CHECK-NEXT:      func.call @callee4(%0, %1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
+  // CHECK-NEXT:    }
+  // CHECK-LABEL: gpu.func @wrapper4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
+  // CHECK-NEXT:    sycl.call @caller4(%arg0)
+  func.func private @callee4(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
+    return
+  }
+  func.func @caller4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>, index) -> memref<?x!sycl_accessor_1_f32_r_gb>
+    %1 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>, index) -> memref<?x!sycl_accessor_1_f32_w_gb>
+    func.call @callee4(%0, %1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
+    return
+  }
+  gpu.func @wrapper4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
+    sycl.call @caller4(%arg0) {MangledFunctionName = @caller4, TypeName = @RoundedRangeKernel}: (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) -> ()
     gpu.return
   }
 }
