@@ -490,8 +490,7 @@ static Value *EmitISOVolatileStore(CodeGenFunction &CGF, const CallExpr *E) {
   return Store;
 }
 
-static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF,
-                                           StringRef Name,
+static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
                                            llvm::Function *FPBuiltinF,
                                            ArrayRef<Value *> Args,
                                            unsigned ID) {
