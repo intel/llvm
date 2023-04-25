@@ -39,13 +39,4 @@ def InlinePass : Pass<"inliner"> {
   ];
 }
 
-def SYCLMethodToSYCLCall : Pass<"sycl-method-to-sycl-call", "ModuleOp"> {
-  let summary = "Convert SYCLMethodOpInterface instances to SYCLCallOps";
-  let description = [{
-    Replace SYCLMethodOpInterface instances by SYCLCallOps.
-  }];
-  let constructor = "mlir::sycl::createSYCLMethodToSYCLCallPass()";
-  let dependentDialects = ["memref::MemRefDialect"];
-}
-
 #endif // MLIR_DIALECT_SYCL_TRANSFORMS_PASSES
