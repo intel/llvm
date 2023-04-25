@@ -1215,7 +1215,7 @@ atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd<Tx, N> src1,
                                   mask);
 }
 
-/// @anchor acessor_atomic_update1
+/// @anchor accessor_atomic_update1
 /// @brief Single-argument variant of the atomic update operation.
 ///
 /// Atomically updates \c N memory locations represented by an accessor and
