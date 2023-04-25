@@ -931,7 +931,7 @@ LLVMToSPIRVDbgTran::transDbgCompositeType(const DICompositeType *CT) {
   }
 
   if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
+    transformToConstant(Ops, {TagIdx, LineIdx, ColumnIdx, FlagsIdx});
   SPIRVEntry *Res =
       BM->addDebugInfo(SPIRVDebug::TypeComposite, getVoidTy(), Ops);
 
