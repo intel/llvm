@@ -46,7 +46,8 @@ static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Returns true if \p type is 'memref<?x!sycl.accessor>', and false otherwise.
+/// Returns true if \p type is 'memref<?x!sycl.accessor>' with dimension != 0,
+/// and false otherwise.
 static bool isValidMemRefType(Type type) {
   auto mt = dyn_cast<MemRefType>(type);
   bool isMemRefWithExpectedShape =
@@ -55,7 +56,16 @@ static bool isValidMemRefType(Type type) {
   if (!isMemRefWithExpectedShape)
     return false;
 
-  return isa<sycl::AccessorType>(mt.getElementType());
+  auto accTy = dyn_cast<sycl::AccessorType>(mt.getElementType());
+  if (!accTy)
+    return false;
+
+  // Temporary limitation before we can correctly calculate the beginning and
+  // end pointer of a zero dimensional accessor.
+  if (accTy.getDimension() == 0)
+    return false;
+
+  return true;
 }
 
 /// Returns true if \p arg is a candidate argument. Currently, all arguments
