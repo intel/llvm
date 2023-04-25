@@ -1325,9 +1325,7 @@ __ESIMD_API std::enable_if_t<
     simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd_mask<N> mask) {
-  uint32_t loc_offset = offset;
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(loc_offset), src0,
-                                  mask);
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
 }
 
 /// @anchor accessor_atomic_update0
@@ -1422,8 +1420,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask = 1) {
-  uint32_t loc_offset = offset;
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(loc_offset), mask);
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
 }
 
 /// @anchor accessor_atomic_update2
@@ -1525,8 +1522,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
-  uint32_t loc_offset = offset;
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(loc_offset), src0, src1,
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
                                   mask);
 }
 
