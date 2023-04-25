@@ -317,15 +317,15 @@ etors:
     - name: SUB_GROUP_SIZES_INTEL
       desc: "[uint32_t[]] return an array of sub group sizes supported on Intel device"
     - name: USM_HOST_SUPPORT
-      desc: "[$x_bool_t] support USM host memory access"
+      desc: "[$x_device_usm_access_capability_flags_t] support USM host memory access"
     - name: USM_DEVICE_SUPPORT
-      desc: "[$x_bool_t] support USM device memory access"
+      desc: "[$x_device_usm_access_capability_flags_t] support USM device memory access"
     - name: USM_SINGLE_SHARED_SUPPORT
-      desc: "[$x_bool_t] support USM single device shared memory access"
+      desc: "[$x_device_usm_access_capability_flags_t] support USM single device shared memory access"
     - name: USM_CROSS_SHARED_SUPPORT
-      desc: "[$x_bool_t] support USM cross device shared memory access"
+      desc: "[$x_device_usm_access_capability_flags_t] support USM cross device shared memory access"
     - name: USM_SYSTEM_SHARED_SUPPORT
-      desc: "[$x_bool_t] support USM system wide shared memory access"
+      desc: "[$x_device_usm_access_capability_flags_t] support USM system wide shared memory access"
     - name: UUID
       desc: "[char[]] return device UUID"
     - name: PCI_ADDRESS
@@ -751,3 +751,21 @@ etors:
     - name: SYSTEM
       desc: "System scope"
       value: "$X_BIT(4)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM access capabilities"
+class: $xDevice
+name: $x_device_usm_access_capability_flags_t
+etors:
+    - name: ACCESS
+      desc: "Memory can be accessed"
+      value: "$X_BIT(0)"
+    - name: ATOMIC_ACCESS
+      desc: "Memory can be accessed atomically"
+      value: "$X_BIT(1)"
+    - name: CONCURRENT_ACCESS
+      desc: "Memory can be accessed concurrently"
+      value: "$X_BIT(2)"
+    - name: ATOMIC_CONCURRENT_ACCESS
+      desc: "Memory can be accessed atomically and concurrently"
+      value: "$X_BIT(3)"

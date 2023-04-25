@@ -38,6 +38,8 @@ inline void serializeFlag_ur_memory_order_capability_flags_t(
     std::ostream &os, ur_memory_order_capability_flags_t flag);
 inline void serializeFlag_ur_memory_scope_capability_flags_t(
     std::ostream &os, ur_memory_scope_capability_flags_t flag);
+inline void serializeFlag_ur_device_usm_access_capability_flags_t(
+    std::ostream &os, ur_device_usm_access_capability_flags_t flag);
 inline void serializeFlag_ur_context_flags_t(std::ostream &os,
                                              ur_context_flags_t flag);
 inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
@@ -152,6 +154,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_order_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_scope_capability_flag_t value);
+inline std::ostream &
+operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_context_properties_t params);
@@ -2638,71 +2642,81 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_USM_HOST_SUPPORT: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+        const ur_device_usm_access_capability_flags_t *tptr =
+            (const ur_device_usm_access_capability_flags_t *)ptr;
+        if (sizeof(ur_device_usm_access_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >="
+               << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
 
-        os << *tptr;
+        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+                                                                         *tptr);
 
         os << ")";
     } break;
 
     case UR_DEVICE_INFO_USM_DEVICE_SUPPORT: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+        const ur_device_usm_access_capability_flags_t *tptr =
+            (const ur_device_usm_access_capability_flags_t *)ptr;
+        if (sizeof(ur_device_usm_access_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >="
+               << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
 
-        os << *tptr;
+        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+                                                                         *tptr);
 
         os << ")";
     } break;
 
     case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+        const ur_device_usm_access_capability_flags_t *tptr =
+            (const ur_device_usm_access_capability_flags_t *)ptr;
+        if (sizeof(ur_device_usm_access_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >="
+               << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
 
-        os << *tptr;
+        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+                                                                         *tptr);
 
         os << ")";
     } break;
 
     case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+        const ur_device_usm_access_capability_flags_t *tptr =
+            (const ur_device_usm_access_capability_flags_t *)ptr;
+        if (sizeof(ur_device_usm_access_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >="
+               << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
 
-        os << *tptr;
+        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+                                                                         *tptr);
 
         os << ")";
     } break;
 
     case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+        const ur_device_usm_access_capability_flags_t *tptr =
+            (const ur_device_usm_access_capability_flags_t *)ptr;
+        if (sizeof(ur_device_usm_access_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >="
+               << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
 
-        os << *tptr;
+        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+                                                                         *tptr);
 
         os << ")";
     } break;
@@ -3503,6 +3517,94 @@ inline void serializeFlag_ur_memory_scope_capability_flags_t(
             first = false;
         }
         os << UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+    }
+    if (val != 0) {
+        std::bitset<32> bits(val);
+        if (!first) {
+            os << " | ";
+        }
+        os << "unknown bit flags " << bits;
+    } else if (first) {
+        os << "0";
+    }
+}
+} // namespace ur_params
+inline std::ostream &
+operator<<(std::ostream &os,
+           enum ur_device_usm_access_capability_flag_t value) {
+    switch (value) {
+
+    case UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS:
+        os << "UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS";
+        break;
+
+    case UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS:
+        os << "UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS";
+        break;
+
+    case UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS:
+        os << "UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS";
+        break;
+
+    case UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS:
+        os << "UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur_params {
+inline void serializeFlag_ur_device_usm_access_capability_flags_t(
+    std::ostream &os, ur_device_usm_access_capability_flags_t flag) {
+    uint32_t val = flag;
+    bool first = true;
+
+    if ((val & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS) ==
+        (uint32_t)UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS) {
+        val ^= (uint32_t)UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+    }
+
+    if ((val & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS) ==
+        (uint32_t)UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS) {
+        val ^= (uint32_t)UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS;
+    }
+
+    if ((val & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS) ==
+        (uint32_t)UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS) {
+        val ^= (uint32_t)UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
+    }
+
+    if ((val & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS) ==
+        (uint32_t)
+            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS) {
+        val ^= (uint32_t)
+            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
     }
     if (val != 0) {
         std::bitset<32> bits(val);

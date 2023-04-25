@@ -844,11 +844,16 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81, ///< [::ur_bool_t] support sub group independent forward progress
     UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                  ///< [uint32_t[]] return an array of sub group sizes supported on Intel
                                                                 ///< device
-    UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                       ///< [::ur_bool_t] support USM host memory access
-    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                     ///< [::ur_bool_t] support USM device memory access
-    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 85,              ///< [::ur_bool_t] support USM single device shared memory access
-    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 86,               ///< [::ur_bool_t] support USM cross device shared memory access
-    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,              ///< [::ur_bool_t] support USM system wide shared memory access
+    UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                       ///< [::ur_device_usm_access_capability_flags_t] support USM host memory
+                                                                ///< access
+    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                     ///< [::ur_device_usm_access_capability_flags_t] support USM device memory
+                                                                ///< access
+    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 85,              ///< [::ur_device_usm_access_capability_flags_t] support USM single device
+                                                                ///< shared memory access
+    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 86,               ///< [::ur_device_usm_access_capability_flags_t] support USM cross device
+                                                                ///< shared memory access
+    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,              ///< [::ur_device_usm_access_capability_flags_t] support USM system wide
+                                                                ///< shared memory access
     UR_DEVICE_INFO_UUID = 88,                                   ///< [char[]] return device UUID
     UR_DEVICE_INFO_PCI_ADDRESS = 89,                            ///< [char[]] return device PCI address
     UR_DEVICE_INFO_GPU_EU_COUNT = 90,                           ///< [uint32_t] return Intel GPU EU count
@@ -1254,6 +1259,22 @@ typedef enum ur_memory_scope_capability_flag_t {
 } ur_memory_scope_capability_flag_t;
 /// @brief Bit Mask for validating ur_memory_scope_capability_flags_t
 #define UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK 0xffffffe0
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM access capabilities
+typedef uint32_t ur_device_usm_access_capability_flags_t;
+typedef enum ur_device_usm_access_capability_flag_t {
+    UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS = UR_BIT(0),                   ///< Memory can be accessed
+    UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS = UR_BIT(1),            ///< Memory can be accessed atomically
+    UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS = UR_BIT(2),        ///< Memory can be accessed concurrently
+    UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS = UR_BIT(3), ///< Memory can be accessed atomically and concurrently
+    /// @cond
+    UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_device_usm_access_capability_flag_t;
+/// @brief Bit Mask for validating ur_device_usm_access_capability_flags_t
+#define UR_DEVICE_USM_ACCESS_CAPABILITY_FLAGS_MASK 0xfffffff0
 
 #if !defined(__GNUC__)
 #pragma endregion
