@@ -1429,7 +1429,7 @@ atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask = 1) {
 }
 
 /// @anchor accessor_atomic_update2
-/// Atomically updates \c N memory locations represented by anaccessor and
+/// Atomically updates \c N memory locations represented by an accessor and
 /// a vector of offsets and returns a vector of old
 /// values found at the memory locations before update. The update operation
 /// has 2 additional arguments.
