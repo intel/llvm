@@ -48,8 +48,10 @@ func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
      %1 = "polygeist.memref2pointer"(%0) : (memref<?xi32>) -> !llvm.ptr<i8>
      return %1 : !llvm.ptr<i8>
 }
-// CHECK: func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
-// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<10xi32>) -> !llvm.ptr<i8>
-// CHECK-NEXT: %1 = llvm.getelementptr %0[8] : (!llvm.ptr<i8>) -> !llvm.ptr<i8>
-// CHECK-NEXT: return %1 : !llvm.ptr<i8>
-// CHECK-NEXT: }
+// CHECK-LABEL:   func.func @memref2ptr(
+// CHECK-SAME:                          %[[VAL_0:.*]]: memref<10xi32>) -> !llvm.ptr<i8> {
+// CHECK-NEXT:      %[[VAL_1:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<10xi32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_1]][2] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.bitcast %[[VAL_2]] : !llvm.ptr<i32> to !llvm.ptr<i8>
+// CHECK-NEXT:      return %[[VAL_3]] : !llvm.ptr<i8>
+// CHECK-NEXT:    }
