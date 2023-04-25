@@ -91,6 +91,19 @@ supports.
 |===
 
 
+=== Device aspect
+
+Support for the features introduced in this extension can be queried using the
+new `aspect::ext_oneapi_virtual_mem` defined as:
+
+```c++
+namespace sycl {
+  ...
+  ext_oneapi_virtual_mem
+} // namespace sycl
+```
+
+
 === Memory granularity
 
 Working with virtual address ranges and the underlying physical memory requires
@@ -256,7 +269,10 @@ throws a synchronous exception with the `errc::invalid` error code.
 
 This will allocate `numBytes` of physical memory on the device. `numBytes` must
 be a multiple of the minimum granularity, as returned by a call to
-`get_minimum_mem_granularity`
+`get_minimum_mem_granularity`.
+
+If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
+an exception with `errc::feature_not_supported`.
 
 |`physical_mem(const queue &syclQueue, size_t numBytes)` |
 Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
