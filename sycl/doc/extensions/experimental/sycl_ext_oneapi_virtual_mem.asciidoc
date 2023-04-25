@@ -98,8 +98,12 @@ new `aspect::ext_oneapi_virtual_mem` defined as:
 
 ```c++
 namespace sycl {
+
+enum class aspect : /* unspecified */ {
   ...
   ext_oneapi_virtual_mem
+}
+
 } // namespace sycl
 ```
 
