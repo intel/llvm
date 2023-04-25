@@ -26,18 +26,6 @@ inline bool isSYCLOperation(Operation *op) {
   return isa<sycl::SYCLDialect>(op->getDialect());
 }
 
-inline unsigned targetToAddressSpace(Target target) {
-  switch (target) {
-  case Target::ConstantBuffer:
-  case Target::GlobalBuffer:
-    return 1;
-  case Target::Local:
-    return 3;
-  default:
-    llvm_unreachable("Invalid Target for an accessor");
-  }
-}
-
 } // namespace sycl
 } // namespace mlir
 

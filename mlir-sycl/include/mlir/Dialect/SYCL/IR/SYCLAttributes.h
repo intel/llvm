@@ -14,4 +14,23 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h.inc"
 
+namespace mlir {
+namespace sycl {
+
+// TODO: Replace with TargetAttr -> AccessAddrSpaceAttr mapping
+inline unsigned targetToAddressSpace(Target target) {
+  switch (target) {
+  case Target::ConstantBuffer:
+  case Target::GlobalBuffer:
+    return 1;
+  case Target::Local:
+    return 3;
+  default:
+    llvm_unreachable("Invalid Target for an accessor");
+  }
+}
+
+} // namespace sycl
+} // namespace mlir
+
 #endif // MLIR_DIALECT_SYCL_IR_SYCLATTRIBUTES_H
