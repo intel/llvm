@@ -496,11 +496,16 @@ class ur_device_info_v(IntEnum):
     SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81     ## [::ur_bool_t] support sub group independent forward progress
     SUB_GROUP_SIZES_INTEL = 82                      ## [uint32_t[]] return an array of sub group sizes supported on Intel
                                                     ## device
-    USM_HOST_SUPPORT = 83                           ## [::ur_bool_t] support USM host memory access
-    USM_DEVICE_SUPPORT = 84                         ## [::ur_bool_t] support USM device memory access
-    USM_SINGLE_SHARED_SUPPORT = 85                  ## [::ur_bool_t] support USM single device shared memory access
-    USM_CROSS_SHARED_SUPPORT = 86                   ## [::ur_bool_t] support USM cross device shared memory access
-    USM_SYSTEM_SHARED_SUPPORT = 87                  ## [::ur_bool_t] support USM system wide shared memory access
+    USM_HOST_SUPPORT = 83                           ## [::ur_device_usm_access_capability_flags_t] support USM host memory
+                                                    ## access
+    USM_DEVICE_SUPPORT = 84                         ## [::ur_device_usm_access_capability_flags_t] support USM device memory
+                                                    ## access
+    USM_SINGLE_SHARED_SUPPORT = 85                  ## [::ur_device_usm_access_capability_flags_t] support USM single device
+                                                    ## shared memory access
+    USM_CROSS_SHARED_SUPPORT = 86                   ## [::ur_device_usm_access_capability_flags_t] support USM cross device
+                                                    ## shared memory access
+    USM_SYSTEM_SHARED_SUPPORT = 87                  ## [::ur_device_usm_access_capability_flags_t] support USM system wide
+                                                    ## shared memory access
     UUID = 88                                       ## [char[]] return device UUID
     PCI_ADDRESS = 89                                ## [char[]] return device PCI address
     GPU_EU_COUNT = 90                               ## [uint32_t] return Intel GPU EU count
@@ -654,6 +659,19 @@ class ur_memory_scope_capability_flags_v(IntEnum):
     SYSTEM = UR_BIT(4)                              ## System scope
 
 class ur_memory_scope_capability_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief USM access capabilities
+class ur_device_usm_access_capability_flags_v(IntEnum):
+    ACCESS = UR_BIT(0)                              ## Memory can be accessed
+    ATOMIC_ACCESS = UR_BIT(1)                       ## Memory can be accessed atomically
+    CONCURRENT_ACCESS = UR_BIT(2)                   ## Memory can be accessed concurrently
+    ATOMIC_CONCURRENT_ACCESS = UR_BIT(3)            ## Memory can be accessed atomically and concurrently
+
+class ur_device_usm_access_capability_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
