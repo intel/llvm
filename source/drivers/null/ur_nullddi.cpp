@@ -754,20 +754,52 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle of the mem.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
+/// @brief Intercept function for urMemBufferCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
-        *phMem ///< [out] pointer to the handle of the mem object created.
+        *phMem ///< [out] pointer to handle of buffer memory object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnCreateWithNativeHandle =
-        d_context.urDdiTable.Mem.pfnCreateWithNativeHandle;
-    if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeMem, hContext, phMem);
+    auto pfnBufferCreateWithNativeHandle =
+        d_context.urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
+    if (nullptr != pfnBufferCreateWithNativeHandle) {
+        result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
+                                                 pProperties, phMem);
+    } else {
+        // generic implementation
+        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemImageCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification.
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
+    ur_mem_handle_t
+        *phMem ///< [out] pointer to handle of image memory object created.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnImageCreateWithNativeHandle =
+        d_context.urDdiTable.Mem.pfnImageCreateWithNativeHandle;
+    if (nullptr != pfnImageCreateWithNativeHandle) {
+        result = pfnImageCreateWithNativeHandle(
+            hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
     } else {
         // generic implementation
         *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
@@ -3359,7 +3391,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 
     pDdiTable->pfnGetNativeHandle = driver::urMemGetNativeHandle;
 
-    pDdiTable->pfnCreateWithNativeHandle = driver::urMemCreateWithNativeHandle;
+    pDdiTable->pfnBufferCreateWithNativeHandle =
+        driver::urMemBufferCreateWithNativeHandle;
+
+    pDdiTable->pfnImageCreateWithNativeHandle =
+        driver::urMemImageCreateWithNativeHandle;
 
     pDdiTable->pfnGetInfo = driver::urMemGetInfo;
 

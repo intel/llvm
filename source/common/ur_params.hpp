@@ -188,6 +188,8 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_buffer_create_type_t value);
 inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_mem_native_properties_t params);
+inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_sampler_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_sampler_addressing_mode_t value);
@@ -628,6 +630,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -747,6 +753,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES: {
         const ur_queue_native_properties_t *pstruct =
             (const ur_queue_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES: {
+        const ur_mem_native_properties_t *pstruct =
+            (const ur_mem_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -4712,6 +4724,27 @@ inline std::ostream &operator<<(std::ostream &os,
     }
     return os;
 }
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_mem_native_properties_t params) {
+    os << "(struct ur_mem_native_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".isNativeHandleOwned = ";
+
+    os << (params.isNativeHandleOwned);
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_sampler_filter_mode_t value) {
     switch (value) {
@@ -7509,10 +7542,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_MEM_GET_NATIVE_HANDLE";
         break;
 
-    case UR_FUNCTION_MEM_CREATE_WITH_NATIVE_HANDLE:
-        os << "UR_FUNCTION_MEM_CREATE_WITH_NATIVE_HANDLE";
-        break;
-
     case UR_FUNCTION_MEM_GET_INFO:
         os << "UR_FUNCTION_MEM_GET_INFO";
         break;
@@ -7691,6 +7720,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION:
         os << "UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION";
+        break;
+
+    case UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE:
+        os << "UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE";
         break;
     default:
         os << "unknown enumerator";
@@ -9996,9 +10033,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_mem_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    const struct ur_mem_buffer_create_with_native_handle_params_t *params) {
 
     os << ".hNativeMem = ";
 
@@ -10008,6 +10045,47 @@ operator<<(std::ostream &os,
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
+
+    os << ", ";
+    os << ".phMem = ";
+
+    ur_params::serializePtr(os, *(params->pphMem));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    const struct ur_mem_image_create_with_native_handle_params_t *params) {
+
+    os << ".hNativeMem = ";
+
+    ur_params::serializePtr(os, *(params->phNativeMem));
+
+    os << ", ";
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".pImageFormat = ";
+
+    ur_params::serializePtr(os, *(params->ppImageFormat));
+
+    os << ", ";
+    os << ".pImageDesc = ";
+
+    ur_params::serializePtr(os, *(params->ppImageDesc));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".phMem = ";
@@ -11397,8 +11475,13 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_MEM_GET_NATIVE_HANDLE: {
         os << (const struct ur_mem_get_native_handle_params_t *)params;
     } break;
-    case UR_FUNCTION_MEM_CREATE_WITH_NATIVE_HANDLE: {
-        os << (const struct ur_mem_create_with_native_handle_params_t *)params;
+    case UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE: {
+        os << (const struct ur_mem_buffer_create_with_native_handle_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE: {
+        os << (const struct ur_mem_image_create_with_native_handle_params_t *)
+                params;
     } break;
     case UR_FUNCTION_MEM_GET_INFO: {
         os << (const struct ur_mem_get_info_params_t *)params;

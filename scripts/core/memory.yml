@@ -434,28 +434,72 @@ params:
       desc: |
             [out] a pointer to the native handle of the mem.
 --- #--------------------------------------------------------------------------
-type: function
-desc: "Create runtime mem object from native mem handle."
+type: struct
+desc: "Native memory object creation properties"
 class: $xMem
-name: CreateWithNativeHandle
+name: $x_mem_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: >
+        [in] Indicates UR owns the native handle or if it came from an
+        interoperability operation in the application that asked to not
+        transfer the ownership to the unified-runtime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime buffer memory object from native memory handle."
+class: $xMem
+name: BufferCreateWithNativeHandle
 decl: static
 ordinal: "0"
 details:
-    - "Creates runtime mem handle from native driver mem handle."
-    - "The application may call this function from simultaneous threads for the same context."
-    - "The implementation of this function should be thread-safe."
+    - The application may call this function from simultaneous threads for the
+      same context.
+    - The implementation of this function should be thread-safe.
 params:
     - type: $x_native_handle_t
       name: hNativeMem
-      desc: |
-            [in] the native handle of the mem.
+      desc: "[in] the native handle to the memory."
     - type: $x_context_handle_t
       name: hContext
-      desc: "[in] handle of the context object"
+      desc: "[in] handle of the context object."
+    - type: const $x_mem_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native memory creation properties."
     - type: $x_mem_handle_t*
       name: phMem
-      desc: |
-            [out] pointer to the handle of the mem object created.
+      desc: "[out] pointer to handle of buffer memory object created."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime image memory object from native memory handle."
+class: $xMem
+name: ImageCreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - The application may call this function from simultaneous threads for the
+      same context.
+    - The implementation of this function should be thread-safe.
+params:
+    - type: $x_native_handle_t
+      name: hNativeMem
+      desc: "[in] the native handle to the memory."
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification."
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description."
+    - type: const $x_mem_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native memory creation properties."
+    - type: $x_mem_handle_t*
+      name: phMem
+      desc: "[out] pointer to handle of image memory object created."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieve information about a memory object."

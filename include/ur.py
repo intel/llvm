@@ -218,6 +218,7 @@ class ur_structure_type_v(IntEnum):
     CONTEXT_NATIVE_PROPERTIES = 16                  ## ::ur_context_native_properties_t
     KERNEL_NATIVE_PROPERTIES = 17                   ## ::ur_kernel_native_properties_t
     QUEUE_NATIVE_PROPERTIES = 18                    ## ::ur_queue_native_properties_t
+    MEM_NATIVE_PROPERTIES = 19                      ## ::ur_mem_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -958,6 +959,18 @@ class ur_buffer_create_type_t(c_int):
 
 
 ###############################################################################
+## @brief Native memory object creation properties
+class ur_mem_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an
+                                                                        ## interoperability operation in the application that asked to not
+                                                                        ## transfer the ownership to the unified-runtime.
+    ]
+
+###############################################################################
 ## @brief Sampler Filter Mode
 class ur_sampler_filter_mode_v(IntEnum):
     NEAREST = 0                                     ## Filter mode nearest.
@@ -1619,7 +1632,6 @@ class ur_function_v(IntEnum):
     MEM_RELEASE = 66                                ## Enumerator for ::urMemRelease
     MEM_BUFFER_PARTITION = 67                       ## Enumerator for ::urMemBufferPartition
     MEM_GET_NATIVE_HANDLE = 68                      ## Enumerator for ::urMemGetNativeHandle
-    MEM_CREATE_WITH_NATIVE_HANDLE = 69              ## Enumerator for ::urMemCreateWithNativeHandle
     MEM_GET_INFO = 70                               ## Enumerator for ::urMemGetInfo
     MEM_IMAGE_GET_INFO = 71                         ## Enumerator for ::urMemImageGetInfo
     PLATFORM_GET = 72                               ## Enumerator for ::urPlatformGet
@@ -1665,6 +1677,8 @@ class ur_function_v(IntEnum):
     USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
     USM_POOL_DESTROY = 113                          ## Enumerator for ::urUSMPoolDestroy
     PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
+    MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
+    MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2220,11 +2234,18 @@ else:
     _urMemGetNativeHandle_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t, POINTER(ur_native_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urMemCreateWithNativeHandle
+## @brief Function-pointer for urMemBufferCreateWithNativeHandle
 if __use_win_types:
-    _urMemCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_mem_handle_t) )
+    _urMemBufferCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_mem_native_properties_t), POINTER(ur_mem_handle_t) )
 else:
-    _urMemCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_mem_handle_t) )
+    _urMemBufferCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_mem_native_properties_t), POINTER(ur_mem_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urMemImageCreateWithNativeHandle
+if __use_win_types:
+    _urMemImageCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_native_properties_t), POINTER(ur_mem_handle_t) )
+else:
+    _urMemImageCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_native_properties_t), POINTER(ur_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urMemGetInfo
@@ -2251,7 +2272,8 @@ class ur_mem_dditable_t(Structure):
         ("pfnRelease", c_void_p),                                       ## _urMemRelease_t
         ("pfnBufferPartition", c_void_p),                               ## _urMemBufferPartition_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urMemGetNativeHandle_t
-        ("pfnCreateWithNativeHandle", c_void_p),                        ## _urMemCreateWithNativeHandle_t
+        ("pfnBufferCreateWithNativeHandle", c_void_p),                  ## _urMemBufferCreateWithNativeHandle_t
+        ("pfnImageCreateWithNativeHandle", c_void_p),                   ## _urMemImageCreateWithNativeHandle_t
         ("pfnGetInfo", c_void_p),                                       ## _urMemGetInfo_t
         ("pfnImageGetInfo", c_void_p)                                   ## _urMemImageGetInfo_t
     ]
@@ -2847,7 +2869,8 @@ class UR_DDI:
         self.urMemRelease = _urMemRelease_t(self.__dditable.Mem.pfnRelease)
         self.urMemBufferPartition = _urMemBufferPartition_t(self.__dditable.Mem.pfnBufferPartition)
         self.urMemGetNativeHandle = _urMemGetNativeHandle_t(self.__dditable.Mem.pfnGetNativeHandle)
-        self.urMemCreateWithNativeHandle = _urMemCreateWithNativeHandle_t(self.__dditable.Mem.pfnCreateWithNativeHandle)
+        self.urMemBufferCreateWithNativeHandle = _urMemBufferCreateWithNativeHandle_t(self.__dditable.Mem.pfnBufferCreateWithNativeHandle)
+        self.urMemImageCreateWithNativeHandle = _urMemImageCreateWithNativeHandle_t(self.__dditable.Mem.pfnImageCreateWithNativeHandle)
         self.urMemGetInfo = _urMemGetInfo_t(self.__dditable.Mem.pfnGetInfo)
         self.urMemImageGetInfo = _urMemImageGetInfo_t(self.__dditable.Mem.pfnImageGetInfo)
 

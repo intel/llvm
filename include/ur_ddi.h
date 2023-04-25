@@ -670,10 +670,21 @@ typedef ur_result_t(UR_APICALL *ur_pfnMemGetNativeHandle_t)(
     ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urMemCreateWithNativeHandle
-typedef ur_result_t(UR_APICALL *ur_pfnMemCreateWithNativeHandle_t)(
+/// @brief Function-pointer for urMemBufferCreateWithNativeHandle
+typedef ur_result_t(UR_APICALL *ur_pfnMemBufferCreateWithNativeHandle_t)(
     ur_native_handle_t,
     ur_context_handle_t,
+    const ur_mem_native_properties_t *,
+    ur_mem_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urMemImageCreateWithNativeHandle
+typedef ur_result_t(UR_APICALL *ur_pfnMemImageCreateWithNativeHandle_t)(
+    ur_native_handle_t,
+    ur_context_handle_t,
+    const ur_image_format_t *,
+    const ur_image_desc_t *,
+    const ur_mem_native_properties_t *,
     ur_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -703,7 +714,8 @@ typedef struct ur_mem_dditable_t {
     ur_pfnMemRelease_t pfnRelease;
     ur_pfnMemBufferPartition_t pfnBufferPartition;
     ur_pfnMemGetNativeHandle_t pfnGetNativeHandle;
-    ur_pfnMemCreateWithNativeHandle_t pfnCreateWithNativeHandle;
+    ur_pfnMemBufferCreateWithNativeHandle_t pfnBufferCreateWithNativeHandle;
+    ur_pfnMemImageCreateWithNativeHandle_t pfnImageCreateWithNativeHandle;
     ur_pfnMemGetInfo_t pfnGetInfo;
     ur_pfnMemImageGetInfo_t pfnImageGetInfo;
 } ur_mem_dditable_t;

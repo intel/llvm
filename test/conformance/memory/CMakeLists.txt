@@ -3,11 +3,12 @@
 
 add_conformance_test_with_devices_environment(memory
     urMemBufferCreate.cpp 
+    urMemBufferCreateWithNativeHandle.cpp 
     urMemBufferPartition.cpp 
-    urMemCreateWithNativeHandle.cpp 
     urMemGetInfo.cpp 
     urMemGetNativeHandle.cpp 
     urMemImageCreate.cpp
+    urMemImageCreateWithNativeHandle.cpp 
     urMemImageGetInfo.cpp 
     urMemRelease.cpp 
     urMemRetain.cpp)

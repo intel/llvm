@@ -1175,10 +1175,9 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create runtime mem object from native mem handle.
+/// @brief Create runtime buffer memory object from native memory handle.
 ///
 /// @details
-///     - Creates runtime mem handle from native driver mem handle.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -1192,19 +1191,64 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phMem`
-ur_result_t UR_APICALL urMemCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle of the mem.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
+ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
-        *phMem ///< [out] pointer to the handle of the mem object created.
+        *phMem ///< [out] pointer to handle of buffer memory object created.
 ) {
-    auto pfnCreateWithNativeHandle =
-        ur_lib::context->urDdiTable.Mem.pfnCreateWithNativeHandle;
-    if (nullptr == pfnCreateWithNativeHandle) {
+    auto pfnBufferCreateWithNativeHandle =
+        ur_lib::context->urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
+    if (nullptr == pfnBufferCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreateWithNativeHandle(hNativeMem, hContext, phMem);
+    return pfnBufferCreateWithNativeHandle(hNativeMem, hContext, pProperties,
+                                           phMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create runtime image memory object from native memory handle.
+///
+/// @details
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hNativeMem`
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification.
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
+    ur_mem_handle_t
+        *phMem ///< [out] pointer to handle of image memory object created.
+) {
+    auto pfnImageCreateWithNativeHandle =
+        ur_lib::context->urDdiTable.Mem.pfnImageCreateWithNativeHandle;
+    if (nullptr == pfnImageCreateWithNativeHandle) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImageCreateWithNativeHandle(hNativeMem, hContext, pImageFormat,
+                                          pImageDesc, pProperties, phMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
