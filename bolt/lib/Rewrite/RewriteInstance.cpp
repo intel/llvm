@@ -34,6 +34,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugFrame.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
+#include "llvm/IR/Function.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCAsmLayout.h"
@@ -1919,14 +1920,7 @@ int64_t getRelocationAddend(const ELFObjectFile<ELFT> *Obj,
 
 int64_t getRelocationAddend(const ELFObjectFileBase *Obj,
                             const RelocationRef &Rel) {
-  if (auto *ELF32LE = dyn_cast<ELF32LEObjectFile>(Obj))
-    return getRelocationAddend(ELF32LE, Rel);
-  if (auto *ELF64LE = dyn_cast<ELF64LEObjectFile>(Obj))
-    return getRelocationAddend(ELF64LE, Rel);
-  if (auto *ELF32BE = dyn_cast<ELF32BEObjectFile>(Obj))
-    return getRelocationAddend(ELF32BE, Rel);
-  auto *ELF64BE = cast<ELF64BEObjectFile>(Obj);
-  return getRelocationAddend(ELF64BE, Rel);
+  return getRelocationAddend(cast<ELF64LEObjectFile>(Obj), Rel);
 }
 
 template <typename ELFT>
@@ -1953,14 +1947,7 @@ uint32_t getRelocationSymbol(const ELFObjectFile<ELFT> *Obj,
 
 uint32_t getRelocationSymbol(const ELFObjectFileBase *Obj,
                              const RelocationRef &Rel) {
-  if (auto *ELF32LE = dyn_cast<ELF32LEObjectFile>(Obj))
-    return getRelocationSymbol(ELF32LE, Rel);
-  if (auto *ELF64LE = dyn_cast<ELF64LEObjectFile>(Obj))
-    return getRelocationSymbol(ELF64LE, Rel);
-  if (auto *ELF32BE = dyn_cast<ELF32BEObjectFile>(Obj))
-    return getRelocationSymbol(ELF32BE, Rel);
-  auto *ELF64BE = cast<ELF64BEObjectFile>(Obj);
-  return getRelocationSymbol(ELF64BE, Rel);
+  return getRelocationSymbol(cast<ELF64LEObjectFile>(Obj), Rel);
 }
 } // anonymous namespace
 
