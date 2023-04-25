@@ -5052,6 +5052,30 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_USM_ADVICE_FLAG_BIAS_UNCACHED:
         os << "UR_USM_ADVICE_FLAG_BIAS_UNCACHED";
         break;
+
+    case UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE:
+        os << "UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE";
+        break;
+
+    case UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE:
+        os << "UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE";
+        break;
+
+    case UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST:
+        os << "UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST";
+        break;
+
+    case UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST:
+        os << "UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST";
+        break;
+
+    case UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST:
+        os << "UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST";
+        break;
+
+    case UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST:
+        os << "UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -5161,6 +5185,72 @@ inline void serializeFlag_ur_usm_advice_flags_t(std::ostream &os,
             first = false;
         }
         os << UR_USM_ADVICE_FLAG_BIAS_UNCACHED;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ==
+        (uint32_t)UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ==
+        (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST) ==
+        (uint32_t)UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST) ==
+        (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST) ==
+        (uint32_t)UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST) ==
+        (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST;
     }
     if (val != 0) {
         std::bitset<32> bits(val);

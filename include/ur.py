@@ -1061,10 +1061,16 @@ class ur_usm_advice_flags_v(IntEnum):
     CLEAR_READ_MOSTLY = UR_BIT(2)                   ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_READ_MOSTLY
     SET_PREFERRED_LOCATION = UR_BIT(3)              ## Hint that the preferred memory location is the specified device
     CLEAR_PREFERRED_LOCATION = UR_BIT(4)            ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION
-    SET_NON_ATOMIC_MOSTLY = UR_BIT(5)               ## Hints that memory will mostly be accessed non-atomically
+    SET_NON_ATOMIC_MOSTLY = UR_BIT(5)               ## Hint that memory will mostly be accessed non-atomically
     CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6)             ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY
-    BIAS_CACHED = UR_BIT(7)                         ## Hints that memory should be cached
-    BIAS_UNCACHED = UR_BIT(8)                       ## Hints that memory should be not be cached
+    BIAS_CACHED = UR_BIT(7)                         ## Hint that memory should be cached
+    BIAS_UNCACHED = UR_BIT(8)                       ## Hint that memory should be not be cached
+    SET_ACCESSED_BY_DEVICE = UR_BIT(9)              ## Hint that memory will be mostly accessed by the specified device
+    CLEAR_ACCESSED_BY_DEVICE = UR_BIT(10)           ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE
+    SET_ACCESSED_BY_HOST = UR_BIT(11)               ## Hint that memory will be mostly accessed by the host
+    CLEAR_ACCESSED_BY_HOST = UR_BIT(12)             ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST
+    SET_PREFERRED_LOCATION_HOST = UR_BIT(13)        ## Hint that the preferred memory location is the host
+    CLEAR_PREFERRED_LOCATION_HOST = UR_BIT(14)      ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST
 
 class ur_usm_advice_flags_t(c_int):
     def __str__(self):
