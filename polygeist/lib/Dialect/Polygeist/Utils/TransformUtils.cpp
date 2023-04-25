@@ -563,8 +563,9 @@ createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
   const auto accTy =
       cast<sycl::AccessorType>(accessor.getType().getElementType());
   assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
-  const auto MT = cast<MemRefType>(
-      cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
+  const auto MT = MemRefType::get(
+      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
+      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
   return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
       builder, loc, MT, {accessor, id}, "operator[]", "accessor");
 }
