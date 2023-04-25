@@ -150,8 +150,8 @@ Same as `get_recommended_mem_granularity(syclPhysicalMem.get_device(), syclPhysi
 
 === Reserving virtual address ranges
 
-Virtual address ranges are represented by a pointer and a number of bytes
-reserved for it. The pointer must be aligned in accordance with the minimum
+Virtual address ranges are represented by a `uintptr_t` and a number of bytes
+reserved for it. The `uintptr_t` must be aligned in accordance with the minimum
 granularity, as queried through `get_minimum_mem_granularity`, and likewise the
 number of bytes must be a multiple of this granularity. It is the responsibility
 of the user to manage the constituents of any virtual address range they
@@ -191,8 +191,8 @@ If any of the devices in `syclContext` does not have
 `aspect::ext_oneapi_virtual_mem` the call throws an exception with
 `errc::feature_not_supported`.
 
-|`uintptr_t reserve_virtual_mem(size_t numBytes, const device &syclDevice, const context &syclContext)` |
-Same as `reserve_virtual_mem(0, numBytes, syclDevice, syclContext)`.
+|`uintptr_t reserve_virtual_mem(size_t numBytes, const context &syclContext)` |
+Same as `reserve_virtual_mem(0, numBytes, syclContext)`.
 
 |`void free_virtual_mem(uintptr_t ptr, size_t numBytes, const context &syclContext)` |
 Frees a virtual memory range specified by `ptr` and `numBytes`. `ptr` must be
@@ -330,15 +330,14 @@ be used in place of a device USM pointer in any interface accepting one.
 
 |`address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
 Returns the access mode of the virtual memory range specified by `ptr` and
-`numBytes`. If the virtual memory range is inaccessible `std::nullopt` is
-returned.
+`numBytes`.
 
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
 must not be a proper sub-range of a previously mapped range, but `ptr` and
 `numBytes` may span multiple contiguous ranges. `syclContext` must be the same
-as the context returned by the `get_context()` member function on the
+as the context returned by the `get_context()` member function on all the
 `physical_mem` the address ranges are currently mapped to.
 
 After this call, the full range will again be ready to be mapped through a calls
