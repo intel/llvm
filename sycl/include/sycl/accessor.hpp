@@ -2048,7 +2048,7 @@ public:
 
   bool empty() const noexcept { return size() == 0; }
 
-  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
   range<Dims> get_range() const {
     if constexpr (Dimensions == 0)
       return range<1>{1};
@@ -2056,7 +2056,7 @@ public:
       return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
   }
 
-  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
   id<Dims> get_offset() const {
     static_assert(
         !(PropertyListT::template has_property<
