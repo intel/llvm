@@ -262,10 +262,6 @@ bool TargetTransformInfo::hasBranchDivergence() const {
   return TTIImpl->hasBranchDivergence();
 }
 
-bool TargetTransformInfo::useGPUDivergenceAnalysis() const {
-  return TTIImpl->useGPUDivergenceAnalysis();
-}
-
 bool TargetTransformInfo::isSourceOfDivergence(const Value *V) const {
   return TTIImpl->isSourceOfDivergence(V);
 }
@@ -1196,6 +1192,10 @@ TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
 
 bool TargetTransformInfo::hasArmWideBranch(bool Thumb) const {
   return TTIImpl->hasArmWideBranch(Thumb);
+}
+
+unsigned TargetTransformInfo::getMaxNumArgs() const {
+  return TTIImpl->getMaxNumArgs();
 }
 
 bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {

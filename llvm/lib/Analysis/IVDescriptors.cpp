@@ -973,6 +973,7 @@ bool RecurrenceDescriptor::isFixedOrderRecurrence(PHINode *Phi, Loop *TheLoop,
   // loop.
   // TODO: Consider extending this sinking to handle memory instructions.
 
+  SmallPtrSet<Value *, 8> Seen;
   BasicBlock *PhiBB = Phi->getParent();
   SmallVector<Instruction *, 8> WorkList;
   auto TryToPushSinkCandidate = [&](Instruction *SinkCandidate) {
@@ -980,6 +981,8 @@ bool RecurrenceDescriptor::isFixedOrderRecurrence(PHINode *Phi, Loop *TheLoop,
     if (Previous == SinkCandidate)
       return false;
 
+    if (!Seen.insert(SinkCandidate).second)
+      return true;
     if (DT->dominates(Previous,
                       SinkCandidate)) // We already are good w/o sinking.
       return true;

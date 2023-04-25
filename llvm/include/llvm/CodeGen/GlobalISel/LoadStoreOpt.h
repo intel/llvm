@@ -69,11 +69,11 @@ private:
   /// on the given MachineFunction.
   std::function<bool(const MachineFunction &)> DoNotRunPass;
 
-  MachineRegisterInfo *MRI;
-  const TargetLowering *TLI;
-  MachineFunction *MF;
-  AliasAnalysis *AA;
-  const LegalizerInfo *LI;
+  MachineRegisterInfo *MRI = nullptr;
+  const TargetLowering *TLI = nullptr;
+  MachineFunction *MF = nullptr;
+  AliasAnalysis *AA = nullptr;
+  const LegalizerInfo *LI = nullptr;
 
   MachineIRBuilder Builder;
 
@@ -145,7 +145,7 @@ private:
   /// that bit's value is legal. E.g. if bit 64 is set, then 64 bit scalar
   /// stores are legal.
   DenseMap<unsigned, BitVector> LegalStoreSizes;
-  bool IsPreLegalizer;
+  bool IsPreLegalizer = false;
   /// Contains instructions to be erased at the end of a block scan.
   SmallSet<MachineInstr *, 16> InstsToErase;
 

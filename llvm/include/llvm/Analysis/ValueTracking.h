@@ -239,6 +239,10 @@ struct KnownFPClass {
   std::optional<bool> SignBit;
 
 
+  bool isUnknown() const {
+    return KnownFPClasses == fcAllFlags && !SignBit;
+  }
+
   /// Return true if it's known this can never be a nan.
   bool isKnownNeverNaN() const {
     return (KnownFPClasses & fcNan) == fcNone;
@@ -247,6 +251,16 @@ struct KnownFPClass {
   /// Return true if it's known this can never be an infinity.
   bool isKnownNeverInfinity() const {
     return (KnownFPClasses & fcInf) == fcNone;
+  }
+
+  /// Return true if it's known this can never be +infinity.
+  bool isKnownNeverPosInfinity() const {
+    return (KnownFPClasses & fcPosInf) == fcNone;
+  }
+
+  /// Return true if it's known this can never be -infinity.
+  bool isKnownNeverNegInfinity() const {
+    return (KnownFPClasses & fcNegInf) == fcNone;
   }
 
   /// Return true if it's known this can never be a subnormal
@@ -780,7 +794,7 @@ void getGuaranteedWellDefinedOps(const Instruction *I,
 /// when I is executed with any operands which appear in KnownPoison holding
 /// a poison value at the point of execution.
 bool mustTriggerUB(const Instruction *I,
-                   const SmallSet<const Value *, 16> &KnownPoison);
+                   const SmallPtrSetImpl<const Value *> &KnownPoison);
 
 /// Return true if this function can prove that if Inst is executed
 /// and yields a poison value or undef bits, then that will trigger
@@ -1007,12 +1021,6 @@ std::optional<bool> isImpliedByDomCondition(CmpInst::Predicate Pred,
                                             const Value *LHS, const Value *RHS,
                                             const Instruction *ContextI,
                                             const DataLayout &DL);
-
-/// If Ptr1 is provably equal to Ptr2 plus a constant offset, return that
-/// offset. For example, Ptr1 might be &A[42], and Ptr2 might be &A[40]. In
-/// this case offset would be -8.
-std::optional<int64_t> isPointerOffset(const Value *Ptr1, const Value *Ptr2,
-                                       const DataLayout &DL);
 } // end namespace llvm
 
 #endif // LLVM_ANALYSIS_VALUETRACKING_H

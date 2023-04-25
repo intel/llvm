@@ -26,8 +26,15 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.fcntl.openat
 
     # sched.h entrypoints
+    libc.src.sched.sched_get_priority_max
+    libc.src.sched.sched_get_priority_min
     libc.src.sched.sched_getaffinity
+    libc.src.sched.sched_getparam
+    libc.src.sched.sched_getscheduler
+    libc.src.sched.sched_rr_get_interval
     libc.src.sched.sched_setaffinity
+    libc.src.sched.sched_setparam
+    libc.src.sched.sched_setscheduler
     libc.src.sched.sched_yield
 
     # string.h entrypoints
@@ -118,6 +125,8 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.stdio.remove
     libc.src.stdio.sprintf
     libc.src.stdio.snprintf
+    libc.src.stdio.fprintf
+    libc.src.stdio.printf
 
     # sys/mman.h entrypoints
     libc.src.sys.mman.madvise
@@ -200,6 +209,9 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.unistd.unlink
     libc.src.unistd.unlinkat
     libc.src.unistd.write
+
+    # wchar.h entrypoints
+    libc.src.wchar.wctob
 )
 
 set(TARGET_LIBM_ENTRYPOINTS
@@ -222,7 +234,6 @@ set(TARGET_LIBM_ENTRYPOINTS
     # math.h entrypoints
     libc.src.math.acosf
     libc.src.math.acoshf
-    libc.src.math.asin
     libc.src.math.asinf
     libc.src.math.asinhf
     libc.src.math.atanf
@@ -297,7 +308,6 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.nextafter
     libc.src.math.nextafterf
     libc.src.math.nextafterl
-    libc.src.math.pow
     libc.src.math.remainderf
     libc.src.math.remainder
     libc.src.math.remainderl
@@ -406,9 +416,10 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.stdio.funlockfile
     libc.src.stdio.fwrite
     libc.src.stdio.fwrite_unlocked
-    libc.src.stdio.fprintf
     libc.src.stdio.getc
     libc.src.stdio.getc_unlocked
+    libc.src.stdio.getchar
+    libc.src.stdio.getchar_unlocked
     libc.src.stdio.printf
     libc.src.stdio.sscanf
     libc.src.stdio.scanf

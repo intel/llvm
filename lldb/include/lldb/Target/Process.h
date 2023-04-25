@@ -386,6 +386,13 @@ public:
 
   static ConstString &GetStaticBroadcasterClass();
 
+  static constexpr llvm::StringRef AttachSynchronousHijackListenerName =
+      "lldb.internal.Process.AttachSynchronous.hijack";
+  static constexpr llvm::StringRef LaunchSynchronousHijackListenerName =
+      "lldb.internal.Process.LaunchSynchronous.hijack";
+  static constexpr llvm::StringRef ResumeSynchronousHijackListenerName =
+      "lldb.internal.Process.ResumeSynchronous.hijack";
+
   ConstString &GetBroadcasterClass() const override {
     return GetStaticBroadcasterClass();
   }
@@ -825,6 +832,7 @@ public:
   /// \see Thread:Suspend()
   Status Resume();
 
+  /// Resume a process, and wait for it to stop.
   Status ResumeSynchronous(Stream *stream);
 
   /// Halts a running process.
@@ -2160,12 +2168,17 @@ public:
   // process is hijacked and use_run_lock is true (the default), then this
   // function releases the run lock after the stop. Setting use_run_lock to
   // false will avoid this behavior.
+  // If we are waiting to stop that will return control to the user,
+  // then we also want to run SelectMostRelevantFrame, which is controlled
+  // by "select_most_relevant".
   lldb::StateType
   WaitForProcessToStop(const Timeout<std::micro> &timeout,
                        lldb::EventSP *event_sp_ptr = nullptr,
                        bool wait_always = true,
                        lldb::ListenerSP hijack_listener = lldb::ListenerSP(),
-                       Stream *stream = nullptr, bool use_run_lock = true);
+                       Stream *stream = nullptr, bool use_run_lock = true,
+                       SelectMostRelevant select_most_relevant =
+                           DoNoSelectMostRelevantFrame);
 
   uint32_t GetIOHandlerID() const { return m_iohandler_sync.GetValue(); }
 
@@ -2203,9 +2216,10 @@ public:
   /// \return
   ///     \b true if the event describes a process state changed event, \b false
   ///     otherwise.
-  static bool HandleProcessStateChangedEvent(const lldb::EventSP &event_sp,
-                                             Stream *stream,
-                                             bool &pop_process_io_handler);
+  static bool
+  HandleProcessStateChangedEvent(const lldb::EventSP &event_sp, Stream *stream,
+                                 SelectMostRelevant select_most_relevant,
+                                 bool &pop_process_io_handler);
 
   Event *PeekAtStateChangedEvents();
 

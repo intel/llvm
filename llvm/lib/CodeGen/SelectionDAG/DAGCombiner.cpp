@@ -548,7 +548,7 @@ namespace {
                                                     SDValue N0,
                                                     SDValue N1);
     SDValue reassociateOpsCommutative(unsigned Opc, const SDLoc &DL, SDValue N0,
-                                      SDValue N1);
+                                      SDValue N1, SDNodeFlags Flags);
     SDValue reassociateOps(unsigned Opc, const SDLoc &DL, SDValue N0,
                            SDValue N1, SDNodeFlags Flags);
     SDValue reassociateReduction(unsigned ResOpc, unsigned Opc, const SDLoc &DL,
@@ -1251,7 +1251,8 @@ bool DAGCombiner::reassociationCanBreakAddressingModePattern(unsigned Opc,
 // Helper for DAGCombiner::reassociateOps. Try to reassociate an expression
 // such as (Opc N0, N1), if \p N0 is the same kind of operation as \p Opc.
 SDValue DAGCombiner::reassociateOpsCommutative(unsigned Opc, const SDLoc &DL,
-                                               SDValue N0, SDValue N1) {
+                                               SDValue N0, SDValue N1,
+                                               SDNodeFlags Flags) {
   EVT VT = N0.getValueType();
 
   if (N0.getOpcode() != Opc)
@@ -1270,8 +1271,12 @@ SDValue DAGCombiner::reassociateOpsCommutative(unsigned Opc, const SDLoc &DL,
     if (TLI.isReassocProfitable(DAG, N0, N1)) {
       // Reassociate: (op (op x, c1), y) -> (op (op x, y), c1)
       //              iff (op x, c1) has one use
-      SDValue OpNode = DAG.getNode(Opc, SDLoc(N0), VT, N00, N1);
-      return DAG.getNode(Opc, DL, VT, OpNode, N01);
+      SDNodeFlags NewFlags;
+      if (N0.getOpcode() == ISD::ADD && N0->getFlags().hasNoUnsignedWrap() &&
+          Flags.hasNoUnsignedWrap())
+        NewFlags.setNoUnsignedWrap(true);
+      SDValue OpNode = DAG.getNode(Opc, SDLoc(N0), VT, N00, N1, NewFlags);
+      return DAG.getNode(Opc, DL, VT, OpNode, N01, NewFlags);
     }
   }
 
@@ -1329,9 +1334,9 @@ SDValue DAGCombiner::reassociateOps(unsigned Opc, const SDLoc &DL, SDValue N0,
     if (!Flags.hasAllowReassociation() || !Flags.hasNoSignedZeros())
       return SDValue();
 
-  if (SDValue Combined = reassociateOpsCommutative(Opc, DL, N0, N1))
+  if (SDValue Combined = reassociateOpsCommutative(Opc, DL, N0, N1, Flags))
     return Combined;
-  if (SDValue Combined = reassociateOpsCommutative(Opc, DL, N1, N0))
+  if (SDValue Combined = reassociateOpsCommutative(Opc, DL, N1, N0, Flags))
     return Combined;
   return SDValue();
 }
@@ -2820,7 +2825,10 @@ SDValue DAGCombiner::visitADDLike(SDNode *N) {
     // And if the target does not like this form then turn into:
     //   sub y, (xor x, -1)
     if (!TLI.preferIncOfAddToSubOfNot(VT) && N0.getOpcode() == ISD::ADD &&
-        N0.hasOneUse()) {
+        N0.hasOneUse() &&
+        // Limit this to after legalization if the add has wrap flags
+        (Level >= AfterLegalizeDAG || (!N->getFlags().hasNoUnsignedWrap() &&
+                                       !N->getFlags().hasNoSignedWrap()))) {
       SDValue Not = DAG.getNode(ISD::XOR, DL, VT, N0.getOperand(0),
                                 DAG.getAllOnesConstant(DL, VT));
       return DAG.getNode(ISD::SUB, DL, VT, N0.getOperand(1), Not);
@@ -3036,7 +3044,10 @@ SDValue DAGCombiner::visitADDLikeCommutative(SDValue N0, SDValue N1,
   // And if the target does not like this form then turn into:
   //   sub y, (xor x, -1)
   if (!TLI.preferIncOfAddToSubOfNot(VT) && N0.getOpcode() == ISD::ADD &&
-      N0.hasOneUse() && isOneOrOneSplat(N0.getOperand(1))) {
+      N0.hasOneUse() && isOneOrOneSplat(N0.getOperand(1)) &&
+      // Limit this to after legalization if the add has wrap flags
+      (Level >= AfterLegalizeDAG || (!N0->getFlags().hasNoUnsignedWrap() &&
+                                     !N0->getFlags().hasNoSignedWrap()))) {
     SDValue Not = DAG.getNode(ISD::XOR, DL, VT, N0.getOperand(0),
                               DAG.getAllOnesConstant(DL, VT));
     return DAG.getNode(ISD::SUB, DL, VT, N1, Not);
@@ -3056,6 +3067,15 @@ SDValue DAGCombiner::visitADDLikeCommutative(SDValue N0, SDValue N1,
       SDValue Sub = DAG.getNode(ISD::SUB, DL, VT, N1, N0.getOperand(1));
       return DAG.getNode(ISD::ADD, DL, VT, Sub, N0.getOperand(0));
     }
+  }
+
+  // add (mul x, C), x -> mul x, C+1
+  if (N0.getOpcode() == ISD::MUL && N0.getOperand(0) == N1 &&
+      isConstantOrConstantVector(N0.getOperand(1), /*NoOpaques=*/true) &&
+      N0.hasOneUse()) {
+    SDValue NewC = DAG.getNode(ISD::ADD, DL, VT, N0.getOperand(1),
+                               DAG.getConstant(1, DL, VT));
+    return DAG.getNode(ISD::MUL, DL, VT, N0.getOperand(0), NewC);
   }
 
   // If the target's bool is represented as 0/1, prefer to make this 'sub 0/1'
@@ -9930,9 +9950,18 @@ static SDValue combineShiftToMULH(SDNode *N, SelectionDAG &DAG,
   // we use mulhs. Othewise, zero extends (zext) use mulhu.
   unsigned MulhOpcode = IsSignExt ? ISD::MULHS : ISD::MULHU;
 
-  // Combine to mulh if mulh is legal/custom for the narrow type on the target.
-  if (!TLI.isOperationLegalOrCustom(MulhOpcode, NarrowVT))
-    return SDValue();
+  // Combine to mulh if mulh is legal/custom for the narrow type on the target
+  // or if it is a vector type then we could transform to an acceptable type and
+  // rely on legalization to split/combine the result.
+  if (NarrowVT.isVector()) {
+    EVT TransformVT = TLI.getTypeToTransformTo(*DAG.getContext(), NarrowVT);
+    if (TransformVT.getVectorElementType() != NarrowVT.getVectorElementType() ||
+        !TLI.isOperationLegalOrCustom(MulhOpcode, TransformVT))
+      return SDValue();
+  } else {
+    if (!TLI.isOperationLegalOrCustom(MulhOpcode, NarrowVT))
+      return SDValue();
+  }
 
   SDValue Result =
       DAG.getNode(MulhOpcode, DL, NarrowVT, LeftOp.getOperand(0), MulhRightOp);
@@ -16602,27 +16631,30 @@ SDValue DAGCombiner::visitFSQRT(SDNode *N) {
 
 /// copysign(x, fp_extend(y)) -> copysign(x, y)
 /// copysign(x, fp_round(y)) -> copysign(x, y)
+/// Operands to the functions are the type of X and Y respectively.
+static inline bool CanCombineFCOPYSIGN_EXTEND_ROUND(EVT XTy, EVT YTy) {
+  // Always fold no-op FP casts.
+  if (XTy == YTy)
+    return true;
+
+  // Do not optimize out type conversion of f128 type yet.
+  // For some targets like x86_64, configuration is changed to keep one f128
+  // value in one SSE register, but instruction selection cannot handle
+  // FCOPYSIGN on SSE registers yet.
+  if (YTy == MVT::f128)
+    return false;
+
+  return !YTy.isVector() || EnableVectorFCopySignExtendRound;
+}
+
 static inline bool CanCombineFCOPYSIGN_EXTEND_ROUND(SDNode *N) {
   SDValue N1 = N->getOperand(1);
-  if ((N1.getOpcode() == ISD::FP_EXTEND ||
-       N1.getOpcode() == ISD::FP_ROUND)) {
-    EVT N1VT = N1->getValueType(0);
-    EVT N1Op0VT = N1->getOperand(0).getValueType();
-
-    // Always fold no-op FP casts.
-    if (N1VT == N1Op0VT)
-      return true;
-
-    // Do not optimize out type conversion of f128 type yet.
-    // For some targets like x86_64, configuration is changed to keep one f128
-    // value in one SSE register, but instruction selection cannot handle
-    // FCOPYSIGN on SSE registers yet.
-    if (N1Op0VT == MVT::f128)
-      return false;
-
-    return !N1Op0VT.isVector() || EnableVectorFCopySignExtendRound;
-  }
-  return false;
+  if (N1.getOpcode() != ISD::FP_EXTEND &&
+      N1.getOpcode() != ISD::FP_ROUND)
+    return false;
+  EVT N1VT = N1->getValueType(0);
+  EVT N1Op0VT = N1->getOperand(0).getValueType();
+  return CanCombineFCOPYSIGN_EXTEND_ROUND(N1VT, N1Op0VT);
 }
 
 SDValue DAGCombiner::visitFCOPYSIGN(SDNode *N) {
@@ -16982,7 +17014,13 @@ SDValue DAGCombiner::visitFP_ROUND(SDNode *N) {
   }
 
   // fold (fp_round (copysign X, Y)) -> (copysign (fp_round X), Y)
-  if (N0.getOpcode() == ISD::FCOPYSIGN && N0->hasOneUse()) {
+  // Note: From a legality perspective, this is a two step transform.  First,
+  // we duplicate the fp_round to the arguments of the copysign, then we
+  // eliminate the fp_round on Y.  The second step requires an additional
+  // predicate to match the implementation above.
+  if (N0.getOpcode() == ISD::FCOPYSIGN && N0->hasOneUse() &&
+      CanCombineFCOPYSIGN_EXTEND_ROUND(VT,
+                                       N0.getValueType())) {
     SDValue Tmp = DAG.getNode(ISD::FP_ROUND, SDLoc(N0), VT,
                               N0.getOperand(0), N1);
     AddToWorklist(Tmp.getNode());
@@ -25633,8 +25671,6 @@ SDValue DAGCombiner::SimplifyVCastOp(SDNode *N, const SDLoc &DL) {
   unsigned Opcode = N->getOpcode();
 
   SDValue N0 = N->getOperand(0);
-  EVT SrcVT = N0->getValueType(0);
-  EVT SrcEltVT = SrcVT.getVectorElementType();
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
 
   // TODO: promote operation might be also good here?
@@ -25645,6 +25681,8 @@ SDValue DAGCombiner::SimplifyVCastOp(SDNode *N, const SDLoc &DL) {
        TLI.isExtractVecEltCheap(VT, Index0)) &&
       TLI.isOperationLegalOrCustom(Opcode, EltVT) &&
       TLI.preferScalarizeSplat(N)) {
+    EVT SrcVT = N0.getValueType();
+    EVT SrcEltVT = SrcVT.getVectorElementType();
     SDValue IndexC = DAG.getVectorIdxConstant(Index0, DL);
     SDValue Elt =
         DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, SrcEltVT, Src0, IndexC);

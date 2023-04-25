@@ -167,8 +167,8 @@ ProcessProperties::ProcessProperties(lldb_private::Process *process)
         std::make_shared<ProcessOptionValueProperties>(ConstString("process"));
     m_collection_sp->Initialize(g_process_properties);
     m_collection_sp->AppendProperty(
-        ConstString("thread"), ConstString("Settings specific to threads."),
-        true, Thread::GetGlobalProperties().GetValueProperties());
+        ConstString("thread"), "Settings specific to threads.", true,
+        Thread::GetGlobalProperties().GetValueProperties());
   } else {
     m_collection_sp =
         OptionValueProperties::CreateLocalCopy(Process::GetGlobalProperties());
@@ -181,8 +181,8 @@ ProcessProperties::ProcessProperties(lldb_private::Process *process)
       std::make_unique<ProcessExperimentalProperties>();
   m_collection_sp->AppendProperty(
       ConstString(Properties::GetExperimentalSettingsName()),
-      ConstString("Experimental settings - setting these won't produce "
-                  "errors if the setting is not present."),
+      "Experimental settings - setting these won't produce "
+      "errors if the setting is not present.",
       true, m_experimental_properties_up->GetValueProperties());
 }
 
@@ -644,10 +644,10 @@ void Process::SyncIOHandler(uint32_t iohandler_id,
   }
 }
 
-StateType Process::WaitForProcessToStop(const Timeout<std::micro> &timeout,
-                                        EventSP *event_sp_ptr, bool wait_always,
-                                        ListenerSP hijack_listener_sp,
-                                        Stream *stream, bool use_run_lock) {
+StateType Process::WaitForProcessToStop(
+    const Timeout<std::micro> &timeout, EventSP *event_sp_ptr, bool wait_always,
+    ListenerSP hijack_listener_sp, Stream *stream, bool use_run_lock,
+    SelectMostRelevant select_most_relevant) {
   // We can't just wait for a "stopped" event, because the stopped event may
   // have restarted the target. We have to actually check each event, and in
   // the case of a stopped event check the restarted flag on the event.
@@ -682,8 +682,8 @@ StateType Process::WaitForProcessToStop(const Timeout<std::micro> &timeout,
       *event_sp_ptr = event_sp;
 
     bool pop_process_io_handler = (hijack_listener_sp.get() != nullptr);
-    Process::HandleProcessStateChangedEvent(event_sp, stream,
-                                            pop_process_io_handler);
+    Process::HandleProcessStateChangedEvent(
+        event_sp, stream, select_most_relevant, pop_process_io_handler);
 
     switch (state) {
     case eStateCrashed:
@@ -712,9 +712,10 @@ StateType Process::WaitForProcessToStop(const Timeout<std::micro> &timeout,
   return state;
 }
 
-bool Process::HandleProcessStateChangedEvent(const EventSP &event_sp,
-                                             Stream *stream,
-                                             bool &pop_process_io_handler) {
+bool Process::HandleProcessStateChangedEvent(
+    const EventSP &event_sp, Stream *stream,
+    SelectMostRelevant select_most_relevant,
+    bool &pop_process_io_handler) {
   const bool handle_pop = pop_process_io_handler;
 
   pop_process_io_handler = false;
@@ -896,7 +897,8 @@ bool Process::HandleProcessStateChangedEvent(const EventSP &event_sp,
             return false;
 
           const bool only_threads_with_stop_reason = true;
-          const uint32_t start_frame = thread_sp->GetSelectedFrameIndex();
+          const uint32_t start_frame =
+              thread_sp->GetSelectedFrameIndex(select_most_relevant);
           const uint32_t num_frames = 1;
           const uint32_t num_frames_with_source = 1;
           const bool stop_format = true;
@@ -1355,8 +1357,6 @@ Status Process::Resume() {
   return error;
 }
 
-static const char *g_resume_sync_name = "lldb.Process.ResumeSynchronous.hijack";
-
 Status Process::ResumeSynchronous(Stream *stream) {
   Log *log(GetLog(LLDBLog::State | LLDBLog::Process));
   LLDB_LOGF(log, "Process::ResumeSynchronous -- locking run lock");
@@ -1367,13 +1367,14 @@ Status Process::ResumeSynchronous(Stream *stream) {
   }
 
   ListenerSP listener_sp(
-      Listener::MakeListener(g_resume_sync_name));
+      Listener::MakeListener(ResumeSynchronousHijackListenerName.data()));
   HijackProcessEvents(listener_sp);
 
   Status error = PrivateResume();
   if (error.Success()) {
     StateType state =
-        WaitForProcessToStop(std::nullopt, nullptr, true, listener_sp, stream);
+        WaitForProcessToStop(std::nullopt, nullptr, true, listener_sp, stream,
+                             true /* use_run_lock */, SelectMostRelevantFrame);
     const bool must_be_alive =
         false; // eStateExited is ok, so this must be false
     if (!StateIsStoppedState(state, must_be_alive))
@@ -1393,9 +1394,8 @@ Status Process::ResumeSynchronous(Stream *stream) {
 
 bool Process::StateChangedIsExternallyHijacked() {
   if (IsHijackedForEvent(eBroadcastBitStateChanged)) {
-    const char *hijacking_name = GetHijackingListenerName();
-    if (hijacking_name &&
-        strcmp(hijacking_name, g_resume_sync_name))
+    llvm::StringRef hijacking_name = GetHijackingListenerName();
+    if (!hijacking_name.starts_with("lldb.internal"))
       return true;
   }
   return false;
@@ -1403,9 +1403,8 @@ bool Process::StateChangedIsExternallyHijacked() {
 
 bool Process::StateChangedIsHijackedForSynchronousResume() {
   if (IsHijackedForEvent(eBroadcastBitStateChanged)) {
-    const char *hijacking_name = GetHijackingListenerName();
-    if (hijacking_name &&
-        strcmp(hijacking_name, g_resume_sync_name) == 0)
+    llvm::StringRef hijacking_name = GetHijackingListenerName();
+    if (hijacking_name == ResumeSynchronousHijackListenerName)
       return true;
   }
   return false;
@@ -2653,7 +2652,8 @@ Status Process::LoadCore() {
     // Wait for a stopped event since we just posted one above...
     lldb::EventSP event_sp;
     StateType state =
-        WaitForProcessToStop(std::nullopt, &event_sp, true, listener_sp);
+        WaitForProcessToStop(std::nullopt, &event_sp, true, listener_sp,
+                             nullptr, true, SelectMostRelevantFrame);
 
     if (!StateIsStoppedState(state, false)) {
       Log *log = GetLog(LLDBLog::Process);
@@ -3158,9 +3158,13 @@ Status Process::Halt(bool clear_thread_plans, bool use_run_lock) {
   }
 
   // Wait for the process halt timeout seconds for the process to stop.
-  StateType state =
-      WaitForProcessToStop(GetInterruptTimeout(), &event_sp, true,
-                           halt_listener_sp, nullptr, use_run_lock);
+  // If we are going to use the run lock, that means we're stopping out to the
+  // user, so we should also select the most relevant frame.
+  SelectMostRelevant select_most_relevant =
+      use_run_lock ? SelectMostRelevantFrame : DoNoSelectMostRelevantFrame;
+  StateType state = WaitForProcessToStop(GetInterruptTimeout(), &event_sp, true,
+                                         halt_listener_sp, nullptr,
+                                         use_run_lock, select_most_relevant);
   RestoreProcessEvents();
 
   if (state == eStateInvalid || !event_sp) {
@@ -4760,10 +4764,11 @@ Process::RunThreadPlan(ExecutionContext &exe_ctx,
 
   // Save the thread & frame from the exe_ctx for restoration after we run
   const uint32_t thread_idx_id = thread->GetIndexID();
-  StackFrameSP selected_frame_sp = thread->GetSelectedFrame();
+  StackFrameSP selected_frame_sp =
+      thread->GetSelectedFrame(DoNoSelectMostRelevantFrame);
   if (!selected_frame_sp) {
     thread->SetSelectedFrame(nullptr);
-    selected_frame_sp = thread->GetSelectedFrame();
+    selected_frame_sp = thread->GetSelectedFrame(DoNoSelectMostRelevantFrame);
     if (!selected_frame_sp) {
       diagnostic_manager.Printf(
           eDiagnosticSeverityError,
@@ -4795,7 +4800,9 @@ Process::RunThreadPlan(ExecutionContext &exe_ctx,
   StackID selected_stack_id;
   if (selected_thread_sp) {
     selected_tid = selected_thread_sp->GetIndexID();
-    selected_stack_id = selected_thread_sp->GetSelectedFrame()->GetStackID();
+    selected_stack_id =
+        selected_thread_sp->GetSelectedFrame(DoNoSelectMostRelevantFrame)
+            ->GetStackID();
   } else {
     selected_tid = LLDB_INVALID_THREAD_ID;
   }

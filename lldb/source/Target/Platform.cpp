@@ -1815,8 +1815,9 @@ lldb::ProcessSP Platform::DoConnectProcess(llvm::StringRef connect_url,
                                      nullptr);
     process_sp->RestoreProcessEvents();
     bool pop_process_io_handler = false;
-    Process::HandleProcessStateChangedEvent(event_sp, stream,
-                                            pop_process_io_handler);
+    // This is a user-level stop, so we allow recognizers to select frames.
+    Process::HandleProcessStateChangedEvent(
+        event_sp, stream, SelectMostRelevantFrame, pop_process_io_handler);
   }
 
   return process_sp;
@@ -1893,6 +1894,12 @@ size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
     static const uint8_t g_hex_opcode[] = {0x0d, 0x00, 0x00, 0x00};
     trap_opcode = g_hex_opcode;
     trap_opcode_size = sizeof(g_hex_opcode);
+  } break;
+
+  case llvm::Triple::msp430: {
+    static const uint8_t g_msp430_opcode[] = {0x43, 0x43};
+    trap_opcode = g_msp430_opcode;
+    trap_opcode_size = sizeof(g_msp430_opcode);
   } break;
 
   case llvm::Triple::systemz: {

@@ -794,7 +794,8 @@ static bool computeIterationGraph(CodegenEnv &env, SortMask mask,
       const TensorId tid = env.makeTensorId(t.getOperandNumber());
       for (LoopId i = 0; i < numLoops; i++) {
         const auto dltI = env.dlt(tid, i);
-        if (isCompressedDLT(dltI) || isSingletonDLT(dltI)) {
+        if (isCompressedDLT(dltI) || isCompressedWithHiDLT(dltI) ||
+            isSingletonDLT(dltI)) {
           for (LoopId j = 0; j < numLoops; j++)
             if (isUndefDLT(env.dlt(tid, j))) {
               adjM[i][j] = true;
@@ -1410,7 +1411,8 @@ static scf::IfOp genIf(CodegenEnv &env, OpBuilder &builder, LoopId ldx,
           DimLevelType dlt, bool /*unused*/) {
         assert(ldx == env.merger().loop(b));
         Value clause;
-        if (isCompressedDLT(dlt) || isSingletonDLT(dlt)) {
+        if (isCompressedDLT(dlt) || isSingletonDLT(dlt) ||
+            isCompressedWithHiDLT(dlt)) {
           assert(lvl.has_value());
           const Value crd = env.emitter().getCoords()[tid][*lvl];
           const Value lvar = env.getLoopVar(ldx);
@@ -1484,11 +1486,13 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, ExprId exp,
                                            std::optional<Level> lvl,
                                            DimLevelType dlt, bool isIdxReduc) {
     assert(env.merger().loop(b) == idx);
-    // FIXME: Dense index reduction can reuse the universal index as well.
-    if (!isIdxReduc && (isDenseDLT(dlt) || isUndefDLT(dlt))) {
+    if (isDenseDLT(dlt) || isUndefDLT(dlt))
       needsUniv = true;
-    } else {
-      // sparse/singleton levels.
+    if (isCompressedDLT(dlt) || isSingletonDLT(dlt) ||
+        isCompressedWithHiDLT(dlt) || isIdxReduc) {
+      // Only when this is a index reduction loop, can the dlt be undefined.
+      assert(!isUndefDLT(dlt) || isIdxReduc);
+      // sparse/singleton levels, or a dense/sparse index reduction loop.
       tids.push_back(tid);
       lvls.push_back(*lvl);
     }
@@ -1581,7 +1585,7 @@ static bool translateBitsToTidLvlPairs(
           tids.push_back(tid);
           lvls.push_back(*lvl);
           numloopCond++;
-        } else if (isDenseDLT(dlt)) {
+        } else if (isDenseDLT(dlt) || isIdxReduc) {
           tids.push_back(tid);
           lvls.push_back(*lvl);
         } else {

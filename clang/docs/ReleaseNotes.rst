@@ -110,6 +110,10 @@ C Language Changes
 ------------------
 - Support for outputs from asm goto statements along indirect edges has been
   added. (`#53562 <https://github.com/llvm/llvm-project/issues/53562>`_)
+- Fixed a bug that prevented initialization of an ``_Atomic``-qualified pointer
+  from a null pointer constant.
+- Fixed a bug that prevented casting to an ``_Atomic``-qualified type.
+  (`#39596 <https://github.com/llvm/llvm-project/issues/39596>`_)
 
 C2x Feature Support
 ^^^^^^^^^^^^^^^^^^^
@@ -150,6 +154,9 @@ Non-comprehensive list of changes in this release
 - Clang now supports expressions in ``#pragma clang __debug dump``.
 - Clang now supports declaration of multi-dimensional arrays with
   ``__declspec(property)``.
+- A new builtin type trait ``__is_trivially_equaltiy_comparable`` has been added,
+  which checks whether comparing two instances of a type is equivalent to
+  ``memcmp(&lhs, &rhs, sizeof(T)) == 0``.
 
 New Compiler Flags
 ------------------
@@ -221,6 +228,9 @@ Improvements to Clang's diagnostics
 - Clang's "static assertion failed" diagnostic now points to the static assertion
   expression instead of pointing to the ``static_assert`` token.
   (`#61951 <https://github.com/llvm/llvm-project/issues/61951>`_)
+- ``-Wformat`` now recognizes ``%lb`` for the ``printf``/``scanf`` family of
+  functions.
+  (`#62247: <https://github.com/llvm/llvm-project/issues/62247>`_).
 
 Bug Fixes in This Version
 -------------------------
@@ -287,7 +297,7 @@ Bug Fixes in This Version
 - Fix crash when handling nested immediate invocations in initializers of global
   variables.
   (`#58207 <https://github.com/llvm/llvm-project/issues/58207>`_)
-- Fix crash when generating code coverage information for `PseudoObjectExpr` in 
+- Fix crash when generating code coverage information for `PseudoObjectExpr` in
   Clang AST.
   (`#45481 <https://github.com/llvm/llvm-project/issues/45481>`_)
 - Fix the assertion hit when a template consteval function appears in a nested
@@ -300,7 +310,17 @@ Bug Fixes in This Version
 - Work around with a clang coverage crash which happens when visiting 
   expressions/statements with invalid source locations in non-assert builds. 
   Assert builds may still see assertions triggered from this.
+- Fix a failed assertion due to an invalid source location when trying to form
+  a coverage report for an unresolved constructor expression.
   (`#62105 <https://github.com/llvm/llvm-project/issues/62105>`_)
+- Fix defaulted equality operator so that it does not attempt to compare unnamed
+  bit-fields. This fixes:
+  (`#61355 <https://github.com/llvm/llvm-project/issues/61335>`_) and
+  (`#61417 <https://github.com/llvm/llvm-project/issues/61417>`_)
+- Fix crash after suggesting typo correction to constexpr if condition.
+  (`#61885 <https://github.com/llvm/llvm-project/issues/61885>`_)
+- Clang constexpr evaluator now treats comparison of [[gnu::weak]]-attributed
+  member pointer as an invalid expression.
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

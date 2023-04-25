@@ -573,7 +573,7 @@ cc_library(
 )
 
 cc_library(
-    name = "LLVMTableGenGlobalISel",
+    name = "TableGenGlobalISel",
     srcs = glob([
         "utils/TableGen/GlobalISel/*.cpp",
     ]) + [
@@ -617,9 +617,9 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
-        ":LLVMTableGenGlobalISel",
         ":Support",
         ":TableGen",
+        ":TableGenGlobalISel",
         ":config",
         ":llvm-tblgen-headers",
     ],
@@ -1038,7 +1038,6 @@ cc_library(
         ],
     ) + [
         "include/llvm-c/Analysis.h",
-        "include/llvm-c/Initialization.h",
     ],
     copts = llvm_copts,
     textual_hdrs = glob([
@@ -1218,7 +1217,6 @@ cc_library(
     deps = [
         ":Analysis",
         ":Core",
-        ":InstCombineTableGen",
         ":Support",
         ":Target",
         ":TransformUtils",
@@ -1777,6 +1775,7 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-searchable-tables", "lib/Target/AMDGPU/AMDGPUGenSearchableTables.inc"),
         ],
         "tbl_deps": [
+            ":InstCombineTableGen",
             ":amdgpu_isel_target_gen",
             ":r600_target_gen",
         ],

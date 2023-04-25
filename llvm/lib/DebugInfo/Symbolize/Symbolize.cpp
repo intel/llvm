@@ -632,7 +632,8 @@ LLVMSymbolizer::getOrCreateModuleInfo(ArrayRef<uint8_t> BuildID) {
   std::string Path;
   if (!getOrFindDebugBinary(BuildID, Path)) {
     return createStringError(errc::no_such_file_or_directory,
-                             "could not find build ID");
+                             Twine("could not find build ID '") +
+                                 toHex(BuildID) + "'");
   }
   return getOrCreateModuleInfo(Path);
 }
@@ -686,7 +687,7 @@ LLVMSymbolizer::DemangleName(const std::string &Name,
     // Only do MSVC C++ demangling on symbols starting with '?'.
     int status = 0;
     char *DemangledName = microsoftDemangle(
-        Name.c_str(), nullptr, nullptr, nullptr, &status,
+        Name.c_str(), nullptr, &status,
         MSDemangleFlags(MSDF_NoAccessSpecifier | MSDF_NoCallingConvention |
                         MSDF_NoMemberType | MSDF_NoReturnType));
     if (status != 0)

@@ -89,8 +89,6 @@ public:
 
   bool hasBranchDivergence() const { return false; }
 
-  bool useGPUDivergenceAnalysis() const { return false; }
-
   bool isSourceOfDivergence(const Value *V) const { return false; }
 
   bool isAlwaysUniform(const Value *V) const { return false; }
@@ -879,6 +877,8 @@ public:
   }
 
   bool hasArmWideBranch(bool) const { return false; }
+
+  unsigned getMaxNumArgs() const { return UINT_MAX; }
 
 protected:
   // Obtain the minimum required size to hold the value (without the sign)
