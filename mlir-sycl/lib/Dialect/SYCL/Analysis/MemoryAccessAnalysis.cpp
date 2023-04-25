@@ -23,7 +23,8 @@ using namespace mlir::sycl;
 //===----------------------------------------------------------------------===//
 
 /// Determine whether a value is an known integer value.
-static Optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+static std::optional<APInt> getConstIntegerValue(Value val,
+                                                 DataFlowSolver &solver) {
   if (!val.getType().isIntOrIndex())
     return std::nullopt;
 
@@ -42,7 +43,7 @@ static Optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
 
 /// Determine whether a value is equal to a given integer constant.
 static bool isEqualTo(Value val, int constant, DataFlowSolver &solver) {
-  Optional<APInt> optConstVal = getConstIntegerValue(val, solver);
+  std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
   if (!optConstVal.has_value())
     return false;
 
@@ -64,17 +65,17 @@ static bool isNegativeOne(Value val, DataFlowSolver &solver) {
 }
 
 static bool isStrictlyPositive(Value val, DataFlowSolver &solver) {
-  Optional<APInt> constValue = getConstIntegerValue(val, solver);
+  std::optional<APInt> constValue = getConstIntegerValue(val, solver);
   return (constValue.has_value() && constValue->isStrictlyPositive());
 }
 
 static bool isGreaterThanOne(Value val, DataFlowSolver &solver) {
-  Optional<APInt> optConstVal = getConstIntegerValue(val, solver);
+  std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
   return (optConstVal.has_value() && optConstVal->sgt(1));
 }
 
 static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
-  Optional<APInt> optConstVal = getConstIntegerValue(val, solver);
+  std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
   return (optConstVal.has_value() && optConstVal->slt(-1));
 }
 
@@ -220,7 +221,7 @@ bool MemoryAccessMatrix::isDiagonal(DataFlowSolver &solver) const {
   if (!isSquare())
     return false;
 
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isOnDiagonal = (row == col);
@@ -232,6 +233,7 @@ bool MemoryAccessMatrix::isDiagonal(DataFlowSolver &solver) const {
       if (!isOnDiagonal && !::isZero(val, solver))
         return false;
     }
+  }
 
   return true;
 }
@@ -240,20 +242,19 @@ bool MemoryAccessMatrix::isIdentity(DataFlowSolver &solver) const {
   if (!isSquare())
     return false;
 
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isOnDiagonal = (row == col);
 
       // All values on the diagonal must be one.
-      if (isOnDiagonal && !isOne(val, solver)) {
+      if (isOnDiagonal && !isOne(val, solver))
         return false;
-      }
-
       // All other values must be zero.
       if (!isOnDiagonal && !::isZero(val, solver))
         return false;
     }
+  }
 
   return true;
 }
@@ -262,7 +263,7 @@ bool MemoryAccessMatrix::isLowerTriangular(DataFlowSolver &solver) const {
   if (!isSquare())
     return false;
 
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isAboveDiagonal = (col > row);
@@ -274,6 +275,7 @@ bool MemoryAccessMatrix::isLowerTriangular(DataFlowSolver &solver) const {
       if (!isAboveDiagonal && ::isZero(val, solver))
         return false;
     }
+  }
 
   return true;
 }
@@ -282,7 +284,7 @@ bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
   if (!isSquare())
     return false;
 
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isBelowDiagonal = (col < row);
@@ -294,6 +296,7 @@ bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
       if (!isBelowDiagonal && ::isZero(val, solver))
         return false;
     }
+  }
 
   return true;
 }
@@ -309,7 +312,7 @@ bool MemoryAccessMatrix::hasReverseLinearAccessPattern(
 
   // Ensure the matrix is diagonal with all non-zero elements equal to one
   // except the last one which must be equal to negative one.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isOnDiagonal = (col == row);
@@ -325,6 +328,7 @@ bool MemoryAccessMatrix::hasReverseLinearAccessPattern(
           return false;
       }
     }
+  }
 
   return true;
 }
@@ -336,7 +340,7 @@ bool MemoryAccessMatrix::hasLinearOverlappedAccessPattern(
 
   // Ensure the matrix is lower triangular with all non-zero elements equal to
   // one.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isAboveDiagonal = (col > row);
@@ -346,6 +350,7 @@ bool MemoryAccessMatrix::hasLinearOverlappedAccessPattern(
       if (!isAboveDiagonal && !isOne(val, solver))
         return false;
     }
+  }
 
   return true;
 }
@@ -358,7 +363,7 @@ bool MemoryAccessMatrix::hasReverseLinearOverlappedAccessPattern(
   // Ensure the matrix is lower triangular with all non-zero elements equal to
   // one except the last one on the diagonal which must be equal to negative
   // one.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isAboveDiagonal = (col > row);
@@ -374,6 +379,7 @@ bool MemoryAccessMatrix::hasReverseLinearOverlappedAccessPattern(
           return false;
       }
     }
+  }
 
   return true;
 }
@@ -384,7 +390,7 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
 
   // Ensure the matrix is diagonal with all elements equal to one except the
   // last one which must be greater than one.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isOnDiagonal = (col == row);
@@ -400,6 +406,7 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
           return false;
       }
     }
+  }
 
   return true;
 }
@@ -411,7 +418,7 @@ bool MemoryAccessMatrix::hasReverseStridedAccessPattern(
 
   // Ensure the matrix is diagonal with all elements equal to one except the
   // last one which must be smaller than negative one.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isOnDiagonal = (col == row);
@@ -427,6 +434,7 @@ bool MemoryAccessMatrix::hasReverseStridedAccessPattern(
           return false;
       }
     }
+  }
 
   return true;
 }
@@ -438,7 +446,7 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
 
   // Ensure the matrix is lower triangular with all non-zero elements equal to
   // one except the last one on the diagonal which must be strictly positive.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isAboveDiagonal = (col > row);
@@ -454,6 +462,7 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
           return false;
       }
     }
+  }
 
   return true;
 }
@@ -466,7 +475,7 @@ bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern(
   // Ensure the matrix is lower triangular with all non-zero elements equal to
   // one except the last one on the diagonal which must be smaller than
   // negative one.
-  for (size_t row = 0; row < nRows; ++row)
+  for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
       Value val = at(row, col);
       bool isAboveDiagonal = (col > row);
@@ -482,11 +491,12 @@ bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern(
           return false;
       }
     }
+  }
 
   return true;
 }
 
-Optional<APInt>
+std::optional<APInt>
 MemoryAccessMatrix::getConstIntegerValue(size_t row, size_t column,
                                          DataFlowSolver &solver) const {
   Value val = at(row, column);
@@ -565,7 +575,7 @@ bool OffsetVector::isZeroWithLastElementEqualTo(int k,
   return true;
 }
 
-Optional<APInt>
+std::optional<APInt>
 OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
   Value val = at(row);
   return ::getConstIntegerValue(val, solver);
@@ -576,13 +586,11 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 //===----------------------------------------------------------------------===//
 
 template <typename OpTy>
-MemoryAccess<OpTy>::MemoryAccess(const OpTy &accessOp,
-                                 MemoryAccessMatrix &&matrix,
+MemoryAccess<OpTy>::MemoryAccess(OpTy accessOp, MemoryAccessMatrix &&matrix,
                                  OffsetVector &&offsets)
     : accessOp(accessOp), matrix(std::move(matrix)),
       offsets(std::move(offsets)) {
-  static_assert(std::is_same<AffineLoadOp, OpTy>::value ||
-                    std::is_same<AffineStoreOp, OpTy>::value,
+  static_assert(llvm::is_one_of<OpTy, AffineLoadOp, AffineStoreOp>::value,
                 "Expecting an affine load or store operation");
 }
 

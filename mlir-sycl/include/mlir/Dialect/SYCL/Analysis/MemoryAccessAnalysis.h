@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
 #define MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -278,8 +279,8 @@ public:
 private:
   /// Return the value at row \p row and column \p column if it is an integer
   /// constant and std::nullopt otherwise.
-  Optional<APInt> getConstIntegerValue(size_t row, size_t column,
-                                       DataFlowSolver &solver) const;
+  std::optional<APInt> getConstIntegerValue(size_t row, size_t column,
+                                            DataFlowSolver &solver) const;
 
 private:
   size_t nRows, nColumns;
@@ -367,8 +368,8 @@ public:
 private:
   /// Return the element at row \p row if it is a integer constant or
   /// std::nullopt otherwise.
-  Optional<APInt> getConstIntegerValue(size_t row,
-                                       DataFlowSolver &solver) const;
+  std::optional<APInt> getConstIntegerValue(size_t row,
+                                            DataFlowSolver &solver) const;
 
 private:
   size_t nRows;
@@ -399,10 +400,10 @@ template <typename OpTy> class MemoryAccess {
 public:
   MemoryAccess() = delete;
 
-  MemoryAccess(const OpTy &accessOp, MemoryAccessMatrix &&matrix,
+  MemoryAccess(OpTy accessOp, MemoryAccessMatrix &&matrix,
                OffsetVector &&offsets);
 
-  const OpTy &getAccessOp() const { return accessOp; }
+  OpTy getAccessOp() const { return accessOp; }
 
   const MemoryAccessMatrix &getAccessMatrix() const { return matrix; }
 
@@ -412,7 +413,7 @@ public:
   MemoryAccessPattern classifyMemoryAccess(DataFlowSolver &solver) const;
 
 private:
-  const OpTy &accessOp;      /// The array load or store operation.
+  OpTy accessOp;             /// The array load or store operation.
   MemoryAccessMatrix matrix; /// The memory access matrix.
   OffsetVector offsets;      /// The offset vector.
 };
