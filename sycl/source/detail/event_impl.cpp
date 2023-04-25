@@ -355,7 +355,7 @@ pi_native_handle event_impl::getNative() {
     auto TempContext = MContext.get()->getHandleRef();
     Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
-  if (Plugin.getBackend() == backend::opencl)
+  if (MContext->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
@@ -430,7 +430,8 @@ void event_impl::setSubmissionTime() {
     try {
       MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
     } catch (feature_not_supported &e) {
-      throw sycl::exception(make_error_code(errc::profiling),
+      throw sycl::exception(
+          make_error_code(errc::profiling),
           std::string("Unable to get command group submission time: ") +
               e.what());
     }

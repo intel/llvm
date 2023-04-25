@@ -10,9 +10,6 @@
 // REQUIRES: gpu
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
-// TODO: Re-enable this test on Windows after the following issue gets fixed:
-// https://github.com/intel/llvm/issues/8934
-// UNSUPPORTED: windows
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // UNSUPPORTED: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out

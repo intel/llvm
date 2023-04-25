@@ -66,7 +66,6 @@ int main(void) {
             __asm__("add (M1, 16) %0 %1 %2"
                     : "=rw"(vc.data_ref())
                     : "rw"(va.data()), "rw"(vb.data()));
-            vc.commit();
 #else
                     vc = va+vb;
 #endif
