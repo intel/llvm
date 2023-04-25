@@ -562,6 +562,7 @@ createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
                               Location loc) {
   const auto accTy =
       cast<sycl::AccessorType>(accessor.getType().getElementType());
+  assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
   const auto MT = cast<MemRefType>(
       cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
   return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
