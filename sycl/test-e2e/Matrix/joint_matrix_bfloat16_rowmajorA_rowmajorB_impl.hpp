@@ -123,7 +123,7 @@ int main() {
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      if ((fabs(C[i][j]) - fabs(D[i][j])) > BF16_EPSILON)
+      if (fabs(C[i][j] - D[i][j]) > BF16_EPSILON)
         res = false;
     }
   }
