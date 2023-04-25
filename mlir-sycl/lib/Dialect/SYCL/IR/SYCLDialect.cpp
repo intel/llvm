@@ -215,6 +215,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
 
 #define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.cpp.inc"
+#undef GET_ATTRDEF_CLASSES
 
 //===----------------------------------------------------------------------===//
 // SYCL Dialect
@@ -239,6 +240,7 @@ void mlir::sycl::SYCLDialect::initialize() {
   mlir::Dialect::addAttributes<
 #define GET_ATTRDEF_LIST
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.cpp.inc"
+#undef GET_ATTRDEF_LIST
       >();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
