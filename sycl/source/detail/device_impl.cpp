@@ -444,10 +444,9 @@ bool device_impl::has(aspect Aspect) const {
             &async_barrier_supported, nullptr) == PI_SUCCESS;
     return call_successful && async_barrier_supported;
   }
-  default:
-    throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_ERROR_INVALID_DEVICE);
   }
+  throw runtime_error("This device aspect has not been implemented yet.",
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
