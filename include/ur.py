@@ -1024,17 +1024,6 @@ class ur_sampler_desc_t(Structure):
     ]
 
 ###############################################################################
-## @brief USM memory property flags
-class ur_usm_flags_v(IntEnum):
-    BIAS_CACHED = UR_BIT(0)                         ## Allocation should be cached
-    BIAS_UNCACHED = UR_BIT(1)                       ## Allocation should not be cached
-
-class ur_usm_flags_t(c_int):
-    def __str__(self):
-        return hex(self.value)
-
-
-###############################################################################
 ## @brief USM host memory property flags
 class ur_usm_host_mem_flags_v(IntEnum):
     INITIAL_PLACEMENT = UR_BIT(0)                   ## Optimize shared allocation for first access on the host
@@ -1130,7 +1119,6 @@ class ur_usm_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("flags", ur_usm_flags_t),                                      ## [in] memory allocation flags.
         ("hints", ur_usm_advice_flags_t),                               ## [in] Memory advice hints
         ("align", c_ulong)                                              ## [in] alignment of the USM memory object
                                                                         ## Must be zero or a power of 2.

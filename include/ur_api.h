@@ -2322,20 +2322,6 @@ urSamplerCreateWithNativeHandle(
 #pragma region usm
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief USM memory property flags
-typedef uint32_t ur_usm_flags_t;
-typedef enum ur_usm_flag_t {
-    UR_USM_FLAG_BIAS_CACHED = UR_BIT(0),   ///< Allocation should be cached
-    UR_USM_FLAG_BIAS_UNCACHED = UR_BIT(1), ///< Allocation should not be cached
-    /// @cond
-    UR_USM_FLAG_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_usm_flag_t;
-/// @brief Bit Mask for validating ur_usm_flags_t
-#define UR_USM_FLAGS_MASK 0xfffffffc
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief USM host memory property flags
 typedef uint32_t ur_usm_host_mem_flags_t;
 typedef enum ur_usm_host_mem_flag_t {
@@ -2441,7 +2427,6 @@ typedef struct ur_usm_pool_handle_t_ *ur_usm_pool_handle_t;
 typedef struct ur_usm_desc_t {
     ur_structure_type_t stype;   ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
     const void *pNext;           ///< [in][optional] pointer to extension-specific structure
-    ur_usm_flags_t flags;        ///< [in] memory allocation flags.
     ur_usm_advice_flags_t hints; ///< [in] Memory advice hints
     uint32_t align;              ///< [in] alignment of the USM memory object
                                  ///< Must be zero or a power of 2.

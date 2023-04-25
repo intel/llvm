@@ -59,7 +59,6 @@ inline void serializeTaggedTyped_ur_sampler_info_t(std::ostream &os,
                                                    const void *ptr,
                                                    enum ur_sampler_info_t value,
                                                    size_t size);
-inline void serializeFlag_ur_usm_flags_t(std::ostream &os, ur_usm_flags_t flag);
 inline void serializeFlag_ur_usm_host_mem_flags_t(std::ostream &os,
                                                   ur_usm_host_mem_flags_t flag);
 inline void
@@ -196,7 +195,6 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_sampler_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, enum ur_usm_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_host_mem_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -4941,59 +4939,6 @@ inline std::ostream &operator<<(std::ostream &os,
     os << "}";
     return os;
 }
-inline std::ostream &operator<<(std::ostream &os, enum ur_usm_flag_t value) {
-    switch (value) {
-
-    case UR_USM_FLAG_BIAS_CACHED:
-        os << "UR_USM_FLAG_BIAS_CACHED";
-        break;
-
-    case UR_USM_FLAG_BIAS_UNCACHED:
-        os << "UR_USM_FLAG_BIAS_UNCACHED";
-        break;
-    default:
-        os << "unknown enumerator";
-        break;
-    }
-    return os;
-}
-namespace ur_params {
-inline void serializeFlag_ur_usm_flags_t(std::ostream &os,
-                                         ur_usm_flags_t flag) {
-    uint32_t val = flag;
-    bool first = true;
-
-    if ((val & UR_USM_FLAG_BIAS_CACHED) == (uint32_t)UR_USM_FLAG_BIAS_CACHED) {
-        val ^= (uint32_t)UR_USM_FLAG_BIAS_CACHED;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_USM_FLAG_BIAS_CACHED;
-    }
-
-    if ((val & UR_USM_FLAG_BIAS_UNCACHED) ==
-        (uint32_t)UR_USM_FLAG_BIAS_UNCACHED) {
-        val ^= (uint32_t)UR_USM_FLAG_BIAS_UNCACHED;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_USM_FLAG_BIAS_UNCACHED;
-    }
-    if (val != 0) {
-        std::bitset<32> bits(val);
-        if (!first) {
-            os << " | ";
-        }
-        os << "unknown bit flags " << bits;
-    } else if (first) {
-        os << "0";
-    }
-}
-} // namespace ur_params
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_host_mem_flag_t value) {
     switch (value) {
@@ -5548,11 +5493,6 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ".pNext = ";
 
     ur_params::serializeStruct(os, (params.pNext));
-
-    os << ", ";
-    os << ".flags = ";
-
-    ur_params::serializeFlag_ur_usm_flags_t(os, (params.flags));
 
     os << ", ";
     os << ".hints = ";
