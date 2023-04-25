@@ -377,7 +377,7 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
-                                          const detail::plugin &Plugin) {
+                                          const detail::plugin &) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
