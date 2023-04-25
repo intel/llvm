@@ -197,11 +197,6 @@ void KernelDisjointSpecializationPass::runOnOperation() {
     setInnerDisjointAttribute(clonedFunc, isCandidateArg);
 
     for (Operation *op : userMap.getUsers(func)) {
-      // Due to temporary condition to only allow function called directly by a
-      // GPU kernel.
-      assert(op->getParentOfType<gpu::GPUFuncOp>() &&
-             "Expecting calls only in GPU kernel");
-
       auto call = cast<CallOpInterface>(op);
       versionCall(call);
 
@@ -220,13 +215,6 @@ bool KernelDisjointSpecializationPass::isCandidateFunction(
                << "not a candidate: not a potential kernel body function\n");
     return false;
   }
-
-  // Temporary condition to only allow function called directly by a GPU kernel.
-  // TODO: allow maximum depth of 2.
-  Optional<unsigned> maxDepth = polygeist::getMaxDepthFromAnyGPUKernel(func);
-  assert(maxDepth.has_value() && "Expecting valid maxDepth");
-  if (maxDepth != 1)
-    return false;
 
   unsigned numCandidateArgs = count_if(func.getArguments(), isCandidateArg);
   if (numCandidateArgs < 2) {
