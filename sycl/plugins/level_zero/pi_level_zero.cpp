@@ -2239,6 +2239,12 @@ pi_result piDeviceRelease(pi_device Device) {
 pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                           size_t ParamValueSize, void *ParamValue,
                           size_t *ParamValueSizeRet) {
+  // TODO: This is a work-around for missing UR info query. Replace with proper
+  //       UR mapping when available.
+  if (ParamName == PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT) {
+    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+    return ReturnValue(pi_bool{false});
+  }
   return pi2ur::piDeviceGetInfo(Device, ParamName, ParamValueSize, ParamValue,
                                 ParamValueSizeRet);
 }
