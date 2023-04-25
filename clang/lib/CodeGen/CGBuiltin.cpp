@@ -514,18 +514,18 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
     StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
     Function *Func;
     // Use fpbuiltin intrinsic only when needed.
-    bool IsBuiltin = false;
+    bool HasAccuracyRequirement = false;
     if (!CGF.getLangOpts().FPAccuracyMap.empty())
-      IsBuiltin = true;
+      HasAccuracyRequirement = true;
     for (auto F : CGF.getLangOpts().FPAccuracyFuncMap) {
       auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
       if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
         if (FuncMapIt->first == Name) {
-          IsBuiltin = true;
+          HasAccuracyRequirement = true;
           break;
         }
     }
-    if (IsBuiltin)
+    if (HasAccuracyRequirement)
       Func = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
     else
       Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
