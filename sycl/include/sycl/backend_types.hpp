@@ -32,6 +32,7 @@ enum class backend : char {
       ext_intel_esimd_emulator,
   ext_oneapi_hip = 6,
   hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
+  ext_native_cpu = 7,
 };
 
 template <backend Backend> class backend_traits;
