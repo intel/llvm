@@ -82,6 +82,52 @@ enum uma_result_t
 umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
                                const char **ppMessage);
 
+///
+/// \brief Retrieve recommended page size for a given allocation size.
+/// \param hProvider handle to the memory provider
+/// \param size allocation size
+/// \param pageSize [out] will be updated with recommended page size.
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
+enum uma_result_t
+umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
+                                        size_t size, size_t *pageSize);
+
+///
+/// \brief Retrieve minumum possible page size used by memory region referenced by given ptr
+/// \param hProvider handle to the memory provider
+/// \param ptr pointer to memory allocated by this memory provider
+/// \param pageSize [out] will be updated with page size value.
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
+enum uma_result_t
+umaMemoryProviderGetMinPageSize(uma_memory_provider_handle_t hProvider,
+                                void *ptr, size_t *pageSize);
+
+///
+/// \brief Discard physical pages within the virtual memory mapping associated at given addr and size.
+///        This call is asynchronous and may delay puring the pages indefinitely.
+/// \param hProvider handle to the memory provider
+/// \param ptr beginning of the virtual memory range
+/// \param size size of the virtual memory range
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
+///         UMA_RESULT_ERROR_INVALID_ALIGNMENT if ptr or size is not page-aligned.
+///         UMA_RESULT_ERROR_NOT_SUPPORTED if operation is not supported by this provider.
+enum uma_result_t
+umaMemoryProviderPurgeLazy(uma_memory_provider_handle_t hProvider, void *ptr,
+                           size_t size);
+
+///
+/// \brief Discard physical pages within the virtual memory mapping associated at given addr and size.
+///        This call is synchronous and if it suceeds, pages are guaranteed to be zero-filled on the next access.
+/// \param hProvider handle to the memory provider
+/// \param ptr beginning of the virtual memory range
+/// \param size size of the virtual memory range
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
+///         UMA_RESULT_ERROR_INVALID_ALIGNMENT if ptr or size is not page-aligned.
+///         UMA_RESULT_ERROR_NOT_SUPPORTED if operation is not supported by this provider.
+enum uma_result_t
+umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
+                            size_t size);
+
 #ifdef __cplusplus
 }
 #endif
