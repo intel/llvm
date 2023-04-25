@@ -13,8 +13,8 @@
 // RUN: %clang -### -target x86_64 -ffp-accuracy=low:sin,cos -ffp-accuracy=high:tan -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FUNC-2 %s
 
-// CHECK-H: "-ffp-accuracy-attr=high"
-// CHECK-L: "-ffp-accuracy-attr=low"
-// CHECK-M: "-ffp-accuracy-attr=medium"
-// CHECK-FUNC-1: "-ffp-accuracy-attr=low:sin,cos"
-// CHECK-FUNC-2: "-ffp-accuracy-attr=low:sin,cos high:tan"
+// CHECK-H: "-ffp-builtin-accuracy=high"
+// CHECK-L: "-ffp-builtin-accuracy=low"
+// CHECK-M: "-ffp-builtin-accuracy=medium"
+// CHECK-FUNC-1: "-ffp-builtin-accuracy=low:sin,cos"
+// CHECK-FUNC-2: "-ffp-builtin-accuracy=low:sin,cos high:tan"

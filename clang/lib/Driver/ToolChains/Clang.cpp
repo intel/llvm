@@ -5984,7 +5984,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   std::string FpAccuracyAttr;
   auto RenderFPAccuracyOptions = [&FpAccuracyAttr](const Twine &optStr) {
     if (FpAccuracyAttr.empty())
-      FpAccuracyAttr = std::move(std::string("-ffp-accuracy-attr="));
+      FpAccuracyAttr = std::move(std::string("-ffp-builtin-accuracy="));
     else
       FpAccuracyAttr += " ";
     FpAccuracyAttr += optStr.str();

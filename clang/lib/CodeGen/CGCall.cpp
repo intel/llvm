@@ -34,11 +34,11 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/FPAccuracy.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/FPAccuracy.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <optional>
 using namespace clang;
@@ -1857,20 +1857,20 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
     const llvm::Type *FuncType) {
   for (const auto &M : getLangOpts().FPAccuracyMap) {
-    llvm::StringSet<> FuncOwnAttrs;
     StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
         ID, FuncType, convertFPAccuracy(M.second));
-    FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+    if (!FPAccuracyVal.empty())
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
   }
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
-    llvm::StringSet<> FuncOwnAttrs;
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
       for (const std::pair<std::string, std::string> &AttrPair :
            FuncMapIt->second) {
         StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
             ID, FuncType, convertFPAccuracy(AttrPair.second));
-        FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+        if (!FPAccuracyVal.empty())
+          FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
       }
     }
   }

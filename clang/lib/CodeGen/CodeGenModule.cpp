@@ -7858,8 +7858,7 @@ void CodeGenModule::getFPAccuracyFuncAttributes(StringRef Name,
                                                 unsigned ID,
                                                 const llvm::Type *FuncType) {
   llvm::AttrBuilder FuncAttrs(getLLVMContext());
-  getDefaultFunctionFPAccuracyAttributes(Name, FuncAttrs, ID,
-                                         FuncType);
+  getDefaultFunctionFPAccuracyAttributes(Name, FuncAttrs, ID, FuncType);
   AttrList = llvm::AttributeList::get(
       getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
 }

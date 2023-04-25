@@ -1705,7 +1705,7 @@ def ffp_accuracy_EQ : Joined<["-"], "ffp-accuracy=">, Group<f_Group>, Flags<[CC1
   Values<"default,high,medium,low,sycl,cuda">, NormalizedValuesScope<"LangOptions">,
   NormalizedValues<["FPA_Default", "FPA_High", "FPA_Medium", "FPA_Low", "FPA_Sycl", "FPA_Cuda"]>,
   MarshallingInfoEnum<LangOpts<"FPAccuracy">, "FPA_Default">;
-def ffp_accuracy_attr_EQ : Joined<["-"], "ffp-accuracy-attr=">, Group<f_Group>, Flags<[CC1Option]>;
+def ffp_builtin_accuracy_EQ : Joined<["-"], "ffp-builtin-accuracy=">, Group<f_Group>, Flags<[CC1Option]>;
 
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
@@ -6956,8 +6956,9 @@ class CLRemainingArgsJoined<string name> : Option<["/", "-"], name,
 def _SLASH_Qfp_accuracy_EQ : CLJoined<"Qfp-accuracy=">,
   Alias<ffp_accuracy_EQ>;
 def _SLASH_Qfp_accuracy_COL : CLJoined<"Qfp-accuracy:">,
-  Alias<ffp_accuracy_EQ>,HelpText<"Defines the accuracy for math library "
-  "functions.">;
+  Alias<ffp_accuracy_EQ>,HelpText<"Specifies the required accuracy for "
+  "floating-point operations and library calls.">;
+
 def _SLASH_Brepro : CLFlag<"Brepro">,
   HelpText<"Do not write current time into COFF output (breaks link.exe /incremental)">,
   Alias<mno_incremental_linker_compatible>;

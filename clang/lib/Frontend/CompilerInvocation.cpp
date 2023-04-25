@@ -2029,7 +2029,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     }
   }
 
-  if (Arg *A = Args.getLastArg(options::OPT_ffp_accuracy_attr_EQ))
+  if (Arg *A = Args.getLastArg(options::OPT_ffp_builtin_accuracy_EQ))
     Opts.FPAccuracy = 1;
 
   if (auto *arg =
@@ -3329,7 +3329,7 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   for (const auto &M : Opts.FPAccuracyMap) {
     SmallString<128> S;
     S += M.second;
-    GenerateArg(Args, OPT_ffp_accuracy_attr_EQ, S, SA);
+    GenerateArg(Args, OPT_ffp_builtin_accuracy_EQ, S, SA);
   }
   for (const auto &F : Opts.FPAccuracyFuncMap) {
     for (const auto &C : F.second) {
@@ -3337,7 +3337,7 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       S += C.second;
       S += ':';
       S += F.first;
-      GenerateArg(Args, OPT_ffp_accuracy_attr_EQ, S, SA);
+      GenerateArg(Args, OPT_ffp_builtin_accuracy_EQ, S, SA);
     }
   }
 
@@ -3585,7 +3585,7 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
 
 void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                                              DiagnosticsEngine &Diags) {
-  for (StringRef Values : Args.getAllArgValues(OPT_ffp_accuracy_attr_EQ)) {
+  for (StringRef Values : Args.getAllArgValues(OPT_ffp_builtin_accuracy_EQ)) {
     SmallVector<StringRef, 8> ValuesArr;
     Values.split(ValuesArr, ' ');
     for (const auto &Val : ValuesArr) {

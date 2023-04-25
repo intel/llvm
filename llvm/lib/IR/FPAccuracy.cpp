@@ -77,9 +77,8 @@ static StringRef LookupCudaDoubleAccuracy(Intrinsic::ID IID) {
   }
 }
 
-StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
-                                                 const Type *Ty,
-                                                 fp::FPAccuracy AccuracyLevel) {
+StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID, const Type *Ty,
+                                      fp::FPAccuracy AccuracyLevel) {
   assert(isFPBuiltinIntrinsic(IID) && "Invalid intrinsic ID for FPAccuracy");
 
   assert(Ty->isFPOrFPVectorTy() && "Invalid type for FPAccuracy");
@@ -114,7 +113,7 @@ StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
   assert((AccuracyLevel == fp::FPAccuracy::SYCL ||
           AccuracyLevel == fp::FPAccuracy::CUDA) &&
          "Unexpected FPAccuracy level");
-#if 1
+
   if (Ty->isFloatTy()) {
     if (AccuracyLevel == fp::FPAccuracy::SYCL)
       return LookupSyclFloatAccuracy(IID);
@@ -131,7 +130,6 @@ StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
     // This is here for error detection if the logic above is changed.
     llvm_unreachable("Unexpected type for FPAccuracy");
   }
-  #endif
 }
 
 } // namespace llvm

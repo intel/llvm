@@ -1785,7 +1785,8 @@ private:
 
   void getDefaultFunctionFPAccuracyAttributes(StringRef Name,
                                               llvm::AttrBuilder &FuncAttrs,
-                                              unsigned ID, const llvm::Type *FuncType);
+                                              unsigned ID,
+                                              const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);

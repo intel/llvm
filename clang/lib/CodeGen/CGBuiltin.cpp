@@ -35,6 +35,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/FPAccuracy.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
@@ -53,7 +54,6 @@
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/MatrixBuilder.h"
-#include "llvm/IR/FPAccuracy.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/TargetParser/AArch64TargetParser.h"
@@ -491,12 +491,11 @@ static Value *EmitISOVolatileStore(CodeGenFunction &CGF, const CallExpr *E) {
 }
 
 static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF,
+                                           StringRef Name,
                                            llvm::Function *FPBuiltinF,
                                            ArrayRef<Value *> Args,
                                            unsigned ID) {
   llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
-  unsigned BuiltinID = CGF.getCurrentBuiltinID();
-  StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
   llvm::AttributeList AttrList;
   CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID,
                                       FPBuiltinF->getReturnType());
@@ -506,18 +505,34 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF,
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
-// floating-point intrinsic.
+// or an fpbuiltin floating-point intrinsic.
 static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
                                 const CallExpr *E, unsigned IntrinsicID,
                                 unsigned ConstrainedIntrinsicID) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-  if (CGF.CGM.getCodeGenOpts().FPAccuracy) {    
-    Function *Func =
-        CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
-    return CreateBuiltinCallWithAttr(CGF, Func, {Src0},
+  if (CGF.CGM.getCodeGenOpts().FPAccuracy) {
+    unsigned BuiltinID = CGF.getCurrentBuiltinID();
+    StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
+    Function *Func;
+    // Use fpbuiltin intrinsic only when needed.
+    bool IsBuiltin = false;
+    if (!CGF.getLangOpts().FPAccuracyMap.empty())
+      IsBuiltin = true;
+    for (auto F : CGF.getLangOpts().FPAccuracyFuncMap) {
+      auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
+      if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
+        if (FuncMapIt->first == Name) {
+          IsBuiltin = true;
+          break;
+        }
+    }
+    if (IsBuiltin)
+      Func = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
+    else
+      Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+    return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0},
                                      ConstrainedIntrinsicID);
   }
-
   if (CGF.Builder.getIsFPConstrained()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
@@ -2302,9 +2317,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_cosf16:
     case Builtin::BI__builtin_cosl:
     case Builtin::BI__builtin_cosf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::cos,
-                                   Intrinsic::fpbuiltin_cos));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::cos, Intrinsic::fpbuiltin_cos));
 
     case Builtin::BIexp:
     case Builtin::BIexpf:
@@ -2507,9 +2521,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_sinf16:
     case Builtin::BI__builtin_sinl:
     case Builtin::BI__builtin_sinf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::sin,
-                                   Intrinsic::fpbuiltin_sin));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::sin, Intrinsic::fpbuiltin_sin));
 
     case Builtin::BIsqrt:
     case Builtin::BIsqrtf:
