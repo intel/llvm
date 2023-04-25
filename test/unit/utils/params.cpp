@@ -124,7 +124,6 @@ struct UrUsmHostAllocParamsUsmDesc : UrUsmHostAllocParams {
     ur_usm_desc_t usm_desc;
     UrUsmHostAllocParamsUsmDesc() : UrUsmHostAllocParams() {
         usm_desc.align = 64;
-        usm_desc.flags = UR_USM_FLAG_BIAS_CACHED;
         usm_desc.hints = UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION;
         usm_desc.pNext = nullptr;
         usm_desc.stype = UR_STRUCTURE_TYPE_USM_DESC;
@@ -134,7 +133,7 @@ struct UrUsmHostAllocParamsUsmDesc : UrUsmHostAllocParams {
         return ".*\\.pUSMDesc = .+ \\(\\(struct "
                "ur_usm_desc_t\\)\\{\\.stype = UR_STRUCTURE_TYPE_USM_DESC, "
                "\\.pNext = "
-               "nullptr, \\.flags = UR_USM_FLAG_BIAS_CACHED, \\.hints = "
+               "nullptr, \\.hints = "
                "UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION, \\.align = "
                "64\\}\\).*";
     };
