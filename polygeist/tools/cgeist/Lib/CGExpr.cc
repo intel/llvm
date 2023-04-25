@@ -1385,8 +1385,11 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   FunctionContext FuncContext = mlirclang::getFuncContext(Function);
   if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl())) {
     auto Func = Glob.getOrCreateLLVMFunction(Tocall, FuncContext);
-    return ValueCategory(Builder.create<LLVM::AddressOfOp>(Loc, Func),
-                         /*isReference*/ true, Func.getFunctionType());
+    return ValueCategory(
+        Builder.create<LLVM::AddressOfOp>(
+            Loc, Glob.getTypes().getPointerType(Func.getFunctionType()),
+            Func.getName()),
+        /*isReference*/ true, Func.getFunctionType());
   }
 
   if (auto *VD = dyn_cast<VarDecl>(E->getDecl())) {
@@ -1426,7 +1429,11 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
         (E->hasQualifier())) {
       auto LLVMGlobal = Glob.getOrCreateLLVMGlobal(VD);
       return ValueCategory(
-          Builder.create<mlir::LLVM::AddressOfOp>(Loc, LLVMGlobal),
+          Builder.create<mlir::LLVM::AddressOfOp>(
+              Loc,
+              Glob.getTypes().getPointerType(LLVMGlobal.getType(),
+                                             LLVMGlobal.getAddrSpace()),
+              LLVMGlobal.getSymName()),
           /*isReference*/ true, LLVMGlobal.getType());
     }
 

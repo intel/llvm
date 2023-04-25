@@ -1755,7 +1755,10 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
       Builder.setInsertionPointToEnd(Blk);
       Builder.create<LLVM::StoreOp>(
           Module->getLoc(), Res,
-          Builder.create<LLVM::AddressOfOp>(Module->getLoc(), Glob));
+          Builder.create<LLVM::AddressOfOp>(
+              Module->getLoc(),
+              CGTypes.getPointerType(Glob.getType(), Glob.getAddrSpace()),
+              Glob.getSymName()));
       Builder.create<LLVM::ReturnOp>(Module->getLoc(), ValueRange());
     }
   }
@@ -1908,8 +1911,10 @@ Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
   }
 
   LLVM::GlobalOp Global = LLVMStringGlobals[Value.str()];
-  // Get the pointer to the first character in the global string.
-  return Builder.create<LLVM::AddressOfOp>(Loc, Global);
+  // Get the pointer to the first character in the global string
+  return Builder.create<LLVM::AddressOfOp>(
+      Loc, CGTypes.getPointerType(Global.getType(), Global.getAddrSpace()),
+      Global.getSymName());
 }
 
 FunctionOpInterface
