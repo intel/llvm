@@ -43,10 +43,6 @@ const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
 // const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
 // const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
 //     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
-const int UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES =
-    UR_EXT_DEVICE_INFO_END - 16;
-const int UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES =
-    UR_EXT_DEVICE_INFO_END - 17;
 
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
@@ -78,7 +74,7 @@ static const bool SingleThreadMode = [] {
 // Class which acts like shared_mutex if SingleThreadMode variable is not set.
 // If SingleThreadMode variable is set then mutex operations are turned into
 // nop.
-class pi_shared_mutex {
+class ur_shared_mutex {
   std::shared_mutex Mutex;
 
 public:
@@ -108,7 +104,7 @@ public:
 // Class which acts like std::mutex if SingleThreadMode variable is not set.
 // If SingleThreadMode variable is set then mutex operations are turned into
 // nop.
-class pi_mutex {
+class ur_mutex {
   std::mutex Mutex;
 
 public:
@@ -210,8 +206,8 @@ private:
 };
 
 // Base class to store common data
-struct _pi_object {
-  _pi_object() : RefCount{} {}
+struct _ur_object {
+  _ur_object() : RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;
@@ -229,7 +225,7 @@ struct _pi_object {
   // access to Obj3 in a scope use the following approach:
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
-  pi_shared_mutex Mutex;
+  ur_shared_mutex Mutex;
 };
 
 // Helper for one-liner validation

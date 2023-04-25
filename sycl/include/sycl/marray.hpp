@@ -329,7 +329,7 @@ public:
   // Available only when: dataT != cl_float && dataT != cl_double
   // && dataT != cl_half
   template <typename T = DataT>
-  friend typename std::enable_if<std::is_integral<T>::value, marray>::type
+  friend std::enable_if_t<std::is_integral_v<T>, marray>
   operator~(const marray &Lhs) {
     marray Ret;
     for (size_t I = 0; I < NumElements; ++I) {

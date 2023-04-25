@@ -1255,6 +1255,25 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     }
   }
 
+  // If we are compiling for a GPU target we want to override the system headers
+  // with ones created by the 'libc' project if present.
+  if (!Args.hasArg(options::OPT_nostdinc) &&
+      !Args.hasArg(options::OPT_nogpuinc) &&
+      !Args.hasArg(options::OPT_nobuiltininc) &&
+      (getToolChain().getTriple().isNVPTX() ||
+       getToolChain().getTriple().isAMDGCN())) {
+
+      // Add include/gpu-none-libc/* to our system include path. This lets us use
+      // GPU-specific system headers first. 
+      // TODO: We need to find a way to make these headers compatible with the
+      // host environment.
+      SmallString<128> P(llvm::sys::path::parent_path(D.InstalledDir));
+      llvm::sys::path::append(P, "include");
+      llvm::sys::path::append(P, "gpu-none-llvm");
+      CmdArgs.push_back("-c-isystem");
+      CmdArgs.push_back(Args.MakeArgString(P));
+  }
+
   // If we are offloading to a target via OpenMP we need to include the
   // openmp_wrappers folder which contains alternative system headers.
   if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
@@ -9523,6 +9542,13 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
     TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
+    bool CreatingSyclSPIRVFatObj =
+        C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+        TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+            .equals_insensitive("spirv") &&
+        !TCArgs.hasArg(options::OPT_fsycl_device_only);
+    if (CreatingSyclSPIRVFatObj)
+      TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
     // Disable all the extensions by default
     std::string ExtArg("-spirv-ext=-all");
@@ -9565,6 +9591,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_KHR_uniform_group_instructions"
                 ",+SPV_INTEL_masked_gather_scatter"
                 ",+SPV_INTEL_tensor_float32_conversion";
+    if (CreatingSyclSPIRVFatObj)
+      ExtArg += ",+SPV_KHR_non_semantic_info";
+
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
@@ -9940,6 +9969,10 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Output File
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+
+  // Make sure we preserve any auxiliary data which may be present in the
+  // SPIR-V object, which we need for SPIR-V-based fat objects.
+  addArgs(CmdArgs, TCArgs, {"-llvm-spirv-opts", "--spirv-preserve-auxdata"});
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

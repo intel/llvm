@@ -66,7 +66,7 @@ INSTANTIATE_TEST_SUITE_P(
     PlatformTestImpl, PlatformTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {
-      return pi::GetBackendString(info.param.getBackend());
+      return pi::GetBackendString(info.param);
     });
 
 TEST_P(PlatformTest, piPlatformsGet) {
@@ -107,6 +107,7 @@ TEST_P(PlatformTest, piPlatformGetInfo) {
     get_info_test(platform, PI_PLATFORM_INFO_PROFILE);
     get_info_test(platform, PI_PLATFORM_INFO_VERSION);
     get_info_test(platform, PI_PLATFORM_INFO_EXTENSIONS);
+    get_info_test(platform, PI_EXT_PLATFORM_INFO_BACKEND);
   }
 }
 } // namespace

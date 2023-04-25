@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.ze.out
-// RUN: %t.ze.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.ze.out
 
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero

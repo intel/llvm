@@ -34,7 +34,7 @@ To contribute:
     integrated into your workflow to ensure formatting and stylistic
     compliance of your changes. To avoid code formatting misalignment with
     GitHub Actions check we recommend using 10 version of clang-format tool
-    (default version on Ubuntu 20.04).
+    (default version on Ubuntu 22.04).
   - use
 
     ```bash

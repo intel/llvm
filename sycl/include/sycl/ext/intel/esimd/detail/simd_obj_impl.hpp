@@ -338,7 +338,7 @@ public:
   /// Type conversion into a scalar:
   /// <code><simd_obj_impl<RawTy, 1, simd<Ty,1>></code> to \c Ty.
   template <typename T = simd_obj_impl,
-            typename = sycl::detail::enable_if_t<T::length == 1>>
+            typename = std::enable_if_t<T::length == 1>>
   operator Ty() const {
     __esimd_dbg_print(operator Ty());
     return bitcast_to_wrapper_type<Ty>(data()[0]);
@@ -353,6 +353,17 @@ public:
     return __esimd_vload<RawTy, N>(&M_data);
 #endif
   }
+
+  /// @return A reference to the value of the
+  /// underlying raw vector. Intended for use
+  /// with l-value contexts in inline assembly.
+  raw_vector_type &data_ref() { return M_data; }
+
+  /// Commit the current stored underlying raw vector to memory.
+  /// This is required when using inline assembly with private global variables.
+  __SYCL_DEPRECATED(
+      "commit is deprecated and will be removed in a future release")
+  void commit() {}
 
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.
@@ -589,7 +600,7 @@ public:
   ///
   /// @return 1 if any element is non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t any() const {
     return __esimd_any<Ty, N>(data());
   }
@@ -598,7 +609,7 @@ public:
   ///
   /// @return 1 if all elements are non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t all() const {
     return __esimd_all<Ty, N>(data());
   }
