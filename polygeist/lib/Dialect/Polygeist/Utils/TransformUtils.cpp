@@ -562,16 +562,9 @@ createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
                               Location loc) {
   const auto accTy =
       cast<sycl::AccessorType>(accessor.getType().getElementType());
-  const auto ptrTy =
-      cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0];
-  unsigned memorySpace =
-      TypeSwitch<mlir::Type, unsigned>(ptrTy)
-          .Case<LLVM::LLVMPointerType>(
-              [](auto ty) { return ty.getAddressSpace(); })
-          .Case<MemRefType>([](auto ty) { return ty.getMemorySpaceAsInt(); });
-  const auto MT = MemRefType::get(ShapedType::kDynamic, accTy.getType(),
-                                  MemRefLayoutAttrInterface(),
-                                  builder.getI64IntegerAttr(memorySpace));
+  const auto MT = MemRefType::get(
+      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
+      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
   return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
       builder, loc, MT, {accessor, id}, "operator[]", "accessor");
 }
