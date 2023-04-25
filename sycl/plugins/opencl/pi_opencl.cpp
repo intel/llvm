@@ -293,6 +293,9 @@ extern "C" {
 pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
                           size_t *paramValueSizeRet) {
+  // This SYCL backend doesn't have versioning, so using OpenCL device version.
+  if (PI_DEVICE_INFO_BACKEND_VERSION == paramName)
+    paramName = PI_DEVICE_INFO_VERSION;
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
@@ -312,7 +315,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
     return PI_ERROR_INVALID_VALUE;
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // This query is missing beore OpenCL 3.0
+    // This query is missing before OpenCL 3.0
     // Check version and handle appropriately
     OCLV::OpenCLVersion devVer;
     cl_device_id deviceID = cast<cl_device_id>(device);
