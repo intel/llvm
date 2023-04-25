@@ -26,6 +26,7 @@ namespace oneapi {
 struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
+template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -62,6 +63,12 @@ template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
 
 template <typename ParentGroup>
 struct group_scope<sycl::ext::oneapi::experimental::ballot_group<ParentGroup>> {
+  static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
+};
+
+template <size_t PartitionSize, typename ParentGroup>
+struct group_scope<sycl::ext::oneapi::experimental::fixed_size_group<
+    PartitionSize, ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
 };
 
@@ -118,6 +125,16 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
   }
 }
+template <size_t PartitionSize, typename ParentGroup>
+bool GroupAll(
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    bool pred) {
+  // GroupNonUniformAll doesn't support cluster size, so use a reduction
+  return __spirv_GroupNonUniformBitwiseAnd(
+      group_scope<ParentGroup>::value,
+      static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
+      static_cast<uint32_t>(pred), PartitionSize);
+}
 
 template <typename Group> bool GroupAny(Group, bool pred) {
   return __spirv_GroupAny(group_scope<Group>::value, pred);
@@ -133,6 +150,16 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   } else {
     return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
   }
+}
+template <size_t PartitionSize, typename ParentGroup>
+bool GroupAny(
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    bool pred) {
+  // GroupNonUniformAny doesn't support cluster size, so use a reduction
+  return __spirv_GroupNonUniformBitwiseOr(
+      group_scope<ParentGroup>::value,
+      static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
+      static_cast<uint32_t>(pred), PartitionSize);
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
@@ -230,6 +257,29 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
                                             OCLX, OCLId);
   }
+}
+template <size_t PartitionSize, typename ParentGroup, typename T, typename IdT>
+EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
+    T x, IdT local_id) {
+  // Remap local_id to its original numbering in ParentGroup
+  auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
+
+  // TODO: Refactor to avoid duplication after design settles.
+  using GroupIdT = typename GroupId<ParentGroup>::type;
+  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
+  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
+  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+
+  // NonUniformBroadcast requires Id to be dynamically uniform, which does not
+  // hold here; each partition is broadcasting a separate index. We could
+  // fallback to either NonUniformShuffle or a NonUniformBroadcast per
+  // partition, and it's unclear which will be faster in practice.
+  return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value, OCLX,
+                                        OCLId);
 }
 
 template <typename Group, typename T, typename IdT>
@@ -949,6 +999,43 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
       return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg);          \
     } else {                                                                   \
       return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg);          \
+    }                                                                          \
+  }                                                                            \
+                                                                               \
+  template <__spv::GroupOperation Op, size_t PartitionSize,                    \
+            typename ParentGroup, typename T>                                  \
+  inline T Group##Instruction(                                                 \
+      ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>  \
+          g,                                                                   \
+      T x) {                                                                   \
+    using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
+                                                                               \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
+    OCLT Arg = x;                                                              \
+    constexpr auto Scope = group_scope<ParentGroup>::value;                    \
+    /* SPIR-V only defines a ClusteredReduce, with no equivalents for scan. */ \
+    /* Emulate Clustered*Scan using control flow to separate clusters. */      \
+    if constexpr (Op == __spv::GroupOperation::Reduce) {                       \
+      constexpr auto OpInt =                                                   \
+          static_cast<unsigned int>(__spv::GroupOperation::ClusteredReduce);   \
+      return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg,           \
+                                                  PartitionSize);              \
+    } else {                                                                   \
+      T tmp;                                                                   \
+      for (size_t Cluster = 0; Cluster < g.get_group_linear_range();           \
+           ++Cluster) {                                                        \
+        if (Cluster == g.get_group_linear_id()) {                              \
+          constexpr auto OpInt = static_cast<unsigned int>(Op);                \
+          tmp = __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg);       \
+        }                                                                      \
+      }                                                                        \
+      return tmp;                                                              \
     }                                                                          \
   }
 
