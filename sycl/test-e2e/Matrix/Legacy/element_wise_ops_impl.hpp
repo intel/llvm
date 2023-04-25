@@ -150,5 +150,5 @@ int main() {
   else
     std::cout << "failed\n";
 
-    return !res;
+  return !res;
 }
