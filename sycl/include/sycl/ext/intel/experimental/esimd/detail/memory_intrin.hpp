@@ -757,12 +757,8 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
-        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
-          Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
-              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
-        } else if constexpr (Op ==
-                             __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-          static_assert(__ESIMD_DNS::is_fp_type<Ty>::value);
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg ||
+                      Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
           Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
               (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
         }

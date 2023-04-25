@@ -549,15 +549,39 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
-                "Transposed load is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
+
+  constexpr int SmallIntFactor =
+      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+                "Number of elements is not supported by Transposed load");
+
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  constexpr lsc_data_size ActualDS = sizeof(T) == 8
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T, uint32_t>>;
+
+  constexpr detail::lsc_vector_size VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
   constexpr auto Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
-                              AddressScale, ImmOffset, FDS, VS, Transposed, N>(
-      pred.data(), offsets.data());
+  if constexpr (std::is_same_v<T, LoadElemT>) {
+    return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
+                                AddressScale, ImmOffset, FDS, VS, Transposed,
+                                N>(pred.data(), offsets.data());
+  } else {
+    __ESIMD_NS::simd<LoadElemT, FactoredNElts> Result =
+        __esimd_lsc_load_slm<LoadElemT, cache_hint::none, cache_hint::none,
+                             AddressScale, ImmOffset, ActualDS, VS, Transposed,
+                             N>(pred.data(), offsets.data());
+    return Result.template bit_cast_view<T>();
+  }
 }
 
 /// Transposed SLM gather with 1 channel.
@@ -586,16 +610,42 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
-                "Transposed load is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
+  constexpr int SmallIntFactor =
+      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+                "Number of elements is not supported by Transposed load");
+
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  constexpr lsc_data_size ActualDS = sizeof(T) == 8
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T, uint32_t>>;
+
+  constexpr detail::lsc_vector_size VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
   constexpr auto Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  return __esimd_lsc_load_merge_slm<T, cache_hint::none, cache_hint::none,
-                                    AddressScale, ImmOffset, FDS, VS,
-                                    Transposed, N>(pred.data(), offsets.data(),
-                                                   old_values.data());
+  if constexpr (std::is_same_v<T, LoadElemT>) {
+    return __esimd_lsc_load_merge_slm<T, cache_hint::none, cache_hint::none,
+                                      AddressScale, ImmOffset, FDS, VS,
+                                      Transposed, N>(
+        pred.data(), offsets.data(), old_values.data());
+  } else {
+    __ESIMD_NS::simd<LoadElemT, FactoredNElts> ActualOldValues =
+        old_values.template bit_cast_view<LoadElemT>();
+    __ESIMD_NS::simd<LoadElemT, FactoredNElts> Result =
+        __esimd_lsc_load_merge_slm<LoadElemT, cache_hint::none,
+                                   cache_hint::none, AddressScale, ImmOffset,
+                                   ActualDS, VS, Transposed, N>(
+            pred.data(), offsets.data(), ActualOldValues.data());
+    return Result.template bit_cast_view<T>();
+  }
 }
 
 /// USM pointer gather.
@@ -1546,8 +1596,8 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
-  using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  using CstT = typename detail::lsc_bitcast_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N *NElts> Tmp = vals.template bit_cast_view<CstT>();
   __esimd_lsc_store_slm<MsgT, cache_hint::none, cache_hint::none, _AddressScale,
                         _ImmOffset, _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), Tmp.data());
@@ -1573,17 +1623,40 @@ __ESIMD_API void lsc_slm_block_store(uint32_t offset,
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-                "Transposed store is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+
+  constexpr int SmallIntFactor =
+      (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+                "Number of elements is not supported by Transposed load");
+
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  constexpr lsc_data_size ActualDS = sizeof(T) == 8
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  // Prepare template arguments for the call of intrinsic.
+  using StoreElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T, uint32_t>>;
+
+  constexpr detail::lsc_vector_size _VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
   __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
-                        _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), vals.data());
+  if constexpr (std::is_same_v<T, StoreElemT>) {
+    __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
+                          _ImmOffset, _DS, _VS, _Transposed, N>(
+        pred.data(), offsets.data(), vals.data());
+  } else {
+    __esimd_lsc_store_slm<StoreElemT, cache_hint::none, cache_hint::none,
+                          _AddressScale, _ImmOffset, ActualDS, _VS, _Transposed,
+                          N>(
+        pred.data(), offsets.data(),
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreElemT, FactoredNElts>>(
+            vals.data()));
+  }
 }
 
 /// USM pointer scatter.
@@ -2595,11 +2668,12 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
   __ESIMD_NS::simd<MsgT, N> Tmp =
       __esimd_lsc_xatomic_slm_1<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
                                 _Transposed, N>(pred.data(), offsets.data(),
-                                                src0.data());
+                                                Msg_data.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2637,11 +2711,13 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
+  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
   __ESIMD_NS::simd<MsgT, N> Tmp =
       __esimd_lsc_xatomic_slm_2<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
-                                _Transposed, N>(pred.data(), offsets.data(),
-                                                src0.data(), src1.data());
+                                _Transposed, N>(
+          pred.data(), offsets.data(), Msg_data0.data(), Msg_data1.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
