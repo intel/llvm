@@ -27,7 +27,6 @@ using namespace clang;
 using namespace mlir;
 
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
-extern llvm::cl::opt<bool> OmitOptionalMangledFunctionName;
 
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *Expr) {
@@ -1055,11 +1054,6 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
             Builder.getTypeArrayAttr(ArgumentTypes));
   Attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
             FlatSymbolRefAttr::get(Builder.getStringAttr(FunctionName)));
-  if (!OmitOptionalMangledFunctionName)
-    Attrs.set(
-        mlir::sycl::SYCLDialect::getMangledFunctionNameAttrName(),
-        FlatSymbolRefAttr::get(Builder.getStringAttr(MangledFunctionName)));
-
   Attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
             FlatSymbolRefAttr::get(Builder.getStringAttr(TypeName)));
   return Attrs;
