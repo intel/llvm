@@ -127,7 +127,7 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAll(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
     bool pred) {
   // GroupNonUniformAll doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseAnd(
@@ -153,7 +153,7 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAny(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
     bool pred) {
   // GroupNonUniformAny doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseOr(
