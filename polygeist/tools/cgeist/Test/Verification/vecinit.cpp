@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers -O0 %s --function=* -S | FileCheck %s
 
 typedef float float4 __attribute__((ext_vector_type(4)));
 typedef float float8 __attribute__((ext_vector_type(8)));

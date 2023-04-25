@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers -O0 -w %s --function=* -S | FileCheck %s
 
 struct MOperandInfo {
   char device;
@@ -11,8 +11,8 @@ struct MOperandInfo& inner() {
   return begin()[0];
 }
 
-// CHECK:   func.func @_Z5innerv() -> !llvm.ptr<struct<(i8, i8)>> attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = call @_Z5beginv() : () -> !llvm.ptr<struct<(i8, i8)>>
-// CHECK-NEXT:     return %0 : !llvm.ptr<struct<(i8, i8)>>
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func.func private @_Z5beginv() -> !llvm.ptr<struct<(i8, i8)>> attributes {llvm.linkage = #llvm.linkage<external>}
+// CHECK-LABEL:   func.func @_Z5innerv() -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_0:.*]] = call @_Z5beginv() : () -> !llvm.ptr
+// CHECK-NEXT:      return %[[VAL_0]] : !llvm.ptr
+// CHECK-NEXT:    }
+// CHECK-NEXT:    func.func private @_Z5beginv() -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<external>}

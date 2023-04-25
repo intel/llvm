@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers -O0 -w %s --function=* -S | FileCheck %s
 
 #include <stddef.h>
 
@@ -154,10 +154,10 @@ double_vec sub_vf64(double_vec a, double_vec b) {
 // CHECK-LABEL:   func.func @ptr_diff_i8(
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi8>,
 // CHECK-SAME:                  %[[VAL_1:.*]]: memref<?xi8>) -> i64
-// CHECK:           %[[VAL_0:.*]] = "polygeist.memref2pointer"(%arg0) : (memref<?xi8>) -> !llvm.ptr<i8>
-// CHECK:           %[[VAL_1:.*]] = llvm.ptrtoint %[[VAL_0]] : !llvm.ptr<i8> to i64
-// CHECK:           %[[VAL_2:.*]] = "polygeist.memref2pointer"(%arg1) : (memref<?xi8>) -> !llvm.ptr<i8>
-// CHECK:           %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr<i8> to i64
+// CHECK:           %[[VAL_0:.*]] = "polygeist.memref2pointer"(%arg0) : (memref<?xi8>) -> !llvm.ptr
+// CHECK:           %[[VAL_1:.*]] = llvm.ptrtoint %[[VAL_0]] : !llvm.ptr to i64
+// CHECK:           %[[VAL_2:.*]] = "polygeist.memref2pointer"(%arg1) : (memref<?xi8>) -> !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr to i64
 // CHECK:           %[[VAL_4:.*]] = arith.subi %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK:           return %[[VAL_4]] : i64
 // CHECK:         }
@@ -170,10 +170,10 @@ size_t ptr_diff_i8(char *a, char *b) {
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xf32>,
 // CHECK-SAME:                  %[[VAL_1:.*]]: memref<?xf32>) -> i64
 // CHECK:           %[[I64_0:.*]] = arith.constant 4 : i64
-// CHECK:           %[[PTR_0:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xf32>) -> !llvm.ptr<f32>
-// CHECK:           %[[INT_0:.*]] = llvm.ptrtoint %[[PTR_0]] : !llvm.ptr<f32> to i64
-// CHECK:           %[[PTR_1:.*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?xf32>) -> !llvm.ptr<f32>
-// CHECK:           %[[INT_1:.*]] = llvm.ptrtoint %[[PTR_1]] : !llvm.ptr<f32> to i64
+// CHECK:           %[[PTR_0:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xf32>) -> !llvm.ptr
+// CHECK:           %[[INT_0:.*]] = llvm.ptrtoint %[[PTR_0]] : !llvm.ptr to i64
+// CHECK:           %[[PTR_1:.*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?xf32>) -> !llvm.ptr
+// CHECK:           %[[INT_1:.*]] = llvm.ptrtoint %[[PTR_1]] : !llvm.ptr to i64
 // CHECK:           %[[DIFF:.*]] = arith.subi %[[INT_0]], %[[INT_1]] : i64
 // CHECK:           %[[SUB:.*]] = arith.divsi %[[DIFF]], %[[I64_0]] : i64
 // CHECK:           return %[[SUB]] : i64

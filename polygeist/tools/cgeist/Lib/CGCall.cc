@@ -342,8 +342,7 @@ ValueCategory MLIRScanner::callHelper(
                 Builder.create<LLVM::GEPOp>(
                     Loc,
                     Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
-                    L0.getElemTy(),
-                    Val,
+                    L0.getElemTy(), Val,
                     ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                          Builder.create<arith::ConstantIntOp>(Loc, I, 32)}))));
@@ -372,8 +371,7 @@ ValueCategory MLIRScanner::callHelper(
                 Builder.create<LLVM::GEPOp>(
                     Loc,
                     Glob.getTypes().getPointerType(ET, PT.getAddressSpace()),
-                    T0.getElemTy(),
-                    Val,
+                    T0.getElemTy(), Val,
                     ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                          Builder.create<arith::ConstantIntOp>(Loc, I, 32)}))));
@@ -618,6 +616,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       auto Nt = cast<LLVM::LLVMPointerType>(
           TypeTranslator.translateType(mlirclang::anonymize(
               mlirclang::getLLVMType(E->getType(), Glob.getCGM()))));
+      if (UseOpaquePointers) {
+        // Temporary workaround, until the move to opaque pointers is completed
+        // and we can put the LLVMContext into opaque pointer mode.
+        Nt = LLVM::LLVMPointerType::get(Nt.getContext(), Nt.getAddressSpace());
+      }
       assert(Nt.getAddressSpace() == MT.getMemorySpaceAsInt() &&
              "val does not have the same memory space as nt");
       Val = Builder.create<polygeist::Memref2PointerOp>(Loc, Nt, Val);

@@ -1649,6 +1649,12 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
 
   auto RT = TypeTranslator.translateType(
       mlirclang::anonymize(mlirclang::getLLVMType(FD->getReturnType(), CGM)));
+  if (auto RTPtrTy = dyn_cast<LLVM::LLVMPointerType>(RT)) {
+    // Temporary workaround until the translation to LLVM/MLIR types from Clang
+    // types completes migration to opaque pointers.
+    RT = getTypes().getPointerType(RTPtrTy.getElementType(),
+                                   RTPtrTy.getAddressSpace());
+  }
   auto LLVMFnType = LLVM::LLVMFunctionType::get(RT, Types,
                                                 /*isVarArg=*/FD->isVariadic());
   // Insert the function into the body of the parent module.
