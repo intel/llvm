@@ -376,8 +376,7 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
-                                          const std::vector<device> &Devs,
-                                          const detail::plugin &Plugin) {
+                                          const std::vector<device> &Devs) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -458,9 +457,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img,
-                                  const std::vector<device> &Devices,
-                                  const detail::plugin &Plugin) {
-  appendCompileOptionsFromImage(CompileOpts, Img, Devices, Plugin);
+                                  const std::vector<device> &Devices) {
+  appendCompileOptionsFromImage(CompileOpts, Img, Devices);
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
@@ -618,7 +616,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
                  &LinkOpts, SpecConsts] {
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device});
 
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
@@ -2087,8 +2085,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
   applyCompileOptionsFromEnvironment(CompileOptions);
-  appendCompileOptionsFromImage(
-      CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
+  appendCompileOptionsFromImage(CompileOptions,
+                                *(InputImpl->get_bin_image_ref()), Devs);
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(), CompileOptions.c_str(),
@@ -2239,7 +2237,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                  &InputImpl, SpecConsts] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Plugin);
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs);
 
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
