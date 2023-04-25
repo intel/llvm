@@ -300,6 +300,8 @@ etors:
       desc: $x_kernel_native_properties_t
     - name: QUEUE_NATIVE_PROPERTIES
       desc: $x_queue_native_properties_t
+    - name: MEM_NATIVE_PROPERTIES
+      desc: $x_mem_native_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

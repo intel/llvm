@@ -14,7 +14,13 @@ TEST_P(urMemGetNativeHandleTest, Success) {
     // We can however convert the native_handle back into a unified-runtime handle
     // and perform some query on it to verify that it works.
     ur_mem_handle_t mem = nullptr;
-    ASSERT_SUCCESS(urMemCreateWithNativeHandle(hNativeMem, context, &mem));
+    ur_mem_native_properties_t props = {
+        /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
+        /*.pNext =*/nullptr,
+        /*.isNativeHandleOwned =*/false,
+    };
+    ASSERT_SUCCESS(
+        urMemBufferCreateWithNativeHandle(hNativeMem, context, &props, &mem));
     ASSERT_NE(mem, nullptr);
 
     size_t alloc_size = 0;

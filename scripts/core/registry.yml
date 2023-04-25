@@ -211,9 +211,6 @@ etors:
 - name: MEM_GET_NATIVE_HANDLE
   desc: Enumerator for $xMemGetNativeHandle
   value: '68'
-- name: MEM_CREATE_WITH_NATIVE_HANDLE
-  desc: Enumerator for $xMemCreateWithNativeHandle
-  value: '69'
 - name: MEM_GET_INFO
   desc: Enumerator for $xMemGetInfo
   value: '70'
@@ -349,3 +346,9 @@ etors:
 - name: PLATFORM_GET_BACKEND_OPTION
   desc: Enumerator for $xPlatformGetBackendOption
   value: '114'
+- name: MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xMemBufferCreateWithNativeHandle
+  value: '115'
+- name: MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xMemImageCreateWithNativeHandle
+  value: '116'

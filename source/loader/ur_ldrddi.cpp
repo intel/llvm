@@ -1109,20 +1109,23 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle of the mem.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
+/// @brief Intercept function for urMemBufferCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
-        *phMem ///< [out] pointer to the handle of the mem object created.
+        *phMem ///< [out] pointer to handle of buffer memory object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
     auto dditable =
         reinterpret_cast<ur_native_object_t *>(hNativeMem)->dditable;
-    auto pfnCreateWithNativeHandle = dditable->ur.Mem.pfnCreateWithNativeHandle;
-    if (nullptr == pfnCreateWithNativeHandle) {
+    auto pfnBufferCreateWithNativeHandle =
+        dditable->ur.Mem.pfnBufferCreateWithNativeHandle;
+    if (nullptr == pfnBufferCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -1133,7 +1136,57 @@ __urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeMem, hContext, phMem);
+    result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext, pProperties,
+                                             phMem);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        *phMem = reinterpret_cast<ur_mem_handle_t>(
+            ur_mem_factory.getInstance(*phMem, dditable));
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemImageCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification.
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
+    ur_mem_handle_t
+        *phMem ///< [out] pointer to handle of image memory object created.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_native_object_t *>(hNativeMem)->dditable;
+    auto pfnImageCreateWithNativeHandle =
+        dditable->ur.Mem.pfnImageCreateWithNativeHandle;
+    if (nullptr == pfnImageCreateWithNativeHandle) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hNativeMem = reinterpret_cast<ur_native_object_t *>(hNativeMem)->handle;
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // forward to device-platform
+    result = pfnImageCreateWithNativeHandle(hNativeMem, hContext, pImageFormat,
+                                            pImageDesc, pProperties, phMem);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -5105,8 +5158,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
             pDdiTable->pfnRelease = ur_loader::urMemRelease;
             pDdiTable->pfnBufferPartition = ur_loader::urMemBufferPartition;
             pDdiTable->pfnGetNativeHandle = ur_loader::urMemGetNativeHandle;
-            pDdiTable->pfnCreateWithNativeHandle =
-                ur_loader::urMemCreateWithNativeHandle;
+            pDdiTable->pfnBufferCreateWithNativeHandle =
+                ur_loader::urMemBufferCreateWithNativeHandle;
+            pDdiTable->pfnImageCreateWithNativeHandle =
+                ur_loader::urMemImageCreateWithNativeHandle;
             pDdiTable->pfnGetInfo = ur_loader::urMemGetInfo;
             pDdiTable->pfnImageGetInfo = ur_loader::urMemImageGetInfo;
         } else {

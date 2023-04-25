@@ -1061,17 +1061,19 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle of the mem.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
+/// @brief Intercept function for urMemBufferCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
-        *phMem ///< [out] pointer to the handle of the mem object created.
+        *phMem ///< [out] pointer to handle of buffer memory object created.
 ) {
-    auto pfnCreateWithNativeHandle =
-        context.urDdiTable.Mem.pfnCreateWithNativeHandle;
+    auto pfnBufferCreateWithNativeHandle =
+        context.urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
 
-    if (nullptr == pfnCreateWithNativeHandle) {
+    if (nullptr == pfnBufferCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -1089,11 +1091,60 @@ __urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
         }
     }
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativeMem, hContext, phMem);
+    ur_result_t result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
+                                                         pProperties, phMem);
 
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.createRefCount(*phMem);
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemImageCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification.
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
+    const ur_mem_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native memory creation properties.
+    ur_mem_handle_t
+        *phMem ///< [out] pointer to handle of image memory object created.
+) {
+    auto pfnImageCreateWithNativeHandle =
+        context.urDdiTable.Mem.pfnImageCreateWithNativeHandle;
+
+    if (nullptr == pfnImageCreateWithNativeHandle) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hNativeMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pImageFormat) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result = pfnImageCreateWithNativeHandle(
+        hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
 
     return result;
 }
@@ -5007,9 +5058,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
     pDdiTable->pfnGetNativeHandle = ur_validation_layer::urMemGetNativeHandle;
 
-    dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
-    pDdiTable->pfnCreateWithNativeHandle =
-        ur_validation_layer::urMemCreateWithNativeHandle;
+    dditable.pfnBufferCreateWithNativeHandle =
+        pDdiTable->pfnBufferCreateWithNativeHandle;
+    pDdiTable->pfnBufferCreateWithNativeHandle =
+        ur_validation_layer::urMemBufferCreateWithNativeHandle;
+
+    dditable.pfnImageCreateWithNativeHandle =
+        pDdiTable->pfnImageCreateWithNativeHandle;
+    pDdiTable->pfnImageCreateWithNativeHandle =
+        ur_validation_layer::urMemImageCreateWithNativeHandle;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
     pDdiTable->pfnGetInfo = ur_validation_layer::urMemGetInfo;
