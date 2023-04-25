@@ -223,8 +223,7 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
 
-  const backend ContextBackend =
-      detail::getSyclObjImpl(C)->getPlugin().getBackend();
+  const backend ContextBackend = detail::getSyclObjImpl(C)->getBackend();
 
   // The CUDA backend cannot use SPIR-V
   if (ContextBackend == backend::ext_oneapi_cuda)
@@ -378,7 +377,7 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
-                                          const detail::plugin &Plugin) {
+                                          const detail::plugin &) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -416,6 +415,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
+
+  const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
+
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
   const char *optLevelStr = str.c_str();
@@ -433,17 +435,15 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
     // option is available for a given frontend option.
-    Plugin.getBackendOption(
-        detail::getSyclObjImpl(Devs[0].get_platform())->getHandleRef(),
-        optLevelStr, &backend_option);
+    PlatformImpl->getBackendOption(optLevelStr, &backend_option);
     if (backend_option && backend_option[0] != '\0') {
       if (!CompileOpts.empty())
         CompileOpts += " ";
       CompileOpts += std::string(backend_option);
     }
   }
-  if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
-       Plugin.getBackend() == backend::opencl) &&
+  if ((PlatformImpl->getBackend() == backend::ext_oneapi_level_zero ||
+       PlatformImpl->getBackend() == backend::opencl) &&
       std::all_of(Devs.begin(), Devs.end(),
                   [](const device &Dev) { return Dev.is_gpu(); }) &&
       Img.getDeviceGlobals().size() != 0) {
@@ -1057,9 +1057,9 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
-  std::string DevExtList = get_device_info_string(
-      Device, PiInfoCode<info::device::extensions>::value,
-      Context->getPlugin());
+  std::string DevExtList =
+      Context->getPlatformImpl()->getDeviceImpl(Device)->get_device_info_string(
+          PiInfoCode<info::device::extensions>::value);
   const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not

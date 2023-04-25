@@ -296,11 +296,12 @@ void program_impl::link(std::string LinkOptions) {
       LinkOpts = LinkOptions.c_str();
     }
 
-    // Plugin resets MProgram with a new pi_program as a result of the call to "piProgramLink".
-    // Thus, we need to release MProgram before the call to piProgramLink.
+    // Plugin resets MProgram with a new pi_program as a result of the call to
+    // "piProgramLink". Thus, we need to release MProgram before the call to
+    // piProgramLink.
     if (MProgram != nullptr)
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
-    
+
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
         /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
@@ -563,7 +564,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
 pi_native_handle program_impl::getNative() const {
   const auto &Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
+  if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
