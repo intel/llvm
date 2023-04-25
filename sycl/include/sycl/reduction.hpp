@@ -35,7 +35,7 @@ class reduction_impl_base {};
 /// Predicate returning true if a type is a reduction.
 template <typename T> struct IsReduction {
   static constexpr bool value =
-      std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
+      std::is_base_of_v<reduction_impl_base, std::remove_reference_t<T>>;
 };
 
 /// Predicate returning true if all template type parameters except the last one
@@ -294,7 +294,7 @@ private:
 
   template <class _T, access::address_space Space, class BinaryOp>
   static constexpr bool BasicCheck =
-      std::is_same<remove_decoration_t<_T>, Ty>::value &&
+      std::is_same_v<remove_decoration_t<_T>, Ty> &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
 
@@ -336,7 +336,7 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
+  std::enable_if_t<std::is_same_v<remove_decoration_t<_T>, _T> &&
                    IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
                    IsBitAND<_T, _BinaryOperation>::value &&
                    (Space == access::address_space::global_space ||
@@ -805,7 +805,7 @@ template <typename KernelName> struct InitMemKrn;
 /// must do that to avoid name collisions.
 template <class KernelName>
 using __sycl_init_mem_for =
-    std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
+    std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
                        reduction::InitMemKrn<KernelName>>;
 
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
@@ -1196,7 +1196,7 @@ struct KernelMultipleWGTag {};
 template <template <typename, reduction::strategy, typename...> class MainOrAux,
           class KernelName, reduction::strategy Strategy, class... Ts>
 using __sycl_reduction_kernel =
-    std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
+    std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
                        MainOrAux<KernelName, Strategy, Ts...>>;
 
 // Implementations.
