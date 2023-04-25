@@ -69,3 +69,29 @@ umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
 void *umaMemoryProviderGetPriv(uma_memory_provider_handle_t hProvider) {
     return hProvider->provider_priv;
 }
+
+enum uma_result_t
+umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
+                                        size_t size, size_t *pageSize) {
+    return hProvider->ops.get_recommended_page_size(hProvider->provider_priv,
+                                                    size, pageSize);
+}
+
+enum uma_result_t
+umaMemoryProviderGetMinPageSize(uma_memory_provider_handle_t hProvider,
+                                void *ptr, size_t *pageSize) {
+    return hProvider->ops.get_min_page_size(hProvider->provider_priv, ptr,
+                                            pageSize);
+}
+
+enum uma_result_t
+umaMemoryProviderPurgeLazy(uma_memory_provider_handle_t hProvider, void *ptr,
+                           size_t size) {
+    return hProvider->ops.purge_lazy(hProvider->provider_priv, ptr, size);
+}
+
+enum uma_result_t
+umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
+                            size_t size) {
+    return hProvider->ops.purge_force(hProvider->provider_priv, ptr, size);
+}

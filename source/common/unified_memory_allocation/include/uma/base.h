@@ -42,6 +42,8 @@ enum uma_result_t {
            ///< Retrieved via the umaMemoryProviderGetLastResult entry point.
     UMA_RESULT_ERROR_INVALID_ARGUMENT =
         4, ///< Generic error code for invalid arguments
+    UMA_RESULT_ERROR_INVALID_ALIGNMENT = 5, /// Invalid alignment of an argument
+    UMA_RESULT_ERROR_NOT_SUPPORTED = 6,     /// Operation not supported
 
     UMA_RESULT_ERROR_UNKNOWN = 0x7ffffffe ///< Unknown or internal error
 };
