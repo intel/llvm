@@ -3,7 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.ocl.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.ocl.out
 
-
 #include <CL/cl.h>
 
 #include <sycl/backend/opencl.hpp>
