@@ -3,15 +3,29 @@
 
 #include <uur/fixtures.h>
 
-using urKernelGetGroupInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetGroupInfoTest);
+using urKernelGetGroupInfoTest =
+    uur::urKernelTestWithParam<ur_kernel_group_info_t>;
+
+UUR_TEST_SUITE_P(
+    urKernelGetGroupInfoTest,
+    ::testing::Values(UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE,
+                      UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+                      UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+                      UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE,
+                      UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+                      UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE),
+    uur::deviceTestWithParamPrinter<ur_kernel_group_info_t>);
 
 TEST_P(urKernelGetGroupInfoTest, Success) {
-    size_t work_group_size = 0;
-    ASSERT_SUCCESS(urKernelGetGroupInfo(
-        kernel, device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
-        sizeof(work_group_size), &work_group_size, nullptr));
-    ASSERT_NE(work_group_size, 0);
+    auto property_name = getParam();
+    size_t property_size = 0;
+    std::vector<char> property_value;
+    ASSERT_SUCCESS(urKernelGetGroupInfo(kernel, device, property_name, 0,
+                                        nullptr, &property_size));
+    property_value.resize(property_size);
+    ASSERT_SUCCESS(urKernelGetGroupInfo(kernel, device, property_name,
+                                        property_size, property_value.data(),
+                                        nullptr));
 }
 
 TEST_P(urKernelGetGroupInfoTest, InvalidNullHandleKernel) {

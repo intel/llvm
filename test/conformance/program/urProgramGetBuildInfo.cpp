@@ -3,21 +3,32 @@
 
 #include <uur/fixtures.h>
 
-struct urProgramGetBuildInfoTest : uur::urProgramTest {
+struct urProgramGetBuildInfoTest
+    : uur::urProgramTestWithParam<ur_program_build_info_t> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-        ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urProgramTestWithParam<ur_program_build_info_t>::SetUp());
+        ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
     }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetBuildInfoTest);
+
+UUR_TEST_SUITE_P(urProgramGetBuildInfoTest,
+                 ::testing::Values(UR_PROGRAM_BUILD_INFO_STATUS,
+                                   UR_PROGRAM_BUILD_INFO_OPTIONS,
+                                   UR_PROGRAM_BUILD_INFO_LOG,
+                                   UR_PROGRAM_BUILD_INFO_BINARY_TYPE),
+                 uur::deviceTestWithParamPrinter<ur_program_build_info_t>);
 
 TEST_P(urProgramGetBuildInfoTest, Success) {
-    ur_program_build_status_t programBuildStatus =
-        UR_PROGRAM_BUILD_STATUS_ERROR;
-    ASSERT_SUCCESS(urProgramGetBuildInfo(
-        program, device, UR_PROGRAM_BUILD_INFO_STATUS,
-        sizeof(programBuildStatus), &programBuildStatus, nullptr));
-    ASSERT_NE(UR_PROGRAM_BUILD_STATUS_ERROR, programBuildStatus);
+    auto property_name = getParam();
+    size_t property_size = 0;
+    std::vector<char> property_value;
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name, 0,
+                                         nullptr, &property_size));
+    property_value.resize(property_size);
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name,
+                                         property_size, property_value.data(),
+                                         nullptr));
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidNullHandleProgram) {
