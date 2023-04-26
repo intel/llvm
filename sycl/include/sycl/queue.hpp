@@ -1269,6 +1269,15 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy to device_global is out of bounds.");
 
+    if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
+      // device_global is unregistered so we need a fallback. We let the handler
+      // implement this fallback.
+      return submit([&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        return CGH.memcpy(Dest, Src, NumBytes, Offset);
+      });
+    }
+
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
     return memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes,
@@ -1332,6 +1341,15 @@ public:
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy from device_global is out of bounds.");
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
+      // device_global is unregistered so we need a fallback. We let the handler
+      // implement this fallback.
+      return submit([&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        return CGH.memcpy(Dest, Src, NumBytes, Offset);
+      });
+    }
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
