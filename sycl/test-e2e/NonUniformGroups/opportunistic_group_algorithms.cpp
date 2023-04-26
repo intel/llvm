@@ -94,6 +94,15 @@ int main() {
             uint32_t IncScanResult = sycl::inclusive_scan_over_group(
                 OpportunisticGroup, 1, sycl::plus<>());
             IncScanAcc[WI] = (IncScanResult == LID + 1);
+          } else {
+            BarrierAcc[WI] = false;
+            BroadcastAcc[WI] = false;
+            AnyAcc[WI] = false;
+            AllAcc[WI] = false;
+            NoneAcc[WI] = false;
+            ReduceAcc[WI] = false;
+            ExScanAcc[WI] = false;
+            IncScanAcc[WI] = false;
           }
         };
     CGH.parallel_for<TestKernel>(NDR, KernelFunc);
@@ -107,16 +116,16 @@ int main() {
   sycl::host_accessor ReduceAcc{ReduceBuf, sycl::read_only};
   sycl::host_accessor ExScanAcc{ExScanBuf, sycl::read_only};
   sycl::host_accessor IncScanAcc{IncScanBuf, sycl::read_only};
-  {
-    size_t WI = ArbitraryItem;
-    assert(BarrierAcc[WI] == true);
-    assert(BroadcastAcc[WI] == true);
-    assert(AnyAcc[WI] == true);
-    assert(AllAcc[WI] == true);
-    assert(NoneAcc[WI] == true);
-    assert(ReduceAcc[WI] == true);
-    assert(ExScanAcc[WI] == true);
-    assert(IncScanAcc[WI] == true);
+  for (uint32_t WI = 0; WI < 32; ++WI) {
+    bool ExpectedResult = (WI == ArbitraryItem);
+    assert(BarrierAcc[WI] == ExpectedResult);
+    assert(BroadcastAcc[WI] == ExpectedResult);
+    assert(AnyAcc[WI] == ExpectedResult);
+    assert(AllAcc[WI] == ExpectedResult);
+    assert(NoneAcc[WI] == ExpectedResult);
+    assert(ReduceAcc[WI] == ExpectedResult);
+    assert(ExScanAcc[WI] == ExpectedResult);
+    assert(IncScanAcc[WI] == ExpectedResult);
   }
   return 0;
 }
