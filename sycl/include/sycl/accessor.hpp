@@ -2646,21 +2646,18 @@ public:
     return detail::convertToArrayOfN<Dims, 1>(getSize());
   }
 
-  template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 0 && IsAccessAnyWrite>>
+  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
   operator RefType() const {
     return *getQualifiedPtr();
   }
 
-  template <int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
-  template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 1 && IsAccessAnyWrite>>
+  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 1>>
   RefType operator[](size_t Index) const {
     return getQualifiedPtr()[Index];
   }
