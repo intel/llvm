@@ -756,11 +756,10 @@ std::enable_if_t<
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same_v<decltype(binary_op(init, *first)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init, *first)), float>),
-      "Result type of binary_op must match scan accumulation type.");
+  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T> ||
+                    (std::is_same_v<T, half> &&
+                     std::is_same_v<decltype(binary_op(init, *first)), float>),
+                "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
   ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
