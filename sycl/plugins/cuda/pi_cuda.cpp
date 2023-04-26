@@ -398,27 +398,31 @@ bool getMaxRegistersJitOptionValue(const std::string &build_options,
     return false;
   }
 
-  bool valid = false;
   const std::size_t delimPos = build_options.find('=', optionPos + 1u);
-  const std::size_t startPos = delimPos + 1;
-  if (delimPos != std::string::npos && startPos < build_options.length()) {
-    // validation function helper for value characters
-    static auto is_digit = [](char c) -> bool {
-      return std::isdigit(static_cast<unsigned char>(c)) != 0;
-    };
-
-    std::size_t pos = startPos;
-    while (build_options[pos] != '\n' && is_digit(build_options[pos])) {
-      pos++;
-    }
-    const std::string valueString =
-        build_options.substr(startPos, pos - startPos);
-    if (!valueString.empty()) {
-      value = static_cast<unsigned int>(std::stoi(valueString));
-      valid = true;
-    }
+  if (delimPos == std::string::npos) {
+    return false;
   }
-  return valid;
+
+  const std::size_t length = build_options.length();
+  const std::size_t startPos = delimPos + 1u;
+  if (delimPos == std::string::npos || startPos >= length) {
+    return false;
+  }
+
+  std::size_t pos = startPos;
+  while (pos < length &&
+         std::isdigit(static_cast<unsigned char>(build_options[pos]))) {
+    pos++;
+  }
+
+  const std::string valueString =
+      build_options.substr(startPos, pos - startPos);
+  if (valueString.empty()) {
+    return false;
+  }
+
+  value = static_cast<unsigned int>(std::stoi(valueString));
+  return true;
 }
 
 } // anonymous namespace
