@@ -79,11 +79,8 @@ template <unsigned int rowsA, unsigned int colsA, unsigned int rowsB,
           typename TResult, unsigned int sgSize = SG_SZ>
 double joint_matmul(TOperand *A, TOperand *A2, TOperand *B, TOperand *B2,
                     TResult *C, queue &q, int i) {
-  range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * sgSize}; // X/128,Y/128
+  range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * sgSize};
   range<2> cachelocal{MCACHE2 / MCACHE1, NCACHE2 / NCACHE1 * sgSize};
-  // 4x4SGs
-  // each SG 32x64x32 iterations --> 32 DPAS
-  // SG size = 16
 
   // throw error if padding needed
   assert(colsA == rowsB);
@@ -208,7 +205,7 @@ double joint_matmul(TOperand *A, TOperand *A2, TOperand *B, TOperand *B2,
 #else
             for (unsigned int k1 = 0; k1 < KCACHE2 / KCACHE1; k1++) {
 #endif
-              //  physical layer
+              // physical layer
               unsigned int k = (k2 * KCACHE2 + k1 * KCACHE1) / tK;
 #ifdef MANUAL_UNROLL
               manually_unroll_loop<unsigned int, MCACHE1 / tM>([&](auto m) {
@@ -327,7 +324,6 @@ int verify_result(float *result, float *ref, float floatTol = BF16_EPSILON) {
                   << " != ref " << b << " difference is " << a - b << "\n";
         return 1;
       }
-      // assert((fabs(a) - fabs(b)) <= floatTol);
     }
   }
 
@@ -373,7 +369,6 @@ int main(void) {
   std::cout << "Running tests...";
 
   // run testIterations time, aggregate and calculate average run time,
-  // does not check for correctness of operation in this example
   double totalDuration = 0;
   for (unsigned int i = 0; i < testIterations; i++) {
     double duration = run(q, i);

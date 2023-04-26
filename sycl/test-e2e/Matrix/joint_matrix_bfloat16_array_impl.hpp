@@ -41,9 +41,9 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
-           // The submatrix API has to be accessed by all the workitems in a
-           // subgroup these functions will be called once by the subgroup no
-           // code divergence between the workitems
+           // Matrix API has to be accessed by all the workitems in a
+           // subgroup. These functions will be called once by the subgroup.
+           // No code divergence between the workitems.
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
@@ -154,8 +154,6 @@ int main() {
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      // std::cout << i << "," << j << ": " << C[i][j] << ", " << D[i][j] <<
-      // "\n"; // for debugging
       if ((fabs(C[i][j] - D[i][j])) > BF16_EPSILON)
         res = false;
     }
