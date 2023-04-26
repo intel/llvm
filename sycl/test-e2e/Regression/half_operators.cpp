@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -fsycl-unnamed-lambda %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: gpu
 #include <iostream>
