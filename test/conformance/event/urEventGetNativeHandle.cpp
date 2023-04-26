@@ -15,7 +15,8 @@ TEST_P(urEventGetNativeHandleTest, Success) {
     // We can however convert the native_handle back into a unified-runtime handle
     // and perform some query on it to verify that it works.
     ur_event_handle_t evt = nullptr;
-    ASSERT_SUCCESS(urEventCreateWithNativeHandle(native_event, context, &evt));
+    ASSERT_SUCCESS(
+        urEventCreateWithNativeHandle(native_event, context, nullptr, &evt));
     ASSERT_NE(evt, nullptr);
 
     ur_execution_info_t exec_info;

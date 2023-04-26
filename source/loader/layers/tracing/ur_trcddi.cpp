@@ -2652,6 +2652,8 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
     ur_context_handle_t hContext,    ///< [in] handle of the context object
+    const ur_event_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
         *phEvent ///< [out] pointer to the handle of the event object created.
 ) {
@@ -2662,14 +2664,14 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_event_create_with_native_handle_params_t params = {&hNativeEvent,
-                                                          &hContext, &phEvent};
+    ur_event_create_with_native_handle_params_t params = {
+        &hNativeEvent, &hContext, &pProperties, &phEvent};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
                              "urEventCreateWithNativeHandle", &params);
 
     ur_result_t result =
-        pfnCreateWithNativeHandle(hNativeEvent, hContext, phEvent);
+        pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties, phEvent);
 
     context.notify_end(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
                        "urEventCreateWithNativeHandle", &params, &result,

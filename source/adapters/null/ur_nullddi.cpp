@@ -2139,6 +2139,8 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
     ur_context_handle_t hContext,    ///< [in] handle of the context object
+    const ur_event_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
         *phEvent ///< [out] pointer to the handle of the event object created.
 ) {
@@ -2148,7 +2150,8 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     auto pfnCreateWithNativeHandle =
         d_context.urDdiTable.Event.pfnCreateWithNativeHandle;
     if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeEvent, hContext, phEvent);
+        result = pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties,
+                                           phEvent);
     } else {
         // generic implementation
         *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
