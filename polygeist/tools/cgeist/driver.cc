@@ -372,6 +372,8 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
     PM.addPass(polygeist::createArgumentPromotionPass());
+    PM.addPass(polygeist::createKernelDisjointSpecializationPass(
+        {options.getCgeistOpts().getRelaxedAliasing()}));
 
     mlir::OpPassManager &OptPM = PM.nestAny();
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
