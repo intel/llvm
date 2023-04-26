@@ -1859,10 +1859,8 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
   for (const auto &M : getLangOpts().FPAccuracyMap) {
     StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
         ID, FuncType, convertFPAccuracy(M.second));
-    if (!FPAccuracyVal.empty())
-      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-    else
-      assert("A valid accuracy value is expected");
+    assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+    FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
   }
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
@@ -1871,10 +1869,8 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
            FuncMapIt->second) {
         StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
             ID, FuncType, convertFPAccuracy(AttrPair.second));
-        if (!FPAccuracyVal.empty())
-          FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-        else
-          assert("A valid accuracy value is expected");
+        assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+        FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
       }
     }
   }
