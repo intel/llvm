@@ -204,6 +204,19 @@ params:
       desc: |
             [out] a pointer to the native handle of the queue.
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xQueueCreateWithNativeHandle."
+class: $xQueue
+name: $x_queue_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] Indicates UR owns the native handle or if it came from an interoperability
+            operation in the application that asked to not transfer the ownership to
+            the unified-runtime.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime queue object from native queue handle."
 class: $xQueue
@@ -222,6 +235,12 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_queue_native_properties_t*"
+      name: pProperties
+      desc: "[in] pointer to properties struct"
     - type: "$x_queue_handle_t*"
       name: phQueue
       desc: |

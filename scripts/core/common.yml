@@ -298,6 +298,8 @@ etors:
       desc: $x_context_native_properties_t
     - name: KERNEL_NATIVE_PROPERTIES
       desc: $x_kernel_native_properties_t
+    - name: QUEUE_NATIVE_PROPERTIES
+      desc: $x_queue_native_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

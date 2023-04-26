@@ -14,7 +14,9 @@ TEST_P(urQueueGetNativeHandleTest, Success) {
     // We can however convert the native_handle back into a unified-runtime handle
     // and perform some query on it to verify that it works.
     ur_queue_handle_t q = nullptr;
-    ASSERT_SUCCESS(urQueueCreateWithNativeHandle(native_handle, context, &q));
+    ur_queue_native_properties_t properties{};
+    ASSERT_SUCCESS(urQueueCreateWithNativeHandle(native_handle, context, device,
+                                                 &properties, &q));
     ASSERT_NE(q, nullptr);
 
     uint32_t q_size = 0;

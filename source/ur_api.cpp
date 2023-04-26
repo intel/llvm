@@ -2630,11 +2630,16 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hNativeQueue`
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pProperties`
 ///         + `NULL == phQueue`
 ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
     ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    const ur_queue_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_queue_handle_t
         *phQueue ///< [out] pointer to the handle of the queue object created.
 ) {
