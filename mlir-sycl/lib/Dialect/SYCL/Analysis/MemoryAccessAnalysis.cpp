@@ -586,15 +586,6 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 //===----------------------------------------------------------------------===//
 
 template <typename OpTy>
-MemoryAccess<OpTy>::MemoryAccess(OpTy accessOp, MemoryAccessMatrix &&matrix,
-                                 OffsetVector &&offsets)
-    : accessOp(accessOp), matrix(std::move(matrix)),
-      offsets(std::move(offsets)) {
-  static_assert(llvm::is_one_of<OpTy, AffineLoadOp, AffineStoreOp>::value,
-                "Expecting an affine load or store operation");
-}
-
-template <typename OpTy>
 MemoryAccessPattern
 MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
   bool isZeroVector = offsets.isZero(solver);
