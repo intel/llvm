@@ -56,7 +56,7 @@ This extension defines a `sycl::ext::oneapi::experimental::barrier` class
 aligned with the `std::barrier` class defined in {cpp}20. This extension may
 also be considered a generalization of the existing
 link:../experimental/sycl_ext_oneapi_cuda_async_barrier.asciidoc[sycl_ext_oneapi_cuda_async_barrier]
-extension for non-CUDA backends.
+extension to non-CUDA backends.
 
 `sycl::ext::oneapi::experimental::barrier` is _not_ a general replacement for
 `sycl::group_barrier`, and is intended for usage by experts seeking to
