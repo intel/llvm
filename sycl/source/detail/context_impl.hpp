@@ -173,7 +173,7 @@ public:
     // OpenCL does not support using descendants of context members within that
     // context yet.
     // TODO remove once this limitation is lifted
-    if (!is_host() && getPlugin().getBackend() == backend::opencl)
+    if (!is_host() && Device->getBackend() == backend::opencl)
       return hasDevice(Device);
 
     while (!hasDevice(Device)) {
@@ -185,6 +185,9 @@ public:
 
     return true;
   }
+
+  // Returns the backend of this context
+  backend getBackend() const { return MPlatform->getBackend(); }
 
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.

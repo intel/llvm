@@ -223,8 +223,7 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
 
-  const backend ContextBackend =
-      detail::getSyclObjImpl(C)->getPlugin().getBackend();
+  const backend ContextBackend = detail::getSyclObjImpl(C)->getBackend();
 
   // The CUDA backend cannot use SPIR-V
   if (ContextBackend == backend::ext_oneapi_cuda)
@@ -378,7 +377,7 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
-                                          const detail::plugin &Plugin) {
+                                          const detail::plugin &) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -416,6 +415,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
+
+  const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
+
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
   const char *optLevelStr = str.c_str();
@@ -433,17 +435,15 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
     // option is available for a given frontend option.
-    Plugin.getBackendOption(
-        detail::getSyclObjImpl(Devs[0].get_platform())->getHandleRef(),
-        optLevelStr, &backend_option);
+    PlatformImpl->getBackendOption(optLevelStr, &backend_option);
     if (backend_option && backend_option[0] != '\0') {
       if (!CompileOpts.empty())
         CompileOpts += " ";
       CompileOpts += std::string(backend_option);
     }
   }
-  if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
-       Plugin.getBackend() == backend::opencl) &&
+  if ((PlatformImpl->getBackend() == backend::ext_oneapi_level_zero ||
+       PlatformImpl->getBackend() == backend::opencl) &&
       std::all_of(Devs.begin(), Devs.end(),
                   [](const device &Dev) { return Dev.is_gpu(); }) &&
       Img.getDeviceGlobals().size() != 0) {
@@ -1057,9 +1057,9 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
-  std::string DevExtList = get_device_info_string(
-      Device, PiInfoCode<info::device::extensions>::value,
-      Context->getPlugin());
+  std::string DevExtList =
+      Context->getPlatformImpl()->getDeviceImpl(Device)->get_device_info_string(
+          PiInfoCode<info::device::extensions>::value);
   const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not
@@ -2105,15 +2105,13 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 }
 
 std::vector<device_image_plain>
-ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
+ProgramManager::link(const device_image_plain &DeviceImage,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
   (void)PropList;
 
   std::vector<pi_program> PIPrograms;
-  PIPrograms.reserve(DeviceImages.size());
-  for (const device_image_plain &DeviceImage : DeviceImages)
-    PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
+  PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
 
   std::vector<pi_device> PIDevices;
   PIDevices.reserve(Devs.size());
@@ -2123,14 +2121,12 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
   if (LinkOptionsStr.empty()) {
-    for (const device_image_plain &DeviceImage : DeviceImages) {
-      const std::shared_ptr<device_image_impl> &InputImpl =
-          getSyclObjImpl(DeviceImage);
-      appendLinkOptionsFromImage(LinkOptionsStr,
-                                 *(InputImpl->get_bin_image_ref()));
-    }
+    const std::shared_ptr<device_image_impl> &InputImpl =
+        getSyclObjImpl(DeviceImage);
+    appendLinkOptionsFromImage(LinkOptionsStr,
+                               *(InputImpl->get_bin_image_ref()));
   }
-  const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
+  const context &Context = getSyclObjImpl(DeviceImage)->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
   const detail::plugin &Plugin = ContextImpl->getPlugin();
 
@@ -2152,55 +2148,53 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
   std::vector<unsigned char> NewSpecConstBlob;
   device_image_impl::SpecConstMapT NewSpecConstMap;
-  for (const device_image_plain &DeviceImage : DeviceImages) {
-    std::shared_ptr<device_image_impl> DeviceImageImpl =
-        getSyclObjImpl(DeviceImage);
 
-    // Duplicates are not expected here, otherwise piProgramLink should fail
-    KernelIDs->insert(KernelIDs->end(),
-                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                      DeviceImageImpl->get_kernel_ids_ptr()->end());
+  std::shared_ptr<device_image_impl> DeviceImageImpl =
+      getSyclObjImpl(DeviceImage);
 
-    // To be able to answer queries about specialziation constants, the new
-    // device image should have the specialization constants from all the linked
-    // images.
-    {
-      const std::lock_guard<std::mutex> SpecConstLock(
-          DeviceImageImpl->get_spec_const_data_lock());
+  // Duplicates are not expected here, otherwise piProgramLink should fail
+  KernelIDs->insert(KernelIDs->end(),
+                    DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                    DeviceImageImpl->get_kernel_ids_ptr()->end());
 
-      // Copy all map entries to the new map. Since the blob will be copied to
-      // the end of the new blob we need to move the blob offset of each entry.
-      for (const auto &SpecConstIt :
-           DeviceImageImpl->get_spec_const_data_ref()) {
-        std::vector<device_image_impl::SpecConstDescT> &NewDescEntries =
-            NewSpecConstMap[SpecConstIt.first];
-        assert(NewDescEntries.empty() &&
-               "Specialization constant already exists in the map.");
-        NewDescEntries.reserve(SpecConstIt.second.size());
-        for (const device_image_impl::SpecConstDescT &SpecConstDesc :
-             SpecConstIt.second) {
-          device_image_impl::SpecConstDescT NewSpecConstDesc = SpecConstDesc;
-          NewSpecConstDesc.BlobOffset += NewSpecConstBlob.size();
-          NewDescEntries.push_back(std::move(NewSpecConstDesc));
-        }
+  // To be able to answer queries about specialziation constants, the new
+  // device image should have the specialization constants from all the linked
+  // images.
+  {
+    const std::lock_guard<std::mutex> SpecConstLock(
+        DeviceImageImpl->get_spec_const_data_lock());
+
+    // Copy all map entries to the new map. Since the blob will be copied to
+    // the end of the new blob we need to move the blob offset of each entry.
+    for (const auto &SpecConstIt : DeviceImageImpl->get_spec_const_data_ref()) {
+      std::vector<device_image_impl::SpecConstDescT> &NewDescEntries =
+          NewSpecConstMap[SpecConstIt.first];
+      assert(NewDescEntries.empty() &&
+             "Specialization constant already exists in the map.");
+      NewDescEntries.reserve(SpecConstIt.second.size());
+      for (const device_image_impl::SpecConstDescT &SpecConstDesc :
+           SpecConstIt.second) {
+        device_image_impl::SpecConstDescT NewSpecConstDesc = SpecConstDesc;
+        NewSpecConstDesc.BlobOffset += NewSpecConstBlob.size();
+        NewDescEntries.push_back(std::move(NewSpecConstDesc));
       }
-
-      // Copy the blob from the device image into the new blob. This moves the
-      // offsets of the following blobs.
-      NewSpecConstBlob.insert(
-          NewSpecConstBlob.end(),
-          DeviceImageImpl->get_spec_const_blob_ref().begin(),
-          DeviceImageImpl->get_spec_const_blob_ref().end());
     }
+
+    // Copy the blob from the device image into the new blob. This moves the
+    // offsets of the following blobs.
+    NewSpecConstBlob.insert(NewSpecConstBlob.end(),
+                            DeviceImageImpl->get_spec_const_blob_ref().begin(),
+                            DeviceImageImpl->get_spec_const_blob_ref().end());
   }
+
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
+  auto BinImg = getSyclObjImpl(DeviceImage)->get_bin_image_ref();
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
-          /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
-          std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
-          std::move(NewSpecConstBlob));
+          BinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
+          LinkedProg, std::move(NewSpecConstMap), std::move(NewSpecConstBlob));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.

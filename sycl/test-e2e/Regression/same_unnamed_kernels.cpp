@@ -1,8 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out -fsycl-unnamed-lambda
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: hip
+// Temporarily disabled on CUDA: https://github.com/intel/llvm/issues/9174
+// UNSUPPORTED: hip, cuda
 
 //==----- same_unnamed_kernels.cpp - SYCL kernel naming variants test ------==//
 //
