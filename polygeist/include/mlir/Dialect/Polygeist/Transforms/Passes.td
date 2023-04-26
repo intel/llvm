@@ -45,6 +45,9 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
 def DetectReduction : Pass<"detect-reduction"> {
   let summary = "Detect array reduction operations in a loop";
   let constructor = "mlir::polygeist::createDetectReductionPass()";
+  let dependentDialects =
+    ["AffineDialect", "polygeist::PolygeistDialect",
+     "scf::SCFDialect", "sycl::SYCLDialect"];
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
            /*default=*/"false", 

@@ -42,17 +42,17 @@ namespace polygeist {
 
 using namespace mlir;
 
-static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
-    "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),
+static llvm::cl::opt<bool> LICMEnableSYCLAccessorVersioning(
+    DEBUG_TYPE "-enable-sycl-accessor-versioning", llvm::cl::init(true),
     llvm::cl::desc("Enable loop versioning for SYCL accessors in LICM"));
 
 static llvm::cl::opt<unsigned> LICMSYCLAccessorPairsLimit(
-    "licm-sycl-accessor-pairs-limit", llvm::cl::init(1),
+    DEBUG_TYPE "-sycl-accessor-pairs-limit", llvm::cl::init(1),
     llvm::cl::desc(
         "Maximum number of versioning accessor pairs per operation in LICM"));
 
 static llvm::cl::opt<unsigned> LICMVersionLimit(
-    "licm-version-limit", llvm::cl::init(1),
+    DEBUG_TYPE "-version-limit", llvm::cl::init(1),
     llvm::cl::desc("Maximum number of versioning allowed in LICM"));
 
 namespace {
@@ -351,23 +351,6 @@ private:
   std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs;
 };
 
-/// Return the accessor used by \p op if found, and nullptr otherwise.
-static Optional<sycl::AccessorPtrValue>
-getAccessorUsedByOperation(const Operation &op) {
-  auto getMemrefOp = [](const Operation &op) {
-    return TypeSwitch<const Operation &, Operation *>(op)
-        .Case<AffineLoadOp, AffineStoreOp>(
-            [](auto &affineOp) { return affineOp.getMemref().getDefiningOp(); })
-        .Default([](auto &) { return nullptr; });
-  };
-
-  auto accSub =
-      dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
-  if (accSub)
-    return accSub.getAcc();
-  return std::nullopt;
-}
-
 /// Determine whether any operation in the \p loop has a conflict with the
 /// given operation in LICMCandidate \p candidate that prevents hoisting the
 /// operation out of the loop. Operations that are already known to have no
@@ -398,9 +381,9 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
     }
 
     Optional<sycl::AccessorPtrValue> opAccessor =
-        getAccessorUsedByOperation(op);
+        polygeist::getAccessorUsedByOperation(op);
     Optional<sycl::AccessorPtrValue> otherAccessor =
-        getAccessorUsedByOperation(other);
+        polygeist::getAccessorUsedByOperation(other);
     if (opAccessor.has_value() && otherAccessor.has_value())
       if (*opAccessor != *otherAccessor &&
           loop.isDefinedOutsideOfLoop(*opAccessor) &&
@@ -587,7 +570,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
     std::set<sycl::AccessorPtrPair> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
-    bool willVersion = requireVersioning && EnableLICMSYCLAccessorVersioning &&
+    bool willVersion = requireVersioning && LICMEnableSYCLAccessorVersioning &&
                        numVersion < LICMVersionLimit &&
                        accessorPairs.size() <= LICMSYCLAccessorPairsLimit;
     if (willVersion)

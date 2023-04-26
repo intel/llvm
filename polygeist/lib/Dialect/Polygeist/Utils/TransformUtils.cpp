@@ -124,6 +124,22 @@ bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   return (maxDepth.value() == 1 || maxDepth.value() == 2);
 }
 
+Optional<Value>
+mlir::polygeist::getAccessorUsedByOperation(const Operation &op) {
+  auto getMemrefOp = [](const Operation &op) {
+    return TypeSwitch<const Operation &, Operation *>(op)
+        .Case<AffineLoadOp, AffineStoreOp>(
+            [](auto &affineOp) { return affineOp.getMemref().getDefiningOp(); })
+        .Default([](auto &) { return nullptr; });
+  };
+
+  auto accSub =
+      dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
+  if (accSub)
+    return accSub.getAcc();
+  return std::nullopt;
+}
+
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(0).front();
 }
