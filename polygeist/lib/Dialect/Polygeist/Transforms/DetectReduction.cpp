@@ -63,12 +63,14 @@ private:
 [[maybe_unused]] inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                                                       const ReductionOp &CR) {
   OS.indent(2) << "Load: ";
-  CR.getLoad()->dump();
-  OS.indent(2) << "Store: ";
-  CR.getStore()->dump();
-  OS.indent(2) << "Other Loads: ";
-  for (const AffineLoadOp &Op : CR.getOtherLoads())
-    Op->dump();
+  CR.getLoad()->print(OS);
+  OS.indent(2) << "\nStore: ";
+  CR.getStore()->print(OS);
+  OS.indent(2) << "\nOther Loads: ";
+  for (const AffineLoadOp &Op : CR.getOtherLoads()) {
+    Op->print(OS);
+    OS << "\n";
+  }
 
   return OS;
 }
