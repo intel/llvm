@@ -17,5 +17,5 @@ void foo(const float *usm_in, float* usm_out) {
 
 // No addrspacecast before loading and storing values
 // CHECK-NOT: addrspacecast
-// CHECK:  %__SYCLKernel.ascast.val1.val = load float, ptr addrspace(1)
-// CHECK:  store float %__SYCLKernel.ascast.val1.val, ptr addrspace(1)
+// CHECK:  {{%[^ ]*}} = load float, ptr addrspace(1)
+// CHECK:  store float {{%[^ ]*}}, ptr addrspace(1)
