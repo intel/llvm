@@ -13,9 +13,16 @@ include "mlir/IR/EnumAttr.td"
 
 include "SYCLBase.td"
 
-class SYCL_I32EnumAttr<string name, string summary, list<I32EnumAttrCase> cases>
+class SYCL_I32Enum<string name, string summary, list<I32EnumAttrCase> cases>
     : I32EnumAttr<name, summary, cases> {
+  let genSpecializedAttr = 0;
   let cppNamespace = "::mlir::sycl";
+}
+
+class SYCL_I32EnumAttr<string name, string summary, string mnemonic,
+                       list<I32EnumAttrCase> cases>
+    : EnumAttr<SYCL_Dialect, SYCL_I32Enum<name, summary, cases>, mnemonic> {
+  let assemblyFormat = "`<` $value `>`";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +43,7 @@ def AtomicAccessMode
     : I32EnumAttrCase<"Atomic", 1029, "atomic">;
 
 def MemoryAccessModeAttr
-    : SYCL_I32EnumAttr<"AccessMode", "sycl.access_mode",
+    : SYCL_I32EnumAttr<"AccessMode", "valid SYCL AccessMode", "access_mode",
                        [ReadAccessMode, WriteAccessMode, ReadWriteAccessMode,
 		        DiscardWriteAccessMode, DiscardReadWriteAccessMode,
 			AtomicAccessMode]>;
@@ -61,7 +68,7 @@ def ImageArrayTarget
     : I32EnumAttrCase<"ImageArray", 2020, "image_array">;
 
 def TargetAttr
-    : SYCL_I32EnumAttr<"Target", "sycl.target",
+    : SYCL_I32EnumAttr<"Target", "valid SYCL Target", "target",
                        [GlobalBufferTarget, ConstantBufferTarget, LocalTarget,
 		       ImageTarget, HostBufferTarget, HostImageTarget,
 		       ImageArrayTarget]>;
@@ -87,7 +94,8 @@ def ExtIntelHostAccessAddrSpace
     : I32EnumAttrCase<"ExtIntelHostAccess", 6, "ext_intel_host_access">;
 
 def AccessAddrSpaceAttr
-    : SYCL_I32EnumAttr<"AccessAddrSpace", "sycl.access.address_space",
+    : SYCL_I32EnumAttr<"AccessAddrSpace", "valid SYCL AcccessAddrSpace",
+                       "access.address_space",
                        [PrivateAccessAddrSpace, GlobalAccessAddrSpace,
                        ConstantAccessAddrSpace, LocalAccessAddrSpace,
                        GenericAccessAddrSpace,
@@ -103,7 +111,8 @@ def YesAccessDecorated : I32EnumAttrCase<"Yes", 1, "yes">;
 def LegacyAccessDecorated : I32EnumAttrCase<"Legacy", 2, "legacy">;
 
 def AccessDecoratedAttr
-    : SYCL_I32EnumAttr<"AccessDecorated", "sycl.access.decorated",
+    : SYCL_I32EnumAttr<"AccessDecorated", "valid SYCL AccessDecorated",
+		       "access.decorated",
                        [NoAccessDecorated, YesAccessDecorated,
                        LegacyAccessDecorated]>;
 

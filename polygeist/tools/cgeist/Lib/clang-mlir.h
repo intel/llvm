@@ -348,6 +348,11 @@ private:
                      llvm::Optional<mlir::Type> ReturnType,
                      llvm::StringRef MangledFunctionName);
 
+  /// Creates an instance of a SYCL grid operation replacing a call to \param
+  /// Callee.
+  mlir::Operation *createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
+                                       mlir::Location Loc);
+
   // Reshape memref<elemTy> to memref<1 x elemTy>.
   mlir::Value reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV);
 

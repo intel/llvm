@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
@@ -63,7 +64,6 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
       .Default(false);
 }
 
-constexpr unsigned genericAddressSpace{4};
 bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
                                             TypeRange outputs) {
   if (inputs.size() != 1 || outputs.size() != 1)
@@ -83,10 +83,12 @@ bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
   if (input.getLayout() != output.getLayout())
     return false;
 
-  unsigned int inputMS = input.getMemorySpaceAsInt();
-  unsigned int outputMS = output.getMemorySpaceAsInt();
-  return ((inputMS == genericAddressSpace) !=
-          (outputMS == genericAddressSpace));
+  auto inputMS = dyn_cast_or_null<AccessAddrSpaceAttr>(input.getMemorySpace());
+  auto outputMS =
+      dyn_cast_or_null<AccessAddrSpaceAttr>(output.getMemorySpace());
+  return (inputMS && outputMS &&
+          (inputMS.getValue() == AccessAddrSpace::GenericAccess) !=
+              (outputMS.getValue() == AccessAddrSpace::GenericAccess));
 }
 
 LogicalResult SYCLAccessorGetPointerOp::verify() {

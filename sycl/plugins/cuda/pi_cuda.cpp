@@ -567,8 +567,8 @@ _pi_event::_pi_event(pi_context context, CUevent eventNative)
     : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
-                                                                  context} {
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr},
+      context_{context} {
   cuda_piContextRetain(context_);
 }
 
@@ -963,6 +963,11 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    return getInfo<pi_platform_backend>(param_value_size, param_value,
+                                        param_value_size_ret,
+                                        PI_EXT_PLATFORM_BACKEND_CUDA);
   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);

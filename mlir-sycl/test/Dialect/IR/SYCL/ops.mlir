@@ -16,15 +16,23 @@
 !sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
 
 // CHECK-LABEL: test_addrspacecast_to_generic
-func.func @test_addrspacecast_to_generic(%arg0: memref<?xi32>) -> memref<?xi32, 4> {
-  %0 = sycl.addrspacecast %arg0 : memref<?xi32> to memref<?xi32, 4>
-  return %0 : memref<?xi32, 4>
+func.func @test_addrspacecast_to_generic(
+    %arg0: memref<?xi32, #sycl.access.address_space<global>>)
+    -> memref<?xi32, #sycl.access.address_space<generic>> {
+  %0 = sycl.addrspacecast %arg0
+      : memref<?xi32, #sycl.access.address_space<global>>
+      to memref<?xi32, #sycl.access.address_space<generic>>
+  return %0 : memref<?xi32, #sycl.access.address_space<generic>>
 }
 
 // CHECK-LABEL: test_addrspacecast_from_generic
-func.func @test_addrspacecast_from_generic(%arg0: memref<?xi32, 4>) -> memref<?xi32> {
-  %0 = sycl.addrspacecast %arg0 : memref<?xi32, 4> to memref<?xi32>
-  return %0 : memref<?xi32>
+func.func @test_addrspacecast_from_generic(
+    %arg0: memref<?xi32, #sycl.access.address_space<generic>>)
+    -> memref<?xi32, #sycl.access.address_space<local>> {
+  %0 = sycl.addrspacecast %arg0
+      : memref<?xi32, #sycl.access.address_space<generic>>
+      to memref<?xi32, #sycl.access.address_space<local>>
+  return %0 : memref<?xi32, #sycl.access.address_space<local>>
 }
 
 // CHECK-LABEL: test_cast_id

@@ -48,6 +48,7 @@ public:
   /// Currently there is only a single user - ProgramManager class.
   template <typename T> struct BuildResult {
     std::atomic<T *> Ptr;
+    T Val;
     std::atomic<BuildState> State;
     BuildError Error;
 
@@ -68,9 +69,7 @@ public:
     BuildResult(T *P, BuildState S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
-  using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
-  using PiProgramPtrT = std::atomic<PiProgramT *>;
-  using ProgramWithBuildStateT = BuildResult<PiProgramT>;
+  using ProgramWithBuildStateT = BuildResult<RT::PiProgram>;
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      std::pair<RT::PiDevice, std::string>>;
   using CommonProgramKeyT = std::pair<std::uintptr_t, RT::PiDevice>;
@@ -84,18 +83,15 @@ public:
 
   using ContextPtr = context_impl *;
 
-  using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
-
-  using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = BuildResult<PiKernelT>;
-  using KernelByNameT = std::map<std::string, KernelWithBuildStateT>;
+  using KernelArgMaskPairT = std::pair<RT::PiKernel, const KernelArgMask *>;
+  using KernelByNameT = std::map<std::string, BuildResult<KernelArgMaskPairT>>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
   using KernelFastCacheKeyT =
       std::tuple<SerializedObj, OSModuleHandle, RT::PiDevice, std::string,
                  std::string>;
-  using KernelFastCacheValT =
-      std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>;
+  using KernelFastCacheValT = std::tuple<RT::PiKernel, std::mutex *,
+                                         const KernelArgMask *, RT::PiProgram>;
   using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   ~KernelProgramCache();
@@ -128,7 +124,7 @@ public:
     return std::make_pair(&Inserted.first->second, Inserted.second);
   }
 
-  std::pair<KernelWithBuildStateT *, bool>
+  std::pair<BuildResult<KernelArgMaskPairT> *, bool>
   getOrInsertKernel(RT::PiProgram Program, const std::string &KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
@@ -173,7 +169,7 @@ public:
     if (It != MKernelFastCache.end()) {
       return It->second;
     }
-    return std::make_tuple(nullptr, nullptr, nullptr);
+    return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
   }
 
   template <typename KeyT, typename ValT>

@@ -655,14 +655,23 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
         if (!canBeLoweredToBarePtr(type))
           return std::nullopt;
 
+        FailureOr<unsigned> addrSpace = converter.getMemRefAddressSpace(type);
+        if (failed(addrSpace)) {
+          emitError(UnknownLoc::get(type.getContext()),
+                    "conversion of memref memory space ")
+              << type.getMemorySpace()
+              << " to integer address space failed. Consider adding memory "
+                 "space conversions.";
+          return Type{};
+        }
+
         if (useOpaquePointers) {
-          return LLVM::LLVMPointerType::get(type.getContext(),
-                                            type.getMemorySpaceAsInt());
+          return LLVM::LLVMPointerType::get(type.getContext(), *addrSpace);
         }
 
         const auto elemType = converter.convertType(type.getElementType());
         if (!elemType)
           return Type{};
-        return LLVM::LLVMPointerType::get(elemType, type.getMemorySpaceAsInt());
+        return LLVM::LLVMPointerType::get(elemType, *addrSpace);
       });
 }

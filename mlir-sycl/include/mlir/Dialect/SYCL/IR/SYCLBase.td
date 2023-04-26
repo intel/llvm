@@ -22,6 +22,7 @@ include "mlir/IR/OpBase.td"
 def SYCL_Dialect : Dialect {
   let name = "sycl";
   let cppNamespace = "::mlir::sycl";
+  let useDefaultAttributePrinterParser = 1;
   let useDefaultTypePrinterParser = 1;
   let extraClassDeclaration = [{
     MethodRegistry methods;
@@ -30,6 +31,14 @@ def SYCL_Dialect : Dialect {
     static constexpr llvm::StringRef getFunctionNameAttrName() { return "FunctionName"; }
     static constexpr llvm::StringRef getMangledFunctionNameAttrName() { return "MangledFunctionName"; }
     static constexpr llvm::StringRef getTypeNameAttrName() { return "TypeName"; }
+
+    /// In the example below, %p0 and %p1 are not aliased.
+    /// void func(%arg0 : memref<?x!sycl.accessor> {sycl.inner.disjoint},
+    ///           %arg1 : memref<?x!sycl.accessor> {sycl.inner.disjoint}) {
+    ///   %p0 = sycl.accessor.subscript %arg0(%id0)
+    ///   %p1 = sycl.accessor.subscript %arg1(%id1)
+    /// }
+    static StringLiteral getInnerDisjointAttrName() { return "sycl.inner.disjoint"; }
 
     /// Each operation will be registered as usual in an MLIR dialect
     /// and also will be registered as a SYCL method if it implements one.

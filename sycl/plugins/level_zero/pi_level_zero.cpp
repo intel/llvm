@@ -7177,12 +7177,12 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
 }
 
 enum class USMAllocationForceResidencyType {
-  // [Default] Do not force memory residency at allocation time.
+  // Do not force memory residency at allocation time.
   None = 0,
   // Force memory resident on the device of allocation at allocation time.
   // For host allocation force residency on all devices in a context.
   Device = 1,
-  // Force memory resident on all devices in the context with P2P
+  // [Default] Force memory resident on all devices in the context with P2P
   // access to the device of allocation.
   // For host allocation force residency on all devices in a context.
   P2PDevices = 2
@@ -7192,7 +7192,7 @@ enum class USMAllocationForceResidencyType {
 static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
   const auto Str = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
   if (!Str)
-    return USMAllocationForceResidencyType::None;
+    return USMAllocationForceResidencyType::P2PDevices;
   switch (std::atoi(Str)) {
   case 1:
     return USMAllocationForceResidencyType::Device;

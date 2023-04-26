@@ -351,9 +351,9 @@ kernel program_impl::get_kernel(std::string KernelName,
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
   }
-  return createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(get_pi_kernel(KernelName), MContext,
-                                    PtrToSelf, IsCreatedFromSource, nullptr));
+  auto [Kernel, ArgMask] = get_pi_kernel_arg_mask_pair(KernelName);
+  return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
+      Kernel, MContext, PtrToSelf, IsCreatedFromSource, nullptr, ArgMask));
 }
 
 std::vector<std::vector<char>> program_impl::get_binaries() const {
@@ -447,19 +447,20 @@ std::vector<RT::PiDevice> program_impl::get_pi_devices() const {
   return PiDevices;
 }
 
-RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
-  RT::PiKernel Kernel = nullptr;
+std::pair<RT::PiKernel, const KernelArgMask *>
+program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
+  std::pair<RT::PiKernel, const KernelArgMask *> Result;
 
   if (is_cacheable()) {
-    std::tie(Kernel, std::ignore, std::ignore) =
+    std::tie(Result.first, std::ignore, Result.second, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
             MProgramModuleHandle, detail::getSyclObjImpl(get_context()),
             detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
-    getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
+    getPlugin().call<PiApiKind::piKernelRetain>(Result.first);
   } else {
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
-        MProgram, KernelName.c_str(), &Kernel);
+        MProgram, KernelName.c_str(), &Result.first);
     if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested",
@@ -469,11 +470,11 @@ RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
-                                                sizeof(pi_bool), &PI_TRUE);
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(
+        Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
   }
 
-  return Kernel;
+  return Result;
 }
 
 std::vector<device>

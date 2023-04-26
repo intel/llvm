@@ -1,10 +1,10 @@
-// RUN: polygeist-opt -arg-promotion -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
+// RUN: polygeist-opt -arg-promotion -kernel-disjoint-specialization -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
 
 // CHECK-LABEL: func.func private @matrix_multiply_reduction
-// CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_gb, 4> {llvm.noalias},
-// CHECK-SAME:     %arg1: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias},
-// CHECK-SAME:     %arg2: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias},
-// CHECK-SAME:     %arg3: i32) {
+// CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_gb, 4> {llvm.noalias, sycl.inner.disjoint},
+// CHECK-SAME:     %arg1: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias, sycl.inner.disjoint},
+// CHECK-SAME:     %arg2: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias, sycl.inner.disjoint},
+// CHECK-SAME:     %arg3: i32) attributes {llvm.linkage = #llvm.linkage<private>} {
 // CHECK-DAG: [[ALLOCA:%.*]] = memref.alloca()
 // CHECK-DAG: [[CAST:%.*]] = memref.cast [[ALLOCA]]
 // CHECK-DAG: [[ALLOCA1:%.*]] = memref.alloca()

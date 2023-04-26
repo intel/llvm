@@ -31,19 +31,32 @@ static bool isFuncArg(Value val) {
       blockArg.getOwner()->getParentOp());
 }
 
-// Return true if the value \p val is a function argument that has the
-// 'llvm.noalias' attribute, and false otherwise.
-static bool isNoAliasArgument(Value val) {
+/// Return true if \p val is a function argument that has \p attr as attribute.
+static bool isArgumentWithAttribute(Value val, const Twine &attr) {
   if (!isFuncArg(val))
     return false;
 
   auto blockArg = cast<BlockArgument>(val);
   auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
-  auto noAliasAttr = StringAttr::get(
-      val.getContext(),
-      LLVM::LLVMDialect::getDialectNamespace() + "." +
-          llvm::Attribute::getNameFromAttrKind(llvm::Attribute::NoAlias));
-  return !!func.getArgAttr(blockArg.getArgNumber(), noAliasAttr);
+  auto stringAttr = StringAttr::get(val.getContext(), attr);
+  return (func.getArgAttr(blockArg.getArgNumber(), stringAttr) != nullptr);
+}
+
+// Return true if the value \p val is a function argument that has the
+// 'llvm.noalias' attribute, and false otherwise.
+static bool isNoAliasArgument(Value val) {
+  return isArgumentWithAttribute(
+      val, Twine(LLVM::LLVMDialect::getDialectNamespace())
+               .concat(".")
+               .concat(llvm::Attribute::getNameFromAttrKind(
+                   llvm::Attribute::NoAlias)));
+}
+
+// Return true if the value \p val is a function argument that has the
+// 'sycl.inner.disjoint' attribute, and false otherwise.
+static bool isSYCLInnerDisjointArgument(Value val) {
+  return isArgumentWithAttribute(val,
+                                 sycl::SYCLDialect::getInnerDisjointAttrName());
 }
 
 // Return true is the given type \p ty is a MemRef type with a SYCL element
@@ -95,6 +108,12 @@ AliasResult sycl::AliasAnalysis::handleAccessorSubscriptAlias(Value lhs,
   Operation *lhsOp = lhs.getDefiningOp(), *rhsOp = rhs.getDefiningOp();
   auto lhsSubOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(lhsOp);
   auto rhsSubOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(rhsOp);
+
+  // Buffers in SYCL accessors with attribute 'sycl.inner.disjoint' are
+  // considered not aliased.
+  if (lhsSubOp && rhsSubOp && isSYCLInnerDisjointArgument(lhsSubOp.getAcc()) &&
+      isSYCLInnerDisjointArgument(rhsSubOp.getAcc()))
+    return AliasResult::NoAlias;
 
   auto typesDoNotAlias = [](Type lhsTy, Type rhsTy) {
     return (lhsTy != rhsTy && isMemRefOfSYCLType(rhsTy));

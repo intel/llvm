@@ -50,6 +50,26 @@ def DetectReduction : Pass<"detect-reduction"> {
   ];
 }
 
+def KernelDisjointSpecialization : Pass<"kernel-disjoint-specialization", "mlir::ModuleOp"> {
+  let summary = "Specialize SYCL kernel body functions";
+  let description = [{
+    Version the callsite from SYCL kernel to the SYCL kernel body function,
+    where the specialized version ensures SYCL accessors do not overlap.
+  }];
+  let dependentDialects = 
+      ["memref::MemRefDialect", "polygeist::PolygeistDialect",
+       "scf::SCFDialect", "sycl::SYCLDialect"];
+  let constructor = "mlir::polygeist::createKernelDisjointSpecializationPass()";
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+  ];
+  let statistics = [
+    Statistic<"numFunctionSpecialized", "num-function-specialized", "Number of function specialized">
+  ];
+}
+
 def Mem2Reg : Pass<"mem2reg"> {
   let summary = "Represent allocated values in SSA form.";
   let constructor = "mlir::polygeist::createMem2RegPass()";
