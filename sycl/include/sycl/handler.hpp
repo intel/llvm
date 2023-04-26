@@ -749,16 +749,15 @@ private:
 #ifdef __SYCL_NATIVE_CPU__
     if constexpr (detail::is_native_cpu_v<KI>) {
       auto l = std::make_shared<detail::NativeCPUTask_t>(
-          [MArgs = this->MArgs](detail::NDRDescT ndr) {
+          [](detail::NDRDescT ndr, std::vector<detail::NativeCPUArgDesc>& NCArgs) {
             nativecpu_state state;
-            auto HCArgs = detail::processArgsForNativeCPU(MArgs);
             for (unsigned dim0 = 0; dim0 < ndr.GlobalSize[0]; dim0++) {
               for (unsigned dim1 = 0; dim1 < ndr.GlobalSize[1]; dim1++) {
                 for (unsigned dim2 = 0; dim2 < ndr.GlobalSize[2]; dim2++) {
                   state.MGlobal_id.x = dim0;
                   state.MGlobal_id.y = dim1;
                   state.MGlobal_id.z = dim2;
-                  KI::NCPUKernelHandler(HCArgs, &state);
+                  KI::NCPUKernelHandler(NCArgs, &state);
                 }
               }
             }

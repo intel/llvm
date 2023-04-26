@@ -132,7 +132,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   Type *StatePtrType = PointerType::getUnqual(StateType);
   SmallVector<Function *> NewKernels;
   for (auto &oldF : OldKernels) {
-    auto newF = addArg(oldF, StatePtrType);
+    auto newF = cloneFunctionAndAddParam(oldF, StatePtrType);
     newF->takeName(oldF);
     oldF->eraseFromParent();
     NewKernels.push_back(newF);

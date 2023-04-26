@@ -1,5 +1,6 @@
 #pragma once
 #include "cg_types.hpp"
+#include "sycl/detail/native_cpu.hpp"
 #include <CL/__spirv/spirv_vars.hpp>
 #include <functional>
 #include <memory>
@@ -8,29 +9,11 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-using NativeCPUTask_t = std::function<void(NDRDescT)>;
 
-class NativeCPUTask : public HostKernelBase {
-public:
-  NativeCPUTask(std::shared_ptr<NativeCPUTask_t> Task) : MTask(Task) {}
-  void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
-    (*MTask)(NDRDesc);
-  }
-  // Return pointer to the lambda object.
-  // Used to extract captured variables.
-  char *getPtr() override {
-    assert(false && "getPtr called on Native CPU task");
-    return nullptr;
-  }
-
-private:
-  std::shared_ptr<NativeCPUTask_t> MTask;
-};
-
-class __SYCL_EXPORT NativeCPUArgDesc {
+struct __SYCL_EXPORT NativeCPUArgDesc {
   void *MPtr;
+  bool MisAcc;
 
-public:
   void *getPtr() const { return MPtr; }
   NativeCPUArgDesc(const ArgDesc &ArgDesc);
 };
@@ -38,6 +21,36 @@ public:
 __SYCL_EXPORT
 std::vector<NativeCPUArgDesc>
 processArgsForNativeCPU(const std::vector<ArgDesc> &MArgs);
+
+using NativeCPUTask_t = std::function<void(NDRDescT, std::vector<NativeCPUArgDesc>&)>;
+
+class NativeCPUTask : public HostKernelBase {
+public:
+  NativeCPUTask(std::shared_ptr<NativeCPUTask_t> Task, const std::vector<ArgDesc>& Args) : MTask(Task), MArgs(Args) {}
+  void call_native(const NDRDescT &NDRDesc, std::vector<NativeCPUArgDesc>& NCArgs) {
+    (*MTask)(NDRDesc, NCArgs);
+  }
+  void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
+    auto NCArgs = processArgsForNativeCPU(MArgs);
+    (*MTask)(NDRDesc, NCArgs);
+  }
+
+  // Return pointer to the lambda object.
+  // Used to extract captured variables.
+  char *getPtr() override {
+    return reinterpret_cast<char*>(this);
+  }
+
+  const std::vector<ArgDesc>& getArgs() const {
+    return MArgs;
+  }
+
+private:
+  std::shared_ptr<NativeCPUTask_t> MTask;
+  std::vector<ArgDesc> MArgs;
+};
+
+
 
 // Helper class to determine wheter or not the KernelInfo struct has
 // the is_native_cpu field, and if it is true or false.

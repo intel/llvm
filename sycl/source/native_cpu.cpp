@@ -11,12 +11,16 @@ NativeCPUArgDesc::NativeCPUArgDesc(const ArgDesc &Arg) {
   if (Arg.MType == kernel_param_kind_t::kind_accessor) {
     auto HostAcc = static_cast<AccessorImplHost *>(Arg.MPtr);
     MPtr = HostAcc->MData;
-  } else
+    MisAcc = true;
+  } else {
     MPtr = Arg.MPtr;
+    MisAcc = false;
+  }
 }
 
 std::vector<NativeCPUArgDesc>
 processArgsForNativeCPU(const std::vector<ArgDesc> &MArgs) {
+  std::cout << "[PTRDBG] processing args\n";
   std::vector<NativeCPUArgDesc> res;
   for (auto &arg : MArgs) {
     res.emplace_back(arg);

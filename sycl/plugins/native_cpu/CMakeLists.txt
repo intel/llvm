@@ -4,4 +4,5 @@ add_sycl_plugin(native_cpu
   INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR} 
   LIBRARIES
+    sycl
 )

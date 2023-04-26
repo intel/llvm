@@ -1,4 +1,7 @@
+#include "sycl/nd_range.hpp"
 #include <sycl/detail/pi.h>
+#include <sycl/detail/cg_types.hpp> // NDRDescT
+#include <sycl/detail/native_cpu.hpp>
 #include <iostream>
 #include <atomic>
 #include <cstring>
@@ -24,12 +27,15 @@ struct _pi_device : _pi_object {
 struct _pi_mem : _pi_object {
   _pi_mem(size_t Size) {
     _mem = malloc(Size);
+    std::cout << "[DEBUG] _mem is " << _mem << "\n";
   }
   _pi_mem(void* HostPtr, size_t Size) {
     _mem = malloc(Size);
+    std::cout << "[DEBUG] _mem is " << _mem << " init with hostptr\n";
     memcpy(_mem, HostPtr, Size);
   }
   _pi_mem(void* HostPtr) {
+    std::cout << "[DEBUG] _mem points to " << HostPtr << "\n";
     _mem = HostPtr;
   }
   ~_pi_mem() {
@@ -80,6 +86,25 @@ pi_result getInfoArray(size_t array_length, size_t param_value_size,
                        T *value) {
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
                      array_length * sizeof(T), memcpy);
+}
+
+sycl::detail::NDRDescT getNDRDesc (pi_uint32 WorkDim,
+                      const size_t *GlobalWorkOffset,
+                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize) {
+  sycl::detail::NDRDescT Res;
+  switch(WorkDim) {
+    case 1:
+      Res.set<1>(sycl::nd_range<1>({GlobalWorkSize[0]},{LocalWorkSize[0]},{GlobalWorkOffset[0]}));
+      break;
+    case 2:
+      Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},{LocalWorkSize[0], LocalWorkSize[1]},{GlobalWorkOffset[0], GlobalWorkOffset[1]}));
+      break;
+    case 3:
+      Res.set<3>(sycl::nd_range<3>({GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},{LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},{GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
+      break;
+
+  }
+  return Res;
 }
 
 extern "C" {
@@ -429,7 +454,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 
   default:
-    std::cout << "[DEBUG] info requested for " << std::hex << ParamName << "\n";
     DIE_NO_IMPLEMENTATION;
   }
   return PI_SUCCESS;
@@ -522,6 +546,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   const bool UseHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_USE;
   const bool CopyHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_COPY;
   const bool HostPtrNotNull = HostPtr != nullptr;
+  std::cout << "[DEBUG] creating mem: " << UseHostPtr << " " << CopyHostPtr << " " << HostPtrNotNull << "\n";
+  std::cout << "[DEBUG] hostptr " << ((int*)HostPtr)[1] << "\n";
   if(UseHostPtr && HostPtrNotNull) {
     *RetMem = new _pi_mem(HostPtr);
     return PI_SUCCESS;
@@ -729,7 +755,15 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
-  DIE_NO_IMPLEMENTATION;
+  //TODO: implement proper event management
+  //TODO: implement proper error checking
+  std::cout << "[DEBUG] Dst " << Dst << "\n";
+  std::cout << "[DEBUG] Src " << Src->_mem << "\n";
+  std::cout << "[DEBUG] size offset " << Size << " " << Offset << "\n";
+  auto c = reinterpret_cast<void*>(Src);
+  //memcpy(Dst, c, Size);
+  std::cout << "ok\n";
+  return PI_SUCCESS;
 }
 
 pi_result piEnqueueMemBufferReadRect(pi_queue, pi_mem, pi_bool,
@@ -828,7 +862,21 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
                       const pi_event *EventWaitList, pi_event *Event) {
-  DIE_NO_IMPLEMENTATION;
+  //TODO: add proper error checking
+  //TODO: add proper event dep management
+  sycl::detail::NDRDescT NDRDesc = getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
+  sycl::detail::NativeCPUTask *NativeKernel = reinterpret_cast<sycl::detail::NativeCPUTask*>(Kernel);
+  //This arg processing logic should be done by piSetKernelArg but here we are
+  const std::vector<sycl::detail::ArgDesc>& Args = NativeKernel->getArgs();
+  std::vector<sycl::detail::NativeCPUArgDesc> NCArgs = sycl::detail::processArgsForNativeCPU(Args);
+  for(auto& Arg : NCArgs) {
+    if(Arg.MisAcc)
+      Arg.MPtr = reinterpret_cast<_pi_mem*>(Arg.MPtr)->_mem;
+  }
+
+  NativeKernel->call_native(NDRDesc, NCArgs);
+
+  return PI_SUCCESS;
 }
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
