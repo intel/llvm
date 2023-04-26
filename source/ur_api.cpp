@@ -769,7 +769,6 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
 ///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
-///         + `NULL == pProperties`
 ///         + `NULL == phContext`
 ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
@@ -777,8 +776,8 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
-    const ur_context_native_properties_t
-        *pProperties, ///< [in] pointer to properties struct
+    const ur_context_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
         phContext ///< [out] pointer to the handle of the context object created.
 ) {
@@ -2440,15 +2439,14 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///         + `NULL == hContext`
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pProperties`
 ///         + `NULL == phKernel`
 ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t hContext,     ///< [in] handle of the context object
     ur_program_handle_t
         hProgram, ///< [in] handle of the program associated with the kernel
-    const ur_kernel_native_properties_t
-        *pProperties, ///< [in] pointer to properties struct
+    const ur_kernel_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
@@ -2632,14 +2630,13 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pProperties`
 ///         + `NULL == phQueue`
 ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
     ur_context_handle_t hContext,    ///< [in] handle of the context object
     ur_device_handle_t hDevice,      ///< [in] handle of the device object
-    const ur_queue_native_properties_t
-        *pProperties, ///< [in] pointer to properties struct
+    const ur_queue_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
         *phQueue ///< [out] pointer to the handle of the queue object created.
 ) {
