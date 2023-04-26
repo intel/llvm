@@ -447,7 +447,7 @@ params:
       desc: "[in] handle of the program associated with the kernel"
     - type: "const $x_kernel_native_properties_t*"
       name: pProperties
-      desc: "[in] pointer to properties struct"
+      desc: "[in][optional] pointer to native kernel properties struct"
     - type: "$x_kernel_handle_t*"
       name: phKernel
       desc: |

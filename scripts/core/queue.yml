@@ -240,7 +240,7 @@ params:
       desc: "[in] handle of the device object"
     - type: "const $x_queue_native_properties_t*"
       name: pProperties
-      desc: "[in] pointer to properties struct"
+      desc: "[in][optional] pointer to native queue properties struct"
     - type: "$x_queue_handle_t*"
       name: phQueue
       desc: |
