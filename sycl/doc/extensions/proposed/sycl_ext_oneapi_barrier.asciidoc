@@ -206,6 +206,19 @@ synchronization points for all work-items in a group.
 
 [source,c++]
 ----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Group, typename Barrier>
+[[nodiscard]] group_arrival_token group_arrive(Group g, Barrier b);
+
+template <typename Group, typename Barrier>
+void group_wait(Group g, Barrier b, group_arrival_token&& arrival);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[source,c++]
+----
 template <typename Group, typename Barrier>
 [[nodiscard]] group_arrival_token group_arrive(Group g, Barrier b);
 ----
