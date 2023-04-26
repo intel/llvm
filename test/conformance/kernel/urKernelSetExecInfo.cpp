@@ -6,7 +6,7 @@
 using urKernelSetExecInfoTest = uur::urKernelTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetExecInfoTest);
 
-TEST_P(urKernelSetExecInfoTest, Success) {
+TEST_P(urKernelSetExecInfoTest, SuccessIndirectAccess) {
     bool property_value = false;
     ASSERT_SUCCESS(
         urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
@@ -35,4 +35,87 @@ TEST_P(urKernelSetExecInfoTest, InvalidNullPointerPropValue) {
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
         urKernelSetExecInfo(nullptr, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
                             sizeof(property_value), nullptr));
+}
+
+struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
+    void SetUp() {
+        kernel_name = "fill";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+
+    void TearDown() {
+        if (allocation) {
+            ASSERT_SUCCESS(urUSMFree(context, allocation));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
+    }
+
+    size_t allocation_size = 16;
+    void *allocation = nullptr;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetExecInfoUSMPointersTest);
+
+TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
+    bool host_supported = false;
+    ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_supported));
+    if (!host_supported) {
+        GTEST_SKIP() << "Host USM is not supported.";
+    }
+
+    ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocation_size,
+                                  &allocation));
+    ASSERT_NE(allocation, nullptr);
+    void *pointers[] = {allocation};
+
+    ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
+                                       sizeof(pointers), pointers));
+}
+
+TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
+    bool device_supported = false;
+    ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_supported));
+    if (!device_supported) {
+        GTEST_SKIP() << "Device USM is not supported.";
+    }
+
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, &allocation));
+    ASSERT_NE(allocation, nullptr);
+    void *pointers[] = {allocation};
+
+    ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
+                                       sizeof(pointers), pointers));
+}
+
+TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
+    bool shared_supported = false;
+    ASSERT_SUCCESS(
+        uur::GetDeviceUSMSingleSharedSupport(device, shared_supported));
+    if (!shared_supported) {
+        GTEST_SKIP() << "Shared USM is not supported.";
+    }
+
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, &allocation));
+    ASSERT_NE(allocation, nullptr);
+    void *pointers[] = {allocation};
+
+    ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_USM_PTRS,
+                                       sizeof(pointers), pointers));
+}
+
+using urKernelSetExecInfoCacheConfigTest =
+    uur::urKernelTestWithParam<ur_kernel_cache_config_t>;
+
+UUR_TEST_SUITE_P(urKernelSetExecInfoCacheConfigTest,
+                 ::testing::Values(UR_KERNEL_CACHE_CONFIG_DEFAULT,
+                                   UR_KERNEL_CACHE_CONFIG_LARGE_SLM,
+                                   UR_KERNEL_CACHE_CONFIG_LARGE_DATA),
+                 uur::deviceTestWithParamPrinter<ur_kernel_cache_config_t>);
+
+TEST_P(urKernelSetExecInfoCacheConfigTest, Success) {
+    auto property_value = getParam();
+    ASSERT_SUCCESS(urKernelSetExecInfo(kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
+                                       sizeof(property_value),
+                                       &property_value));
 }

@@ -3,14 +3,26 @@
 
 #include <uur/fixtures.h>
 
-using urProgramGetInfoTest = uur::urProgramTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetInfoTest);
+using urProgramGetInfoTest = uur::urProgramTestWithParam<ur_program_info_t>;
+
+UUR_TEST_SUITE_P(
+    urProgramGetInfoTest,
+    ::testing::Values(UR_PROGRAM_INFO_REFERENCE_COUNT, UR_PROGRAM_INFO_CONTEXT,
+                      UR_PROGRAM_INFO_NUM_DEVICES, UR_PROGRAM_INFO_DEVICES,
+                      UR_PROGRAM_INFO_SOURCE, UR_PROGRAM_INFO_BINARY_SIZES,
+                      UR_PROGRAM_INFO_BINARIES, UR_PROGRAM_INFO_NUM_KERNELS,
+                      UR_PROGRAM_INFO_KERNEL_NAMES),
+    uur::deviceTestWithParamPrinter<ur_program_info_t>);
 
 TEST_P(urProgramGetInfoTest, Success) {
-    uint32_t ref_count = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_REFERENCE_COUNT,
-                                    sizeof(ref_count), &ref_count, nullptr));
-    ASSERT_NE(0, ref_count);
+    auto property_name = getParam();
+    size_t property_size = 0;
+    std::vector<char> property_value;
+    ASSERT_SUCCESS(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size));
+    property_value.resize(property_size);
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
+                                    property_value.data(), nullptr));
 }
 
 TEST_P(urProgramGetInfoTest, InvalidNullHandleProgram) {
