@@ -92,7 +92,7 @@ TEST_P(urMemBufferPartitionTest, InvalidValueBufferCreateInfoOutOfBounds) {
     ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0,
                               8192};
     ur_mem_handle_t partition = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_BUFFER_SIZE,
                      urMemBufferPartition(buffer, UR_MEM_FLAG_READ_WRITE,
                                           UR_BUFFER_CREATE_TYPE_REGION, &region,
                                           &partition));
