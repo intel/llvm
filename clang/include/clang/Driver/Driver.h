@@ -832,6 +832,9 @@ private:
   mutable llvm::StringMap<const std::pair<StringRef, StringRef>>
       IntegrationFileList;
 
+  /// Integration helper header for SYCL Native CPU
+  mutable llvm::StringMap<const StringRef> NativeCPUIntegrationFiles;
+
   /// Unique ID used for SYCL compilations.  Each file will use a different
   /// unique ID, but the same ID will be used for different compilation
   /// targets.
@@ -900,6 +903,7 @@ public:
     IntegrationFileList.insert(
         {FileName, std::make_pair(IntHeaderName, IntFooterName)});
   }
+
   /// getIntegrationHeader - Get the integration header file
   StringRef getIntegrationHeader(StringRef FileName) const {
     return IntegrationFileList[FileName].first;

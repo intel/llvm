@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "sycl/detail/native_cpu.hpp"
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
@@ -16,6 +17,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/handler_proxy.hpp>
+#include <sycl/detail/native_cpu.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
@@ -287,6 +289,8 @@ private:
 using std::enable_if_t;
 using sycl::detail::queue_impl;
 
+__SYCL_EXPORT void setNativeCPUImpl(std::shared_ptr<handler_impl> &MImpl,
+                                    std::shared_ptr<NativeCPUTask_t> &task);
 } // namespace detail
 
 /// Command group handler class.
@@ -742,6 +746,26 @@ private:
     if (IsCallableWithKernelHandler) {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
+#ifdef __SYCL_NATIVE_CPU__
+    if constexpr (detail::is_native_cpu_v<KI>) {
+      auto l = std::make_shared<detail::NativeCPUTask_t>(
+          [MArgs = this->MArgs](detail::NDRDescT ndr) {
+            nativecpu_state state;
+            auto HCArgs = detail::processArgsForNativeCPU(MArgs);
+            for (unsigned dim0 = 0; dim0 < ndr.GlobalSize[0]; dim0++) {
+              for (unsigned dim1 = 0; dim1 < ndr.GlobalSize[1]; dim1++) {
+                for (unsigned dim2 = 0; dim2 < ndr.GlobalSize[2]; dim2++) {
+                  state.MGlobal_id.x = dim0;
+                  state.MGlobal_id.y = dim1;
+                  state.MGlobal_id.z = dim2;
+                  KI::NCPUKernelHandler(HCArgs, &state);
+                }
+              }
+            }
+          });
+      detail::setNativeCPUImpl(MImpl, l);
+    }
+#endif
   }
 
   /// Process kernel properties.

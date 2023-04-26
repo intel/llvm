@@ -54,6 +54,7 @@
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "ToolChains/ZOS.h"
+#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
@@ -103,9 +104,9 @@
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <sstream>
-#include <optional>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -1151,9 +1152,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
+  bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
+
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
-  if (HasSYCLTargetsOption) {
+  if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
@@ -1255,6 +1258,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLAddTargets->getAsString(C.getInputArgs());
     }
+  } else if (IsSYCLNativeCPU) {
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    llvm::Triple HostTriple = HostTC->getTriple();
+    UniqueSYCLTriplesVec.push_back(HostTriple);
+    addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
   } else {
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
@@ -5659,6 +5667,19 @@ class OffloadingActionBuilder final {
           } else
             FullDeviceLinkAction = FullLinkObject;
 
+          bool IsSYCLNativeCPU = isSYCLNativeCPU(Args);
+          if (IsSYCLNativeCPU) {
+            // for SYCL Native CPU, we just take the linked device
+            // modules, lower them to a shared lib, and link it to the host
+            // shared lib.
+            auto *backendAct = C.MakeAction<BackendJobAction>(
+                FullDeviceLinkAction, types::TY_PP_Asm);
+            auto *asmAct =
+                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
+            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
+            return;
+          }
+
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
           bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
@@ -6037,7 +6058,11 @@ class OffloadingActionBuilder final {
       bool GpuInitHasErrors = false;
       bool HasSYCLTargetsOption =
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
-      if (HasSYCLTargetsOption) {
+      bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
+      if (IsSYCLNativeCPU && HasSYCLTargetsOption) {
+        C.getDriver().Diag(clang::diag::warn_drv_sycl_native_cpu_and_targets);
+      }
+      if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
           Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
@@ -6157,6 +6182,14 @@ class OffloadingActionBuilder final {
               GpuArchList.emplace_back(TT, nullptr);
           }
         }
+      } else if (IsSYCLNativeCPU) {
+        const ToolChain *HostTC =
+            C.getSingleOffloadToolChain<Action::OFK_Host>();
+        llvm::Triple TT = HostTC->getTriple();
+        auto TCIt = llvm::find_if(
+            ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
+        SYCLTripleList.push_back(TT);
+        SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
       } else if (HasValidSYCLRuntime) {
         // -fsycl is provided without -fsycl-*targets.
         bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
@@ -6987,6 +7020,20 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         TmpFileFooter = C.addTempFile(C.getArgs().MakeArgString(OutName));
       }
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
+      //if (isSYCLNativeCPU(Args)) {
+      //  std::string TmpFileNameHCHeader;
+      //  if (IsSaveTemps) {
+      //    TmpFileNameHCHeader.append(C.getDriver().GetUniquePath(
+      //        OutFileDir.c_str() + StemmedSrcFileName + "-hc-header", "h"));
+      //  } else {
+      //    TmpFileNameHCHeader.append(C.getDriver().GetTemporaryPath(
+      //        OutFileDir.c_str() + StemmedSrcFileName + "-hc-header", "h"));
+      //  }
+
+      //  StringRef TmpHCHeader =
+      //      C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHCHeader));
+      //  addIntegrationNativeCPUHeader(TmpHCHeader, SrcFileName);
+      //}
     }
   }
 
@@ -9673,6 +9720,10 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
                 *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
+            if (isSYCLNativeCPU(Args)) {
+              TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
+                                                               HostTC, Args);
+            }
           break;
         }
       break;

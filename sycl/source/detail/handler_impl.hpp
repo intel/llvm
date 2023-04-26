@@ -8,7 +8,10 @@
 
 #pragma once
 
+#include "sycl/handler.hpp"
 #include <detail/kernel_bundle_impl.hpp>
+#include <memory>
+#include <sycl/detail/native_cpu.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -84,6 +87,7 @@ public:
   /// Boolean flag for whether the device_global had the device_image_scope
   /// property.
   bool MIsDeviceImageScoped = false;
+  std::shared_ptr<detail::NativeCPUTask_t> MNativeCPUFunct;
 
   // Program scope pipe information.
 

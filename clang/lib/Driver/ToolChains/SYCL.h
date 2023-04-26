@@ -9,8 +9,9 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
-#include "clang/Driver/ToolChain.h"
+#include "clang/Driver/Options.h"
 #include "clang/Driver/Tool.h"
+#include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
@@ -203,12 +204,18 @@ protected:
   Tool *buildLinker() const override;
 
 private:
+  bool IsSYCLNativeCPU;
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;
 };
 
 } // end namespace toolchains
+
+template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
+  return Args.hasFlag(options::OPT_fsycl_native_cpu,
+                      options::OPT_fno_sycl_native_cpu, false);
+}
 } // end namespace driver
 } // end namespace clang
 
