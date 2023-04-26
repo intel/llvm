@@ -357,13 +357,12 @@ define void @masked_expand_compress_intrinsics(ptr %0, <7 x i1> %1, <7 x float> 
 
 ; CHECK-LABEL:  llvm.func @trap_intrinsics
 define void @trap_intrinsics() {
-  ; CHECK: %[[ZERO:.*]] = llvm.mlir.constant(0 : i8) : i8
   ; CHECK: "llvm.intr.trap"() : () -> ()
   call void @llvm.trap()
   ; CHECK: "llvm.intr.debugtrap"() : () -> ()
   call void @llvm.debugtrap()
-  ; CHECK: "llvm.intr.ubsantrap"() {failureKind = 0 : i8} : () -> ()
-  call void @llvm.ubsantrap(i8 0)
+  ; CHECK: "llvm.intr.ubsantrap"() {failureKind = 1 : i8} : () -> ()
+  call void @llvm.ubsantrap(i8 1)
   ret void
 }
 

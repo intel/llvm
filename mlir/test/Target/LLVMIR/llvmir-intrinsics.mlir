@@ -376,13 +376,12 @@ llvm.func @masked_expand_compress_intrinsics(%ptr: !llvm.ptr<f32>, %mask: vector
 
 // CHECK-LABEL: @trap_intrinsics
 llvm.func @trap_intrinsics() {
-  %0 = llvm.mlir.constant(0 : i8) : i8
   // CHECK: call void @llvm.trap()
   "llvm.intr.trap"() : () -> ()
   // CHECK: call void @llvm.debugtrap()
   "llvm.intr.debugtrap"() : () -> ()
-  // CHECK: call void @llvm.ubsantrap(i8 0)
-  "llvm.intr.ubsantrap"() {failureKind = 0 : i8} : () -> ()
+  // CHECK: call void @llvm.ubsantrap(i8 1)
+  "llvm.intr.ubsantrap"() {failureKind = 1 : i8} : () -> ()
   llvm.return
 }
 
