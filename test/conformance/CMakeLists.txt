@@ -66,5 +66,6 @@ if(DEFINED UR_DPCXX)
     endif()
 
     add_subdirectory(device_code)
+    add_subdirectory(kernel)
     add_subdirectory(program)
 endif()

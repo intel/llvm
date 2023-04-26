@@ -2306,6 +2306,8 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pKernelName`
 ///         + `NULL == phKernel`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_NAME
+///         + If `pKernelName` wasn't found in `hProgram`.
 ur_result_t UR_APICALL urKernelCreate(
     ur_program_handle_t hProgram, ///< [in] handle of the program instance
     const char *pKernelName,      ///< [in] pointer to null-terminated string.
