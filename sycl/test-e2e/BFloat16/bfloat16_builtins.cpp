@@ -36,8 +36,9 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
+        float ABF16 = float{bfloat16{A[index]}};                               \
         if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]}),   \
-                  sycl::NAME(A[index]))) {                                     \
+                  sycl::NAME(ABF16))) {                                        \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -60,7 +61,8 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<RETTY, SZ> res = NAME(arg);                                     \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], sycl::NAME(A[index][i]))) {                        \
+          float ABF16 = float{bfloat16{A[index][i]}};                          \
+          if (check(res[i], sycl::NAME(ABF16))) {                              \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -89,8 +91,10 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
+        float ABF16 = float{bfloat16{A[index]}};                               \
+        float BBF16 = float{bfloat16{B[index]}};                               \
         if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]}),                \
-                  NAME(A[index], B[index]))) {                                 \
+                  NAME(ABF16, BBF16))) {                                       \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -117,7 +121,9 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<bfloat16, SZ> res = NAME(arg0, arg1);                           \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], NAME(A[index][i], B[index][i]))) {                 \
+          float ABF16 = float{bfloat16{A[index][i]}};                          \
+          float BBF16 = float{bfloat16{B[index][i]}};                          \
+          if (check(res[i], NAME(ABF16, BBF16))) {                             \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -149,9 +155,12 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
+        float ABF16 = float{bfloat16{A[index]}};                               \
+        float BBF16 = float{bfloat16{B[index]}};                               \
+        float CBF16 = float{bfloat16{C[index]}};                               \
         if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]},                 \
                        bfloat16{C[index]}),                                    \
-                  NAME(A[index], B[index], C[index]))) {                       \
+                  NAME(ABF16, BBF16, CBF16))) {                                \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -182,7 +191,10 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<bfloat16, SZ> res = NAME(arg0, arg1, arg2);                     \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], NAME(A[index][i], B[index][i], C[index][i]))) {    \
+          float ABF16 = float{bfloat16{A[index][i]}};                          \
+          float BBF16 = float{bfloat16{B[index][i]}};                          \
+          float CBF16 = float{bfloat16{C[index][i]}};                          \
+          if (check(res[i], NAME(ABF16, BBF16, CBF16))) {                      \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
