@@ -21,6 +21,23 @@ struct _pi_device : _pi_object {
   pi_platform Platform;
 };
 
+struct _pi_mem : _pi_object {
+  _pi_mem(size_t Size) {
+    _mem = malloc(Size);
+  }
+  _pi_mem(void* HostPtr, size_t Size) {
+    _mem = malloc(Size);
+    memcpy(_mem, HostPtr, Size);
+  }
+  _pi_mem(void* HostPtr) {
+    _mem = HostPtr;
+  }
+  ~_pi_mem() {
+    free(_mem);
+  }
+  void* _mem;
+};
+
 // taken from pi_cuda.cpp
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -389,6 +406,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_REFERENCE_COUNT:
     // TODO : CHECK
     return ReturnValue(pi_uint32{0});
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
+    return ReturnValue(pi_bool{0});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
@@ -410,6 +429,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 
   default:
+    std::cout << "[DEBUG] info requested for " << std::hex << ParamName << "\n";
     DIE_NO_IMPLEMENTATION;
   }
   return PI_SUCCESS;
@@ -437,7 +457,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             const void *PrivateInfo, size_t CB,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
-  DIE_NO_IMPLEMENTATION;
+  return PI_SUCCESS;
 }
 
 pi_result piContextGetInfo(pi_context, pi_context_info, size_t, void *,
@@ -497,7 +517,22 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
-  DIE_NO_IMPLEMENTATION;
+  //TODO: add proper error checking and double check flag semantics
+  //TODO: support PI_MEM_FLAGS_HOST_PTR_ALLOC flag
+  const bool UseHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_USE;
+  const bool CopyHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_COPY;
+  const bool HostPtrNotNull = HostPtr != nullptr;
+  if(UseHostPtr && HostPtrNotNull) {
+    *RetMem = new _pi_mem(HostPtr);
+    return PI_SUCCESS;
+  }
+  if(CopyHostPtr && HostPtrNotNull) {
+    *RetMem = new _pi_mem(HostPtr, Size);
+    return PI_SUCCESS;
+  }
+  *RetMem = new _pi_mem(Size);
+  return PI_SUCCESS;
+
 }
 
 pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
@@ -875,7 +910,7 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
 
 pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
                                   pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
- DIE_NO_IMPLEMENTATION; 
+ CONTINUE_NO_IMPLEMENTATION; 
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
@@ -942,7 +977,7 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 pi_result piPluginGetBackendOption(pi_platform platform,
                                                  const char *frontend_option,
                                                  const char **backend_option) {
-  DIE_NO_IMPLEMENTATION;
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piextUSMEnqueueMemset2D(
@@ -966,7 +1001,7 @@ pi_result piextQueueGetNativeHandle2(
 pi_result piextQueueCreate2(pi_context context, pi_device device,
                                           pi_queue_properties *properties,
                                           pi_queue *queue) {
-  DIE_NO_IMPLEMENTATION;
+  return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle2(
