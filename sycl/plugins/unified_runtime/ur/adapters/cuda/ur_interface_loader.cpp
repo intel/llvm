@@ -115,7 +115,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
   pDdiTable->pfnSetArgLocal = nullptr;
-  pDdiTable->pfnSetArgMemObj = nullptr;
+  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = nullptr;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
@@ -173,9 +173,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemBufferCopyRect = nullptr;
   pDdiTable->pfnMemBufferFill = nullptr;
   pDdiTable->pfnMemBufferMap = nullptr;
-  pDdiTable->pfnMemBufferRead = nullptr;
+  pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
   pDdiTable->pfnMemBufferReadRect = nullptr;
-  pDdiTable->pfnMemBufferWrite = nullptr;
+  pDdiTable->pfnMemBufferWrite = urEnqueueMemBufferWrite;
   pDdiTable->pfnMemBufferWriteRect = nullptr;
   pDdiTable->pfnMemImageCopy = nullptr;
   pDdiTable->pfnMemImageRead = nullptr;

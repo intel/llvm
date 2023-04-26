@@ -10,6 +10,7 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
+#include "memory.hpp"
 #include "queue.hpp"
 
 #include <cmath>
@@ -760,4 +761,116 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     result = err;
   }
   return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(!hBuffer->is_image(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  if (phEventWaitList) {
+    UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  } else {
+    UR_ASSERT(numEventsInWaitList == 0,
+              UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  }
+  UR_ASSERT(offset + size <= hBuffer->mem_.buffer_mem_.size_,
+            UR_RESULT_ERROR_INVALID_SIZE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  CUdeviceptr devPtr = hBuffer->mem_.buffer_mem_.get();
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_READ, hQueue, cuStream));
+      retImplEv->start();
+    }
+
+    UR_CHECK_ERROR(cuMemcpyDtoHAsync(pDst, devPtr + offset, size, cuStream));
+
+    if (phEvent) {
+      retErr = retImplEv->record();
+    }
+
+    if (blockingRead) {
+      UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+
+    if (phEvent) {
+      *phEvent = retImplEv.release();
+    }
+
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
+    size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(!hBuffer->is_image(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  if (phEventWaitList) {
+    UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  } else {
+    UR_ASSERT(numEventsInWaitList == 0,
+              UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  }
+  UR_ASSERT(offset + size <= hBuffer->mem_.buffer_mem_.size_,
+            UR_RESULT_ERROR_INVALID_SIZE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  CUdeviceptr devPtr = hBuffer->mem_.buffer_mem_.get();
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, cuStream));
+      retImplEv->start();
+    }
+
+    UR_CHECK_ERROR(cuMemcpyHtoDAsync(devPtr + offset, pSrc, size, cuStream));
+
+    if (phEvent) {
+      retErr = retImplEv->record();
+    }
+
+    if (blockingWrite) {
+      UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+
+    if (phEvent) {
+      *phEvent = retImplEv.release();
+    }
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
 }

@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "memory.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -288,6 +289,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex, const void *pArgValue) {
   hKernel->set_kernel_arg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
+
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hArgValue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  try {
+    if (hArgValue->mem_type_ == ur_mem_handle_t_::mem_type::surface) {
+      CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
+      UR_CHECK_ERROR(cuArray3DGetDescriptor(
+          &arrayDesc, hArgValue->mem_.surface_mem_.get_array()));
+      if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
+          arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
+          arrayDesc.Format != CU_AD_FORMAT_HALF &&
+          arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
+        setErrorMessage("PI CUDA kernels only support images with channel "
+                        "types int32, uint32, float, and half.",
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      CUsurfObject cuSurf = hArgValue->mem_.surface_mem_.get_surface();
+      hKernel->set_kernel_arg(argIndex, sizeof(cuSurf), (void *)&cuSurf);
+    } else {
+      CUdeviceptr cuPtr = hArgValue->mem_.buffer_mem_.get();
+      hKernel->set_kernel_arg(argIndex, sizeof(CUdeviceptr), (void *)&cuPtr);
+    }
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
 }
 
 // A NOP for the CUDA backend

@@ -1287,7 +1287,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 
   if (!is_pinned && ((map_flags & PI_MAP_READ) || (map_flags & PI_MAP_WRITE))) {
     // Pinned host memory is already on host so it doesn't need to be read.
-    ret_err = cuda_piEnqueueMemBufferRead(
+    ret_err = pi2ur::piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
@@ -1340,7 +1340,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
        (memobj->mem_.buffer_mem_.get_map_flags() &
         PI_MAP_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
-    ret_err = cuda_piEnqueueMemBufferWrite(
+    ret_err = pi2ur::piEnqueueMemBufferWrite(
         command_queue, memobj, true,
         memobj->mem_.buffer_mem_.get_map_offset(mapped_ptr),
         memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
@@ -1607,9 +1607,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueNativeKernel, cuda_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, pi2ur::piEnqueueEventsWait)
   _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
-  _PI_CL(piEnqueueMemBufferRead, cuda_piEnqueueMemBufferRead)
+  _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, cuda_piEnqueueMemBufferReadRect)
-  _PI_CL(piEnqueueMemBufferWrite, cuda_piEnqueueMemBufferWrite)
+  _PI_CL(piEnqueueMemBufferWrite, pi2ur::piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferWriteRect, cuda_piEnqueueMemBufferWriteRect)
   _PI_CL(piEnqueueMemBufferCopy, cuda_piEnqueueMemBufferCopy)
   _PI_CL(piEnqueueMemBufferCopyRect, cuda_piEnqueueMemBufferCopyRect)
@@ -1643,7 +1643,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, cuda_piextEnqueueWriteHostPipe)
 
-  _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgMemObj, pi2ur::piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
   _PI_CL(piTearDown, pi2ur::piTearDown)
