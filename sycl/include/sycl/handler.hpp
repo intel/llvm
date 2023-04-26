@@ -2730,7 +2730,7 @@ public:
     if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
       // If the corresponding device_global isn't used in any kernels, we fall
       // back to doing the memory operation on host-only.
-      memcpyToHostOnlyDeviceGlobal(&Dest, Src, IsDeviceImageScoped, sizeof(T),
+      memcpyToHostOnlyDeviceGlobal(&Dest, Src, sizeof(T), IsDeviceImageScoped,
                                    NumBytes, DestOffset);
       return;
     }
@@ -2762,7 +2762,7 @@ public:
     if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
       // If the corresponding device_global isn't used in any kernels, we fall
       // back to doing the memory operation on host-only.
-      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, IsDeviceImageScoped, sizeof(T),
+      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, sizeof(T), IsDeviceImageScoped,
                                      NumBytes, SrcOffset);
       return;
     }
