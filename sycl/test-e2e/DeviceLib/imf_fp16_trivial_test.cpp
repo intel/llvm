@@ -1,4 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else
+// %{-fno-fast-math%}
+
+// RUN: %clangxx -fsycl %{mathflags} %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // UNSUPPORTED: cuda || hip
