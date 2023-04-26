@@ -1084,6 +1084,7 @@
 ?initStreamHost@stream_impl@detail@_V1@sycl@@QEAAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?isBackendSupportedFillSize@handler@_V1@sycl@@CA_N_K@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
+?isDeviceGlobalUsedInKernel@detail@_V1@sycl@@YA_NPEBX@Z
 ?isHostPointerReadOnly@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?isImageOrImageArray@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isInterop@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
@@ -1162,8 +1163,10 @@
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KV423@@Z
 ?memcpyFromDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_N_K3@Z
 ?memcpyFromDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
+?memcpyFromHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_K_N22@Z
 ?memcpyToDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_N_K2@Z
 ?memcpyToDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
+?memcpyToHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_K_N11@Z
 ?memset@handler@_V1@sycl@@QEAAXPEAXH_K@Z
 ?memset@queue@_V1@sycl@@QEAA?AVevent@23@PEAXH_K@Z
 ?memset@queue@_V1@sycl@@QEAA?AVevent@23@PEAXH_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
