@@ -11,45 +11,6 @@ class TestKernel;
 
 constexpr uint32_t SGSize = 32;
 
-#define BRANCH_BODY()                                                          \
-  /* Check all other members' writes are visible after a barrier.*/            \
-  TmpAcc[WI] = 1;                                                              \
-  sycl::group_barrier(Tangle);                                                 \
-  size_t Visible = 0;                                                          \
-  for (size_t Other = 0; Other < SGSize; ++Other) {                            \
-    if (IsMember(Other)) {                                                     \
-      Visible += TmpAcc[Other];                                                \
-    }                                                                          \
-  }                                                                            \
-  BarrierAcc[WI] = (Visible == TangleSize);                                    \
-                                                                               \
-  /* Simple check of group algorithms. */                                      \
-  uint32_t OriginalLID = SG.get_local_linear_id();                             \
-  uint32_t LID = Tangle.get_local_linear_id();                                 \
-                                                                               \
-  uint32_t BroadcastResult = sycl::group_broadcast(Tangle, OriginalLID, 0);    \
-  BroadcastAcc[WI] = (BroadcastResult == TangleLeader);                        \
-                                                                               \
-  bool AnyResult = sycl::any_of_group(Tangle, (LID == 0));                     \
-  AnyAcc[WI] = (AnyResult == true);                                            \
-                                                                               \
-  bool AllResult = sycl::all_of_group(Tangle, (LID < TangleSize));             \
-  AllAcc[WI] = (AllResult == true);                                            \
-                                                                               \
-  bool NoneResult = sycl::none_of_group(Tangle, (LID >= TangleSize));          \
-  NoneAcc[WI] = (NoneResult == true);                                          \
-                                                                               \
-  uint32_t ReduceResult = sycl::reduce_over_group(Tangle, 1, sycl::plus<>());  \
-  ReduceAcc[WI] = (ReduceResult == TangleSize);                                \
-                                                                               \
-  uint32_t ExScanResult =                                                      \
-      sycl::exclusive_scan_over_group(Tangle, 1, sycl::plus<>());              \
-  ExScanAcc[WI] = (ExScanResult == LID);                                       \
-                                                                               \
-  uint32_t IncScanResult =                                                     \
-      sycl::inclusive_scan_over_group(Tangle, 1, sycl::plus<>());              \
-  IncScanAcc[WI] = (IncScanResult == LID + 1);
-
 int main() {
   sycl::queue Q;
 
@@ -85,6 +46,49 @@ int main() {
           auto WI = item.get_global_id();
           auto SG = item.get_sub_group();
 
+          auto BranchBody = [=](size_t WI, auto Tangle, size_t TangleLeader,
+                                size_t TangleSize, auto IsMember) {
+            // Check all other members' writes are visible after a barrier.
+            TmpAcc[WI] = 1;
+            sycl::group_barrier(Tangle);
+            size_t Visible = 0;
+            for (size_t Other = 0; Other < SGSize; ++Other) {
+              if (IsMember(Other)) {
+                Visible += TmpAcc[Other];
+              }
+            }
+            BarrierAcc[WI] = (Visible == TangleSize);
+
+            // Simple check of group algorithms.
+            uint32_t OriginalLID = SG.get_local_linear_id();
+            uint32_t LID = Tangle.get_local_linear_id();
+
+            uint32_t BroadcastResult =
+                sycl::group_broadcast(Tangle, OriginalLID, 0);
+            BroadcastAcc[WI] = (BroadcastResult == TangleLeader);
+
+            bool AnyResult = sycl::any_of_group(Tangle, (LID == 0));
+            AnyAcc[WI] = (AnyResult == true);
+
+            bool AllResult = sycl::all_of_group(Tangle, (LID < TangleSize));
+            AllAcc[WI] = (AllResult == true);
+
+            bool NoneResult = sycl::none_of_group(Tangle, (LID >= TangleSize));
+            NoneAcc[WI] = (NoneResult == true);
+
+            uint32_t ReduceResult =
+                sycl::reduce_over_group(Tangle, 1, sycl::plus<>());
+            ReduceAcc[WI] = (ReduceResult == TangleSize);
+
+            uint32_t ExScanResult =
+                sycl::exclusive_scan_over_group(Tangle, 1, sycl::plus<>());
+            ExScanAcc[WI] = (ExScanResult == LID);
+
+            uint32_t IncScanResult =
+                sycl::inclusive_scan_over_group(Tangle, 1, sycl::plus<>());
+            IncScanAcc[WI] = (IncScanResult == LID + 1);
+          };
+
           // Split into three groups of different sizes, using control flow
           // Body of each branch is deliberately duplicated
           if (WI < 4) {
@@ -92,7 +96,7 @@ int main() {
             size_t TangleLeader = 0;
             size_t TangleSize = 4;
             auto IsMember = [](size_t Other) { return (Other < 4); };
-            BRANCH_BODY();
+            BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           } else if (WI < 24) {
             auto Tangle = syclex::get_tangle_group(SG);
             size_t TangleLeader = 4;
@@ -100,7 +104,7 @@ int main() {
             auto IsMember = [](size_t Other) {
               return (Other >= 4 and Other < 24);
             };
-            BRANCH_BODY();
+            BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           } else /* if WI < 32) */ {
             auto Tangle = syclex::get_tangle_group(SG);
             size_t TangleLeader = 24;
@@ -108,7 +112,7 @@ int main() {
             auto IsMember = [](size_t Other) {
               return (Other >= 24 and Other < 32);
             };
-            BRANCH_BODY();
+            BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           };
         };
 
