@@ -81,7 +81,7 @@ supports.
 |===
 
 
-=== More sections at your discretion
+=== The `ext_intel_legacy_image` aspect
 
 This extension adds the following new value to the SYCL `aspect` enum:
 
@@ -103,7 +103,7 @@ The new aspect has the following behaviour when queried via `device::has()`:
 |Aspect
 |Description
 
-|`aspect::legacy_image`
+|`aspect::ext_intel_legacy_image`
 |Indicates that the device supports SYCL 1.2.1 image accessor, as defined in
  section 4.7.6.11 to 4.7.6.13 of the SYCL 1.2.1 Specification Rev. 7, and
  samplers, as defined in section 4.7.8 and 4.7.9 of the SYCL 1.2.1 Specification
