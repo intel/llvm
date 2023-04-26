@@ -224,12 +224,12 @@ each work-item in the group, or via a single call to
 
 [source,c++]
 ----
-template <typename Group>
-void group_wait(Group g, group_arrival_token&& arrival);
+template <typename Group, typename Barrier>
+void group_wait(Group g, Barrier b, group_arrival_token&& arrival);
 ----
 _Effects_: Waits for all work-items in group `g` to reach this point of
 execution, then blocks all work-items in group `g` until the end of the barrier
-phase associated with `arrival`.
+phase associated with `b` and `arrival`.
 
 [NOTE]
 ====
