@@ -5435,12 +5435,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                              /*AttrOnCallSite=*/true,
                              /*IsThunk=*/false);
 
-  if (CGM.getCodeGenOpts().FPAccuracy && CalleePtr->getName() == "sincos") {
-    CGM.getFPAccuracyFuncAttributes(
-        CalleePtr->getName(), Attrs, llvm::Intrinsic::fpbuiltin_sincos,
-        CGM.getTypes().ConvertType(CallArgs[0].getType()));
-  }
-
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
     if (FD->hasAttr<StrictFPAttr>())
       // All calls within a strictfp function are marked strictfp
@@ -5527,6 +5521,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
+    if (CGM.getCodeGenOpts().FPAccuracy)
+      return EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr);
     CI = Builder.CreateCall(IRFuncTy, CalleePtr, IRCallArgs, BundleList);
   } else {
     llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");

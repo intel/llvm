@@ -496,8 +496,11 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
                                            unsigned ID) {
   llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
   llvm::AttributeList AttrList;
-  CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID,
-                                      FPBuiltinF->getReturnType());
+  if (Name == "sincos")
+    CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID, Args[0]->getType());
+  else
+    CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID,
+                                        FPBuiltinF->getReturnType());
   CI->setAttributes(AttrList);
   return CI;
 }
@@ -2284,17 +2287,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       ((ConstWithoutErrnoAndExceptions || ConstWithoutExceptions) &&
        (!ConstWithoutErrnoAndExceptions || (!getLangOpts().MathErrno)))) {
     switch (BuiltinIDIfNoAsmLabel) {
-    case Builtin::BItan:
-    case Builtin::BItanf:
-    case Builtin::BItanh:
-    case Builtin::BItanhf:
-    case Builtin::BItanhl:
-    case Builtin::BItanl:
-      if (CGM.getCodeGenOpts().FPAccuracy)
-        return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
-            *this, E, Intrinsic::fpbuiltin_tan, Intrinsic::fpbuiltin_tan,
-            Intrinsic::fpbuiltin_tan));
-      break;
     case Builtin::BIceil:
     case Builtin::BIceilf:
     case Builtin::BIceill:
@@ -21872,6 +21864,39 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   cast<CallBase>(Ann)->setDoesNotAccessMemory();
 
   return RValue::get(Ann);
+}
+
+RValue CodeGenFunction::EmitFPBuiltinIndirectCall(
+    llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
+    llvm::Value *FnPtr) {
+  llvm::Function *Func;
+  unsigned FPAccuracyIntrinsicID = 0;
+  llvm::CallInst *CI;
+  if (FnPtr->getName() == "sincos") {
+    FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_sincos;
+    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    CI = CreateBuiltinCallWithAttr(*this, FnPtr->getName(), Func,
+                                   {IRArgs[0], IRArgs[1], IRArgs[2]},
+                                   FPAccuracyIntrinsicID);
+  } else {
+    unsigned BuiltinID = getCurrentBuiltinID();
+    StringRef Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
+    unsigned FPAccuracyIntrinsicID = 0;
+    switch (BuiltinID) {
+    case Builtin::BItan:
+    case Builtin::BItanf:
+    case Builtin::BItanh:
+    case Builtin::BItanhf:
+    case Builtin::BItanhl:
+    case Builtin::BItanl:
+      FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tan;
+      break;
+    }
+    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    CI = CreateBuiltinCallWithAttr(*this, Name, Func, {IRArgs[0]},
+                                   FPAccuracyIntrinsicID);
+  }
+  return RValue::get(CI);
 }
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
