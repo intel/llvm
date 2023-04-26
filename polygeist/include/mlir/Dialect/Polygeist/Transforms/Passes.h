@@ -51,7 +51,7 @@ std::unique_ptr<Pass> createOpenMPOptPass();
 std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> replaceAffineCFGPass();
+std::unique_ptr<Pass> createReplaceAffineCFGPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

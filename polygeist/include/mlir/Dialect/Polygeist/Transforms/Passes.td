@@ -13,7 +13,7 @@ include "mlir/Pass/PassBase.td"
 
 def AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
-  let constructor = "mlir::polygeist::replaceAffineCFGPass()";
+  let constructor = "mlir::polygeist::createReplaceAffineCFGPass()";
 }
 
 def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
