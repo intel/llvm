@@ -625,6 +625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t NativeEvent, ///< [in] the native handle of the event.
     ur_context_handle_t Context,    ///< [in] handle of the context object
+    const ur_event_native_properties_t *Properties,
     ur_event_handle_t
         *Event ///< [out] pointer to the handle of the event object created.
 ) {
@@ -643,7 +644,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   ur_event_handle_t_ *UrEvent{};
   try {
     UrEvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
-                                     Context, UR_EXT_COMMAND_TYPE_USER, true);
+                                     Context, UR_EXT_COMMAND_TYPE_USER,
+                                     Properties->isNativeHandleOwned);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {

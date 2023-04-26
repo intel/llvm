@@ -1858,10 +1858,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle of the mem.
     ur_context_handle_t Context,  ///< [in] handle of the context object
-    bool OwnNativeHandle,
+    const ur_mem_native_properties_t *Properties,
     ur_mem_handle_t
         *Mem ///< [out] pointer to the handle of the mem object created.
 ) {
+  bool OwnNativeHandle = Properties->isNativeHandleOwned;
+
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   // Get base of the allocation

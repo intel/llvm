@@ -714,14 +714,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t NativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t Context,     ///< [in] handle of the context object
     ur_program_handle_t Program,
+    const ur_kernel_native_properties_t *Properties,
     ur_kernel_handle_t *
         RetKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
   ze_kernel_handle_t ZeKernel = ur_cast<ze_kernel_handle_t>(NativeKernel);
   ur_kernel_handle_t_ *Kernel = nullptr;
   try {
-    Kernel = new ur_kernel_handle_t_(ZeKernel,
-                                     false, // OwnZeKernel
+    Kernel = new ur_kernel_handle_t_(ZeKernel, Properties->isNativeHandleOwned,
                                      Context);
     *RetKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
   } catch (const std::bad_alloc &) {

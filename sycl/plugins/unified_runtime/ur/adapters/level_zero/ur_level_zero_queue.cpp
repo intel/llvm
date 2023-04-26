@@ -474,6 +474,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t NativeQueue, ///< [in] the native handle of the queue.
     ur_context_handle_t Context,    ///< [in] handle of the context object
+    ur_device_handle_t Device,      ///
+    const ur_queue_native_properties_t *Properties, ///
     ur_queue_handle_t
         *RetQueue ///< [out] pointer to the handle of the queue object created.
 ) {
@@ -492,13 +494,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   ur_platform_handle_t Platform{};
   UR_CALL(urPlatformGet(NumEntries, &Platform, nullptr));
 
-  ur_device_handle_t Device;
-  UR_CALL(
-      urDeviceGet(Platform, UR_DEVICE_TYPE_GPU, NumEntries, &Device, nullptr));
+  ur_device_handle_t UrDevice = Device;
+  if (UrDevice == nullptr) {
+    UR_CALL(urDeviceGet(Platform, UR_DEVICE_TYPE_GPU, NumEntries, &UrDevice,
+                        nullptr));
+  }
 
   try {
-    ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(ZeQueues, ZeroCopyQueues,
-                                                       Context, Device, false);
+    ur_queue_handle_t_ *Queue =
+        new ur_queue_handle_t_(ZeQueues, ZeroCopyQueues, Context, UrDevice,
+                               Properties->isNativeHandleOwned);
     *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
