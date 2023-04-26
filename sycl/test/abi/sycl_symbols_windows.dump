@@ -458,12 +458,9 @@
 ??0event@_V1@sycl@@QEAA@PEAU_cl_event@@AEBVcontext@12@@Z
 ??0event@_V1@sycl@@QEAA@XZ
 ??0exception@_V1@sycl@@IEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
-??0exception@_V1@sycl@@IEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@HV?$shared_ptr@Vcontext@_V1@sycl@@@4@@Z
-??0exception@_V1@sycl@@IEAA@PEBDHV?$shared_ptr@Vcontext@_V1@sycl@@@std@@@Z
 ??0exception@_V1@sycl@@IEAA@Verror_code@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@HV?$shared_ptr@Vcontext@_V1@sycl@@@4@@Z
 ??0exception@_V1@sycl@@IEAA@Verror_code@std@@PEBDHV?$shared_ptr@Vcontext@_V1@sycl@@@4@@Z
 ??0exception@_V1@sycl@@IEAA@Verror_code@std@@V?$shared_ptr@Vcontext@_V1@sycl@@@4@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@@Z
-??0exception@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0exception@_V1@sycl@@QEAA@AEBV012@@Z
 ??0exception@_V1@sycl@@QEAA@HAEBVerror_category@std@@@Z
 ??0exception@_V1@sycl@@QEAA@HAEBVerror_category@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@@Z
@@ -661,7 +658,6 @@
 ??4device_selector@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4event@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4event@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
-??4exception@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4exception@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4exception_list@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4exception_list@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
@@ -747,6 +743,8 @@
 ??_7gpu_selector@_V1@sycl@@6B@
 ??_7host_selector@_V1@sycl@@6B@
 ??_7image_impl@detail@_V1@sycl@@6B@
+??_8exception@_V1@sycl@@7B@
+??_8exception@_V1@sycl@@7B@
 ??_Fcontext@_V1@sycl@@QEAAXXZ
 ??_Fqueue@_V1@sycl@@QEAAXXZ
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
