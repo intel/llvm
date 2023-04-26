@@ -1389,7 +1389,9 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgExpression(const DIExpression *Expr) {
         SPIRV::DbgExpressionOpCodeMap::map(DWARFOpCode);
     if (OpCountMap.find(OC) == OpCountMap.end())
       report_fatal_error(llvm::Twine("unknown opcode found in DIExpression"));
-    if (OC > SPIRVDebug::Fragment && !BM->allowExtraDIExpressions())
+    if (OC > SPIRVDebug::Fragment &&
+        !(BM->allowExtraDIExpressions() ||
+          BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200))
       report_fatal_error(
           llvm::Twine("unsupported opcode found in DIExpression"));
 
@@ -1398,8 +1400,11 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgExpression(const DIExpression *Expr) {
     Op[OpCodeIdx] = OC;
     if (isNonSemanticDebugInfo())
       transformToConstant(Op, {OpCodeIdx});
-    for (unsigned J = 1; J < OpCount; ++J)
+    for (unsigned J = 1; J < OpCount; ++J) {
       Op[J] = Expr->getElement(++I);
+      if (isNonSemanticDebugInfo())
+        transformToConstant(Op, {J});
+    }
     auto *Operation = BM->addDebugInfo(SPIRVDebug::Operation, getVoidTy(), Op);
     Operations.push_back(Operation->getId());
   }

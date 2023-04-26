@@ -1,15 +1,27 @@
 ; This test checks that DW_OP_LLVM_arg operation goes through round trip translation correctly.
+; DW_OP_LLVM_arg is mapped on 165 in SPIR-V
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-allow-extra-diexpressions
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-OCL
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-SPIRV-200-DAG: TypeInt [[#INT32:]] 32 0
+; CHECK-SPIRV-200-DAG: Constant [[#INT32]] [[#CONST0:]] 0
+; CHECK-SPIRV-200-DAG: Constant [[#INT32]] [[#CONST165:]] 165
 ; CHECK-SPIRV: Undef [[#]] [[#UNDEF:]]
 ; CHECK-SPIRV: [[#DEBUG_LOC_VAR:]] [[#]] DebugLocalVariable
-; CHECK-SPIRV: [[#EXPR_ARG_0:]] [[#]] DebugOperation 165 0
+; CHECK-SPIRV-OCL: [[#EXPR_ARG_0:]] [[#]] DebugOperation 165 0
+; CHECK-SPIRV-200: [[#EXPR_ARG_0:]] [[#]] DebugOperation [[#CONST165]] [[#CONST0]]
 ; CHECK-SPIRV: [[#EXPRESSION:]] [[#]] DebugExpression [[#EXPR_ARG_0]]
 ; CHECK-SPIRV: [[#EXPR_EMPTY:]] [[#]] DebugExpression{{ *$}}
 ; CHECK-SPIRV: Variable [[#]] [[#VAL:]]

@@ -1198,7 +1198,8 @@ MDNode *SPIRVToLLVMDbgTran::transExpression(const SPIRVExtInst *DebugInst) {
             Operands, OpCodeIdx, DebugInst->getExtSetKind()));
     Ops.push_back(SPIRV::DbgExpressionOpCodeMap::rmap(OpCode));
     for (unsigned I = 1, E = Operands.size(); I < E; ++I) {
-      Ops.push_back(Operands[I]);
+      Ops.push_back(
+          getConstantValueOrLiteral(Operands, I, DebugInst->getExtSetKind()));
     }
   }
   ArrayRef<uint64_t> Addr(Ops.data(), Ops.size());
