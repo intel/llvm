@@ -9539,8 +9539,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
             .equals_insensitive("spirv") &&
         !TCArgs.hasArg(options::OPT_fsycl_device_only);
-    if (CreatingSyclSPIRVFatObj)
+    if (CreatingSyclSPIRVFatObj) {
       TranslatorArgs.push_back("--spirv-preserve-auxdata");
+      //TranslatorArgs.push_back("--spirv-preserve-builtin-functions");
+
+    }
 
     // Disable all the extensions by default
     std::string ExtArg("-spirv-ext=-all");
@@ -9963,8 +9966,12 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
   // Make sure we preserve any auxiliary data which may be present in the
-  // SPIR-V object, which we need for SPIR-V-based fat objects.
-  addArgs(CmdArgs, TCArgs, {"-llvm-spirv-opts", "--spirv-preserve-auxdata"});
+  // SPIR-V object, which we need for SPIR-V-based fat objects, and we use a
+  // SPV-IR environment to prevent SPIR-V intrinsics being converted to OCL
+  // intrinsics.
+  addArgs(CmdArgs, TCArgs,
+          {"-llvm-spirv-opts",
+           "--spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-preserve-builtin-functions"});
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

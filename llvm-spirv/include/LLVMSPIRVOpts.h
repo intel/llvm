@@ -131,6 +131,10 @@ public:
 
   void setPreserveAuxData(bool ArgValue) { PreserveAuxData = ArgValue; }
 
+  bool preserveBuiltinFunctions() const { return PreserveBuiltinFunctions; }
+
+  void setPreserveBuiltinFunctions(bool ArgValue) { PreserveBuiltinFunctions = ArgValue; }
+
   void setGenKernelArgNameMDEnabled(bool ArgNameMD) {
     GenKernelArgNameMD = ArgNameMD;
   }
@@ -241,6 +245,8 @@ private:
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
 
   bool PreserveAuxData = false;
+
+  bool PreserveBuiltinFunctions = false;
 };
 
 } // namespace SPIRV

@@ -531,6 +531,10 @@ public:
     return TranslationOpts.preserveAuxData();
   }
 
+  bool preserveBuiltinFunctions() const noexcept {
+    return TranslationOpts.preserveBuiltinFunctions();
+  }
+
   SPIRVExtInstSetKind getDebugInfoEIS() const {
     switch (TranslationOpts.getDebugInfoEIS()) {
     case DebugInfoEIS::SPIRV_Debug:

@@ -128,6 +128,8 @@ static cl::list<std::string> SPIRVAllowUnknownIntrinsics(
              "(default) would naturally allow all unknown intrinsics"),
     cl::value_desc("intrinsic_prefix_1,intrinsic_prefix_2"), cl::ValueOptional);
 
+static cl::opt<bool> SPIRVPreserveBuiltinFunctions("spirv-preserve-builtin-functions", cl::init(false), cl::desc(""));
+
 static cl::opt<bool> SPIRVGenKernelArgNameMD(
     "spirv-gen-kernel-arg-name-md", cl::init(false),
     cl::desc("Enable generating OpenCL kernel argument name "
@@ -719,6 +721,8 @@ int main(int Ac, char **Av) {
     Opts.setMemToRegEnabled(SPIRVMemToReg);
   if (SPIRVGenKernelArgNameMD)
     Opts.setGenKernelArgNameMDEnabled(SPIRVGenKernelArgNameMD);
+  if(SPIRVPreserveBuiltinFunctions)
+    Opts.setPreserveBuiltinFunctions(SPIRVPreserveBuiltinFunctions);
   if (IsReverse && !SpecConst.empty()) {
     if (parseSpecConstOpt(SpecConst, Opts))
       return -1;
