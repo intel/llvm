@@ -43,7 +43,7 @@ TEST_P(urUSMDeviceAllocTest, InvalidNullHandleContext) {
 
 TEST_P(urUSMDeviceAllocTest, InvalidNullHandleDevice) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_DEVICE,
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urUSMDeviceAlloc(context, nullptr, nullptr, nullptr,
                                       sizeof(int), &ptr));
 }
@@ -58,14 +58,14 @@ TEST_P(urUSMDeviceAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_USM_SIZE,
-        urUSMDeviceAlloc(context, device, nullptr, nullptr, 13, &ptr));
+        urUSMDeviceAlloc(context, device, nullptr, nullptr, -1, &ptr));
 }
 
 TEST_P(urUSMDeviceAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
     ur_usm_desc_t desc = {};
     desc.stype = UR_STRUCTURE_TYPE_USM_DESC;
-    desc.align = 1;
+    desc.align = 5;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
         urUSMDeviceAlloc(context, device, &desc, nullptr, sizeof(int), &ptr));
