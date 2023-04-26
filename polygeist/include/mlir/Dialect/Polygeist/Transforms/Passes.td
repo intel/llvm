@@ -44,7 +44,7 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
 
 def DetectReduction : Pass<"detect-reduction"> {
   let summary = "Detect array reduction operations in a loop";
-  let constructor = "mlir::polygeist::detectReductionPass()";
+  let constructor = "mlir::polygeist::createDetectReductionPass()";
   let statistics = [
     Statistic<"numReductions", "num-reductions", "Number of reductions detected">
   ];

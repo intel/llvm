@@ -394,7 +394,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
-      OptPM.addPass(polygeist::detectReductionPass());
+      OptPM.addPass(polygeist::createDetectReductionPass());
 
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());

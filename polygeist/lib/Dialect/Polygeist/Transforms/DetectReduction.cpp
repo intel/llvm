@@ -469,7 +469,7 @@ void DetectReductionPass::runOnOperation() {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> detectReductionPass() {
+std::unique_ptr<Pass> createDetectReductionPass() {
   return std::make_unique<DetectReductionPass>();
 }
 } // namespace polygeist
