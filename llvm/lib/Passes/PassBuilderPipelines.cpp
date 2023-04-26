@@ -656,9 +656,6 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
 
-    for (auto &C : LoopOptimizerEndEPCallbacks)
-      C(LPM2, Level);
-
     FPM.addPass(
         createFunctionToLoopPassAdaptor(std::move(LPM1),
                                         /*UseMemorySSA=*/true,
