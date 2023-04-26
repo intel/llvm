@@ -2752,6 +2752,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
     ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    const ur_queue_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_queue_handle_t
         *phQueue ///< [out] pointer to the handle of the queue object created.
 ) {
@@ -2772,8 +2775,12 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
+    // convert loader handle to platform handle
+    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeQueue, hContext, phQueue);
+    result = pfnCreateWithNativeHandle(hNativeQueue, hContext, hDevice,
+                                       pProperties, phQueue);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

@@ -217,6 +217,7 @@ class ur_structure_type_v(IntEnum):
     QUEUE_INDEX_PROPERTIES = 15                     ## ::ur_queue_properties_t
     CONTEXT_NATIVE_PROPERTIES = 16                  ## ::ur_context_native_properties_t
     KERNEL_NATIVE_PROPERTIES = 17                   ## ::ur_kernel_native_properties_t
+    QUEUE_NATIVE_PROPERTIES = 18                    ## ::ur_queue_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1435,6 +1436,18 @@ class ur_queue_index_properties_t(Structure):
     ]
 
 ###############################################################################
+## @brief Properties for for ::urQueueCreateWithNativeHandle.
+class ur_queue_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an interoperability
+                                                                        ## operation in the application that asked to not transfer the ownership to
+                                                                        ## the unified-runtime.
+    ]
+
+###############################################################################
 ## @brief Command type
 class ur_command_v(IntEnum):
     KERNEL_LAUNCH = 0                               ## Event created by ::urEnqueueKernelLaunch
@@ -2503,9 +2516,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urQueueCreateWithNativeHandle
 if __use_win_types:
-    _urQueueCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_queue_handle_t) )
+    _urQueueCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_native_properties_t), POINTER(ur_queue_handle_t) )
 else:
-    _urQueueCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_queue_handle_t) )
+    _urQueueCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_native_properties_t), POINTER(ur_queue_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueFinish

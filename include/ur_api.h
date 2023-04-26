@@ -241,6 +241,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_properties_t
     UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
     UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3904,6 +3905,18 @@ urQueueGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urQueueCreateWithNativeHandle.
+typedef struct ur_queue_native_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an interoperability
+                               ///< operation in the application that asked to not transfer the ownership to
+                               ///< the unified-runtime.
+
+} ur_queue_native_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime queue object from native queue handle.
 ///
 /// @details
@@ -3919,13 +3932,17 @@ urQueueGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hNativeQueue`
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pProperties`
 ///         + `NULL == phQueue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_queue_handle_t *phQueue       ///< [out] pointer to the handle of the queue object created.
+    ur_native_handle_t hNativeQueue,                 ///< [in] the native handle of the queue.
+    ur_context_handle_t hContext,                    ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                      ///< [in] handle of the device object
+    const ur_queue_native_properties_t *pProperties, ///< [in] pointer to properties struct
+    ur_queue_handle_t *phQueue                       ///< [out] pointer to the handle of the queue object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6657,6 +6674,8 @@ typedef struct ur_queue_get_native_handle_params_t {
 typedef struct ur_queue_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeQueue;
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    const ur_queue_native_properties_t **ppProperties;
     ur_queue_handle_t **pphQueue;
 } ur_queue_create_with_native_handle_params_t;
 
