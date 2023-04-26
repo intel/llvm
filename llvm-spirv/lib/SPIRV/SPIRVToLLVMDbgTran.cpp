@@ -194,7 +194,9 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst) {
 DIBasicType *SPIRVToLLVMDbgTran::transTypeBasic(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeBasic;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() == OperandCount && "Invalid number of operands");
+  assert((Ops.size() == OperandCountOCL ||
+          Ops.size() == OperandCountNonSemantic) &&
+         "Invalid number of operands");
   StringRef Name = getString(Ops[NameIdx]);
   auto Tag = static_cast<SPIRVDebug::EncodingTag>(
       getConstantValueOrLiteral(Ops, EncodingIdx, DebugInst->getExtSetKind()));

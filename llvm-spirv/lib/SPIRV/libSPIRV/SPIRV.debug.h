@@ -62,25 +62,26 @@ enum Instruction {
 };
 
 enum Flag {
-  FlagIsProtected         = 1 << 0,
-  FlagIsPrivate           = 1 << 1,
-  FlagIsPublic            = FlagIsPrivate | FlagIsProtected,
-  FlagAccess              = FlagIsPublic,
-  FlagIsLocal             = 1 << 2,
-  FlagIsDefinition        = 1 << 3,
-  FlagIsFwdDecl           = 1 << 4,
-  FlagIsArtificial        = 1 << 5,
-  FlagIsExplicit          = 1 << 6,
-  FlagIsPrototyped        = 1 << 7,
-  FlagIsObjectPointer     = 1 << 8,
-  FlagIsStaticMember      = 1 << 9,
-  FlagIsIndirectVariable  = 1 << 10,
-  FlagIsLValueReference   = 1 << 11,
-  FlagIsRValueReference   = 1 << 12,
-  FlagIsOptimized         = 1 << 13,
-  FlagIsEnumClass         = 1 << 14,
-  FlagTypePassByValue     = 1 << 15,
-  FlagTypePassByReference = 1 << 16,
+  FlagIsProtected            = 1 << 0,
+  FlagIsPrivate              = 1 << 1,
+  FlagIsPublic               = FlagIsPrivate | FlagIsProtected,
+  FlagAccess                 = FlagIsPublic,
+  FlagIsLocal                = 1 << 2,
+  FlagIsDefinition           = 1 << 3,
+  FlagIsFwdDecl              = 1 << 4,
+  FlagIsArtificial           = 1 << 5,
+  FlagIsExplicit             = 1 << 6,
+  FlagIsPrototyped           = 1 << 7,
+  FlagIsObjectPointer        = 1 << 8,
+  FlagIsStaticMember         = 1 << 9,
+  FlagIsIndirectVariable     = 1 << 10,
+  FlagIsLValueReference      = 1 << 11,
+  FlagIsRValueReference      = 1 << 12,
+  FlagIsOptimized            = 1 << 13,
+  FlagIsEnumClass            = 1 << 14,
+  FlagTypePassByValue        = 1 << 15,
+  FlagTypePassByReference    = 1 << 16,
+  FlagUnknownPhysicalLayout  = 1 << 17,
 };
 
 enum EncodingTag {
@@ -306,10 +307,13 @@ enum {
 
 namespace TypeBasic {
 enum {
-  NameIdx      = 0,
-  SizeIdx      = 1,
-  EncodingIdx  = 2,
-  OperandCount = 3
+  NameIdx                 = 0,
+  SizeIdx                 = 1,
+  EncodingIdx             = 2,
+  // For NonSemantic Specs
+  FlagsIdx                = 3,
+  OperandCountOCL         = 3,
+  OperandCountNonSemantic = 4
 };
 }
 

@@ -574,7 +574,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgBaseType(const DIBasicType *BT) {
   using namespace SPIRVDebug::Operand::TypeBasic;
-  SPIRVWordVec Ops(OperandCount);
+  SPIRVWordVec Ops(OperandCountOCL);
   Ops[NameIdx] = BM->getString(BT->getName().str())->getId();
   ConstantInt *Size = getUInt(M, BT->getSizeInBits());
   Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
