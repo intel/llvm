@@ -47,20 +47,23 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 
 ; CHECK-LLVM-200: !DICompileUnit
 ; CHECK-LLVM-200-SAME: producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-LLVM-200-SAME: flags: "-O2"
 ; CHECK-LLVM-200-NOT: producer: "spirv"
 
 ; CHECK-LLVM-100: !DICompileUnit
-; CHECK-LLVM-100-SAME: producer: "spirv"
-; CHECK-LLVM-100-NOT: producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-LLVM-100-SAME: producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-LLVM-100-SAME: flags: "-O2"
 
 ; CHECK-SPIRV-200: String [[#ProducerId:]] "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
 ; CHECK-SPIRV-200: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#ProducerId]]
+; CHECK-SPIRV-200: DebugEntryPoint [[#]] [[#]] [[#ProducerId]] [[#]] {{$}}
 
-; CHECK-SPIRV-100-NOT: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
-; CHECK-SPIRV-100-NOT: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#]] {{$}}
+; CHECK-SPIRV-100: String [[#ProducerId:]] "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-100-NOT: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#ProducerId]] {{$}}
+; CHECK-SPIRV-100: DebugEntryPoint [[#]] [[#]] [[#ProducerId]] [[#]] {{$}}
 
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None)
+!0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None, flags: "-O2")
 !1 = !DIFile(filename: "<stdin>", directory: "oneAPI")
 !2 = !{}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
@@ -68,7 +71,7 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 !5 = !{i32 1, !"ThinLTO", i32 0}
 !6 = !{i32 1, !"EnableSplitLTOUnit", i32 1}
 !7 = !{!"clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"}
-!8 = distinct !DISubprogram(name: "main", scope: !9, file: !9, line: 1, type: !10, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
+!8 = distinct !DISubprogram(name: "main", scope: !9, file: !9, line: 1, type: !10, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagMainSubprogram, unit: !0, retainedNodes: !2)
 !9 = !DIFile(filename: "s.cpp", directory: "C:\\")
 !10 = !DISubroutineType(types: !11)
 !11 = !{!12}

@@ -22,11 +22,15 @@ void kernel k() {
     float a = foo(2);
 }
 
-// CHECK-SPIRV: String [[foo:[0-9]+]] "foo"
-// CHECK-SPIRV: String [[k:[0-9]+]] "k"
-// CHECK-SPIRV: [[CU:[0-9]+]] {{[0-9]+}} DebugCompilationUnit
-// CHECK-SPIRV: [[#FuncFoo:]] [[#]] DebugFunction [[foo]] {{.*}} [[CU]]
-// CHECK-SPIRV: [[#FuncK:]] [[#]] DebugFunction [[k]] {{.*}} [[CU]]
+// CHECK-SPIRV-DAG: String [[foo:[0-9]+]] "foo"
+// CHECK-SPIRV-DAG: String [[#EmptyStr:]] ""
+// CHECK-SPIRV-DAG: String [[k:[0-9]+]] "k"
+// CHECK-SPIRV-DAG: String [[#CV:]] "clang version [[#]].0.0 (https://github.com/llvm/llvm-project.git
+// CHECK-SPIRV: [[#CU:]] [[#]] DebugCompilationUnit
+// CHECK-SPIRV: [[#FuncFoo:]] [[#]] DebugFunction [[foo]] {{.*}} [[#CU]]
+// CHECK-SPIRV: [[#FuncK:]] [[#]] DebugFunction [[k]] {{.*}} [[#CU]]
+// CHECK-SPIRV: DebugEntryPoint [[#FuncK]] [[#CU]] [[#CV]] [[#EmptyStr]] {{$}}
+// CHECK-SPIRV-NOT: DebugEntryPoint
 // CHECK-SPIRV-NOT: DebugFunctionDefinition
 
 // CHECK-SPIRV: Function {{[0-9]+}} [[#foo_id:]]
@@ -38,4 +42,6 @@ void kernel k() {
 // CHECK-LLVM: define spir_kernel void @k() #{{[0-9]+}} !dbg ![[#k_id:]]
 
 // CHECK-LLVM: ![[#foo_id]] = distinct !DISubprogram(name: "foo"
+// CHECK-LLVM-SAME: spFlags: DISPFlagDefinition,
 // CHECK-LLVM: ![[#k_id]] = distinct !DISubprogram(name: "k"
+// CHECK-LLVM-SAME: spFlags: DISPFlagDefinition | DISPFlagMainSubprogram,

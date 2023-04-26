@@ -135,6 +135,7 @@ private:
   SPIRVEntry *transDbgFunction(const DISubprogram *Func);
 
   SPIRVEntry *transDbgFuncDefinition(SPIRVValue *SPVFunc, SPIRVEntry *DbgFunc);
+  SPIRVEntry *transDbgEntryPoint(const DISubprogram *Func, SPIRVEntry *DbgFunc);
 
   // Location information
   SPIRVEntry *transDbgScope(const DIScope *S);

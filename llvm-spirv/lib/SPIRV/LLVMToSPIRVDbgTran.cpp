@@ -1144,6 +1144,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
 
   SPIRVEntry *DebugFunc = nullptr;
   SPIRVValue *FuncDef = nullptr;
+  bool IsEntryPointKernel = false;
   if (!Func->isDefinition()) {
     DebugFunc =
         BM->addDebugInfo(SPIRVDebug::FunctionDeclaration, getVoidTy(), Ops);
@@ -1158,11 +1159,30 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
     Ops[FunctionIdIdx] = getDebugInfoNoneId();
     for (const llvm::Function &F : M->functions()) {
       if (Func->describes(&F)) {
+        // Function definition of spir_kernel can have no "spir_kernel" calling
+        // convention because SPIRVRegularizeLLVMBase::addKernelEntryPoint pass
+        // could have turned it to spir_func. The "true" entry point is a
+        // wrapper kernel function, which can be found further in the module.
+        if (FuncDef) {
+          if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+            IsEntryPointKernel = true;
+            break;
+          }
+          continue;
+        }
+
         SPIRVValue *SPIRVFunc = SPIRVWriter->getTranslatedValue(&F);
         assert(SPIRVFunc && "All function must be already translated");
         Ops[FunctionIdIdx] = SPIRVFunc->getId();
         FuncDef = SPIRVFunc;
-        break;
+        if (!isNonSemanticDebugInfo())
+          break;
+
+        // Most likely unreachable because of Regularise LLVM pass
+        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+          IsEntryPointKernel = true;
+          break;
+        }
       }
     }
     // For NonSemantic.Shader.DebugInfo we store Function Id index as a
@@ -1196,17 +1216,18 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
     DebugFunc = transDbgTemplateParams(TPA, DebugFunc);
   }
 
-  if (isNonSemanticDebugInfo())
-    transDbgFuncDefinition(FuncDef, DebugFunc);
+  if (isNonSemanticDebugInfo() &&
+      (Func->isMainSubprogram() || IsEntryPointKernel)) [[maybe_unused]]
+    SPIRVEntry *Inst = transDbgEntryPoint(Func, DebugFunc);
+
+  if (isNonSemanticDebugInfo() && FuncDef) [[maybe_unused]]
+    SPIRVEntry *Inst = transDbgFuncDefinition(FuncDef, DebugFunc);
 
   return DebugFunc;
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFuncDefinition(SPIRVValue *FuncDef,
                                                        SPIRVEntry *DbgFunc) {
-  if (!isNonSemanticDebugInfo() || !FuncDef)
-    return nullptr;
-
   using namespace SPIRVDebug::Operand::FunctionDefinition;
   SPIRVWordVec Ops(OperandCount);
   Ops[FunctionIdx] = DbgFunc->getId();
@@ -1217,6 +1238,31 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFuncDefinition(SPIRVValue *FuncDef,
 
   return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::FunctionDefinition,
                         Ops, BB, BB->getInst(0));
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryPoint(const DISubprogram *Func,
+                                                   SPIRVEntry *DbgFunc) {
+  using namespace SPIRVDebug::Operand::EntryPoint;
+  SPIRVWordVec Ops(OperandCount);
+  Ops[EntryPointIdx] = DbgFunc->getId();
+
+  DICompileUnit *CU = Func->getUnit();
+  if (!CU) {
+    Ops[CompilationUnitIdx] = SPIRVCUMap.begin()->second->getId();
+    SPIRVWord EmptyStrIdx = BM->getString("")->getId();
+    Ops[CompilerSignatureIdx] = EmptyStrIdx;
+    Ops[CommandLineArgsIdx] = EmptyStrIdx;
+    return BM->addDebugInfo(SPIRVDebug::EntryPoint, getVoidTy(), Ops);
+  }
+
+  StringRef Producer = CU->getProducer();
+  StringRef Flags = CU->getFlags();
+  SPIRVEntry *CUVal = SPIRVCUMap[CU] ? SPIRVCUMap[CU] : getDebugInfoNone();
+
+  Ops[CompilationUnitIdx] = CUVal->getId();
+  Ops[CompilerSignatureIdx] = BM->getString(Producer.str())->getId();
+  Ops[CommandLineArgsIdx] = BM->getString(Flags.str())->getId();
+  return BM->addDebugInfo(SPIRVDebug::EntryPoint, getVoidTy(), Ops);
 }
 
 // Location information
