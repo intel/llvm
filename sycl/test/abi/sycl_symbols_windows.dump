@@ -744,7 +744,7 @@
 ??_7host_selector@_V1@sycl@@6B@
 ??_7image_impl@detail@_V1@sycl@@6B@
 ??_8exception@_V1@sycl@@7B@
-??_8exception@_V1@sycl@@7B@
+??_Dexception@_V1@sycl@@QEAAXXZ
 ??_Fcontext@_V1@sycl@@QEAAXXZ
 ??_Fqueue@_V1@sycl@@QEAAXXZ
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
