@@ -1088,7 +1088,7 @@ static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
 /// intrinsic (scalar or vector) to use to lower the load from SPIRV global.
 static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
                                      bool IsVectorCall, uint64_t IndexValue,
-                                     Type *UseType = nullptr) {
+                                     Type *UseType) {
   std::string Suffix =
       IsVectorCall
           ? ".v3i32"
