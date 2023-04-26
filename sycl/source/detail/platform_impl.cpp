@@ -12,6 +12,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <sycl/backend.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
@@ -75,23 +76,27 @@ static bool IsBannedPlatform(platform Platform) {
   // To avoid problems on default users and deployment of DPC++ on platforms
   // where CUDA is available, the OpenCL support is disabled.
   //
-  auto IsNVIDIAOpenCL = [](platform Platform) {
+  // There is also no support for the AMD HSA backend for OpenCL consumption,
+  // as well as reported problems with device queries, so AMD OpenCL support
+  // is disabled as well.
+  //
+  auto IsMatchingOpenCL = [](platform Platform, const std::string_view name) {
     if (getSyclObjImpl(Platform)->is_host())
       return false;
 
-    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
-                             "NVIDIA CUDA") != std::string::npos;
-    const auto Backend =
-        detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
-    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "NVIDIA CUDA OpenCL platform found but is not compatible."
-                << std::endl;
+    const bool HasNameMatch = Platform.get_info<info::platform::name>().find(
+                                  name) != std::string::npos;
+    const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
+    const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) &&
+        IsMatchingOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: " << name
+                << " OpenCL platform found but is not compatible." << std::endl;
     }
-    return IsCUDAOCL;
+    return IsMatchingOCL;
   };
-  return IsNVIDIAOpenCL(Platform);
+  return IsMatchingOpenCL(Platform, "NVIDIA CUDA") ||
+         IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
 // This routine has the side effect of registering each platform's last device
@@ -202,7 +207,14 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     return original_indices;
   }
   plugin &Plugin = *It;
-  backend Backend = Plugin.getBackend();
+
+  // Find out backend of the platform
+  RT::PiPlatformBackend PiBackend;
+  Plugin.call<PiApiKind::piPlatformGetInfo>(
+      Platform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(RT::PiPlatformBackend),
+      &PiBackend, nullptr);
+  backend Backend = convertBackend(PiBackend);
+
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
@@ -476,7 +488,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
       0, // CP info::device_type::all
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
-  const backend Backend = Plugin.getBackend();
+  const backend Backend = getBackend();
 
   if (NumDevices == 0) {
     // If platform doesn't have devices (even without filter)

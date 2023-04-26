@@ -211,21 +211,16 @@ struct TypeSetByHwMode : public InfoByHwMode<MachineValueTypeSet> {
 
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   bool isMachineValueType() const {
-    return isDefaultOnly() && Map.begin()->second.size() == 1;
+    return isSimple() && getSimple().size() == 1;
   }
 
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   MVT getMachineValueType() const {
     assert(isMachineValueType());
-    return *Map.begin()->second.begin();
+    return *getSimple().begin();
   }
 
   bool isPossible() const;
-
-  LLVM_ATTRIBUTE_ALWAYS_INLINE
-  bool isDefaultOnly() const {
-    return Map.size() == 1 && Map.begin()->first == DefaultMode;
-  }
 
   bool isPointer() const {
     return getValueTypeByHwMode().isPointer();
@@ -338,11 +333,7 @@ struct TypeInfer {
 
   struct ValidateOnExit {
     ValidateOnExit(TypeSetByHwMode &T, TypeInfer &TI) : Infer(TI), VTS(T) {}
-  #ifndef NDEBUG
     ~ValidateOnExit();
-  #else
-    ~ValidateOnExit() {}  // Empty destructor with NDEBUG.
-  #endif
     TypeInfer &Infer;
     TypeSetByHwMode &VTS;
   };
@@ -825,12 +816,12 @@ public:   // Higher level manipulation routines.
   void
   SubstituteFormalArguments(std::map<std::string, TreePatternNodePtr> &ArgMap);
 
-  /// InlinePatternFragments - If this pattern refers to any pattern
+  /// InlinePatternFragments - If \p T pattern refers to any pattern
   /// fragments, return the set of inlined versions (this can be more than
   /// one if a PatFrags record has multiple alternatives).
-  void InlinePatternFragments(TreePatternNodePtr T,
-                              TreePattern &TP,
-                              std::vector<TreePatternNodePtr> &OutAlternatives);
+  static void
+  InlinePatternFragments(const TreePatternNodePtr &T, TreePattern &TP,
+                         std::vector<TreePatternNodePtr> &OutAlternatives);
 
   /// ApplyTypeConstraints - Apply all of the type constraints relevant to
   /// this node and its children in the tree.  This returns true if it makes a
@@ -957,10 +948,10 @@ public:
   /// PatFrags references.  This may increase the number of trees in the
   /// pattern if a PatFrags has multiple alternatives.
   void InlinePatternFragments() {
-    std::vector<TreePatternNodePtr> Copy = Trees;
-    Trees.clear();
-    for (unsigned i = 0, e = Copy.size(); i != e; ++i)
-      Copy[i]->InlinePatternFragments(Copy[i], *this, Trees);
+    std::vector<TreePatternNodePtr> Copy;
+    Trees.swap(Copy);
+    for (const TreePatternNodePtr &C : Copy)
+      TreePatternNode::InlinePatternFragments(C, *this, Trees);
   }
 
   /// InferAllTypes - Infer/propagate as many types throughout the expression
@@ -1030,13 +1021,14 @@ class DAGInstruction {
   TreePatternNodePtr ResultPattern;
 
 public:
-  DAGInstruction(const std::vector<Record*> &results,
-                 const std::vector<Record*> &operands,
-                 const std::vector<Record*> &impresults,
+  DAGInstruction(std::vector<Record *> &&results,
+                 std::vector<Record *> &&operands,
+                 std::vector<Record *> &&impresults,
                  TreePatternNodePtr srcpattern = nullptr,
                  TreePatternNodePtr resultpattern = nullptr)
-    : Results(results), Operands(operands), ImpResults(impresults),
-      SrcPattern(srcpattern), ResultPattern(resultpattern) {}
+      : Results(std::move(results)), Operands(std::move(operands)),
+        ImpResults(std::move(impresults)), SrcPattern(srcpattern),
+        ResultPattern(resultpattern) {}
 
   unsigned getNumResults() const { return Results.size(); }
   unsigned getNumOperands() const { return Operands.size(); }

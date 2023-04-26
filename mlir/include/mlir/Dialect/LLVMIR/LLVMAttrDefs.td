@@ -9,9 +9,8 @@
 #ifndef LLVMIR_ATTRDEFS
 #define LLVMIR_ATTRDEFS
 
+include "mlir/Dialect/LLVMIR/LLVMDialect.td"
 include "mlir/IR/AttrTypeBase.td"
-include "mlir/Dialect/LLVMIR/LLVMEnums.td"
-include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 
 // All of the attributes will extend this class.
 class LLVM_Attr<string name, string attrMnemonic,
@@ -28,15 +27,6 @@ class LLVM_Attr<string name, string attrMnemonic,
 def CConvAttr : LLVM_Attr<"CConv", "cconv"> {
   let parameters = (ins "CConv":$CallingConv);
   let assemblyFormat = "`<` $CallingConv `>`";
-}
-
-//===----------------------------------------------------------------------===//
-// FastmathFlagsAttr
-//===----------------------------------------------------------------------===//
-
-def LLVM_FastmathFlagsAttr :
-    EnumAttr<LLVM_Dialect, FastmathFlags, "fastmath"> {
-  let assemblyFormat = "`<` $value `>`";
 }
 
 //===----------------------------------------------------------------------===//
@@ -303,7 +293,7 @@ def LLVM_DICompileUnitAttr : LLVM_Attr<"DICompileUnit", "di_compile_unit",
   let parameters = (ins
     LLVM_DILanguageParameter:$sourceLanguage,
     "DIFileAttr":$file,
-    "StringAttr":$producer,
+    OptionalParameter<"StringAttr">:$producer,
     "bool":$isOptimized,
     "DIEmissionKind":$emissionKind
   );
@@ -318,7 +308,7 @@ def LLVM_DICompositeTypeAttr : LLVM_Attr<"DICompositeType", "di_composite_type",
                                          /*traits=*/[], "DITypeAttr"> {
   let parameters = (ins
     LLVM_DITagParameter:$tag,
-    "StringAttr":$name,
+    OptionalParameter<"StringAttr">:$name,
     OptionalParameter<"DIFileAttr">:$file,
     OptionalParameter<"uint32_t">:$line,
     OptionalParameter<"DIScopeAttr">:$scope,
@@ -379,7 +369,7 @@ def LLVM_DILexicalBlockAttr : LLVM_Attr<"DILexicalBlock", "di_lexical_block",
       "DIScopeAttr":$scope, "DIFileAttr":$file, "unsigned":$line,
       "unsigned":$column
     ), [{
-      return $_get(file.getContext(), scope, file, line, column);
+      return $_get(scope.getContext(), scope, file, line, column);
     }]>
   ];
   let assemblyFormat = "`<` struct(params) `>`";
@@ -400,7 +390,7 @@ def LLVM_DILexicalBlockFile : LLVM_Attr<"DILexicalBlockFile", "di_lexical_block_
     AttrBuilderWithInferredContext<(ins
       "DIScopeAttr":$scope, "DIFileAttr":$file, "unsigned":$discriminator
     ), [{
-      return $_get(file.getContext(), scope, file, discriminator);
+      return $_get(scope.getContext(), scope, file, discriminator);
     }]>
   ];
   let assemblyFormat = "`<` struct(params) `>`";
@@ -414,7 +404,7 @@ def LLVM_DILocalVariableAttr : LLVM_Attr<"DILocalVariable", "di_local_variable",
                                          /*traits=*/[], "DINodeAttr"> {
   let parameters = (ins
     "DIScopeAttr":$scope,
-    "StringAttr":$name,
+    OptionalParameter<"StringAttr">:$name,
     OptionalParameter<"DIFileAttr">:$file,
     OptionalParameter<"unsigned">:$line,
     OptionalParameter<"unsigned">:$arg,
@@ -427,7 +417,7 @@ def LLVM_DILocalVariableAttr : LLVM_Attr<"DILocalVariable", "di_local_variable",
       "unsigned":$line, "unsigned":$arg, "unsigned":$alignInBits,
       "DITypeAttr":$type
     ), [{
-      MLIRContext *ctx = file.getContext();
+      MLIRContext *ctx = scope.getContext();
       return $_get(ctx, scope, StringAttr::get(ctx, name), file, line,
                    arg, alignInBits, type);
     }]>
@@ -444,7 +434,7 @@ def LLVM_DISubprogramAttr : LLVM_Attr<"DISubprogram", "di_subprogram",
   let parameters = (ins
     OptionalParameter<"DICompileUnitAttr">:$compileUnit,
     "DIScopeAttr":$scope,
-    "StringAttr":$name,
+    OptionalParameter<"StringAttr">:$name,
     OptionalParameter<"StringAttr">:$linkageName,
     "DIFileAttr":$file,
     OptionalParameter<"unsigned">:$line,
@@ -476,7 +466,7 @@ def LLVM_DISubprogramAttr : LLVM_Attr<"DISubprogram", "di_subprogram",
 def LLVM_DINamespaceAttr : LLVM_Attr<"DINamespace", "di_namespace",
                                       /*traits=*/[], "DIScopeAttr"> {
   let parameters = (ins
-    "StringAttr":$name,
+    OptionalParameter<"StringAttr">:$name,
     OptionalParameter<"DIScopeAttr">:$scope,
     "bool":$exportSymbols
   );

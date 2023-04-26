@@ -138,9 +138,12 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
     lambda(jm.cuda_impl.wi_marray[i]);
   }
 #else // NVPTX
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
   auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    T element = wi_data_c[i];
+    storage_element_type element = wi_data_c[i];
     lambda(element);
     wi_data_c[i] = element;
   }
@@ -166,11 +169,14 @@ joint_matrix_fill(Group sg,
   std::ignore = sg;
   res.cuda_impl.wi_marray = v;
 #else
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
   res.spvm =
-      __spirv_CompositeConstruct<T, NumRows, NumCols,
+      __spirv_CompositeConstruct<storage_element_type, T, NumRows, NumCols,
                                  spv_matrix_use_traits<Use>::value,
                                  spv_matrix_layout_traits<Layout>::value>(
-          static_cast<T>(v));
+          static_cast<storage_element_type>(v));
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -204,21 +210,21 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case layout::col_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::Packed,
         spv_scope_traits<Group>::value);
@@ -257,7 +263,7 @@ joint_matrix_load(Group sg,
 #else
   T *Ptr = src.get();
   res.spvm =
-      __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+      __spirv_JointMatrixLoadINTEL<T, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
                                    spv_matrix_layout_traits<Layout>::value>(
           Ptr, stride, spv_matrix_layout_traits<Layout>::value,
@@ -294,21 +300,21 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     __spirv_JointMatrixStoreINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case layout::col_major:
     __spirv_JointMatrixStoreINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     __spirv_JointMatrixStoreINTEL<
-        T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::Packed,
         spv_scope_traits<Group>::value);
@@ -380,20 +386,23 @@ inline __SYCL_ALWAYS_INLINE
 
 // This function rounds the bottom 13 bits up or down, and then zeros out the
 // bottom bits
-inline __SYCL_ALWAYS_INLINE float round_to_tf32(float &a) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);
 #else
-  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
+  return __spirv_RoundFToTF32INTEL(a);
+#endif // defined(__NVPTX__)
+#else
+  uint32_t tmp_uint = reinterpret_cast<const uint32_t &>(a);
   tmp_uint += 0x1000u;
   tmp_uint &= 0xFFFFE000u;
   float ret = 0;
   std::memcpy(&ret, &tmp_uint, sizeof(float));
   return ret;
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#endif // defined(__SYCL_DEVICE_ONLY__)
 }
-
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi

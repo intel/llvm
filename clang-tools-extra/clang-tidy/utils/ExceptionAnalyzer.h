@@ -21,11 +21,11 @@ namespace clang::tidy::utils {
 /// custom exception types.
 class ExceptionAnalyzer {
 public:
-  enum class State : std::int8_t {
-    Throwing = 0,    ///< The function can definitely throw given an AST.
-    NotThrowing = 1, ///< This function can not throw, given an AST.
-    Unknown = 2,     ///< This can happen for extern functions without available
-                     ///< definition.
+  enum class State {
+    Throwing,    ///< The function can definitely throw given an AST.
+    NotThrowing, ///< This function can not throw, given an AST.
+    Unknown,     ///< This can happen for extern functions without available
+                 ///< definition.
   };
 
   /// Bundle the gathered information about an entity like a function regarding
@@ -78,7 +78,7 @@ public:
     /// possible to catch multiple exception types by one 'catch' if they
     /// are a subclass of the 'catch'ed exception type.
     /// Returns 'true' if some exceptions were filtered, otherwise 'false'.
-    bool filterByCatch(const Type *BaseClass);
+    bool filterByCatch(const Type *BaseClass, const ASTContext &Context);
 
     /// Filter the set of thrown exception type against a set of ignored
     /// types that shall not be considered in the exception analysis.
@@ -144,7 +144,7 @@ private:
 
   bool IgnoreBadAlloc = true;
   llvm::StringSet<> IgnoredExceptions;
-  std::map<const FunctionDecl *, ExceptionInfo> FunctionCache;
+  llvm::DenseMap<const FunctionDecl *, ExceptionInfo> FunctionCache{32u};
 };
 
 } // namespace clang::tidy::utils

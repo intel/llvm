@@ -56,10 +56,6 @@ const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
 const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
 const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
 
-const ur_device_partition_property_t
-    UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE =
-        ur_device_partition_property_t(UR_DEVICE_PARTITION_FORCE_UINT32 - 1);
-
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
   std::cerr << "die: " << Message << std::endl;
@@ -78,7 +74,7 @@ static const bool SingleThreadMode = [] {
 // Class which acts like shared_mutex if SingleThreadMode variable is not set.
 // If SingleThreadMode variable is set then mutex operations are turned into
 // nop.
-class pi_shared_mutex {
+class ur_shared_mutex {
   std::shared_mutex Mutex;
 
 public:
@@ -108,7 +104,7 @@ public:
 // Class which acts like std::mutex if SingleThreadMode variable is not set.
 // If SingleThreadMode variable is set then mutex operations are turned into
 // nop.
-class pi_mutex {
+class ur_mutex {
   std::mutex Mutex;
 
 public:
@@ -210,8 +206,8 @@ private:
 };
 
 // Base class to store common data
-struct _pi_object {
-  _pi_object() : RefCount{} {}
+struct _ur_object {
+  _ur_object() : RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;
@@ -229,7 +225,7 @@ struct _pi_object {
   // access to Obj3 in a scope use the following approach:
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
-  pi_shared_mutex Mutex;
+  ur_shared_mutex Mutex;
 };
 
 // Helper for one-liner validation

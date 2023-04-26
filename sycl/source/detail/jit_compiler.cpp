@@ -557,6 +557,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
   std::vector<::jit_compiler::NDRange> Ranges;
+  RT::PiKernelCacheConfig KernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -576,6 +578,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     }
     const RTDeviceBinaryImage *DeviceImage = nullptr;
     RT::PiProgram Program = nullptr;
+    const KernelArgMask *EliminatedArgs = nullptr;
     if (KernelCG->getKernelBundle() != nullptr) {
       // Retrieve the device image from the kernel bundle.
       auto KernelBundle = KernelCG->getKernelBundle();
@@ -587,10 +590,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
       DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
       Program = SyclKernel->getDeviceImage()->get_program_ref();
+      EliminatedArgs = SyclKernel->getKernelArgMask();
     } else if (KernelCG->MSyclKernel != nullptr) {
       DeviceImage =
           KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
       Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
+      EliminatedArgs = KernelCG->MSyclKernel->getKernelArgMask();
     } else {
       auto ContextImpl = Queue->getContextImplPtr();
       auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
@@ -600,17 +605,13 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
           KernelCG->MOSModuleHandle, KernelName, Context, Device);
       Program = detail::ProgramManager::getInstance().createPIProgram(
           *DeviceImage, Context, Device);
+      EliminatedArgs =
+          detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
+              KernelCG->MOSModuleHandle, Program, KernelName);
     }
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
-    }
-    ProgramManager::KernelArgMask EliminatedArgs;
-    if (Program && (KernelCG->MSyclKernel == nullptr ||
-                    !KernelCG->MSyclKernel->isCreatedFromSource())) {
-      EliminatedArgs =
-          detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              KernelCG->MOSModuleHandle, Program, KernelName);
     }
 
     // Collect information about the arguments of this kernel.
@@ -632,7 +633,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // DPC++ internally uses 'true' to indicate that an argument has been
       // eliminated, while the JIT compiler uses 'true' to indicate an
       // argument is used. Translate this here.
-      bool Eliminated = !EliminatedArgs.empty() && EliminatedArgs[ArgIndex++];
+      bool Eliminated = EliminatedArgs && !EliminatedArgs->empty() &&
+                        (*EliminatedArgs)[ArgIndex++];
       ArgDescriptor.UsageMask.emplace_back(!Eliminated);
 
       // If the argument has not been eliminated, i.e., is still present on
@@ -714,6 +716,15 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                         KernelCG->MRequirements.end());
     Events.insert(Events.end(), KernelCG->MEvents.begin(),
                   KernelCG->MEvents.end());
+
+    // If all kernels have the same cache config then use it for the merged
+    // kernel, otherwise use default configuration.
+    if (KernelIndex == 0) {
+      KernelCacheConfig = KernelCG->MKernelCacheConfig;
+    } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
+      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+    }
+
     ++KernelIndex;
   }
 
@@ -808,7 +819,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       std::move(ArgsStorage), std::move(AccStorage),
       std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
       std::move(FusedArgs), FusedKernelInfo.Name, OSUtil::DummyModuleHandle, {},
-      {}, CG::CGTYPE::Kernel));
+      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 

@@ -51,6 +51,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/MemProfContextDisambiguation.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
@@ -74,6 +75,9 @@ cl::opt<bool> EnableLTOInternalization(
     "enable-lto-internalization", cl::init(true), cl::Hidden,
     cl::desc("Enable global value internalization in LTO"));
 }
+
+/// Enable MemProf context disambiguation for thin link.
+extern cl::opt<bool> EnableMemProfContextDisambiguation;
 
 // Computes a unique hash for the Module considering the current list of
 // export/import and other global analysis results.
@@ -925,13 +929,16 @@ Error LTO::addThinLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
     }
   }
 
+  uint64_t ModuleId = ThinLTO.ModuleMap.size();
   if (Error Err =
           BM.readSummary(ThinLTO.CombinedIndex, BM.getModuleIdentifier(),
-                         ThinLTO.ModuleMap.size(), [&](GlobalValue::GUID GUID) {
+                         ModuleId, [&](GlobalValue::GUID GUID) {
                            return ThinLTO.PrevailingModuleForGUID[GUID] ==
                                   BM.getModuleIdentifier();
                          }))
     return Err;
+  LLVM_DEBUG(dbgs() << "Module " << ModuleId << ": " << BM.getModuleIdentifier()
+                    << "\n");
 
   for (const InputFile::Symbol &Sym : Syms) {
     assert(ResI != ResE);
@@ -1415,18 +1422,20 @@ std::string lto::getThinLTOOutputFile(const std::string &Path,
 
 namespace {
 class WriteIndexesThinBackend : public ThinBackendProc {
-  std::string OldPrefix, NewPrefix;
+  std::string OldPrefix, NewPrefix, NativeObjectPrefix;
   raw_fd_ostream *LinkedObjectsFile;
 
 public:
   WriteIndexesThinBackend(
       const Config &Conf, ModuleSummaryIndex &CombinedIndex,
       const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
-      std::string OldPrefix, std::string NewPrefix, bool ShouldEmitImportsFiles,
+      std::string OldPrefix, std::string NewPrefix,
+      std::string NativeObjectPrefix, bool ShouldEmitImportsFiles,
       raw_fd_ostream *LinkedObjectsFile, lto::IndexWriteCallback OnWrite)
       : ThinBackendProc(Conf, CombinedIndex, ModuleToDefinedGVSummaries,
                         OnWrite, ShouldEmitImportsFiles),
         OldPrefix(OldPrefix), NewPrefix(NewPrefix),
+        NativeObjectPrefix(NativeObjectPrefix),
         LinkedObjectsFile(LinkedObjectsFile) {}
 
   Error start(
@@ -1439,8 +1448,13 @@ public:
     std::string NewModulePath =
         getThinLTOOutputFile(std::string(ModulePath), OldPrefix, NewPrefix);
 
-    if (LinkedObjectsFile)
-      *LinkedObjectsFile << NewModulePath << '\n';
+    if (LinkedObjectsFile) {
+      std::string ObjectPrefix =
+          NativeObjectPrefix.empty() ? NewPrefix : NativeObjectPrefix;
+      std::string LinkedObjectsFilePath = getThinLTOOutputFile(
+          std::string(ModulePath), OldPrefix, ObjectPrefix);
+      *LinkedObjectsFile << LinkedObjectsFilePath << '\n';
+    }
 
     if (auto E = emitFiles(ImportList, ModulePath, NewModulePath))
       return E;
@@ -1459,14 +1473,15 @@ public:
 } // end anonymous namespace
 
 ThinBackend lto::createWriteIndexesThinBackend(
-    std::string OldPrefix, std::string NewPrefix, bool ShouldEmitImportsFiles,
+    std::string OldPrefix, std::string NewPrefix,
+    std::string NativeObjectPrefix, bool ShouldEmitImportsFiles,
     raw_fd_ostream *LinkedObjectsFile, IndexWriteCallback OnWrite) {
   return [=](const Config &Conf, ModuleSummaryIndex &CombinedIndex,
              const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
              AddStreamFn AddStream, FileCache Cache) {
     return std::make_unique<WriteIndexesThinBackend>(
         Conf, CombinedIndex, ModuleToDefinedGVSummaries, OldPrefix, NewPrefix,
-        ShouldEmitImportsFiles, LinkedObjectsFile, OnWrite);
+        NativeObjectPrefix, ShouldEmitImportsFiles, LinkedObjectsFile, OnWrite);
   };
 }
 
@@ -1536,9 +1551,17 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   runWholeProgramDevirtOnIndex(ThinLTO.CombinedIndex, ExportedGUIDs,
                                LocalWPDTargetsMap);
 
+  auto isPrevailing = [&](GlobalValue::GUID GUID, const GlobalValueSummary *S) {
+    return ThinLTO.PrevailingModuleForGUID[GUID] == S->modulePath();
+  };
+  if (EnableMemProfContextDisambiguation) {
+    MemProfContextDisambiguation ContextDisambiguation;
+    ContextDisambiguation.run(ThinLTO.CombinedIndex, isPrevailing);
+  }
+
   if (Conf.OptLevel > 0)
     ComputeCrossModuleImport(ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,
-                             ImportLists, ExportLists);
+                             isPrevailing, ImportLists, ExportLists);
 
   // Figure out which symbols need to be internalized. This also needs to happen
   // at -O0 because summary-based DCE is implemented using internalization, and
@@ -1577,10 +1600,6 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   updateIndexWPDForExports(ThinLTO.CombinedIndex, isExported,
                            LocalWPDTargetsMap);
 
-  auto isPrevailing = [&](GlobalValue::GUID GUID,
-                          const GlobalValueSummary *S) {
-    return ThinLTO.PrevailingModuleForGUID[GUID] == S->modulePath();
-  };
   thinLTOInternalizeAndPromoteInIndex(ThinLTO.CombinedIndex, isExported,
                                       isPrevailing);
 

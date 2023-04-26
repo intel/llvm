@@ -772,7 +772,7 @@ void GVNPass::printPipeline(
   static_cast<PassInfoMixin<GVNPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
 
-  OS << "<";
+  OS << '<';
   if (Options.AllowPRE != std::nullopt)
     OS << (*Options.AllowPRE ? "" : "no-") << "pre;";
   if (Options.AllowLoadPRE != std::nullopt)
@@ -782,7 +782,7 @@ void GVNPass::printPipeline(
        << "split-backedge-load-pre;";
   if (Options.AllowMemDep != std::nullopt)
     OS << (*Options.AllowMemDep ? "" : "no-") << "memdep";
-  OS << ">";
+  OS << '>';
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -986,7 +986,7 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
   if (isSimpleValue()) {
     Res = getSimpleValue();
     if (Res->getType() != LoadTy) {
-      Res = getStoreValueForLoad(Res, Offset, LoadTy, InsertPt, DL);
+      Res = getValueForLoad(Res, Offset, LoadTy, InsertPt, DL);
 
       LLVM_DEBUG(dbgs() << "GVN COERCED NONLOCAL VAL:\nOffset: " << Offset
                         << "  " << *getSimpleValue() << '\n'
@@ -998,13 +998,7 @@ Value *AvailableValue::MaterializeAdjustedValue(LoadInst *Load,
     if (CoercedLoad->getType() == LoadTy && Offset == 0) {
       Res = CoercedLoad;
     } else {
-      Res = getLoadValueForLoad(CoercedLoad, Offset, LoadTy, InsertPt, DL);
-      // We would like to use gvn.markInstructionForDeletion here, but we can't
-      // because the load is already memoized into the leader map table that GVN
-      // tracks.  It is potentially possible to remove the load from the table,
-      // but then there all of the operations based on it would need to be
-      // rehashed.  Just leave the dead load around.
-      gvn.getMemDep().removeInstruction(CoercedLoad);
+      Res = getValueForLoad(CoercedLoad, Offset, LoadTy, InsertPt, DL);
       LLVM_DEBUG(dbgs() << "GVN COERCED NONLOCAL LOAD:\nOffset: " << Offset
                         << "  " << *getCoercedLoadValue() << '\n'
                         << *Res << '\n'
@@ -1908,8 +1902,10 @@ bool GVNPass::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
         MSSAU->insertDef(cast<MemoryDef>(NewDef), /*RenameUses=*/false);
       }
     }
-    if (isAssumeWithEmptyBundle(*IntrinsicI))
+    if (isAssumeWithEmptyBundle(*IntrinsicI)) {
       markInstructionForDeletion(IntrinsicI);
+      return true;
+    }
     return false;
   } else if (isa<Constant>(V)) {
     // If it's not false, and constant, it must evaluate to true. This means our

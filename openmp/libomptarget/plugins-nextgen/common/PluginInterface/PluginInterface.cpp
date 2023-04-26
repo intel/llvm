@@ -117,12 +117,12 @@ public:
                               /* Default in GB */ 64) {}
 
   void saveImage(const char *Name, DeviceImageTy &Image) {
-    Twine ImageName = Twine(Name) + Twine(".image");
+    SmallString<128> ImageName = {Name, ".image"};
     std::error_code EC;
-    raw_fd_ostream OS(ImageName.str(), EC);
+    raw_fd_ostream OS(ImageName, EC);
     if (EC)
       report_fatal_error("Error saving image : " + StringRef(EC.message()));
-    if (auto TgtImageBitcode = Image.getTgtImageBitcode()) {
+    if (const auto *TgtImageBitcode = Image.getTgtImageBitcode()) {
       size_t Size =
           getPtrDiff(TgtImageBitcode->ImageEnd, TgtImageBitcode->ImageStart);
       MemoryBufferRef MBR = MemoryBufferRef(
@@ -158,11 +158,10 @@ public:
       JsonArgOffsets.push_back(ArgOffsets[I]);
     JsonKernelInfo["ArgOffsets"] = json::Value(std::move(JsonArgOffsets));
 
-    Twine KernelName(Name);
-    Twine MemoryFilename = KernelName + ".memory";
-    dumpDeviceMemory(MemoryFilename.str(), AsyncInfoWrapper);
+    SmallString<128> MemoryFilename = {Name, ".memory"};
+    dumpDeviceMemory(MemoryFilename, AsyncInfoWrapper);
 
-    Twine JsonFilename = KernelName + ".json";
+    SmallString<128> JsonFilename = {Name, ".json"};
     std::error_code EC;
     raw_fd_ostream JsonOS(JsonFilename.str(), EC);
     if (EC)
@@ -174,9 +173,9 @@ public:
 
   void saveKernelOutputInfo(const char *Name,
                             AsyncInfoWrapperTy &AsyncInfoWrapper) {
-    Twine OutputFilename =
-        Twine(Name) + (isRecording() ? ".original.output" : ".replay.output");
-    dumpDeviceMemory(OutputFilename.str(), AsyncInfoWrapper);
+    SmallString<128> OutputFilename = {
+        Name, (isRecording() ? ".original.output" : ".replay.output")};
+    dumpDeviceMemory(OutputFilename, AsyncInfoWrapper);
   }
 
   void *alloc(uint64_t Size) {
@@ -201,12 +200,29 @@ public:
 
 } RecordReplay;
 
-AsyncInfoWrapperTy::~AsyncInfoWrapperTy() {
+AsyncInfoWrapperTy::AsyncInfoWrapperTy(GenericDeviceTy &Device,
+                                       __tgt_async_info *AsyncInfoPtr)
+    : Err(Plugin::success()), Device(Device),
+      AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {
+  // Mark the success as checked. Otherwise, it would produce an error when
+  // re-assigned another error value.
+  !Err;
+}
+
+Error AsyncInfoWrapperTy::finalize() {
+  assert(AsyncInfoPtr && "AsyncInfoWrapperTy already finalized");
+
   // If we used a local async info object we want synchronous behavior.
   // In that case, and assuming the current status code is OK, we will
   // synchronize explicitly when the object is deleted.
   if (AsyncInfoPtr == &LocalAsyncInfo && LocalAsyncInfo.Queue && !Err)
     Err = Device.synchronize(&LocalAsyncInfo);
+
+  // Invalidate the wrapper object.
+  AsyncInfoPtr = nullptr;
+
+  // Return the error associated to the async operations and the synchronize.
+  return std::move(Err);
 }
 
 Error GenericKernelTy::init(GenericDeviceTy &GenericDevice,
@@ -218,24 +234,41 @@ Error GenericKernelTy::init(GenericDeviceTy &GenericDevice,
   return initImpl(GenericDevice, Image);
 }
 
+Error GenericKernelTy::printLaunchInfo(GenericDeviceTy &GenericDevice,
+                                       KernelArgsTy &KernelArgs,
+                                       uint32_t NumThreads,
+                                       uint64_t NumBlocks) const {
+  INFO(OMP_INFOTYPE_PLUGIN_KERNEL, GenericDevice.getDeviceId(),
+       "Launching kernel %s with %" PRIu64
+       " blocks and %d threads in %s mode\n",
+       getName(), NumBlocks, NumThreads, getExecutionModeName());
+  return printLaunchInfoDetails(GenericDevice, KernelArgs, NumThreads,
+                                NumBlocks);
+}
+
+Error GenericKernelTy::printLaunchInfoDetails(GenericDeviceTy &GenericDevice,
+                                              KernelArgsTy &KernelArgs,
+                                              uint32_t NumThreads,
+                                              uint64_t NumBlocks) const {
+  return Plugin::success();
+}
+
 Error GenericKernelTy::launch(GenericDeviceTy &GenericDevice, void **ArgPtrs,
                               ptrdiff_t *ArgOffsets, KernelArgsTy &KernelArgs,
                               AsyncInfoWrapperTy &AsyncInfoWrapper) const {
   llvm::SmallVector<void *, 16> Args;
   llvm::SmallVector<void *, 16> Ptrs;
 
-  void *KernelArgsPtr =
-      prepareArgs(GenericDevice, ArgPtrs, ArgOffsets, KernelArgs.NumArgs, Args,
-                  Ptrs, AsyncInfoWrapper);
+  void *KernelArgsPtr = prepareArgs(GenericDevice, ArgPtrs, ArgOffsets,
+                                    KernelArgs.NumArgs, Args, Ptrs);
 
   uint32_t NumThreads = getNumThreads(GenericDevice, KernelArgs.ThreadLimit);
   uint64_t NumBlocks = getNumBlocks(GenericDevice, KernelArgs.NumTeams,
                                     KernelArgs.Tripcount, NumThreads);
 
-  INFO(OMP_INFOTYPE_PLUGIN_KERNEL, GenericDevice.getDeviceId(),
-       "Launching kernel %s with %" PRIu64
-       " blocks and %d threads in %s mode\n",
-       getName(), NumBlocks, NumThreads, getExecutionModeName());
+  if (auto Err =
+          printLaunchInfo(GenericDevice, KernelArgs, NumThreads, NumBlocks))
+    return Err;
 
   return launchImpl(GenericDevice, NumThreads, NumBlocks, KernelArgs,
                     KernelArgsPtr, AsyncInfoWrapper);
@@ -245,8 +278,7 @@ void *GenericKernelTy::prepareArgs(GenericDeviceTy &GenericDevice,
                                    void **ArgPtrs, ptrdiff_t *ArgOffsets,
                                    int32_t NumArgs,
                                    llvm::SmallVectorImpl<void *> &Args,
-                                   llvm::SmallVectorImpl<void *> &Ptrs,
-                                   AsyncInfoWrapperTy &AsyncInfoWrapper) const {
+                                   llvm::SmallVectorImpl<void *> &Ptrs) const {
   Args.resize(NumArgs);
   Ptrs.resize(NumArgs);
 
@@ -334,15 +366,7 @@ GenericDeviceTy::GenericDeviceTy(int32_t DeviceId, int32_t NumDevices,
       OMPX_InitialNumEvents("LIBOMPTARGET_NUM_INITIAL_EVENTS", 32),
       DeviceId(DeviceId), GridValues(OMPGridValues),
       PeerAccesses(NumDevices, PeerAccessState::PENDING), PeerAccessesLock(),
-      PinnedAllocs(*this) {
-  if (OMP_NumTeams > 0)
-    GridValues.GV_Max_Teams =
-        std::min(GridValues.GV_Max_Teams, uint32_t(OMP_NumTeams));
-
-  if (OMP_TeamsThreadLimit > 0)
-    GridValues.GV_Max_WG_Size =
-        std::min(GridValues.GV_Max_WG_Size, uint32_t(OMP_TeamsThreadLimit));
-}
+      PinnedAllocs(*this) {}
 
 Error GenericDeviceTy::init(GenericPluginTy &Plugin) {
   if (auto Err = initImpl(Plugin))
@@ -366,6 +390,16 @@ Error GenericDeviceTy::init(GenericPluginTy &Plugin) {
   if (!HeapSizeEnvarOrErr)
     return HeapSizeEnvarOrErr.takeError();
   OMPX_TargetHeapSize = std::move(*HeapSizeEnvarOrErr);
+
+  // Update the maximum number of teams and threads after the device
+  // initialization sets the corresponding hardware limit.
+  if (OMP_NumTeams > 0)
+    GridValues.GV_Max_Teams =
+        std::min(GridValues.GV_Max_Teams, uint32_t(OMP_NumTeams));
+
+  if (OMP_TeamsThreadLimit > 0)
+    GridValues.GV_Max_WG_Size =
+        std::min(GridValues.GV_Max_WG_Size, uint32_t(OMP_TeamsThreadLimit));
 
   // Enable the memory manager if required.
   auto [ThresholdMM, EnableMM] = MemoryManagerTy::getSizeThresholdFromEnv();
@@ -518,8 +552,8 @@ Error GenericDeviceTy::registerGlobalOffloadEntry(
     // can access host addresses directly. There is no longer a
     // need for device copies.
     GlobalTy HostGlobal(GlobalEntry);
-    if (auto Err = GHandler.writeGlobalToDevice(*this, Image, HostGlobal,
-                                                DeviceGlobal))
+    if (auto Err =
+            GHandler.writeGlobalToDevice(*this, HostGlobal, DeviceGlobal))
       return Err;
   }
 
@@ -684,7 +718,7 @@ Expected<void *> PinnedAllocationMapTy::lockHostBuffer(void *HstPtr,
   if (Entry) {
     // An already registered intersecting buffer was found. Register a new use.
     if (auto Err = registerEntryUse(*Entry, HstPtr, Size))
-      return Err;
+      return std::move(Err);
 
     // Return the device accessible pointer with the correct offset.
     return advanceVoidPtr(Entry->DevAccessiblePtr,
@@ -699,7 +733,7 @@ Expected<void *> PinnedAllocationMapTy::lockHostBuffer(void *HstPtr,
 
   // Now insert the new entry into the map.
   if (auto Err = insertEntry(HstPtr, *DevAccessiblePtrOrErr, Size))
-    return Err;
+    return std::move(Err);
 
   // Return the device accessible pointer.
   return *DevAccessiblePtrOrErr;
@@ -866,7 +900,7 @@ Expected<void *> GenericDeviceTy::dataAlloc(int64_t Size, void *HostPtr,
   // Register allocated buffer as pinned memory if the type is host memory.
   if (Kind == TARGET_ALLOC_HOST)
     if (auto Err = PinnedAllocs.registerHostBuffer(Alloc, Alloc, Size))
-      return Err;
+      return std::move(Err);
 
   return Alloc;
 }
@@ -895,35 +929,37 @@ Error GenericDeviceTy::dataDelete(void *TgtPtr, TargetAllocTy Kind) {
 
 Error GenericDeviceTy::dataSubmit(void *TgtPtr, const void *HstPtr,
                                   int64_t Size, __tgt_async_info *AsyncInfo) {
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
+
+  auto &Err = AsyncInfoWrapper.getError();
   Err = dataSubmitImpl(TgtPtr, HstPtr, Size, AsyncInfoWrapper);
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::dataRetrieve(void *HstPtr, const void *TgtPtr,
                                     int64_t Size, __tgt_async_info *AsyncInfo) {
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
+
+  auto &Err = AsyncInfoWrapper.getError();
   Err = dataRetrieveImpl(HstPtr, TgtPtr, Size, AsyncInfoWrapper);
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::dataExchange(const void *SrcPtr, GenericDeviceTy &DstDev,
                                     void *DstPtr, int64_t Size,
                                     __tgt_async_info *AsyncInfo) {
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
+
+  auto &Err = AsyncInfoWrapper.getError();
   Err = dataExchangeImpl(SrcPtr, DstDev, DstPtr, Size, AsyncInfoWrapper);
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
                                     ptrdiff_t *ArgOffsets,
                                     KernelArgsTy &KernelArgs,
                                     __tgt_async_info *AsyncInfo) {
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
   GenericKernelTy &GenericKernel =
       *reinterpret_cast<GenericKernelTy *>(EntryPtr);
@@ -934,6 +970,7 @@ Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
         KernelArgs.NumTeams[0], KernelArgs.ThreadLimit[0], KernelArgs.Tripcount,
         AsyncInfoWrapper);
 
+  auto &Err = AsyncInfoWrapper.getError();
   Err = GenericKernel.launch(*this, ArgPtrs, ArgOffsets, KernelArgs,
                              AsyncInfoWrapper);
 
@@ -942,7 +979,7 @@ Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
     RecordReplay.saveKernelOutputInfo(GenericKernel.getName(),
                                       AsyncInfoWrapper);
 
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
@@ -950,10 +987,11 @@ Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
 
   *AsyncInfoPtr = new __tgt_async_info();
 
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, *AsyncInfoPtr);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, *AsyncInfoPtr);
+
+  auto &Err = AsyncInfoWrapper.getError();
   Err = initAsyncInfoImpl(AsyncInfoWrapper);
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::initDeviceInfo(__tgt_device_info *DeviceInfo) {
@@ -977,17 +1015,19 @@ Error GenericDeviceTy::destroyEvent(void *EventPtr) {
 
 Error GenericDeviceTy::recordEvent(void *EventPtr,
                                    __tgt_async_info *AsyncInfo) {
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
+
+  auto &Err = AsyncInfoWrapper.getError();
   Err = recordEventImpl(EventPtr, AsyncInfoWrapper);
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::waitEvent(void *EventPtr, __tgt_async_info *AsyncInfo) {
-  auto Err = Plugin::success();
-  AsyncInfoWrapperTy AsyncInfoWrapper(Err, *this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
+
+  auto &Err = AsyncInfoWrapper.getError();
   Err = waitEventImpl(EventPtr, AsyncInfoWrapper);
-  return Err;
+  return AsyncInfoWrapper.finalize();
 }
 
 Error GenericDeviceTy::syncEvent(void *EventPtr) {
@@ -1172,7 +1212,6 @@ __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
                                           __tgt_device_image *TgtImage) {
   GenericPluginTy &Plugin = Plugin::get();
   GenericDeviceTy &Device = Plugin.getDevice(DeviceId);
-
 
   auto TableOrErr = Device.loadBinary(Plugin, TgtImage);
   if (!TableOrErr) {

@@ -373,7 +373,8 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__ARM_ALIGN_MAX_STACK_PWR", "4");
 
   // 0xe implies support for half, single and double precision operations.
-  Builder.defineMacro("__ARM_FP", "0xE");
+  if (FPU & FPUMode)
+    Builder.defineMacro("__ARM_FP", "0xE");
 
   // PCS specifies this for SysV variants, which is all we support. Other ABIs
   // may choose __ARM_FP16_FORMAT_ALTERNATIVE.
@@ -606,16 +607,18 @@ unsigned AArch64TargetInfo::multiVersionFeatureCost() const {
   return llvm::AArch64::ExtensionInfo::MaxFMVPriority;
 }
 
-bool AArch64TargetInfo::getFeatureDepOptions(StringRef Name,
-                                             std::string &FeatureVec) const {
-  FeatureVec = "";
-  for (const auto &E : llvm::AArch64::Extensions) {
-    if (Name == E.Name) {
-      FeatureVec = E.DependentFeatures;
-      break;
-    }
-  }
-  return FeatureVec != "";
+bool AArch64TargetInfo::doesFeatureAffectCodeGen(StringRef Name) const {
+  auto F = llvm::find_if(llvm::AArch64::Extensions, [&](const auto &E) {
+    return Name == E.Name && !E.DependentFeatures.empty();
+  });
+  return F != std::end(llvm::AArch64::Extensions);
+}
+
+StringRef AArch64TargetInfo::getFeatureDependencies(StringRef Name) const {
+  auto F = llvm::find_if(llvm::AArch64::Extensions,
+                         [&](const auto &E) { return Name == E.Name; });
+  return F != std::end(llvm::AArch64::Extensions) ? F->DependentFeatures
+                                                  : StringRef();
 }
 
 bool AArch64TargetInfo::validateCpuSupports(StringRef FeatureStr) const {
@@ -707,6 +710,8 @@ void AArch64TargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
 bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
                                              DiagnosticsEngine &Diags) {
   for (const auto &Feature : Features) {
+    if (Feature == "-fp-armv8")
+      HasNoFP = true;
     if (Feature == "-neon")
       HasNoNeon = true;
     if (Feature == "-sve")
@@ -922,6 +927,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasMOPS = true;
     if (Feature == "+d128")
       HasD128 = true;
+    if (Feature == "+gcs")
+      HasGCS = true;
   }
 
   // Check features that are manually disabled by command line options.
@@ -935,6 +942,11 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   setDataLayout();
   setArchFeatures();
 
+  if (HasNoFP) {
+    FPU &= ~FPUMode;
+    FPU &= ~NeonMode;
+    FPU &= ~SveMode;
+  }
   if (HasNoNeon) {
     FPU &= ~NeonMode;
     FPU &= ~SveMode;
@@ -962,18 +974,18 @@ bool AArch64TargetInfo::initFeatureMap(
   }
 
   // Process target and dependent features. This is done in two loops collecting
-  // them into UpdatedFeaturesVec: first to add dependent '+'features,
-  // second to add target '+/-'features that can later disable some of
-  // features added on the first loop.
+  // them into UpdatedFeaturesVec: first to add dependent '+'features, second to
+  // add target '+/-'features that can later disable some of features added on
+  // the first loop. Function Multi Versioning features begin with '?'.
   for (const auto &Feature : FeaturesVec)
-    if ((Feature[0] == '?' || Feature[0] == '+')) {
-      std::string Options;
-      if (AArch64TargetInfo::getFeatureDepOptions(Feature.substr(1), Options)) {
-        SmallVector<StringRef, 1> AttrFeatures;
-        StringRef(Options).split(AttrFeatures, ",");
-        for (auto F : AttrFeatures)
-          UpdatedFeaturesVec.push_back(F.str());
-      }
+    if (((Feature[0] == '?' || Feature[0] == '+')) &&
+        AArch64TargetInfo::doesFeatureAffectCodeGen(Feature.substr(1))) {
+      StringRef DepFeatures =
+          AArch64TargetInfo::getFeatureDependencies(Feature.substr(1));
+      SmallVector<StringRef, 1> AttrFeatures;
+      DepFeatures.split(AttrFeatures, ",");
+      for (auto F : AttrFeatures)
+        UpdatedFeaturesVec.push_back(F.str());
     }
   for (const auto &Feature : FeaturesVec)
     if (Feature[0] != '?') {

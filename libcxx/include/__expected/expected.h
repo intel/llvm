@@ -49,7 +49,7 @@
 #include <__utility/in_place.h>
 #include <__utility/move.h>
 #include <__utility/swap.h>
-#include <cstdlib> // for std::abort
+#include <__verbose_abort>
 #include <initializer_list>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -68,7 +68,7 @@ _LIBCPP_HIDE_FROM_ABI void __throw_bad_expected_access(_Arg&& __arg) {
   throw bad_expected_access<_Err>(std::forward<_Arg>(__arg));
 #  else
   (void)__arg;
-  std::abort();
+  _LIBCPP_VERBOSE_ABORT("bad_expected_access was thrown in -fno-exceptions mode");
 #  endif
 }
 

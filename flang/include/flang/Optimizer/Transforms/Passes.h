@@ -42,6 +42,8 @@ namespace fir {
 #define GEN_PASS_DECL_MEMORYALLOCATIONOPT
 #define GEN_PASS_DECL_SIMPLIFYREGIONLITE
 #define GEN_PASS_DECL_ALGEBRAICSIMPLIFICATION
+#define GEN_PASS_DECL_POLYMORPHICOPCONVERSION
+#define GEN_PASS_DECL_OPENACCDATAOPERANDCONVERSION
 #include "flang/Optimizer/Transforms/Passes.h.inc"
 
 std::unique_ptr<mlir::Pass> createAbstractResultOnFuncOptPass();
@@ -52,6 +54,8 @@ createArrayValueCopyPass(fir::ArrayValueCopyOptions options = {});
 std::unique_ptr<mlir::Pass> createFirToCfgPass();
 std::unique_ptr<mlir::Pass> createCharacterConversionPass();
 std::unique_ptr<mlir::Pass> createExternalNameConversionPass();
+std::unique_ptr<mlir::Pass>
+createExternalNameConversionPass(bool appendUnderscore);
 std::unique_ptr<mlir::Pass> createMemDataFlowOptPass();
 std::unique_ptr<mlir::Pass> createPromoteToAffinePass();
 std::unique_ptr<mlir::Pass> createMemoryAllocationPass();
@@ -66,6 +70,8 @@ std::unique_ptr<mlir::Pass> createSimplifyRegionLitePass();
 std::unique_ptr<mlir::Pass> createAlgebraicSimplificationPass();
 std::unique_ptr<mlir::Pass>
 createAlgebraicSimplificationPass(const mlir::GreedyRewriteConfig &config);
+std::unique_ptr<mlir::Pass> createPolymorphicOpConversionPass();
+std::unique_ptr<mlir::Pass> createOpenACCDataOperandConversionPass();
 
 // declarative passes
 #define GEN_PASS_REGISTRATION

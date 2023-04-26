@@ -6,9 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-extern "C" int main(int argc, char **argv);
+#include "src/__support/RPC/rpc_client.h"
+
+extern "C" int main(int argc, char **argv, char **envp);
 
 extern "C" [[gnu::visibility("protected"), clang::amdgpu_kernel]] void
-_start(int argc, char **argv, int *ret) {
-  __atomic_fetch_or(ret, main(argc, argv), __ATOMIC_RELAXED);
+_start(int argc, char **argv, char **envp, int *ret, void *in, void *out,
+       void *buffer) {
+  __llvm_libc::rpc::client.reset(in, out, buffer);
+
+  __atomic_fetch_or(ret, main(argc, argv, envp), __ATOMIC_RELAXED);
 }

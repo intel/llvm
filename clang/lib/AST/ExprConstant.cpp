@@ -2802,7 +2802,7 @@ static bool handleIntIntBinOp(EvalInfo &Info, const Expr *E, const APSInt &LHS,
       // E1 x 2^E2 module 2^N.
       if (LHS.isNegative())
         Info.CCEDiag(E, diag::note_constexpr_lshift_of_negative) << LHS;
-      else if (LHS.countLeadingZeros() < SA)
+      else if (LHS.countl_zero() < SA)
         Info.CCEDiag(E, diag::note_constexpr_lshift_discards);
     }
     Result = LHS << SA;
@@ -7668,6 +7668,11 @@ public:
 
       if (!CalleeLV.getLValueOffset().isZero())
         return Error(Callee);
+      if (CalleeLV.isNullPointer()) {
+        Info.FFDiag(Callee, diag::note_constexpr_null_callee)
+            << const_cast<Expr *>(Callee);
+        return false;
+      }
       FD = dyn_cast_or_null<FunctionDecl>(
           CalleeLV.getLValueBase().dyn_cast<const ValueDecl *>());
       if (!FD)
@@ -8758,16 +8763,19 @@ public:
       return false;
     }
     Result = *Info.CurrentCall->This;
-    // If we are inside a lambda's call operator, the 'this' expression refers
-    // to the enclosing '*this' object (either by value or reference) which is
-    // either copied into the closure object's field that represents the '*this'
-    // or refers to '*this'.
-    if (isLambdaCallOperator(Info.CurrentCall->Callee)) {
-      // Ensure we actually have captured 'this'. (an error will have
-      // been previously reported if not).
-      if (!Info.CurrentCall->LambdaThisCaptureField)
-        return false;
 
+    if (isLambdaCallOperator(Info.CurrentCall->Callee)) {
+      // Ensure we actually have captured 'this'. If something was wrong with
+      // 'this' capture, the error would have been previously reported.
+      // Otherwise we can be inside of a default initialization of an object
+      // declared by lambda's body, so no need to return false.
+      if (!Info.CurrentCall->LambdaThisCaptureField)
+        return true;
+
+      // If we have captured 'this',  the 'this' expression refers
+      // to the enclosing '*this' object (either by value or reference) which is
+      // either copied into the closure object's field that represents the
+      // '*this' or refers to '*this'.
       // Update 'Result' to refer to the data member/field of the closure object
       // that represents the '*this' capture.
       if (!HandleLValueMember(Info, E, Result,
@@ -10932,7 +10940,7 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
         for (unsigned I = OldElts; I < N; ++I)
           Value->getArrayInitializedElt(I) = Filler;
 
-      if (HasTrivialConstructor && N == FinalSize) {
+      if (HasTrivialConstructor && N == FinalSize && FinalSize != 1) {
         // If we have a trivial constructor, only evaluate it once and copy
         // the result into all the array elements.
         APValue &FirstResult = Value->getArrayInitializedElt(0);
@@ -12038,7 +12046,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
 
-    return Success(Val.getBitWidth() - Val.getMinSignedBits(), E);
+    return Success(Val.getBitWidth() - Val.getSignificantBits(), E);
   }
 
   case Builtin::BI__builtin_clz:
@@ -12051,7 +12059,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!Val)
       return Error(E);
 
-    return Success(Val.countLeadingZeros(), E);
+    return Success(Val.countl_zero(), E);
   }
 
   case Builtin::BI__builtin_constant_p: {
@@ -12097,7 +12105,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!Val)
       return Error(E);
 
-    return Success(Val.countTrailingZeros(), E);
+    return Success(Val.countr_zero(), E);
   }
 
   case Builtin::BI__builtin_eh_return_data_regno: {
@@ -12117,7 +12125,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
 
-    unsigned N = Val.countTrailingZeros();
+    unsigned N = Val.countr_zero();
     return Success(N == Val.getBitWidth() ? 0 : N + 1, E);
   }
 
@@ -12172,7 +12180,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
 
-    return Success(Val.countPopulation() % 2, E);
+    return Success(Val.popcount() % 2, E);
   }
 
   case Builtin::BI__builtin_popcount:
@@ -12182,7 +12190,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
 
-    return Success(Val.countPopulation(), E);
+    return Success(Val.popcount(), E);
   }
 
   case Builtin::BI__builtin_rotateleft8:

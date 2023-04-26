@@ -1476,6 +1476,8 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
+        if (auto *I = dyn_cast<Instruction>(Op))
+          combineMetadataForCSE(I, &Inst, false);
         if (!Inst.use_empty())
           Inst.replaceAllUsesWith(Op);
         salvageKnowledge(&Inst, &AC);
@@ -1710,10 +1712,10 @@ void EarlyCSEPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
   static_cast<PassInfoMixin<EarlyCSEPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
-  OS << "<";
+  OS << '<';
   if (UseMemorySSA)
     OS << "memssa";
-  OS << ">";
+  OS << '>';
 }
 
 namespace {

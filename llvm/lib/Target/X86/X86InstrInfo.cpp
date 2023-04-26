@@ -43,6 +43,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -6205,9 +6206,7 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
         isTwoAddrFold || (OpNum == 0 && I->Flags & TB_FOLDED_LOAD) || OpNum > 0;
     bool FoldedStore =
         isTwoAddrFold || (OpNum == 0 && I->Flags & TB_FOLDED_STORE);
-    MaybeAlign MinAlign =
-        decodeMaybeAlign((I->Flags & TB_ALIGN_MASK) >> TB_ALIGN_SHIFT);
-    if (MinAlign && Alignment < *MinAlign)
+    if (Alignment < Align(1ULL << ((I->Flags & TB_ALIGN_MASK) >> TB_ALIGN_SHIFT)))
       return nullptr;
     bool NarrowToMOV32rm = false;
     if (Size) {
@@ -9598,7 +9597,8 @@ enum MachineOutlinerClass {
   MachineOutlinerTailCall
 };
 
-outliner::OutlinedFunction X86InstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+X86InstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
   unsigned SequenceSize =
       std::accumulate(RepeatedSequenceLocs[0].front(),
@@ -9631,7 +9631,7 @@ outliner::OutlinedFunction X86InstrInfo::getOutliningCandidateInfo(
         C.getMF()->getFrameInstructions();
 
     if (CFICount > 0 && CFICount != CFIInstructions.size())
-      return outliner::OutlinedFunction();
+      return std::nullopt;
   }
 
   // FIXME: Use real size in bytes for call and ret instructions.
@@ -9646,7 +9646,7 @@ outliner::OutlinedFunction X86InstrInfo::getOutliningCandidateInfo(
   }
 
   if (CFICount > 0)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   for (outliner::Candidate &C : RepeatedSequenceLocs)
     C.setCallInfo(MachineOutlinerDefault, 1);

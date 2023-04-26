@@ -284,6 +284,10 @@ public:
 
   bool isAlwaysUniform(const Value *V) { return false; }
 
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const {
+    return false;
+  }
+
   unsigned getFlatAddressSpace() {
     // Return an invalid address space.
     return -1;
@@ -622,16 +626,13 @@ public:
     return BaseT::isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
   }
 
-  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
-                                   DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL,
-                                   InterleavedAccessInfo *IAI) {
-    return BaseT::preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LVL, IAI);
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) {
+    return BaseT::preferPredicateOverEpilogue(TFI);
   }
 
-  TailFoldingStyle getPreferredTailFoldingStyle() {
-    return BaseT::getPreferredTailFoldingStyle();
+  TailFoldingStyle
+  getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) {
+    return BaseT::getPreferredTailFoldingStyle(IVUpdateMayOverflow);
   }
 
   std::optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
@@ -713,6 +714,7 @@ public:
 
   std::optional<unsigned> getMaxVScale() const { return std::nullopt; }
   std::optional<unsigned> getVScaleForTuning() const { return std::nullopt; }
+  bool isVScaleKnownToBeAPowerOfTwo() const { return false; }
 
   /// Estimate the overhead of scalarizing an instruction. Insert and Extract
   /// are set if the demanded result elements need to be inserted and/or
@@ -844,7 +846,7 @@ public:
     }
   }
 
-  unsigned getMaxInterleaveFactor(unsigned VF) { return 1; }
+  unsigned getMaxInterleaveFactor(ElementCount VF) { return 1; }
 
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
@@ -1508,7 +1510,7 @@ public:
           // SelectionDAGBuilder.
           APInt Exponent = RHSC->getValue().abs();
           unsigned ActiveBits = Exponent.getActiveBits();
-          unsigned PopCount = Exponent.countPopulation();
+          unsigned PopCount = Exponent.popcount();
           InstructionCost Cost = (ActiveBits + PopCount - 2) *
                                  thisT()->getArithmeticInstrCost(
                                      Instruction::FMul, RetTy, CostKind);
@@ -1888,12 +1890,12 @@ public:
     case Intrinsic::vector_reduce_fmin:
       return thisT()->getMinMaxReductionCost(
           VecOpTy, cast<VectorType>(CmpInst::makeCmpResultType(VecOpTy)),
-          /*IsUnsigned=*/false, CostKind);
+          /*IsUnsigned=*/false, ICA.getFlags(), CostKind);
     case Intrinsic::vector_reduce_umax:
     case Intrinsic::vector_reduce_umin:
       return thisT()->getMinMaxReductionCost(
           VecOpTy, cast<VectorType>(CmpInst::makeCmpResultType(VecOpTy)),
-          /*IsUnsigned=*/true, CostKind);
+          /*IsUnsigned=*/true, ICA.getFlags(), CostKind);
     case Intrinsic::abs: {
       // abs(X) = select(icmp(X,0),X,sub(0,X))
       Type *CondTy = RetTy->getWithNewBitWidth(1);
@@ -2333,6 +2335,7 @@ public:
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                                              std::optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind) {
+    assert(Ty && "Unknown reduction vector type");
     if (TTI::requiresOrderedReduction(FMF))
       return getOrderedReductionCost(Opcode, Ty, CostKind);
     return getTreeReductionCost(Opcode, Ty, CostKind);
@@ -2341,7 +2344,7 @@ public:
   /// Try to calculate op costs for min/max reduction operations.
   /// \param CondTy Conditional type for the Select instruction.
   InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                         bool IsUnsigned,
+                                         bool IsUnsigned, FastMathFlags FMF,
                                          TTI::TargetCostKind CostKind) {
     // Targets must implement a default value for the scalable case, since
     // we don't know how many lanes the vector has.
@@ -2407,7 +2410,7 @@ public:
 
   InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
                                            Type *ResTy, VectorType *Ty,
-                                           std::optional<FastMathFlags> FMF,
+                                           FastMathFlags FMF,
                                            TTI::TargetCostKind CostKind) {
     // Without any native support, this is equivalent to the cost of
     // vecreduce.opcode(ext(Ty A)).

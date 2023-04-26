@@ -82,8 +82,12 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
   constexpr unsigned _Width3 = n3 * sizeof(T3);
   static_assert(_Width3 % 32 == 0, "Invalid size for raw send msgSrc1");
 
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+  using ElemT3 = __ESIMD_DNS::__raw_t<T3>;
+
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_sends2<T1, n1, T2, n2, T3, n3, N>(
+  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, N>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
@@ -133,8 +137,11 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
   constexpr unsigned _Width2 = n2 * sizeof(T2);
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
 
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_send2<T1, n1, T2, n2, N>(
+  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgDst.data());
 }
@@ -181,8 +188,11 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
   constexpr unsigned _Width2 = n2 * sizeof(T2);
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc1");
 
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_sends2_noresult<T1, n1, T2, n2, N>(
+  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgSrc1.data());
 }
@@ -225,11 +235,11 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
          uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
-
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_send2_noresult<T1, n1, N>(modifier, execSize, mask.data(),
-                                        numSrc0, sfid, exDesc, msgDesc,
-                                        msgSrc0.data());
+  __esimd_raw_send2_noresult<ElemT1, n1, N>(modifier, execSize, mask.data(),
+                                            numSrc0, sfid, exDesc, msgDesc,
+                                            msgSrc0.data());
 }
 
 template <typename T1, int n1, int N = 16>
@@ -384,10 +394,8 @@ constexpr void check_lsc_atomic() {
                   "wrong number of operands");
   }
   if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    if constexpr (!__ESIMD_DNS::is_type<T, float, sycl::half>()) {
-      static_assert((__ESIMD_DNS::is_type<T, float, sycl::half>()),
-                    "Type F or HF is expected");
-    }
+    static_assert(__ESIMD_DNS::is_type<T, float, sycl::half, double>(),
+                  "float, double or sycl::half type is expected");
   } else {
     __ESIMD_DNS::check_atomic<__ESIMD_DNS::to_atomic_op<Op>(), T, N, NumSrc>();
   }
@@ -2717,7 +2725,7 @@ __ESIMD_API std::enable_if_t<
     std::is_integral_v<Toffset> &&
         __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
     __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
 }
@@ -2879,9 +2887,9 @@ __ESIMD_API std::enable_if_t<
     std::is_integral_v<Toffset> &&
         __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
     __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
-                      __ESIMD_NS::simd<T, N> src1,
-                      __ESIMD_NS::simd_mask<N> pred = 1) {
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
+                  __ESIMD_NS::simd<T, N> src1,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), src0, src1, pred);
 }

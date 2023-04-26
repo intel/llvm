@@ -237,7 +237,7 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const plugin &Plugin = ContextImplPtr->getPlugin();
 
-    if (Plugin.getBackend() == backend::opencl)
+    if (ContextImplPtr->getBackend() == backend::opencl)
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     pi_native_handle NativeProgram = 0;
     Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,

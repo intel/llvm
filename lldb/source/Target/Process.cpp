@@ -402,8 +402,7 @@ ConstString &Process::GetStaticBroadcasterClass() {
 }
 
 Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp)
-    : Process(target_sp, listener_sp,
-              UnixSignals::Create(HostInfo::GetArchitecture())) {
+    : Process(target_sp, listener_sp, UnixSignals::CreateForHost()) {
   // This constructor just delegates to the full Process constructor,
   // defaulting to using the Host's UnixSignals.
 }
@@ -3930,12 +3929,11 @@ Process::ProcessEventData::ProcessEventData(const ProcessSP &process_sp,
 
 Process::ProcessEventData::~ProcessEventData() = default;
 
-ConstString Process::ProcessEventData::GetFlavorString() {
-  static ConstString g_flavor("Process::ProcessEventData");
-  return g_flavor;
+llvm::StringRef Process::ProcessEventData::GetFlavorString() {
+  return "Process::ProcessEventData";
 }
 
-ConstString Process::ProcessEventData::GetFlavor() const {
+llvm::StringRef Process::ProcessEventData::GetFlavor() const {
   return ProcessEventData::GetFlavorString();
 }
 

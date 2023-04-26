@@ -4,9 +4,9 @@ add_mlir_dialect_library(MLIRTensorTransforms
   EmptyOpPatterns.cpp
   ExtractSliceFromReshapeUtils.cpp
   FoldIntoPackAndUnpackPatterns.cpp
+  FoldTensorSubsetOps.cpp
   MergeConsecutiveInsertExtractSlicePatterns.cpp
   ReshapePatterns.cpp
-  SplitPaddingPatterns.cpp
   SwapExtractSliceWithProducerPatterns.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -29,4 +29,5 @@ add_mlir_dialect_library(MLIRTensorTransforms
   MLIRTensorDialect
   MLIRTilingInterface
   MLIRTransforms
+  MLIRVectorDialect
 )

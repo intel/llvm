@@ -5,7 +5,6 @@ add_entrypoint_object(
   HDRS
     ../sched_getaffinity.h
   DEPENDS
-    libc.include.errno
     libc.include.sched
     libc.src.__support.OSUtil.osutil
     libc.src.errno.errno
@@ -18,7 +17,6 @@ add_entrypoint_object(
   HDRS
     ../sched_setaffinity.h
   DEPENDS
-    libc.include.errno
     libc.include.sched
     libc.src.__support.OSUtil.osutil
     libc.src.errno.errno
@@ -32,4 +30,16 @@ add_entrypoint_object(
     ../sched_getcpucount.h
   DEPENDS
     libc.include.sched
+  )
+
+add_entrypoint_object(
+  sched_yield
+  SRCS
+    sched_yield.cpp
+  HDRS
+    ../sched_yield.h
+  DEPENDS
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
 )

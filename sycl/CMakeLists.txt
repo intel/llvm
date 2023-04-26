@@ -32,8 +32,8 @@ include(SYCLUtils)
 #
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
-set(SYCL_MAJOR_VERSION 6)
-set(SYCL_MINOR_VERSION 2)
+set(SYCL_MAJOR_VERSION 7)
+set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 
 set(SYCL_DEV_ABI_VERSION 0)
@@ -161,6 +161,12 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
+endif()
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_OPENCL ON)
+endif()
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_LEVEL_ZERO ON)
 endif()
 
 # Configure SYCL version macro
@@ -501,3 +507,5 @@ add_custom_target(deploy-sycl-toolchain
 
 # SYCL Runtime documentation
 add_subdirectory(doc)
+# SYCL End-to-End tests
+add_subdirectory(test-e2e)

@@ -420,8 +420,7 @@ public:
       if (!Offset || Offset + Size > FC.size())
         return Error::success();
 
-      assert(BundlesInfo.find(Triple) == BundlesInfo.end() &&
-             "Triple is duplicated??");
+      assert(!BundlesInfo.contains(Triple) && "Triple is duplicated??");
       BundlesInfo[Triple] = BinaryBundleInfo(Size, Offset);
     }
     // Set the iterator to where we will start to read.
@@ -1727,8 +1726,7 @@ Error OffloadBundler::UnbundleArchive() {
 
           // For inserting <CompatibleTarget, list<CodeObject>> entry in
           // OutputArchivesMap.
-          if (OutputArchivesMap.find(CompatibleTarget) ==
-              OutputArchivesMap.end()) {
+          if (!OutputArchivesMap.contains(CompatibleTarget)) {
 
             std::vector<NewArchiveMember> ArchiveMembers;
             ArchiveMembers.push_back(NewArchiveMember(MemBufRef));

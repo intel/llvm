@@ -108,7 +108,7 @@ bool IsBindCProcedure(const Scope &);
 // Returns a pointer to the function's symbol when true, else null
 const Symbol *IsFunctionResultWithSameNameAsFunction(const Symbol &);
 bool IsOrContainsEventOrLockComponent(const Symbol &);
-bool CanBeTypeBoundProc(const Symbol *);
+bool CanBeTypeBoundProc(const Symbol &);
 // Does a non-PARAMETER symbol have explicit initialization with =value or
 // =>target in its declaration (but not in a DATA statement)? (Being
 // ALLOCATABLE or having a derived type with default component initialization
@@ -123,6 +123,7 @@ bool IsDestructible(const Symbol &, const Symbol *derivedType = nullptr);
 bool HasIntrinsicTypeName(const Symbol &);
 bool IsSeparateModuleProcedureInterface(const Symbol *);
 bool HasAlternateReturns(const Symbol &);
+bool IsAutomaticallyDestroyed(const Symbol &);
 
 // Return an ultimate component of type that matches predicate, or nullptr.
 const Symbol *FindUltimateComponent(const DerivedTypeSpec &type,
@@ -145,9 +146,6 @@ inline bool IsAllocatable(const Symbol &symbol) {
 inline bool IsAllocatableOrPointer(const Symbol &symbol) {
   return IsPointer(symbol) || IsAllocatable(symbol);
 }
-inline bool IsSave(const Symbol &symbol) {
-  return symbol.attrs().test(Attr::SAVE);
-}
 inline bool IsNamedConstant(const Symbol &symbol) {
   return symbol.attrs().test(Attr::PARAMETER);
 }
@@ -169,11 +167,15 @@ inline bool IsProtected(const Symbol &symbol) {
 inline bool IsImpliedDoIndex(const Symbol &symbol) {
   return symbol.owner().kind() == Scope::Kind::ImpliedDos;
 }
-bool IsFinalizable(
-    const Symbol &, std::set<const DerivedTypeSpec *> * = nullptr);
-bool IsFinalizable(
-    const DerivedTypeSpec &, std::set<const DerivedTypeSpec *> * = nullptr);
-bool HasImpureFinal(const DerivedTypeSpec &);
+SymbolVector FinalsForDerivedTypeInstantiation(const DerivedTypeSpec &);
+// Returns a non-null pointer to a FINAL procedure, if any.
+const Symbol *IsFinalizable(const Symbol &,
+    std::set<const DerivedTypeSpec *> * = nullptr,
+    bool withImpureFinalizer = false);
+const Symbol *IsFinalizable(const DerivedTypeSpec &,
+    std::set<const DerivedTypeSpec *> * = nullptr,
+    bool withImpureFinalizer = false, std::optional<int> rank = std::nullopt);
+const Symbol *HasImpureFinal(const Symbol &);
 bool IsInBlankCommon(const Symbol &);
 inline bool IsAssumedSizeArray(const Symbol &symbol) {
   const auto *details{symbol.detailsIf<ObjectEntityDetails>()};
@@ -252,7 +254,7 @@ const Symbol *FindExternallyVisibleObject(
       expr.u);
 }
 
-// Apply GetUltimate(), then if the symbol is a generic procedure shadowing a
+// Applies GetUltimate(), then if the symbol is a generic procedure shadowing a
 // specific procedure of the same name, return it instead.
 const Symbol &BypassGeneric(const Symbol &);
 
@@ -567,8 +569,6 @@ DirectComponentIterator::const_iterator FindAllocatableOrPointerDirectComponent(
     const DerivedTypeSpec &);
 UltimateComponentIterator::const_iterator
 FindPolymorphicAllocatableUltimateComponent(const DerivedTypeSpec &);
-UltimateComponentIterator::const_iterator
-FindPolymorphicAllocatableNonCoarrayUltimateComponent(const DerivedTypeSpec &);
 
 // The LabelEnforce class (given a set of labels) provides an error message if
 // there is a branch to a label which is not in the given set.
@@ -620,15 +620,19 @@ std::optional<ArraySpec> ToArraySpec(
 std::optional<ArraySpec> ToArraySpec(
     evaluate::FoldingContext &, const std::optional<evaluate::Shape> &);
 
-// Searches a derived type and a scope for a particular user defined I/O
-// procedure.
+// Searches a derived type and a scope for a particular defined I/O procedure.
 bool HasDefinedIo(
-    GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
+    common::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
 
 // Some intrinsic operators have more than one name (e.g. `operator(.eq.)` and
 // `operator(==)`). GetAllNames() returns them all, including symbolName.
 std::forward_list<std::string> GetAllNames(
     const SemanticsContext &, const SourceName &);
+
+// Determines the derived type of a procedure's initial "dtv" dummy argument,
+// assuming that the procedure is a specific procedure of a defined I/O
+// generic interface,
+const DerivedTypeSpec *GetDtvArgDerivedType(const Symbol &);
 
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_TOOLS_H_

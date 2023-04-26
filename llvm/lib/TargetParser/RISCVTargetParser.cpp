@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements a target parser to recognise hardware features
-// FOR RISC-V CPUS.
+// for RISC-V CPUs.
 //
 //===----------------------------------------------------------------------===//
 
@@ -83,27 +83,6 @@ void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64) {
   }
 #define TUNE_PROC(ENUM, NAME) Values.emplace_back(StringRef(NAME));
 #include "llvm/TargetParser/RISCVTargetParserDef.inc"
-}
-
-// Get all features except standard extension feature
-bool getCPUFeaturesExceptStdExt(CPUKind Kind,
-                                std::vector<StringRef> &Features) {
-  const CPUInfo &Info = RISCVCPUInfo[static_cast<unsigned>(Kind)];
-
-  if (Info.isInvalid())
-    return false;
-
-  if (Info.is64Bit())
-    Features.push_back("+64bit");
-  else
-    Features.push_back("-64bit");
-
-  return true;
-}
-
-bool isX18ReservedByDefault(const Triple &TT) {
-  // X18 is reserved for the ShadowCallStack ABI (even when not enabled).
-  return TT.isOSFuchsia();
 }
 
 } // namespace RISCV

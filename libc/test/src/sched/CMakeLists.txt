@@ -7,13 +7,24 @@ add_libc_unittest(
   SRCS
     affinity_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.sched
     libc.include.sys_syscall
     libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
     libc.src.sched.sched_getaffinity
     libc.src.sched.sched_setaffinity
     libc.test.errno_setter_matcher
+)
+
+add_libc_unittest(
+  yield_test
+  SUITE
+    libc_sched_unittests
+  SRCS
+    yield_test.cpp
+  DEPENDS
+    libc.src.errno.errno
+    libc.src.sched.sched_yield
 )
 
 add_libc_unittest(
@@ -23,10 +34,10 @@ add_libc_unittest(
   SRCS
     cpu_count_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.sched
     libc.include.sys_syscall
     libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
     libc.src.sched.sched_getaffinity
     libc.src.sched.__sched_getcpucount
     libc.test.errno_setter_matcher

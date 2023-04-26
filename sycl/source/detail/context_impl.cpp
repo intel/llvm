@@ -50,8 +50,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  const auto Backend = getPlugin().getBackend();
-  if (Backend == backend::ext_oneapi_cuda) {
+  if (getBackend() == backend::ext_oneapi_cuda) {
     const bool UseCUDAPrimaryContext = MPropList.has_property<
         ext::oneapi::cuda::property::context::use_primary_context>();
     const pi_context_properties Props[] = {
@@ -102,7 +101,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == sycl::backend::opencl) {
+  if (getBackend() == sycl::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -175,17 +174,9 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
   if (is_host())
     return CapabilityList;
 
-  for (const sycl::device &Device : MDevices) {
-    std::vector<sycl::memory_order> NewCapabilityList(CapabilityList.size());
-    std::vector<sycl::memory_order> DeviceCapabilities =
-        Device.get_info<info::device::atomic_memory_order_capabilities>();
-    std::set_intersection(
-        CapabilityList.begin(), CapabilityList.end(),
-        DeviceCapabilities.begin(), DeviceCapabilities.end(),
-        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
-    CapabilityList = NewCapabilityList;
-  }
-  CapabilityList.shrink_to_fit();
+  GetCapabilitiesIntersectionSet<
+      sycl::memory_order, info::device::atomic_memory_order_capabilities>(
+      MDevices, CapabilityList);
 
   return CapabilityList;
 }
@@ -193,17 +184,50 @@ template <>
 std::vector<sycl::memory_scope>
 context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
     const {
+  std::vector<sycl::memory_scope> CapabilityList{
+      sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+      sycl::memory_scope::work_group, sycl::memory_scope::device,
+      sycl::memory_scope::system};
   if (is_host())
-    return {sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
-            sycl::memory_scope::work_group, sycl::memory_scope::device,
-            sycl::memory_scope::system};
+    return CapabilityList;
 
-  pi_memory_scope_capabilities Result;
-  getPlugin().call<PiApiKind::piContextGetInfo>(
-      MContext,
-      PiInfoCode<info::context::atomic_memory_scope_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryScopeBitfield(Result);
+  GetCapabilitiesIntersectionSet<
+      sycl::memory_scope, info::device::atomic_memory_scope_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
+}
+template <>
+std::vector<sycl::memory_order>
+context_impl::get_info<info::context::atomic_fence_order_capabilities>() const {
+  std::vector<sycl::memory_order> CapabilityList{
+      sycl::memory_order::relaxed, sycl::memory_order::acquire,
+      sycl::memory_order::release, sycl::memory_order::acq_rel,
+      sycl::memory_order::seq_cst};
+  if (is_host())
+    return CapabilityList;
+
+  GetCapabilitiesIntersectionSet<sycl::memory_order,
+                                 info::device::atomic_fence_order_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
+}
+template <>
+std::vector<sycl::memory_scope>
+context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
+  std::vector<sycl::memory_scope> CapabilityList{
+      sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+      sycl::memory_scope::work_group, sycl::memory_scope::device,
+      sycl::memory_scope::system};
+  if (is_host())
+    return CapabilityList;
+
+  GetCapabilitiesIntersectionSet<sycl::memory_scope,
+                                 info::device::atomic_fence_scope_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
 }
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
@@ -232,7 +256,7 @@ context_impl::findMatchingDeviceImpl(RT::PiDevice &DevicePI) const {
 
 pi_native_handle context_impl::getNative() const {
   auto Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
+  if (getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
@@ -369,26 +393,29 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   MDeviceGlobalInitEvents.clear();
 }
 
-std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
-    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+std::optional<RT::PiProgram> context_impl::getProgramForDevImgs(
+    const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
+    const std::string &ObjectTypeName) {
+
   KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
     RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
-    for (std::uintptr_t ImageIDs : DeviceGlobalEntry->MImageIdentifiers) {
+    for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey = std::make_pair(ImageIDs, DevHandle);
       size_t NProgs = KeyMap.count(OuterKey);
       if (NProgs == 0)
         continue;
       // If the cache has multiple programs for the identifiers or if we have
-      // already found a program in the cache with the device_global, we cannot
-      // proceed.
+      // already found a program in the cache with the device_global or host
+      // pipe we cannot proceed.
       if (NProgs > 1 || (BuildRes && NProgs == 1))
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "More than one image exists with the device_global.");
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "More than one image exists with the " +
+                                  ObjectTypeName + ".");
+
       auto KeyMappingsIt = KeyMap.find(OuterKey);
       assert(KeyMappingsIt != KeyMap.end());
       auto CachedProgIt = Cache.find(KeyMappingsIt->second);
@@ -398,7 +425,22 @@ std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
   }
   if (!BuildRes)
     return std::nullopt;
-  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+  return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+}
+
+std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
+    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+  return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers,
+                              "device_global");
+}
+/// Gets a program associated with a HostPipe Entry from the cache.
+std::optional<RT::PiProgram>
+context_impl::getProgramForHostPipe(const device &Device,
+                                    HostPipeMapEntry *HostPipeEntry) {
+  // One HostPipe entry belongs to one Img
+  std::set<std::uintptr_t> ImgIdentifiers;
+  ImgIdentifiers.insert(HostPipeEntry->getDevBinImage()->getImageID());
+  return getProgramForDevImgs(Device, ImgIdentifiers, "host_pipe");
 }
 
 } // namespace detail

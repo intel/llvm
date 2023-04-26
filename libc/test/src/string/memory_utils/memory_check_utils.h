@@ -65,7 +65,7 @@ static inline char GetRandomChar() {
   static constexpr const uint64_t m = 1ULL << 31;
   static uint64_t seed = 123456789;
   seed = (a * seed + c) % m;
-  return seed;
+  return static_cast<char>(seed);
 }
 
 // Randomize the content of the buffer.
@@ -75,8 +75,8 @@ static inline void Randomize(cpp::span<char> buffer) {
 }
 
 // Copy one span to another.
-__attribute__((no_builtin)) static inline void
-ReferenceCopy(cpp::span<char> dst, const cpp::span<char> src) {
+static inline void ReferenceCopy(cpp::span<char> dst,
+                                 const cpp::span<char> src) {
   assert(dst.size() == src.size());
   for (size_t i = 0; i < dst.size(); ++i)
     dst[i] = src[i];

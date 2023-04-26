@@ -948,6 +948,23 @@ void RegAllocFast::defineVirtReg(MachineInstr &MI, unsigned OpNum,
                         << LRI->Reloaded << '\n');
       bool Kill = LRI->LastUse == nullptr;
       spill(SpillBefore, VirtReg, PhysReg, Kill, LRI->LiveOut);
+
+      // We need to place additional spills for each indirect destination of an
+      // INLINEASM_BR.
+      if (MI.getOpcode() == TargetOpcode::INLINEASM_BR) {
+        int FI = StackSlotForVirtReg[VirtReg];
+        const TargetRegisterClass &RC = *MRI->getRegClass(VirtReg);
+        for (MachineOperand &MO : MI.operands()) {
+          if (MO.isMBB()) {
+            MachineBasicBlock *Succ = MO.getMBB();
+            TII->storeRegToStackSlot(*Succ, Succ->begin(), PhysReg, Kill,
+                FI, &RC, TRI, VirtReg);
+            ++NumStores;
+            Succ->addLiveIn(PhysReg);
+          }
+        }
+      }
+
       LRI->LastUse = nullptr;
     }
     LRI->LiveOut = false;
@@ -1304,9 +1321,11 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
       if (!MO.isReg() || !MO.isDef())
         continue;
 
+      Register Reg = MO.getReg();
+
       // subreg defs don't free the full register. We left the subreg number
       // around as a marker in setPhysReg() to recognize this case here.
-      if (MO.getSubReg() != 0) {
+      if (Reg.isPhysical() && MO.getSubReg() != 0) {
         MO.setSubReg(0);
         continue;
       }
@@ -1317,7 +1336,6 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
       // Do not free tied operands and early clobbers.
       if ((MO.isTied() && !TiedOpIsUndef(MO, I)) || MO.isEarlyClobber())
         continue;
-      Register Reg = MO.getReg();
       if (!Reg)
         continue;
       if (Reg.isVirtual()) {

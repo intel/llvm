@@ -84,6 +84,14 @@ end
   scope" -- i.e., not scoped by `BLOCK` constructs.
   As most (but not all) compilers implement `BLOCK` scoping of construct
   names, so does f18, with a portability warning.
+* 15.6.4 paragraph 2 prohibits an implicitly typed statement function
+  from sharing the same name as a symbol in its scope's host, if it
+  has one.
+  We accept this usage with a portability warning.
+* A module name from a `USE` statement can also be used as a
+  non-global name in the same scope.  This is not conforming,
+  but it is useful and unambiguous.
+* The argument to `RANDOM_NUMBER` may not be an assumed-size array.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -104,6 +112,7 @@ end
 * Quad precision REAL literals with `Q`
 * `X` prefix/suffix as synonym for `Z` on hexadecimal literals
 * `B`, `O`, `Z`, and `X` accepted as suffixes as well as prefixes
+* Support for using bare `L` in FORMAT statement
 * Triplets allowed in array constructors
 * `%LOC`, `%VAL`, and `%REF`
 * Leading comma allowed before I/O item list
@@ -184,7 +193,9 @@ end
   relax enforcement of some requirements on actual arguments that must otherwise
   hold true for definable arguments.
 * Assignment of `LOGICAL` to `INTEGER` and vice versa (but not other types) is
-  allowed.  The values are normalized.
+  allowed.  The values are normalized to canonical `.TRUE.`/`.FALSE.`.
+  The values are also normalized for assignments of `LOGICAL(KIND=K1)` to
+  `LOGICAL(KIND=K2)`, when `K1 != K2`.
 * Static initialization of `LOGICAL` with `INTEGER` is allowed in `DATA` statements
   and object initializers.
   The results are *not* normalized to canonical `.TRUE.`/`.FALSE.`.
@@ -195,10 +206,10 @@ end
 * DATA statement initialization is allowed for procedure pointers outside
   structure constructors.
 * Nonstandard intrinsic functions: ISNAN, SIZEOF
-* A forward reference to a default INTEGER scalar dummy argument is
-  permitted to appear in a specification expression, such as an array
-  bound, in a scope with IMPLICIT NONE(TYPE) if the name
-  of the dummy argument would have caused it to be implicitly typed
+* A forward reference to a default INTEGER scalar dummy argument or
+  `COMMON` block variable is permitted to appear in a specification
+  expression, such as an array bound, in a scope with IMPLICIT NONE(TYPE)
+  if the name of the variable would have caused it to be implicitly typed
   as default INTEGER if IMPLICIT NONE(TYPE) were absent.
 * OPEN(ACCESS='APPEND') is interpreted as OPEN(POSITION='APPEND')
   to ease porting from Sun Fortran.
@@ -262,6 +273,15 @@ end
   enforce it and the constraint is not necessary for a correct
   implementation.
 * A label may follow a semicolon in fixed form source.
+* A scalar logical dummy argument to a `BIND(C)` procedure does
+  not have to have `KIND=C_BOOL` since it can be converted to/from
+  `_Bool` without loss of information.
+* The character length of the `SOURCE=` or `MOLD=` in `ALLOCATE`
+  may be distinct from the constant character length, if any,
+  of an allocated object.
+* When a name is brought into a scope by multiple ways,
+  such as USE-association as well as an `IMPORT` from its host,
+  it's an error only if the resolution is ambiguous.
 
 ### Extensions supported when enabled by options
 
@@ -339,6 +359,9 @@ end
 * User (non-intrinsic) `ELEMENTAL` procedures may not be passed as actual
   arguments, in accordance with the standard; some Fortran compilers
   permit such usage.
+* Constraint C1406, which prohibits the same module name from being used
+  in a scope for both an intrinsic and a non-intrinsic module, is implemented
+  as a portability warning only, not a hard error.
 
 ## Preprocessing behavior
 
@@ -552,6 +575,9 @@ end module
   This feature forestalls any risk of such a `USE` statement reading an
   obsolete module file from a previous compilation and then overwriting
   that file later.
+
+* F18 allows `OPTIONAL` dummy arguments to interoperable procedures
+  unless they are `VALUE` (C865).
 
 ## De Facto Standard Features
 

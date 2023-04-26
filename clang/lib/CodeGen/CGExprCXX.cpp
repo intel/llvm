@@ -33,10 +33,12 @@ struct MemberCallInfo {
 }
 
 static MemberCallInfo
-commonEmitCXXMemberOrOperatorCall(CodeGenFunction &CGF, const CXXMethodDecl *MD,
+commonEmitCXXMemberOrOperatorCall(CodeGenFunction &CGF, GlobalDecl GD,
                                   llvm::Value *This, llvm::Value *ImplicitParam,
                                   QualType ImplicitParamTy, const CallExpr *CE,
                                   CallArgList &Args, CallArgList *RtlArgs) {
+  auto *MD = cast<CXXMethodDecl>(GD.getDecl());
+
   assert(CE == nullptr || isa<CXXMemberCallExpr>(CE) ||
          isa<CXXOperatorCallExpr>(CE));
   assert(MD->isInstance() &&
@@ -44,7 +46,7 @@ commonEmitCXXMemberOrOperatorCall(CodeGenFunction &CGF, const CXXMethodDecl *MD,
 
   // Push the this ptr.
   const CXXRecordDecl *RD =
-      CGF.CGM.getCXXABI().getThisArgumentTypeForMethod(MD);
+      CGF.CGM.getCXXABI().getThisArgumentTypeForMethod(GD);
   Args.add(RValue::get(This), CGF.getTypes().DeriveThisType(RD, MD));
 
   // If there is an implicit parameter (e.g. VTT), emit it.
@@ -110,7 +112,7 @@ RValue CodeGenFunction::EmitCXXDestructorCall(
   }
 
   CallArgList Args;
-  commonEmitCXXMemberOrOperatorCall(*this, DtorDecl, This, ImplicitParam,
+  commonEmitCXXMemberOrOperatorCall(*this, Dtor, This, ImplicitParam,
                                     ImplicitParamTy, CE, Args, nullptr);
   return EmitCall(CGM.getTypes().arrangeCXXStructorDeclaration(Dtor), Callee,
                   ReturnValueSlot(), Args, nullptr, CE && CE == MustTailCall,
@@ -285,7 +287,8 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
     assert(ReturnValue.isNull() && "Constructor shouldn't have return value");
     CallArgList Args;
     commonEmitCXXMemberOrOperatorCall(
-        *this, Ctor, This.getPointer(*this), /*ImplicitParam=*/nullptr,
+        *this, {Ctor, Ctor_Complete}, This.getPointer(*this),
+        /*ImplicitParam=*/nullptr,
         /*ImplicitParamTy=*/QualType(), CE, Args, nullptr);
 
     EmitCXXConstructorCall(Ctor, Ctor_Complete, /*ForVirtualBase=*/false,
@@ -765,7 +768,7 @@ static llvm::Value *EmitCXXNewAllocSize(CodeGenFunction &CGF,
     // wider than that, check whether it's already too big, and if so,
     // overflow.
     else if (numElementsWidth > sizeWidth &&
-             numElementsWidth - sizeWidth > count.countLeadingZeros())
+             numElementsWidth - sizeWidth > count.countl_zero())
       hasAnyOverflow = true;
 
     // Okay, compute a count at the right width.
@@ -826,8 +829,8 @@ static llvm::Value *EmitCXXNewAllocSize(CodeGenFunction &CGF,
     // going to have to do a comparison for (2), and this happens to
     // take care of (1), too.
     if (numElementsWidth > sizeWidth) {
-      llvm::APInt threshold(numElementsWidth, 1);
-      threshold <<= sizeWidth;
+      llvm::APInt threshold =
+          llvm::APInt::getOneBitSet(numElementsWidth, sizeWidth);
 
       llvm::Value *thresholdV
         = llvm::ConstantInt::get(numElementsType, threshold);

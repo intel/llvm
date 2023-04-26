@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 //
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -124,18 +125,17 @@ static SmallVector<Value> reifyOrComputeDynamicSizes(OpBuilder &b,
     return {};
 
   // Try to reify dynamic sizes.
-  if (auto reifiableOp =
-          value.getDefiningOp<ReifyRankedShapedTypeOpInterface>()) {
-    ReifiedRankedShapedTypeDims reifiedShape;
-    if (succeeded(reifiableOp.reifyResultShapes(b, reifiedShape))) {
-      SmallVector<Value> dynSizes;
-      for (int64_t i = 0; i < tensorType.getRank(); ++i) {
-        if (tensorType.isDynamicDim(i))
-          dynSizes.push_back(
-              reifiedShape[value.cast<OpResult>().getResultNumber()][i]);
-      }
-      return dynSizes;
+  ReifiedRankedShapedTypeDims reifiedShape;
+  if (value.isa<OpResult>() &&
+      succeeded(reifyResultShapes(b, value.getDefiningOp(), reifiedShape))) {
+    SmallVector<Value> dynSizes;
+    for (int64_t i = 0; i < tensorType.getRank(); ++i) {
+      if (tensorType.isDynamicDim(i))
+        dynSizes.push_back(
+            reifiedShape[value.cast<OpResult>().getResultNumber()][i]
+                .get<Value>());
     }
+    return dynSizes;
   }
 
   // Create tensor.dim ops.
@@ -291,14 +291,13 @@ mlir::linalg::rewriteInDestinationPassingStyle(RewriterBase &rewriter,
   Location loc = padOp.getLoc();
   RankedTensorType resultType = padOp.getResultType();
   ReifiedRankedShapedTypeDims reifiedShape;
-  if (failed(cast<ReifyRankedShapedTypeOpInterface>(padOp.getOperation())
-                 .reifyResultShapes(rewriter, reifiedShape)))
+  if (failed(reifyResultShapes(rewriter, padOp, reifiedShape)))
     return rewriter.notifyMatchFailure(
         padOp, "failed to reify tensor.pad op result shape");
   SmallVector<Value> dynamicSizes;
   for (int64_t i = 0; i < resultType.getRank(); ++i)
     if (resultType.isDynamicDim(i))
-      dynamicSizes.push_back(reifiedShape[0][i]);
+      dynamicSizes.push_back(reifiedShape[0][i].get<Value>());
 
   // If the `padOp` has a nofold attribute and all paddings are known to be 0,
   // explicitly insert a `linalg.copy`.
@@ -367,46 +366,18 @@ Value linalg::bufferizeToAllocation(RewriterBase &rewriter, Value value,
 }
 
 namespace {
-/// Lower tensor.from_elements to a sequence of chained tensor.insert.
-struct FromElementsOpConverter : public OpRewritePattern<FromElementsOp> {
-  using OpRewritePattern<FromElementsOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(FromElementsOp fromElementsOp,
-                                PatternRewriter &rewriter) const override {
-    if (failed(
-            linalg::rewriteInDestinationPassingStyle(rewriter, fromElementsOp)))
-      return failure();
-    return success();
-  }
-};
+template <typename OpTy>
+LogicalResult rewriteOpInDestinationPassingStyle(OpTy op,
+                                                 PatternRewriter &rewriter) {
+  return linalg::rewriteInDestinationPassingStyle(rewriter, op);
+}
 
-/// Lower tensor.generate to linalg.generic.
-struct GenerateOpConverter : public OpRewritePattern<GenerateOp> {
-  using OpRewritePattern<GenerateOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(GenerateOp generateOp,
-                                PatternRewriter &rewriter) const override {
-    if (failed(linalg::rewriteInDestinationPassingStyle(rewriter, generateOp)))
-      return failure();
-    return success();
-  }
-};
-
-/// Lower tensor.pad to linalg.generic + tensor.insert_slice.
-struct PadOpConverter : public OpRewritePattern<PadOp> {
-  using OpRewritePattern<PadOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(PadOp padOp,
-                                PatternRewriter &rewriter) const override {
-    if (failed(linalg::rewriteInDestinationPassingStyle(rewriter, padOp)))
-      return failure();
-    return success();
-  }
-};
 } // namespace
 
 void linalg::populateConvertToDestinationStylePatterns(
     RewritePatternSet &patterns) {
-  patterns.insert<FromElementsOpConverter, GenerateOpConverter, PadOpConverter>(
-      patterns.getContext());
+  patterns.add(rewriteOpInDestinationPassingStyle<tensor::FromElementsOp>);
+  patterns.add(rewriteOpInDestinationPassingStyle<tensor::GenerateOp>);
+  patterns.add(rewriteOpInDestinationPassingStyle<tensor::PadOp>);
 }

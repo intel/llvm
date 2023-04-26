@@ -125,6 +125,14 @@ define void @bitreverse_test(i32 %0, <8 x i32> %1) {
   %4 = call <8 x i32> @llvm.bitreverse.v8i32(<8 x i32> %1)
   ret void
 }
+; CHECK-LABEL:  llvm.func @byteswap_test
+define void @byteswap_test(i32 %0, <8 x i32> %1) {
+  ; CHECK:   llvm.intr.bswap(%{{.*}}) : (i32) -> i32
+  %3 = call i32 @llvm.bswap.i32(i32 %0)
+  ; CHECK:   llvm.intr.bswap(%{{.*}}) : (vector<8xi32>) -> vector<8xi32>
+  %4 = call <8 x i32> @llvm.bswap.v8i32(<8 x i32> %1)
+  ret void
+}
 ; CHECK-LABEL:  llvm.func @ctlz_test
 define void @ctlz_test(i32 %0, <8 x i32> %1) {
   ; CHECK:   %[[FALSE:.+]] = llvm.mlir.constant(false) : i1
@@ -150,6 +158,24 @@ define void @ctpop_test(i32 %0, <8 x i32> %1) {
   %3 = call i32 @llvm.ctpop.i32(i32 %0)
   ; CHECK:   llvm.intr.ctpop(%{{.*}}) : (vector<8xi32>) -> vector<8xi32>
   %4 = call <8 x i32> @llvm.ctpop.v8i32(<8 x i32> %1)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @fshl_test
+define void @fshl_test(i32 %0, i32 %1, i32 %2, <8 x i32> %3, <8 x i32> %4, <8 x i32> %5) {
+  ; CHECK:   llvm.intr.fshl(%{{.*}}, %{{.*}}, %{{.*}}) : (i32, i32, i32) -> i32
+  %7 = call i32 @llvm.fshl.i32(i32 %0, i32 %1, i32 %2)
+  ; CHECK:   llvm.intr.fshl(%{{.*}}, %{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %8 = call <8 x i32> @llvm.fshl.v8i32(<8 x i32> %3, <8 x i32> %4, <8 x i32> %5)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @fshr_test
+define void @fshr_test(i32 %0, i32 %1, i32 %2, <8 x i32> %3, <8 x i32> %4, <8 x i32> %5) {
+  ; CHECK:   llvm.intr.fshr(%{{.*}}, %{{.*}}, %{{.*}}) : (i32, i32, i32) -> i32
+  %7 = call i32 @llvm.fshr.i32(i32 %0, i32 %1, i32 %2)
+  ; CHECK:   llvm.intr.fshr(%{{.*}}, %{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %8 = call <8 x i32> @llvm.fshr.v8i32(<8 x i32> %3, <8 x i32> %4, <8 x i32> %5)
   ret void
 }
 
@@ -231,9 +257,9 @@ define void @vector_reductions(float %0, <8 x float> %1, <8 x i32> %2) {
   %4 = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> %2)
   ; CHECK: "llvm.intr.vector.reduce.and"(%{{.*}}) : (vector<8xi32>) -> i32
   %5 = call i32 @llvm.vector.reduce.and.v8i32(<8 x i32> %2)
-  ; CHECK: "llvm.intr.vector.reduce.fmax"(%{{.*}}) : (vector<8xf32>) -> f32
+  ; CHECK: llvm.intr.vector.reduce.fmax(%{{.*}}) : (vector<8xf32>) -> f32
   %6 = call float @llvm.vector.reduce.fmax.v8f32(<8 x float> %1)
-  ; CHECK: "llvm.intr.vector.reduce.fmin"(%{{.*}}) : (vector<8xf32>) -> f32
+  ; CHECK: llvm.intr.vector.reduce.fmin(%{{.*}}) : (vector<8xf32>) -> f32
   %7 = call float @llvm.vector.reduce.fmin.v8f32(<8 x float> %1)
   ; CHECK: "llvm.intr.vector.reduce.mul"(%{{.*}}) : (vector<8xi32>) -> i32
   %8 = call i32 @llvm.vector.reduce.mul.v8i32(<8 x i32> %2)
@@ -431,16 +457,16 @@ define void @assume(i1 %true) {
 
 ; CHECK-LABEL:  llvm.func @coro_id
 define void @coro_id(i32 %0, ptr %1) {
-  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !llvm.token
+  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> !llvm.token
   %3 = call token @llvm.coro.id(i32 %0, ptr %1, ptr %1, ptr null)
   ret void
 }
 
 ; CHECK-LABEL:  llvm.func @coro_begin
 define void @coro_begin(i32 %0, ptr %1) {
-  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !llvm.token
+  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> !llvm.token
   %3 = call token @llvm.coro.id(i32 %0, ptr %1, ptr %1, ptr null)
-  ; CHECK: llvm.intr.coro.begin %{{.*}}, %{{.*}} : !llvm.ptr
+  ; CHECK: llvm.intr.coro.begin %{{.*}}, %{{.*}} : (!llvm.token, !llvm.ptr) -> !llvm.ptr
   %4 = call ptr @llvm.coro.begin(token %3, ptr %1)
   ret void
 }
@@ -464,14 +490,14 @@ define void @coro_align() {
 
 ; CHECK-LABEL:  llvm.func @coro_save
 define void @coro_save(ptr %0) {
-  ; CHECK: llvm.intr.coro.save %{{.*}} : !llvm.token
+  ; CHECK: llvm.intr.coro.save %{{.*}} : (!llvm.ptr) -> !llvm.token
   %2 = call token @llvm.coro.save(ptr %0)
   ret void
 }
 
 ; CHECK-LABEL:  llvm.func @coro_suspend
 define void @coro_suspend(i32 %0, i1 %1, ptr %2) {
-  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !llvm.token
+  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> !llvm.token
   %4 = call token @llvm.coro.id(i32 %0, ptr %2, ptr %2, ptr null)
   ; CHECK: llvm.intr.coro.suspend %{{.*}}, %{{.*}} : i8
   %5 = call i8 @llvm.coro.suspend(token %4, i1 %1)
@@ -487,9 +513,9 @@ define void @coro_end(ptr %0, i1 %1) {
 
 ; CHECK-LABEL:  llvm.func @coro_free
 define void @coro_free(i32 %0, ptr %1) {
-  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !llvm.token
+  ; CHECK: llvm.intr.coro.id %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (i32, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> !llvm.token
   %3 = call token @llvm.coro.id(i32 %0, ptr %1, ptr %1, ptr null)
-  ; CHECK: llvm.intr.coro.free %{{.*}}, %{{.*}} : !llvm.ptr
+  ; CHECK: llvm.intr.coro.free %{{.*}}, %{{.*}} : (!llvm.token, !llvm.ptr) -> !llvm.ptr
   %4 = call ptr @llvm.coro.free(token %3, ptr %1)
   ret void
 }
@@ -503,7 +529,7 @@ define void @coro_resume(ptr %0) {
 
 ; CHECK-LABEL:  llvm.func @eh_typeid_for
 define void @eh_typeid_for(ptr %0) {
-  ; CHECK: llvm.intr.eh.typeid.for %{{.*}} : i32
+  ; CHECK: llvm.intr.eh.typeid.for %{{.*}} : (!llvm.ptr) -> i32
   %2 = call i32 @llvm.eh.typeid.for(ptr %0)
   ret void
 }
@@ -665,12 +691,18 @@ declare float @llvm.pow.f32(float, float)
 declare <8 x float> @llvm.pow.v8f32(<8 x float>, <8 x float>)
 declare i32 @llvm.bitreverse.i32(i32)
 declare <8 x i32> @llvm.bitreverse.v8i32(<8 x i32>)
+declare i32 @llvm.bswap.i32(i32)
+declare <8 x i32> @llvm.bswap.v8i32(<8 x i32>)
 declare i32 @llvm.ctlz.i32(i32, i1 immarg)
 declare <8 x i32> @llvm.ctlz.v8i32(<8 x i32>, i1 immarg)
 declare i32 @llvm.cttz.i32(i32, i1 immarg)
 declare <8 x i32> @llvm.cttz.v8i32(<8 x i32>, i1 immarg)
 declare i32 @llvm.ctpop.i32(i32)
 declare <8 x i32> @llvm.ctpop.v8i32(<8 x i32>)
+declare i32 @llvm.fshl.i32(i32, i32, i32)
+declare <8 x i32> @llvm.fshl.v8i32(<8 x i32>, <8 x i32>, <8 x i32>)
+declare i32 @llvm.fshr.i32(i32, i32, i32)
+declare <8 x i32> @llvm.fshr.v8i32(<8 x i32>, <8 x i32>, <8 x i32>)
 declare float @llvm.maximum.f32(float, float)
 declare <8 x float> @llvm.maximum.v8f32(<8 x float>, <8 x float>)
 declare float @llvm.minimum.f32(float, float)

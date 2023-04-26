@@ -14,8 +14,13 @@ namespace mlir {
 class RewritePatternSet;
 
 void populateExpandCtlzPattern(RewritePatternSet &patterns);
+void populateExpandTanPattern(RewritePatternSet &patterns);
 void populateExpandTanhPattern(RewritePatternSet &patterns);
-
+void populateExpandFmaFPattern(RewritePatternSet &patterns);
+void populateExpandFloorFPattern(RewritePatternSet &patterns);
+void populateExpandCeilFPattern(RewritePatternSet &patterns);
+void populateExpandExp2FPattern(RewritePatternSet &patterns);
+void populateExpandRoundFPattern(RewritePatternSet &patterns);
 void populateMathAlgebraicSimplificationPatterns(RewritePatternSet &patterns);
 
 struct MathPolynomialApproximationOptions {

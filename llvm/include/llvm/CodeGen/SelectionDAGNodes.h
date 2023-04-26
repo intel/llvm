@@ -1608,10 +1608,10 @@ public:
 
   bool isOne() const { return Value->isOne(); }
   bool isZero() const { return Value->isZero(); }
-  // NOTE: This is soft-deprecated.  Please use `isZero()` instead.
+  LLVM_DEPRECATED("use isZero instead", "isZero")
   bool isNullValue() const { return isZero(); }
   bool isAllOnes() const { return Value->isMinusOne(); }
-  // NOTE: This is soft-deprecated.  Please use `isAllOnes()` instead.
+  LLVM_DEPRECATED("use isAllOnes instead", "isAllOnes")
   bool isAllOnesValue() const { return isAllOnes(); }
   bool isMaxSignedValue() const { return Value->isMaxValue(true); }
   bool isMinSignedValue() const { return Value->isMinValue(true); }
@@ -1711,6 +1711,10 @@ SDValue peekThroughOneUseBitcasts(SDValue V);
 /// Return the non-extracted vector source operand of \p V if it exists.
 /// If \p V is not an extracted subvector, it is returned as-is.
 SDValue peekThroughExtractSubvectors(SDValue V);
+
+/// Return the non-truncated source operand of \p V if it exists.
+/// If \p V is not a truncation, it is returned as-is.
+SDValue peekThroughTruncates(SDValue V);
 
 /// Returns true if \p V is a bitwise not operation. Assumes that an all ones
 /// constant is canonicalized to be operand 1.

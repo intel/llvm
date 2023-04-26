@@ -120,7 +120,7 @@ TEST_P(ARMCPUTestFixture, ARMCPUTests) {
   ARM::ArchKind AK = ARM::parseCPUArch(params.CPUName);
   EXPECT_EQ(params.ExpectedArch, ARM::getArchName(AK));
 
-  unsigned FPUKind = ARM::getDefaultFPU(params.CPUName, AK);
+  ARM::FPUKind FPUKind = ARM::getDefaultFPU(params.CPUName, AK);
   EXPECT_EQ(params.ExpectedFPU, ARM::getFPUName(FPUKind));
 
   uint64_t default_extensions = ARM::getDefaultExtensions(params.CPUName, AK);
@@ -765,10 +765,10 @@ static bool
 testArchExtDependency(const char *ArchExt,
                       const std::initializer_list<const char *> &Expected) {
   std::vector<StringRef> Features;
-  unsigned FPUID;
+  ARM::FPUKind FPUKind;
 
   if (!ARM::appendArchExtFeatures("", ARM::ArchKind::ARMV8_1MMainline, ArchExt,
-                                  Features, FPUID))
+                                  Features, FPUKind))
     return false;
 
   return llvm::all_of(Expected, [&](StringRef Ext) {
@@ -1600,7 +1600,7 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
       AArch64::AEK_B16B16,  AArch64::AEK_SMEF16F16, AArch64::AEK_CSSC,
       AArch64::AEK_RCPC3,   AArch64::AEK_THE,       AArch64::AEK_D128,
       AArch64::AEK_LSE128,  AArch64::AEK_SPECRES2,  AArch64::AEK_RASv2,
-      AArch64::AEK_ITE,
+      AArch64::AEK_ITE,     AArch64::AEK_GCS,
   };
 
   std::vector<StringRef> Features;
@@ -1671,6 +1671,7 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
   EXPECT_TRUE(llvm::is_contained(Features, "+lse128"));
   EXPECT_TRUE(llvm::is_contained(Features, "+specres2"));
   EXPECT_TRUE(llvm::is_contained(Features, "+ite"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+gcs"));
 
   // Assuming we listed every extension above, this should produce the same
   // result. (note that AEK_NONE doesn't have a name so it won't be in the
@@ -1793,6 +1794,7 @@ TEST(TargetParserTest, AArch64ArchExtFeature) {
       {"pmuv3", "nopmuv3", "+perfmon", "-perfmon"},
       {"predres2", "nopredres2", "+specres2", "-specres2"},
       {"rasv2", "norasv2", "+rasv2", "-rasv2"},
+      {"gcs", "nogcs", "+gcs", "-gcs"},
   };
 
   for (unsigned i = 0; i < std::size(ArchExt); i++) {
