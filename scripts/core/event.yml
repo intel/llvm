@@ -253,6 +253,19 @@ params:
       desc: |
             [out] a pointer to the native handle of the event.
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xEventCreateWithNativeHandle."
+class: $xQueue
+name: $x_event_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] Indicates UR owns the native handle or if it came from an interoperability
+            operation in the application that asked to not transfer the ownership to
+            the unified-runtime.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime event object from native event handle."
 class: $xEvent
@@ -271,6 +284,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: "const $x_event_native_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to native event properties struct"
     - type: "$x_event_handle_t*"
       name: phEvent
       desc: |

@@ -243,6 +243,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
     UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
     UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
+    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4288,6 +4289,18 @@ urEventGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for for ::urEventCreateWithNativeHandle.
+typedef struct ur_event_native_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an interoperability
+                               ///< operation in the application that asked to not transfer the ownership to
+                               ///< the unified-runtime.
+
+} ur_event_native_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime event object from native event handle.
 ///
 /// @details
@@ -4307,9 +4320,10 @@ urEventGetNativeHandle(
 ///         + `NULL == phEvent`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_event_handle_t *phEvent       ///< [out] pointer to the handle of the event object created.
+    ur_native_handle_t hNativeEvent,                 ///< [in] the native handle of the event.
+    ur_context_handle_t hContext,                    ///< [in] handle of the context object
+    const ur_event_native_properties_t *pProperties, ///< [in][optional] pointer to native event properties struct
+    ur_event_handle_t *phEvent                       ///< [out] pointer to the handle of the event object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5806,6 +5820,7 @@ typedef struct ur_event_get_native_handle_params_t {
 typedef struct ur_event_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeEvent;
     ur_context_handle_t *phContext;
+    const ur_event_native_properties_t **ppProperties;
     ur_event_handle_t **pphEvent;
 } ur_event_create_with_native_handle_params_t;
 

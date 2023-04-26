@@ -219,6 +219,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnEventGetNativeHandle_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnEventCreateWithNativeHandle_t)(
     ur_native_handle_t,
     ur_context_handle_t,
+    const ur_event_native_properties_t *,
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

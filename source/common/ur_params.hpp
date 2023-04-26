@@ -258,6 +258,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_profiling_info_t value);
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_event_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
@@ -632,6 +634,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -757,6 +763,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES: {
         const ur_mem_native_properties_t *pstruct =
             (const ur_mem_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES: {
+        const ur_event_native_properties_t *pstruct =
+            (const ur_event_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -7182,6 +7194,27 @@ serializeTaggedTyped_ur_profiling_info_t(std::ostream &os, const void *ptr,
     }
 }
 } // namespace ur_params
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_event_native_properties_t params) {
+    os << "(struct ur_event_native_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".isNativeHandleOwned = ";
+
+    os << (params.isNativeHandleOwned);
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value) {
     switch (value) {
@@ -9473,6 +9506,11 @@ operator<<(std::ostream &os,
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".phEvent = ";

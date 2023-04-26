@@ -2942,6 +2942,8 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
 ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
     ur_context_handle_t hContext,    ///< [in] handle of the context object
+    const ur_event_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
         *phEvent ///< [out] pointer to the handle of the event object created.
 ) {
