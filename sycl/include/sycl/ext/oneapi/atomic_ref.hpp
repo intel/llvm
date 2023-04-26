@@ -34,25 +34,24 @@ using memory_scope = sycl::ext::oneapi::memory_scope;
 
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
-      (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
-       std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
-       std::is_same<T, long long>::value ||
-       std::is_same<T, unsigned long long>::value ||
-       std::is_same<T, float>::value || std::is_same<T, double>::value ||
-       std::is_pointer<T>::value);
+      (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+       std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
+       std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
+       std::is_same_v<T, float> || std::is_same_v<T, double> ||
+       std::is_pointer_v<T>);
 };
 
 template <sycl::access::address_space AS>
-using IsValidAtomicAddressSpace =
-    bool_constant<AS == access::address_space::global_space ||
-                  AS == access::address_space::local_space ||
-                  AS == access::address_space::ext_intel_global_device_space>;
+using IsValidAtomicAddressSpace = std::bool_constant<
+    AS == access::address_space::global_space ||
+    AS == access::address_space::local_space ||
+    AS == access::address_space::ext_intel_global_device_space>;
 
 // DefaultOrder parameter is limited to read-modify-write orders
 template <memory_order Order>
-using IsValidDefaultOrder = bool_constant<Order == memory_order::relaxed ||
-                                          Order == memory_order::acq_rel ||
-                                          Order == memory_order::seq_cst>;
+using IsValidDefaultOrder = std::bool_constant<Order == memory_order::relaxed ||
+                                               Order == memory_order::acq_rel ||
+                                               Order == memory_order::seq_cst>;
 
 template <memory_order ReadModifyWriteOrder> struct memory_order_traits;
 
@@ -90,7 +89,7 @@ inline constexpr memory_order getLoadOrder(memory_order order) {
 template <typename T, typename = void> struct bit_equal;
 
 template <typename T>
-struct bit_equal<T, typename detail::enable_if_t<std::is_integral<T>::value>> {
+struct bit_equal<T, typename std::enable_if_t<std::is_integral_v<T>>> {
   bool operator()(const T &lhs, const T &rhs) { return lhs == rhs; }
 };
 
@@ -266,7 +265,7 @@ public:
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_impl<T, DefaultOrder, DefaultScope, AddressSpace,
-                      typename detail::enable_if_t<std::is_integral<T>::value>>
+                      typename std::enable_if_t<std::is_integral_v<T>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -412,9 +411,8 @@ private:
 // Partial specialization for floating-point types
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
-class atomic_ref_impl<
-    T, DefaultOrder, DefaultScope, AddressSpace,
-    typename detail::enable_if_t<std::is_floating_point<T>::value>>
+class atomic_ref_impl<T, DefaultOrder, DefaultScope, AddressSpace,
+                      typename std::enable_if_t<std::is_floating_point_v<T>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:

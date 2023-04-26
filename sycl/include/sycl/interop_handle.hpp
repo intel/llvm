@@ -50,8 +50,8 @@ public:
   template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh,
             typename PropertyListT = ext::oneapi::accessor_property_list<>>
-  detail::enable_if_t<Target != access::target::image,
-                      backend_return_t<Backend, buffer<DataT, Dims>>>
+  std::enable_if_t<Target != access::target::image,
+                   backend_return_t<Backend, buffer<DataT, Dims>>>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT>
                      &Acc) const {
     static_assert(Target == access::target::device ||

@@ -11,6 +11,7 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/device_info.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_impl.hpp>
@@ -142,9 +143,7 @@ public:
                               "discard_events and enable_profiling.");
       if (!MDevice->has(aspect::queue_profiling)) {
         // TODO temporary workaround, see MLimitedProfiling
-        if (MDevice->is_accelerator() &&
-            checkNativeQueueProfiling(MDevice->getHandleRef(),
-                                      Context->getPlugin())) {
+        if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
           MLimitedProfiling = true;
         } else {
           throw sycl::exception(
@@ -167,8 +166,7 @@ public:
             "device's number of available compute queue indices.");
     }
     if (!Context->isDeviceValid(Device)) {
-      if (!Context->is_host() &&
-          Context->getPlugin().getBackend() == backend::opencl)
+      if (!Context->is_host() && Context->getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
@@ -484,7 +482,6 @@ public:
     RT::PiDevice Device = MDevice->getHandleRef();
     const detail::plugin &Plugin = getPlugin();
 
-    assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
     RT::PiQueueProperties Properties[] = {
         PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
     if (has_property<ext::intel::property::queue::compute_index>()) {

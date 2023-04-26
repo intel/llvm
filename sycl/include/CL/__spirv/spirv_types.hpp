@@ -109,7 +109,8 @@ struct MemorySemanticsMask {
 enum class GroupOperation : uint32_t {
   Reduce = 0,
   InclusiveScan = 1,
-  ExclusiveScan = 2
+  ExclusiveScan = 2,
+  ClusteredReduce = 3,
 };
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)

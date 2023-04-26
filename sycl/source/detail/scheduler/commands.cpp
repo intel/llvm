@@ -1370,7 +1370,8 @@ bool UnMapMemObject::producesPiEvent() const {
   // an event waitlist and Level Zero plugin attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue->getPlugin().getBackend() != backend::ext_oneapi_level_zero ||
+  return MQueue->getDeviceImplPtr()->getBackend() !=
+             backend::ext_oneapi_level_zero ||
          MEvent->getHandleRef() != nullptr;
 }
 
@@ -1475,7 +1476,8 @@ bool MemCpyCommand::producesPiEvent() const {
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
   return MQueue->is_host() ||
-         MQueue->getPlugin().getBackend() != backend::ext_oneapi_level_zero ||
+         MQueue->getDeviceImplPtr()->getBackend() !=
+             backend::ext_oneapi_level_zero ||
          MEvent->getHandleRef() != nullptr;
 }
 
@@ -2106,7 +2108,7 @@ static pi_result SetKernelParamsAndLaunch(
              "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
-      if (Plugin.getBackend() == backend::opencl) {
+      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                sizeof(RT::PiMem), &MemArg);
       } else {
@@ -2343,9 +2345,24 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
-  RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
-      *(hostPipeEntry->mDeviceImage), Queue->get_context(),
-      Queue->get_device());
+  RT::PiProgram Program = nullptr;
+  device Device = Queue->get_device();
+  ContextImplPtr ContextImpl = Queue->getContextImplPtr();
+  std::optional<RT::PiProgram> CachedProgram =
+      ContextImpl->getProgramForHostPipe(Device, hostPipeEntry);
+  if (CachedProgram)
+    Program = *CachedProgram;
+  else {
+    // If there was no cached program, build one.
+    device_image_plain devImgPlain =
+        ProgramManager::getInstance().getDeviceImageFromBinaryImage(
+            hostPipeEntry->getDevBinImage(), Queue->get_context(),
+            Queue->get_device());
+    device_image_plain BuiltImage =
+        ProgramManager::getInstance().build(devImgPlain, {Device}, {});
+    Program = getSyclObjImpl(BuiltImage)->get_program_ref();
+  }
+  assert(Program && "Program for this hostpipe is not compiled.");
 
   // Get plugin for calling opencl functions
   const detail::plugin &Plugin = Queue->getPlugin();
@@ -2536,7 +2553,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() || (MQueue->getPlugin().getBackend() ==
+    if (MQueue->is_host() || (MQueue->getDeviceImplPtr()->getBackend() ==
                               backend::ext_intel_esimd_emulator)) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
@@ -2554,7 +2571,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
         ExecKernel->MHostKernel->call(NDRDesc,
                                       getEvent()->getHostProfilingInfo());
       } else {
-        assert(MQueue->getPlugin().getBackend() ==
+        assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
 
         MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(

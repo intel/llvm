@@ -24,8 +24,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi {
 template <typename T, typename Group>
 std::enable_if_t<
-    std::is_trivially_destructible<T>::value &&
-        sycl::detail::is_group<Group>::value,
+    std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory_for_overwrite(Group g) {
   (void)g;
@@ -48,8 +47,7 @@ std::enable_if_t<
 
 template <typename T, typename Group, typename... Args>
 std::enable_if_t<
-    std::is_trivially_destructible<T>::value &&
-        sycl::detail::is_group<Group>::value,
+    std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&...args) {
 #ifdef __SYCL_DEVICE_ONLY__
