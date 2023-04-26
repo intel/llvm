@@ -6,10 +6,17 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv -spirv-allow-unknown-intrinsics
+; RUN: llvm-spirv %t.spv --to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
 ; RUN: not llvm-spirv %t.bc -opaque-pointers=0 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; CHECK-ERROR: RequiresExtension: Feature requires the following SPIR-V extension:
 ; CHECK-ERROR-NEXT: SPV_INTEL_masked_gather_scatter
 ; CHECK-ERROR-NEXT: NOTE: LLVM module contains vector of pointers, translation of which requires this extension
+
+; CHECK-SPIRV-NOT: Name [[#]] "llvm.masked.gather.v4i32.v4p4"
+; CHECK-SPIRV-NOT: Name [[#]] "llvm.masked.scatter.v4i32.v4p4"
 
 ; CHECK-SPIRV-DAG: Capability MaskedGatherScatterINTEL
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_masked_gather_scatter"

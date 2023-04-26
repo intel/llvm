@@ -3648,6 +3648,8 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
   case Intrinsic::arithmetic_fence:
+  case Intrinsic::masked_gather:
+  case Intrinsic::masked_scatter:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
