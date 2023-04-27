@@ -581,12 +581,13 @@ enum {
 
 namespace LexicalBlock {
 enum {
-  SourceIdx       = 0,
-  LineIdx         = 1,
-  ColumnIdx       = 2,
-  ParentIdx       = 3,
-  NameIdx         = 4,
-  MinOperandCount = 4
+  SourceIdx          = 0,
+  LineIdx            = 1,
+  ColumnIdx          = 2,
+  ParentIdx          = 3,
+  MinOperandCount    = 4,
+  NameIdx            = 4,
+  InlineNamespaceIdx = 5,
 };
 }
 

@@ -712,10 +712,17 @@ DINode *SPIRVToLLVMDbgTran::transLexicalBlock(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   SPIRVWord LineNo =
       getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
-  if (Ops.size() > NameIdx) {
+  if (Ops.size() > MinOperandCount) {
     StringRef Name = getString(Ops[NameIdx]);
+    bool InlinedNamespace = false;
+    if (DebugInst->getExtSetKind() ==
+        SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+      SPIRVValue *V = BM->get<SPIRVValue>(Ops[InlineNamespaceIdx]);
+      Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
+      InlinedNamespace = cast<ConstantInt>(Var)->isOne();
+    }
     return getDIBuilder(DebugInst).createNameSpace(ParentScope, Name,
-                                                   false /*inlined namespace*/);
+                                                   InlinedNamespace);
   }
   unsigned Column = Ops[ColumnIdx];
   return getDIBuilder(DebugInst).createLexicalBlock(ParentScope, File, LineNo,

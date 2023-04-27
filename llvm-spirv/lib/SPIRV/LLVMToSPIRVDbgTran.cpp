@@ -1290,6 +1290,12 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgScope(const DIScope *S) {
     Ops[LineIdx] = 0;   // This version of DINamespace has no line number
     Ops[ColumnIdx] = 0; // This version of DINamespace has no column number
     Ops.push_back(BM->getString(NS->getName().str())->getId());
+    if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+      SPIRVValue *ExpConst = BM->addConstant(
+          SPIRVWriter->transType(Type::getInt1Ty(M->getContext())),
+          NS->getExportSymbols() /*Is inlined namespace*/);
+      Ops.push_back(ExpConst->getId());
+    }
   }
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {LineIdx, ColumnIdx});
