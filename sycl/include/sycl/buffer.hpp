@@ -146,7 +146,7 @@ class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   // TODO check is_device_copyable<T>::value after converting sycl::vec into a
   // trivially copyable class.
-  static_assert(!std::is_same<T, std::string>::value,
+  static_assert(!std::is_same_v<T, std::string>,
                 "'std::string' is not a device copyable type");
 
 public:
@@ -159,18 +159,18 @@ public:
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      std::void_t<std::enable_if_t<std::is_convertible<
+      std::void_t<std::enable_if_t<std::is_convertible_v<
                       detail::remove_pointer_t<
                           decltype(std::declval<Container>().data())> (*)[],
-                      const T (*)[]>::value>,
+                      const T (*)[]>>,
                   decltype(std::declval<Container>().size())>;
   template <class It>
-  using EnableIfItInputIterator = std::enable_if_t<
-      std::is_convertible<typename std::iterator_traits<It>::iterator_category,
-                          std::input_iterator_tag>::value>;
+  using EnableIfItInputIterator = std::enable_if_t<std::is_convertible_v<
+      typename std::iterator_traits<It>::iterator_category,
+      std::input_iterator_tag>>;
   template <typename ItA, typename ItB>
   using EnableIfSameNonConstIterators = typename std::enable_if_t<
-      std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
+      std::is_same_v<ItA, ItB> && !std::is_const_v<ItA>, ItA>;
 
   std::array<size_t, 3> rangeToArray(range<3> &r) { return {r[0], r[1], r[2]}; }
 
@@ -588,8 +588,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<
-      std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -661,11 +660,11 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  typename std::enable_if<
+  std::enable_if_t<
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
       buffer<ReinterpretT, ReinterpretDim,
              typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-                 std::remove_const_t<ReinterpretT>>>>::type
+                 std::remove_const_t<ReinterpretT>>>>
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
                   typename std::allocator_traits<AllocatorT>::
@@ -674,10 +673,10 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  typename std::enable_if<
-      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
-                                (sizeof(ReinterpretT) != sizeof(T))),
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  std::enable_if_t<(ReinterpretDim == 1) &&
+                       ((dimensions != ReinterpretDim) ||
+                        (sizeof(ReinterpretT) != sizeof(T))),
+                   buffer<ReinterpretT, ReinterpretDim, AllocatorT>>
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)

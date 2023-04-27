@@ -182,7 +182,7 @@ using make_signed_impl_t = typename make_signed_impl<T, T>::type;
 template <typename T>
 struct make_signed_impl<
     T, std::enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
-  using type = typename std::make_signed<T>::type;
+  using type = std::make_signed_t<T>;
 };
 
 template <typename T>
@@ -216,7 +216,7 @@ using make_unsigned_impl_t = typename make_unsigned_impl<T, T>::type;
 template <typename T>
 struct make_unsigned_impl<
     T, std::enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
-  using type = typename std::make_unsigned<T>::type;
+  using type = std::make_unsigned_t<T>;
 };
 
 template <typename T>
@@ -296,7 +296,7 @@ struct is_vector_arithmetic
 // is_bool
 template <typename T>
 struct is_scalar_bool
-    : std::bool_constant<std::is_same<std::remove_cv_t<T>, bool>::value> {};
+    : std::bool_constant<std::is_same_v<std::remove_cv_t<T>, bool>> {};
 
 template <typename T>
 struct is_vector_bool
@@ -433,7 +433,7 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
-  static constexpr bool found = !std::is_same<upper_type, void>::value;
+  static constexpr bool found = !std::is_same_v<upper_type, void>;
   using type = std::conditional_t<found, new_type, void>;
 };
 
@@ -442,7 +442,7 @@ struct make_larger_impl<marray<T, N>, marray<T, N>> {
   using base_type = marray_element_t<marray<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = marray<upper_type, N>;
-  static constexpr bool found = !std::is_same<upper_type, void>::value;
+  static constexpr bool found = !std::is_same_v<upper_type, void>;
   using type = std::conditional_t<found, new_type, void>;
 };
 
