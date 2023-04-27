@@ -119,8 +119,6 @@ template <typename T> void testMultPtr() {
   }
 }
 
-/// @brief
-/// @tparam T
 template <typename T> void testMultPtrArrowOperator() {
   point<T> data_1[1] = {1};
   point<T> data_2[1] = {2};
