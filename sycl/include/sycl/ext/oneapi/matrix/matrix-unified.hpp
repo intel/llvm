@@ -204,7 +204,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #else
-  T *Ptr = src.get();
+  using PtrType =
+    typename std::conditional<Space == access::address_space::local_space,
+             __attribute__((opencl_local)) T *,
+             __attribute__((opencl_global)) T *>::type;
+  PtrType Ptr = src.get();
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");
@@ -261,7 +265,11 @@ joint_matrix_load(Group sg,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
 #else
-  T *Ptr = src.get();
+  using PtrType =
+    typename std::conditional<Space == access::address_space::local_space,
+             __attribute__((opencl_local)) T *,
+             __attribute__((opencl_global)) T *>::type;
+  PtrType Ptr = src.get();
   res.spvm =
       __spirv_JointMatrixLoadINTEL<T, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
