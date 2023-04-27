@@ -26,32 +26,23 @@
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
-template <typename T, typename Tp, std::size_t R, std::size_t C,
+
+template <typename PtrT, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_JointMatrixLoadINTEL(__attribute__((opencl_local)) T *Ptr, std::size_t Stride,
+    __spirv_JointMatrixLoadINTEL(PtrT Ptr, std::size_t Stride,
                                  __spv::MatrixLayout Layout = L,
                                  __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
-template <typename T, typename Tp, std::size_t R, std::size_t C,
-          __spv::MatrixUse U,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_JointMatrixLoadINTEL(__attribute__((opencl_global)) T *Ptr, std::size_t Stride,
-                                 __spv::MatrixLayout Layout = L,
-                                 __spv::Scope::Flag Sc = S, int MemOperand = 0);
-
-template <typename T, typename Tp, std::size_t R, std::size_t C,
+template <typename PtrT, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
+    PtrT Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
 

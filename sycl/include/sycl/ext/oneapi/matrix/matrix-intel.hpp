@@ -481,6 +481,8 @@ joint_matrix_store(Group sg,
                        Group, Tp, Use, NumRows, NumCols, Layout> &src,
                    multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
+    static_assert(Space != access::address_space::private_space,
+                  "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
   std::ignore = src;
@@ -492,8 +494,17 @@ joint_matrix_store(Group sg,
       PI_ERROR_INVALID_DEVICE);
 #else
   // intel's impl
-  T *Ptr = dst.get();
-  __spirv_JointMatrixStoreINTEL<T, Tp, NumRows, NumCols,
+    using PtrType = std::conditional_t<
+        Space == access::address_space::local_space,
+        __attribute__((opencl_local)) T *,
+        std::conditional_t<
+            Space == access::address_space::global_space,
+            __attribute__((opencl_global)) T *,
+            std::conditional_t<Space == access::address_space::constant_space,
+                               __attribute__((opencl_constant)) T *, T *>>>;
+
+    PtrType Ptr = dst.get();
+    __spirv_JointMatrixStoreINTEL<PtrType, Tp, NumRows, NumCols,
                                 sycl::ext::oneapi::experimental::matrix::
                                     spv_matrix_use_traits<Use>::value,
                                 sycl::ext::oneapi::experimental::matrix::

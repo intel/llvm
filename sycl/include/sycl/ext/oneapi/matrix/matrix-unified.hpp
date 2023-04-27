@@ -199,36 +199,45 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #else
-  using PtrType =
-    typename std::conditional<Space == access::address_space::local_space,
-             __attribute__((opencl_local)) T *,
-             __attribute__((opencl_global)) T *>::type;
+  using PtrType = std::conditional_t<
+      Space == access::address_space::local_space,
+      __attribute__((opencl_local)) T *,
+      std::conditional_t<
+          Space == access::address_space::global_space,
+          __attribute__((opencl_global)) T *,
+          std::conditional_t<Space == access::address_space::constant_space,
+                             __attribute__((opencl_constant)) T *, T *>>>;
   PtrType Ptr = src.get();
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        PtrType, S, NumRows, NumCols,
+        spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case layout::col_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        PtrType, S, NumRows, NumCols,
+        spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        PtrType, S, NumRows, NumCols,
+        spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::Packed,
         spv_scope_traits<Group>::value);
@@ -259,19 +268,25 @@ joint_matrix_load(Group sg,
                   joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
 #else
-  using PtrType =
-    typename std::conditional<Space == access::address_space::local_space,
-             __attribute__((opencl_local)) T *,
-             __attribute__((opencl_global)) T *>::type;
+  using PtrType = std::conditional_t<
+      Space == access::address_space::local_space,
+      __attribute__((opencl_local)) T *,
+      std::conditional_t<
+          Space == access::address_space::global_space,
+          __attribute__((opencl_global)) T *,
+          std::conditional_t<Space == access::address_space::constant_space,
+                             __attribute__((opencl_constant)) T *, T *>>>;
   PtrType Ptr = src.get();
   res.spvm =
-      __spirv_JointMatrixLoadINTEL<T, S, NumRows, NumCols,
+      __spirv_JointMatrixLoadINTEL<PtrType, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
                                    spv_matrix_layout_traits<Layout>::value>(
           Ptr, stride, spv_matrix_layout_traits<Layout>::value,
@@ -296,33 +311,47 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #else
-  T *Ptr = dst.get();
+  using PtrType = std::conditional_t<
+      Space == access::address_space::local_space,
+      __attribute__((opencl_local)) T *,
+      std::conditional_t<
+          Space == access::address_space::global_space,
+          __attribute__((opencl_global)) T *,
+          std::conditional_t<Space == access::address_space::constant_space,
+                             __attribute__((opencl_constant)) T *, T *>>>;
+
+  PtrType Ptr = dst.get();
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     __spirv_JointMatrixStoreINTEL<
-        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        PtrType, T, NumRows, NumCols,
+        spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case layout::col_major:
     __spirv_JointMatrixStoreINTEL<
-        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        PtrType, T, NumRows, NumCols,
+        spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     __spirv_JointMatrixStoreINTEL<
-        T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+        PtrType, T, NumRows, NumCols,
+        spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::Packed,
         spv_scope_traits<Group>::value);
