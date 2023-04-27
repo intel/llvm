@@ -32,72 +32,6 @@
 #include <string_view>
 #include <vector>
 
-#define ARG_UNUSED(x) (void)x
-
-namespace {
-
-// Helper functions for unified 'Return' type declaration - imported
-// from pi_level_zero.cpp
-template <typename T, typename Assign>
-pi_result getInfoImpl(size_t ParamValueSize, void *ParamValue,
-                      size_t *ParamValueSizeRet, T Value, size_t ValueSize,
-                      Assign &&AssignFunc) {
-  if (ParamValue != nullptr) {
-    if (ParamValueSize < ValueSize) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-    AssignFunc(ParamValue, Value, ValueSize);
-  }
-  if (ParamValueSizeRet != nullptr) {
-    *ParamValueSizeRet = ValueSize;
-  }
-  return PI_SUCCESS;
-}
-
-template <typename T>
-pi_result getInfo(size_t ParamValueSize, void *ParamValue,
-                  size_t *ParamValueSizeRet, T Value) {
-  auto assignment = [](void *ParamValue, T Value, size_t ValueSize) {
-    ARG_UNUSED(ValueSize);
-    *static_cast<T *>(ParamValue) = Value;
-  };
-  return getInfoImpl(ParamValueSize, ParamValue, ParamValueSizeRet, Value,
-                     sizeof(T), assignment);
-}
-
-template <typename T>
-pi_result getInfoArray(size_t ArrayLength, size_t ParamValueSize,
-                       void *ParamValue, size_t *ParamValueSizeRet, T *Value) {
-  return getInfoImpl(ParamValueSize, ParamValue, ParamValueSizeRet, Value,
-                     ArrayLength * sizeof(T), memcpy);
-}
-
-template <>
-pi_result getInfo<const char *>(size_t ParamValueSize, void *ParamValue,
-                                size_t *ParamValueSizeRet, const char *Value) {
-  return getInfoArray(strlen(Value) + 1, ParamValueSize, ParamValue,
-                      ParamValueSizeRet, Value);
-}
-
-class ReturnHelper {
-public:
-  ReturnHelper(size_t ArgParamValueSize, void *ArgParamValue,
-               size_t *ArgParamValueSizeRet)
-      : ParamValueSize(ArgParamValueSize), ParamValue(ArgParamValue),
-        ParamValueSizeRet(ArgParamValueSizeRet) {}
-
-  template <class T> pi_result operator()(const T &t) {
-    return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet, t);
-  }
-
-private:
-  size_t ParamValueSize;
-  void *ParamValue;
-  size_t *ParamValueSizeRet;
-};
-
-} // anonymous namespace
-
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
   if (err != CL_SUCCESS) {                                                     \
     if (ptr != nullptr)                                                        \
@@ -712,8 +646,13 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_DEVICE_INFO_BACKEND_VERSION: {
     // TODO: return some meaningful for backend_version below
-    ReturnHelper ReturnValue(paramValueSize, paramValue, paramValueSizeRet);
-    return ReturnValue("");
+    const char *value = "";
+    size_t valueSize = (strlen(value) + 1) * sizeof(char);
+    if (paramValue)
+      std::memcpy(paramValue, value, valueSize);
+    if (paramValueSizeRet != nullptr)
+      *paramValueSizeRet = valueSize;
+    return PI_SUCCESS;
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
     cl_int ret_err = CL_SUCCESS;
