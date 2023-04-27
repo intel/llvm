@@ -785,9 +785,6 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
     break;
-  case PI_DEVICE_INFO_BACKEND_VERSION:
-    InfoType = UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION;
-    break;
   default:
     return PI_ERROR_UNKNOWN;
   };

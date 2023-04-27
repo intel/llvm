@@ -293,9 +293,6 @@ extern "C" {
 pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
                           size_t *paramValueSizeRet) {
-  // This SYCL backend doesn't have versioning, so using OpenCL device version.
-  if (PI_DEVICE_INFO_BACKEND_VERSION == paramName)
-    paramName = PI_DEVICE_INFO_VERSION;
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
@@ -646,6 +643,16 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     }
 
     return static_cast<pi_result>(CL_SUCCESS);
+  }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    const char *value = "";
+    size_t valueSize = (strlen(value) + 1) * sizeof(const char *);
+    if (paramValue)
+      std::memcpy(paramValue, value, valueSize);
+    if (paramValueSizeRet != nullptr)
+      *paramValueSizeRet = valueSize;
+    return PI_SUCCESS;
   }
   default:
     cl_int result = clGetDeviceInfo(

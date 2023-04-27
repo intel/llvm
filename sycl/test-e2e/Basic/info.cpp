@@ -327,9 +327,8 @@ int main() {
   print_info<info::device::driver_version, std::string>(dev, "Driver version");
   print_info<info::device::profile, std::string>(dev, "Profile");
   print_info<info::device::version, std::string>(dev, "Version");
-  if (dev.get_platform().get_backend() != backend::ext_oneapi_hip)
-    print_info<info::device::backend_version, std::string>(dev,
-                                                           "Backend version");
+  print_info<info::device::backend_version, std::string>(dev,
+                                                         "Backend version");
   print_info<info::device::opencl_c_version, std::string>(dev,
                                                           "OpenCL C version");
   print_info<info::device::extensions, std::vector<std::string>>(dev,

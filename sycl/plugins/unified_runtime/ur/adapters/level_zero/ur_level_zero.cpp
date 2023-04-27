@@ -11,7 +11,6 @@
 #include <string.h>
 
 #include "ur_level_zero.hpp"
-#include <sycl/feature_test.hpp>
 #include <ur_bindings.hpp>
 
 // Define the static class field
@@ -520,9 +519,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(Device->Platform->ZeDriverVersion.c_str());
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
-  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
-    return ReturnValue(
-        std::to_string(SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO).c_str());
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     auto Res = Device->Platform->populateDeviceCacheIfNeeded();
     if (Res != UR_RESULT_SUCCESS) {
