@@ -927,7 +927,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(ESIMDVerifierPass());
+            MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
             MPM.addPass(
                 SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
           });

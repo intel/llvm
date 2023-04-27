@@ -1647,17 +1647,23 @@ void generateKernelMetadata(Module &M) {
         StringRef ArgDesc = "";
 
         if (Arg.getType()->isPointerTy()) {
-          const auto *IsAccMD =
-              KernelArgAccPtrs
-                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
-                  : nullptr;
-          unsigned IsAcc =
-              IsAccMD
-                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
-                                              ->getValue()
-                                              .getZExtValue())
-                  : 0;
-          if (IsAcc && !ForceStatelessMem) {
+          bool IsAcc = false;
+          bool IsLocalAcc = false;
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD = cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            llvm::esimd::assert_and_diag(AccMD,
+                               "Malformed IR: cannot find accessor arguments info");
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            IsLocalAcc = IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
+          }
+
+          if (IsLocalAcc) {
+            // Local accessor doesn't need any changes.
+          } else if (IsAcc && !ForceStatelessMem) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
           } else

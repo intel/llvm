@@ -61,8 +61,7 @@ struct LocalAccessorMarker {};
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
-                sycl::detail::acc_properties::is_local_accessor<
-                    AccessorTy>::value) {
+                sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>) {
     return detail::SLM_BTI;
   } else {
     return __esimd_get_surface_index(
