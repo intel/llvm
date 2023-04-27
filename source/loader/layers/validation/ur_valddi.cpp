@@ -344,7 +344,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < propName) {
+        if (UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }

@@ -33,7 +33,7 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MEMORY_CLOCK_RATE, sizeof(uint32_t)},
     {UR_DEVICE_INFO_ADDRESS_BITS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE, sizeof(uint64_t)},
-    {UR_DEVICE_INFO_IMAGE_SUPPORTED, sizeof(bool)},
+    {UR_DEVICE_INFO_IMAGE_SUPPORTED, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS, sizeof(uint32_t)},
@@ -56,13 +56,13 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MAX_CONSTANT_ARGS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_LOCAL_MEM_TYPE, sizeof(ur_device_local_mem_type_t)},
     {UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(uint64_t)},
-    {UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT, sizeof(bool)},
-    {UR_DEVICE_INFO_HOST_UNIFIED_MEMORY, sizeof(bool)},
+    {UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_HOST_UNIFIED_MEMORY, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION, sizeof(size_t)},
-    {UR_DEVICE_INFO_ENDIAN_LITTLE, sizeof(bool)},
-    {UR_DEVICE_INFO_AVAILABLE, sizeof(bool)},
-    {UR_DEVICE_INFO_COMPILER_AVAILABLE, sizeof(bool)},
-    {UR_DEVICE_INFO_LINKER_AVAILABLE, sizeof(bool)},
+    {UR_DEVICE_INFO_ENDIAN_LITTLE, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_AVAILABLE, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_COMPILER_AVAILABLE, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_LINKER_AVAILABLE, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_EXECUTION_CAPABILITIES,
      sizeof(ur_device_exec_capability_flags_t)},
     {UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES, sizeof(ur_queue_flags_t)},
@@ -70,13 +70,13 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_PLATFORM, sizeof(ur_platform_handle_t)},
     {UR_DEVICE_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
     {UR_DEVICE_INFO_PRINTF_BUFFER_SIZE, sizeof(size_t)},
-    {UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC, sizeof(bool)},
+    {UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t)},
     {UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES, sizeof(uint32_t)},
     {UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN,
      sizeof(ur_device_affinity_domain_flags_t)},
     {UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t)},
-    {UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS, sizeof(bool)},
+    {UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_USM_HOST_SUPPORT,
      sizeof(ur_device_usm_access_capability_flags_t)},
     {UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
@@ -90,17 +90,24 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_GPU_EU_COUNT, sizeof(uint32_t)},
     {UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH, sizeof(uint32_t)},
     {UR_DEVICE_INFO_GPU_EU_SLICES, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE, sizeof(uint32_t)},
     {UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH, sizeof(uint32_t)},
-    {UR_DEVICE_INFO_IMAGE_SRGB, sizeof(bool)},
-    {UR_DEVICE_INFO_ATOMIC_64, sizeof(bool)},
+    {UR_DEVICE_INFO_IMAGE_SRGB, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_BUILD_ON_SUBDEVICE, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_ATOMIC_64, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
      sizeof(ur_memory_order_capability_flags_t)},
     {UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
      sizeof(ur_memory_scope_capability_flags_t)},
-    {UR_DEVICE_INFO_BFLOAT16, sizeof(bool)},
+    {UR_DEVICE_INFO_BFLOAT16, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES, sizeof(uint32_t)},
-    {UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS, sizeof(bool)},
+    {UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_MEMORY_BUS_WIDTH, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_ASYNC_BARRIER, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT, sizeof(ur_bool_t)},
 };
 
 struct urDeviceGetInfoTest : uur::urAllDevicesTest,
@@ -205,13 +212,20 @@ INSTANTIATE_TEST_SUITE_P(
         UR_DEVICE_INFO_GPU_EU_COUNT,                           //
         UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH,                      //
         UR_DEVICE_INFO_GPU_EU_SLICES,                          //
+        UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,              //
         UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,                //
+        UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU,                  //
         UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH,                   //
         UR_DEVICE_INFO_IMAGE_SRGB,                             //
+        UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,                     //
         UR_DEVICE_INFO_ATOMIC_64,                              //
         UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,       //
         UR_DEVICE_INFO_BFLOAT16,                               //
-        UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES               //
+        UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES,              //
+        UR_DEVICE_INFO_MEMORY_BUS_WIDTH,                       //
+        UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,                     //
+        UR_DEVICE_INFO_ASYNC_BARRIER,                          //
+        UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT                     //
         ),
     [](const ::testing::TestParamInfo<ur_device_info_t> &info) {
         std::stringstream ss;
