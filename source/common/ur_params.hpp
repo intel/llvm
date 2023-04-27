@@ -1472,8 +1472,16 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_GPU_EU_SLICES";
         break;
 
+    case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+        os << "UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE";
+        break;
+
     case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
         os << "UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE";
+        break;
+
+    case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+        os << "UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU";
         break;
 
     case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
@@ -1482,6 +1490,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
 
     case UR_DEVICE_INFO_IMAGE_SRGB:
         os << "UR_DEVICE_INFO_IMAGE_SRGB";
+        break;
+
+    case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
+        os << "UR_DEVICE_INFO_BUILD_ON_SUBDEVICE";
         break;
 
     case UR_DEVICE_INFO_ATOMIC_64:
@@ -1514,6 +1526,22 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
 
     case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
         os << "UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS";
+        break;
+
+    case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
+        os << "UR_DEVICE_INFO_MEMORY_BUS_WIDTH";
+        break;
+
+    case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D:
+        os << "UR_DEVICE_INFO_MAX_WORK_GROUPS_3D";
+        break;
+
+    case UR_DEVICE_INFO_ASYNC_BARRIER:
+        os << "UR_DEVICE_INFO_ASYNC_BARRIER";
+        break;
+
+    case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+        os << "UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT";
         break;
     default:
         os << "unknown enumerator";
@@ -2775,7 +2803,35 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         os << ")";
     } break;
 
+    case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
     case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU: {
         const uint32_t *tptr = (const uint32_t *)ptr;
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size
@@ -2804,6 +2860,20 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_IMAGE_SRGB: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
@@ -2924,6 +2994,62 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ASYNC_BARRIER: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size

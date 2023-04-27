@@ -859,24 +859,34 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_GPU_EU_COUNT = 90,                           ///< [uint32_t] return Intel GPU EU count
     UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                      ///< [uint32_t] return Intel GPU EU SIMD width
     UR_DEVICE_INFO_GPU_EU_SLICES = 92,                          ///< [uint32_t] return Intel GPU number of slices
-    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 93,                ///< [uint32_t] return Intel GPU number of subslices per slice
-    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 94,                   ///< [uint32_t] return max memory bandwidth in Mb/s
-    UR_DEVICE_INFO_IMAGE_SRGB = 95,                             ///< [::ur_bool_t] device supports sRGB images
-    UR_DEVICE_INFO_ATOMIC_64 = 96,                              ///< [::ur_bool_t] support 64 bit atomics
-    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 97,       ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+    UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 93,              ///< [uint32_t] return Intel GPU EU count per subslice
+    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 94,                ///< [uint32_t] return Intel GPU number of subslices per slice
+    UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 95,                  ///< [uint32_t] return Intel GPU number of threads per EU
+    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 96,                   ///< [uint32_t] return max memory bandwidth in Mb/s
+    UR_DEVICE_INFO_IMAGE_SRGB = 97,                             ///< [::ur_bool_t] device supports sRGB images
+    UR_DEVICE_INFO_BUILD_ON_SUBDEVICE = 98,                     ///< [::ur_bool_t] Return true if sub-device should do its own program
+                                                                ///< build
+    UR_DEVICE_INFO_ATOMIC_64 = 99,                              ///< [::ur_bool_t] support 64 bit atomics
+    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 100,      ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                                 ///< memory order capabilities
-    UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98,       ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
+    UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 101,      ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                                 ///< memory scope capabilities
-    UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 99,        ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+    UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 102,       ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                                 ///< memory fence order capabilities
-    UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 100,       ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
+    UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,       ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                                 ///< memory fence scope capabilities
-    UR_DEVICE_INFO_BFLOAT16 = 101,                              ///< [::ur_bool_t] support for bfloat16
-    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 102,             ///< [uint32_t] Returns 1 if the device doesn't have a notion of a
+    UR_DEVICE_INFO_BFLOAT16 = 104,                              ///< [::ur_bool_t] support for bfloat16
+    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 105,             ///< [uint32_t] Returns 1 if the device doesn't have a notion of a
                                                                 ///< queue index. Otherwise, returns the number of queue indices that are
                                                                 ///< available for this device.
-    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 103,   ///< [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
+    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 106,   ///< [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
                                                                 ///< point
+    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                      ///< [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
+                                                                ///< index". Otherwise,
+                                                                ///< return the number of queue indices that are available for this device.
+    UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                    ///< [uint32_t] return max 3D work groups
+    UR_DEVICE_INFO_ASYNC_BARRIER = 109,                         ///< [::ur_bool_t] return true if Async Barrier is supported
+    UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                   ///< [::ur_bool_t] return true if specifying memory channels is supported
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -901,7 +911,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < propName`
+///         + `::UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
