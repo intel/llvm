@@ -39,18 +39,6 @@ event doCopy2D(queue &Q, const T *Src, size_t SrcPitch, T *Dest,
       CGH.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height);
     });
   }
-  if constexpr (PathKind == OperationPath::ShortcutNoEvent) {
-    sycl::event::wait(DepEvents);
-    return Q.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height);
-  }
-  if constexpr (PathKind == OperationPath::ShortcutOneEvent) {
-    assert(DepEvents.size() && "No events in dependencies!");
-    // wait on all other events than the first.
-    for (size_t I = 1; I < DepEvents.size(); ++I)
-      DepEvents[I].wait();
-    return Q.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height,
-                               DepEvents[0]);
-  }
   if constexpr (PathKind == OperationPath::ShortcutEventList) {
     return Q.ext_oneapi_copy2d(Src, SrcPitch, Dest, DestPitch, Width, Height,
                                DepEvents);
@@ -404,12 +392,6 @@ int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
       Q, ExpectedVal1, ExpectedVal2);
   Failures +=
       test<T, SrcAllocKind, DstAllocKind, OperationPath::ExpandedDependsOn>(
-          Q, ExpectedVal1, ExpectedVal2);
-  Failures +=
-      test<T, SrcAllocKind, DstAllocKind, OperationPath::ShortcutNoEvent>(
-          Q, ExpectedVal1, ExpectedVal2);
-  Failures +=
-      test<T, SrcAllocKind, DstAllocKind, OperationPath::ShortcutOneEvent>(
           Q, ExpectedVal1, ExpectedVal2);
   Failures +=
       test<T, SrcAllocKind, DstAllocKind, OperationPath::ShortcutEventList>(

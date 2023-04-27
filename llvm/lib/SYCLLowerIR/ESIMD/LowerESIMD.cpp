@@ -1059,9 +1059,10 @@ static void translateGetSurfaceIndex(CallInst &CI) {
 // This helper function creates cast operation from GenX intrinsic return type
 // to currently expected. Returns pointer to created cast instruction if it
 // was created, otherwise returns NewI.
-static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
+static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
+                                        Type *UseType = nullptr) {
   Type *NITy = NewI->getType();
-  Type *OITy = OldI->getType();
+  Type *OITy = UseType ? UseType : OldI->getType();
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
@@ -1086,7 +1087,8 @@ static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
 /// of vector load. The parameter \p IsVectorCall tells what version of GenX
 /// intrinsic (scalar or vector) to use to lower the load from SPIRV global.
 static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
-                                     bool IsVectorCall, uint64_t IndexValue) {
+                                     bool IsVectorCall, uint64_t IndexValue,
+                                     Type *UseType) {
   std::string Suffix =
       IsVectorCall
           ? ".v3i32"
@@ -1125,7 +1127,7 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
                                       ExtractName, EEI);
     Inst->setDebugLoc(EEI->getDebugLoc());
   }
-  Inst = addCastInstIfNeeded(EEI, Inst);
+  Inst = addCastInstIfNeeded(EEI, Inst, UseType);
   return Inst;
 }
 
@@ -1166,37 +1168,39 @@ bool translateLLVMIntrinsic(CallInst *CI) {
 // Generate translation instructions for SPIRV global function calls
 static Value *generateSpirvGlobalGenX(Instruction *EEI,
                                       StringRef SpirvGlobalName,
-                                      uint64_t IndexValue) {
+                                      uint64_t IndexValue,
+                                      Type *UseType = nullptr) {
   Value *NewInst = nullptr;
   if (SpirvGlobalName == "WorkgroupSize") {
-    NewInst = generateGenXCall(EEI, "local.size", true, IndexValue);
+    NewInst = generateGenXCall(EEI, "local.size", true, IndexValue, UseType);
   } else if (SpirvGlobalName == "LocalInvocationId") {
-    NewInst = generateGenXCall(EEI, "local.id", true, IndexValue);
+    NewInst = generateGenXCall(EEI, "local.id", true, IndexValue, UseType);
   } else if (SpirvGlobalName == "WorkgroupId") {
-    NewInst = generateGenXCall(EEI, "group.id", false, IndexValue);
+    NewInst = generateGenXCall(EEI, "group.id", false, IndexValue, UseType);
   } else if (SpirvGlobalName == "GlobalInvocationId") {
     // GlobalId = LocalId + WorkGroupSize * GroupId
-    Instruction *LocalIdI = generateGenXCall(EEI, "local.id", true, IndexValue);
+    Instruction *LocalIdI =
+        generateGenXCall(EEI, "local.id", true, IndexValue, UseType);
     Instruction *WGSizeI =
-        generateGenXCall(EEI, "local.size", true, IndexValue);
+        generateGenXCall(EEI, "local.size", true, IndexValue, UseType);
     Instruction *GroupIdI =
-        generateGenXCall(EEI, "group.id", false, IndexValue);
+        generateGenXCall(EEI, "group.id", false, IndexValue, UseType);
     Instruction *MulI =
         BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", EEI);
     NewInst = BinaryOperator::CreateAdd(LocalIdI, MulI, "add", EEI);
   } else if (SpirvGlobalName == "GlobalSize") {
     // GlobalSize = WorkGroupSize * NumWorkGroups
     Instruction *WGSizeI =
-        generateGenXCall(EEI, "local.size", true, IndexValue);
+        generateGenXCall(EEI, "local.size", true, IndexValue, UseType);
     Instruction *NumWGI =
-        generateGenXCall(EEI, "group.count", true, IndexValue);
+        generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
     NewInst = BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", EEI);
   } else if (SpirvGlobalName == "GlobalOffset") {
     // TODO: Support GlobalOffset SPIRV intrinsics
     // Currently all users of load of GlobalOffset are replaced with 0.
     NewInst = llvm::Constant::getNullValue(EEI->getType());
   } else if (SpirvGlobalName == "NumWorkgroups") {
-    NewInst = generateGenXCall(EEI, "group.count", true, IndexValue);
+    NewInst = generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
   }
 
   llvm::esimd::assert_and_diag(
@@ -1255,8 +1259,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     SmallVector<User *> Users(LI->users());
     for (User *LU : Users) {
       Instruction *Inst = cast<Instruction>(LU);
-      NewInst =
-          generateSpirvGlobalGenX(Inst, SpirvGlobalName, /*IndexValue=*/0);
+      NewInst = generateSpirvGlobalGenX(Inst, SpirvGlobalName, /*IndexValue=*/0,
+                                        LI->getType());
       LU->replaceUsesOfWith(LI, NewInst);
     }
     InstsToErase.push_back(LI);
