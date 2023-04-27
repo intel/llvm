@@ -2258,6 +2258,187 @@ inline pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName,
   return PI_SUCCESS;
 }
 
+static void pi2urImageDesc(const pi_image_format *ImageFormat,
+                           const pi_image_desc *ImageDesc,
+                           ur_image_format_t *UrFormat,
+                           ur_image_desc_t *UrDesc) {
+
+  switch (ImageFormat->image_channel_data_type) {
+  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT8;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_INT_101010;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_TYPE_FLOAT: {
+    UrFormat->channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT;
+    break;
+  }
+  default: {
+    die("piMemImageCreate: unsuppported image_channel_data_type.");
+  }
+  }
+  switch (ImageFormat->image_channel_order) {
+  case PI_IMAGE_CHANNEL_ORDER_A: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_A;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_R: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_R;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_RG: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RG;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_RA: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RA;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_RGB: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGB;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_RGBA: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_BGRA: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_BGRA;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_ARGB: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_ARGB;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_ABGR: {
+    UrFormat->channelOrder = UR_EXT_IMAGE_CHANNEL_ORDER_ABGR;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_INTENSITY: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_INTENSITY;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_LUMINANCE: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_LUMINANCE;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_Rx: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RX;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_RGx: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_RGBx: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBX;
+    break;
+  }
+  case PI_IMAGE_CHANNEL_ORDER_sRGBA: {
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_SRGBA;
+    break;
+  }
+  default: {
+    die("piMemImageCreate: unsuppported image_channel_data_type.");
+  }
+  }
+
+  UrDesc->arraySize = ImageDesc->image_array_size;
+  UrDesc->depth = ImageDesc->image_depth;
+  UrDesc->height = ImageDesc->image_height;
+  UrDesc->numMipLevel = ImageDesc->num_mip_levels;
+  UrDesc->numSamples = ImageDesc->num_samples;
+  UrDesc->rowPitch = ImageDesc->image_row_pitch;
+  UrDesc->slicePitch = ImageDesc->image_slice_pitch;
+  switch (ImageDesc->image_type) {
+  case PI_MEM_TYPE_BUFFER: {
+    UrDesc->type = UR_MEM_TYPE_BUFFER;
+    break;
+  }
+  case PI_MEM_TYPE_IMAGE2D: {
+    UrDesc->type = UR_MEM_TYPE_IMAGE2D;
+    break;
+  }
+  case PI_MEM_TYPE_IMAGE3D: {
+    UrDesc->type = UR_MEM_TYPE_IMAGE3D;
+    break;
+  }
+  case PI_MEM_TYPE_IMAGE2D_ARRAY: {
+    UrDesc->type = UR_MEM_TYPE_IMAGE2D_ARRAY;
+    break;
+  }
+  case PI_MEM_TYPE_IMAGE1D: {
+    UrDesc->type = UR_MEM_TYPE_IMAGE1D;
+    break;
+  }
+  case PI_MEM_TYPE_IMAGE1D_ARRAY: {
+    UrDesc->type = UR_MEM_TYPE_IMAGE1D_ARRAY;
+    break;
+  }
+  case PI_MEM_TYPE_IMAGE1D_BUFFER: {
+    UrDesc->type = UR_MEM_TYPE_IMAGE1D_BUFFER;
+    break;
+  }
+  default: {
+    die("piMemImageCreate: unsuppported image_type.");
+  }
+  }
+  UrDesc->width = ImageDesc->image_width;
+  UrDesc->arraySize = ImageDesc->image_array_size;
+  UrDesc->arraySize = ImageDesc->image_array_size;
+}
+
 inline pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                   const pi_image_format *ImageFormat,
                                   const pi_image_desc *ImageDesc, void *HostPtr,
@@ -2293,180 +2474,9 @@ inline pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   ur_image_format_t UrFormat{};
-  switch (ImageFormat->image_channel_data_type) {
-  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_INT_101010;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_TYPE_FLOAT: {
-    UrFormat.channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT;
-    break;
-  }
-  default: {
-    die("piMemImageCreate: unsuppported image_channel_data_type.");
-  }
-  }
-  switch (ImageFormat->image_channel_order) {
-  case PI_IMAGE_CHANNEL_ORDER_A: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_A;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_R: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_R;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RG: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RG;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RA: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RA;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGB: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGB;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGBA: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_BGRA: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_BGRA;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_ARGB: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_ARGB;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_ABGR: {
-    UrFormat.channelOrder = UR_EXT_IMAGE_CHANNEL_ORDER_ABGR;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_INTENSITY: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_INTENSITY;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_LUMINANCE: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_LUMINANCE;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_Rx: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RX;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGx: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_RGBx: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBX;
-    break;
-  }
-  case PI_IMAGE_CHANNEL_ORDER_sRGBA: {
-    UrFormat.channelOrder = UR_IMAGE_CHANNEL_ORDER_SRGBA;
-    break;
-  }
-  default: {
-    die("piMemImageCreate: unsuppported image_channel_data_type.");
-  }
-  }
   ur_image_desc_t UrDesc{};
-  UrDesc.arraySize = ImageDesc->image_array_size;
-  UrDesc.depth = ImageDesc->image_depth;
-  UrDesc.height = ImageDesc->image_height;
-  UrDesc.numMipLevel = ImageDesc->num_mip_levels;
-  UrDesc.numSamples = ImageDesc->num_samples;
-  UrDesc.rowPitch = ImageDesc->image_row_pitch;
-  UrDesc.slicePitch = ImageDesc->image_slice_pitch;
-  switch (ImageDesc->image_type) {
-  case PI_MEM_TYPE_BUFFER: {
-    UrDesc.type = UR_MEM_TYPE_BUFFER;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE2D: {
-    UrDesc.type = UR_MEM_TYPE_IMAGE2D;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE3D: {
-    UrDesc.type = UR_MEM_TYPE_IMAGE3D;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE2D_ARRAY: {
-    UrDesc.type = UR_MEM_TYPE_IMAGE2D_ARRAY;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE1D: {
-    UrDesc.type = UR_MEM_TYPE_IMAGE1D;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE1D_ARRAY: {
-    UrDesc.type = UR_MEM_TYPE_IMAGE1D_ARRAY;
-    break;
-  }
-  case PI_MEM_TYPE_IMAGE1D_BUFFER: {
-    UrDesc.type = UR_MEM_TYPE_IMAGE1D_BUFFER;
-    break;
-  }
-  default: {
-    die("piMemImageCreate: unsuppported image_type.");
-  }
-  }
-  UrDesc.width = ImageDesc->image_width;
-  UrDesc.arraySize = ImageDesc->image_array_size;
-  UrDesc.arraySize = ImageDesc->image_array_size;
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
   // TODO: UrDesc doesn't have something for ImageDesc->buffer
 
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(RetImage);
@@ -2485,16 +2495,28 @@ inline pi_result piextMemImageCreateWithNativeHandle(
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  std::ignore = NativeHandle;
-  std::ignore = Context;
-  std::ignore = OwnNativeHandle;
-  std::ignore = ImageFormat;
-  std::ignore = ImageDesc;
-  std::ignore = RetImage;
+  ur_native_handle_t UrNativeMem =
+      reinterpret_cast<ur_native_handle_t>(NativeHandle);
 
-  // ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(RetImage);
-  // HANDLE_ERRORS(urMemImageCreateWithNativeHandle(UrContext, OwnNativeHandle,
-  // HostPtr, UrMem));
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
+  ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(RetImage);
+  ur_mem_native_properties_t Properties{};
+  Properties.isNativeHandleOwned = OwnNativeHandle;
+
+  ur_image_format_t UrFormat{};
+  ur_image_desc_t UrDesc{};
+  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+
+  ur_mem_image_native_properties_t ImageProperties{};
+  ImageProperties.stype = UR_STRUCTURE_TYPE_MEM_IMAGE_NATIVE_PROPERTIES;
+  ImageProperties.pImageFormat = &UrFormat;
+  ImageProperties.pImageDesc = &UrDesc;
+  Properties.pNext = &ImageProperties;
+
+  HANDLE_ERRORS(
+      urMemCreateWithNativeHandle(UrNativeMem, UrContext, &Properties, UrMem));
 
   return PI_SUCCESS;
 }

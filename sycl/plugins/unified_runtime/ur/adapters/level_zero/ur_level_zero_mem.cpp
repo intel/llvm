@@ -1588,49 +1588,6 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   return UR_RESULT_SUCCESS;
 }
 
-#if 0
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t NativeMem, ///< [in] the native handle of the mem.
-    ur_context_handle_t Context,  ///< [in] handle of the context object
-    bool OwnNativeHandle,
-/*
-    const ur_image_format_t
-        *ImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *ImageDesc, ///< [in] pointer to image description
-*/
-    ur_mem_handle_t
-        *Mem ///< [out] pointer to the handle of the mem object created.
-) {
-
-  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
-
-  ze_image_handle_t ZeImage = ur_cast<ze_image_handle_t>(NativeMem);
-
-try {
-    auto UrImage =
-        new _ur_image(ur_cast<ur_context_handle_t>(Context), ZeImage, OwnNativeHandle);
-    *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
-
-/*
-#ifndef NDEBUG
-    ZeStruct<ze_image_desc_t> ZeImageDesc;
-    UR_CALL(ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc));
-
-    UrImage->ZeImageDesc = ZeImageDesc;
-#endif // !NDEBUG
-*/
-
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-
-  return UR_RESULT_SUCCESS;
-
-}
-#endif
-
 UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
@@ -1657,8 +1614,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
              (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
 
   try {
-    auto UrImage =
-        new _ur_image(ur_cast<ur_context_handle_t>(Context), ZeImage);
+    auto UrImage = new _ur_image(Context, ZeImage);
     *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
 
 #ifndef NDEBUG
@@ -1683,6 +1639,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   }
   return UR_RESULT_SUCCESS;
 }
+
+#if 0
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t Context,  ///< [in] handle of the context object.
+    const ur_mem_native_properties_t *
+        Properties, ///< [in][optional] pointer to native memory creation properties.
+    ur_mem_handle_t
+        *Mem ///< [out] pointer to handle of memory object created.
+) {
+  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+
+  ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
+
+  _ur_image *Image = nullptr;
+  try {
+    Image = new _ur_image(Context, ZeHImage, Properties->isNativeHandleOwned);
+    *Mem = reinterpret_cast<ur_mem_handle_t>(Image);
+
+#ifndef NDEBUG
+    ZeStruct<ze_image_desc_t> ZeImageDesc;
+    if (Properties->pNext != nullptr) {
+      ur_base_desc_t *BaseDesc = reinterpret_cast<ur_base_desc_t *>(Properties->pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_MEM_IMAGE_NATIVE_PROPERTIES) {
+        ur_mem_image_native_properties_t *ImageProperties = reinterpret_cast<ur_mem_image_native_properties_t *>(Properties->pNext);
+        ur_result_t Res = ur2zeImageDesc(ImageProperties->pImageFormat,
+                                        ImageProperties->pImageDesc,
+                                        ZeImageDesc);
+        if (Res != UR_RESULT_SUCCESS) {
+          delete Image;
+          *Mem = nullptr;
+          return Res;
+        }
+      }
+    }
+    Image->ZeImageDesc = ZeImageDesc;
+#endif // !NDEBUG
+
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  
+  return UR_RESULT_SUCCESS;
+}
+#endif
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
@@ -1792,12 +1795,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
 
   if (Mem->isImage()) {
     char *ZeHandleImage;
-    UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only));
-    auto ZeResult = ZE_CALL_NOCHECK(
-        zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-      return ze2urResult(ZeResult);
+    auto Image = static_cast<_ur_image *>(Mem);
+    if (Image->OwnNativeHandle) {
+      UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only));
+      auto ZeResult = ZE_CALL_NOCHECK(
+          zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
+      // Gracefully handle the case that L0 was already unloaded.
+      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        return ze2urResult(ZeResult);
+    }
   } else {
     auto Buffer = reinterpret_cast<_ur_buffer *>(Mem);
     Buffer->free();
@@ -1865,6 +1871,47 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
   bool OwnNativeHandle = Properties->isNativeHandleOwned;
 
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+
+  // Check if this is an image
+  {
+    if (Properties->pNext != nullptr) {
+      ur_base_desc_t *BaseDesc =
+          reinterpret_cast<ur_base_desc_t *>(Properties->pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_MEM_IMAGE_NATIVE_PROPERTIES) {
+        ur_mem_image_native_properties_t *ImageProperties =
+            reinterpret_cast<ur_mem_image_native_properties_t *>(
+                Properties->pNext);
+
+        ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
+
+        _ur_image *Image = nullptr;
+        try {
+          Image =
+              new _ur_image(Context, ZeHImage, Properties->isNativeHandleOwned);
+          *Mem = reinterpret_cast<ur_mem_handle_t>(Image);
+
+#ifndef NDEBUG
+          ZeStruct<ze_image_desc_t> ZeImageDesc;
+          ur_result_t Res =
+              ur2zeImageDesc(ImageProperties->pImageFormat,
+                             ImageProperties->pImageDesc, ZeImageDesc);
+          if (Res != UR_RESULT_SUCCESS) {
+            delete Image;
+            *Mem = nullptr;
+            return Res;
+          }
+          Image->ZeImageDesc = ZeImageDesc;
+#endif // !NDEBUG
+
+        } catch (const std::bad_alloc &) {
+          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        } catch (...) {
+          return UR_RESULT_ERROR_UNKNOWN;
+        }
+        return UR_RESULT_SUCCESS;
+      }
+    }
+  }
 
   // Get base of the allocation
   void *Base = nullptr;
@@ -1965,7 +2012,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
     size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
                         ///< bytes of data queried by pMemInfo.
 ) {
-  UR_ASSERT(!Memory->isImage(), UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT(MemInfoType == UR_MEM_INFO_CONTEXT || !Memory->isImage(),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   auto Buffer = reinterpret_cast<_ur_buffer *>(Memory);
   std::shared_lock<ur_shared_mutex> Lock(Buffer->Mutex);
