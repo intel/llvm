@@ -37,6 +37,7 @@ std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> createCPUifyPass();
 std::unique_ptr<Pass> createCPUifyPass(const SCFCPUifyOptions &options);
 std::unique_ptr<Pass> createCanonicalizeForPass();
+std::unique_ptr<Pass> createDetectReductionPass();
 std::unique_ptr<Pass> createInnerSerializationPass();
 std::unique_ptr<Pass> createKernelDisjointSpecializationPass();
 std::unique_ptr<Pass> createKernelDisjointSpecializationPass(
@@ -50,8 +51,7 @@ std::unique_ptr<Pass> createOpenMPOptPass();
 std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> detectReductionPass();
-std::unique_ptr<Pass> replaceAffineCFGPass();
+std::unique_ptr<Pass> createReplaceAffineCFGPass();
 
 //===----------------------------------------------------------------------===//
 // Registration
