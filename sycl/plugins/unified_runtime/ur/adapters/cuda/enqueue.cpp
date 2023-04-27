@@ -19,9 +19,8 @@
 ur_result_t enqueueEventsWait(ur_queue_handle_t command_queue, CUstream stream,
                               uint32_t num_events_in_wait_list,
                               const ur_event_handle_t *event_wait_list) {
-  if (!event_wait_list) {
-    return UR_RESULT_SUCCESS;
-  }
+  UR_ASSERT(event_wait_list, UR_RESULT_SUCCESS);
+
   try {
     ScopedContext active(command_queue->get_context());
 
@@ -34,11 +33,7 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t command_queue, CUstream stream,
             return UR_CHECK_ERROR(cuStreamWaitEvent(stream, event->get(), 0));
           }
         });
-
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-    return UR_RESULT_SUCCESS;
+    return result;
   } catch (ur_result_t err) {
     return err;
   } catch (...) {
@@ -225,9 +220,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   // This function makes one stream work on the previous work (or work
   // represented by input events) and then all future work waits on that stream.
-  if (!hQueue) {
-    return UR_RESULT_ERROR_INVALID_QUEUE;
-  }
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
 
   ur_result_t result;
 
@@ -472,6 +465,759 @@ UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     retError = err;
   }
   return retError;
+}
+
+/// General 3D memory copy operation.
+/// This function requires the corresponding CUDA context to be at the top of
+/// the context stack
+/// If the source and/or destination is on the device, src_ptr and/or dst_ptr
+/// must be a pointer to a CUdeviceptr
+static ur_result_t commonEnqueueMemBufferCopyRect(
+    CUstream cu_stream, ur_rect_region_t region, const void *src_ptr,
+    const CUmemorytype_enum src_type, ur_rect_offset_t src_offset,
+    size_t src_row_pitch, size_t src_slice_pitch, void *dst_ptr,
+    const CUmemorytype_enum dst_type, ur_rect_offset_t dst_offset,
+    size_t dst_row_pitch, size_t dst_slice_pitch) {
+
+  UR_ASSERT(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  src_row_pitch =
+      (!src_row_pitch) ? region.width + src_offset.x : src_row_pitch;
+  src_slice_pitch = (!src_slice_pitch)
+                        ? ((region.height + src_offset.y) * src_row_pitch)
+                        : src_slice_pitch;
+  dst_row_pitch =
+      (!dst_row_pitch) ? region.width + dst_offset.x : dst_row_pitch;
+  dst_slice_pitch = (!dst_slice_pitch)
+                        ? ((region.height + dst_offset.y) * dst_row_pitch)
+                        : dst_slice_pitch;
+
+  CUDA_MEMCPY3D params = {};
+
+  params.WidthInBytes = region.width;
+  params.Height = region.height;
+  params.Depth = region.depth;
+
+  params.srcMemoryType = src_type;
+  params.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
+                         ? *static_cast<const CUdeviceptr *>(src_ptr)
+                         : 0;
+  params.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
+  params.srcXInBytes = src_offset.x;
+  params.srcY = src_offset.y;
+  params.srcZ = src_offset.z;
+  params.srcPitch = src_row_pitch;
+  params.srcHeight = src_slice_pitch / src_row_pitch;
+
+  params.dstMemoryType = dst_type;
+  params.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
+                         ? *static_cast<CUdeviceptr *>(dst_ptr)
+                         : 0;
+  params.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
+  params.dstXInBytes = dst_offset.x;
+  params.dstY = dst_offset.y;
+  params.dstZ = dst_offset.z;
+  params.dstPitch = dst_row_pitch;
+  params.dstHeight = dst_slice_pitch / dst_row_pitch;
+
+  return UR_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
+    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  CUdeviceptr devPtr = hBuffer->mem_.buffer_mem_.get();
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, cuStream));
+      retImplEv->start();
+    }
+
+    retErr = commonEnqueueMemBufferCopyRect(
+        cuStream, region, &devPtr, CU_MEMORYTYPE_DEVICE, bufferOrigin,
+        bufferRowPitch, bufferSlicePitch, pDst, CU_MEMORYTYPE_HOST, hostOrigin,
+        hostRowPitch, bufferSlicePitch);
+
+    if (phEvent) {
+      retErr = retImplEv->record();
+    }
+
+    if (blockingRead) {
+      retErr = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+
+    if (phEvent) {
+      *phEvent = retImplEv.release();
+    }
+
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
+    ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
+    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  CUdeviceptr devPtr = hBuffer->mem_.buffer_mem_.get();
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
+      retImplEv->start();
+    }
+
+    retErr = commonEnqueueMemBufferCopyRect(
+        cuStream, region, pSrc, CU_MEMORYTYPE_HOST, hostOrigin, hostRowPitch,
+        hostSlicePitch, &devPtr, CU_MEMORYTYPE_DEVICE, bufferOrigin,
+        bufferRowPitch, bufferSlicePitch);
+
+    if (phEvent) {
+      retErr = retImplEv->record();
+    }
+
+    if (blockingWrite) {
+      retErr = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+
+    if (phEvent) {
+      *phEvent = retImplEv.release();
+    }
+
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
+    ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    ur_result_t result;
+
+    auto stream = hQueue->get_next_transfer_stream();
+    result =
+        enqueueEventsWait(hQueue, stream, numEventsInWaitList, phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_COPY, hQueue, stream));
+      result = retImplEv->start();
+    }
+
+    auto src = hBufferSrc->mem_.buffer_mem_.get() + srcOffset;
+    auto dst = hBufferDst->mem_.buffer_mem_.get() + dstOffset;
+
+    result = UR_CHECK_ERROR(cuMemcpyDtoDAsync(dst, src, size, stream));
+
+    if (phEvent) {
+      result = retImplEv->record();
+      *phEvent = retImplEv.release();
+    }
+
+    return result;
+  } catch (ur_result_t err) {
+    return err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
+    ur_mem_handle_t hBufferDst, ur_rect_offset_t srcOrigin,
+    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
+    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hBufferSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hBufferDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  CUdeviceptr srcPtr = hBufferSrc->mem_.buffer_mem_.get();
+  CUdeviceptr dstPtr = hBufferDst->mem_.buffer_mem_.get();
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream));
+      retImplEv->start();
+    }
+
+    retErr = commonEnqueueMemBufferCopyRect(
+        cuStream, region, &srcPtr, CU_MEMORYTYPE_DEVICE, srcOrigin, srcRowPitch,
+        srcSlicePitch, &dstPtr, CU_MEMORYTYPE_DEVICE, dstOrigin, dstRowPitch,
+        dstSlicePitch);
+
+    if (phEvent) {
+      retImplEv->record();
+      *phEvent = retImplEv.release();
+    }
+
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
+    size_t patternSize, size_t offset, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto args_are_multiples_of_pattern_size =
+      (offset % patternSize == 0) || (size % patternSize == 0);
+
+  auto pattern_is_valid = (pPattern != nullptr);
+
+  auto pattern_size_is_valid =
+      ((patternSize & (patternSize - 1)) == 0) && // is power of two
+      (patternSize > 0) && (patternSize <= 128);  // falls within valid range
+
+  UR_ASSERT(args_are_multiples_of_pattern_size && pattern_is_valid &&
+                pattern_size_is_valid,
+            UR_RESULT_ERROR_INVALID_SIZE);
+
+  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(hQueue->get_context());
+
+    auto stream = hQueue->get_next_transfer_stream();
+    ur_result_t result;
+    result =
+        enqueueEventsWait(hQueue, stream, numEventsInWaitList, phEventWaitList);
+
+    if (phEvent) {
+      retImplEv =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
+              UR_COMMAND_MEM_BUFFER_FILL, hQueue, stream));
+      result = retImplEv->start();
+    }
+
+    auto dstDevice = hBuffer->mem_.buffer_mem_.get() + offset;
+    auto N = size / patternSize;
+
+    // pattern size in bytes
+    switch (patternSize) {
+    case 1: {
+      auto value = *static_cast<const uint8_t *>(pPattern);
+      result = UR_CHECK_ERROR(cuMemsetD8Async(dstDevice, value, N, stream));
+      break;
+    }
+    case 2: {
+      auto value = *static_cast<const uint16_t *>(pPattern);
+      result = UR_CHECK_ERROR(cuMemsetD16Async(dstDevice, value, N, stream));
+      break;
+    }
+    case 4: {
+      auto value = *static_cast<const uint32_t *>(pPattern);
+      result = UR_CHECK_ERROR(cuMemsetD32Async(dstDevice, value, N, stream));
+      break;
+    }
+    default: {
+      // CUDA has no memset functions that allow setting values more than 4
+      // bytes. PI API lets you pass an arbitrary "pattern" to the buffer
+      // fill, which can be more than 4 bytes. We must break up the pattern
+      // into 4 byte values, and set the buffer using multiple strided calls.
+      // This means that one cuMemsetD2D32Async call is made for every 4 bytes
+      // in the pattern.
+
+      auto number_of_steps = patternSize / sizeof(uint32_t);
+
+      // we walk up the pattern in 4-byte steps, and call cuMemset for each
+      // 4-byte chunk of the pattern.
+      for (auto step = 0u; step < number_of_steps; ++step) {
+        // take 4 bytes of the pattern
+        auto value = *(static_cast<const uint32_t *>(pPattern) + step);
+
+        // offset the pointer to the part of the buffer we want to write to
+        auto offset_ptr = dstDevice + (step * sizeof(uint32_t));
+
+        // set all of the pattern chunks
+        result = UR_CHECK_ERROR(
+            cuMemsetD2D32Async(offset_ptr, patternSize, value, 1, N, stream));
+      }
+
+      break;
+    }
+    }
+
+    if (phEvent) {
+      result = retImplEv->record();
+      *phEvent = retImplEv.release();
+    }
+
+    return result;
+  } catch (ur_result_t err) {
+    return err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+}
+
+static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
+  switch (array_desc.Format) {
+  case CU_AD_FORMAT_UNSIGNED_INT8:
+  case CU_AD_FORMAT_SIGNED_INT8:
+    return 1;
+  case CU_AD_FORMAT_UNSIGNED_INT16:
+  case CU_AD_FORMAT_SIGNED_INT16:
+  case CU_AD_FORMAT_HALF:
+    return 2;
+  case CU_AD_FORMAT_UNSIGNED_INT32:
+  case CU_AD_FORMAT_SIGNED_INT32:
+  case CU_AD_FORMAT_FLOAT:
+    return 4;
+  default:
+    sycl::detail::ur::die("Invalid image format.");
+    return 0;
+  }
+}
+
+/// General ND memory copy operation for images (where N > 1).
+/// This function requires the corresponding CUDA context to be at the top of
+/// the context stack
+/// If the source and/or destination is an array, src_ptr and/or dst_ptr
+/// must be a pointer to a CUarray
+static ur_result_t commonEnqueueMemImageNDCopy(
+    CUstream cu_stream, ur_mem_type_t img_type, const ur_rect_region_t region,
+    const void *src_ptr, const CUmemorytype_enum src_type,
+    const ur_rect_offset_t src_offset, void *dst_ptr,
+    const CUmemorytype_enum dst_type, const ur_rect_offset_t dst_offset) {
+  UR_ASSERT(src_type == CU_MEMORYTYPE_ARRAY || src_type == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(dst_type == CU_MEMORYTYPE_ARRAY || dst_type == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  if (img_type == UR_MEM_TYPE_IMAGE2D) {
+    CUDA_MEMCPY2D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
+    cpyDesc.srcMemoryType = src_type;
+    if (src_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+      cpyDesc.srcXInBytes = src_offset.x;
+      cpyDesc.srcY = src_offset.y;
+    } else {
+      cpyDesc.srcHost = src_ptr;
+    }
+    cpyDesc.dstMemoryType = dst_type;
+    if (dst_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+      cpyDesc.dstXInBytes = dst_offset.x;
+      cpyDesc.dstY = dst_offset.y;
+    } else {
+      cpyDesc.dstHost = dst_ptr;
+    }
+    cpyDesc.WidthInBytes = region.width;
+    cpyDesc.Height = region.height;
+    return UR_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cu_stream));
+  }
+  if (img_type == UR_MEM_TYPE_IMAGE3D) {
+    CUDA_MEMCPY3D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
+    cpyDesc.srcMemoryType = src_type;
+    if (src_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+      cpyDesc.srcXInBytes = src_offset.x;
+      cpyDesc.srcY = src_offset.y;
+      cpyDesc.srcZ = src_offset.z;
+    } else {
+      cpyDesc.srcHost = src_ptr;
+    }
+    cpyDesc.dstMemoryType = dst_type;
+    if (dst_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+      cpyDesc.dstXInBytes = dst_offset.x;
+      cpyDesc.dstY = dst_offset.y;
+      cpyDesc.dstZ = dst_offset.z;
+    } else {
+      cpyDesc.dstHost = dst_ptr;
+    }
+    cpyDesc.WidthInBytes = region.width;
+    cpyDesc.Height = region.height;
+    cpyDesc.Depth = region.depth;
+    return UR_CHECK_ERROR(cuMemcpy3DAsync(&cpyDesc, cu_stream));
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
+    size_t phEventWaitListslicePitch, void *pDst, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hImage->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    CUarray array = hImage->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR arrayDesc;
+    retErr = UR_CHECK_ERROR(cuArrayGetDescriptor(&arrayDesc, array));
+
+    int elementByteSize = imageElementByteSize(arrayDesc);
+
+    size_t byteOffsetX = origin.x * elementByteSize * arrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region.width;
+
+    ur_mem_type_t imgType = hImage->mem_.surface_mem_.get_image_type();
+    if (imgType == UR_MEM_TYPE_IMAGE1D) {
+      retErr = UR_CHECK_ERROR(
+          cuMemcpyAtoHAsync(pDst, array, byteOffsetX, bytesToCopy, cuStream));
+    } else {
+      ur_rect_region_t adjustedRegion = {bytesToCopy, region.height,
+                                         region.depth};
+      ur_rect_offset_t srcOffset = {byteOffsetX, origin.y, origin.z};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, &array, CU_MEMORYTYPE_ARRAY,
+          srcOffset, pDst, CU_MEMORYTYPE_HOST, ur_rect_offset_t{});
+
+      if (retErr != UR_RESULT_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (phEvent) {
+      auto new_event = ur_event_handle_t_::make_native(
+          UR_COMMAND_MEM_IMAGE_READ, hQueue, cuStream);
+      new_event->record();
+      *phEvent = new_event;
+    }
+
+    if (blockingRead) {
+      retErr = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+  } catch (ur_result_t err) {
+    return err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
+    size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hImage->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    CUarray array = hImage->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR arrayDesc;
+    retErr = UR_CHECK_ERROR(cuArrayGetDescriptor(&arrayDesc, array));
+
+    int elementByteSize = imageElementByteSize(arrayDesc);
+
+    size_t byteOffsetX = origin.x * elementByteSize * arrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region.width;
+
+    ur_mem_type_t imgType = hImage->mem_.surface_mem_.get_image_type();
+    if (imgType == UR_MEM_TYPE_IMAGE1D) {
+      retErr = UR_CHECK_ERROR(
+          cuMemcpyHtoAAsync(array, byteOffsetX, pSrc, bytesToCopy, cuStream));
+    } else {
+      ur_rect_region_t adjustedRegion = {bytesToCopy, region.height,
+                                         region.depth};
+      ur_rect_offset_t dstOffset = {byteOffsetX, origin.y, origin.z};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, pSrc, CU_MEMORYTYPE_HOST,
+          ur_rect_offset_t{}, &array, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+      if (retErr != UR_RESULT_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (phEvent) {
+      auto new_event = ur_event_handle_t_::make_native(
+          UR_COMMAND_MEM_IMAGE_WRITE, hQueue, cuStream);
+      new_event->record();
+      *phEvent = new_event;
+    }
+  } catch (ur_result_t err) {
+    return err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hImageSrc,
+    ur_mem_handle_t hImageDst, ur_rect_offset_t srcOrigin,
+    ur_rect_offset_t dstOrigin, ur_rect_region_t region,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hImageSrc->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(hImageDst->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(hImageSrc->mem_.surface_mem_.get_image_type() ==
+                hImageDst->mem_.surface_mem_.get_image_type(),
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+
+  try {
+    ScopedContext active(hQueue->get_context());
+    CUstream cuStream = hQueue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                               phEventWaitList);
+
+    CUarray srcArray = hImageSrc->mem_.surface_mem_.get_array();
+    CUarray dstArray = hImageDst->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR srcArrayDesc;
+    retErr = UR_CHECK_ERROR(cuArrayGetDescriptor(&srcArrayDesc, srcArray));
+    CUDA_ARRAY_DESCRIPTOR dstArrayDesc;
+    retErr = UR_CHECK_ERROR(cuArrayGetDescriptor(&dstArrayDesc, dstArray));
+
+    UR_ASSERT(srcArrayDesc.Format == dstArrayDesc.Format,
+              UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+    UR_ASSERT(srcArrayDesc.NumChannels == dstArrayDesc.NumChannels,
+              UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+    int elementByteSize = imageElementByteSize(srcArrayDesc);
+
+    size_t dstByteOffsetX =
+        dstOrigin.x * elementByteSize * srcArrayDesc.NumChannels;
+    size_t srcByteOffsetX =
+        srcOrigin.x * elementByteSize * dstArrayDesc.NumChannels;
+    size_t bytesToCopy =
+        elementByteSize * srcArrayDesc.NumChannels * region.width;
+
+    ur_mem_type_t imgType = hImageSrc->mem_.surface_mem_.get_image_type();
+    if (imgType == UR_MEM_TYPE_IMAGE1D) {
+      retErr = UR_CHECK_ERROR(cuMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
+                                           srcByteOffsetX, bytesToCopy));
+    } else {
+      ur_rect_region_t adjustedRegion = {bytesToCopy, region.height,
+                                         region.depth};
+      ur_rect_offset_t srcOffset = {srcByteOffsetX, srcOrigin.y, srcOrigin.z};
+      ur_rect_offset_t dstOffset = {dstByteOffsetX, dstOrigin.y, dstOrigin.z};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
+          srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+      if (retErr != UR_RESULT_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (phEvent) {
+      auto new_event = ur_event_handle_t_::make_native(
+          UR_COMMAND_MEM_IMAGE_COPY, hQueue, cuStream);
+      new_event->record();
+      *phEvent = new_event;
+    }
+  } catch (ur_result_t err) {
+    return err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+/// Implements mapping on the host using a BufferRead operation.
+/// Mapped pointers are stored in the pi_mem object.
+/// If the buffer uses pinned host memory a pointer to that memory is returned
+/// and no read operation is done.
+///
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingMap,
+    ur_map_flags_t mapFlags, size_t offset, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent, void **ppRetMap) {
+  UR_ASSERT(ppRetMap != nullptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(hQueue != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hBuffer != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hBuffer->mem_type_ == ur_mem_handle_t_::mem_type::buffer,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  ur_result_t ret_err = UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  const bool is_pinned =
+      hBuffer->mem_.buffer_mem_.allocMode_ ==
+      ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+
+  // Currently no support for overlapping regions
+  if (hBuffer->mem_.buffer_mem_.get_map_ptr() != nullptr) {
+    return ret_err;
+  }
+
+  // Allocate a pointer in the host to store the mapped information
+  auto hostPtr = hBuffer->mem_.buffer_mem_.map_to_ptr(offset, mapFlags);
+  *ppRetMap = hBuffer->mem_.buffer_mem_.get_map_ptr();
+  if (hostPtr) {
+    ret_err = UR_RESULT_SUCCESS;
+  }
+
+  if (!is_pinned &&
+      ((mapFlags & UR_MAP_FLAG_READ) || (mapFlags & UR_MAP_FLAG_WRITE))) {
+    // Pinned host memory is already on host so it doesn't need to be read.
+    ret_err = urEnqueueMemBufferRead(hQueue, hBuffer, blockingMap, offset, size,
+                                     hostPtr, numEventsInWaitList,
+                                     phEventWaitList, phEvent);
+  } else {
+    ScopedContext active(hQueue->get_context());
+
+    if (is_pinned) {
+      ret_err = urEnqueueEventsWait(hQueue, numEventsInWaitList,
+                                    phEventWaitList, nullptr);
+    }
+
+    if (phEvent) {
+      try {
+        *phEvent =
+            ur_event_handle_t_::make_native(UR_COMMAND_MEM_BUFFER_MAP, hQueue,
+                                            hQueue->get_next_transfer_stream());
+        (*phEvent)->start();
+        (*phEvent)->record();
+      } catch (ur_result_t error) {
+        ret_err = error;
+      }
+    }
+  }
+
+  return ret_err;
+}
+
+/// Implements the unmap from the host, using a BufferWrite operation.
+/// Requires the mapped pointer to be already registered in the given memobj.
+/// If memobj uses pinned host memory, this will not do a write.
+///
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  ur_result_t ret_err = UR_RESULT_SUCCESS;
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pMappedPtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  UR_ASSERT(hMem->mem_type_ == ur_mem_handle_t_::mem_type::buffer,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(hMem->mem_.buffer_mem_.get_map_ptr() != nullptr,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(hMem->mem_.buffer_mem_.get_map_ptr() == pMappedPtr,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  const bool is_pinned =
+      hMem->mem_.buffer_mem_.allocMode_ ==
+      ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+
+  if (!is_pinned &&
+      (hMem->mem_.buffer_mem_.get_map_flags() & UR_MAP_FLAG_WRITE)) {
+    // Pinned host memory is only on host so it doesn't need to be written to.
+    ret_err = urEnqueueMemBufferWrite(
+        hQueue, hMem, true, hMem->mem_.buffer_mem_.get_map_offset(pMappedPtr),
+        hMem->mem_.buffer_mem_.get_size(), pMappedPtr, numEventsInWaitList,
+        phEventWaitList, phEvent);
+  } else {
+    ScopedContext active(hQueue->get_context());
+
+    if (is_pinned) {
+      ret_err = urEnqueueEventsWait(hQueue, numEventsInWaitList,
+                                    phEventWaitList, nullptr);
+    }
+
+    if (phEvent) {
+      try {
+        *phEvent = ur_event_handle_t_::make_native(
+            UR_COMMAND_MEM_UNMAP, hQueue, hQueue->get_next_transfer_stream());
+        (*phEvent)->start();
+        (*phEvent)->record();
+      } catch (ur_result_t error) {
+        ret_err = error;
+      }
+    }
+  }
+
+  hMem->mem_.buffer_mem_.unmap(pMappedPtr);
+  return ret_err;
 }
 
 /// TODO(ur): Add support for the offset.
