@@ -109,7 +109,7 @@ INSTANTIATE_TEST_SUITE_P(
     EnqueueMemTestImpl, EnqueueMemTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<EnqueueMemTest::ParamType> &info) {
-      return pi::GetBackendString(info.param);
+      return pi::GetBackendString(info.param).c_str();
     });
 
 template <typename T> struct vec4 {

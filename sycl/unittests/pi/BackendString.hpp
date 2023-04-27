@@ -5,6 +5,7 @@
 #pragma once
 
 #include <detail/plugin.hpp>
+#include <string>
 
 namespace pi {
 inline std::string GetBackendString(const sycl::detail::plugin &Plugin) {

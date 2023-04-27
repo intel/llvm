@@ -21,6 +21,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace sycl {
@@ -102,15 +103,14 @@ static bool IsBannedPlatform(platform Platform) {
 // This routine has the side effect of registering each platform's last device
 // id into each plugin, which is used for device counting.
 std::vector<platform> platform_impl::get_platforms() {
-  std::vector<platform> Platforms;
-  std::vector<plugin> &Plugins = RT::initialize();
-  for (plugin &Plugin : Plugins) {
+
+  // Get the vector of platforms supported by a given PI plugin
+  auto getPluginPlatforms = [](const plugin &Plugin) {
+    std::vector<platform> Platforms;
     pi_uint32 NumPlatforms = 0;
-    // Move to the next plugin if the plugin fails to initialize.
-    // This way platforms from other plugins get a chance to be discovered.
     if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
             0, nullptr, &NumPlatforms) != PI_SUCCESS)
-      continue;
+      return Platforms;
 
     if (NumPlatforms) {
       std::vector<RT::PiPlatform> PiPlatforms(NumPlatforms);
@@ -126,12 +126,6 @@ std::vector<platform> platform_impl::get_platforms() {
                     // mess up device counting
         }
 
-        {
-          std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
-          // insert PiPlatform into the Plugin
-          Plugin.getPlatformId(PiPlatform);
-        }
-
         // The SYCL spec says that a platform has one or more devices. ( SYCL
         // 2020 4.6.2 ) If we have an empty platform, we don't report it back
         // from platform::get_platforms().
@@ -140,6 +134,60 @@ std::vector<platform> platform_impl::get_platforms() {
         }
       }
     }
+    return Platforms;
+  };
+
+  static const bool PreferUR = [] {
+    const char *PreferURStr = std::getenv("SYCL_PREFER_UR");
+    return (PreferURStr && (std::stoi(PreferURStr) != 0));
+  }();
+
+  // See which platform we want to be served by which plugin.
+  // There should be just one plugin servins each backend.
+  std::vector<plugin> &Plugins = RT::initialize();
+  std::vector<std::pair<platform, plugin>> PlatformsWithPlugin;
+
+  // First check Unified Runtime
+  // Keep track of backends covered by UR
+  std::unordered_set<backend> BackendsUR;
+  if (PreferUR) {
+    const plugin *PluginUR = nullptr;
+    for (const plugin &Plugin : Plugins) {
+      if (Plugin.hasBackend(backend::all)) { // this denotes UR
+        PluginUR = &Plugin;
+        break;
+      }
+    }
+    if (PluginUR) {
+      for (const auto &P : getPluginPlatforms(*PluginUR)) {
+        PlatformsWithPlugin.push_back({P, *PluginUR});
+        BackendsUR.insert(getSyclObjImpl(P)->getBackend());
+      }
+    }
+  }
+
+  // Then check backend-specific plugins
+  for (plugin &Plugin : Plugins) {
+    if (Plugin.hasBackend(backend::all)) {
+      continue; // skip UR on this pass
+    }
+    const auto &PluginPlatforms = getPluginPlatforms(Plugin);
+    for (const auto &P : PluginPlatforms) {
+      // Only add those not already covered by UR
+      if (BackendsUR.find(getSyclObjImpl(P)->getBackend()) ==
+          BackendsUR.end()) {
+        PlatformsWithPlugin.push_back({P, Plugin});
+      }
+    }
+  }
+
+  // For the selected platforms register them with their plugins
+  std::vector<platform> Platforms;
+  for (auto &Platform : PlatformsWithPlugin) {
+    auto &Plugin = Platform.second;
+    std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
+    Plugin.getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
+    Platforms.push_back(Platform.first);
   }
 
   // Register default context release handler after plugins have been loaded and
