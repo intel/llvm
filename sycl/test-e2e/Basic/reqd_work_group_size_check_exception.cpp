@@ -1,4 +1,6 @@
-#include <iostream>
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+
 #include <sycl/sycl.hpp>
 
 #define CHECK_INVALID_REQD_WORK_GROUP_SIZE(Dim, ...)                           \
