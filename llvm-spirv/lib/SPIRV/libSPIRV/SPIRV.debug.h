@@ -940,6 +940,23 @@ inline spv::SourceLanguage convertDWARFSourceLangToSPIRV(dwarf::SourceLanguage D
   }
 }
 
+inline bool isSPIRVSourceLangValid(unsigned SourceLang) {
+  switch (SourceLang) {
+  // When updating this function, make sure to also
+  // update convertSPIRVSourceLangToDWARF()
+  case spv::SourceLanguage::SourceLanguageOpenCL_CPP:
+  case spv::SourceLanguage::SourceLanguageCPP_for_OpenCL:
+  case spv::SourceLanguage::SourceLanguageOpenCL_C:
+  case spv::SourceLanguage::SourceLanguageESSL:
+  case spv::SourceLanguage::SourceLanguageGLSL:
+  case spv::SourceLanguage::SourceLanguageHLSL:
+  case spv::SourceLanguage::SourceLanguageUnknown:
+    return true;
+  default:
+    return false;
+  }
+}
+
 inline dwarf::SourceLanguage convertSPIRVSourceLangToDWARF(unsigned SourceLang) {
   switch (SourceLang) {
   // When updating this function, make sure to also
