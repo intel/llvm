@@ -19,12 +19,12 @@ namespace detail {
 // 4.10.2.6 Memory layout and alignment
 template <typename T, int N>
 struct vector_alignment_impl
-    : conditional_t<N == 3, std::integral_constant<int, sizeof(T) * 4>,
-                    std::integral_constant<int, sizeof(T) * N>> {};
+    : std::conditional_t<N == 3, std::integral_constant<int, sizeof(T) * 4>,
+                         std::integral_constant<int, sizeof(T) * N>> {};
 
 template <typename T, int N>
 struct vector_alignment
-    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
+    : vector_alignment_impl<std::remove_cv_t<std::remove_reference_t<T>>, N> {};
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

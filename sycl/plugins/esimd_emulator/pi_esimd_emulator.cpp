@@ -484,6 +484,11 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   case PI_PLATFORM_INFO_EXTENSIONS:
     return ReturnValue("");
 
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return getInfo<pi_platform_backend>(ParamValueSize, ParamValue,
+                                        ParamValueSizeRet,
+                                        PI_EXT_PLATFORM_BACKEND_ESIMD);
+
   default:
     // TODO: implement other parameters
     die("Unsupported ParamName in piPlatformGetInfo");
@@ -1333,6 +1338,12 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextMemImageCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, const pi_image_format *,
+                                              const pi_image_desc *, pi_mem *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -2101,7 +2112,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);

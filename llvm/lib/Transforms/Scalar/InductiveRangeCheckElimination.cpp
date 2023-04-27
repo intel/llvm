@@ -145,8 +145,7 @@ class InductiveRangeCheck {
   Use *CheckUse = nullptr;
 
   static bool parseRangeCheckICmp(Loop *L, ICmpInst *ICI, ScalarEvolution &SE,
-                                  Value *&Index, Value *&Length,
-                                  bool &IsSigned);
+                                  const SCEV *&Index, const SCEV *&End);
 
   static void
   extractRangeChecksFromCond(Loop *L, ScalarEvolution &SE, Use &ConditionUse,
@@ -285,13 +284,13 @@ INITIALIZE_PASS_END(IRCELegacyPass, "irce", "Inductive range check elimination",
                     false, false)
 
 /// Parse a single ICmp instruction, `ICI`, into a range check.  If `ICI` cannot
-/// be interpreted as a range check, return false and set `Index` and `Length`
-/// to `nullptr`.  Otherwise set `Index` to the value being range checked, and
-/// set `Length` to the upper limit `Index` is being range checked.
-bool
-InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
-                                         ScalarEvolution &SE, Value *&Index,
-                                         Value *&Length, bool &IsSigned) {
+/// be interpreted as a range check, return false and set `Index` and `End`
+/// to `nullptr`.  Otherwise set `Index` to the SCEV being range checked, and
+/// set `End` to the upper limit `Index` is being range checked.
+bool InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
+                                              ScalarEvolution &SE,
+                                              const SCEV *&Index,
+                                              const SCEV *&End) {
   auto IsLoopInvariant = [&SE, L](Value *V) {
     return SE.isLoopInvariant(SE.getSCEV(V), L);
   };
@@ -308,9 +307,8 @@ InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
     std::swap(LHS, RHS);
     [[fallthrough]];
   case ICmpInst::ICMP_SGE:
-    IsSigned = true;
     if (match(RHS, m_ConstantInt<0>())) {
-      Index = LHS;
+      Index = SE.getSCEV(LHS);
       return true; // Lower.
     }
     return false;
@@ -319,15 +317,14 @@ InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
     std::swap(LHS, RHS);
     [[fallthrough]];
   case ICmpInst::ICMP_SGT:
-    IsSigned = true;
     if (match(RHS, m_ConstantInt<-1>())) {
-      Index = LHS;
+      Index = SE.getSCEV(LHS);
       return true; // Lower.
     }
 
     if (IsLoopInvariant(LHS)) {
-      Index = RHS;
-      Length = LHS;
+      Index = SE.getSCEV(RHS);
+      End = SE.getSCEV(LHS);
       return true; // Upper.
     }
     return false;
@@ -336,10 +333,9 @@ InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
     std::swap(LHS, RHS);
     [[fallthrough]];
   case ICmpInst::ICMP_UGT:
-    IsSigned = false;
     if (IsLoopInvariant(LHS)) {
-      Index = RHS;
-      Length = LHS;
+      Index = SE.getSCEV(RHS);
+      End = SE.getSCEV(LHS);
       return true; // Both lower and upper.
     }
     return false;
@@ -369,24 +365,20 @@ void InductiveRangeCheck::extractRangeChecksFromCond(
   if (!ICI)
     return;
 
-  Value *Length = nullptr, *Index;
-  bool IsSigned;
-  if (!parseRangeCheckICmp(L, ICI, SE, Index, Length, IsSigned))
+  const SCEV *End = nullptr, *Index = nullptr;
+  if (!parseRangeCheckICmp(L, ICI, SE, Index, End))
     return;
 
-  const auto *IndexAddRec = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(Index));
+  const auto *IndexAddRec = dyn_cast<SCEVAddRecExpr>(Index);
   bool IsAffineIndex =
       IndexAddRec && (IndexAddRec->getLoop() == L) && IndexAddRec->isAffine();
 
   if (!IsAffineIndex)
     return;
 
-  const SCEV *End = nullptr;
   // We strengthen "0 <= I" to "0 <= I < INT_SMAX" and "I < L" to "0 <= I < L".
   // We can potentially do much better here.
-  if (Length)
-    End = SE.getSCEV(Length);
-  else {
+  if (!End) {
     // So far we can only reach this point for Signed range check. This may
     // change in future. In this case we will need to pick Unsigned max for the
     // unsigned range check.
@@ -744,6 +736,19 @@ static bool isSafeIncreasingBound(const SCEV *Start,
           SE.isLoopEntryGuardedByCond(L, BoundPred, BoundSCEV, Limit));
 }
 
+/// Returns estimate for max latch taken count of the loop of the narrowest
+/// available type. If the latch block has such estimate, it is returned.
+/// Otherwise, we use max exit count of whole loop (that is potentially of wider
+/// type than latch check itself), which is still better than no estimate.
+static const SCEV *getNarrowestLatchMaxTakenCountEstimate(ScalarEvolution &SE,
+                                                          const Loop &L) {
+  const SCEV *FromBlock =
+      SE.getExitCount(&L, L.getLoopLatch(), ScalarEvolution::SymbolicMaximum);
+  if (isa<SCEVCouldNotCompute>(FromBlock))
+    return SE.getSymbolicMaxBackedgeTakenCount(&L);
+  return FromBlock;
+}
+
 std::optional<LoopStructure>
 LoopStructure::parseLoopStructure(ScalarEvolution &SE, Loop &L,
                                   const char *&FailureReason) {
@@ -786,12 +791,12 @@ LoopStructure::parseLoopStructure(ScalarEvolution &SE, Loop &L,
     return std::nullopt;
   }
 
-  const SCEV *LatchCount = SE.getExitCount(&L, Latch);
-  if (isa<SCEVCouldNotCompute>(LatchCount)) {
+  const SCEV *MaxBETakenCount = getNarrowestLatchMaxTakenCountEstimate(SE, L);
+  if (isa<SCEVCouldNotCompute>(MaxBETakenCount)) {
     FailureReason = "could not compute latch count";
     return std::nullopt;
   }
-  assert(SE.getLoopDisposition(LatchCount, &L) ==
+  assert(SE.getLoopDisposition(MaxBETakenCount, &L) ==
              ScalarEvolution::LoopInvariant &&
          "loop variant exit count doesn't make sense!");
 
@@ -1059,14 +1064,11 @@ static const SCEV *NoopOrExtend(const SCEV *S, Type *Ty, ScalarEvolution &SE,
 
 std::optional<LoopConstrainer::SubRanges>
 LoopConstrainer::calculateSubRanges(bool IsSignedPredicate) const {
-  const IntegerType *Ty = ExitCountTy;
-
   auto *RTy = cast<IntegerType>(Range.getType());
-
   // We only support wide range checks and narrow latches.
-  if (!AllowNarrowLatchCondition && RTy != Ty)
+  if (!AllowNarrowLatchCondition && RTy != ExitCountTy)
     return std::nullopt;
-  if (RTy->getBitWidth() < Ty->getBitWidth())
+  if (RTy->getBitWidth() < ExitCountTy->getBitWidth())
     return std::nullopt;
 
   LoopConstrainer::SubRanges Result;
@@ -1400,12 +1402,12 @@ Loop *LoopConstrainer::createClonedLoopStructure(Loop *Original, Loop *Parent,
 
 bool LoopConstrainer::run() {
   BasicBlock *Preheader = nullptr;
-  const SCEV *LatchTakenCount =
-      SE.getExitCount(&OriginalLoop, MainLoopStructure.Latch);
+  const SCEV *MaxBETakenCount =
+      getNarrowestLatchMaxTakenCountEstimate(SE, OriginalLoop);
   Preheader = OriginalLoop.getLoopPreheader();
-  assert(!isa<SCEVCouldNotCompute>(LatchTakenCount) && Preheader != nullptr &&
+  assert(!isa<SCEVCouldNotCompute>(MaxBETakenCount) && Preheader != nullptr &&
          "preconditions!");
-  ExitCountTy = cast<IntegerType>(LatchTakenCount->getType());
+  ExitCountTy = cast<IntegerType>(MaxBETakenCount->getType());
 
   OriginalPreheader = Preheader;
   MainLoopPreheader = Preheader;
