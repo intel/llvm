@@ -1462,6 +1462,6 @@ void AffineCFGPass::runOnOperation() {
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
-std::unique_ptr<Pass> mlir::polygeist::replaceAffineCFGPass() {
+std::unique_ptr<Pass> mlir::polygeist::createReplaceAffineCFGPass() {
   return std::make_unique<AffineCFGPass>();
 }
