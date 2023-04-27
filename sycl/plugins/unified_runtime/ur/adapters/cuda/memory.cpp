@@ -23,8 +23,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   // Validate flags
   UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
-  if (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_HOST_POINTER |
-               UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
+  if (flags &
+      (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
     UR_ASSERT(pProperties && pProperties->pHost,
               UR_RESULT_ERROR_INVALID_HOST_PTR);
   }
@@ -251,8 +251,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   UR_ASSERT(pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
-  if (flags & (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER |
-               UR_MEM_FLAG_ALLOC_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)) {
+  if (flags &
+      (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)) {
     UR_ASSERT(pHost, UR_RESULT_ERROR_INVALID_HOST_PTR);
   }
   const bool performInitialCopy =
@@ -267,10 +267,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
   UR_ASSERT(pImageDesc->numSamples == 0,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pHost == nullptr && pImageDesc->rowPitch == 0,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pHost == nullptr && pImageDesc->slicePitch == 0,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
+  if (!pHost) {
+    UR_ASSERT(pImageDesc->rowPitch == 0,
+              UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
+    UR_ASSERT(pImageDesc->slicePitch == 0,
+              UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
+  }
 
   ur_result_t retErr = UR_RESULT_SUCCESS;
 
