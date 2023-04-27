@@ -136,8 +136,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<access::decorated::yes>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,

@@ -493,14 +493,13 @@ using select_cl_scalar_integral_t =
 template <typename T>
 using select_cl_scalar_t = conditional_t<
     std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
-    conditional_t<
-        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
-        // half is a special case: it is implemented differently on
-        // host and device and therefore, might lower to different
-        // types
-        conditional_t<std::is_same<std::remove_const_t<T>, half>::value,
-                      sycl::detail::half_impl::BIsRepresentationT,
-                      select_cl_scalar_complex_or_T_t<T>>>>;
+    conditional_t<std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+                  // half is a special case: it is implemented differently on
+                  // host and device and therefore, might lower to different
+                  // types
+                  conditional_t<std::is_same<std::remove_cv_t<T>, half>::value,
+                                sycl::detail::half_impl::BIsRepresentationT,
+                                select_cl_scalar_complex_or_T_t<T>>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.
@@ -561,7 +560,7 @@ template <> struct TypeHelper<std::byte> {
 #endif
 
 template <typename T>
-using type_helper = typename TypeHelper<std::remove_const_t<T>>::RetType;
+using type_helper = typename TypeHelper<std::remove_cv_t<T>>::RetType;
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar_or_ptr<

@@ -2138,12 +2138,7 @@ public:
                 (AccessTarget_ == access::target::host_buffer) ||
                 (AccessTarget_ == access::target::host_task) ||
                 (AccessTarget_ == access::target::device)>>
-#if SYCL_LANGUAGE_VERSION >= 202001
-  std::add_pointer_t<value_type> get_pointer() const noexcept
-#else
-  DataT *get_pointer() const
-#endif
-  {
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
   }
 
