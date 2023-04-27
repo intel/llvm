@@ -463,7 +463,18 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     if (HasLargeGRF)
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
   }
-  {
+  // FIXME: Remove 'if' below when possible
+  // GPU backend has a problem with accepting optimization level options in form
+  // described by Level Zero specification (-ze-opt-level=1) when 'invoke_simd'
+  // functionality is involved. JIT compilation results in the following error:
+  //     error: VLD: Failed to compile SPIR-V with following error:
+  //     invalid api option: -ze-opt-level=O1
+  //     -11 (PI_ERROR_BUILD_PROGRAM_FAILURE)
+  // 'if' below essentially preserves the behavior (presumably mistakenly)
+  // implemented in intel/llvm#8763: ignore 'optLevel' property for images which
+  // were produced my merge after ESIMD split
+  if (MD.getEntryPointGroup().Props.HasESIMD !=
+      module_split::SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     // Handle sycl-optlevel property
     int OptLevel = -1;
     for (const Function *F : MD.entries()) {
