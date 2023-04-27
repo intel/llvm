@@ -286,6 +286,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -323,6 +324,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
+      PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
   } else {
     ods_target_list &list = *OdsTargetList;
@@ -344,6 +346,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
+    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   }
   return PluginNames;
 }
