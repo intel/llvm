@@ -1,16 +1,14 @@
 #include "sycl/nd_range.hpp"
-#include <sycl/detail/pi.h>
-#include <sycl/detail/cg_types.hpp> // NDRDescT
-#include <sycl/detail/native_cpu.hpp>
-#include <iostream>
 #include <atomic>
 #include <cstring>
+#include <iostream>
+#include <sycl/detail/cg_types.hpp> // NDRDescT
+#include <sycl/detail/native_cpu.hpp>
+#include <sycl/detail/pi.h>
 
 static bool PrintPiTrace = true;
 
-struct _pi_platform {
-  
-};
+struct _pi_platform {};
 
 struct _pi_object {
   _pi_object() : RefCount{1} {}
@@ -27,21 +25,23 @@ struct _pi_device : _pi_object {
 struct _pi_mem : _pi_object {
   _pi_mem(size_t Size) {
     _mem = malloc(Size);
-    std::cout << "[DEBUG] _mem is " << _mem << "\n";
+    _owns_mem = true;
   }
-  _pi_mem(void* HostPtr, size_t Size) {
+  _pi_mem(void *HostPtr, size_t Size) {
     _mem = malloc(Size);
-    std::cout << "[DEBUG] _mem is " << _mem << " init with hostptr\n";
     memcpy(_mem, HostPtr, Size);
+    _owns_mem = true;
   }
-  _pi_mem(void* HostPtr) {
-    std::cout << "[DEBUG] _mem points to " << HostPtr << "\n";
+  _pi_mem(void *HostPtr) {
     _mem = HostPtr;
+    _owns_mem = false;
   }
   ~_pi_mem() {
-    free(_mem);
+    if (_owns_mem)
+      free(_mem);
   }
-  void* _mem;
+  void *_mem;
+  bool _owns_mem;
 };
 
 // taken from pi_cuda.cpp
@@ -88,21 +88,27 @@ pi_result getInfoArray(size_t array_length, size_t param_value_size,
                      array_length * sizeof(T), memcpy);
 }
 
-sycl::detail::NDRDescT getNDRDesc (pi_uint32 WorkDim,
-                      const size_t *GlobalWorkOffset,
-                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize) {
+sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
+                                  const size_t *GlobalWorkOffset,
+                                  const size_t *GlobalWorkSize,
+                                  const size_t *LocalWorkSize) {
   sycl::detail::NDRDescT Res;
-  switch(WorkDim) {
-    case 1:
-      Res.set<1>(sycl::nd_range<1>({GlobalWorkSize[0]},{LocalWorkSize[0]},{GlobalWorkOffset[0]}));
-      break;
-    case 2:
-      Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},{LocalWorkSize[0], LocalWorkSize[1]},{GlobalWorkOffset[0], GlobalWorkOffset[1]}));
-      break;
-    case 3:
-      Res.set<3>(sycl::nd_range<3>({GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},{LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},{GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
-      break;
-
+  switch (WorkDim) {
+  case 1:
+    Res.set<1>(sycl::nd_range<1>({GlobalWorkSize[0]}, {LocalWorkSize[0]},
+                                 {GlobalWorkOffset[0]}));
+    break;
+  case 2:
+    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},
+                                 {LocalWorkSize[0], LocalWorkSize[1]},
+                                 {GlobalWorkOffset[0], GlobalWorkOffset[1]}));
+    break;
+  case 3:
+    Res.set<3>(sycl::nd_range<3>(
+        {GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},
+        {LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},
+        {GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
+    break;
   }
   return Res;
 }
@@ -136,21 +142,20 @@ extern "C" {
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
-  if(NumPlatforms == nullptr && Platforms == nullptr) 
+  if (NumPlatforms == nullptr && Platforms == nullptr)
     return PI_ERROR_INVALID_VALUE;
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1) { 
+  if (PiTraceValue == -1) {
     PrintPiTrace = true;
   }
   if (NumPlatforms) {
     *NumPlatforms = 1;
   }
 
-
-  if(NumEntries == 0) {
-    if(Platforms != nullptr) {
-      if(PrintPiTrace) 
+  if (NumEntries == 0) {
+    if (Platforms != nullptr) {
+      if (PrintPiTrace)
         std::cerr << "Invalid argument combination for piPlatformsGet\n";
       return PI_ERROR_INVALID_VALUE;
     }
@@ -160,8 +165,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     *Platforms = new _pi_platform();
   }
   return PI_SUCCESS;
-
-    
 }
 
 pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
@@ -171,7 +174,8 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     return PI_ERROR_INVALID_PLATFORM;
   }
   auto ReturnValueArray = [=](auto val) {
-    return getInfoArray(strlen(val) + 1, ParamValueSize, ParamValue, ParamValueSizeRet, val);
+    return getInfoArray(strlen(val) + 1, ParamValueSize, ParamValue,
+                        ParamValueSizeRet, val);
   };
 
   switch (ParamName) {
@@ -195,7 +199,6 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   }
 
   return PI_SUCCESS;
-
 }
 
 pi_result piextPlatformGetNativeHandle(pi_platform, pi_native_handle *) {
@@ -235,8 +238,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_SUCCESS;
   }
 
-
-
   if (Devices) {
     Devices[0] = new _pi_device(Platform);
   }
@@ -244,17 +245,14 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   return PI_SUCCESS;
 }
 
-
-
 pi_result piDeviceRetain(pi_device Device) {
-  if(Device)
+  if (Device)
     return PI_SUCCESS;
   return PI_ERROR_INVALID_DEVICE;
-
 }
 
 pi_result piDeviceRelease(pi_device Device) {
-  if(Device)
+  if (Device)
     return PI_SUCCESS;
   return PI_ERROR_INVALID_DEVICE;
 }
@@ -263,7 +261,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                           size_t ParamValueSize, void *ParamValue,
                           size_t *ParamValueSizeRet) {
   auto ReturnValueArray = [=](auto val) {
-    return getInfoArray(strlen(val) + 1, ParamValueSize, ParamValue, ParamValueSizeRet, val);
+    return getInfoArray(strlen(val) + 1, ParamValueSize, ParamValue,
+                        ParamValueSizeRet, val);
   };
   auto ReturnValue = [=](auto val) {
     return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet, val);
@@ -457,8 +456,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     DIE_NO_IMPLEMENTATION;
   }
   return PI_SUCCESS;
-
-
 }
 
 pi_result piDevicePartition(pi_device, const pi_device_partition_property *,
@@ -481,6 +478,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             const void *PrivateInfo, size_t CB,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
+  // Todo: is it fine as a no-op?
   return PI_SUCCESS;
 }
 
@@ -506,7 +504,10 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
 
 pi_result piContextRetain(pi_context Context) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piContextRelease(pi_context Context) { DIE_NO_IMPLEMENTATION; }
+pi_result piContextRelease(pi_context Context) {
+  // Todo: is it fine as a no-op?
+  return PI_SUCCESS;
+}
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
@@ -519,15 +520,14 @@ pi_result piQueueGetInfo(pi_queue, pi_queue_info, size_t, void *, size_t *) {
 
 pi_result piQueueRetain(pi_queue Queue) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piQueueRelease(pi_queue Queue) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piQueueFinish(pi_queue) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piQueueRelease(pi_queue Queue) {
+  // Todo: is it fine as a no-op?
+  return PI_SUCCESS;
 }
 
-pi_result piQueueFlush(pi_queue) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piQueueFinish(pi_queue) { DIE_NO_IMPLEMENTATION; }
+
+pi_result piQueueFlush(pi_queue) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
@@ -541,36 +541,34 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             void *HostPtr, pi_mem *RetMem,
                             const pi_mem_properties *properties) {
-  //TODO: add proper error checking and double check flag semantics
-  //TODO: support PI_MEM_FLAGS_HOST_PTR_ALLOC flag
+  // TODO: add proper error checking and double check flag semantics
+  // TODO: support PI_MEM_FLAGS_HOST_PTR_ALLOC flag
   const bool UseHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_USE;
   const bool CopyHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_COPY;
   const bool HostPtrNotNull = HostPtr != nullptr;
-  std::cout << "[DEBUG] creating mem: " << UseHostPtr << " " << CopyHostPtr << " " << HostPtrNotNull << "\n";
-  std::cout << "[DEBUG] hostptr " << ((int*)HostPtr)[1] << "\n";
-  if(UseHostPtr && HostPtrNotNull) {
+  if (UseHostPtr && HostPtrNotNull) {
     *RetMem = new _pi_mem(HostPtr);
-    return PI_SUCCESS;
-  }
-  if(CopyHostPtr && HostPtrNotNull) {
+  } else if (CopyHostPtr && HostPtrNotNull) {
     *RetMem = new _pi_mem(HostPtr, Size);
-    return PI_SUCCESS;
+  } else {
+    *RetMem = new _pi_mem(Size);
   }
-  *RetMem = new _pi_mem(Size);
   return PI_SUCCESS;
-
 }
 
 pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piMemRetain(pi_mem Mem) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piMemRetain(pi_mem Mem) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piMemRelease(pi_mem Mem) {
-  DIE_NO_IMPLEMENTATION;
+  Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
+  if (Mem->RefCount == 0) {
+    delete Mem;
+  }
+
+  return PI_SUCCESS;
 }
 
 pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
@@ -711,9 +709,7 @@ pi_result piEventSetCallback(pi_event, pi_int32,
 
 pi_result piEventSetStatus(pi_event, pi_int32) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventRetain(pi_event Event) {
- DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventRetain(pi_event Event) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventRelease(pi_event Event) { DIE_NO_IMPLEMENTATION; }
 
@@ -755,14 +751,7 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
                                  pi_event *Event) {
-  //TODO: implement proper event management
-  //TODO: implement proper error checking
-  std::cout << "[DEBUG] Dst " << Dst << "\n";
-  std::cout << "[DEBUG] Src " << Src->_mem << "\n";
-  std::cout << "[DEBUG] size offset " << Size << " " << Offset << "\n";
-  auto c = reinterpret_cast<void*>(Src);
-  //memcpy(Dst, c, Size);
-  std::cout << "ok\n";
+  // TODO: is it ok to have this as no-op?
   return PI_SUCCESS;
 }
 
@@ -862,16 +851,19 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
                       const pi_event *EventWaitList, pi_event *Event) {
-  //TODO: add proper error checking
-  //TODO: add proper event dep management
-  sycl::detail::NDRDescT NDRDesc = getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
-  sycl::detail::NativeCPUTask *NativeKernel = reinterpret_cast<sycl::detail::NativeCPUTask*>(Kernel);
-  //This arg processing logic should be done by piSetKernelArg but here we are
-  const std::vector<sycl::detail::ArgDesc>& Args = NativeKernel->getArgs();
-  std::vector<sycl::detail::NativeCPUArgDesc> NCArgs = sycl::detail::processArgsForNativeCPU(Args);
-  for(auto& Arg : NCArgs) {
-    if(Arg.MisAcc)
-      Arg.MPtr = reinterpret_cast<_pi_mem*>(Arg.MPtr)->_mem;
+  // TODO: add proper error checking
+  // TODO: add proper event dep management
+  sycl::detail::NDRDescT NDRDesc =
+      getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
+  sycl::detail::NativeCPUTask *NativeKernel =
+      reinterpret_cast<sycl::detail::NativeCPUTask *>(Kernel);
+  // This arg processing logic should be done by piSetKernelArg but here we are
+  const std::vector<sycl::detail::ArgDesc> &Args = NativeKernel->getArgs();
+  std::vector<sycl::detail::NativeCPUArgDesc> NCArgs =
+      sycl::detail::processArgsForNativeCPU(Args);
+  for (auto &Arg : NCArgs) {
+    if (Arg.MisAcc)
+      Arg.MPtr = reinterpret_cast<_pi_mem *>(Arg.MPtr)->_mem;
   }
 
   NativeKernel->call_native(NDRDesc, NCArgs);
@@ -918,9 +910,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMFree(pi_context Context, void *Ptr) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piextUSMFree(pi_context Context, void *Ptr) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piextKernelSetArgPointer(pi_kernel, pi_uint32, size_t, const void *) {
   DIE_NO_IMPLEMENTATION;
@@ -931,8 +921,9 @@ pi_result piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t, pi_uint32,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void* dest, const void* src,
-                                size_t len, pi_uint32, const pi_event *, pi_event *) {
+pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *dest, const void *src,
+                                size_t len, pi_uint32, const pi_event *,
+                                pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -958,7 +949,7 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
 
 pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
                                   pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
- CONTINUE_NO_IMPLEMENTATION; 
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
@@ -972,8 +963,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 }
 
 pi_result piextQueueCreate(pi_context context, pi_device device,
-                                         pi_queue_properties *properties,
-                                         pi_queue *queue) {
+                           pi_queue_properties *properties, pi_queue *queue) {
   DIE_NO_IMPLEMENTATION;
 }
 pi_result piextMemImageCreateWithNativeHandle(
@@ -983,27 +973,33 @@ pi_result piextMemImageCreateWithNativeHandle(
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueWriteHostPipe(
-    pi_queue queue, pi_program program, const char *pipe_symbol,
-    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
-    const pi_event *events_waitlist, pi_event *event){
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueReadHostPipe(
-    pi_queue queue, pi_program program, const char *pipe_symbol,
-    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
-    const pi_event *events_waitlist, pi_event *event) {
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piPluginGetLastError(char **message) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piextUSMEnqueueMemcpy2D(
-    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
-    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
-    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
-    pi_event *event) {
+pi_result piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
+                                  void *dst_ptr, size_t dst_pitch,
+                                  const void *src_ptr, size_t src_pitch,
+                                  size_t width, size_t height,
+                                  pi_uint32 num_events_in_waitlist,
+                                  const pi_event *events_waitlist,
+                                  pi_event *event) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1023,32 +1019,33 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 }
 
 pi_result piPluginGetBackendOption(pi_platform platform,
-                                                 const char *frontend_option,
-                                                 const char **backend_option) {
+                                   const char *frontend_option,
+                                   const char **backend_option) {
   CONTINUE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMEnqueueMemset2D(
-    pi_queue queue, void *ptr, size_t pitch, int value, size_t width,
-    size_t height, pi_uint32 num_events_in_waitlist,
-    const pi_event *events_waitlist, pi_event *event) {
+pi_result piextUSMEnqueueMemset2D(pi_queue queue, void *ptr, size_t pitch,
+                                  int value, size_t width, size_t height,
+                                  pi_uint32 num_events_in_waitlist,
+                                  const pi_event *events_waitlist,
+                                  pi_event *event) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device Device,
-                                                uint64_t *DeviceTime,
-                                                uint64_t *HostTime) {
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueGetNativeHandle2(
-    pi_queue queue, pi_native_handle *nativeHandle, int32_t *nativeHandleDesc) {
+pi_result piextQueueGetNativeHandle2(pi_queue queue,
+                                     pi_native_handle *nativeHandle,
+                                     int32_t *nativeHandleDesc) {
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piextQueueCreate2(pi_context context, pi_device device,
-                                          pi_queue_properties *properties,
-                                          pi_queue *queue) {
+                            pi_queue_properties *properties, pi_queue *queue) {
+  // Todo: is it fine as a no-op?
   return PI_SUCCESS;
 }
 
@@ -1059,17 +1056,19 @@ pi_result piextQueueCreateWithNativeHandle2(
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
-                                              size_t pitch, size_t pattern_size,
-                                              const void *pattern, size_t width,
-                                              size_t height,
-                                              pi_uint32 num_events_in_waitlist,
-                                              const pi_event *events_waitlist,
-                                              pi_event *event) {
+pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr, size_t pitch,
+                                size_t pattern_size, const void *pattern,
+                                size_t width, size_t height,
+                                pi_uint32 num_events_in_waitlist,
+                                const pi_event *events_waitlist,
+                                pi_event *event) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piTearDown(void *) { return PI_SUCCESS; }
+pi_result piTearDown(void *) {
+  // Todo: is it fine as a no-op?
+  return PI_SUCCESS;
+}
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
 #define _PI_API(api)                                                           \
@@ -1078,7 +1077,4 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   return PI_SUCCESS;
 }
-
-
 }
-

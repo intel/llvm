@@ -9,7 +9,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-
 struct __SYCL_EXPORT NativeCPUArgDesc {
   void *MPtr;
   bool MisAcc;
@@ -22,12 +21,16 @@ __SYCL_EXPORT
 std::vector<NativeCPUArgDesc>
 processArgsForNativeCPU(const std::vector<ArgDesc> &MArgs);
 
-using NativeCPUTask_t = std::function<void(NDRDescT, std::vector<NativeCPUArgDesc>&)>;
+using NativeCPUTask_t =
+    std::function<void(NDRDescT, std::vector<NativeCPUArgDesc> &)>;
 
 class NativeCPUTask : public HostKernelBase {
 public:
-  NativeCPUTask(std::shared_ptr<NativeCPUTask_t> Task, const std::vector<ArgDesc>& Args) : MTask(Task), MArgs(Args) {}
-  void call_native(const NDRDescT &NDRDesc, std::vector<NativeCPUArgDesc>& NCArgs) {
+  NativeCPUTask(std::shared_ptr<NativeCPUTask_t> Task,
+                const std::vector<ArgDesc> &Args)
+      : MTask(Task), MArgs(Args) {}
+  void call_native(const NDRDescT &NDRDesc,
+                   std::vector<NativeCPUArgDesc> &NCArgs) {
     (*MTask)(NDRDesc, NCArgs);
   }
   void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
@@ -37,13 +40,9 @@ public:
 
   // Return pointer to the lambda object.
   // Used to extract captured variables.
-  char *getPtr() override {
-    return reinterpret_cast<char*>(this);
-  }
+  char *getPtr() override { return reinterpret_cast<char *>(this); }
 
-  const std::vector<ArgDesc>& getArgs() const {
-    return MArgs;
-  }
+  const std::vector<ArgDesc> &getArgs() const { return MArgs; }
 
 private:
   std::shared_ptr<NativeCPUTask_t> MTask;

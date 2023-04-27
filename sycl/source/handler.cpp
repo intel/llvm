@@ -262,7 +262,6 @@ event handler::finalize() {
     // assert feature to check if kernel uses assertions
     if (MImpl->MNativeCPUFunct) {
       // reset the host kernel pointer to the optimized host kernel
-      std::cout << "[PTRDBG] resetting pointer\n";
       detail::NativeCPUTask *HCTPtr =
           new detail::NativeCPUTask(MImpl->MNativeCPUFunct, MArgs);
       MHostKernel.reset(HCTPtr);
@@ -637,7 +636,6 @@ void handler::extractArgsAndReqs() {
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
-    std::cout << "[PTRDBG] extracting args from lambda \n";
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
   MArgs.reserve(MaxNumAdditionalArgs * KernelArgsNum);

@@ -20,7 +20,6 @@ NativeCPUArgDesc::NativeCPUArgDesc(const ArgDesc &Arg) {
 
 std::vector<NativeCPUArgDesc>
 processArgsForNativeCPU(const std::vector<ArgDesc> &MArgs) {
-  std::cout << "[PTRDBG] processing args\n";
   std::vector<NativeCPUArgDesc> res;
   for (auto &arg : MArgs) {
     res.emplace_back(arg);

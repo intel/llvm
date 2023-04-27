@@ -749,7 +749,8 @@ private:
 #ifdef __SYCL_NATIVE_CPU__
     if constexpr (detail::is_native_cpu_v<KI>) {
       auto l = std::make_shared<detail::NativeCPUTask_t>(
-          [](detail::NDRDescT ndr, std::vector<detail::NativeCPUArgDesc>& NCArgs) {
+          [](detail::NDRDescT ndr,
+             std::vector<detail::NativeCPUArgDesc> &NCArgs) {
             nativecpu_state state;
             for (unsigned dim0 = 0; dim0 < ndr.GlobalSize[0]; dim0++) {
               for (unsigned dim1 = 0; dim1 < ndr.GlobalSize[1]; dim1++) {
