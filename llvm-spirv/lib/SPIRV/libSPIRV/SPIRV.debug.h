@@ -543,21 +543,25 @@ enum {
 
 namespace Function {
 enum {
-  NameIdx         = 0,
-  TypeIdx         = 1,
-  SourceIdx       = 2,
-  LineIdx         = 3,
-  ColumnIdx       = 4,
-  ParentIdx       = 5,
-  LinkageNameIdx  = 6,
-  FlagsIdx        = 7,
-  ScopeLineIdx    = 8,
-  FunctionIdIdx   = 9,
-  DeclarationNonSemIdx = 9,
-  DeclarationIdx  = 10,
+  NameIdx               = 0,
+  TypeIdx               = 1,
+  SourceIdx             = 2,
+  LineIdx               = 3,
+  ColumnIdx             = 4,
+  ParentIdx             = 5,
+  LinkageNameIdx        = 6,
+  FlagsIdx              = 7,
+  ScopeLineIdx          = 8,
+  FunctionIdIdx         = 9,
+  DeclarationIdx        = 10,
+  MinOperandCount       = 10,
+
+// Only for NonSemantic.Shader.DebugInfo.*
+// No operand FunctionId
+  DeclarationNonSemIdx  = 9,
+  MinOperandCountNonSem = 9,
   // Only for NonSemantic.Shader.DebugInfo.200
-  TargetFunctionNameIdx  = 10,
-  MinOperandCount = 10
+  TargetFunctionNameIdx = 10,
 };
 }
 

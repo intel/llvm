@@ -745,7 +745,9 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst,
                                           bool IsMainSubprogram) {
   using namespace SPIRVDebug::Operand::Function;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  assert(Ops.size() >= MinOperandCountNonSem && "Invalid number of operands");
+  if (!isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+    assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
 
   StringRef Name = getString(Ops[NameIdx]);
   DISubroutineType *Ty =
@@ -781,7 +783,8 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst,
   bool IsLocal = SPIRVDebugFlags & SPIRVDebug::FlagIsLocal;
   bool IsMainSubprogramFlag =
       IsMainSubprogram ||
-      BM->isEntryPoint(spv::ExecutionModelKernel, Ops[FunctionIdIdx]);
+      (!isNonSemanticDebugInfo(DebugInst->getExtSetKind()) &&
+       BM->isEntryPoint(spv::ExecutionModelKernel, Ops[FunctionIdIdx]));
 
   DISubprogram::DISPFlags SPFlags = DISubprogram::toSPFlags(
       IsLocal, IsDefinition, IsOptimized, DISubprogram::SPFlagNonvirtual,
@@ -820,8 +823,10 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst,
   else {
     // Create targetFuncName mostly for Fortran trampoline function if it is
     // the case
-    StringRef TargetFunction;
-    if (Ops.size() > MinOperandCount) {
+    StringRef TargetFunction = "";
+    if (DebugInst->getExtSetKind() ==
+            SPIRVEIS_NonSemantic_Shader_DebugInfo_200 &&
+        Ops.size() > TargetFunctionNameIdx) {
       TargetFunction = getString(Ops[TargetFunctionNameIdx]);
     }
     DIS = getDIBuilder(DebugInst).createFunction(
