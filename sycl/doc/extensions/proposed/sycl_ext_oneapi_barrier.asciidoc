@@ -111,6 +111,12 @@ barrier is visible to all threads of execution and has a sufficiently broad
 scope.
 ====
 
+The completion function may be executed on any thread during a call to
+`arrive`, `arrive_and_drop` or `wait`. The completion function is considered
+device code, even when the barrier is used to synchronize a mixture of host and
+device threads, so it must abide by the restrictions for device code defined in
+the core SYCL specification.
+
 This extension specification provides a brief overview of the functionality of
 the `barrier` class. If there are any differences in the definitions of this
 functionality, the wording in the {cpp}20 specification takes precedence.
