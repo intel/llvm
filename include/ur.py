@@ -511,24 +511,34 @@ class ur_device_info_v(IntEnum):
     GPU_EU_COUNT = 90                               ## [uint32_t] return Intel GPU EU count
     GPU_EU_SIMD_WIDTH = 91                          ## [uint32_t] return Intel GPU EU SIMD width
     GPU_EU_SLICES = 92                              ## [uint32_t] return Intel GPU number of slices
-    GPU_SUBSLICES_PER_SLICE = 93                    ## [uint32_t] return Intel GPU number of subslices per slice
-    MAX_MEMORY_BANDWIDTH = 94                       ## [uint32_t] return max memory bandwidth in Mb/s
-    IMAGE_SRGB = 95                                 ## [::ur_bool_t] device supports sRGB images
-    ATOMIC_64 = 96                                  ## [::ur_bool_t] support 64 bit atomics
-    ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+    GPU_EU_COUNT_PER_SUBSLICE = 93                  ## [uint32_t] return Intel GPU EU count per subslice
+    GPU_SUBSLICES_PER_SLICE = 94                    ## [uint32_t] return Intel GPU number of subslices per slice
+    GPU_HW_THREADS_PER_EU = 95                      ## [uint32_t] return Intel GPU number of threads per EU
+    MAX_MEMORY_BANDWIDTH = 96                       ## [uint32_t] return max memory bandwidth in Mb/s
+    IMAGE_SRGB = 97                                 ## [::ur_bool_t] device supports sRGB images
+    BUILD_ON_SUBDEVICE = 98                         ## [::ur_bool_t] Return true if sub-device should do its own program
+                                                    ## build
+    ATOMIC_64 = 99                                  ## [::ur_bool_t] support 64 bit atomics
+    ATOMIC_MEMORY_ORDER_CAPABILITIES = 100          ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                     ## memory order capabilities
-    ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98           ## [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
+    ATOMIC_MEMORY_SCOPE_CAPABILITIES = 101          ## [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                     ## memory scope capabilities
-    ATOMIC_FENCE_ORDER_CAPABILITIES = 99            ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+    ATOMIC_FENCE_ORDER_CAPABILITIES = 102           ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                     ## memory fence order capabilities
-    ATOMIC_FENCE_SCOPE_CAPABILITIES = 100           ## [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
+    ATOMIC_FENCE_SCOPE_CAPABILITIES = 103           ## [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                     ## memory fence scope capabilities
-    BFLOAT16 = 101                                  ## [::ur_bool_t] support for bfloat16
-    MAX_COMPUTE_QUEUE_INDICES = 102                 ## [uint32_t] Returns 1 if the device doesn't have a notion of a 
+    BFLOAT16 = 104                                  ## [::ur_bool_t] support for bfloat16
+    MAX_COMPUTE_QUEUE_INDICES = 105                 ## [uint32_t] Returns 1 if the device doesn't have a notion of a 
                                                     ## queue index. Otherwise, returns the number of queue indices that are
                                                     ## available for this device.
-    KERNEL_SET_SPECIALIZATION_CONSTANTS = 103       ## [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
+    KERNEL_SET_SPECIALIZATION_CONSTANTS = 106       ## [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
                                                     ## point
+    MEMORY_BUS_WIDTH = 107                          ## [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
+                                                    ## index". Otherwise,
+                                                    ## return the number of queue indices that are available for this device.
+    MAX_WORK_GROUPS_3D = 108                        ## [uint32_t] return max 3D work groups
+    ASYNC_BARRIER = 109                             ## [::ur_bool_t] return true if Async Barrier is supported
+    MEM_CHANNEL_SUPPORT = 110                       ## [::ur_bool_t] return true if specifying memory channels is supported
 
 class ur_device_info_t(c_int):
     def __str__(self):
