@@ -143,6 +143,9 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
+// Checks if a device_global has any registered kernel usage.
+__SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
+
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
 
@@ -194,8 +197,8 @@ checkValueRangeImpl(ValT V) {
 #endif
 
 template <int Dims, typename T>
-typename std::enable_if_t<std::is_same<T, range<Dims>>::value ||
-                          std::is_same<T, id<Dims>>::value>
+typename std::enable_if_t<std::is_same_v<T, range<Dims>> ||
+                          std::is_same_v<T, id<Dims>>>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -232,7 +235,7 @@ void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
 }
 
 template <int Dims, typename T>
-typename std::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
+typename std::enable_if_t<std::is_same_v<T, nd_range<Dims>>>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
@@ -545,8 +548,7 @@ private:
 
   // For 'sycl::id<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value,
-                          KernelType *>::type
+  std::enable_if_t<std::is_same_v<ArgT, sycl::id<Dims>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -562,8 +564,7 @@ private:
 
   // For 'sycl::nd_item<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, sycl::nd_item<Dims>>::value,
-                          KernelType *>::type
+  std::enable_if_t<std::is_same_v<ArgT, sycl::nd_item<Dims>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -579,8 +580,7 @@ private:
 
   // For 'sycl::item<Dims, without_offset>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, false>>::value,
-                          KernelType *>::type
+  std::enable_if_t<std::is_same_v<ArgT, sycl::item<Dims, false>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -598,8 +598,7 @@ private:
 
   // For 'sycl::item<Dims, with_offset>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, true>>::value,
-                          KernelType *>::type
+  std::enable_if_t<std::is_same_v<ArgT, sycl::item<Dims, true>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -617,7 +616,7 @@ private:
 
   // For 'void' kernel argument (single_task)
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if_t<std::is_same<ArgT, void>::value, KernelType *>
+  typename std::enable_if_t<std::is_same_v<ArgT, void>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     struct NormalizedKernelType {
       KernelType MKernelFunc;
@@ -637,8 +636,7 @@ private:
   // for 'void(sycl::group<Dims>)' since 'void(sycl::group<Dims>)' is not
   // supported in ESIMD.
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, sycl::group<Dims>>::value,
-                          KernelType *>::type
+  std::enable_if_t<std::is_same_v<ArgT, sycl::group<Dims>>, KernelType *>
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
         new detail::HostKernel<KernelType, ArgT, Dims>(KernelFunc));
@@ -919,11 +917,10 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional<
-        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
-        typename std::conditional<
-            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
-            LambdaArgType>::type>::type;
+    using type = std::conditional_t<
+        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                           item<Dims>, LambdaArgType>>;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -948,9 +945,9 @@ private:
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
     // If user type is convertible from sycl::item/sycl::nd_item, use
     // sycl::item/sycl::nd_item to transport item information
-    using TransformedArgType = typename std::conditional<
+    using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>::type;
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1555,14 +1552,14 @@ public:
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
-        std::is_trivially_copyable<std::remove_reference_t<T>>::value
+        std::is_trivially_copyable_v<std::remove_reference_t<T>>
 #if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
             && std::is_standard_layout<std::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
-            std::is_pointer<remove_cv_ref_t<T>>::value) // USM
-        || is_same_type<cl_mem, T>::value;              // Interop
+            std::is_pointer_v<remove_cv_ref_t<T>>) // USM
+        || is_same_type<cl_mem, T>::value;         // Interop
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -2729,6 +2726,15 @@ public:
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
+      // If the corresponding device_global isn't used in any kernels, we fall
+      // back to doing the memory operation on host-only.
+      memcpyToHostOnlyDeviceGlobal(&Dest, Src, sizeof(T), IsDeviceImageScoped,
+                                   NumBytes, DestOffset);
+      return;
+    }
+
     memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes, DestOffset);
   }
 
@@ -2752,6 +2758,15 @@ public:
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
+      // If the corresponding device_global isn't used in any kernels, we fall
+      // back to doing the memory operation on host-only.
+      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, sizeof(T), IsDeviceImageScoped,
+                                     NumBytes, SrcOffset);
+      return;
+    }
+
     memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
                            SrcOffset);
   }
@@ -3069,6 +3084,18 @@ private:
   void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                               bool IsDeviceImageScoped, size_t NumBytes,
                               size_t Offset);
+
+  // Implementation of memcpy to an unregistered device_global.
+  void memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                    const void *Src, size_t DeviceGlobalTSize,
+                                    bool IsDeviceImageScoped, size_t NumBytes,
+                                    size_t Offset);
+
+  // Implementation of memcpy from an unregistered device_global.
+  void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                      size_t DeviceGlobalTSize,
+                                      bool IsDeviceImageScoped, size_t NumBytes,
+                                      size_t Offset);
 
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
