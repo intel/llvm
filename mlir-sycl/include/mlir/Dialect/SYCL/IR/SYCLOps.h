@@ -26,37 +26,6 @@ inline bool isSYCLOperation(Operation *op) {
   return isa<sycl::SYCLDialect>(op->getDialect());
 }
 
-/// Return true if type is 'memref<?x!sycl.accessor>'.
-inline bool isAccessorPtrType(Type type) {
-  auto mt = dyn_cast<MemRefType>(type);
-  bool isMemRefWithExpectedShape =
-      (mt && mt.hasRank() && (mt.getRank() == 1) &&
-       ShapedType::isDynamic(mt.getShape()[0]) && mt.getLayout().isIdentity());
-  if (!isMemRefWithExpectedShape)
-    return false;
-
-  return isa<sycl::AccessorType>(mt.getElementType());
-}
-
-/// Represent Value of type 'memref<?x!sycl.accessor>'.
-class AccessorPtr : public Value {
-public:
-  AccessorPtr(Value accessorPtr) : Value(accessorPtr) {
-    assert(classof(accessorPtr) &&
-           "Expecting to construct with an AccessorPtr");
-  }
-
-  sycl::AccessorType getAccessorType() {
-    return mlir::cast<sycl::AccessorType>(
-        mlir::cast<MemRefType>(getType()).getElementType());
-  }
-
-  bool operator<(const AccessorPtr &other) const { return impl < other.impl; }
-
-  static bool classof(Value v) { return isAccessorPtrType(v.getType()); }
-};
-using AccessorPtrPair = std::pair<AccessorPtr, AccessorPtr>;
-
 } // namespace sycl
 } // namespace mlir
 

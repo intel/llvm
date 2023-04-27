@@ -337,8 +337,8 @@ public:
     return requireNoOverlapAccessorPairs;
   }
 
-  void addRequireNoOverlapAccessorPairs(sycl::AccessorPtr acc1,
-                                        sycl::AccessorPtr acc2) {
+  void addRequireNoOverlapAccessorPairs(sycl::AccessorPtrValue acc1,
+                                        sycl::AccessorPtrValue acc2) {
     requireNoOverlapAccessorPairs.insert({acc1, acc2});
   }
 
@@ -352,7 +352,7 @@ private:
 };
 
 /// Return the accessor used by \p op if found, and nullptr otherwise.
-static Optional<sycl::AccessorPtr>
+static Optional<sycl::AccessorPtrValue>
 getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
@@ -397,8 +397,9 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
       continue;
     }
 
-    Optional<sycl::AccessorPtr> opAccessor = getAccessorUsedByOperation(op);
-    Optional<sycl::AccessorPtr> otherAccessor =
+    Optional<sycl::AccessorPtrValue> opAccessor =
+        getAccessorUsedByOperation(op);
+    Optional<sycl::AccessorPtrValue> otherAccessor =
         getAccessorUsedByOperation(other);
     if (opAccessor.has_value() && otherAccessor.has_value())
       if (*opAccessor != *otherAccessor &&

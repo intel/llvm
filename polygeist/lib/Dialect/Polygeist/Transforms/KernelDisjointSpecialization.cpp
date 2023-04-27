@@ -66,11 +66,11 @@ static bool isCandidateArg(Value arg) {
 /// Populates \p candArgs with candidate arguments from \p call.
 static void
 collectCandidateArguments(CallOpInterface call,
-                          SmallVectorImpl<sycl::AccessorPtr> &candArgs) {
+                          SmallVectorImpl<sycl::AccessorPtrValue> &candArgs) {
   assert(candArgs.empty() && "Expecting empty candArgs");
   for (Value arg : call.getArgOperands())
     if (isCandidateArg(arg))
-      candArgs.push_back(cast<sycl::AccessorPtr>(arg));
+      candArgs.push_back(cast<sycl::AccessorPtrValue>(arg));
 }
 
 /// Updates \p newFnName to a unique function name if it is already defined.
@@ -155,8 +155,8 @@ private:
   /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
   /// example, under strict aliasing rule, accessors with different element
   /// types are not alias, so return false.
-  bool isCandidateAccessorPair(sycl::AccessorPtr acc1,
-                               sycl::AccessorPtr acc2) const;
+  bool isCandidateAccessorPair(sycl::AccessorPtrValue acc1,
+                               sycl::AccessorPtrValue acc2) const;
   /// Populate \p accessorPairs with accessor pairs that should be checked for
   /// no overlap for \p call.
   void collectMayOverlapAccessorPairs(
@@ -227,7 +227,7 @@ bool KernelDisjointSpecializationPass::isCandidateFunction(
 }
 
 bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
-    sycl::AccessorPtr acc1, sycl::AccessorPtr acc2) const {
+    sycl::AccessorPtrValue acc1, sycl::AccessorPtrValue acc2) const {
   assert(acc1 != acc2 && "Expecting the input accessors to be different");
   if (!relaxedAliasing) {
     sycl::AccessorType acc1Ty = acc1.getAccessorType();
@@ -242,7 +242,7 @@ bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
 void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
     CallOpInterface call,
     std::set<sycl::AccessorPtrPair> &accessorPairs) const {
-  SmallVector<sycl::AccessorPtr> candArgs;
+  SmallVector<sycl::AccessorPtrValue> candArgs;
   collectCandidateArguments(call, candArgs);
   for (auto *i = candArgs.begin(); i != candArgs.end(); ++i)
     for (auto *j = i + 1; j != candArgs.end(); ++j)

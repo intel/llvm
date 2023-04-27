@@ -37,7 +37,7 @@ class ParallelOp;
 } // namespace scf
 
 namespace sycl {
-class AccessorPtr;
+class AccessorPtrValue;
 } // namespace sycl
 
 namespace polygeist {
@@ -276,7 +276,8 @@ public:
 /// overlap.
 class VersionConditionBuilder {
 public:
-  using AccessorPtrPairType = std::pair<sycl::AccessorPtr, sycl::AccessorPtr>;
+  using AccessorPtrPairType =
+      std::pair<sycl::AccessorPtrValue, sycl::AccessorPtrValue>;
   using SCFCondition = VersionCondition::SCFCondition;
   using AffineCondition = VersionCondition::AffineCondition;
 

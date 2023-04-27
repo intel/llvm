@@ -546,7 +546,7 @@ static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
 }
 
 static sycl::SYCLAccessorGetRangeOp
-createSYCLAccessorGetRangeOp(sycl::AccessorPtr accessor, OpBuilder builder,
+createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
                              Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
   const auto rangeTy = cast<sycl::RangeType>(
@@ -556,7 +556,7 @@ createSYCLAccessorGetRangeOp(sycl::AccessorPtr accessor, OpBuilder builder,
 }
 
 static sycl::SYCLAccessorSubscriptOp
-createSYCLAccessorSubscriptOp(sycl::AccessorPtr accessor,
+createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
                               TypedValue<MemRefType> id, OpBuilder builder,
                               Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
@@ -568,8 +568,8 @@ createSYCLAccessorSubscriptOp(sycl::AccessorPtr accessor,
       builder, loc, MT, {accessor, id}, "operator[]", "accessor");
 }
 
-static Value getSYCLAccessorBegin(sycl::AccessorPtr accessor, OpBuilder builder,
-                                  Location loc) {
+static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
+                                  OpBuilder builder, Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
@@ -582,8 +582,8 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtr accessor, OpBuilder builder,
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
-static Value getSYCLAccessorEnd(sycl::AccessorPtr accessor, OpBuilder builder,
-                                Location loc) {
+static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
+                                OpBuilder builder, Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
   Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
   auto range = builder.create<memref::AllocaOp>(
