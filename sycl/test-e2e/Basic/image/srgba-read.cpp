@@ -2,7 +2,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 
-// XFAIL: level_zero
 // UNSUPPORTED: cuda
 // UNSUPPORTED: hip
 
@@ -108,29 +107,28 @@ int main() {
             image_channel_type::unorm_int8);
   } else {
     std::cout << "device does not support image operations" << std::endl;
+    const char *checks = R"(
+// CHECK: SYCL_EXT_ONEAPI_SRGB defined
+// CHECK: aspect::ext_oneapi_srgb detected
+// CHECK: rgba -------
+// CHECK-NEXT: read four pixels, no sampler
+// CHECK-NEXT: 0: {0.498039,0.498039,0.498039,0.498039}
+// CHECK-NEXT: 1: {0.498039,0.498039,0.498039,0.498039}
+// CHECK-NEXT: 2: {0.498039,0.498039,0.498039,0.498039}
+// CHECK-NEXT: 3: {0.498039,0.498039,0.498039,0.498039}
+//   The four reads above should all be close to 0.5.
+// CHECK: srgba -------
+// CHECK-NEXT: read four pixels, no sampler
+// CHECK-NEXT: 0: {0.21
+// CHECK-NEXT: 1: {0.21
+// CHECK-NEXT: 2: {0.21
+// CHECK-NEXT: 3: {0.21
+//   these four reads above should have R, G, B values close to 0.2
+//   presently the values differ slightly between OpenCL GPU and CPU
+// (e.g. GPU: 0.21231, CPU: 0.211795 )
+)";
+    std::cout << checks << std::endl;
   }
 
   return 0;
 }
-
-// clang-format off
-// CHECK: SYCL_EXT_ONEAPI_SRGB defined
-// CHECK: aspect::ext_oneapi_srgb detected
-
-// CHECK: rgba -------
-// CHECK-NEXT: read four pixels, no sampler
-//   these next four reads should all be close to 0.5
-// CHECK-NEXT: 0: {0.498039,0.498039,0.498039,0.498039} 
-// CHECK-NEXT: 1: {0.498039,0.498039,0.498039,0.498039} 
-// CHECK-NEXT: 2: {0.498039,0.498039,0.498039,0.498039} 
-// CHECK-NEXT: 3: {0.498039,0.498039,0.498039,0.498039} 
-// CHECK: srgba -------
-// CHECK-NEXT: read four pixels, no sampler
-//   these next four reads should have R, G, B values close to 0.2 
-//   presently the values differ slightly between OpenCL GPU and CPU
-// (e.g. GPU: 0.21231, CPU: 0.211795 )
-// CHECK-NEXT: 0: {0.21 
-// CHECK-NEXT: 1: {0.21 
-// CHECK-NEXT: 2: {0.21 
-// CHECK-NEXT: 3: {0.21
-// clang-format on

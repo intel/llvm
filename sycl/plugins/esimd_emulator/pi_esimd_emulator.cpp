@@ -816,6 +816,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     // The mem-channel buffer property is not supported on the ESIMD emulator.
     return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    // The sRGB images are not supported on the ESIMD emulator.
+    return ReturnValue(pi_bool{false});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
