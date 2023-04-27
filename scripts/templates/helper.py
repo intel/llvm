@@ -304,6 +304,7 @@ class param_traits:
     RE_OUT      = r"^\[out\].*"
     RE_INOUT    = r"^\[in,out\].*"
     RE_OPTIONAL = r".*\[optional\].*"
+    RE_NOCHECK  = r".*\[nocheck\].*"
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
     RE_RELEASE  = r".*\[release\].*"
     RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
@@ -340,6 +341,13 @@ class param_traits:
     def is_optional(cls, item):
         try:
             return True if re.match(cls.RE_OPTIONAL, item['desc']) else False
+        except:
+            return False
+
+    @classmethod
+    def is_nocheck(cls, item):
+        try:
+            return True if re.match(cls.RE_NOCHECK, item['desc']) else False
         except:
             return False
 
