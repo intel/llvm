@@ -686,6 +686,9 @@ def _generate_returns(obj, meta):
 
         # generate results based on parameters
         for item in obj['params']:
+            if param_traits.is_nocheck(item):
+                continue
+
             if not param_traits.is_optional(item):
                 typename = type_traits.base(item['type'])
 
@@ -707,6 +710,8 @@ def _generate_returns(obj, meta):
                 if type_traits.is_descriptor(item['type']):
                     # walk each entry in the desc for pointers and enums
                     for i, m in enumerate(meta['struct'][typename]['members']):
+                        if param_traits.is_nocheck(m):
+                            continue
                         mtypename = type_traits.base(m['type'])
 
                         if type_traits.is_pointer(m['type']) and not param_traits.is_optional({'desc': m['desc']}):
@@ -726,6 +731,8 @@ def _generate_returns(obj, meta):
                 elif type_traits.is_properties(item['type']):
                     # walk each entry in the properties
                     for i, m in enumerate(meta['struct'][typename]['members']):
+                        if param_traits.is_nocheck(m):
+                            continue
                         if type_traits.is_enum(m['type'], meta):
                             if re.match(r"stype", m['name']):
                                 _append(rets, "$X_RESULT_ERROR_UNSUPPORTED_VERSION", "`%s != %s->stype`"%(re.sub(r"(\$\w)_(.*)_t.*", r"\1_STRUCTURE_TYPE_\2", typename).upper(), item['name']))
