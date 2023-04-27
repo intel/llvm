@@ -7,7 +7,6 @@
 //===------------------------------------------------------------------===//
 #pragma once
 
-#include "ur/adapters/level_zero/ur_level_zero.hpp"
 #include "ur_api.h"
 #include <cstdarg>
 #include <sycl/detail/pi.h>
@@ -381,24 +380,6 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
   }
   return PI_SUCCESS;
 }
-
-struct _pi_context : ur_context_handle_t_ {};
-
-struct _pi_queue : ur_context_handle_t_ {};
-
-struct _pi_program : ur_program_handle_t_ {};
-
-struct _pi_kernel : ur_kernel_handle_t_ {};
-
-struct _pi_mem : ur_mem_handle_t_ {};
-
-struct _pi_buffer : ur_mem_handle_t_ {};
-
-struct _pi_image : ur_mem_handle_t_ {};
-
-struct _pi_sampler : ur_sampler_handle_t_ {};
-
-struct _pi_event : ur_event_handle_t_ {};
 
 namespace pi2ur {
 

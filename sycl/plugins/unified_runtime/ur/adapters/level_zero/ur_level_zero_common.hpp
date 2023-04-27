@@ -26,19 +26,6 @@
 
 struct _ur_platform_handle_t;
 
-template <class To, class From> To ur_cast(From Value) {
-  // TODO: see if more sanity checks are possible.
-  assert(sizeof(From) == sizeof(To));
-  return (To)(Value);
-}
-
-template <> uint32_t inline ur_cast(uint64_t Value) {
-  // Cast value and check that we don't lose any information.
-  uint32_t CastedValue = (uint32_t)(Value);
-  assert((uint64_t)CastedValue == Value);
-  return CastedValue;
-}
-
 static auto getUrResultString = [](ur_result_t Result) {
   switch (Result) {
   case UR_RESULT_SUCCESS:
@@ -332,6 +319,76 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
+// This wrapper around std::atomic is created to limit operations with reference
+// counter and to make allowed operations more transparent in terms of
+// thread-safety in the plugin. increment() and load() operations do not need a
+// mutex guard around them since the underlying data is already atomic.
+// decrementAndTest() method is used to guard a code which needs to be
+// executed when object's ref count becomes zero after release. This method also
+// doesn't need a mutex guard because decrement operation is atomic and only one
+// thread can reach ref count equal to zero, i.e. only a single thread can pass
+// through this check.
+struct ReferenceCounter {
+  ReferenceCounter() : RefCount{1} {}
+
+  // Reset the counter to the initial value.
+  void reset() { RefCount = 1; }
+
+  // Used when retaining an object.
+  void increment() { RefCount++; }
+
+  // Supposed to be used in pi*GetInfo* methods where ref count value is
+  // requested.
+  uint32_t load() { return RefCount.load(); }
+
+  // This method allows to guard a code which needs to be executed when object's
+  // ref count becomes zero after release. It is important to notice that only a
+  // single thread can pass through this check. This is true because of several
+  // reasons:
+  //   1. Decrement operation is executed atomically.
+  //   2. It is not allowed to retain an object after its refcount reaches zero.
+  //   3. It is not allowed to release an object more times than the value of
+  //   the ref count.
+  // 2. and 3. basically means that we can't use an object at all as soon as its
+  // refcount reaches zero. Using this check guarantees that code for deleting
+  // an object and releasing its resources is executed once by a single thread
+  // and we don't need to use any mutexes to guard access to this object in the
+  // scope after this check. Of course if we access another objects in this code
+  // (not the one which is being deleted) then access to these objects must be
+  // guarded, for example with a mutex.
+  bool decrementAndTest() { return --RefCount == 0; }
+
+private:
+  std::atomic<uint32_t> RefCount;
+};
+
+// Base class to store common data
+struct _ur_object {
+  _ur_object() : RefCount{} {}
+
+  // Must be atomic to prevent data race when incrementing/decrementing.
+  ReferenceCounter RefCount;
+
+  // This mutex protects accesses to all the non-const member variables.
+  // Exclusive access is required to modify any of these members.
+  //
+  // To get shared access to the object in a scope use std::shared_lock:
+  //    std::shared_lock Lock(Obj->Mutex);
+  // To get exclusive access to the object in a scope use std::scoped_lock:
+  //    std::scoped_lock Lock(Obj->Mutex);
+  //
+  // If several pi objects are accessed in a scope then each object's mutex must
+  // be locked. For example, to get write access to Obj1 and Obj2 and read
+  // access to Obj3 in a scope use the following approach:
+  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
+  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
+  ur_shared_mutex Mutex;
+
+  // Indicates if we own the native handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnNativeHandle = false;
+};
+
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
 struct MemAllocRecord : _ur_object {
@@ -403,3 +460,12 @@ extern std::map<const char *, int> *ZeCallCount;
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =
     "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
     "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
+
+// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] void setErrorMessage(const char *message,
+                                      ur_result_t error_code);
