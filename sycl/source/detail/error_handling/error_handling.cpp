@@ -70,7 +70,18 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       Kernel, Device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
       sizeof(size_t) * 3, CompileWGSize, nullptr);
 
+  size_t MaxWGSize = 0;
+  Plugin.call<PiApiKind::piDeviceGetInfo>(Device,
+                                          PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                          sizeof(size_t), &MaxWGSize, nullptr);
   if (CompileWGSize[0] != 0) {
+    if (CompileWGSize[0] > MaxWGSize || CompileWGSize[1] > MaxWGSize ||
+        CompileWGSize[2] > MaxWGSize)
+      throw sycl::exception(
+          make_error_code(errc::kernel_not_supported),
+          "Submitting a kernel decorated with reqd_work_group_size attribute "
+          "to a device that does not support this work group size is invalid.");
+
     // OpenCL 1.x && 2.0:
     // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
     // reqd_work_group_size attribute is used to declare the work-group size
@@ -97,45 +108,41 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               std::to_string(CompileWGSize[0]) + "}",
           PI_ERROR_INVALID_WORK_GROUP_SIZE);
   }
-    if (IsOpenCLV1x) {
-      // OpenCL 1.x:
-      // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
-      // the total number of work-items in the work-group computed as
-      // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
-      // than the value specified by PI_DEVICE_MAX_WORK_GROUP_SIZE in
-      // table 4.3
-      size_t MaxWGSize = 0;
-      Plugin.call<PiApiKind::piDeviceGetInfo>(
-          Device, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t),
-          &MaxWGSize, nullptr);
-      const size_t TotalNumberOfWIs =
-          NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
-      if (TotalNumberOfWIs > MaxWGSize)
-        throw sycl::nd_range_error(
-            "Total number of work-items in a work-group cannot exceed " +
-                std::to_string(MaxWGSize),
-            PI_ERROR_INVALID_WORK_GROUP_SIZE);
-    } else if (IsOpenCLVGE20 || IsLevelZero) {
-      // OpenCL 2.x or OneAPI Level Zero:
-      // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
-      // the total number of work-items in the work-group computed as
-      // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
-      // than the value specified by PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
-      // table 5.21.
-      size_t KernelWGSize = 0;
-      Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-          Kernel, Device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
-          &KernelWGSize, nullptr);
-      const size_t TotalNumberOfWIs =
-          NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
-      if (TotalNumberOfWIs > KernelWGSize)
-        throw sycl::nd_range_error(
-            "Total number of work-items in a work-group cannot exceed " +
-                std::to_string(KernelWGSize) + " for this kernel",
-            PI_ERROR_INVALID_WORK_GROUP_SIZE);
-    } else {
-      // TODO: Should probably have something similar for the other backends
-    }
+  if (IsOpenCLV1x) {
+    // OpenCL 1.x:
+    // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
+    // the total number of work-items in the work-group computed as
+    // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
+    // than the value specified by PI_DEVICE_MAX_WORK_GROUP_SIZE in
+    // table 4.3
+    const size_t TotalNumberOfWIs =
+        NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
+    if (TotalNumberOfWIs > MaxWGSize)
+      throw sycl::nd_range_error(
+          "Total number of work-items in a work-group cannot exceed " +
+              std::to_string(MaxWGSize),
+          PI_ERROR_INVALID_WORK_GROUP_SIZE);
+  } else if (IsOpenCLVGE20 || IsLevelZero) {
+    // OpenCL 2.x or OneAPI Level Zero:
+    // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
+    // the total number of work-items in the work-group computed as
+    // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
+    // than the value specified by PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
+    // table 5.21.
+    size_t KernelWGSize = 0;
+    Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+        Kernel, Device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
+        &KernelWGSize, nullptr);
+    const size_t TotalNumberOfWIs =
+        NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
+    if (TotalNumberOfWIs > KernelWGSize)
+      throw sycl::nd_range_error(
+          "Total number of work-items in a work-group cannot exceed " +
+              std::to_string(KernelWGSize) + " for this kernel",
+          PI_ERROR_INVALID_WORK_GROUP_SIZE);
+  } else {
+    // TODO: Should probably have something similar for the other backends
+  }
 
   if (HasLocalSize) {
     // Is the global range size evenly divisible by the local workgroup size?
