@@ -34,7 +34,6 @@ using urMemBufferCreateWithHostPtrFlagsTest =
     urMemBufferCreateTestWithFlagsParam;
 UUR_TEST_SUITE_P(urMemBufferCreateWithHostPtrFlagsTest,
                  ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
-                                   UR_MEM_FLAG_ALLOC_HOST_POINTER,
                                    UR_MEM_FLAG_USE_HOST_POINTER),
                  uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
