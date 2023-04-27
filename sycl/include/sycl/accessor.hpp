@@ -1144,11 +1144,17 @@ protected:
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
   // range and offset are not supported.
   void __init_esimd(ConcreteASPtrType Ptr) {
     MData = Ptr;
-    detail::loop<AdjustedDim>([&, this](size_t I) { getMemoryRange()[I] = 0; });
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+    detail::loop<AdjustedDim>([&, this](size_t I) {
+      getOffset()[I] = 0;
+      getAccessRange()[I] = 0;
+      getMemoryRange()[I] = 0;
+    });
+#endif
   }
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
@@ -2505,9 +2511,12 @@ protected:
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
   // range and offset are not supported.
-  void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
+  void __init_esimd(ConcreteASPtrType Ptr) {
+    MData = Ptr;
+    detail::loop<AdjustedDim>([&, this](size_t I) { getSize()[I] = 0; });
+  }
 
 public:
   // Default constructor for objects later initialized with __init member.
@@ -2747,6 +2756,13 @@ public:
     local_acc::__init(Ptr, AccessRange, range, id);
   }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(typename local_acc::ConcreteASPtrType Ptr) {
+    local_acc::__init_esimd(Ptr);
+  }
+
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() {
@@ -2791,7 +2807,7 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
   // range and offset are not supported.
   void __init_esimd(typename local_acc::ConcreteASPtrType Ptr) {
     local_acc::__init_esimd(Ptr);

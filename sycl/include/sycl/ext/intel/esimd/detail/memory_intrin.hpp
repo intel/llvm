@@ -46,8 +46,8 @@ public:
   template <typename AccessorTy>
   static auto getQualifiedPtrOrImageObj(const AccessorTy &Acc) {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (sycl::detail::acc_properties::is_image_accessor<
-                      AccessorTy>::value)
+    if constexpr (sycl::detail::acc_properties::is_image_accessor_v<
+                      AccessorTy>)
       return Acc.getNativeImageObj();
     else
       return Acc.getQualifiedPtr();

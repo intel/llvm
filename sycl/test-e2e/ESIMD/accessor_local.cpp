@@ -54,11 +54,11 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
              reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer()));
          if constexpr (TestSubscript) {
            for (int I = 0; I < VL; I++)
-             LocalAcc[LID * VL] = GID * 100 + I;
+             LocalAcc[LID * VL + I] = GID * 100 + I;
          } else {
            simd<int, VL> IntValues(GID * 100, 1);
-           simd<T, VL> ValuesToSLM = InvValues;
-           slm_block_store(LocalAccOffset, ValuesToSLM);
+           simd<T, VL> ValuesToSLM = IntValues;
+           slm_block_store(LocalAccOffset + LID * VL * sizeof(T), ValuesToSLM);
          }
 
          Item.barrier();
@@ -67,10 +67,10 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
            for (int LID = 0; LID < LocalRange; LID++) {
              if constexpr (TestSubscript) {
                for (int I = 0; I < VL; I++)
-                 Out[(GID + LID) * VL + I] = LocalAcc[I];
+                 Out[(GID + LID) * VL + I] = LocalAcc[LID * VL + I];
              } else {
                simd<T, VL> ValuesFromSLM =
-                   slm_block_load<T, VL>(LocalAccOffset);
+                   slm_block_load<T, VL>(LocalAccOffset + LID * VL * sizeof(T));
                ValuesFromSLM.copy_to(Out + (GID + LID) * VL);
              }
            } // end for (int LID = 0; LID < LocalRange; LID++)
@@ -126,7 +126,7 @@ int main() {
   bool Pass = true;
   Pass &= tests<int>(Q, LocalRange, GlobalRange);
   Pass &= tests<float>(Q, LocalRange, GlobalRange);
-  if (Dev.has(sycl::aspect::fp16))
+  if (Dev.has(aspect::fp16))
     Pass &= tests<sycl::half>(Q, LocalRange, GlobalRange);
 
   std::cout << "Test result: " << (Pass ? "Pass" : "Fail") << std::endl;
