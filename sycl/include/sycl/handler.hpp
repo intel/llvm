@@ -2762,8 +2762,8 @@ public:
     if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
       // If the corresponding device_global isn't used in any kernels, we fall
       // back to doing the memory operation on host-only.
-      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, sizeof(T), IsDeviceImageScoped,
-                                     NumBytes, SrcOffset);
+      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
+                                     SrcOffset);
       return;
     }
 
@@ -3093,7 +3093,6 @@ private:
 
   // Implementation of memcpy from an unregistered device_global.
   void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
-                                      size_t DeviceGlobalTSize,
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 

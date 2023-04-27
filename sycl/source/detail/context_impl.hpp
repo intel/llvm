@@ -219,10 +219,11 @@ public:
       const void *DeviceGlobalPtr, const void *Src, size_t DeviceGlobalTSize,
       bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
 
-  void memcpyFromHostOnlyDeviceGlobal(
-      const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
-      const void *DeviceGlobalPtr, size_t DeviceGlobalTSize,
-      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+  void
+  memcpyFromHostOnlyDeviceGlobal(const std::shared_ptr<device_impl> &DeviceImpl,
+                                 void *Dest, const void *DeviceGlobalPtr,
+                                 bool IsDeviceImageScoped, size_t NumBytes,
+                                 size_t Offset);
 
   /// Gets a program associated with a device global from the cache.
   std::optional<RT::PiProgram>
