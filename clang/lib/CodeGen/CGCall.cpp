@@ -1856,22 +1856,19 @@ llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracy) {
 void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
     const llvm::Type *FuncType) {
-  for (const auto &M : getLangOpts().FPAccuracyMap) {
+  if (!getLangOpts().FPAccuracyVal.empty()) {
     StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-        ID, FuncType, convertFPAccuracy(M.second));
+        ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
     assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
     FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
   }
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
-      for (const std::pair<std::string, std::string> &AttrPair :
-           FuncMapIt->second) {
-        StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-            ID, FuncType, convertFPAccuracy(AttrPair.second));
-        assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
-        FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-      }
+      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+          ID, FuncType, convertFPAccuracy(FuncMapIt->second));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
     }
   }
 }

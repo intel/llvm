@@ -396,13 +396,6 @@ public:
     IncompleteOnly = 3,
   };
 
-  using FPAccuracyMapTy =
-      llvm::MapVector<std::string, std::string, llvm::StringMap<unsigned>>;
-  FPAccuracyMapTy FPAccuracyMap;
-  using FPAccuracyFuncMapTy =
-      llvm::MapVector<std::string, FPAccuracyMapTy, llvm::StringMap<unsigned>>;
-  FPAccuracyFuncMapTy FPAccuracyFuncMap;
-
 public:
   /// The used language standard.
   LangStandard::Kind LangStd;
@@ -525,6 +518,10 @@ public:
   /// The name of the file to which the backend should save YAML optimization
   /// records.
   std::string OptRecordFile;
+
+  std::string FPAccuracyVal;
+  using FPAccuracyFuncMapTy = std::map<std::string, std::string>;
+  FPAccuracyFuncMapTy FPAccuracyFuncMap;
 
   LangOptions();
 
