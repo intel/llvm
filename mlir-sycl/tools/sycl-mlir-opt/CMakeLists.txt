@@ -1,4 +1,9 @@
+set(test_libs
+  SYCLMLIRTestAnalysis
+)
+
 set(LIBS
+  ${test_libs}
   MLIRMlirOptMain
   MLIRSYCLDialect
   MLIRSYCLToGPU
