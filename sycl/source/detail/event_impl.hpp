@@ -251,7 +251,7 @@ public:
 
   bool isContextInitialized() const noexcept { return MIsContextInitialized; }
 
-  ContextImplPtr getContextImplPtr() {
+  ContextImplPtr getContextImplPtr() const {
     ensureContextInitialized();
     return MContext;
   }
