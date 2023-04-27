@@ -29,8 +29,7 @@ template <int D, typename A> class image;
 
 // 'friend'
 template <backend Backend, int D, typename A>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        image<D, A>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero, image<D, A>>
 make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
            const context &TargetContext, event AvailableEvent = {});
 
@@ -435,8 +434,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<
-      std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -512,18 +510,18 @@ private:
 
   // Declare make_image as a friend function
   template <backend Backend, int D, typename A>
-  friend typename std::enable_if<
+  friend std::enable_if_t<
       detail::InteropFeatureSupportMap<Backend>::MakeImage == true &&
           Backend != backend::ext_oneapi_level_zero,
-      image<D, A>>::type
+      image<D, A>>
   make_image(
       const typename backend_traits<Backend>::template input_type<image<D, A>>
           &BackendObject,
       const context &TargetContext, event AvailableEvent);
 
   template <backend Backend, int D, typename A>
-  friend typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                                 image<D, A>>::type
+  friend std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                          image<D, A>>
   make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
              const context &TargetContext, event AvailableEvent);
 
