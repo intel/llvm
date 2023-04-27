@@ -40,7 +40,7 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
 }
 
 ::jit_compiler::BinaryFormat getTargetFormat(QueueImplPtr &Queue) {
-  auto Backend = Queue->getDeviceImplPtr()->getPlugin().getBackend();
+  auto Backend = Queue->getDeviceImplPtr()->getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
   case backend::opencl:
@@ -58,8 +58,8 @@ std::pair<const RTDeviceBinaryImage *, RT::PiProgram>
 retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
   auto KernelName = KernelCG->getKernelName();
 
-  bool isNvidia = Queue->getDeviceImplPtr()->getPlugin().getBackend() ==
-                  backend::ext_oneapi_cuda;
+  bool isNvidia =
+      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
   if (isNvidia) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
     std::vector<kernel_id> KernelIds{KernelID};
