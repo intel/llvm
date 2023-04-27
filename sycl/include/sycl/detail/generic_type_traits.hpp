@@ -498,15 +498,16 @@ using select_cl_scalar_integral_t =
 // select_cl_scalar_t picks corresponding cl_* type for input
 // scalar T or returns T if T is not scalar.
 template <typename T>
-using select_cl_scalar_t = conditional_t<
+using select_cl_scalar_t = std::conditional_t<
     std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
-    conditional_t<std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
-                  // half is a special case: it is implemented differently on
-                  // host and device and therefore, might lower to different
-                  // types
-                  conditional_t<std::is_same<std::remove_cv_t<T>, half>::value,
-                                sycl::detail::half_impl::BIsRepresentationT,
-                                select_cl_scalar_complex_or_T_t<T>>>>;
+    std::conditional_t<
+        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+        // half is a special case: it is implemented differently on
+        // host and device and therefore, might lower to different
+        // types
+        std::conditional_t<std::is_same<std::remove_cv_t<T>, half>::value,
+                           sycl::detail::half_impl::BIsRepresentationT,
+                           select_cl_scalar_complex_or_T_t<T>>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.

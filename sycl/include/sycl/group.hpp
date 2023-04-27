@@ -300,7 +300,7 @@ public:
   /// device_event which can be used to wait on the completion of the copy.
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
-  detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
+  std::enable_if_t<!detail::is_bool<dataT>::value, device_event>
   async_work_group_copy(local_ptr<dataT> dest, global_ptr<const dataT> src,
                         size_t numElements, size_t srcStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -318,7 +318,7 @@ public:
   /// device_event which can be used to wait on the completion of the copy.
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
-  detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
+  std::enable_if_t<!detail::is_bool<dataT>::value, device_event>
   async_work_group_copy(global_ptr<dataT> dest, local_ptr<const dataT> src,
                         size_t numElements, size_t destStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
