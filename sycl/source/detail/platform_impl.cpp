@@ -143,7 +143,7 @@ std::vector<platform> platform_impl::get_platforms() {
   }();
 
   // See which platform we want to be served by which plugin.
-  // There should be just one plugin servins each backend.
+  // There should be just one plugin serving each backend.
   std::vector<plugin> &Plugins = RT::initialize();
   std::vector<std::pair<platform, plugin>> PlatformsWithPlugin;
 
@@ -214,9 +214,9 @@ std::vector<platform> platform_impl::get_platforms() {
 // The return value is a vector that represents the indices of the chosen
 // devices.
 template <typename ListT, typename FilterT>
-static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                                           RT::PiPlatform Platform,
-                                           ListT *FilterList) {
+static std::vector<int>
+filterDeviceFilter(plugin &Plugin, std::vector<RT::PiDevice> &PiDevices,
+                   RT::PiPlatform Platform, ListT *FilterList) {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
@@ -245,16 +245,6 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   // original indices keeps track of the device numbers of the chosen
   // devices and is whats returned by the function
   std::vector<int> original_indices;
-
-  std::vector<plugin> &Plugins = RT::initialize();
-  auto It =
-      std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
-        return Plugin.containsPiPlatform(Platform);
-      });
-  if (It == Plugins.end()) {
-    return original_indices;
-  }
-  plugin &Plugin = *It;
 
   // Find out backend of the platform
   RT::PiPlatformBackend PiBackend;
@@ -531,7 +521,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     return Res;
 
   pi_uint32 NumDevices = 0;
-  const detail::plugin &Plugin = getPlugin();
+  detail::plugin &Plugin = *MPlugin;
   Plugin.call<PiApiKind::piDevicesGet>(
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
       0, // CP info::device_type::all
@@ -582,11 +572,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                             "conjunction with SYCL_DEVICE_FILTER");
     }
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
-        PiDevices, MPlatform, OdsTargetList);
+        Plugin, PiDevices, MPlatform, OdsTargetList);
   } else if (FilterList) {
     PlatformDeviceIndices =
         filterDeviceFilter<device_filter_list, device_filter>(
-            PiDevices, MPlatform, FilterList);
+            Plugin, PiDevices, MPlatform, FilterList);
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
