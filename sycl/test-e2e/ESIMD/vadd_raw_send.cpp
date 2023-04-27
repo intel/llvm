@@ -1,14 +1,11 @@
-//==---------------- vadd_raw_send.cpp  - DPC++ ESIMD on-device test
-//-------------==//
+//==---------------- vadd_raw_send.cpp  - DPC++ ESIMD on-device test-------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip
+// REQUIRES: gpu-intel-pvc
 // TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
 // XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t1.out
@@ -84,7 +81,7 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
   auto src0_ref2 = src0.template select<8, 1>(8);
 
   src0_ref1.template select<1, 1>(2) = offset >> 4;
-  src0_ref2 = data.template bit_cast_view<unsigned int>();
+  src0_ref2 = data.template select<8, 1>(0);
   uint32_t exDesc = 0xA;
   SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x40A0200;
