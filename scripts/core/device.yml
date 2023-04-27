@@ -336,12 +336,18 @@ etors:
       desc: "[uint32_t] return Intel GPU EU SIMD width"
     - name: GPU_EU_SLICES
       desc: "[uint32_t] return Intel GPU number of slices"
+    - name: GPU_EU_COUNT_PER_SUBSLICE
+      desc: "[uint32_t] return Intel GPU EU count per subslice"
     - name: GPU_SUBSLICES_PER_SLICE
       desc: "[uint32_t] return Intel GPU number of subslices per slice"
+    - name: GPU_HW_THREADS_PER_EU
+      desc: "[uint32_t] return Intel GPU number of threads per EU"
     - name: MAX_MEMORY_BANDWIDTH
       desc: "[uint32_t] return max memory bandwidth in Mb/s"
     - name: IMAGE_SRGB
       desc: "[$x_bool_t] device supports sRGB images"
+    - name: BUILD_ON_SUBDEVICE
+      desc: "[$x_bool_t] Return true if sub-device should do its own program build"
     - name: ATOMIC_64
       desc: "[$x_bool_t] support 64 bit atomics"
     - name: ATOMIC_MEMORY_ORDER_CAPABILITIES
@@ -361,6 +367,16 @@ etors:
             available for this device.
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
       desc: "[$x_bool_t] support the $xKernelSetSpecializationConstants entry point"
+    - name: MEMORY_BUS_WIDTH
+      desc: |
+            [$x_bool_t] Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
+            return the number of queue indices that are available for this device.
+    - name: MAX_WORK_GROUPS_3D
+      desc: "[uint32_t] return max 3D work groups"
+    - name: ASYNC_BARRIER
+      desc: "[$x_bool_t] return true if Async Barrier is supported"
+    - name: MEM_CHANNEL_SUPPORT
+      desc: "[$x_bool_t] return true if specifying memory channels is supported"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

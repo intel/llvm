@@ -345,7 +345,7 @@ ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < propName`
+///         + `::UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
