@@ -623,7 +623,7 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 
 |Device descriptors|Value|
 |-------------|:------------|
-|`info::device::backend_version`|empty string
+|`info::device::backend_version`|The Level Zero backend does not define the value of this information descriptor. Applications should not use it, and implementations are encouraged to return the empty string.
 
 ## Revision History
 |Rev|Date|Author|Changes|
