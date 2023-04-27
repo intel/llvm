@@ -2,7 +2,7 @@
 // RUN: %clangxx -D __SYCL_NATIVE_CPU__ -std=c++17 -include %t.h -I %sycl_include -I %sycl_include/sycl  %s -O2 -c -o %t-host.o
 // RUN: %clangxx %t.bc -O3 -c -o %t-kernel.o
 // RUN: %clangxx -L %sycl_libs_dir -lsycl %t-kernel.o %t-host.o -o %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="host:*" %t
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
 #include <CL/sycl.hpp>
 

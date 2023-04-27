@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-native-cpu %s -o %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="host:*" %t
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
 #include <sycl/sycl.hpp>
 

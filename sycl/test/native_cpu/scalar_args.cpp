@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-native-cpu %s -o %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="host:*" %t
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 #include <CL/sycl.hpp>
 
 #include <iostream>
@@ -15,7 +15,7 @@ template <typename T>
 bool test(queue myQueue) {
   {
     buffer<float, 1> a(range<1>{N});
-    T test = 42;
+    const T test = 42;
 
     myQueue.submit([&](handler& cgh) {
       auto A = a.get_access<access::mode::write>(cgh);
@@ -28,7 +28,8 @@ bool test(queue myQueue) {
     std::cout << "Result:" << std::endl;
     for (size_t i = 0; i < N; i++) {
         if (A[i] != test) {
-          std::cout << "ERROR\n";
+          std::cout << "ERROR at pos " << i << " expected " << test << ", got "
+                    << A[i] << "\n";
           return false;
         }
     }

@@ -24,23 +24,23 @@ struct _pi_device : _pi_object {
 
 struct _pi_mem : _pi_object {
   _pi_mem(size_t Size) {
-    _mem = malloc(Size);
+    _mem = (char *)malloc(Size);
     _owns_mem = true;
   }
   _pi_mem(void *HostPtr, size_t Size) {
-    _mem = malloc(Size);
+    _mem = (char *)malloc(Size);
     memcpy(_mem, HostPtr, Size);
     _owns_mem = true;
   }
   _pi_mem(void *HostPtr) {
-    _mem = HostPtr;
+    _mem = (char *)HostPtr;
     _owns_mem = false;
   }
   ~_pi_mem() {
     if (_owns_mem)
       free(_mem);
   }
-  void *_mem;
+  char *_mem;
   bool _owns_mem;
 };
 
@@ -699,7 +699,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 }
 
 pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
-  DIE_NO_IMPLEMENTATION;
+  // Todo: currently we do everything synchronously so this is a no-op
+  return PI_SUCCESS;
 }
 
 pi_result piEventSetCallback(pi_event, pi_int32,
@@ -797,15 +798,19 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferMap(pi_queue, pi_mem, pi_bool, pi_map_flags, size_t,
-                                size_t, pi_uint32, const pi_event *, pi_event *,
-                                void **) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferMap(pi_queue, pi_mem buffer, pi_bool, pi_map_flags,
+                                size_t offset, size_t size, pi_uint32,
+                                const pi_event *, pi_event *, void **ret_map) {
+  // Todo: add proper error checking
+  std::cout << "[PTRDBG] offset size " << offset << " " << size << "\n";
+  *ret_map = buffer->_mem + offset;
+  return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemUnmap(pi_queue, pi_mem, void *, pi_uint32,
-                            const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemUnmap(pi_queue, pi_mem mem_obj, void *mapped_ptr,
+                            pi_uint32, const pi_event *, pi_event *) {
+  // Todo: no-op?
+  return PI_SUCCESS;
 }
 
 pi_result piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *, size_t *) {
