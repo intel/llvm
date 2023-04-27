@@ -466,12 +466,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   {
     // Handle sycl-optlevel property
     int OptLevel = -1;
-    for (const Function &F : M.functions()) {
-      if (!F.hasFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL))
+    for (const Function *F : MD.entries()) {
+      if (!F->hasFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL))
         continue;
 
       // getAsInteger returns true on error
-      if (!F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL)
+      if (!F->getFnAttribute(llvm::sycl::utils::ATTR_SYCL_OPTLEVEL)
                .getValueAsString()
                .getAsInteger(10, OptLevel)) {
         // It is expected that device-code split has separated kernels with
