@@ -5,20 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip,gpu-intel-pvc
-// TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
-// XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %clangxx -fsycl -DNEW_API %s -o %t2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t2.out
-
-// The test checks raw send functionality with block read/write implementation
-// on SKL. It does not work on DG1 due to send instruction incompatibility.
-
-#include "esimd_test_utils.hpp"
+// RUN: %clangxx -fsycl -fsyntax-only %s
+// // This test checks compilation of ESIMD raw send APIs.
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
@@ -43,13 +31,8 @@ ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = 0x2;
-#ifdef NEW_API
   return experimental::esimd::raw_send(oldDst, src0, exDesc, desc, execSize,
                                        sfid, numSrc0, numDst);
-#else
-  return experimental::esimd::raw_send_load(oldDst, src0, exDesc, desc,
-                                            execSize, sfid, numSrc0, numDst);
-#endif
 }
 
 template <typename T, int N, typename AccessorTy>
@@ -65,15 +48,9 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = 0x1;
-#ifdef NEW_API
   return experimental::esimd::raw_sends(src0, data, exDesc, desc, execSize,
                                         sfid, numSrc0, numSrc1);
-#else
-  return experimental::esimd::raw_sends_store(src0, data, exDesc, desc,
-                                              execSize, sfid, numSrc0, numSrc1);
-#endif
 }
-
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
                                simd<T, N> data) {
@@ -83,20 +60,16 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
   auto src0_ref2 = src0.template select<8, 1>(8);
 
   src0_ref1.template select<1, 1>(2) = offset >> 4;
-  src0_ref2 = data;
+  src0_ref2 = data.template select<8, 1>(8);
+
   uint32_t exDesc = 0xA;
   SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x40A0200;
   constexpr uint8_t execSize = 0x83;
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x2;
-#ifdef NEW_API
   return experimental::esimd::raw_send(src0, exDesc, desc, execSize, sfid,
                                        numSrc0);
-#else
-  return experimental::esimd::raw_send_store(src0, exDesc, desc, execSize, sfid,
-                                             numSrc0);
-#endif
 }
 
 template <typename T> int test(queue q) {
@@ -169,7 +142,7 @@ template <typename T> int test(queue q) {
 
 int main(void) {
 
-  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  queue q;
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
@@ -177,5 +150,9 @@ int main(void) {
   int err_cnt = 0;
 
   err_cnt += test<float>(q);
+  err_cnt += test<sycl::ext::intel::experimental::esimd::tfloat32>(q);
+  if (dev.has(sycl::aspect::fp16)) {
+    err_cnt += test<sycl::half>(q);
+  }
   return err_cnt > 0 ? 1 : 0;
 }
