@@ -158,7 +158,7 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
         std::is_integral_v<T>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                            const uint32_t MemberMask) {
+                            const uint32_t MemberMask) {//todo membermask naming?
 
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     auto tmp = __nvvm_shfl_sync_bfly_i32(MemberMask, x, -1, i);
@@ -167,7 +167,9 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   return x;
 }
 
-// TODO Opportunistic/Ballot group reduction using shfls
+// Opportunistic/Ballot group reduction using shfls
+// TODO in some places it might make sense to factor out parts of this big
+// function.
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
@@ -175,9 +177,115 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
-  static_assert(false,
-                "ext_oneapi_cuda currently does not support reduce_over_group "
-                "for opportunistic_group or ballot_group.");
+
+  if (MemberMask == 0xffffffff) {
+    for (int i = 16; i > 0; i /= 2) {
+
+      auto tmp = __nvvm_shfl_sync_bfly_i32(MemberMask, x, -1, i);
+      x = binary_op(x, tmp);
+    }
+    return x;
+  }
+  unsigned local_range;
+  // get_local_range()[0] in a more direct way.
+  asm("popc.b32 %0, %1;" : "=r"(local_range) : "r"(MemberMask));
+
+  // position of this lanes set bit with respect to all set bits in mask
+  // local_set_bit = 1 for first set bit in mask.
+  unsigned local_set_bit;
+
+  // get_local_id()[0] directly without duplicating extract mask.
+  asm("popc.b32 %0, %1;"
+      : "=r"(local_set_bit)
+      : "r"(MemberMask & __nvvm_read_ptx_sreg_lanemask_lt()));
+  local_set_bit++;
+  if (local_range < 2) {
+    return x;
+  }
+
+  // number of elements remaining requiring binary operations
+  auto op_range = local_range;
+
+  // remainder that won't have a binary partner each pass of while loop
+  int remainder;
+
+  while (op_range / 2 >= 1) {
+    remainder = op_range % 2;
+
+    // stride between local_ids forming a binary op
+    int stride = op_range / 2;
+
+    // position of set bit in mask from shfl src lane.
+    int src_set_bit;
+
+    int unfold = local_set_bit + stride;
+    bool fold_around = unfold > local_range;
+
+    if (remainder != 0) {
+      if (fold_around) {
+        unfold++;
+        src_set_bit = unfold - local_range;
+      } else if (local_set_bit == 1) {
+        src_set_bit = local_set_bit;
+      } else {
+        src_set_bit = unfold;
+      }
+    } else if (fold_around) {
+      src_set_bit = unfold - local_range;
+    } else {
+      src_set_bit = unfold;
+    }
+
+    T tmp;
+    // TODO adsorb these guys into separate functions since we call each form
+    // twice.
+    if (std::is_same_v<T, double>) {
+      int x_a, x_b;
+      asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
+
+      auto tmp_a = __nvvm_shfl_sync_idx_i32(
+          MemberMask, x_a, __nvvm_fns(MemberMask, 0, src_set_bit), 0x1f);
+      auto tmp_b = __nvvm_shfl_sync_idx_i32(
+          MemberMask, x_b, __nvvm_fns(MemberMask, 0, src_set_bit), 0x1f);
+      asm volatile("mov.b64 %0,{%1,%2}; \n\t"
+                   : "=l"(tmp)
+                   : "r"(tmp_a), "r"(tmp_b));
+    } else {
+      auto input = std::is_same_v<T, float> ? __nvvm_bitcast_f2i(x) : x;
+      auto tmp_b32 = __nvvm_shfl_sync_idx_i32(
+          MemberMask, input, __nvvm_fns(MemberMask, 0, src_set_bit), 0x1f);
+      tmp = std::is_same_v<T, float> ? __nvvm_bitcast_i2f(tmp_b32) : tmp_b32;
+    }
+    x = (local_set_bit == 1 && remainder != 0) ? x : binary_op(x, tmp);
+
+    op_range = std::ceil((float)op_range / 2.0f);
+  }
+
+  int broadID;
+  int maskRev;
+  asm("brev.b32 %0, %1;" : "=r"(maskRev) : "r"(MemberMask));
+  asm("clz.b32 %0, %1;" : "=r"(broadID) : "r"(maskRev));
+
+  T res;
+
+  if (std::is_same_v<T, double>) {
+
+    int x_a, x_b;
+    asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
+
+    auto tmp_a = __nvvm_shfl_sync_idx_i32(MemberMask, x_a, broadID, 0x1f);
+    auto tmp_b = __nvvm_shfl_sync_idx_i32(MemberMask, x_b, broadID, 0x1f);
+    asm volatile("mov.b64 %0,{%1,%2}; \n\t"
+                 : "=l"(res)
+                 : "r"(tmp_a), "r"(tmp_b));
+
+  } else {
+    auto input = std::is_same_v<T, float> ? __nvvm_bitcast_f2i(x) : x;
+    auto tmp_b32 = __nvvm_shfl_sync_idx_i32(MemberMask, input, broadID, 0x1f);
+    res = std::is_same_v<T, float> ? __nvvm_bitcast_i2f(tmp_b32) : tmp_b32;
+  }
+
+  return res;
 }
 
 // Non Redux types must fall back to shfl based implementations.
