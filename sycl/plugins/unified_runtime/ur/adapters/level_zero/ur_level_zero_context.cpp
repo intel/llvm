@@ -118,6 +118,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
         UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
     return ReturnValue(Capabilities);
   }
+  case UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    return ReturnValue(pi_bool{false});
   default:
     // TODO: implement other parameters
     die("urGetContextInfo: unsuppported ParamName.");
