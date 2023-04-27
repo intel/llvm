@@ -499,13 +499,13 @@ using select_cl_scalar_integral_t =
 // scalar T or returns T if T is not scalar.
 template <typename T>
 using select_cl_scalar_t = std::conditional_t<
-    std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
+    std::is_integral_v<T>, select_cl_scalar_integral_t<T>,
     std::conditional_t<
-        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+        std::is_floating_point_v<T>, select_cl_scalar_float_t<T>,
         // half is a special case: it is implemented differently on
         // host and device and therefore, might lower to different
         // types
-        std::conditional_t<std::is_same<std::remove_cv_t<T>, half>::value,
+        std::conditional_t<std::is_same_v<std::remove_cv_t<T>, half>,
                            sycl::detail::half_impl::BIsRepresentationT,
                            select_cl_scalar_complex_or_T_t<T>>>>;
 
