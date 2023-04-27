@@ -528,7 +528,7 @@ std::unique_ptr<Pass> createDetectReductionPass() {
   return std::make_unique<DetectReductionPass>();
 }
 std::unique_ptr<Pass>
-detectReductionPass(const DetectReductionOptions &options) {
+createDetectReductionPass(const DetectReductionOptions &options) {
   return std::make_unique<DetectReductionPass>(options);
 }
 } // namespace polygeist
