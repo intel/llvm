@@ -417,8 +417,9 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
 
 void context_impl::memcpyFromHostOnlyDeviceGlobal(
     const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
-    const void *DeviceGlobalPtr, size_t DeviceGlobalTSize,
-    bool IsDeviceImageScoped, size_t NumBytes, size_t Offset) {
+    const void *DeviceGlobalPtr, size_t, bool IsDeviceImageScoped,
+    size_t NumBytes, size_t Offset) {
+
   std::optional<RT::PiDevice> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
     KeyDevice = DeviceImpl->getHandleRef();
