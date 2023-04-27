@@ -41,9 +41,6 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using AccessorPtrType = polygeist::VersionConditionBuilder::AccessorPtrType;
-using AccessorPtrPairType =
-    polygeist::VersionConditionBuilder::AccessorPtrPairType;
 
 static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
     "enable-licm-sycl-accessor-versioning", llvm::cl::init(true),
@@ -336,13 +333,13 @@ public:
 
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
 
-  ArrayRef<AccessorPtrPairType> getRequireNoOverlapAccessorPairs() const {
+  std::set<sycl::AccessorPtrPair> getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
 
-  void addRequireNoOverlapAccessorPairs(AccessorPtrType acc1,
-                                        AccessorPtrType acc2) {
-    requireNoOverlapAccessorPairs.push_back({acc1, acc2});
+  void addRequireNoOverlapAccessorPairs(sycl::AccessorPtr acc1,
+                                        sycl::AccessorPtr acc2) {
+    requireNoOverlapAccessorPairs.insert({acc1, acc2});
   }
 
 private:
@@ -351,11 +348,11 @@ private:
   SmallVector<Operation *> prerequisites;
   /// Pairs of accessors that are required to not overlap for this operation to
   /// be invariant.
-  SmallVector<AccessorPtrPairType> requireNoOverlapAccessorPairs;
+  std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs;
 };
 
 /// Return the accessor used by \p op if found, and nullptr otherwise.
-static Optional<AccessorPtrType>
+static Optional<sycl::AccessorPtr>
 getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
@@ -400,8 +397,9 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
       continue;
     }
 
-    Optional<AccessorPtrType> opAccessor = getAccessorUsedByOperation(op);
-    Optional<AccessorPtrType> otherAccessor = getAccessorUsedByOperation(other);
+    Optional<sycl::AccessorPtr> opAccessor = getAccessorUsedByOperation(op);
+    Optional<sycl::AccessorPtr> otherAccessor =
+        getAccessorUsedByOperation(other);
     if (opAccessor.has_value() && otherAccessor.has_value())
       if (*opAccessor != *otherAccessor &&
           loop.isDefinedOutsideOfLoop(*opAccessor) &&
@@ -585,7 +583,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    ArrayRef<AccessorPtrPairType> accessorPairs =
+    std::set<sycl::AccessorPtrPair> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
     bool willVersion = requireVersioning && EnableLICMSYCLAccessorVersioning &&
@@ -620,7 +618,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    ArrayRef<AccessorPtrPairType> accessorPairs =
+    std::set<sycl::AccessorPtrPair> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);

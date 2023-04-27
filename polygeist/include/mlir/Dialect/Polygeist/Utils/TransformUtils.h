@@ -16,6 +16,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
+#include <set>
 #include <variant>
 
 namespace mlir {
@@ -34,6 +35,10 @@ class ForOp;
 class IfOp;
 class ParallelOp;
 } // namespace scf
+
+namespace sycl {
+class AccessorPtr;
+} // namespace sycl
 
 namespace polygeist {
 
@@ -271,19 +276,13 @@ public:
 /// overlap.
 class VersionConditionBuilder {
 public:
-  using AccessorPtrType = TypedValue<MemRefType>;
-  using AccessorPtrPairType = std::pair<AccessorPtrType, AccessorPtrType>;
+  using AccessorPtrPairType = std::pair<sycl::AccessorPtr, sycl::AccessorPtr>;
   using SCFCondition = VersionCondition::SCFCondition;
   using AffineCondition = VersionCondition::AffineCondition;
 
   VersionConditionBuilder(
-      ArrayRef<AccessorPtrPairType> requireNoOverlapAccessorPairs,
-      OpBuilder builder, Location loc)
-      : accessorPairs(requireNoOverlapAccessorPairs), builder(builder),
-        loc(loc) {
-    assert(!accessorPairs.empty() &&
-           "Expecting accessorPairs to have at least one pair");
-  }
+      std::set<AccessorPtrPairType> requireNoOverlapAccessorPairs,
+      OpBuilder builder, Location loc);
 
   std::unique_ptr<VersionCondition> createCondition() const {
     SCFCondition scfCond = createSCFCondition(builder, loc);
@@ -294,7 +293,7 @@ private:
   /// Create a versioning condition suitable for scf::IfOp.
   SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
 
-  ArrayRef<AccessorPtrPairType> accessorPairs;
+  std::set<AccessorPtrPairType> accessorPairs;
   mutable OpBuilder builder;
   mutable Location loc;
 };

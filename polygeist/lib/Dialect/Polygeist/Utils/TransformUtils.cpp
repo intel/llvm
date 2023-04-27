@@ -546,10 +546,9 @@ static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
 }
 
 static sycl::SYCLAccessorGetRangeOp
-createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor, OpBuilder builder,
+createSYCLAccessorGetRangeOp(sycl::AccessorPtr accessor, OpBuilder builder,
                              Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const sycl::AccessorType accTy = accessor.getAccessorType();
   const auto rangeTy = cast<sycl::RangeType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
   return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
@@ -557,11 +556,10 @@ createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor, OpBuilder builder,
 }
 
 static sycl::SYCLAccessorSubscriptOp
-createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
+createSYCLAccessorSubscriptOp(sycl::AccessorPtr accessor,
                               TypedValue<MemRefType> id, OpBuilder builder,
                               Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
+  const sycl::AccessorType accTy = accessor.getAccessorType();
   assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
   const auto MT = MemRefType::get(
       ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
@@ -570,10 +568,9 @@ createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
       builder, loc, MT, {accessor, id}, "operator[]", "accessor");
 }
 
-static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
-                                  OpBuilder builder, Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
+static Value getSYCLAccessorBegin(sycl::AccessorPtr accessor, OpBuilder builder,
+                                  Location loc) {
+  const sycl::AccessorType accTy = accessor.getAccessorType();
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
@@ -585,10 +582,9 @@ static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
-static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
-                                OpBuilder builder, Location loc) {
-  const auto accTy =
-      cast<sycl::AccessorType>(accessor.getType().getElementType());
+static Value getSYCLAccessorEnd(sycl::AccessorPtr accessor, OpBuilder builder,
+                                Location loc) {
+  const sycl::AccessorType accTy = accessor.getAccessorType();
   Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
   auto range = builder.create<memref::AllocaOp>(
       loc, MemRefType::get(1, getRangeOp.getType()));
@@ -610,6 +606,14 @@ static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
+VersionConditionBuilder::VersionConditionBuilder(
+    std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs,
+    OpBuilder builder, Location loc)
+    : accessorPairs(requireNoOverlapAccessorPairs), builder(builder), loc(loc) {
+  assert(!accessorPairs.empty() &&
+         "Expecting accessorPairs to have at least one pair");
+}
+
 VersionConditionBuilder::SCFCondition
 VersionConditionBuilder::createSCFCondition(OpBuilder builder,
                                             Location loc) const {
@@ -623,7 +627,7 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder,
   };
 
   Value condition;
-  for (const AccessorPtrPairType &accessorPair : accessorPairs) {
+  for (const sycl::AccessorPtrPair &accessorPair : accessorPairs) {
     Value begin1 = getSYCLAccessorBegin(accessorPair.first, builder, loc);
     Value end1 = getSYCLAccessorEnd(accessorPair.first, builder, loc);
     Value begin2 = getSYCLAccessorBegin(accessorPair.second, builder, loc);
