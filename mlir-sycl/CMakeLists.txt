@@ -1,5 +1,3 @@
-# Copyright (C) Codeplay Software Limited
-
 #===--- CMakeLists.txt -----------------------------------------------------===#
 #
 # MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
@@ -76,6 +74,13 @@ add_subdirectory(include/mlir)
 add_subdirectory(lib)
 add_subdirectory(test)
 add_subdirectory(tools)
+
+add_custom_target(MLIRSYCLUnitTests)
+if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
+  add_subdirectory(unittests)
+else()
+  message(WARNING "gtest not found, unittests will not be available")
+endif()
 
 install(DIRECTORY include/
   DESTINATION include
