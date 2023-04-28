@@ -784,10 +784,10 @@ template <>
 struct get_device_info_impl<
     uint32_t,
     ext::codeplay::experimental::info::device::max_registers_per_work_group> {
-  static uint32_t get(RT::PiDevice dev, const plugin &Plugin) {
+  static uint32_t get(const DeviceImplPtr &Dev) {
     uint32_t maxRegsPerWG;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(
-        dev,
+    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
         PiInfoCode<ext::codeplay::experimental::info::device::
                        max_registers_per_work_group>::value,
         sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
