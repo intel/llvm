@@ -36,6 +36,39 @@ enum class graph_state {
   executable,
 };
 
+// Forward declaration
+class node;
+
+namespace property {
+namespace graph {
+
+// TODO: Cycle check not yet implemented.
+class no_cycle_check : public ::sycl::detail::DataLessProperty<
+                           ::sycl::detail::GraphNoCycleCheck> {
+public:
+  no_cycle_check() = default;
+};
+
+} // namespace graph
+
+namespace node {
+
+class depends_on : public ::sycl::detail::PropertyWithData<
+                       ::sycl::detail::GraphNodeDependencies> {
+public:
+  template <typename... NodeTN> depends_on(NodeTN... nodes) : MDeps{nodes...} {}
+  const std::vector<::sycl::ext::oneapi::experimental::node> &
+  get_dependencies() const {
+    return MDeps;
+  }
+
+private:
+  const std::vector<::sycl::ext::oneapi::experimental::node> MDeps;
+};
+
+} // namespace node
+} // namespace property
+
 class __SYCL_EXPORT node {
 private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
@@ -57,11 +90,21 @@ public:
                 const property_list &propList = {});
 
   // Adding empty node with [0..n] predecessors:
-  node add(const std::vector<node> &dep = {}) { return add_impl(dep); }
+  node add(const property_list &PropList = {}) {
+    if (PropList.has_property<property::node::depends_on>()) {
+      auto Deps = PropList.get_property<property::node::depends_on>();
+      return add_impl(Deps.get_dependencies());
+    }
+    return add_impl({});
+  }
 
   // Adding device node:
-  template <typename T> node add(T cgf, const std::vector<node> &dep = {}) {
-    return add_impl(cgf, dep);
+  template <typename T> node add(T CGF, const property_list &PropList = {}) {
+    if (PropList.has_property<property::node::depends_on>()) {
+      auto Deps = PropList.get_property<property::node::depends_on>();
+      return add_impl(CGF, Deps.get_dependencies());
+    }
+    return add_impl(CGF, {});
   }
 
   // Adding dependency between two nodes.
@@ -140,8 +183,29 @@ private:
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 };
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+
+template <>
+struct is_property<ext::oneapi::experimental::property::graph::no_cycle_check>
+    : std::true_type {};
+
+template <>
+struct is_property<ext::oneapi::experimental::property::node::depends_on>
+    : std::true_type {};
+
+template <>
+struct is_property_of<
+    ext::oneapi::experimental::property::graph::no_cycle_check,
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::modifiable>> : std::true_type {
+};
+
+template <>
+struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
+                      ext::oneapi::experimental::node> : std::true_type {};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

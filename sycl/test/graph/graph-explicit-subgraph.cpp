@@ -23,16 +23,16 @@ float host_gold_result() {
 }
 
 int main() {
+  namespace sycl_ext = sycl::ext::oneapi::experimental;
+
   float alpha = 1.0f;
   float beta = 2.0f;
   float gamma = 3.0f;
 
   sycl::queue q{sycl::gpu_selector_v};
 
-  sycl::ext::oneapi::experimental::command_graph g{q.get_context(),
-                                                   q.get_device()};
-  sycl::ext::oneapi::experimental::command_graph subGraph{q.get_context(),
-                                                          q.get_device()};
+  sycl_ext::command_graph g{q.get_context(), q.get_device()};
+  sycl_ext::command_graph subGraph{q.get_context(), q.get_device()};
 
   float *dotp = sycl::malloc_shared<float>(1, q);
 
@@ -67,7 +67,8 @@ int main() {
   auto subGraphExec = subGraph.finalize();
 
   auto node_sub =
-      g.add([&](sycl::handler &h) { h.ext_oneapi_graph(subGraphExec); }, {n_i});
+      g.add([&](sycl::handler &h) { h.ext_oneapi_graph(subGraphExec); },
+            {sycl_ext::property::node::depends_on(n_i)});
 
   auto node_c = g.add(
       [&](sycl::handler &h) {
@@ -88,7 +89,7 @@ int main() {
         });
 #endif
       },
-      {node_sub});
+      {sycl_ext::property::node::depends_on(node_sub)});
 
   auto executable_graph = g.finalize();
 
