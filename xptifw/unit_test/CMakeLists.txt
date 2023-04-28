@@ -1,10 +1,11 @@
-if (NOT EXISTS ${XPTI_SOURCE_DIR})
-  message (FATAL_ERROR "Undefined XPTI_SOURCE_DIR variable: Must be set for tests to work!")
+if (NOT EXISTS ${XPTI_DIR})
+  message (FATAL_ERROR "Undefined XPTI_DIR variable: Must be set for tests to work!")
 endif()
-include_directories(${XPTI_SOURCE_DIR}/include)
+include_directories(${XPTI_DIR}/include)
 
 # Only download Google Test outside of LLVM tree.
 if (NOT DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
+  message(STATUS "Building XPTI outside of LLVM Project...")
   # Download and unpack googletest at configure time
   configure_file(../CMakeLists.txt.in googletest-download/CMakeLists.txt)
   execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
@@ -53,16 +54,26 @@ if (TARGET LLVMSupport)
   set(SUPPORT_LIB LLVMSupport)
 endif()
 
-target_link_libraries(XPTIFWUnitTests PRIVATE
-  llvm_gtest
-  llvm_gtest_main
-  xptifw
-  ${SUPPORT_LIB}
-)
+if (DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
+  target_link_libraries(XPTIFWUnitTests PRIVATE
+    llvm_gtest
+    llvm_gtest_main
+    xptifw
+    ${SUPPORT_LIB}
+  )
+else()
+  target_link_libraries(XPTIFWUnitTests PRIVATE
+    gtest
+    gtest_main
+    xptifw
+  )
+endif()
 
 add_test(NAME XPTIFWTests COMMAND XPTIFWUnitTests)
 
-add_custom_target(check-xptifw-unittest COMMAND
-  $<TARGET_PROPERTY:XPTIFWUnitTests,RUNTIME_OUTPUT_DIRECTORY>/XPTIFWUnitTests)
-add_dependencies(check-xptifw-unittest XPTIFWUnitTests)
-add_dependencies(check-xptifw check-xptifw-unittest)
+if (DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
+  add_custom_target(check-xptifw-unittest COMMAND
+    $<TARGET_PROPERTY:XPTIFWUnitTests,RUNTIME_OUTPUT_DIRECTORY>/XPTIFWUnitTests)
+  add_dependencies(check-xptifw-unittest XPTIFWUnitTests)
+  add_dependencies(check-xptifw check-xptifw-unittest)
+endif()
