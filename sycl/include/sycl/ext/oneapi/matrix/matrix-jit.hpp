@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -80,35 +79,35 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
-  PtrType Ptr = src.get();
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = src.get();
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<PtrType, T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::RowMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<PtrType, T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::ColumnMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<PtrType, T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedA,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<PtrType, T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<DecorT, T, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedB,
             spv_scope_traits<Group>::value);
@@ -134,31 +133,31 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
-  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
-  PtrType Ptr = res.get();
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = res.get();
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
-    __spirv_JointMatrixStoreINTEL<PtrType, T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
-    __spirv_JointMatrixStoreINTEL<PtrType, T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
-    __spirv_JointMatrixStoreINTEL<PtrType, T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::PackedA,
         spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
-    __spirv_JointMatrixStoreINTEL<PtrType, T, NumRows, NumCols,
+    __spirv_JointMatrixStoreINTEL<DecorT, T, NumRows, NumCols,
                                   spv_matrix_layout_traits<MatL>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::PackedB,
         spv_scope_traits<Group>::value);

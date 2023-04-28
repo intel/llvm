@@ -9,7 +9,6 @@
 #pragma once
 
 #include "matrix-unified-utils.hpp"
-#include "utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/feature_test.hpp>
@@ -495,9 +494,9 @@ joint_matrix_store(Group sg,
       PI_ERROR_INVALID_DEVICE);
 #else
     // intel's impl
-    using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
-    PtrType Ptr = dst.get();
-    __spirv_JointMatrixStoreINTEL<PtrType, Tp, NumRows, NumCols,
+    using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+    DecorT *Ptr = dst.get();
+    __spirv_JointMatrixStoreINTEL<DecorT, Tp, NumRows, NumCols,
                                   sycl::ext::oneapi::experimental::matrix::
                                       spv_matrix_use_traits<Use>::value,
                                   sycl::ext::oneapi::experimental::matrix::

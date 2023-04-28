@@ -8,7 +8,6 @@
 
 #pragma once
 #include "matrix-intel.hpp"
-#include "utils.hpp"
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -207,14 +206,14 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #else
-  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
-  PtrType Ptr = src.get();
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = src.get();
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        PtrType, S, NumRows, NumCols,
+        DecorT, S, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::RowMajor,
@@ -222,7 +221,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     break;
   case layout::col_major:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        PtrType, S, NumRows, NumCols,
+        DecorT, S, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
@@ -230,7 +229,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
-        PtrType, S, NumRows, NumCols,
+        DecorT, S, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, stride, __spv::MatrixLayout::Packed,
@@ -270,10 +269,10 @@ joint_matrix_load(Group sg,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
 #else
-  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
-  PtrType Ptr = src.get();
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = src.get();
   res.spvm =
-      __spirv_JointMatrixLoadINTEL<PtrType, S, NumRows, NumCols,
+      __spirv_JointMatrixLoadINTEL<DecorT, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
                                    spv_matrix_layout_traits<Layout>::value>(
           Ptr, stride, spv_matrix_layout_traits<Layout>::value,
@@ -306,14 +305,14 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #else
-  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
-  PtrType Ptr = dst.get();
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = dst.get();
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");
   case layout::row_major:
     __spirv_JointMatrixStoreINTEL<
-        PtrType, T, NumRows, NumCols,
+        DecorT, T, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
@@ -321,7 +320,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     break;
   case layout::col_major:
     __spirv_JointMatrixStoreINTEL<
-        PtrType, T, NumRows, NumCols,
+        DecorT, T, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
@@ -329,7 +328,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     break;
   case sycl::ext::intel::experimental::matrix::layout::packed:
     __spirv_JointMatrixStoreINTEL<
-        PtrType, T, NumRows, NumCols,
+        DecorT, T, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
         Ptr, src.spvm, stride, __spv::MatrixLayout::Packed,
