@@ -1358,7 +1358,9 @@ public:
             typename... PropTypes,
             typename std::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                std::is_same_v<T, DataT> && Dims == 0 &&
+                // VS2019 can't compile sycl/test/regression/bit_cast_win.cpp
+                // if std::is_same_v is used here.
+                std::is_same<T, DataT>::value && Dims == 0 &&
                 (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))> * =
                 nullptr>
   accessor(
