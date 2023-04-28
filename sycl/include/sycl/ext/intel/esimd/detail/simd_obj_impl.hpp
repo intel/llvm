@@ -338,7 +338,7 @@ public:
   /// Type conversion into a scalar:
   /// <code><simd_obj_impl<RawTy, 1, simd<Ty,1>></code> to \c Ty.
   template <typename T = simd_obj_impl,
-            typename = sycl::detail::enable_if_t<T::length == 1>>
+            typename = std::enable_if_t<T::length == 1>>
   operator Ty() const {
     __esimd_dbg_print(operator Ty());
     return bitcast_to_wrapper_type<Ty>(data()[0]);
@@ -600,7 +600,7 @@ public:
   ///
   /// @return 1 if any element is non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t any() const {
     return __esimd_any<Ty, N>(data());
   }
@@ -609,7 +609,7 @@ public:
   ///
   /// @return 1 if all elements are non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t all() const {
     return __esimd_all<Ty, N>(data());
   }

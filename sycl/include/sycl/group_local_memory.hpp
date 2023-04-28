@@ -17,7 +17,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, typename Group>
 __SYCL_DEPRECATED(
     "use sycl::ext::oneapi::group_local_memory_for_overwrite instead")
-std::enable_if_t<std::is_trivially_destructible<T>::value &&
+std::enable_if_t<std::is_trivially_destructible_v<T> &&
                      detail::is_group<Group>::value,
                  multi_ptr<T, access::address_space::local_space,
                            access::decorated::legacy>> __SYCL_ALWAYS_INLINE
@@ -27,7 +27,7 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
 
 template <typename T, typename Group, typename... Args>
 __SYCL_DEPRECATED("use sycl::ext::oneapi::group_local_memory instead")
-std::enable_if_t<std::is_trivially_destructible<T>::value &&
+std::enable_if_t<std::is_trivially_destructible_v<T> &&
                      detail::is_group<Group>::value,
                  multi_ptr<T, access::address_space::local_space,
                            access::decorated::legacy>> __SYCL_ALWAYS_INLINE

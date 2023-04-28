@@ -113,7 +113,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
     bool DeviceNumOK = true;
 
     if (Filter.Backend) {
-      backend BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
+      backend BE = sycl::detail::getSyclObjImpl(Dev)->getBackend();
       // Backend is okay if the filter BE is set 'all'.
       if (Filter.Backend.value() == backend::all)
         BackendOK = true;
