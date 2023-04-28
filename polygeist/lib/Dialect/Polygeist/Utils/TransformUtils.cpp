@@ -25,21 +25,21 @@ using namespace mlir::polygeist;
 //===----------------------------------------------------------------------===//
 
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool mlir::polygeist::isLinkonceODR(FunctionOpInterface func) {
+bool polygeist::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void mlir::polygeist::privatize(FunctionOpInterface func) {
+void polygeist::privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool mlir::polygeist::isTailCall(CallOpInterface call) {
+bool polygeist::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -93,13 +93,13 @@ static void getMaxDepthFromAnyGPUKernel(
 }
 
 Optional<unsigned>
-mlir::polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
   DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
   ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
-bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+bool polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   // The function must be defined, and private or with linkonce_odr linkage.
   if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
     return false;
@@ -124,8 +124,7 @@ bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   return (maxDepth.value() == 1 || maxDepth.value() == 2);
 }
 
-Optional<Value>
-mlir::polygeist::getAccessorUsedByOperation(const Operation &op) {
+Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
         .Case<AffineLoadOp, AffineStoreOp>(
@@ -135,9 +134,7 @@ mlir::polygeist::getAccessorUsedByOperation(const Operation &op) {
 
   auto accSub =
       dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
-  if (accSub)
-    return accSub.getAcc();
-  return std::nullopt;
+  return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
 }
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {

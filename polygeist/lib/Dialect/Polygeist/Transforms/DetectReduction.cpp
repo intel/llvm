@@ -73,7 +73,8 @@ public:
   AffineStoreOp getStore() const { return Store; }
   ArrayRef<AffineLoadOp> getOtherLoads() const { return OtherLoads; }
 
-  std::set<sycl::AccessorPtrPair> getRequireNoOverlapAccessorPairs() const {
+  const std::set<sycl::AccessorPtrPair> &
+  getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
   void addRequireNoOverlapAccessorPairs(sycl::AccessorPtrValue acc1,
@@ -112,7 +113,7 @@ private:
 static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
                                 ArrayRef<ReductionOp> Candidates) {
   for (const ReductionOp &Candidate : Candidates) {
-    std::set<sycl::AccessorPtrPair> accessorPairs =
+    const std::set<sycl::AccessorPtrPair> &accessorPairs =
         Candidate.getRequireNoOverlapAccessorPairs();
     if (accessorPairs.empty())
       continue;
@@ -503,9 +504,8 @@ private:
   /// required accessors for loop versioning.
   static bool canVersion(AffineLoadOp &Load, Operation &Op,
                          LoopLikeOpInterface Loop, ReductionOp &Candidate) {
-    Operation *LoadOp = Load;
     Optional<sycl::AccessorPtrValue> opAccessor =
-        polygeist::getAccessorUsedByOperation(*LoadOp);
+        polygeist::getAccessorUsedByOperation(*Load);
     Optional<sycl::AccessorPtrValue> otherAccessor =
         polygeist::getAccessorUsedByOperation(Op);
     if (opAccessor.has_value() && otherAccessor.has_value())
@@ -605,6 +605,9 @@ void DetectReductionPass::runOnOperation() {
   RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions,
                                                        aliasAnalysis);
   GreedyRewriteConfig Config;
+  // Only apply patterns on the original list of LoopLikeOpInterface, to avoid
+  // reevaluating loops created within the patterns (e.g., from loop
+  // versioning).
   SmallVector<Operation *> LoopOps;
   getOperation()->walk([&](Operation *Op) {
     if (isa<LoopLikeOpInterface>(Op))

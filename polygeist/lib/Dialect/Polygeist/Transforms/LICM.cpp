@@ -333,7 +333,8 @@ public:
 
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
 
-  std::set<sycl::AccessorPtrPair> getRequireNoOverlapAccessorPairs() const {
+  const std::set<sycl::AccessorPtrPair> &
+  getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
 
@@ -567,7 +568,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    std::set<sycl::AccessorPtrPair> accessorPairs =
+    const std::set<sycl::AccessorPtrPair> &accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
     bool willVersion = requireVersioning && LICMEnableSYCLAccessorVersioning &&
@@ -602,7 +603,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    std::set<sycl::AccessorPtrPair> accessorPairs =
+    const std::set<sycl::AccessorPtrPair> &accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
