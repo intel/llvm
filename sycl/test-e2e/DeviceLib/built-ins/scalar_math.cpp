@@ -1,5 +1,4 @@
-// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else
-// %{-fno-fast-math%}
+// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %{mathflags} %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

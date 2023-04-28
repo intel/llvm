@@ -1,5 +1,4 @@
-// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else
-// %{-fno-fast-math%}
+// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // TODO fix windows failures
 // UNSUPPORTED: windows && (level_zero || opencl)

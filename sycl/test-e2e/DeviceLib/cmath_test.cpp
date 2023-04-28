@@ -1,5 +1,4 @@
-// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else
-// %{-fno-fast-math%}
+// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // UNSUPPORTED: hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-builtin %{mathflags} %s -o %t.out
@@ -7,7 +6,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// RUN: %clangxx -fsycl -fno-fast-math -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
+// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
