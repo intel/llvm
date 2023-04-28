@@ -493,17 +493,17 @@ joint_matrix_store(Group sg,
       "intel devices",
       PI_ERROR_INVALID_DEVICE);
 #else
-    // intel's impl
-    using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-    DecorT *Ptr = dst.get();
-    __spirv_JointMatrixStoreINTEL<DecorT, Tp, NumRows, NumCols,
-                                  sycl::ext::oneapi::experimental::matrix::
-                                      spv_matrix_use_traits<Use>::value,
-                                  sycl::ext::oneapi::experimental::matrix::
-                                      spv_matrix_layout_traits<Layout>::value>(
-        Ptr, src.spvm, stride,
-        sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
-            Layout>::value,
+  // intel's impl
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = dst.get();
+  __spirv_JointMatrixStoreINTEL<DecorT, Tp, NumRows, NumCols,
+                                sycl::ext::oneapi::experimental::matrix::
+                                    spv_matrix_use_traits<Use>::value,
+                                sycl::ext::oneapi::experimental::matrix::
+                                    spv_matrix_layout_traits<Layout>::value>(
+      Ptr, src.spvm, stride,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
       sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
