@@ -820,11 +820,12 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       assert(!HasSret && &Arg == F->getArg(0) &&
              "sret parameter should only appear on the first argument");
       HasSret = true;
+      unsigned AS = Arg.getType()->getPointerAddressSpace();
       if (auto *STy = dyn_cast<StructType>(Ty))
         ArgTys.push_back(
-            TypedPointerType::get(GetStructType(STy->getName()), 0));
+            TypedPointerType::get(GetStructType(STy->getName()), AS));
       else
-        ArgTys.push_back(TypedPointerType::get(Ty, 0));
+        ArgTys.push_back(TypedPointerType::get(Ty, AS));
     } else {
       ArgTys.push_back(Arg.getType());
     }
@@ -895,6 +896,11 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       DemangledSuccessfully = false;
     } else if (ArgTy->isTargetExtTy() || !DemangledTy)
       DemangledTy = ArgTy;
+    if (auto *TPT = dyn_cast<TypedPointerType>(DemangledTy))
+      if (ArgTy->isPointerTy() &&
+          TPT->getAddressSpace() != ArgTy->getPointerAddressSpace())
+        DemangledTy = TypedPointerType::get(TPT->getElementType(),
+                                            ArgTy->getPointerAddressSpace());
     *ArgIter++ = DemangledTy;
   }
   return DemangledSuccessfully;
