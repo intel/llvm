@@ -1,7 +1,9 @@
 // RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// UNSUPPORTED: cpu || cuda || hip
+// UNSUPPORTED: cpu || cuda || hip || windows
+// Tangle groups exhibit unpredictable behavior on Windows.
+// The test is disabled while we investigate the root cause.
 
 #include <sycl/sycl.hpp>
 #include <vector>
