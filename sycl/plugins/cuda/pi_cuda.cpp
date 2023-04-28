@@ -1436,7 +1436,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueEventsWaitWithBarrier, pi2ur::piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, pi2ur::piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, cuda_piEnqueueMemBufferReadRect)
-  _PI_CL(piEnqueueMemBufferWrite, pi2ur::piEnqueueMemBufferRead)
+  _PI_CL(piEnqueueMemBufferWrite, pi2ur::piEnqueueMemBufferWrite)
   _PI_CL(piEnqueueMemBufferWriteRect, cuda_piEnqueueMemBufferWriteRect)
   _PI_CL(piEnqueueMemBufferCopy, cuda_piEnqueueMemBufferCopy)
   _PI_CL(piEnqueueMemBufferCopyRect, cuda_piEnqueueMemBufferCopyRect)
