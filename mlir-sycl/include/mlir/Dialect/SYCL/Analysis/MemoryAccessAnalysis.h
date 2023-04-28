@@ -395,7 +395,8 @@ inline raw_ostream &operator<<(raw_ostream &os, const OffsetVector &vector) {
 ///   | 0  c3|   |j|   |c4|
 ///
 template <typename OpTy> class MemoryAccess {
-  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess<OpTy> &);
+  template <typename T>
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess<T> &);
 
 public:
   MemoryAccess() = delete;

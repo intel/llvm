@@ -40,7 +40,7 @@ UnderlyingValue UnderlyingValue::join(const UnderlyingValue &lhs,
     return rhs;
   if (rhs.isUninitialized())
     return lhs;
-  return (lhs == rhs) ? lhs : UnderlyingValue({});
+  return (lhs == rhs) ? lhs : UnderlyingValue();
 }
 
 Value UnderlyingValue::getUnderlyingValue(
