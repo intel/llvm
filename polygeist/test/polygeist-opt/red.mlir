@@ -4,15 +4,15 @@ module  {
   // COM: Ensure array reductions are detected on SCF for loops.
   func.func @detect_reduction_scf_for_1(%arg0: memref<?xf32>) -> f32 {
     // CHECK-LABEL:   func.func @detect_reduction_scf_for_1
-    // CHECK-DAG:       %cst = arith.constant 1.000000e+00 : f32
-    // CHECK-DAG:       %cst_0 = arith.constant 0.000000e+00 : f32
     // CHECK-DAG:       %c0 = arith.constant 0 : index
     // CHECK-DAG:       %c1 = arith.constant 1 : index
     // CHECK-NEXT:      %dim = memref.dim %arg0, %c0 : memref<?xf32>
+    // CHECK-DAG:       %cst = arith.constant 0.000000e+00 : f32
+    // CHECK-DAG:       %cst_0 = arith.constant 1.000000e+00 : f32
     // CHECK-NEXT:      %alloca = memref.alloca() : memref<1xf32>
-    // CHECK-NEXT:      affine.store %cst_0, %alloca[0] : memref<1xf32>
+    // CHECK-NEXT:      affine.store %cst, %alloca[0] : memref<1xf32>
     // CHECK-NEXT:      %alloca_1 = memref.alloca() : memref<1xf32>
-    // CHECK-NEXT:      affine.store %cst, %alloca_1[0] : memref<1xf32>
+    // CHECK-NEXT:      affine.store %cst_0, %alloca_1[0] : memref<1xf32>
     // CHECK-NEXT:      %0 = affine.load %alloca_1[0] : memref<1xf32>
     // CHECK-NEXT:      %1 = affine.load %alloca[0] : memref<1xf32>
     // CHECK-NEXT:      %2:2 = scf.for %arg1 = %c0 to %dim step %c1 iter_args(%arg2 = %0, %arg3 = %1) -> (f32, f32) {
@@ -56,14 +56,14 @@ module  {
   // COM: Ensure array reductions are detected affine for loops.
   func.func @detect_reduction_affine_for_1(%arg0: memref<?xf32>) -> f32 {
     // CHECK-LABEL:   func.func @detect_reduction_affine_for_1
-    // CHECK-DAG:       %cst = arith.constant 1.000000e+00 : f32
-    // CHECK-DAG:       %cst_0 = arith.constant 0.000000e+00 : f32
     // CHECK-DAG:       %c0 = arith.constant 0 : index    
     // CHECK-NEXT:      %dim = memref.dim %arg0, %c0 : memref<?xf32>
+    // CHECK-DAG:       %cst = arith.constant 0.000000e+00 : f32
+    // CHECK-DAG:       %cst_0 = arith.constant 1.000000e+00 : f32
     // CHECK-NEXT:      %alloca = memref.alloca() : memref<1xf32>
-    // CHECK-NEXT:      affine.store %cst_0, %alloca[0] : memref<1xf32>
+    // CHECK-NEXT:      affine.store %cst, %alloca[0] : memref<1xf32>
     // CHECK-NEXT:      %alloca_1 = memref.alloca() : memref<1xf32>
-    // CHECK-NEXT:      affine.store %cst, %alloca_1[0] : memref<1xf32>
+    // CHECK-NEXT:      affine.store %cst_0, %alloca_1[0] : memref<1xf32>
     // CHECK-NEXT:      %0 = affine.load %alloca_1[0] : memref<1xf32>
     // CHECK-NEXT:      %1 = affine.load %alloca[0] : memref<1xf32>
     // CHECK-NEXT:      %2:2 = affine.for %arg1 = 0 to %dim iter_args(%arg2 = %0, %arg3 = %1) -> (f32, f32) {
