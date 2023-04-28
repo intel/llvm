@@ -2106,7 +2106,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                             false);
   }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
-    // The sRGB images are not supported on HIP device.
+    // The sRGB images are not supported on CUDA.
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
                             false);
   }
