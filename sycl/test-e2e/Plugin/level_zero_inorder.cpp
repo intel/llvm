@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: level_zero
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
@@ -78,11 +79,8 @@ void IfTrueIncrementByValue(sycl::queue Q, sycl::range<1> Range, int *Harray,
 
 void RunCalculation(sycl::queue Q) {
   sycl::range<1> Range(buffer_size);
-  auto Dev = Q.get_device();
-  if (!Dev.has(sycl::aspect::usm_shared_allocations))
-    return;
 
-  int *values = sycl::malloc<int>(buffer_size, Dev, Q.get_context(), AllocType);
+  int *values = sycl::malloc<int>(buffer_size, Q, AllocType);
 
   try {
     Q.submit([&](sycl::handler &cgh) {
