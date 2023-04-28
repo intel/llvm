@@ -644,6 +644,21 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     return static_cast<pi_result>(CL_SUCCESS);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    cl_int ret_err = CL_SUCCESS;
+    cl_bool result = CL_FALSE;
+    bool supported = false;
+
+    ret_err =
+        checkDeviceExtensions(cast<cl_device_id>(device),
+                              {"cl_intel_mem_channel_property"}, supported);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    result = supported;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -665,6 +680,32 @@ pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     result = PI_SUCCESS;
   }
   return static_cast<pi_result>(result);
+}
+
+pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info paramName,
+                            size_t paramValueSize, void *paramValue,
+                            size_t *paramValueSizeRet) {
+
+  switch (paramName) {
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    pi_platform_backend result = PI_EXT_PLATFORM_BACKEND_OPENCL;
+    if (paramValue) {
+      if (paramValueSize < sizeof(result))
+        return PI_ERROR_INVALID_VALUE;
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  default: {
+    cl_int result = clGetPlatformInfo(
+        cast<cl_platform_id>(platform), cast<cl_platform_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -2170,7 +2211,7 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
@@ -2235,7 +2276,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Platform
   _PI_CL(piPlatformsGet, piPlatformsGet)
-  _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  _PI_CL(piPlatformGetInfo, piPlatformGetInfo)
   _PI_CL(piextPlatformGetNativeHandle, piextPlatformGetNativeHandle)
   _PI_CL(piextPlatformCreateWithNativeHandle,
          piextPlatformCreateWithNativeHandle)

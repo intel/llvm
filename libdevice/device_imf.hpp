@@ -13,6 +13,7 @@
 #include "imf_bf16.hpp"
 #include "imf_half.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <type_traits>
 #ifdef __LIBDEVICE_IMF_ENABLED__
