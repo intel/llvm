@@ -35,7 +35,7 @@ TDB
 See [Get Started Guide](./sycl/doc/GetStartedGuide.md).
 
 SYCL Graph support is enabled with:
- * Configuration script: `configure.py -enable-sycl-graph`.
+ * Configuration script: `configure.py --enable-sycl-graph`.
  * CMake: `cmake -DSYCL_ENABLE_GRAPH`.
 
 A fallback emulation mode is used otherwise that enables the graph API but eagerly submits kernels.
