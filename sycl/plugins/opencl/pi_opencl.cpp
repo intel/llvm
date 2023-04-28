@@ -208,10 +208,10 @@ template <typename T> struct FuncPtrCache {
   std::mutex Mutex;
 };
 
-// FIXME There's currently no mechanism for cleaning up this cache, meaning that
-// it is invalidated whenever a context is destroyed. This could lead to reusing
-// an invalid function pointer if another context happends to have the same
-// native handle.
+// FIXME: There's currently no mechanism for cleaning up this cache, meaning
+// that it is invalidated whenever a context is destroyed. This could lead to
+// reusing an invalid function pointer if another context happends to have the
+// same native handle.
 struct ExtFuncPtrCacheT {
   FuncPtrCache<clHostMemAllocINTEL_fn> clHostMemAllocINTELCache;
   FuncPtrCache<clDeviceMemAllocINTEL_fn> clDeviceMemAllocINTELCache;
@@ -233,7 +233,11 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clSetProgramSpecializationConstant_fn>
       clSetProgramSpecializationConstantCache;
 };
-static ExtFuncPtrCacheT *const ExtFuncPtrCache = new ExtFuncPtrCacheT();
+// A raw pointer is used here since the lifetime of this map has to be tied to
+// piTeardown to avoid issues with static destruction order (a user application
+// might have static objects that indirectly access this cache in their
+// destructor).
+static ExtFuncPtrCacheT *ExtFuncPtrCache = new ExtFuncPtrCacheT();
 
 // USM helper function to get an extension function pointer
 template <typename T>
@@ -2261,10 +2265,11 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // called safely. But this is not transitive. If the PI plugin in turn
 // dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
-// pi_level_zero.cpp for reference) Currently this is just a NOOP.
+// pi_level_zero.cpp for reference).
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
   delete ExtFuncPtrCache;
+  ExtFuncPtrCache = nullptr;
   return PI_SUCCESS;
 }
 
