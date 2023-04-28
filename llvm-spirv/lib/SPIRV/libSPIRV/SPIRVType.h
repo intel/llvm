@@ -1064,9 +1064,13 @@ class SPIRVTypeJointMatrixINTEL : public SPIRVType {
   std::vector<SPIRVValue *> Args;
 
 public:
-  const static Op OC = internal::OpTypeJointMatrixINTEL;
   const static SPIRVWord FixedWC = 3;
-  // Complete constructor
+  // Complete constructor with non-default OC
+  SPIRVTypeJointMatrixINTEL(SPIRVModule *M, SPIRVId TheId, Op OC,
+                            SPIRVType *CompType,
+                            std::vector<SPIRVValue *> Args);
+
+  // Incomplete constructor for default OC
   SPIRVTypeJointMatrixINTEL(SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
                             std::vector<SPIRVValue *> Args);
   // Incomplete constructor
@@ -1085,11 +1089,29 @@ public:
   SPIRVType *getCompType() const { return CompType; }
   SPIRVValue *getRows() const { return Args[0]; }
   SPIRVValue *getColumns() const { return Args[1]; }
-  SPIRVValue *getLayout() const { return Args[2]; }
-  SPIRVValue *getScope() const { return Args[3]; }
-  SPIRVValue *getUse() const { return Args.size() > 4 ? Args[4] : nullptr; }
+
+  SPIRVValue *getLayout() const {
+    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
+      return Args[2];
+    return nullptr;
+  }
+
+  SPIRVValue *getScope() const {
+    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
+      return Args[3];
+    return Args[2];
+  }
+
+  SPIRVValue *getUse() const {
+    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
+      return Args.size() > 4 ? Args[4] : nullptr;
+    return Args[3];
+  }
+
   SPIRVValue *getComponentTypeInterpretation() const {
-    return Args.size() > 5 ? Args[5] : nullptr;
+    if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
+      return Args.size() > 5 ? Args[5] : nullptr;
+    return Args.size() > 4 ? Args[4] : nullptr;
   }
 };
 

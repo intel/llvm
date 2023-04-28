@@ -50,7 +50,7 @@ struct _ur_platform_handle_t : public _ur_platform {
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> PiDevicesCache;
-  pi_shared_mutex PiDevicesCacheMutex;
+  ur_shared_mutex PiDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.
@@ -76,7 +76,7 @@ enum EventsScope {
   LastCommandInBatchHostVisible
 };
 
-struct _ur_device_handle_t : _pi_object {
+struct _ur_device_handle_t : _ur_object {
   _ur_device_handle_t(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
@@ -202,37 +202,3 @@ struct _ur_device_handle_t : _pi_object {
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
-
-// TODO: make it into a ur_device_handle_t class member
-const std::pair<int, int>
-getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device);
-
-class ZeUSMImportExtension {
-  // Pointers to functions that import/release host memory into USM
-  ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
-                                                void *, size_t) = nullptr;
-  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
-                                                 void *) = nullptr;
-
-public:
-  // Whether user has requested Import/Release, and platform supports it.
-  bool Enabled;
-
-  ZeUSMImportExtension() : Enabled{false} {}
-
-  void setZeUSMImport(_ur_platform_handle_t *Platform);
-  void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
-                     size_t Size);
-  void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
-};
-
-// Helper wrapper for working with USM import extension in Level Zero.
-extern ZeUSMImportExtension ZeUSMImport;
-
-// This will count the calls to Level-Zero
-extern std::map<const char *, int> *ZeCallCount;
-
-// Some opencl extensions we know are supported by all Level Zero devices.
-constexpr char ZE_SUPPORTED_EXTENSIONS[] =
-    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
-    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";

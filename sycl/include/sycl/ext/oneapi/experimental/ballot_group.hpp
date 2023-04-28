@@ -41,7 +41,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return detail::CallerPositionInMask(Mask);
+    return sycl::detail::CallerPositionInMask(Mask);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -112,15 +112,17 @@ public:
 #endif
   }
 
-private:
-  sub_group_mask Mask;
-  bool Predicate;
-
 protected:
+  const sub_group_mask Mask;
+  const bool Predicate;
+
   ballot_group(sub_group_mask m, bool p) : Mask(m), Predicate(p) {}
 
   friend ballot_group<ParentGroup>
   get_ballot_group<ParentGroup>(ParentGroup g, bool predicate);
+
+  friend uint32_t sycl::detail::IdToMaskPosition<ballot_group<ParentGroup>>(
+      ballot_group<ParentGroup> Group, uint32_t Id);
 };
 
 template <typename Group>
@@ -149,5 +151,10 @@ template <typename ParentGroup>
 struct is_user_constructed_group<ballot_group<ParentGroup>> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
+
+template <typename ParentGroup>
+struct is_group<ext::oneapi::experimental::ballot_group<ParentGroup>>
+    : std::true_type {};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

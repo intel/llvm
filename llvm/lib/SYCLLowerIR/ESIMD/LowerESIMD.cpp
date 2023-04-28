@@ -131,8 +131,8 @@ enum class lsc_subopcode : uint8_t {
 // /^_Z(\d+)__esimd_\w+/
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
 static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
+static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
-
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
   enum GenXArgRuleKind {
@@ -714,10 +714,10 @@ static bool isDevicelibFunction(StringRef FunctionName) {
       .Default(false);
 }
 
-// Mangle deviceLib function to make it pass through the regular workflow
-// These functions are defined as extern "C" which Demangler that is used
-// fails to handle properly.
-static std::string mangleDevicelibFunction(StringRef FunctionName) {
+static std::string mangleFunction(StringRef FunctionName) {
+  // Mangle deviceLib function to make it pass through the regular workflow
+  // These functions are defined as extern "C" which Demangler that is used
+  // fails to handle properly.
   if (isDevicelibFunction(FunctionName)) {
     if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
       return (Twine("_Z31") + FunctionName + "RKf").str();
@@ -726,6 +726,11 @@ static std::string mangleDevicelibFunction(StringRef FunctionName) {
       return (Twine("_Z31") + FunctionName + "RKt").str();
     }
   }
+  // Every inserted vstore gets its own function with the same name,
+  // so they are mangled with ".[0-9]+". Just use the
+  // raw name to pass through the demangler.
+  if (FunctionName.startswith(ESIMD_INSERTED_VSTORE_FUNC_NAME))
+    return ESIMD_INSERTED_VSTORE_FUNC_NAME;
   return FunctionName.str();
 }
 
@@ -1020,7 +1025,7 @@ static void translateUnPackMask(CallInst &CI) {
   CI.replaceAllUsesWith(TransCI);
 }
 
-static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
+static bool translateVLoad(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
@@ -1030,7 +1035,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   return true;
 }
 
-static bool translateVStore(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
+static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   if (GVTS.find(CI.getOperand(1)->getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
@@ -1054,9 +1059,10 @@ static void translateGetSurfaceIndex(CallInst &CI) {
 // This helper function creates cast operation from GenX intrinsic return type
 // to currently expected. Returns pointer to created cast instruction if it
 // was created, otherwise returns NewI.
-static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
+static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
+                                        Type *UseType = nullptr) {
   Type *NITy = NewI->getType();
-  Type *OITy = OldI->getType();
+  Type *OITy = UseType ? UseType : OldI->getType();
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
@@ -1081,7 +1087,8 @@ static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
 /// of vector load. The parameter \p IsVectorCall tells what version of GenX
 /// intrinsic (scalar or vector) to use to lower the load from SPIRV global.
 static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
-                                     bool IsVectorCall, uint64_t IndexValue) {
+                                     bool IsVectorCall, uint64_t IndexValue,
+                                     Type *UseType) {
   std::string Suffix =
       IsVectorCall
           ? ".v3i32"
@@ -1120,7 +1127,7 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
                                       ExtractName, EEI);
     Inst->setDebugLoc(EEI->getDebugLoc());
   }
-  Inst = addCastInstIfNeeded(EEI, Inst);
+  Inst = addCastInstIfNeeded(EEI, Inst, UseType);
   return Inst;
 }
 
@@ -1161,37 +1168,39 @@ bool translateLLVMIntrinsic(CallInst *CI) {
 // Generate translation instructions for SPIRV global function calls
 static Value *generateSpirvGlobalGenX(Instruction *EEI,
                                       StringRef SpirvGlobalName,
-                                      uint64_t IndexValue) {
+                                      uint64_t IndexValue,
+                                      Type *UseType = nullptr) {
   Value *NewInst = nullptr;
   if (SpirvGlobalName == "WorkgroupSize") {
-    NewInst = generateGenXCall(EEI, "local.size", true, IndexValue);
+    NewInst = generateGenXCall(EEI, "local.size", true, IndexValue, UseType);
   } else if (SpirvGlobalName == "LocalInvocationId") {
-    NewInst = generateGenXCall(EEI, "local.id", true, IndexValue);
+    NewInst = generateGenXCall(EEI, "local.id", true, IndexValue, UseType);
   } else if (SpirvGlobalName == "WorkgroupId") {
-    NewInst = generateGenXCall(EEI, "group.id", false, IndexValue);
+    NewInst = generateGenXCall(EEI, "group.id", false, IndexValue, UseType);
   } else if (SpirvGlobalName == "GlobalInvocationId") {
     // GlobalId = LocalId + WorkGroupSize * GroupId
-    Instruction *LocalIdI = generateGenXCall(EEI, "local.id", true, IndexValue);
+    Instruction *LocalIdI =
+        generateGenXCall(EEI, "local.id", true, IndexValue, UseType);
     Instruction *WGSizeI =
-        generateGenXCall(EEI, "local.size", true, IndexValue);
+        generateGenXCall(EEI, "local.size", true, IndexValue, UseType);
     Instruction *GroupIdI =
-        generateGenXCall(EEI, "group.id", false, IndexValue);
+        generateGenXCall(EEI, "group.id", false, IndexValue, UseType);
     Instruction *MulI =
         BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", EEI);
     NewInst = BinaryOperator::CreateAdd(LocalIdI, MulI, "add", EEI);
   } else if (SpirvGlobalName == "GlobalSize") {
     // GlobalSize = WorkGroupSize * NumWorkGroups
     Instruction *WGSizeI =
-        generateGenXCall(EEI, "local.size", true, IndexValue);
+        generateGenXCall(EEI, "local.size", true, IndexValue, UseType);
     Instruction *NumWGI =
-        generateGenXCall(EEI, "group.count", true, IndexValue);
+        generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
     NewInst = BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", EEI);
   } else if (SpirvGlobalName == "GlobalOffset") {
     // TODO: Support GlobalOffset SPIRV intrinsics
     // Currently all users of load of GlobalOffset are replaced with 0.
     NewInst = llvm::Constant::getNullValue(EEI->getType());
   } else if (SpirvGlobalName == "NumWorkgroups") {
-    NewInst = generateGenXCall(EEI, "group.count", true, IndexValue);
+    NewInst = generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
   }
 
   llvm::esimd::assert_and_diag(
@@ -1250,8 +1259,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     SmallVector<User *> Users(LI->users());
     for (User *LU : Users) {
       Instruction *Inst = cast<Instruction>(LU);
-      NewInst =
-          generateSpirvGlobalGenX(Inst, SpirvGlobalName, /*IndexValue=*/0);
+      NewInst = generateSpirvGlobalGenX(Inst, SpirvGlobalName, /*IndexValue=*/0,
+                                        LI->getType());
       LU->replaceUsesOfWith(LI, NewInst);
     }
     InstsToErase.push_back(LI);
@@ -1469,7 +1478,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
   llvm::esimd::assert_and_diag(F, "function to translate is invalid");
-  std::string MnglNameStr = mangleDevicelibFunction(F->getName());
+  std::string MnglNameStr = mangleFunction(F->getName());
   StringRef MnglName = MnglNameStr;
 
   Demangler Parser(MnglName.begin(), MnglName.end());
@@ -1718,6 +1727,45 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   return GenXVolatileTypeSet;
 }
 
+// genx_volatile variables are special and require vstores instead of stores.
+// In most cases, the vstores are called directly in the implementation
+// of the simd object operations, but in some cases clang can implicitly
+// insert stores, such as after a write in inline assembly. To handle that
+// case, lower any stores of genx_volatiles into vstores.
+void lowerGlobalStores(Module &M, const SmallPtrSetImpl<Type *> &GVTS) {
+  SmallVector<Instruction *, 4> ToErase;
+  for (auto &F : M.functions()) {
+    for (Instruction &I : instructions(F)) {
+      auto SI = dyn_cast_or_null<StoreInst>(&I);
+      if (!SI)
+        continue;
+      if (GVTS.find(SI->getValueOperand()->getType()) == GVTS.end())
+        continue;
+      SmallVector<Type *, 2> ArgTypes;
+      IRBuilder<> Builder(SI);
+      ArgTypes.push_back(SI->getPointerOperand()->getType());
+      ArgTypes.push_back(SI->getValueOperand()->getType());
+      auto *NewFType = FunctionType::get(SI->getType(), ArgTypes, false);
+      auto *NewF =
+          Function::Create(NewFType, GlobalVariable::ExternalWeakLinkage,
+                           ESIMD_INSERTED_VSTORE_FUNC_NAME, M);
+      NewF->addFnAttr(Attribute::NoUnwind);
+      NewF->addFnAttr(Attribute::Convergent);
+      NewF->setDSOLocal(true);
+      NewF->setCallingConv(CallingConv::SPIR_FUNC);
+      SmallVector<Value *, 2> Args;
+      Args.push_back(SI->getPointerOperand());
+      Args.push_back(SI->getValueOperand());
+      auto *NewCI = Builder.CreateCall(NewFType, NewF, Args);
+      NewCI->setDebugLoc(SI->getDebugLoc());
+      ToErase.push_back(SI);
+    }
+  }
+  for (auto *Inst : ToErase) {
+    Inst->eraseFromParent();
+  }
+}
+
 } // namespace
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
@@ -1726,7 +1774,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
   // uses the generated metadata:
   size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
-
+  lowerGlobalStores(M, GVTS);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
@@ -1737,7 +1785,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
 }
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
-                                         SmallPtrSet<Type *, 4> &GVTS) {
+                                         SmallPtrSetImpl<Type *> &GVTS) {
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with

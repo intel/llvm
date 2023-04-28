@@ -1096,5 +1096,62 @@ int main() {
     assert(Data == 64);
   }
 
+  // local_accessor::operator& and local_accessor::operator[] with const DataT
+  {
+    using AccT_zero = sycl::local_accessor<const int, 0>;
+    using AccT_non_zero = sycl::local_accessor<const int, 1>;
+
+    sycl::queue queue;
+    {
+      queue.submit([&](sycl::handler &cgh) {
+        AccT_zero acc_zero(cgh);
+        AccT_non_zero acc_non_zero(sycl::range<1>(5), cgh);
+        cgh.single_task([=] {
+          const int &ref_zero = acc_zero;
+          const int &ref_non_zero = acc_non_zero[0];
+        });
+      });
+    }
+  }
+
+  // host_accessor hash
+  {
+    sycl::buffer<int> buffer1{sycl::range<1>{1}};
+    sycl::buffer<int> buffer2{sycl::range<1>{1}};
+    sycl::host_accessor<int> host_acc1{buffer1};
+    auto host_acc2(host_acc1);
+    sycl::host_accessor<int> host_acc3{buffer2};
+
+    auto host_acc1_hash = std::hash<sycl::host_accessor<int>>{}(host_acc1);
+    auto host_acc2_hash = std::hash<sycl::host_accessor<int>>{}(host_acc2);
+    auto host_acc3_hash = std::hash<sycl::host_accessor<int>>{}(host_acc3);
+
+    assert(host_acc1_hash == host_acc2_hash && "Identical hash expected.");
+    assert(host_acc1_hash != host_acc3_hash &&
+           "Identical hash was not expected.");
+  }
+
+  // local_accessor hash
+  {
+    sycl::queue queue;
+
+    queue.submit([&](sycl::handler &cgh) {
+      sycl::local_accessor<int, 1> local_acc1(1, cgh);
+      auto local_acc2 = local_acc1;
+      sycl::local_accessor<int, 1> local_acc3(1, cgh);
+
+      auto local_acc1_hash =
+          std::hash<sycl::local_accessor<int, 1>>{}(local_acc1);
+      auto local_acc2_hash =
+          std::hash<sycl::local_accessor<int, 1>>{}(local_acc2);
+      auto local_acc3_hash =
+          std::hash<sycl::local_accessor<int, 1>>{}(local_acc3);
+
+      assert(local_acc1_hash == local_acc2_hash && "Identical hash expected.");
+      assert(local_acc1_hash != local_acc3_hash &&
+             "Identical hash was not expected.");
+    });
+  }
+
   std::cout << "Test passed" << std::endl;
 }

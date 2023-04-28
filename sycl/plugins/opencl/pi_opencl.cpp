@@ -29,6 +29,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
@@ -94,6 +95,30 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O0")) {
+    *backend_option = "-cl-opt-disable";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-O1"sv || frontend_option == "-O2"sv ||
+      frontend_option == "-O3"sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 static cl_int getPlatformVersion(cl_platform_id plat,
@@ -619,6 +644,21 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     return static_cast<pi_result>(CL_SUCCESS);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    cl_int ret_err = CL_SUCCESS;
+    cl_bool result = CL_FALSE;
+    bool supported = false;
+
+    ret_err =
+        checkDeviceExtensions(cast<cl_device_id>(device),
+                              {"cl_intel_mem_channel_property"}, supported);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    result = supported;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -640,6 +680,32 @@ pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     result = PI_SUCCESS;
   }
   return static_cast<pi_result>(result);
+}
+
+pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info paramName,
+                            size_t paramValueSize, void *paramValue,
+                            size_t *paramValueSizeRet) {
+
+  switch (paramName) {
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    pi_platform_backend result = PI_EXT_PLATFORM_BACKEND_OPENCL;
+    if (paramValue) {
+      if (paramValueSize < sizeof(result))
+        return PI_ERROR_INVALID_VALUE;
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  default: {
+    cl_int result = clGetPlatformInfo(
+        cast<cl_platform_id>(platform), cast<cl_platform_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -1209,6 +1275,19 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
+  return PI_SUCCESS;
+}
+
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *Img) {
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  assert(Img != nullptr);
+  *Img = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -2132,7 +2211,7 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
@@ -2197,7 +2276,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Platform
   _PI_CL(piPlatformsGet, piPlatformsGet)
-  _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  _PI_CL(piPlatformGetInfo, piPlatformGetInfo)
   _PI_CL(piextPlatformGetNativeHandle, piextPlatformGetNativeHandle)
   _PI_CL(piextPlatformCreateWithNativeHandle,
          piextPlatformCreateWithNativeHandle)
@@ -2329,6 +2408,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, piPluginGetBackendOption)
 
 #undef _PI_CL
 
