@@ -49,23 +49,29 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (k * TK) * M + sg_startx * TM,
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (k * TK) * M + sg_startx * TM,
                  M);
              joint_matrix_load(
                  sg, sub_b,
-                 accB.get_pointer() + (sg_starty / SG_SZ * TN) * K + k * TK, K);
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (sg_starty / SG_SZ * TN) * K + k * TK,
+                 K);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }

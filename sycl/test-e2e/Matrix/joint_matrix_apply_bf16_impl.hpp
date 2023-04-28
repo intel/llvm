@@ -49,7 +49,8 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
        ext::intel::experimental::matrix::joint_matrix_store(
            sg, sub_a,
-           accA.get_pointer() + (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+           accA.template get_multi_ptr<access::decorated::no>() +
+               (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
            N);
      }); // parallel for
    }).wait();
