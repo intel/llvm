@@ -16,7 +16,7 @@
 // Disable unrolling with the esmid emulator
 // due to huge stack size requirement
 #ifdef ESIMD_EMU
-#define ESIMD_UNROLL
+#define ESIMD_UNROLL _Pragma("nounroll")
 #else
 #define ESIMD_UNROLL _Pragma("unroll")
 #endif
