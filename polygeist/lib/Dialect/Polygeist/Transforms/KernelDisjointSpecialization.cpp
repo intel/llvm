@@ -33,9 +33,6 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using AccessorPtrType = polygeist::VersionConditionBuilder::AccessorPtrType;
-using AccessorPtrPairType =
-    polygeist::VersionConditionBuilder::AccessorPtrPairType;
 
 static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
     DEBUG_TYPE "-accessor-limit", llvm::cl::init(5),
@@ -49,45 +46,31 @@ static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
 /// Returns true if \p type is 'memref<?x!sycl.accessor>' with dimension != 0,
 /// and false otherwise.
 static bool isValidMemRefType(Type type) {
-  auto mt = dyn_cast<MemRefType>(type);
-  bool isMemRefWithExpectedShape =
-      (mt && mt.hasRank() && (mt.getRank() == 1) &&
-       ShapedType::isDynamic(mt.getShape()[0]) && mt.getLayout().isIdentity());
-  if (!isMemRefWithExpectedShape)
-    return false;
-
-  auto accTy = dyn_cast<sycl::AccessorType>(mt.getElementType());
-  if (!accTy)
+  if (!sycl::isAccessorPtrType(type))
     return false;
 
   // Temporary limitation before we can correctly calculate the beginning and
   // end pointer of a zero dimensional accessor.
-  if (accTy.getDimension() == 0)
-    return false;
-
-  return true;
+  auto accTy =
+      cast<sycl::AccessorType>(cast<MemRefType>(type).getElementType());
+  return (accTy.getDimension() != 0);
 }
 
 /// Returns true if \p arg is a candidate argument. Currently, all arguments
 /// with valid memref type determined by isValidMemRefType is a candidate
 /// argument, i.e., 'memref<?x!sycl.accessor>`.
 static bool isCandidateArg(Value arg) {
-  if (isValidMemRefType(arg.getType())) {
-    assert(isa<AccessorPtrType>(arg) &&
-           "Expecting valid memref type to be AccessorPtrType");
-    return true;
-  }
-  return false;
+  return isValidMemRefType(arg.getType());
 }
 
 /// Populates \p candArgs with candidate arguments from \p call.
 static void
 collectCandidateArguments(CallOpInterface call,
-                          SmallVectorImpl<AccessorPtrType> &candArgs) {
+                          SmallVectorImpl<sycl::AccessorPtrValue> &candArgs) {
   assert(candArgs.empty() && "Expecting empty candArgs");
   for (Value arg : call.getArgOperands())
     if (isCandidateArg(arg))
-      candArgs.push_back(cast<AccessorPtrType>(arg));
+      candArgs.push_back(cast<sycl::AccessorPtrValue>(arg));
 }
 
 /// Updates \p newFnName to a unique function name if it is already defined.
@@ -172,13 +155,13 @@ private:
   /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
   /// example, under strict aliasing rule, accessors with different element
   /// types are not alias, so return false.
-  bool isCandidateAccessorPair(AccessorPtrType acc1,
-                               AccessorPtrType acc2) const;
+  bool isCandidateAccessorPair(sycl::AccessorPtrValue acc1,
+                               sycl::AccessorPtrValue acc2) const;
   /// Populate \p accessorPairs with accessor pairs that should be checked for
   /// no overlap for \p call.
   void collectMayOverlapAccessorPairs(
       CallOpInterface call,
-      SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const;
+      std::set<sycl::AccessorPtrPair> &accessorPairs) const;
   /// Version \p call.
   void versionCall(CallOpInterface call) const;
 };
@@ -244,11 +227,11 @@ bool KernelDisjointSpecializationPass::isCandidateFunction(
 }
 
 bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
-    AccessorPtrType acc1, AccessorPtrType acc2) const {
+    sycl::AccessorPtrValue acc1, sycl::AccessorPtrValue acc2) const {
   assert(acc1 != acc2 && "Expecting the input accessors to be different");
   if (!relaxedAliasing) {
-    auto acc1Ty = cast<sycl::AccessorType>(acc1.getType().getElementType());
-    auto acc2Ty = cast<sycl::AccessorType>(acc2.getType().getElementType());
+    sycl::AccessorType acc1Ty = acc1.getAccessorType();
+    sycl::AccessorType acc2Ty = acc2.getAccessorType();
     if (acc1Ty.getType() != acc2Ty.getType())
       return false;
   }
@@ -258,17 +241,17 @@ bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
 
 void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
     CallOpInterface call,
-    SmallVectorImpl<AccessorPtrPairType> &accessorPairs) const {
-  SmallVector<AccessorPtrType> candArgs;
+    std::set<sycl::AccessorPtrPair> &accessorPairs) const {
+  SmallVector<sycl::AccessorPtrValue> candArgs;
   collectCandidateArguments(call, candArgs);
   for (auto *i = candArgs.begin(); i != candArgs.end(); ++i)
     for (auto *j = i + 1; j != candArgs.end(); ++j)
       if (isCandidateAccessorPair(*i, *j))
-        accessorPairs.push_back({*i, *j});
+        accessorPairs.insert({*i, *j});
 }
 
 void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
-  SmallVector<AccessorPtrPairType> accessorPairs;
+  std::set<sycl::AccessorPtrPair> accessorPairs;
   collectMayOverlapAccessorPairs(call, accessorPairs);
   if (accessorPairs.empty())
     return;

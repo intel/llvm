@@ -17,8 +17,6 @@
 
 #include "mlir/Pass/Pass.h"
 
-#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
-
 namespace mlir {
 namespace sycl {
 
@@ -34,8 +32,6 @@ enum InlineMode { AlwaysInline, Simple, Aggressive, Ludicrous };
 
 std::unique_ptr<Pass> createInlinePass();
 std::unique_ptr<Pass> createInlinePass(const InlinePassOptions &options);
-
-std::unique_ptr<Pass> createSYCLMethodToSYCLCallPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

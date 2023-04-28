@@ -44,4 +44,33 @@ llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 #define GET_TYPEDEF_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h.inc"
 
+namespace mlir {
+namespace sycl {
+
+/// Return true if type is 'memref<?x!sycl.accessor>'.
+bool isAccessorPtrType(Type type);
+
+/// Represent Value of type 'memref<?x!sycl.accessor>'.
+class AccessorPtrValue : public Value {
+public:
+  AccessorPtrValue(Value val) : Value(val) {
+    assert(classof(val) && "val should be an 'AccessorPtrValue");
+  }
+
+  AccessorType getAccessorType() {
+    return mlir::cast<AccessorType>(
+        mlir::cast<MemRefType>(getType()).getElementType());
+  }
+
+  bool operator<(const AccessorPtrValue &other) const {
+    return impl < other.impl;
+  }
+
+  static bool classof(Value v);
+};
+using AccessorPtrPair = std::pair<AccessorPtrValue, AccessorPtrValue>;
+
+} // namespace sycl
+} // namespace mlir
+
 #endif // MLIR_DIALECT_SYCL_IR_SYCLTYPES_H

@@ -64,3 +64,18 @@ unsigned mlir::sycl::getDimensions(mlir::Type Type) {
       .Case<AccessorType, GroupType, IDType, ItemType, NdItemType, NdRangeType,
             RangeType>([](auto Ty) { return Ty.getDimension(); });
 }
+
+bool mlir::sycl::isAccessorPtrType(Type type) {
+  auto mt = dyn_cast<MemRefType>(type);
+  bool isMemRefWithExpectedShape =
+      (mt && mt.hasRank() && (mt.getRank() == 1) &&
+       ShapedType::isDynamic(mt.getShape()[0]) && mt.getLayout().isIdentity());
+  if (!isMemRefWithExpectedShape)
+    return false;
+
+  return isa<sycl::AccessorType>(mt.getElementType());
+}
+
+bool mlir::sycl::AccessorPtrValue::classof(Value v) {
+  return isAccessorPtrType(v.getType());
+}
