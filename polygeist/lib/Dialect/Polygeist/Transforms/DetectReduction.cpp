@@ -8,10 +8,12 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -32,6 +34,8 @@ using namespace mlir;
 namespace {
 class DetectReductionPass
     : public polygeist::impl::DetectReductionBase<DetectReductionPass> {
+  using DetectReductionBase<DetectReductionPass>::DetectReductionBase;
+
 public:
   void runOnOperation() override;
 };
@@ -85,8 +89,10 @@ public:
 protected:
   Pass::Statistic &numReductionsDetected;
 
-  LoopReductionIter(Pass::Statistic &numReductionsDetected)
-      : numReductionsDetected(numReductionsDetected) {}
+  LoopReductionIter(Pass::Statistic &numReductionsDetected,
+                    AliasAnalysis &aliasAnalysis)
+      : numReductionsDetected(numReductionsDetected),
+        aliasAnalysis(aliasAnalysis) {}
   virtual ~LoopReductionIter() = default;
 
   Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
@@ -368,10 +374,29 @@ private:
         return WalkResult::interrupt();
       }
 
+      Operation *MayAliasOp = nullptr;
+      if (Loop.getLoopBody()
+              .walk([&](Operation *Op) {
+                if (Op == Load || Op == CandidateStores[0] ||
+                    llvm::find(OtherLoads, Op) != OtherLoads.end())
+                  return WalkResult::advance();
+                if (hasMayAliasEffects(Load, *Op, aliasAnalysis)) {
+                  MayAliasOp = Op;
+                  return WalkResult::interrupt();
+                }
+                return WalkResult::advance();
+              })
+              .wasInterrupted()) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Interrupting - loop contains may alias operation: "
+                   << *MayAliasOp << "\n");
+        return WalkResult::interrupt();
+      }
+
       // The load must dominate the single store.
       if (!properlyDominates(Load, CandidateStores[0])) {
         LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Interrupting - store doesn't dominate load: "
+                   << "Interrupting - load doesn't dominate store: "
                    << CandidateStores[0] << "\n");
         return WalkResult::interrupt();
       }
@@ -386,15 +411,39 @@ private:
 
     return Result;
   }
+
+  /// Return true if \p Op has memory effects that may alias with the memory
+  /// loaded from \p Load, return false otherwise.
+  static bool hasMayAliasEffects(AffineLoadOp &Load, Operation &Op,
+                                 AliasAnalysis &aliasAnalysis) {
+    if (isMemoryEffectFree(&Op))
+      return false;
+
+    auto MEI = dyn_cast<MemoryEffectOpInterface>(Op);
+    if (!MEI || Op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return true;
+
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    MEI.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value EffectVal = effect.getValue();
+      if (!aliasAnalysis.alias(Load.getMemRef(), EffectVal).isNo())
+        return true;
+    }
+    return false;
+  }
+
+  AliasAnalysis &aliasAnalysis;
 };
 
 class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
                             public LoopReductionIter {
 public:
   SCFForReductionIter(MLIRContext *context,
-                      Pass::Statistic &numReductionsDetected)
+                      Pass::Statistic &numReductionsDetected,
+                      AliasAnalysis &aliasAnalysis)
       : OpRewritePattern<scf::ForOp>(context),
-        LoopReductionIter(numReductionsDetected) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
 
   LogicalResult matchAndRewrite(scf::ForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -427,9 +476,10 @@ class AffineForReductionIter : public OpRewritePattern<AffineForOp>,
                                public LoopReductionIter {
 public:
   AffineForReductionIter(MLIRContext *context,
-                         Pass::Statistic &numReductionsDetected)
+                         Pass::Statistic &numReductionsDetected,
+                         AliasAnalysis &aliasAnalysis)
       : OpRewritePattern<AffineForOp>(context),
-        LoopReductionIter(numReductionsDetected) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
 
   LogicalResult matchAndRewrite(AffineForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -463,8 +513,11 @@ public:
 
 void DetectReductionPass::runOnOperation() {
   MLIRContext *ctx = getOperation()->getContext();
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
   RewritePatternSet RPS(ctx);
-  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions);
+  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions,
+                                                       aliasAnalysis);
   GreedyRewriteConfig Config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(RPS), Config);
 }
@@ -473,6 +526,10 @@ namespace mlir {
 namespace polygeist {
 std::unique_ptr<Pass> createDetectReductionPass() {
   return std::make_unique<DetectReductionPass>();
+}
+std::unique_ptr<Pass>
+createDetectReductionPass(const DetectReductionOptions &options) {
+  return std::make_unique<DetectReductionPass>(options);
 }
 } // namespace polygeist
 } // namespace mlir

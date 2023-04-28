@@ -1,8 +1,8 @@
-// RUN: cgeist -O2 %s --function=* -S | FileCheck %s
+// RUN: cgeist -O2 %s --function=* -S -enable-attributes | FileCheck %s
 
 extern int print(double);
 
-void sum(double *result, double* array, int N) {
+void sum(double * __restrict__ result, double * __restrict__ array, int N) {
     #pragma scop
     for (int j=0; j<N; j++) {
         result[0] = 0;
@@ -14,7 +14,7 @@ void sum(double *result, double* array, int N) {
     #pragma endscop
 }
 
-// CHECK:  func.func @sum(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i32)
+// CHECK:  func.func @sum(%arg0: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg1: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg2: i32{{.*}})
 // CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:     %0 = arith.index_cast %arg2 : i32 to index
 // CHECK-NEXT:     affine.for %arg3 = 0 to %0 {
