@@ -3,19 +3,25 @@
 
 #include <uur/fixtures.h>
 
-using urKernelGetInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetInfoTest);
+using urKernelGetInfoTest = uur::urKernelTestWithParam<ur_kernel_info_t>;
+
+UUR_TEST_SUITE_P(
+    urKernelGetInfoTest,
+    ::testing::Values(UR_KERNEL_INFO_FUNCTION_NAME, UR_KERNEL_INFO_NUM_ARGS,
+                      UR_KERNEL_INFO_REFERENCE_COUNT, UR_KERNEL_INFO_CONTEXT,
+                      UR_KERNEL_INFO_PROGRAM, UR_KERNEL_INFO_ATTRIBUTES,
+                      UR_KERNEL_INFO_NUM_REGS),
+    uur::deviceTestWithParamPrinter<ur_kernel_info_t>);
 
 TEST_P(urKernelGetInfoTest, Success) {
-    size_t kernel_name_length = 0;
-    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
-                                   nullptr, &kernel_name_length));
-    std::string queried_kernel_name;
-    queried_kernel_name.resize(kernel_name_length);
-    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME,
-                                   queried_kernel_name.size(),
-                                   queried_kernel_name.data(), nullptr));
-    ASSERT_EQ(queried_kernel_name, kernel_name);
+    auto property_name = getParam();
+    size_t property_size = 0;
+    std::vector<char> property_value;
+    ASSERT_SUCCESS(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    property_value.resize(property_size);
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, property_name, property_size,
+                                   property_value.data(), nullptr));
 }
 
 TEST_P(urKernelGetInfoTest, InvalidNullHandleKernel) {
