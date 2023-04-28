@@ -14,3 +14,4 @@
 // This test checks that accessor-based memory accesses work correctly in ESIMD.
 
 #include "accessor.hpp"
+
