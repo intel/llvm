@@ -306,82 +306,6 @@ pi_result cuda_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
   return retError;
 }
 
-pi_result cuda_piextEnqueueDeviceGlobalVariableWrite(
-    pi_queue queue, pi_program program, const char *name,
-    pi_bool blocking_write, size_t count, size_t offset, const void *src,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
-  assert(queue != nullptr);
-  assert(program != nullptr);
-
-  if (name == nullptr || src == nullptr)
-    return PI_ERROR_INVALID_VALUE;
-
-  // Since CUDA requires a the global variable to be referenced by name, we use
-  // metadata to find the correct name to access it by.
-  auto device_global_name_it = program->globalIDMD_.find(name);
-  if (device_global_name_it == program->globalIDMD_.end())
-    return PI_ERROR_INVALID_VALUE;
-  std::string device_global_name = device_global_name_it->second;
-
-  pi_result result = PI_SUCCESS;
-  try {
-    CUdeviceptr device_global = 0;
-    size_t device_global_size = 0;
-    result = PI_CHECK_ERROR(
-        cuModuleGetGlobal(&device_global, &device_global_size, program->get(),
-                          device_global_name.c_str()));
-
-    if (offset + count > device_global_size)
-      return PI_ERROR_INVALID_VALUE;
-
-    return pi2ur::piextUSMEnqueueMemcpy(
-        queue, blocking_write, reinterpret_cast<void *>(device_global + offset),
-        src, count, num_events_in_wait_list, event_wait_list, event);
-  } catch (pi_result error) {
-    result = error;
-  }
-  return result;
-}
-
-pi_result cuda_piextEnqueueDeviceGlobalVariableRead(
-    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
-    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  assert(queue != nullptr);
-  assert(program != nullptr);
-
-  if (name == nullptr || dst == nullptr)
-    return PI_ERROR_INVALID_VALUE;
-
-  // Since CUDA requires a the global variable to be referenced by name, we use
-  // metadata to find the correct name to access it by.
-  auto device_global_name_it = program->globalIDMD_.find(name);
-  if (device_global_name_it == program->globalIDMD_.end())
-    return PI_ERROR_INVALID_VALUE;
-  std::string device_global_name = device_global_name_it->second;
-
-  pi_result result = PI_SUCCESS;
-  try {
-    CUdeviceptr device_global = 0;
-    size_t device_global_size = 0;
-    result = PI_CHECK_ERROR(
-        cuModuleGetGlobal(&device_global, &device_global_size, program->get(),
-                          device_global_name.c_str()));
-
-    if (offset + count > device_global_size)
-      return PI_ERROR_INVALID_VALUE;
-
-    return pi2ur::piextUSMEnqueueMemcpy(
-        queue, blocking_read, dst,
-        reinterpret_cast<const void *>(device_global + offset), count,
-        num_events_in_wait_list, event_wait_list, event);
-  } catch (pi_result error) {
-    result = error;
-  }
-  return result;
-}
-
 /// Host Pipes
 pi_result cuda_piextEnqueueReadHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,
@@ -572,9 +496,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, pi2ur::piextUSMGetMemAllocInfo)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
-         cuda_piextEnqueueDeviceGlobalVariableWrite)
+         pi2ur::piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
-         cuda_piextEnqueueDeviceGlobalVariableRead)
+         pi2ur::piextEnqueueDeviceGlobalVariableRead)
 
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)

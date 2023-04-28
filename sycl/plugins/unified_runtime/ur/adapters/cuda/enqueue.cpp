@@ -1620,3 +1620,76 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   }
   return retErr;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(name && pSrc, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Since CUDA requires a the global variable to be referenced by name, we use
+  // metadata to find the correct name to access it by.
+  auto device_global_name_it = hProgram->globalIDMD_.find(name);
+  if (device_global_name_it == hProgram->globalIDMD_.end())
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  std::string device_global_name = device_global_name_it->second;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+  try {
+    CUdeviceptr device_global = 0;
+    size_t device_global_size = 0;
+    result = UR_CHECK_ERROR(
+        cuModuleGetGlobal(&device_global, &device_global_size, hProgram->get(),
+                          device_global_name.c_str()));
+
+    if (offset + count > device_global_size)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+
+    return urEnqueueUSMMemcpy(
+        hQueue, blockingWrite, reinterpret_cast<void *>(device_global + offset),
+        pSrc, count, numEventsInWaitList, phEventWaitList, phEvent);
+  } catch (ur_result_t error) {
+    result = error;
+  }
+  return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingRead, size_t count, size_t offset, void *pDst,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(name && pDst, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Since CUDA requires a the global variable to be referenced by name, we use
+  // metadata to find the correct name to access it by.
+  auto device_global_name_it = hProgram->globalIDMD_.find(name);
+  if (device_global_name_it == hProgram->globalIDMD_.end())
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  std::string device_global_name = device_global_name_it->second;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+  try {
+    CUdeviceptr device_global = 0;
+    size_t device_global_size = 0;
+    result = UR_CHECK_ERROR(
+        cuModuleGetGlobal(&device_global, &device_global_size, hProgram->get(),
+                          device_global_name.c_str()));
+
+    if (offset + count > device_global_size)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+
+    return urEnqueueUSMMemcpy(
+        hQueue, blockingRead, pDst,
+        reinterpret_cast<const void *>(device_global + offset), count,
+        numEventsInWaitList, phEventWaitList, phEvent);
+  } catch (ur_result_t error) {
+    result = error;
+  }
+  return result;
+}
