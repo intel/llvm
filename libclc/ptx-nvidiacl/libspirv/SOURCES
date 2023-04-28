@@ -1,4 +1,4 @@
-reflect.ll
+reflect.cl
 atomic/loadstore_helpers_release.ll
 atomic/loadstore_helpers_acquire.ll
 atomic/loadstore_helpers_seq_cst.ll
