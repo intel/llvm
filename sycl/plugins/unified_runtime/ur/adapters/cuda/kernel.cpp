@@ -8,6 +8,7 @@
 
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "sampler.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -295,7 +296,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hArgValue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  // Below sets kernel arg when zero-sized buffers are handled.
+  // In such case the corresponding memory is null.
+  if (hArgValue == nullptr) {
+    hKernel->set_kernel_arg(argIndex, 0, nullptr);
+    return UR_RESULT_SUCCESS;
+  }
 
   ur_result_t retErr = UR_RESULT_SUCCESS;
   try {
@@ -337,4 +344,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     const ur_kernel_native_properties_t *pProperties,
     ur_kernel_handle_t *phKernel) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      ur_sampler_handle_t hArgValue) {
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  try {
+    uint32_t samplerProps = hArgValue->props_;
+    hKernel->set_kernel_arg(argIndex, sizeof(uint32_t), (void *)&samplerProps);
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
 }
