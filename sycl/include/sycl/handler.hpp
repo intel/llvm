@@ -143,6 +143,9 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
+// Checks if a device_global has any registered kernel usage.
+__SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
+
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
 
@@ -2723,6 +2726,15 @@ public:
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
+      // If the corresponding device_global isn't used in any kernels, we fall
+      // back to doing the memory operation on host-only.
+      memcpyToHostOnlyDeviceGlobal(&Dest, Src, sizeof(T), IsDeviceImageScoped,
+                                   NumBytes, DestOffset);
+      return;
+    }
+
     memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes, DestOffset);
   }
 
@@ -2746,6 +2758,15 @@ public:
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
+      // If the corresponding device_global isn't used in any kernels, we fall
+      // back to doing the memory operation on host-only.
+      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, sizeof(T), IsDeviceImageScoped,
+                                     NumBytes, SrcOffset);
+      return;
+    }
+
     memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
                            SrcOffset);
   }
@@ -3063,6 +3084,18 @@ private:
   void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                               bool IsDeviceImageScoped, size_t NumBytes,
                               size_t Offset);
+
+  // Implementation of memcpy to an unregistered device_global.
+  void memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                    const void *Src, size_t DeviceGlobalTSize,
+                                    bool IsDeviceImageScoped, size_t NumBytes,
+                                    size_t Offset);
+
+  // Implementation of memcpy from an unregistered device_global.
+  void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                      size_t DeviceGlobalTSize,
+                                      bool IsDeviceImageScoped, size_t NumBytes,
+                                      size_t Offset);
 
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,

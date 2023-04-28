@@ -50,6 +50,8 @@ endif() # Standalone.
 if(NOT SYCL_TEST_E2E_STANDALONE)
   list(APPEND SYCL_E2E_TEST_DEPS
     sycl-toolchain
+    FileCheck
+    not
   )
 endif() # Standalone.
 
