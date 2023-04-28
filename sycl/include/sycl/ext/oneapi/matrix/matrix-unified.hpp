@@ -8,6 +8,7 @@
 
 #pragma once
 #include "matrix-intel.hpp"
+#include "utils.hpp"
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -206,14 +207,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #else
-  using PtrType = std::conditional_t<
-      Space == access::address_space::local_space,
-      __attribute__((opencl_local)) T *,
-      std::conditional_t<
-          Space == access::address_space::global_space,
-          __attribute__((opencl_global)) T *,
-          std::conditional_t<Space == access::address_space::constant_space,
-                             __attribute__((opencl_constant)) T *, T *>>>;
+  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
   PtrType Ptr = src.get();
   switch (Layout) {
   default:
@@ -276,14 +270,7 @@ joint_matrix_load(Group sg,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
 #else
-  using PtrType = std::conditional_t<
-      Space == access::address_space::local_space,
-      __attribute__((opencl_local)) T *,
-      std::conditional_t<
-          Space == access::address_space::global_space,
-          __attribute__((opencl_global)) T *,
-          std::conditional_t<Space == access::address_space::constant_space,
-                             __attribute__((opencl_constant)) T *, T *>>>;
+  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
   PtrType Ptr = src.get();
   res.spvm =
       __spirv_JointMatrixLoadINTEL<PtrType, S, NumRows, NumCols,
@@ -319,15 +306,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #else
-  using PtrType = std::conditional_t<
-      Space == access::address_space::local_space,
-      __attribute__((opencl_local)) T *,
-      std::conditional_t<
-          Space == access::address_space::global_space,
-          __attribute__((opencl_global)) T *,
-          std::conditional_t<Space == access::address_space::constant_space,
-                             __attribute__((opencl_constant)) T *, T *>>>;
-
+  using PtrType = sycl::detail::decorate_ptr_t<Space, T>;
   PtrType Ptr = dst.get();
   switch (Layout) {
   default:
