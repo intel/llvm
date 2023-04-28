@@ -1,5 +1,8 @@
 // REQUIRES: gpu, level_zero
 
+// Flaky failure on windows && gen12
+// UNSUPPORTED: windows && gpu-intel-gen12
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %threads_lib %s -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=2 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s

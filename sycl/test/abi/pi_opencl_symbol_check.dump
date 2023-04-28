@@ -21,6 +21,7 @@ piKernelSetExecInfo
 piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
+piPlatformGetInfo
 piPlatformsGet
 piPluginGetBackendOption
 piPluginGetLastError

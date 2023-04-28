@@ -137,5 +137,11 @@ struct is_user_constructed_group<fixed_size_group<PartitionSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace ext::oneapi::experimental
+
+template <size_t PartitionSize, typename ParentGroup>
+struct is_group<
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
+    : std::true_type {};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

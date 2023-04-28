@@ -484,6 +484,11 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   case PI_PLATFORM_INFO_EXTENSIONS:
     return ReturnValue("");
 
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return getInfo<pi_platform_backend>(ParamValueSize, ParamValue,
+                                        ParamValueSizeRet,
+                                        PI_EXT_PLATFORM_BACKEND_ESIMD);
+
   default:
     // TODO: implement other parameters
     die("Unsupported ParamName in piPlatformGetInfo");
@@ -808,6 +813,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_int32{1});
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
     return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    // The mem-channel buffer property is not supported on the ESIMD emulator.
+    return ReturnValue(pi_bool{false});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
@@ -2107,7 +2115,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);

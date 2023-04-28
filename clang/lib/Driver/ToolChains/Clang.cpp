@@ -4784,6 +4784,11 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
       CmdArgs.push_back("-D_MT");
     if (Defines & addDLL && !isSPIR)
       CmdArgs.push_back("-D_DLL");
+    // for /MDd with spir targets
+    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIR) {
+      CmdArgs.push_back("-D_CONTAINER_DEBUG_LEVEL=0");
+      CmdArgs.push_back("-D_ITERATOR_DEBUG_LEVEL=0");
+    }
   };
   StringRef FlagForCRT;
   switch (RTOptionID) {
@@ -9529,6 +9534,13 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
     TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
+    bool CreatingSyclSPIRVFatObj =
+        C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+        TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+            .equals_insensitive("spirv") &&
+        !TCArgs.hasArg(options::OPT_fsycl_device_only);
+    if (CreatingSyclSPIRVFatObj)
+      TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
     // Disable all the extensions by default
     std::string ExtArg("-spirv-ext=-all");
@@ -9571,6 +9583,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_KHR_uniform_group_instructions"
                 ",+SPV_INTEL_masked_gather_scatter"
                 ",+SPV_INTEL_tensor_float32_conversion";
+    if (CreatingSyclSPIRVFatObj)
+      ExtArg += ",+SPV_KHR_non_semantic_info";
+
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
@@ -9946,6 +9961,10 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Output File
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+
+  // Make sure we preserve any auxiliary data which may be present in the
+  // SPIR-V object, which we need for SPIR-V-based fat objects.
+  addArgs(CmdArgs, TCArgs, {"-llvm-spirv-opts", "--spirv-preserve-auxdata"});
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
