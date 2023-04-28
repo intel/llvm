@@ -193,7 +193,7 @@ KernelParams/union_kernel_param.cpp
 NonUniformGroups/ballot_group.cpp
 NonUniformGroups/ballot_group_algorithms.cpp
 NonUniformGroups/cluster_group.cpp
-NonUniformGroups/is_user_constructed.cpp
+NonUniformGroups/fixed_size_group_algorithms.cpp
 NonUniformGroups/opportunistic_group.cpp
 NonUniformGroups/opportunistic_group.cpp
 NonUniformGroups/tangle_group.cpp
