@@ -66,7 +66,7 @@ INSTANTIATE_TEST_SUITE_P(
     PlatformTestImpl, PlatformTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {
-      return pi::GetBackendString(info.param).c_str();
+      return pi::GetBackendString(info.param);
     });
 
 TEST_P(PlatformTest, piPlatformsGet) {
