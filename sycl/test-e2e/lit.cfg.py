@@ -243,7 +243,6 @@ if config.sycl_be in deprecated_names_mapping.keys():
 
 lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 
-config.substitutions.append( ('%sycl_be', config.sycl_be) )
 # Use short names for LIT rules
 config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
 be_run_substitute = "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)
