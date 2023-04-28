@@ -2239,11 +2239,6 @@ pi_result piDeviceRelease(pi_device Device) {
 pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                           size_t ParamValueSize, void *ParamValue,
                           size_t *ParamValueSizeRet) {
-  if (PI_DEVICE_INFO_BACKEND_VERSION == ParamName) {
-    // TODO: return some meaningful for backend_version below
-    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
-    return ReturnValue("");
-  }
   return pi2ur::piDeviceGetInfo(Device, ParamName, ParamValueSize, ParamValue,
                                 ParamValueSizeRet);
 }
