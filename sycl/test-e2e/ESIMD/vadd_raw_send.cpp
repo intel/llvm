@@ -77,13 +77,13 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
                                simd<T, N> data) {
-  simd<T, 16> src0;
+  simd<uint32_t, 16> src0;
   auto src0_ref1 =
       src0.template select<8, 1>(0).template bit_cast_view<unsigned int>();
   auto src0_ref2 = src0.template select<8, 1>(8);
 
   src0_ref1.template select<1, 1>(2) = offset >> 4;
-  src0_ref2 = data;
+  src0_ref2 = data.template bit_cast_view<uint32_t>();
   uint32_t exDesc = 0xA;
   SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x40A0200;
@@ -177,5 +177,8 @@ int main(void) {
   int err_cnt = 0;
 
   err_cnt += test<float>(q);
+  if (dev.has(sycl::aspect::fp16)) {
+    err_cnt += test<sycl::half>(q);
+  }
   return err_cnt > 0 ? 1 : 0;
 }
