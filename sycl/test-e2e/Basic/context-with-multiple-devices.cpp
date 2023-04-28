@@ -1,6 +1,6 @@
 // REQUIRES: accelerator, opencl-aot
 
-// RUN: %clangxx -fsycl -fintelfpga -fsycl-unnamed-lambda %s -o %t2.out
+// RUN: %clangxx -fsycl -fintelfpga %s -o %t2.out
 // RUN: env CL_CONFIG_CPU_EMULATE_DEVICES=2 %t2.out
 
 #include <sycl/sycl.hpp>

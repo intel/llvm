@@ -1955,6 +1955,11 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 #endif
     return PI_ERROR_INVALID_VALUE;
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on HIP devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
 
   case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.
