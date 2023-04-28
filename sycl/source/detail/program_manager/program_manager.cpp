@@ -374,6 +374,29 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
   return temp;
 }
 
+static void appendCompileOptionsForRegAllocMode(std::string &CompileOpts,
+                                                const RTDeviceBinaryImage &Img,
+                                                bool IsEsimdImage) {
+  pi_device_binary_property Prop = Img.getProperty("RegisterAllocMode");
+  if (!Prop)
+    return;
+  uint32_t PropVal = DeviceBinaryProperty(Prop).asUint32();
+  // 2 means Large GRF.
+  if (PropVal == 2) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  // 0 means Auto GRF.
+  // TODO: Support Auto GRF for ESIMD once vc supports it.
+  if (PropVal == 0 && !IsEsimdImage) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    // This option works for both LO AND OCL backends.
+    CompileOpts += "-ze-intel-enable-auto-large-GRF-mode";
+  }
+}
+
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
@@ -393,9 +416,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  // TODO: Remove isDoubleGRF check in next ABI break
-  bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
-                    getUint32PropAsBool(Img, "isDoubleGRF");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -407,14 +427,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
   }
-  if (isLargeGRF) {
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    // TODO: Don't check the property or pass these flags after the next ABI
-    // break. The behavior is now controlled through the RegisterAllocMode
-    // metadata.
-    CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
-  }
+
+  appendCompileOptionsForRegAllocMode(CompileOpts, Img, isEsimdImage);
 
   const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
 
