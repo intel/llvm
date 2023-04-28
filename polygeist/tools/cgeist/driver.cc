@@ -669,8 +669,6 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
-      // Needed because SYCLMethodOps lowering might introduce redundant
-      // operations.
       PM3.addPass(mlir::createCSEPass());
       PM3.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
       if (mlir::failed(PM3.run(Module.get()))) {

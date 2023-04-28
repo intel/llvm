@@ -8,7 +8,6 @@
 
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
-#include "Utils.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
