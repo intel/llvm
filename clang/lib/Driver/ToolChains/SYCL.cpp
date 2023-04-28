@@ -270,6 +270,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // TODO: temporary workaround for a problem with warnings reported by
     // llvm-link when driver links LLVM modules with empty modules
     CmdArgs.push_back("--suppress-warnings");
+    // FIXME remove this when opaque pointers are supported for SPIR-V
+    if (!this->getToolChain().getTriple().isSPIR()) {
+      CmdArgs.push_back("-opaque-pointers");
+    }
     C.addCommand(std::make_unique<Command>(JA, *this,
                                            ResponseFileSupport::AtFileUTF8(),
                                            Exec, CmdArgs, std::nullopt));
