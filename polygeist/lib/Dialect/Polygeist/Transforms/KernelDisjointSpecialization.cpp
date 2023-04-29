@@ -43,24 +43,10 @@ static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Returns true if \p type is 'memref<?x!sycl.accessor>' with dimension != 0,
-/// and false otherwise.
-static bool isValidMemRefType(Type type) {
-  if (!sycl::isAccessorPtrType(type))
-    return false;
-
-  // Temporary limitation before we can correctly calculate the beginning and
-  // end pointer of a zero dimensional accessor.
-  auto accTy =
-      cast<sycl::AccessorType>(cast<MemRefType>(type).getElementType());
-  return (accTy.getDimension() != 0);
-}
-
 /// Returns true if \p arg is a candidate argument. Currently, all arguments
-/// with valid memref type determined by isValidMemRefType is a candidate
-/// argument, i.e., 'memref<?x!sycl.accessor>`.
+/// with type 'memref<?x!sycl.accessor>' is a candidate argument.
 static bool isCandidateArg(Value arg) {
-  return isValidMemRefType(arg.getType());
+  return sycl::isAccessorPtrType(arg.getType());
 }
 
 /// Populates \p candArgs with candidate arguments from \p call.

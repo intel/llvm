@@ -581,9 +581,23 @@ createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
       builder, loc, MT, {accessor, id}, "operator[]", "accessor");
 }
 
+static sycl::SYCLAccessorGetPointerOp
+createSYCLAccessorGetPointerOp(sycl::AccessorPtrValue accessor,
+                               OpBuilder builder, Location loc) {
+  const sycl::AccessorType accTy = accessor.getAccessorType();
+  const auto MT = MemRefType::get(
+      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
+      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
+  return createMethodOp<sycl::SYCLAccessorGetPointerOp>(
+      builder, loc, MT, accessor, "get_pointer", "accessor");
+}
+
 static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
                                   OpBuilder builder, Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
+  if (accTy.getDimension() == 0)
+    return createSYCLAccessorGetPointerOp(accessor, builder, loc);
+
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
@@ -598,6 +612,13 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
 static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
                                 OpBuilder builder, Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
+  if (accTy.getDimension() == 0) {
+    Value getPointer = createSYCLAccessorGetPointerOp(accessor, builder, loc);
+    const Value oneIndex = builder.create<arith::ConstantIndexOp>(loc, 1);
+    return builder.create<polygeist::SubIndexOp>(loc, getPointer.getType(),
+                                                 getPointer, oneIndex);
+  }
+
   Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
   auto range = builder.create<memref::AllocaOp>(
       loc, MemRefType::get(1, getRangeOp.getType()));
