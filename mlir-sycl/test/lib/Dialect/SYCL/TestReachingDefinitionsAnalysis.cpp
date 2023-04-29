@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
 using namespace mlir::dataflow;
-using namespace mlir::sycl;
 
 namespace {
 
@@ -25,17 +26,21 @@ struct TestReachingDefinitionAnalysisPass
   StringRef getArgument() const override { return "test-reaching-definition"; }
 
   void runOnOperation() override {
-    Operation *op = getOperation();
+    AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
+    aliasAnalysis.addAnalysisImplementation(
+        sycl::AliasAnalysis(false /* relaxedAliasing*/));
 
     DataFlowSolver solver;
     solver.load<DeadCodeAnalysis>();
     solver.load<SparseConstantPropagation>();
-    solver.load<ReachingDefinitionAnalysis>();
-    solver.load<UnderlyingValueAnalysis>();
+    solver.load<sycl::UnderlyingValueAnalysis>(aliasAnalysis);
+    solver.load<sycl::ReachingDefinitionAnalysis>(aliasAnalysis);
 
+    Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
       return signalPassFailure();
 
+#if 1
     op->walk([&](Operation *op) {
       // Only operations with the "tag" attribute are interesting.
       auto tag = op->getAttrOfType<StringAttr>("tag");
@@ -43,21 +48,23 @@ struct TestReachingDefinitionAnalysisPass
         return;
 
       llvm::errs() << "test_tag: " << tag.getValue() << ":\n";
-      const ReachingDefinition *reachingDef =
-          solver.lookupState<ReachingDefinition>(op);
+      const sycl::ReachingDefinition *reachingDef =
+          solver.lookupState<sycl::ReachingDefinition>(op);
       assert(reachingDef && "expected a reaching definition");
 
       // Print the reaching definitions for each operand.
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs() << " operand #" << index << "\n";
-        Value val =
-            UnderlyingValue::getUnderlyingValue(operand, [&](Value value) {
-              return solver.lookupState<UnderlyingValueLattice>(value);
-            });
+        Value val = sycl::UnderlyingValue::getUnderlyingValue(
+            operand,
+            [&](Value value) {
+              return solver.lookupState<sycl::UnderlyingValueLattice>(value);
+            },
+            aliasAnalysis);
         assert(val && "expected an underlying value");
 
         if (std::optional<ArrayRef<Operation *>> lastMods =
-                reachingDef->getLastModifiers(val)) {
+                reachingDef->getModifiers(val)) {
           for (Operation *lastMod : *lastMods) {
             if (auto tagName = lastMod->getAttrOfType<StringAttr>("tag_name"))
               llvm::errs() << "  - " << tagName.getValue() << "\n";
@@ -69,6 +76,7 @@ struct TestReachingDefinitionAnalysisPass
         }
       }
     });
+#endif
   }
 };
 

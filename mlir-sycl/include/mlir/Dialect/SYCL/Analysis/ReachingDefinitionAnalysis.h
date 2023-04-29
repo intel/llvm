@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_SYCL_ANALYSIS_REACHINGDEFINITIONANALYSIS_H
 #define MLIR_DIALECT_SYCL_ANALYSIS_REACHINGDEFINITIONANALYSIS_H
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 
@@ -47,7 +48,9 @@ public:
   /// Look for the underlying value of a \p val.
   static Value getUnderlyingValue(
       Value val,
-      function_ref<const UnderlyingValueLattice *(Value)> getLatticeForValue);
+
+      function_ref<const UnderlyingValueLattice *(Value)> getLatticeForValue,
+      mlir::AliasAnalysis &aliasAnalysis);
 
   void print(raw_ostream &os) const { os << *this; }
 
@@ -72,24 +75,34 @@ public:
   using ModifiersTy = SetVector<Operation *, SmallVector<Operation *>,
                                 SmallPtrSet<Operation *, 2>>;
 
-  /// Add the reaching definitions from \p lattice.
+  /// Union the reaching definitions from \p lattice.
   ChangeResult join(const AbstractDenseLattice &lattice) override;
 
   /// Reset the state.
   ChangeResult reset();
 
-  /// Set the last modifier of value \p val to be operation \p op.
-  ChangeResult set(Value val, Operation *op);
+  /// Set the operation \p op as a definite modifier of value \p val.
+  ChangeResult setModifier(Value val, Operation *op);
 
-  /// Get the operations that have potentially modified \p val last.
-  std::optional<ArrayRef<Operation *>> getLastModifiers(Value val) const;
+  /// Add operation \p op as a possible modifier of value \p val.
+  ChangeResult addPotentialModifier(Value val, Operation *op);
+
+  /// Get the operations that have modified \p val.
+  std::optional<ArrayRef<Operation *>> getModifiers(Value val) const;
+
+  /// Get the operations that have possibly modified \p val.
+  std::optional<ArrayRef<Operation *>> getPotentialModifiers(Value val) const;
 
   void print(raw_ostream &os) const override { os << *this; }
 
 private:
-  /// A map between a memory resource (Value) and the potential operations that
-  /// might have modified the memory resource last.
+  /// A map between a memory resource (Value) and the operations that have
+  /// modified the memory resource last.
   DenseMap<Value, ModifiersTy> valueToModifiers;
+
+  /// A map between a memory resource (Value) and the operations that
+  /// might have modified the memory resource last because of aliasing.
+  DenseMap<Value, ModifiersTy> valueToPotentialModifiers;
 };
 
 class UnderlyingValueAnalysis
@@ -97,24 +110,30 @@ class UnderlyingValueAnalysis
 public:
   using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
 
-  /// The underlying value of the results of an operation are not known.
+  UnderlyingValueAnalysis(DataFlowSolver &solver,
+                          mlir::AliasAnalysis &aliasAnalysis)
+      : SparseDataFlowAnalysis<UnderlyingValueLattice>(solver),
+        aliasAnalysis(aliasAnalysis) {}
+
   void visitOperation(Operation *op,
                       ArrayRef<const UnderlyingValueLattice *> operands,
-                      ArrayRef<UnderlyingValueLattice *> results) override {
-    setAllToEntryStates(results);
-  }
+                      ArrayRef<UnderlyingValueLattice *> results) override;
 
-  /// At an entry point, the underlying value of a value is itself.
-  void setToEntryState(UnderlyingValueLattice *lattice) override {
-    propagateIfChanged(lattice,
-                       lattice->join(UnderlyingValue{lattice->getPoint()}));
-  }
+  void setToEntryState(UnderlyingValueLattice *lattice) override;
+
+private:
+  mlir::AliasAnalysis &aliasAnalysis;
 };
 
 class ReachingDefinitionAnalysis
     : public dataflow::DenseDataFlowAnalysis<ReachingDefinition> {
 public:
   using DenseDataFlowAnalysis::DenseDataFlowAnalysis;
+
+  ReachingDefinitionAnalysis(DataFlowSolver &solver,
+                             mlir::AliasAnalysis &aliasAnalysis)
+      : DenseDataFlowAnalysis<ReachingDefinition>(solver),
+        aliasAnalysis(aliasAnalysis) {}
 
   /// Visit operation \p op and update the output state \p after with the
   /// contributions of this operation:
@@ -127,9 +146,10 @@ public:
                       ReachingDefinition *after) override;
 
   /// Set the initial state (nothing is known about reaching definitions).
-  void setToEntryState(ReachingDefinition *lattice) override {
-    propagateIfChanged(lattice, lattice->reset());
-  }
+  void setToEntryState(ReachingDefinition *lattice) override;
+
+private:
+  mlir::AliasAnalysis &aliasAnalysis;
 };
 
 } // namespace sycl
