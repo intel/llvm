@@ -481,8 +481,8 @@ joint_matrix_store(Group sg,
                        Group, Tp, Use, NumRows, NumCols, Layout> &src,
                    multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
-    static_assert(Space != access::address_space::private_space,
-                  "Joint Matrix doesn't support store to private memory!");
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
   std::ignore = src;
