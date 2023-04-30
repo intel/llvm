@@ -1120,7 +1120,7 @@ int main() {
     int Data[] = {32, 32};
 
     using HostTaskAcc = sycl::accessor<int, 0, sycl::access::mode::read_write,
-                                       sycl::access::target::host_task>
+                                       sycl::access::target::host_task>;
 
     // Explicit block to prompt copy-back to Data
     {
