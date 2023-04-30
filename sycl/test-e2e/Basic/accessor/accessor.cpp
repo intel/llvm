@@ -1114,6 +1114,34 @@ int main() {
     assert(Data[1] == 32);
   }
 
+  // iterator operations test for 0-dim buffer accessor with target::host_task
+  {
+    sycl::queue Queue;
+    int Data[] = {32, 32};
+
+    using HostTaskAcc = sycl::accessor<int, 0, sycl::access::mode::read_write,
+                                       sycl::access::target::host_task>
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(Data, sycl::range<1>(2));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        HostTaskAcc Acc(DataBuffer, CGH);
+        CGH.host_task([=]() {
+          *Acc.begin() = 64;
+          auto value = *Acc.cbegin();
+          value += *Acc.crbegin();
+          *Acc.rbegin() += value;
+        });
+      });
+      Queue.wait();
+    }
+
+    assert(Data[0] == 64 * 3);
+    assert(Data[1] == 32);
+  }
+
   // Assignment operator test for 0-dim local accessor
   {
     sycl::queue Queue;
