@@ -5158,15 +5158,16 @@ urEnqueueMemImageCopy(
 /// @brief Map flags
 typedef uint32_t ur_map_flags_t;
 typedef enum ur_map_flag_t {
-    UR_MAP_FLAG_READ = UR_BIT(0),  ///< Map for read access
-    UR_MAP_FLAG_WRITE = UR_BIT(1), ///< Map for write access
+    UR_MAP_FLAG_READ = UR_BIT(0),                    ///< Map for read access
+    UR_MAP_FLAG_WRITE = UR_BIT(1),                   ///< Map for write access
+    UR_MAP_FLAG_WRITE_INVALIDATE_REGION = UR_BIT(2), ///< Map for discard_write access
     /// @cond
     UR_MAP_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_map_flag_t;
 /// @brief Bit Mask for validating ur_map_flags_t
-#define UR_MAP_FLAGS_MASK 0xfffffffc
+#define UR_MAP_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Map flags
