@@ -1,4 +1,4 @@
-//===- Ops.h - Polygeist dialect ops ----------------------------*- C++ -*-===//
+//===--- PolygeistOps.h ---------------------------------------------------===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_IR_OPS_H_
-#define MLIR_DIALECT_POLYGEIST_IR_OPS_H_
+#ifndef MLIR_DIALECT_POLYGEIST_IR_POLYGEISTOPS_H
+#define MLIR_DIALECT_POLYGEIST_IR_POLYGEISTOPS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -147,4 +148,4 @@ public:
   }
 };
 
-#endif // MLIR_DIALECT_POLYGEIST_IR_OPS_H_
+#endif // MLIR_DIALECT_POLYGEIST_IR_POLYGEISTOPS_H

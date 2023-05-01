@@ -6,10 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
-#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistDialect.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::polygeist;
@@ -41,11 +44,20 @@ struct PolygeistInlinerInterface : public DialectInlinerInterface {
 // Polygeist dialect.
 //===----------------------------------------------------------------------===//
 
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/Polygeist/IR/PolygeistOpsTypes.cpp.inc"
+
 void PolygeistDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.cpp.inc"
       >();
+
+  mlir::Dialect::addTypes<
+#define GET_TYPEDEF_LIST
+#include "mlir/Dialect/Polygeist/IR/PolygeistOpsTypes.cpp.inc"
+      >();
+
   addInterfaces<PolygeistInlinerInterface>();
 }
 

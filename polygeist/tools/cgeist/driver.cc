@@ -63,7 +63,7 @@
 #include "llvm/TargetParser/Host.h"
 
 #include "Options.h"
-#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include <fstream>

@@ -38,7 +38,7 @@ add_mlir_dialect_library(MLIRSYCLDialect
   SYCLTypes.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${MLIR_SYCL_SOURCE_DIR}/mlir/Dialect/SYCL
+  ${MLIR_SYCL_SOURCE_DIR}/include/mlir/Dialect/SYCL
 
   DEPENDS
   MLIRSYCLOpsIncGen
