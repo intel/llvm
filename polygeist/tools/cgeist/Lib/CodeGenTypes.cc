@@ -1712,9 +1712,15 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::OCLEvent:
   case BuiltinType::OCLClkEvent:
   case BuiltinType::OCLQueue:
-  case BuiltinType::OCLReserveID:
-    return TypeTranslator.translateType(
-        CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT));
+  case BuiltinType::OCLReserveID: {
+    auto *OCLTy = CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT);
+    if (UseOpaquePointers && isa<llvm::PointerType>(OCLTy)) {
+      return LLVM::LLVMPointerType::get(
+          TheModule->getContext(),
+          cast<llvm::PointerType>(OCLTy)->getAddressSpace());
+    }
+    return TypeTranslator.translateType(OCLTy);
+  }
 
   case BuiltinType::SveInt8:
   case BuiltinType::SveUint8:
