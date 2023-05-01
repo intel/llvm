@@ -7,4 +7,4 @@ add_definitions(-DUR_VALIDATION_LAYER_SUPPORTED_VERSION="${PROJECT_VERSION_MAJOR
 add_subdirectory(common)
 add_subdirectory(loader)
 #add_subdirectory(layers)
-add_subdirectory(drivers)
+add_subdirectory(adapters)
