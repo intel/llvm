@@ -644,10 +644,10 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
       SYCLIInterval(0), SYCLLoopCoalesceEnable(false),
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
-      UnrollCount(0), UnrollAndJamCount(0),
+      SYCLLoopPipeliningEnable(false), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
       PipelineInitiationInterval(0), SYCLNofusionEnable(false),
-      SYCLLoopPipeliningEnable(false), MustProgress(false) {}
+      MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -665,6 +665,7 @@ void LoopAttributes::clear() {
   SYCLSpeculatedIterationsNIterations.reset();
   SYCLIntelFPGAVariantCount.clear();
   SYCLMaxReinvocationDelayNCycles.reset();
+  SYCLLoopPipeliningEnable = false;
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -675,7 +676,6 @@ void LoopAttributes::clear() {
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
   SYCLNofusionEnable = false;
-  SYCLLoopPipeliningEnable = false;
   MustProgress = false;
 }
 
@@ -702,15 +702,15 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !Attrs.SYCLMaxInterleavingNInvocations &&
       !Attrs.SYCLSpeculatedIterationsNIterations &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
-      !Attrs.SYCLMaxReinvocationDelayNCycles && Attrs.UnrollAndJamCount == 0 &&
+      !Attrs.SYCLMaxReinvocationDelayNCycles &&
+      Attrs.SYCLLoopPipeliningEnable == false && Attrs.UnrollAndJamCount == 0 &&
       !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      Attrs.SYCLNofusionEnable == false &&
-      Attrs.SYCLLoopPipeliningEnable == false && !EndLoc && !Attrs.MustProgress)
+      Attrs.SYCLNofusionEnable == false && !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), std::nullopt);
