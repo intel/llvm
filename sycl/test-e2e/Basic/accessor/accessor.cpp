@@ -1144,10 +1144,11 @@ int main() {
       queue.submit([&](sycl::handler &cgh) {
         AccT_zero acc_zero(cgh);
         AccT_non_zero acc_non_zero(sycl::range<1>(5), cgh);
-        cgh.single_task([=] {
-          const int &ref_zero = acc_zero;
-          const int &ref_non_zero = acc_non_zero[0];
-        });
+        cgh.parallel_for<class local_acc_const_type>(
+            sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> ID) {
+              const int &ref_zero = acc_zero;
+              const int &ref_non_zero = acc_non_zero[0];
+            });
       });
     }
   }
