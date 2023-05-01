@@ -3334,7 +3334,7 @@ disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
 function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-``ivdep``, or ``max_reinvocation_delay``.
+``ivdep``, ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -3513,9 +3513,10 @@ used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
   }
 
   void count () {
-  int a1[10], int i = 0;
-  [[intel::enable_loop_pipelining]] while (i < 10) {
-    a1[i] += 3;
+    int a1[10], int i = 0;
+    [[intel::enable_loop_pipelining]] while (i < 10) {
+      a1[i] += 3;
+    }
   }
 
   void check() {
