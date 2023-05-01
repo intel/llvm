@@ -3,14 +3,14 @@
 //
 // RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-g" %t.out
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-g" %t.out
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %CPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %GPU_RUN_PLACEHOLDER %t.out
 //
 // Now test for invalid options to make sure they are really passed to
 // a device compiler. Intel GPU runtime doesn't give an error for
 // invalid options, so we don't test it here.
 //
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %t.out
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %CPU_RUN_PLACEHOLDER %t.out
 
 #include <cassert>
 #include <memory>

@@ -1618,6 +1618,16 @@ public:
     return *this;
   }
 
+  template <int IdxNum = getNumElements(),
+            EnableIfMultipleIndexes<IdxNum, bool> = true>
+  SwizzleOp &operator=(const DataT &Rhs) {
+    std::array<int, IdxNum> Idxs{Indexes...};
+    for (auto Idx : Idxs) {
+      m_Vector->setValue(Idx, Rhs);
+    }
+    return *this;
+  }
+
   template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(DataT &&Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
@@ -1679,6 +1689,21 @@ public:
   NewLHOp<RhsOperation, std::divides, Indexes...>
   operator/(const RhsOperation &Rhs) const {
     return NewLHOp<RhsOperation, std::divides, Indexes...>(m_Vector, *this,
+                                                           Rhs);
+  }
+
+  template <typename T, typename = EnableIfScalarType<T>>
+  NewLHOp<GetScalarOp<T>, std::modulus, Indexes...>
+  operator%(const T &Rhs) const {
+    return NewLHOp<GetScalarOp<T>, std::modulus, Indexes...>(
+        m_Vector, *this, GetScalarOp<T>(Rhs));
+  }
+
+  template <typename RhsOperation,
+            typename = EnableIfNoScalarType<RhsOperation>>
+  NewLHOp<RhsOperation, std::modulus, Indexes...>
+  operator%(const RhsOperation &Rhs) const {
+    return NewLHOp<RhsOperation, std::modulus, Indexes...>(m_Vector, *this,
                                                            Rhs);
   }
 
@@ -2054,6 +2079,7 @@ __SYCL_BINOP(+)
 __SYCL_BINOP(-)
 __SYCL_BINOP(*)
 __SYCL_BINOP(/)
+__SYCL_BINOP(%)
 __SYCL_BINOP(&)
 __SYCL_BINOP(|)
 __SYCL_BINOP(^)
