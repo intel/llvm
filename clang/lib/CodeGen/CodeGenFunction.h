@@ -4306,10 +4306,11 @@ public:
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
-  llvm::CallInst *EmitFPBuiltinIndirectCall(
-      llvm::FunctionType *IRFuncTy,
-                                   const SmallVectorImpl<llvm::Value *> &IRArgs,
-                                   llvm::Value *FnPtr, const Decl *TargetDecl);
+  llvm::CallInst *
+  EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,
+                            const SmallVectorImpl<llvm::Value *> &IRArgs,
+                            llvm::Value *FnPtr, const Decl *TargetDecl);
+
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
 
