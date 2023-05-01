@@ -81,6 +81,7 @@ sycl/include/std/experimental/simd.hpp @intel/dpcpp-esimd-reviewers @rolandschul
 llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @intel/dpcpp-esimd-reviewers
 llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @intel/dpcpp-esimd-reviewers
 invoke_simd/ @intel/dpcpp-esimd-reviewers
+InvokeSimd/ @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
 .github/workflows/ @intel/dpcpp-devops-reviewers
