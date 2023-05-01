@@ -20,13 +20,14 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 class handler;
 class queue;
+class device;
 namespace ext {
 namespace oneapi {
 namespace experimental {
 
 namespace detail {
 struct node_impl;
-struct graph_impl;
+class graph_impl;
 class exec_graph_impl;
 
 } // namespace detail

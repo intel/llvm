@@ -1156,6 +1156,45 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextCommandBufferCreate(pi_context context, pi_device device,
+                              const pi_ext_command_buffer_desc *desc,
+                              pi_ext_command_buffer *ret_command_buffer) {
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueCommandBuffer(
+    pi_ext_command_buffer command_buffer, pi_queue queue,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {

@@ -23,7 +23,8 @@ using namespace sycl::ext::oneapi;
 class CommandGraphTest : public ::testing::Test {
 public:
   CommandGraphTest()
-      : Mock{}, Plat{Mock.getPlatform()}, Dev{Plat.get_devices()[0]}, Graph{} {}
+      : Mock{}, Plat{Mock.getPlatform()}, Dev{Plat.get_devices()[0]},
+        Queue{Dev}, Graph{Queue.get_context(), Dev} {}
 
 protected:
   void SetUp() override {}
@@ -32,6 +33,7 @@ protected:
   unittest::PiMock Mock;
   sycl::platform Plat;
   sycl::device Dev;
+  sycl::queue Queue;
   experimental::command_graph<experimental::graph_state::modifiable> Graph;
 };
 
@@ -50,14 +52,17 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.size() == 0);
 
   // Add a node which depends on the first
-  auto Node2 = Graph.add([&](sycl::handler &cgh) {}, {Node1});
+  auto Node2 = Graph.add([&](sycl::handler &cgh) {},
+                         {experimental::property::node::depends_on(Node1)});
   ASSERT_TRUE(GraphImpl->MRoots.size() == 1);
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.size() == 1);
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.front() ==
               sycl::detail::getSyclObjImpl(Node2));
 
   // Add a third node which depends on both
-  auto Node3 = Graph.add([&](sycl::handler &cgh) {}, {Node1, Node2});
+  auto Node3 =
+      Graph.add([&](sycl::handler &cgh) {},
+                {experimental::property::node::depends_on(Node1, Node2)});
   ASSERT_TRUE(GraphImpl->MRoots.size() == 1);
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.size() == 2);
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2)->MSuccessors.size() == 1);
@@ -89,7 +94,6 @@ TEST_F(CommandGraphTest, MakeEdge) {
 TEST_F(CommandGraphTest, BeginEndRecording) {
   using namespace sycl::ext::oneapi;
 
-  sycl::queue Queue{Dev};
   sycl::queue Queue2{Dev};
 
   // Test throwing behaviour
@@ -109,7 +113,7 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
   ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
   ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
 
-  experimental::command_graph Graph2;
+  experimental::command_graph Graph2(Queue.get_context(), Dev);
 
   Graph.begin_recording(Queue);
   // Trying to record to a second Graph should throw
