@@ -7745,6 +7745,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value) {
     case UR_MAP_FLAG_WRITE:
         os << "UR_MAP_FLAG_WRITE";
         break;
+
+    case UR_MAP_FLAG_WRITE_INVALIDATE_REGION:
+        os << "UR_MAP_FLAG_WRITE_INVALIDATE_REGION";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -7775,6 +7779,17 @@ inline void serializeFlag_ur_map_flags_t(std::ostream &os,
             first = false;
         }
         os << UR_MAP_FLAG_WRITE;
+    }
+
+    if ((val & UR_MAP_FLAG_WRITE_INVALIDATE_REGION) ==
+        (uint32_t)UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
+        val ^= (uint32_t)UR_MAP_FLAG_WRITE_INVALIDATE_REGION;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_MAP_FLAG_WRITE_INVALIDATE_REGION;
     }
     if (val != 0) {
         std::bitset<32> bits(val);
