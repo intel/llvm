@@ -194,19 +194,22 @@ sycl_dev_aspects = []
 for be in [config.sycl_be]:
     for device in config.target_devices.split(','):
         cmd = ('env ONEAPI_DEVICE_SELECTOR={}:{} sycl-ls --verbose'.format(be, device))
-        sp = subprocess.getstatusoutput(cmd)
-        if sp[0] != 0:
-            lit_config.error("Cannot detect device aspect for {}:{}\n{}".format(be, device, sp[1]))
+        sp = subprocess.run(cmd, env=llvm_config.config.environment,
+                            shell=True, capture_output=True, text=True)
+        if sp.returncode != 0:
+            lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+                be, device, sp.stdout, sp.stderr))
 
         dev_aspects = []
-        for line in sp[1].split('\n'):
+        for line in sp.stdout.split('\n'):
             if not re.search(r'^ *Aspects *:', line):
                 continue
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))
 
         if dev_aspects == []:
-            lit_config.error("Cannot detect device aspect for {}:{}\nLog:\n{}".format(be, device, sp[1]))
+            lit_config.error('Cannot detect device aspect for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+                be, device, sp.stdout, sp.stderr))
             sycl_dev_aspects.append(set())
             continue
 
