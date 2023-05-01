@@ -22014,7 +22014,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     llvm_unreachable(
         "Not expecting an fpbuiltin intrinsic with more than 3 arguments");
 
-    return CI;
+  return CI;
 }
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
