@@ -46,7 +46,7 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
   return sv;
 }
 
-// CHECK-LABEL:     func.func @_Z9test_initv() -> !llvm.struct<(vector<2xi8>)> attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["convergent", "mustprogress", "noinline", "norecurse", "nounwind", "optnone", ["frame-pointer", "all"], ["no-trapping-math", "true"], ["stack-protector-buffer-size", "8"], ["sycl-module-id", "/home/lukas/Code/MLIR-SYCL/upstream/sycl-mlir/polygeist/tools/cgeist/Test/Verification/sycl/structvec.cpp"]]} {
+// CHECK-LABEL:     func.func @_Z9test_initv() -> !llvm.struct<(vector<2xi8>)>
 // CHECK-DAG:         %[[VAL_167:.*]] = arith.constant 2 : i64
 // CHECK-DAG:         %[[VAL_168:.*]] = arith.constant 1 : i8
 // CHECK-DAG:         %[[VAL_169:.*]] = arith.constant 0 : i8
@@ -84,7 +84,9 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-NEXT:      }
 
 
-// CHECK-NEXT:      func.func @_ZN9structvecC1ESt16initializer_listIcE(%[[VAL_191:.*]]: !llvm.ptr<4> {llvm.align = 2 : i64, llvm.dereferenceable_or_null = 2 : i64, llvm.noundef}, %[[VAL_192:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi8, 4>, i64)>, llvm.noundef}) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<linkonce_odr>, passthrough = ["convergent", "mustprogress", "noinline", "norecurse", "nounwind", "optnone", ["frame-pointer", "all"], ["no-trapping-math", "true"], ["stack-protector-buffer-size", "8"], ["sycl-module-id", "/home/lukas/Code/MLIR-SYCL/upstream/sycl-mlir/polygeist/tools/cgeist/Test/Verification/sycl/structvec.cpp"]]} {
+// CHECK-LABEL:     func.func @_ZN9structvecC1ESt16initializer_listIcE(
+// CHECK-SAME:          %[[VAL_191:.*]]: !llvm.ptr<4> {llvm.align = 2 : i64, llvm.dereferenceable_or_null = 2 : i64, llvm.noundef}
+// CHECK-SAME:          %[[VAL_192:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi8, 4>, i64)>, llvm.noundef})
 // CHECK-DAG:         %[[VAL_193:.*]] = arith.constant -1 : i32
 // CHECK-DAG:         %[[VAL_194:.*]] = arith.constant 0 : i32
 // CHECK-DAG:         %[[VAL_195:.*]] = arith.constant 0 : i8
