@@ -799,6 +799,9 @@ etors:
     - name: WRITE      
       desc: "Map for write access"
       value: "$X_BIT(1)"
+    - name: WRITE_INVALIDATE_REGION      
+      desc: "Map for discard_write access"
+      value: "$X_BIT(2)"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Map flags"
