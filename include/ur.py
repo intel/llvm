@@ -1690,6 +1690,7 @@ class ur_function_t(c_int):
 class ur_map_flags_v(IntEnum):
     READ = UR_BIT(0)                                ## Map for read access
     WRITE = UR_BIT(1)                               ## Map for write access
+    WRITE_INVALIDATE_REGION = UR_BIT(2)             ## Map for discard_write access
 
 class ur_map_flags_t(c_int):
     def __str__(self):
