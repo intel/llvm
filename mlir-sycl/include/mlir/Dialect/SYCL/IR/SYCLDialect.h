@@ -18,9 +18,6 @@ namespace sycl {
 /// Table in which operations implementing SYCL methods are registered.
 class MethodRegistry {
 public:
-  /// Initializes this registry.
-  void init(mlir::MLIRContext &Ctx);
-
   /// Register a SYCL method \p methodName for the SYCL type identified by
   /// \p typeID, being \p opName the name of the SYCL operation representing
   /// this method.
@@ -39,26 +36,9 @@ public:
   llvm::Optional<llvm::StringRef> lookupMethod(::mlir::TypeID Type,
                                                llvm::StringRef Name) const;
 
-  /// Add a definition for the given method to be used when lowering
-  /// SYCLMethodOpInterface instances.
-  void registerDefinition(llvm::StringRef MethodName,
-                          mlir::func::FuncOp Definition);
-
-  /// Retrieve a function definition previously registered with
-  /// registerMethodDefinition().
-  llvm::Optional<mlir::func::FuncOp>
-  lookupDefinition(llvm::StringRef MethodName,
-                   mlir::FunctionType FunctionType) const;
-
 private:
-  static constexpr llvm::StringLiteral ModuleName{"SYCLDefs"};
-
   llvm::DenseMap<std::pair<mlir::TypeID, llvm::StringRef>, llvm::StringRef>
       Methods;
-  llvm::DenseMap<std::pair<llvm::SmallString<0>, mlir::FunctionType>,
-                 mlir::func::FuncOp>
-      Definitions;
-  mlir::ModuleOp Module;
 };
 } // namespace sycl
 } // namespace mlir

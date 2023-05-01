@@ -88,35 +88,6 @@ static void checkFunctionParent(const FunctionOpInterface F,
          "New device function must be inserted into device module");
 }
 
-/// If \p FD corresponds to a function implementing a SYCL method, registers
-/// \p Func as the function implementing the corrsponding operation.
-static void tryToRegisterSYCLMethod(const clang::FunctionDecl &FD,
-                                    FunctionOpInterface Func) {
-  if (mlirclang::getNamespaceKind(FD.getEnclosingNamespaceContext()) ==
-          mlirclang::NamespaceKind::Other ||
-      !mlirclang::areSYCLMemberFunctionOrConstructorArgs(
-          Func.getArgumentTypes()) ||
-      !isa<clang::CXXMethodDecl>(FD) ||
-      isa<clang::CXXConstructorDecl, clang::CXXDestructorDecl>(FD) ||
-      !cast<clang::CXXMethodDecl>(FD).isInstance()) {
-    // Only member functions in the sycl namespace need to be registered.
-    return;
-  }
-  const auto FunctionTy = cast<FunctionType>(Func.getFunctionType());
-  const auto ThisArg = dyn_cast<MemRefType>(FunctionTy.getInput(0));
-  assert(ThisArg &&
-         "The first argument is expected to be a reference to `this`");
-  auto *SYCLDialect = Func.getContext()->getLoadedDialect<sycl::SYCLDialect>();
-  assert(SYCLDialect && "SYCL dialect not loaded");
-  const std::string MethodName = FD.getAsFunction()->getNameAsString();
-  if (!SYCLDialect->findMethodFromBaseClass(
-          ThisArg.getElementType().getTypeID(), MethodName)) {
-    // Only add a definition for functions registered as SYCL methods.
-    return;
-  }
-  SYCLDialect->registerMethodDefinition(MethodName, cast<func::FuncOp>(Func));
-}
-
 void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
   const clang::FunctionDecl *FD = &FTE.getDecl();
 
@@ -375,8 +346,6 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
     Builder.create<gpu::ReturnOp>(Loc);
   else
     Builder.create<func::ReturnOp>(Loc);
-
-  tryToRegisterSYCLMethod(*FD, Function);
 
   checkFunctionParent(Function, FTE.getContext(), Module);
 }
@@ -1914,8 +1883,6 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE,
   } else {
     EmitIfFound.insert(MangledName);
   }
-
-  tryToRegisterSYCLMethod(FD, Function);
 
   return Function;
 }
