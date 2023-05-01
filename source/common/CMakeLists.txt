@@ -9,7 +9,7 @@ target_include_directories(common INTERFACE
 )
 
 add_subdirectory(unified_memory_allocation)
-target_link_libraries(common INTERFACE unified_memory_allocation ${CMAKE_DL_LIBS})
+target_link_libraries(common INTERFACE unified_memory_allocation ${CMAKE_DL_LIBS} ${PROJECT_NAME}::headers)
 
 target_sources(common INTERFACE uma_helpers.hpp)
 
@@ -17,10 +17,12 @@ if(WIN32)
     target_sources(common
         INTERFACE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/ur_lib_loader.cpp
+            uma_helpers.hpp ur_pool_manager.hpp
     )
 else()
     target_sources(common
         INTERFACE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/ur_lib_loader.cpp
+            uma_helpers.hpp ur_pool_manager.hpp
     )
 endif()
