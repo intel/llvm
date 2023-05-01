@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-llvm %s -o %t && rm %t
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-llvm %s -o %t && rm %t
 
 #include <sycl/sycl.hpp>
 
@@ -13,7 +13,7 @@
 // CHECK-MLIR-DAG: !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
 // CHECK-MLIR-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 // CHECK-MLIR-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-MLIR-DAG: ![[ACC_STRUCT:.*]] = !sycl.accessor<[1, !llvm.struct<(i32)>, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<struct<(i32)>, 1>)>)>
+// CHECK-MLIR-DAG: ![[ACC_STRUCT:.*]] = !sycl.accessor<[1, !llvm.struct<(i32)>, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
 // CHECK-MLIR-DAG: ![[ACC_SUBSCRIPT:.*]] = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl_accessor_2_i32_rw_gb)>
 // CHECK-MLIR-DAG: ![[ITEM_BASE1:.*]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)
 // CHECK-MLIR-DAG: ![[ITEM_BASE2:.*]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
@@ -80,7 +80,7 @@ SYCL_EXTERNAL void accessor_subscript_operator_2(sycl::accessor<sycl::cl_int, 1>
 // CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_3N4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
 // CHECK-MLIR:          %{{.*}}: memref<?x![[ACC_STRUCT]]> {llvm.align = 8 : i64, llvm.byval = ![[ACC_STRUCT]], llvm.noundef}, 
 // CHECK-MLIR-SAME:     %{{.*}}: i64 {llvm.noundef})
-// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] {ArgumentTypes = [memref<?x![[ACC_STRUCT]], 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x![[ACC_STRUCT]]>, memref<?x!sycl_id_1_>) -> !llvm.ptr<struct<(i32)>, 4> 
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] {ArgumentTypes = [memref<?x![[ACC_STRUCT]], 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x![[ACC_STRUCT]]>, memref<?x!sycl_id_1_>) -> !llvm.ptr<4> 
 
 typedef struct {
   unsigned field;

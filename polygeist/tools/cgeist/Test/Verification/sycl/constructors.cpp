@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefixes=CHECK
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefixes=CHECK
+// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
 
 #include <sycl/aliases.hpp>
 #include <sycl/sycl.hpp>
@@ -103,10 +103,10 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-NEXT: %c0_i8 = arith.constant 0 : i8
 // CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %cast = memref.cast %alloca : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<i8>
+// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr
 // CHECK-NEXT: %1 = "polygeist.typeSize"() {source = !sycl_id_2_} : () -> index
 // CHECK-NEXT: %2 = arith.index_cast %1 : index to i64
-// CHECK-NEXT: "llvm.intr.memset"(%0, %c0_i8, %2, %false) : (!llvm.ptr<i8>, i8, i64, i1) -> ()
+// CHECK-NEXT: "llvm.intr.memset"(%0, %c0_i8, %2, %false) : (!llvm.ptr, i8, i64, i1) -> ()
 // CHECK-NEXT: %memspacecast = memref.memory_space_cast %cast : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
 // CHECK-NEXT: sycl.constructor @id(%memspacecast) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1Ev} : (memref<?x!sycl_id_2_, 4>)
 
@@ -270,10 +270,10 @@ extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 // CHECK-DAG:     %[[FALSE:.*]] = arith.constant false
 // CHECK-DAG:     %[[C0_I8:.*]] = arith.constant 0 : i8
 // CHECK-NEXT:    %[[ALLOCA:.*]] = memref.alloca() : memref<1x!sycl_vec_i32_4_>
-// CHECK-NEXT:    %[[VAL0:.*]] = "polygeist.memref2pointer"(%[[ALLOCA]]) : (memref<1x!sycl_vec_i32_4_>) -> !llvm.ptr<i8>
+// CHECK-NEXT:    %[[VAL0:.*]] = "polygeist.memref2pointer"(%[[ALLOCA]]) : (memref<1x!sycl_vec_i32_4_>) -> !llvm.ptr
 // CHECK-NEXT:    %[[VAL1:.*]] = "polygeist.typeSize"() {source = !sycl_vec_i32_4_} : () -> index
 // CHECK-NEXT:    %[[VAL2:.*]] = arith.index_cast %[[VAL1]] : index to i64
-// CHECK-NEXT:    "llvm.intr.memset"(%[[VAL0]], %[[C0_I8]], %[[VAL2]], %[[FALSE]]) : (!llvm.ptr<i8>, i8, i64, i1) -> ()
+// CHECK-NEXT:    "llvm.intr.memset"(%[[VAL0]], %[[C0_I8]], %[[VAL2]], %[[FALSE]]) : (!llvm.ptr, i8, i64, i1) -> ()
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_11()
 // CHECK-LLVM-SAME:                                    #[[FUNCATTRS]] {

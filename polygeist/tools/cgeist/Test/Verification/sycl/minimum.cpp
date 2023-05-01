@@ -1,24 +1,28 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s
 
-// CHECK-LABEL:    func.func @_ZNKSt4lessIvEclIRiS2_EEDTltclsr3stdE7forwardIT_Efp_Eclsr3stdE7forwardIT0_Efp0_EEOS3_OS4_(%arg0: !llvm.ptr<struct<(i8)>, 4> {llvm.align = 1 : i64, llvm.dereferenceable_or_null = 1 : i64, llvm.noundef}, %arg1: memref<?xi32, 4> {llvm.align = 4 : i64, llvm.dereferenceable = 4 : i64, llvm.noundef}, %arg2: memref<?xi32, 4> {llvm.align = 4 : i64, llvm.dereferenceable = 4 : i64, llvm.noundef}) -> (i1 {llvm.noundef, llvm.zeroext})
-// CHECK-DAG:        %c1_i64 = arith.constant 1 : i64
-// CHECK-DAG:        %0 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
-// CHECK-DAG:        %1 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
-// CHECK-DAG:        %2 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
-// CHECK-DAG:        %3 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:       %4 = llvm.addrspacecast %1 : !llvm.ptr<struct<(i8)>> to !llvm.ptr<struct<(i8)>, 4>
-// CHECK-NEXT:       %5 = llvm.load %2 : !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:       llvm.store %5, %4 : !llvm.ptr<struct<(i8)>, 4>
-// CHECK-NEXT:       %6 = llvm.mlir.null : !llvm.ptr<struct<(i8)>, 4>
-// CHECK-NEXT:       %7 = llvm.icmp "ne" %4, %6 : !llvm.ptr<struct<(i8)>, 4>
-// CHECK-NEXT:       %8 = arith.select %7, %4, %6 : !llvm.ptr<struct<(i8)>, 4>
-// CHECK-NEXT:       %9 = llvm.addrspacecast %3 : !llvm.ptr<struct<(i8)>> to !llvm.ptr<struct<(i8)>, 4>
-// CHECK-NEXT:       call @_ZNSt17integral_constantIbLb0EEC1EOS0_(%9, %8) : (!llvm.ptr<struct<(i8)>, 4>, !llvm.ptr<struct<(i8)>, 4>) -> ()
-// CHECK-NEXT:       %10 = llvm.load %3 : !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:       llvm.store %10, %0 : !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:       %11 = call @_ZNSt4lessIvE6_S_cmpIRiS2_EEDcOT_OT0_St17integral_constantIbLb0EE(%arg1, %arg2, %0) : (memref<?xi32, 4>, memref<?xi32, 4>, !llvm.ptr<struct<(i8)>>) -> i1
-// CHECK-NEXT:       return %11 : i1
-// CHECK-NEXT:     }
+// CHECK-LABEL:     func.func @_ZNKSt4lessIvEclIRiS2_EEDTltclsr3stdE7forwardIT_Efp_Eclsr3stdE7forwardIT0_Efp0_EEOS3_OS4_(
+// CHECK-SAME:        %[[VAL_735:.*]]: !llvm.ptr<4> {llvm.align = 1 : i64, llvm.dereferenceable_or_null = 1 : i64, llvm.noundef},
+// CHECK-SAME:        %[[VAL_736:.*]]: memref<?xi32, 4> {llvm.align = 4 : i64, llvm.dereferenceable = 4 : i64, llvm.noundef}, 
+// CHECK-SAME:        %[[VAL_737:.*]]: memref<?xi32, 4> {llvm.align = 4 : i64, llvm.dereferenceable = 4 : i64, llvm.noundef})
+// CHECK-SAME:          -> (i1 {llvm.noundef, llvm.zeroext})
+// CHECK-DAG:         %[[VAL_738:.*]] = arith.constant 1 : i64
+// CHECK-DAG:         %[[VAL_739:.*]] = llvm.alloca %[[VAL_738]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-DAG:         %[[VAL_740:.*]] = llvm.alloca %[[VAL_738]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-DAG:         %[[VAL_741:.*]] = llvm.alloca %[[VAL_738]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-DAG:         %[[VAL_742:.*]] = llvm.alloca %[[VAL_738]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:        %[[VAL_743:.*]] = llvm.addrspacecast %[[VAL_740]] : !llvm.ptr to !llvm.ptr<4>
+// CHECK-NEXT:        %[[VAL_744:.*]] = llvm.load %[[VAL_741]] : !llvm.ptr -> !llvm.struct<(i8)>
+// CHECK-NEXT:        llvm.store %[[VAL_744]], %[[VAL_743]] : !llvm.struct<(i8)>, !llvm.ptr<4>
+// CHECK-NEXT:        %[[VAL_745:.*]] = llvm.mlir.null : !llvm.ptr<4>
+// CHECK-NEXT:        %[[VAL_746:.*]] = llvm.icmp "ne" %[[VAL_743]], %[[VAL_745]] : !llvm.ptr<4>
+// CHECK-NEXT:        %[[VAL_747:.*]] = arith.select %[[VAL_746]], %[[VAL_743]], %[[VAL_745]] : !llvm.ptr<4>
+// CHECK-NEXT:        %[[VAL_748:.*]] = llvm.addrspacecast %[[VAL_742]] : !llvm.ptr to !llvm.ptr<4>
+// CHECK-NEXT:        call @_ZNSt17integral_constantIbLb0EEC1EOS0_(%[[VAL_748]], %[[VAL_747]]) : (!llvm.ptr<4>, !llvm.ptr<4>) -> ()
+// CHECK-NEXT:        %[[VAL_749:.*]] = llvm.load %[[VAL_742]] : !llvm.ptr -> !llvm.struct<(i8)>
+// CHECK-NEXT:        llvm.store %[[VAL_749]], %[[VAL_739]] : !llvm.struct<(i8)>, !llvm.ptr
+// CHECK-NEXT:        %[[VAL_750:.*]] = call @_ZNSt4lessIvE6_S_cmpIRiS2_EEDcOT_OT0_St17integral_constantIbLb0EE(%[[VAL_736]], %[[VAL_737]], %[[VAL_739]]) : (memref<?xi32, 4>, memref<?xi32, 4>, !llvm.ptr) -> i1
+// CHECK-NEXT:        return %[[VAL_750]] : i1
+// CHECK-NEXT:      }
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
