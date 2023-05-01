@@ -12,6 +12,7 @@
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::dataflow;
@@ -33,14 +34,32 @@ struct TestReachingDefinitionAnalysisPass
     DataFlowSolver solver;
     solver.load<DeadCodeAnalysis>();
     solver.load<SparseConstantPropagation>();
-    solver.load<sycl::UnderlyingValueAnalysis>(aliasAnalysis);
     solver.load<sycl::ReachingDefinitionAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
       return signalPassFailure();
 
-#if 1
+    auto printOps = [](std::optional<ArrayRef<Operation *>> ops,
+                       StringRef title) {
+      if (!ops) {
+        llvm::errs() << title << "<unknown>\n";
+        return;
+      }
+
+      llvm::errs() << title;
+      llvm::interleave(
+          *ops, llvm::errs(),
+          [](Operation *op) {
+            if (auto tagName = op->getAttrOfType<StringAttr>("tag_name"))
+              llvm::errs() << tagName.getValue();
+            else
+              llvm::errs() << op->getName();
+          },
+          " ");
+      llvm::errs() << "\n";
+    };
+
     op->walk([&](Operation *op) {
       // Only operations with the "tag" attribute are interesting.
       auto tag = op->getAttrOfType<StringAttr>("tag");
@@ -55,28 +74,14 @@ struct TestReachingDefinitionAnalysisPass
       // Print the reaching definitions for each operand.
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs() << " operand #" << index << "\n";
-        Value val = sycl::UnderlyingValue::getUnderlyingValue(
-            operand,
-            [&](Value value) {
-              return solver.lookupState<sycl::UnderlyingValueLattice>(value);
-            },
-            aliasAnalysis);
-        assert(val && "expected an underlying value");
-
-        if (std::optional<ArrayRef<Operation *>> lastMods =
-                reachingDef->getModifiers(val)) {
-          for (Operation *lastMod : *lastMods) {
-            if (auto tagName = lastMod->getAttrOfType<StringAttr>("tag_name"))
-              llvm::errs() << "  - " << tagName.getValue() << "\n";
-            else
-              llvm::errs() << "  - " << lastMod->getName() << "\n";
-          }
-        } else {
-          llvm::errs() << "  - <unknown>\n";
-        }
+        std::optional<ArrayRef<Operation *>> mods =
+            reachingDef->getModifiers(operand);
+        std::optional<ArrayRef<Operation *>> pMods =
+            reachingDef->getPotentialModifiers(operand);
+        printOps(mods, " - mods: ");
+        printOps(pMods, " - pMods: ");
       }
     });
-#endif
   }
 };
 
