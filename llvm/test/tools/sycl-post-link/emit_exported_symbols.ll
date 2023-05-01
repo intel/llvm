@@ -6,17 +6,17 @@
 ;
 ; Per-module split
 ; RUN: sycl-post-link -symbols -split=source -emit-exported-symbols -S < %s -o %t.per_module.files.table
-; RUN: FileCheck %s -input-file=%t.per_module.files_0.prop -implicit-check-not="NotExported" --check-prefix=CHECK-PERMODULE-0-PROP
-; RUN: FileCheck %s -input-file=%t.per_module.files_1.prop -implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_module.files_0.prop -implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_module.files_1.prop -implicit-check-not="NotExported" --check-prefix=CHECK-PERMODULE-0-PROP
 ; RUN: FileCheck %s -input-file=%t.per_module.files_2.prop -implicit-check-not="NotExported" --check-prefix=CHECK-PERMODULE-2-PROP
 ;
 ; Per-kernel split
 ; RUN: sycl-post-link -symbols -split=kernel -emit-exported-symbols -S < %s -o %t.per_kernel.files.table
-; RUN: FileCheck %s -input-file=%t.per_kernel.files_0.prop --implicit-check-not="NotExported" --check-prefix=CHECK-PERKERNEL-0-PROP
-; RUN: FileCheck %s -input-file=%t.per_kernel.files_1.prop --implicit-check-not="NotExported" --check-prefix=CHECK-PERKERNEL-1-PROP
-; RUN: FileCheck %s -input-file=%t.per_kernel.files_2.prop --implicit-check-not="NotExported" --check-prefix=CHECK-PERKERNEL-2-PROP
-; RUN: FileCheck %s -input-file=%t.per_kernel.files_3.prop --implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
-; RUN: FileCheck %s -input-file=%t.per_kernel.files_4.prop --implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_kernel.files_0.prop --implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_kernel.files_1.prop --implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_kernel.files_2.prop --implicit-check-not="NotExported" --check-prefix=CHECK-PERKERNEL-0-PROP
+; RUN: FileCheck %s -input-file=%t.per_kernel.files_3.prop --implicit-check-not="NotExported" --check-prefix=CHECK-PERKERNEL-1-PROP
+; RUN: FileCheck %s -input-file=%t.per_kernel.files_4.prop --implicit-check-not="NotExported" --check-prefix=CHECK-PERKERNEL-2-PROP
 
 target triple = "spir64-unknown-unknown"
 
