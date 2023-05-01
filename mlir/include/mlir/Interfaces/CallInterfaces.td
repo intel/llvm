@@ -46,9 +46,7 @@ def CallOpInterface : OpInterface<"CallOpInterface"> {
         SSA value. If the reference is an SSA value, the SSA value corresponds
         to a region of a lambda-like operation.
       }],
-      "void", "setCalleeFromCallable", (ins "::mlir::CallInterfaceCallable":$callee), [{}], [{
-          llvm_unreachable("setCalleeFromCallable not implemented");
-      }]
+      "void", "setCalleeFromCallable", (ins "::mlir::CallInterfaceCallable":$callee)
     >,
     InterfaceMethod<[{
         Returns the operands within this call that are used as arguments to the

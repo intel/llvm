@@ -372,6 +372,10 @@ def IncludeOp : TransformDialectOp<"include",
       return getTarget();
     }
 
+    void setCalleeFromCallable(::mlir::CallInterfaceCallable callee) {
+      setTargetAttr(dyn_cast<SymbolRefAttr>(callee));
+    }
+
     ::mlir::Operation::operand_range getArgOperands() {
       return getOperands();
     }
