@@ -1,7 +1,7 @@
 
 // REQUIRES: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 %s -o %t.out
-// RUN: %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // This tests the unified matrix extension interfaces for the cuda backend.
 // This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,

@@ -1,11 +1,7 @@
-// REQUIRES: cuda
-//
-// Currently this test fails to compile for backends other than cuda.
-// Other backends could use this test when bfloat16 math function support is
-// added.
-//
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend --cuda-gpu-arch=sm_80
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
+// Currently the feature isn't supported on FPGA.
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 #include <sycl/sycl.hpp>
 
 #include <cmath>
@@ -40,7 +36,8 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
-        if (check(NAME(bfloat16{A[index]}), NAME(A[index]))) {                 \
+        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]}),   \
+                  sycl::NAME(A[index]))) {                                     \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -63,7 +60,7 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<RETTY, SZ> res = NAME(arg);                                     \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], NAME(A[index][i]))) {                              \
+          if (check(res[i], sycl::NAME(A[index][i]))) {                        \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \

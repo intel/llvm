@@ -313,8 +313,8 @@ bool test(queue q, const Config &cfg) {
             << cfg << "...";
 
   size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
-  //std::cerr << size << "\n";
-  auto arr = std::vector<T>(size);
+  T *arr = new T[size];
+
 #if USE_FULL_BARRIER
   uint32_t *flag_ptr = malloc_shared<uint32_t>(1, q);
   *flag_ptr = 0;
@@ -328,8 +328,12 @@ bool test(queue q, const Config &cfg) {
   range<1> glob_rng(n_threads);
   range<1> loc_rng(cfg.threads_per_group);
   nd_range<1> rng(glob_rng, loc_rng);
-  buffer<T,1> buf = buffer(arr.data(), range<1>(arr.size()));
+  auto mask = cfg.masked_lane;
+  auto repeat = cfg.repeat;
+  auto start = cfg.start_ind;
+  auto stride = cfg.stride;
   try {
+    buffer<T, 1> buf(arr, range<1>(size));
     auto e = q.submit([&](handler &cgh) {
       accessor<T, 1, access_mode::read_write, access::target::device> accessor =
           buf.template get_access<access::mode::read_write>(cgh);
@@ -337,14 +341,13 @@ bool test(queue q, const Config &cfg) {
           rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
             int i = ii;
 #ifndef USE_SCALAR_OFFSET
-            simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
-                                     cfg.stride * sizeof(T));
+            simd<Toffset, N> offsets(start * sizeof(T), stride * sizeof(T));
 #else
             Toffset offsets = 0;
 #endif
             simd_mask<N> m = 1;
-            if (cfg.masked_lane < N)
-              m[cfg.masked_lane] = 0;
+            if (mask < N)
+              m[mask] = 0;
           // barrier to achieve better contention:
 #if USE_FULL_BARRIER
             // Full global barrier, works only with LSC atomics
@@ -359,7 +362,7 @@ bool test(queue q, const Config &cfg) {
 #endif // USE_FULL_BARRIER
 
             // the atomic operation itself applied in a loop:
-            for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
+            for (int cnt = 0; cnt < repeat; ++cnt) {
               if constexpr (n_args == 0) {
                 simd<T, N> res = atomic_update<op, T, N>(accessor, offsets, m);
                 res.copy_to(accessor,0);
@@ -372,19 +375,19 @@ bool test(queue q, const Config &cfg) {
                 // do compare-and-swap in a loop until we get expected value;
                 // arg0 and arg1 must provide values which guarantee the loop
                 // is not endless:
-                for (auto old_val = atomic_update<op, T, N>(accessor, offsets,
-                                                      new_val, exp_val, m);
+                for (auto old_val = atomic_update<op, T, N>(
+                         accessor, offsets, new_val, exp_val, m);
                      any(old_val < exp_val, !m);
-                     old_val = atomic_update<op, T, N>(accessor, offsets, new_val,
-                                                 exp_val, m))  ;
+                     old_val = atomic_update<op, T, N>(accessor, offsets,
+                                                       new_val, exp_val, m));
               }
             }
           });
     });
     e.wait();
-    //buf.template get_access<access::mode::read_write>();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
+    delete[] arr;
 #if USE_FULL_BARRIER
     free(flag_ptr, q);
 #endif // USE_FULL_BARRIER
@@ -414,6 +417,7 @@ bool test(queue q, const Config &cfg) {
 #if USE_FULL_BARRIER
   free(flag_ptr, q);
 #endif // USE_FULL_BARRIER
+  delete[] arr;
   return err_cnt == 0;
 }
 #endif

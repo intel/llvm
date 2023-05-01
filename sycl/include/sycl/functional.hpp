@@ -32,8 +32,7 @@ template <typename T = void> struct minimum {
 template <> struct minimum<void> {
   struct is_transparent {};
   template <typename T, typename U>
-  auto operator()(T &&lhs, U &&rhs) const ->
-      typename std::common_type<T &&, U &&>::type {
+  auto operator()(T &&lhs, U &&rhs) const -> std::common_type_t<T &&, U &&> {
     return std::less<>()(std::forward<const T>(lhs), std::forward<const U>(rhs))
                ? std::forward<T>(lhs)
                : std::forward<U>(rhs);
@@ -49,8 +48,7 @@ template <typename T = void> struct maximum {
 template <> struct maximum<void> {
   struct is_transparent {};
   template <typename T, typename U>
-  auto operator()(T &&lhs, U &&rhs) const ->
-      typename std::common_type<T &&, U &&>::type {
+  auto operator()(T &&lhs, U &&rhs) const -> std::common_type_t<T &&, U &&> {
     return std::greater<>()(std::forward<const T>(lhs),
                             std::forward<const U>(rhs))
                ? std::forward<T>(lhs)
