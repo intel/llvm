@@ -228,8 +228,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    if (LinkSYCLDeviceLibs)
+    if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+      // FIXME remove this when opaque pointers are supported for SPIR-V
+      if (!this->getToolChain().getTriple().isSPIR()) {
+        Opts.push_back("-opaque-pointers");
+      }
+    }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
@@ -270,10 +275,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // TODO: temporary workaround for a problem with warnings reported by
     // llvm-link when driver links LLVM modules with empty modules
     CmdArgs.push_back("--suppress-warnings");
-    // FIXME remove this when opaque pointers are supported for SPIR-V
-    if (!this->getToolChain().getTriple().isSPIR()) {
-      CmdArgs.push_back("-opaque-pointers");
-    }
     C.addCommand(std::make_unique<Command>(JA, *this,
                                            ResponseFileSupport::AtFileUTF8(),
                                            Exec, CmdArgs, std::nullopt));
