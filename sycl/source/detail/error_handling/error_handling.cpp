@@ -250,10 +250,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           Kernel, Device, PI_KERNEL_GROUP_INFO_NUM_REGS, sizeof(NumRegisters),
           &NumRegisters, nullptr);
 
-      uint32_t MaxRegistersPerBlock = 0;
-      Plugin.call<PiApiKind::piDeviceGetInfo>(
-          Device, PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP,
-          sizeof(MaxRegistersPerBlock), &MaxRegistersPerBlock, nullptr);
+      uint32_t MaxRegistersPerBlock =
+          DeviceImpl.get_info<ext::codeplay::experimental::info::device::
+                                  max_registers_per_work_group>();
 
       const bool HasExceededAvailableRegisters =
           TotalNumberOfWIs * NumRegisters > MaxRegistersPerBlock;
