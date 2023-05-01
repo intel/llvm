@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/backend_impl.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>

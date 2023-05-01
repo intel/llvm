@@ -162,7 +162,7 @@ public:
   pi_native_handle getNative() const {
     const plugin &Plugin = MContext->getPlugin();
 
-    if (Plugin.getBackend() == backend::opencl)
+    if (MContext->getBackend() == backend::opencl)
       Plugin.call<PiApiKind::piKernelRetain>(MKernel);
 
     pi_native_handle NativeKernel = 0;
@@ -176,6 +176,7 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
     return MNoncacheableEnqueueMutex;

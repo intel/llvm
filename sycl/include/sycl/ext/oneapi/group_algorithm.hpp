@@ -38,7 +38,7 @@ using EnableIfIsPointer =
 
 template <typename T>
 using EnableIfIsTriviallyCopyable =
-    std::enable_if_t<std::is_trivially_copyable<T>::value &&
+    std::enable_if_t<std::is_trivially_copyable_v<T> &&
                          !sycl::detail::is_vector_arithmetic<T>::value,
                      T>;
 
@@ -60,7 +60,7 @@ template <typename T, typename BinaryOperation>
 using EnableIfIsNonNativeOp =
     std::enable_if_t<(!sycl::detail::is_scalar_arithmetic<T>::value &&
                       !sycl::detail::is_vector_arithmetic<T>::value &&
-                      std::is_trivially_copyable<T>::value) ||
+                      std::is_trivially_copyable_v<T>) ||
                          !sycl::detail::is_native_op<T, BinaryOperation>::value,
                      T>;
 
@@ -143,7 +143,7 @@ template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
     "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 std::enable_if_t<(detail::is_generic_group<Group>::value &&
-                  std::is_trivially_copyable<T>::value &&
+                  std::is_trivially_copyable_v<T> &&
                   !detail::is_vector_arithmetic<T>::value),
                  T> broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -182,7 +182,7 @@ template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
     "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 std::enable_if_t<(detail::is_generic_group<Group>::value &&
-                  std::is_trivially_copyable<T>::value &&
+                  std::is_trivially_copyable_v<T> &&
                   !detail::is_vector_arithmetic<T>::value),
                  T> broadcast(Group g, T x,
                               typename Group::linear_id_type linear_local_id) {
@@ -225,7 +225,7 @@ template <typename Group, typename T>
 __SYCL2020_DEPRECATED(
     "ext::oneapi::broadcast is deprecated. Use group_broadcast instead.")
 std::enable_if_t<(detail::is_generic_group<Group>::value &&
-                  std::is_trivially_copyable<T>::value &&
+                  std::is_trivially_copyable_v<T> &&
                   !detail::is_vector_arithmetic<T>::value),
                  T> broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -282,7 +282,7 @@ template <typename Group, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
     "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
 std::enable_if_t<(detail::is_sub_group<Group>::value &&
-                  std::is_trivially_copyable<T>::value &&
+                  std::is_trivially_copyable_v<T> &&
                   (!detail::is_arithmetic<T>::value ||
                    !detail::is_native_op<T, BinaryOperation>::value)),
                  T> reduce(Group g, T x, BinaryOperation op) {
@@ -323,13 +323,12 @@ std::enable_if_t<(detail::is_generic_group<Group>::value &&
 template <typename Group, typename V, typename T, class BinaryOperation>
 __SYCL2020_DEPRECATED(
     "ext::oneapi::reduce is deprecated. Use reduce_over_group instead.")
-std::enable_if_t<(detail::is_sub_group<Group>::value &&
-                  std::is_trivially_copyable<T>::value &&
-                  std::is_trivially_copyable<V>::value &&
-                  (!detail::is_arithmetic<T>::value ||
-                   !detail::is_arithmetic<V>::value ||
-                   !detail::is_native_op<T, BinaryOperation>::value)),
-                 T> reduce(Group g, V x, T init, BinaryOperation op) {
+std::enable_if_t<
+    (detail::is_sub_group<Group>::value && std::is_trivially_copyable_v<T> &&
+     std::is_trivially_copyable_v<V> &&
+     (!detail::is_arithmetic<T>::value || !detail::is_arithmetic<V>::value ||
+      !detail::is_native_op<T, BinaryOperation>::value)),
+    T> reduce(Group g, V x, T init, BinaryOperation op) {
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));

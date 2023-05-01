@@ -31,11 +31,11 @@ namespace detail {
 // with void * is clarified.
 template <typename DataT>
 using EnableIfOutputPointerT = std::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer_v<DataT>>;
 
 template <typename DataT>
 using EnableIfOutputIteratorT = std::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()

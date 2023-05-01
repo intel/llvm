@@ -194,14 +194,12 @@ int main() {
 
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      // std::cout << C[i][j] << " ";
-      if ((fabs(C[i][j]) - fabs(D[i][j])) > BF16_EPSILON)
+      if (fabs(C[i][j] - D[i][j]) > BF16_EPSILON)
         res = false;
       sum_rows_ref[i] += C[i][j];
     }
-    if ((fabs(sum_rows_ref[i]) - fabs(sum_rows[i])) > BF16_EPSILON)
+    if (fabs(sum_rows_ref[i] - sum_rows[i]) > BF16_EPSILON)
       res = false;
-    // std::cout << "\n";
   }
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
