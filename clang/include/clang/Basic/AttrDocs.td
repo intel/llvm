@@ -3492,6 +3492,42 @@ conjunction with disable_loop_pipelining.
   }];
 }
 
+def SYCLIntelEnableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::enable_loop_pipelining";
+  let Content = [{
+The ``enable_loop_pipelining`` attribute applies to a loop in SYCL device code.
+Takes no arguments and enables pipelining of the loop. This attribute is useful
+in the low-area flow, in which all loops are unpipelined by default. Cannot be
+used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
+
+.. code-block:: c++
+
+  void bar() {
+    int a[10];
+    [[[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  void Array(int *array, size_t n) {
+    [[intel::enable_loop_pipelining]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+  int a1[10], int i = 0;
+  [[intel::enable_loop_pipelining]] while (i < 10) {
+    a1[i] += 3;
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::enable_loop_pipelining]] do {
+      a = a + 1;
+    } while (a < 20);
+  }
+
+  }];
+}
+
 def SYCLIntelLoopFuseDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "loop_fuse, loop_fuse_independent";

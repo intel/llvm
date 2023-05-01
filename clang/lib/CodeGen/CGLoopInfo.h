@@ -155,6 +155,9 @@ struct LoopAttributes {
   /// Flag for llvm.loop.fusion.disable metatdata.
   bool SYCLNofusionEnable;
 
+  /// Flag for llvm.loop.intel.pipelining.enable, i32 1 metadata.
+  bool SYCLLoopPipeliningEnable;
+
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
 };
@@ -409,6 +412,11 @@ public:
 
   /// Set flag of nofusion for the next loop pushed.
   void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
+
+  /// Set flag of enable_loop_pipelining for the next loop pushed.
+  void setSYCLLoopPipeliningEnable() {
+    StagedAttrs.SYCLLoopPipeliningEnable = true;
+  }
 
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }
