@@ -204,7 +204,7 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
 """
     generates c/c++ files from the specification documents
 """
-def _mako_null_driver_cpp(path, namespace, tags, version, specs, meta):
+def _mako_null_adapter_cpp(path, namespace, tags, version, specs, meta):
     dstpath = os.path.join(path, "null")
     os.makedirs(dstpath, exist_ok=True)
 
@@ -320,14 +320,14 @@ def generate_loader(path, section, namespace, tags, version, specs, meta):
 
 """
 Entry-point:
-    generates drivers for unified_runtime driver
+    generates adapter for unified_runtime
 """
-def generate_drivers(path, section, namespace, tags, version, specs, meta):
-    dstpath = os.path.join(path, "drivers")
+def generate_adapters(path, section, namespace, tags, version, specs, meta):
+    dstpath = os.path.join(path, "adapters")
     os.makedirs(dstpath, exist_ok=True)
 
     loc = 0
-    loc += _mako_null_driver_cpp(dstpath, namespace, tags, version, specs, meta)
+    loc += _mako_null_adapter_cpp(dstpath, namespace, tags, version, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
 """
