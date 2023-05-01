@@ -1,5 +1,9 @@
 
 // REQUIRES: gpu, level_zero
+// TODO: There is a bug on Windows Gen 9 with reductions
+// which is not related to tested feature. Enable back when
+// bug is fixed on Windows Gen9
+// UNSUPPORTED: gpu-intel-gen9 && windows
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck %s

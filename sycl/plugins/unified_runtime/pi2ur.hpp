@@ -785,6 +785,12 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
     break;
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT;
+    break;
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    InfoType = (ur_device_info_t)UR_DEVICE_INFO_IMAGE_SRGB;
+    break;
   default:
     return PI_ERROR_UNKNOWN;
   };
