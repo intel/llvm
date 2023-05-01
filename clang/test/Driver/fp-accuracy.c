@@ -25,7 +25,10 @@
 
 // RUN: not %clang -Xclang -verify -ffp-accuracy=foo:[sin,cos] \
 // RUN: -ffp-accuracy=goo:[tan] %s 2>&1  \
-// RUN: | FileCheck %s --check-prefixes=CHECK-ERR
+// RUN: | FileCheck %s --check-prefixes=CHECK-ERR-1
+
+// RUN: not %clang -Xclang -verify -ffp-accuracy=high=[sin] %s 2>& 1 \
+// RUN: | FileCheck %s --check-prefixes=CHECK-ERR-2
 
 // CHECK-H: "-ffp-builtin-accuracy=high"
 // CHECK-L: "-ffp-builtin-accuracy=low"
@@ -33,3 +36,7 @@
 // CHECK-FUNC-1: "-ffp-builtin-accuracy=low:sin,cos"
 // CHECK-FUNC-2: "-ffp-builtin-accuracy=low:sin,cos high:tan"
 // CHECK-ERR: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
+// CHECK-ERR-1: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
+// CHECK-ERR-1: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
+// CHECK-ERR-1: (frontend): unsupported argument 'goo' to option 'ffp-accuracy'
+// CHECK-ERR-2: (frontend): unsupported argument 'high=[sin]' to option 'ffp-accuracy'

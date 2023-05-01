@@ -548,12 +548,35 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
 
 // Emit an intrinsic that has 2 operands of the same type as its result.
 // Depending on mode, this may be a constrained floating-point intrinsic.
-static Value *emitBinaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
-                                const CallExpr *E, unsigned IntrinsicID,
-                                unsigned ConstrainedIntrinsicID) {
+static Value *emitBinaryMaybeConstrainedFPBuiltin(
+    CodeGenFunction &CGF, const CallExpr *E, unsigned IntrinsicID,
+    unsigned ConstrainedIntrinsicID,
+    unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
-
+  if (CGF.CGM.getCodeGenOpts().FPAccuracy) {
+    unsigned BuiltinID = CGF.getCurrentBuiltinID();
+    StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
+    Function *Func;
+    // Use fpbuiltin intrinsic only when needed.
+    bool HasAccuracyRequirement = false;
+    if (!CGF.getLangOpts().FPAccuracyVal.empty())
+      HasAccuracyRequirement = true;
+    for (auto F : CGF.getLangOpts().FPAccuracyFuncMap) {
+      auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
+      if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
+        if (FuncMapIt->first == Name) {
+          HasAccuracyRequirement = true;
+          break;
+        }
+    }
+    if (HasAccuracyRequirement)
+         Func = CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Src0->getType());
+    else
+      Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+    return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0, Src1},
+                                     FPAccuracyIntrinsicID);
+  }
   if (CGF.Builder.getIsFPConstrained()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
@@ -2329,9 +2352,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_expf16:
     case Builtin::BI__builtin_expl:
     case Builtin::BI__builtin_expf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::exp,
-                                   Intrinsic::experimental_constrained_exp));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::exp, Intrinsic::experimental_constrained_exp,
+          Intrinsic::fpbuiltin_exp));
 
     case Builtin::BIexp2:
     case Builtin::BIexp2f:
@@ -2341,9 +2364,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_exp2f16:
     case Builtin::BI__builtin_exp2l:
     case Builtin::BI__builtin_exp2f128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::exp2,
-                                   Intrinsic::experimental_constrained_exp2));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::exp2, Intrinsic::experimental_constrained_exp2,
+          Intrinsic::fpbuiltin_exp2));
 
     case Builtin::BIfabs:
     case Builtin::BIfabsf:
@@ -2427,9 +2450,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_logf16:
     case Builtin::BI__builtin_logl:
     case Builtin::BI__builtin_logf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::log,
-                                   Intrinsic::experimental_constrained_log));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::log, Intrinsic::experimental_constrained_log,
+          Intrinsic::fpbuiltin_log));
 
     case Builtin::BIlog10:
     case Builtin::BIlog10f:
@@ -2439,9 +2462,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_log10f16:
     case Builtin::BI__builtin_log10l:
     case Builtin::BI__builtin_log10f128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::log10,
-                                   Intrinsic::experimental_constrained_log10));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::log10, Intrinsic::experimental_constrained_log10,
+          Intrinsic::fpbuiltin_log10));
 
     case Builtin::BIlog2:
     case Builtin::BIlog2f:
@@ -2451,9 +2474,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_log2f16:
     case Builtin::BI__builtin_log2l:
     case Builtin::BI__builtin_log2f128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::log2,
-                                   Intrinsic::experimental_constrained_log2));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::log2, Intrinsic::experimental_constrained_log2,
+          Intrinsic::fpbuiltin_log2));
 
     case Builtin::BInearbyint:
     case Builtin::BInearbyintf:
@@ -2474,9 +2497,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_powf16:
     case Builtin::BI__builtin_powl:
     case Builtin::BI__builtin_powf128:
-      return RValue::get(emitBinaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::pow,
-                                   Intrinsic::experimental_constrained_pow));
+      return RValue::get(emitBinaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::pow, Intrinsic::experimental_constrained_pow,
+          Intrinsic::fpbuiltin_pow));
 
     case Builtin::BIrint:
     case Builtin::BIrintf:
@@ -2534,9 +2557,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_sqrtf16:
     case Builtin::BI__builtin_sqrtl:
     case Builtin::BI__builtin_sqrtf128:
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
-                                   Intrinsic::sqrt,
-                                   Intrinsic::experimental_constrained_sqrt));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
+          *this, E, Intrinsic::sqrt, Intrinsic::experimental_constrained_sqrt,
+          Intrinsic::fpbuiltin_sqrt));
 
     case Builtin::BItrunc:
     case Builtin::BItruncf:
@@ -21866,38 +21889,135 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   return RValue::get(Ann);
 }
 
-RValue CodeGenFunction::EmitFPBuiltinIndirectCall(
+llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
-    llvm::Value *FnPtr) {
+    llvm::Value *FnPtr, const Decl *TargetDecl) {
   llvm::Function *Func;
   unsigned FPAccuracyIntrinsicID = 0;
-  llvm::CallInst *CI;
-  if (FnPtr->getName() == "sincos") {
-    FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_sincos;
-    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-    CI = CreateBuiltinCallWithAttr(*this, FnPtr->getName(), Func,
-                                   {IRArgs[0], IRArgs[1], IRArgs[2]},
-                                   FPAccuracyIntrinsicID);
-  } else {
-    unsigned BuiltinID = getCurrentBuiltinID();
-    StringRef Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
-    unsigned FPAccuracyIntrinsicID = 0;
-    switch (BuiltinID) {
-    case Builtin::BItan:
-    case Builtin::BItanf:
-    case Builtin::BItanh:
-    case Builtin::BItanhf:
-    case Builtin::BItanhl:
-    case Builtin::BItanl:
-      FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tan;
-      break;
+  llvm::CallInst *CI = nullptr;
+  StringRef Name;
+  if (CurrentBuiltinID == 0) {
+        // Even if the current function doesn't have a clang builtin, create
+        // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
+        // an NoBuiltin attribute.
+      if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
+        if (!FD->hasAttr<NoBuiltinAttr>()) {
+          Name = FD->getName();
+          if (Name == "fadd")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fadd;
+          else if (Name == "fdiv")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fdiv;
+          else if (Name == "fmul")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fmul;
+          else if (Name == "fsub")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fsub;
+          else if (Name == "frem")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_frem;
+          else if (Name == "sincos")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_sincos;
+          else if (Name == "exp10")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_exp10;
+          else if (Name == "rsqrt")
+            FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_rsqrt;
+          else
+            llvm_unreachable("unexpected fpbuiltin ID");
+        }
+      }
+    } else {
+        // The function has a clang builtin. Create an attribute for it
+        // only if it has an fpbuiltin intrinsic.
+      unsigned BuiltinID = getCurrentBuiltinID();
+      Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
+      switch (BuiltinID) {
+      default:
+        break;
+      case Builtin::BItan:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tan;
+        break;
+      case Builtin::BItanh:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tanh;
+        break;
+      case Builtin::BIlog2:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_log2;
+        break;
+      case Builtin::BIlog1p:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_log1p;
+        break;
+      case Builtin::BIcosh:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_cosh;
+        break;
+      case Builtin::BIacos:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acos;
+        break;
+      case Builtin::BIacosh:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acosh;
+        break;
+      case Builtin::BIsinh:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sinh;
+        break;
+      case Builtin::BIasin:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_asin;
+        break;
+      case Builtin::BIasinh:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_asinh;
+        break;
+      case Builtin::BIatan:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atan;
+        break;
+      case Builtin::BIatanh:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atanh;
+        break;
+      case Builtin::BIatan2:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atan2;
+        break;
+      case Builtin::BIerf:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_erf;
+        break;
+      case Builtin::BIerfc:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_erfc;
+        break;
+      case Builtin::BIexp:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_exp;
+        break;
+      case Builtin::BIexp2:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_exp2;
+        break;
+      case Builtin::BIexpm1:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_expm1;
+        break;
+      case Builtin::BIhypot:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_hypot;
+        break;
+      case Builtin::BIldexp:
+        FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_ldexp;
+        break;
+      }
     }
+    if (FPAccuracyIntrinsicID == 0)
+      // If the function has a clang builtin but doesn't have an
+      // fpbuiltin, it will be generated with no 'fpbuiltin-max-error'
+      // attribute.
+      return nullptr;
     Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-    CI = CreateBuiltinCallWithAttr(*this, Name, Func, {IRArgs[0]},
-                                   FPAccuracyIntrinsicID);
-  }
-  return RValue::get(CI);
+    if (IRArgs.size() == 1)
+      CI = CreateBuiltinCallWithAttr(*this, Name, Func, {IRArgs[0]},
+                                     FPAccuracyIntrinsicID);
+    else if (IRArgs.size() == 2)
+      CI = CreateBuiltinCallWithAttr(*this, FnPtr->getName(), Func,
+                                     {IRArgs[0], IRArgs[1]},
+                                     FPAccuracyIntrinsicID);
+
+    else if (IRArgs.size() == 3)
+      CI = CreateBuiltinCallWithAttr(*this, FnPtr->getName(), Func,
+                                     {IRArgs[0], IRArgs[1], IRArgs[2]},
+                                     FPAccuracyIntrinsicID);
+    else
+      llvm_unreachable(
+          "Not expecting an fpbuiltin intrinsic with more than 3 arguments");
+
+    return CI;
 }
+
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
                                              const CallExpr *E,

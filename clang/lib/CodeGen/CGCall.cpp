@@ -5518,8 +5518,13 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
-    if (CGM.getCodeGenOpts().FPAccuracy)
-      return EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr);
+    if (CGM.getCodeGenOpts().FPAccuracy) {
+      if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl))
+        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr,
+                                       TargetDecl);
+      if (CI)
+        return RValue::get(CI);
+    }
     CI = Builder.CreateCall(IRFuncTy, CalleePtr, IRCallArgs, BundleList);
   } else {
     llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");
