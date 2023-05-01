@@ -1253,8 +1253,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                       .getValue(Builder);
       if (auto MT = dyn_cast<MemRefType>(*ElemTy)) {
         ElemTy = MT.getElementType();
-      } else if(auto PT = dyn_cast<LLVM::LLVMPointerType>(*ElemTy)){
-        if(!PT.isOpaque()){
+      } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(*ElemTy)) {
+        if (!PT.isOpaque()) {
           ElemTy = PT.getElementType();
         }
       }
