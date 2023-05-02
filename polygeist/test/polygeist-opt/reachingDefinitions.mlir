@@ -138,3 +138,34 @@ func.func @test8(%val: i32, %idx : index) {
   %3 = memref.load %cast[%idx] {tag = "test8_load3"} : memref<?xi32>  
   return
 }
+
+// COM: Ensure definitions and potential definitions are unknown if operation 
+//       has stored or allocated a value used by a load.
+// CHECK-LABEL: test_tag: test9_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods: <unknown>
+// CHECK-NEXT: - pMods: <unknown>
+func.func @test9(%arg1: memref<i32>) {
+  %1 = memref.load %arg1[] {tag = "test9_load1"} : memref<i32>
+  return
+}
+
+// COM: Test that a operation with unknown side effects kills a previous definition.
+// CHECK-LABEL: test_tag: test10_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods: test10_store1
+// CHECK-NEXT: - pMods:
+// CHECK-LABEL: test_tag: test10_load2
+// CHECK: operand #0
+// CHECK-NEXT: - mods: <unknown>
+// CHECK-NEXT: - pMods: <unknown>
+func.func private @foo(%arg0: memref<i32>) -> ()
+
+func.func @test10(%val: i32) {
+  %alloca = memref.alloca() : memref<i32>
+  memref.store %val, %alloca[] {tag_name = "test10_store1"} : memref<i32>
+  %1 = memref.load %alloca[] {tag = "test10_load1"} : memref<i32>  
+  func.call @foo(%alloca) : (memref<i32>) -> ()
+  %3 = memref.load %alloca[] {tag = "test10_load2"} : memref<i32>
+  return
+}

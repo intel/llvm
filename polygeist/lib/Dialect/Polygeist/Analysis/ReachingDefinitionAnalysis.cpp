@@ -96,6 +96,8 @@ ChangeResult ReachingDefinition::setModifier(Value val, Operation *op) {
 }
 
 ChangeResult ReachingDefinition::removeModifiers(Value val) {
+  if (!valueToModifiers.contains(val))
+    return ChangeResult::NoChange;
   if (!valueToModifiers[val].empty()) {
     valueToModifiers[val].clear();
     return ChangeResult::Change;
@@ -110,6 +112,8 @@ ChangeResult ReachingDefinition::addPotentialModifier(Value val,
 }
 
 ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
+  if (!valueToPotentialModifiers.contains(val))
+    return ChangeResult::NoChange;
   if (!valueToPotentialModifiers[val].empty()) {
     valueToPotentialModifiers[val].clear();
     return ChangeResult::Change;
@@ -119,16 +123,16 @@ ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
 
 std::optional<ArrayRef<Operation *>>
 ReachingDefinition::getModifiers(Value val) const {
-  auto it = valueToModifiers.find(val);
-  return (it != valueToModifiers.end()) ? it->second.getArrayRef()
-                                        : std::nullopt;
+  if (valueToModifiers.contains(val))
+    return valueToModifiers.at(val).getArrayRef();
+  return std::nullopt;
 }
 
 std::optional<ArrayRef<Operation *>>
 ReachingDefinition::getPotentialModifiers(Value val) const {
-  auto it = valueToPotentialModifiers.find(val);
-  return (it != valueToPotentialModifiers.end()) ? it->second.getArrayRef()
-                                                 : std::nullopt;
+  if (valueToPotentialModifiers.contains(val))
+    return valueToPotentialModifiers.at(val).getArrayRef();
+  return std::nullopt;
 }
 
 //===----------------------------------------------------------------------===//
@@ -158,7 +162,7 @@ void ReachingDefinitionAnalysis::visitOperation(
   auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
   if (!memoryEffectOp) {
     LLVM_DEBUG(llvm::dbgs() << "Operation has unknown side effects\n");
-    return setToEntryState(after);
+    return;
   }
 
   // Transfer the input state.
