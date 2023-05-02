@@ -1,4 +1,4 @@
-// RUN: mlir-vulkan-runner %s --shared-libs=%mlir_lib_dir/libvulkan-runtime-wrappers%shlibext,%mlir_lib_dir/libmlir_runner_utils%shlibext --entry-point-result=void | FileCheck %s
+// RUN: mlir-vulkan-runner %s --shared-libs=%vulkan-runtime-wrappers,%mlir_runner_utils --entry-point-result=void | FileCheck %s
 
 // CHECK: [3.3,  3.3,  3.3,  3.3,  3.3,  3.3,  3.3,  3.3]
 module attributes {
@@ -8,7 +8,7 @@ module attributes {
 } {
   gpu.module @kernels {
     gpu.func @kernel_add(%arg0 : memref<8xf32>, %arg1 : memref<8xf32>, %arg2 : memref<8xf32>)
-      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<local_size = dense<[1, 1, 1]>: vector<3xi32>>} {
+      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [1, 1, 1]>} {
       %0 = gpu.block_id x
       %1 = memref.load %arg0[%0] : memref<8xf32>
       %2 = memref.load %arg1[%0] : memref<8xf32>

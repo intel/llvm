@@ -63,9 +63,12 @@ using namespace llvm::memprof;
 
 // Option to force edges cold which will block importing when the
 // -import-cold-multiplier is set to 0. Useful for debugging.
+namespace llvm {
 FunctionSummary::ForceSummaryHotnessType ForceSummaryEdgesCold =
     FunctionSummary::FSHT_None;
-cl::opt<FunctionSummary::ForceSummaryHotnessType, true> FSEC(
+} // namespace llvm
+
+static cl::opt<FunctionSummary::ForceSummaryHotnessType, true> FSEC(
     "force-summary-edges-cold", cl::Hidden, cl::location(ForceSummaryEdgesCold),
     cl::desc("Force all edges in the function summary to cold"),
     cl::values(clEnumValN(FunctionSummary::FSHT_None, "none", "None."),
@@ -73,10 +76,9 @@ cl::opt<FunctionSummary::ForceSummaryHotnessType, true> FSEC(
                           "all-non-critical", "All non-critical edges."),
                clEnumValN(FunctionSummary::FSHT_All, "all", "All edges.")));
 
-cl::opt<std::string> ModuleSummaryDotFile(
-    "module-summary-dot-file", cl::init(""), cl::Hidden,
-    cl::value_desc("filename"),
-    cl::desc("File to emit dot graph of new summary into."));
+static cl::opt<std::string> ModuleSummaryDotFile(
+    "module-summary-dot-file", cl::Hidden, cl::value_desc("filename"),
+    cl::desc("File to emit dot graph of new summary into"));
 
 // Walk through the operands of a given User via worklist iteration and populate
 // the set of GlobalValue references encountered. Invoked either on an
@@ -581,12 +583,17 @@ static void findFuncPointers(const Constant *I, uint64_t StartingOffset,
                              VTableFuncList &VTableFuncs) {
   // First check if this is a function pointer.
   if (I->getType()->isPointerTy()) {
-    auto Fn = dyn_cast<Function>(I->stripPointerCasts());
-    // We can disregard __cxa_pure_virtual as a possible call target, as
-    // calls to pure virtuals are UB.
-    if (Fn && Fn->getName() != "__cxa_pure_virtual")
-      VTableFuncs.push_back({Index.getOrInsertValueInfo(Fn), StartingOffset});
-    return;
+    auto C = I->stripPointerCasts();
+    auto A = dyn_cast<GlobalAlias>(C);
+    if (isa<Function>(C) || (A && isa<Function>(A->getAliasee()))) {
+      auto GV = dyn_cast<GlobalValue>(C);
+      assert(GV);
+      // We can disregard __cxa_pure_virtual as a possible call target, as
+      // calls to pure virtuals are UB.
+      if (GV && GV->getName() != "__cxa_pure_virtual")
+        VTableFuncs.push_back({Index.getOrInsertValueInfo(GV), StartingOffset});
+      return;
+    }
   }
 
   // Walk through the elements in the constant struct or array and recursively

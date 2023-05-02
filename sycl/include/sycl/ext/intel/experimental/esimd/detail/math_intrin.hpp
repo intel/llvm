@@ -388,7 +388,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     const uint32_t imask = ~mask;
     ret = (src[i] & imask) | ((val[i] << offset[i] & mask));
     // Sign extend if signed type
-    if constexpr (std::is_signed<T>::value) {
+    if constexpr (std::is_signed_v<T>) {
       int m = 1U << (width[i] - 1);
       ret = (ret ^ m) - m;
     }
@@ -460,7 +460,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   constexpr auto max_el_bits = std::max(src1_el_bits, src2_el_bits);
   constexpr __ESIMD_NS::uint ops_per_chan =
-      std::min(32 / max_el_bits, static_cast<__ESIMD_NS::uint>(8));
+      std::max(std::min(32 / max_el_bits, static_cast<uint32_t>(8)),
+               static_cast<uint32_t>(1));
 
   uint32_t src1_signed =
       src1_precision == __ESIMD_XMX_NS::dpas_argument_type::s2 ||
@@ -544,10 +545,10 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
   static_assert(src1CountChk, "dpas: invalid size for src1.");
   static_assert(src2CountChk, "dpas: invalid size for src2.");
 
-  using TmpAccEl = typename std::conditional<
+  using TmpAccEl = std::conditional_t<
       pvcBfOrHfDest, float,
       typename __ESIMD_EMU_DNS::restype_ex<
-          RT, typename __ESIMD_EMU_DNS::restype_ex<T1, T2>::type>::type>::type;
+          RT, typename __ESIMD_EMU_DNS::restype_ex<T1, T2>::type>::type>;
 
   __ESIMD_DNS::vector_type_t<TmpAccEl, SIMDSize> simdAcc;
 
@@ -580,7 +581,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
           p = d + (s % src1_ops_per_dword) * ops_per_chan;
           uint32_t extension_temp = false;
 
-          if (src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16) {
+          if constexpr (src2_precision ==
+                        __ESIMD_XMX_NS::dpas_argument_type::bf16) {
             const auto s1 =
                 extract<uint32_t>(src1_el_bits, p * src1_el_bits,
                                   src1[U * SIMDSize + n], extension_temp)
@@ -591,8 +593,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
                 << 16;
             simdAcc[n] += reinterpret_cast<const float &>(s2) *
                           reinterpret_cast<const float &>(s1);
-          } else if (src2_precision ==
-                     __ESIMD_XMX_NS::dpas_argument_type::fp16) {
+          } else if constexpr (src2_precision ==
+                               __ESIMD_XMX_NS::dpas_argument_type::fp16) {
             const auto s1 =
                 extract<short>(src1_el_bits, p * src1_el_bits,
                                src1[U * SIMDSize + n], extension_temp);
@@ -705,6 +707,60 @@ __esimd_dpasw_nosrc0(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                      __ESIMD_DNS::vector_type_t<T2, N2> src2)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
+#else  // !__SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+  return __ESIMD_DNS::vector_type_t<T, N>();
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
+template <typename T, int N>
+__ESIMD_INTRIN std::pair<__ESIMD_DNS::vector_type_t<T, N>,
+                         __ESIMD_DNS::vector_type_t<T, N>>
+__esimd_addc(__ESIMD_DNS::vector_type_t<T, N> src0,
+             __ESIMD_DNS::vector_type_t<T, N> src1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // !__SYCL_DEVICE_ONLY__
+{
+  __ESIMD_NS::simd<uint64_t, N> Result64 = __ESIMD_NS::simd<T, N>(src0);
+  Result64 += __ESIMD_NS::simd<T, N>(src1);
+  auto Result32 = Result64.template bit_cast_view<T>();
+  __ESIMD_NS::simd<uint32_t, N> CarryV = Result32.template select<N, 2>(1);
+  __ESIMD_NS::simd<uint32_t, N> ResV = Result32.template select<N, 2>(0);
+  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
+      ReturnValue = std::make_pair(CarryV.data(), ResV.data());
+  return ReturnValue;
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
+template <typename T, int N>
+__ESIMD_INTRIN std::pair<__ESIMD_DNS::vector_type_t<T, N>,
+                         __ESIMD_DNS::vector_type_t<T, N>>
+__esimd_subb(__ESIMD_DNS::vector_type_t<T, N> src0,
+             __ESIMD_DNS::vector_type_t<T, N> src1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // !__SYCL_DEVICE_ONLY__
+{
+  __ESIMD_NS::simd<uint64_t, N> Result64 = __ESIMD_NS::simd<T, N>(src0);
+  Result64 -= __ESIMD_NS::simd<T, N>(src1);
+  auto Result32 = Result64.template bit_cast_view<T>();
+  __ESIMD_NS::simd<uint32_t, N> BorrowV =
+      __ESIMD_NS::simd<T, N>(src0) < __ESIMD_NS::simd<T, N>(src1);
+  __ESIMD_NS::simd<uint32_t, N> ResV = Result32.template select<N, 2>(0);
+  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
+      ReturnValue = std::make_pair(BorrowV.data(), ResV.data());
+  return ReturnValue;
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
+template <uint8_t FuncControl, typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __esimd_bfn(__ESIMD_raw_vec_t(T, N) src0, __ESIMD_raw_vec_t(T, N) src1,
+                __ESIMD_raw_vec_t(T, N) src2)
+#ifdef __SYCL_DEVICE_ONLY__
+        ;
 #else  // !__SYCL_DEVICE_ONLY__
 {
   __ESIMD_UNSUPPORTED_ON_HOST;

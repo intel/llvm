@@ -157,7 +157,7 @@ static void writeMapFile(raw_fd_ostream &os) {
   os << right_justify("VMA", w) << ' ' << right_justify("LMA", w)
      << "     Size Align Out     In      Symbol\n";
 
-  OutputSection* osec = nullptr;
+  OutputSection *osec = nullptr;
   for (SectionCommand *cmd : script->sectionCommands) {
     if (auto *assign = dyn_cast<SymbolAssignment>(cmd)) {
       if (assign->provide && !assign->sym)
@@ -169,7 +169,7 @@ static void writeMapFile(raw_fd_ostream &os) {
     }
 
     osec = &cast<OutputDesc>(cmd)->osec;
-    writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->alignment);
+    writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->addralign);
     os << osec->name << '\n';
 
     // Dump symbols for each input section.
@@ -182,7 +182,7 @@ static void writeMapFile(raw_fd_ostream &os) {
           }
 
           writeHeader(os, isec->getVA(), osec->getLMA() + isec->outSecOff,
-                      isec->getSize(), isec->alignment);
+                      isec->getSize(), isec->addralign);
           os << indent8 << toString(isec) << '\n';
           for (Symbol *sym : llvm::make_first_range(sectionSyms[isec]))
             os << symStr[sym] << '\n';

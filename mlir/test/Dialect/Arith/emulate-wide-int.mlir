@@ -100,7 +100,7 @@ func.func @constant_vector() -> vector<3xi64> {
 // CHECK-NEXT:    [[HIGH0:%.+]]  = vector.extract [[ARG0]][1] : vector<2xi32>
 // CHECK-NEXT:    [[LOW1:%.+]]   = vector.extract [[ARG1]][0] : vector<2xi32>
 // CHECK-NEXT:    [[HIGH1:%.+]]  = vector.extract [[ARG1]][1] : vector<2xi32>
-// CHECK-NEXT:    [[SUM_L:%.+]], [[CB:%.+]] = arith.addui_carry [[LOW0]], [[LOW1]] : i32, i1
+// CHECK-NEXT:    [[SUM_L:%.+]], [[CB:%.+]] = arith.addui_extended [[LOW0]], [[LOW1]] : i32, i1
 // CHECK-NEXT:    [[CARRY:%.+]]  = arith.extui [[CB]] : i1 to i32
 // CHECK-NEXT:    [[SUM_H0:%.+]] = arith.addi [[CARRY]], [[HIGH0]] : i32
 // CHECK-NEXT:    [[SUM_H1:%.+]] = arith.addi [[SUM_H0]], [[HIGH1]] : i32
@@ -118,7 +118,7 @@ func.func @addi_scalar_a_b(%a : i64, %b : i64) -> i64 {
 // CHECK-NEXT:    [[HIGH0:%.+]]  = vector.extract_strided_slice [[ARG0]] {offsets = [0, 1], sizes = [4, 1], strides = [1, 1]} : vector<4x2xi32> to vector<4x1xi32>
 // CHECK-NEXT:    [[LOW1:%.+]]   = vector.extract_strided_slice [[ARG1]] {offsets = [0, 0], sizes = [4, 1], strides = [1, 1]} : vector<4x2xi32> to vector<4x1xi32>
 // CHECK-NEXT:    [[HIGH1:%.+]]  = vector.extract_strided_slice [[ARG1]] {offsets = [0, 1], sizes = [4, 1], strides = [1, 1]} : vector<4x2xi32> to vector<4x1xi32>
-// CHECK-NEXT:    [[SUM_L:%.+]], [[CB:%.+]] = arith.addui_carry [[LOW0]], [[LOW1]] : vector<4x1xi32>, vector<4x1xi1>
+// CHECK-NEXT:    [[SUM_L:%.+]], [[CB:%.+]] = arith.addui_extended [[LOW0]], [[LOW1]] : vector<4x1xi32>, vector<4x1xi1>
 // CHECK-NEXT:    [[CARRY:%.+]]  = arith.extui [[CB]] : vector<4x1xi1> to vector<4x1xi32>
 // CHECK-NEXT:    [[SUM_H0:%.+]] = arith.addi [[CARRY]], [[HIGH0]] : vector<4x1xi32>
 // CHECK-NEXT:    [[SUM_H1:%.+]] = arith.addi [[SUM_H0]], [[HIGH1]] : vector<4x1xi32>
@@ -661,44 +661,20 @@ func.func @select_vector_elementwise(%a : vector<3xi64>, %b : vector<3xi64>, %c 
 
 // CHECK-LABEL: func.func @muli_scalar
 // CHECK-SAME:    ([[ARG0:%.+]]: vector<2xi32>, [[ARG1:%.+]]: vector<2xi32>) -> vector<2xi32>
-// CHECK-NEXT:    [[LOW0:%.+]]      = vector.extract [[ARG0]][0] : vector<2xi32>
-// CHECK-NEXT:    [[HIGH0:%.+]]     = vector.extract [[ARG0]][1] : vector<2xi32>
-// CHECK-NEXT:    [[LOW1:%.+]]      = vector.extract [[ARG1]][0] : vector<2xi32>
-// CHECK-NEXT:    [[HIGH1:%.+]]     = vector.extract [[ARG1]][1] : vector<2xi32>
+// CHECK-NEXT:    [[LOW0:%.+]]  = vector.extract [[ARG0]][0] : vector<2xi32>
+// CHECK-NEXT:    [[HIGH0:%.+]] = vector.extract [[ARG0]][1] : vector<2xi32>
+// CHECK-NEXT:    [[LOW1:%.+]]  = vector.extract [[ARG1]][0] : vector<2xi32>
+// CHECK-NEXT:    [[HIGH1:%.+]] = vector.extract [[ARG1]][1] : vector<2xi32>
 //
-// CHECK-DAG:     [[MASK:%.+]]      = arith.constant 65535 : i32
-// CHECK-DAG:     [[C16:%.+]]       = arith.constant 16 : i32
+// CHECK-DAG:     [[RESLOW:%.+]], [[HI0:%.+]] = arith.mului_extended [[LOW0]], [[LOW1]] : i32
+// CHECK-DAG:     [[HI1:%.+]]                 = arith.muli [[LOW0]], [[HIGH1]] : i32
+// CHECK-DAG:     [[HI2:%.+]]                 = arith.muli [[HIGH0]], [[LOW1]] : i32
+// CHECK-NEXT:    [[RESHI1:%.+]]              = arith.addi [[HI0]], [[HI1]] : i32
+// CHECK-NEXT:    [[RESHI2:%.+]]              = arith.addi [[RESHI1]], [[HI2]] : i32
 //
-// CHECK:         [[LOWLOW0:%.+]]   = arith.andi [[LOW0]], [[MASK]] : i32
-// CHECK-NEXT:    [[HIGHLOW0:%.+]]  = arith.shrui [[LOW0]], [[C16]] : i32
-// CHECK-NEXT:    [[LOWHIGH0:%.+]]  = arith.andi [[HIGH0]], [[MASK]] : i32
-// CHECK-NEXT:    [[HIGHHIGH0:%.+]] = arith.shrui [[HIGH0]], [[C16]] : i32
-// CHECK-NEXT:    [[LOWLOW1:%.+]]   = arith.andi [[LOW1]], [[MASK]] : i32
-// CHECK-NEXT:    [[HIGHLOW1:%.+]]  = arith.shrui [[LOW1]], [[C16]] : i32
-// CHECK-NEXT:    [[LOWHIGH1:%.+]]  = arith.andi [[HIGH1]], [[MASK]] : i32
-// CHECK-NEXT:    [[HIGHHIGH1:%.+]] = arith.shrui [[HIGH1]], [[C16]] : i32
-//
-// CHECK-DAG:     {{%.+}}           = arith.muli [[LOWLOW0]], [[LOWLOW1]] : i32
-// CHECK-DAG      {{%.+}}           = arith.muli [[LOWLOW0]], [[HIGHLOW1]] : i32
-// CHECK-DAG:     {{%.+}}           = arith.muli [[LOWLOW0]], [[LOWHIGH1]] : i32
-// CHECK-DAG:     {{%.+}}           = arith.muli [[LOWLOW0]], [[HIGHHIGH1]] : i32
-//
-// CHECK-DAG:     {{%.+}}           = arith.muli [[HIGHLOW0]], [[LOWLOW1]] : i32
-// CHECK-DAG:     {{%.+}}           = arith.muli [[HIGHLOW0]], [[HIGHLOW1]] : i32
-// CHECK-DAG:     {{%.+}}           = arith.muli [[HIGHLOW0]], [[LOWHIGH1]] : i32
-//
-// CHECK-DAG:     {{%.+}}           = arith.muli [[LOWHIGH0]], [[LOWLOW1]] : i32
-// CHECK-DAG:     {{%.+}}           = arith.muli [[LOWHIGH0]], [[HIGHLOW1]] : i32
-//
-// CHECK-DAG:     {{%.+}}           = arith.muli [[HIGHHIGH0]], [[LOWLOW1]] : i32
-//
-// CHECK:         [[RESHIGH0:%.+]]  = arith.shli {{%.+}}, [[C16]] : i32
-// CHECK-NEXT:    [[RES0:%.+]]      = arith.ori {{%.+}}, [[RESHIGH0]] : i32
-// CHECK-NEXT:    [[RESHIGH1:%.+]]  = arith.shli {{%.+}}, [[C16]] : i32
-// CHECK-NEXT:    [[RES1:%.+]]      = arith.ori {{%.+}}, [[RESHIGH1]] : i32
-// CHECK-NEXT:    [[VZ:%.+]]        = arith.constant dense<0> : vector<2xi32>
-// CHECK-NEXT:    [[INS0:%.+]]      = vector.insert [[RES0]], [[VZ]] [0] : i32 into vector<2xi32>
-// CHECK-NEXT:    [[INS1:%.+]]      = vector.insert [[RES1]], [[INS0]] [1] : i32 into vector<2xi32>
+// CHECK-NEXT:    [[VZ:%.+]]   = arith.constant dense<0> : vector<2xi32>
+// CHECK-NEXT:    [[INS0:%.+]] = vector.insert [[RESLOW]], [[VZ]] [0] : i32 into vector<2xi32>
+// CHECK-NEXT:    [[INS1:%.+]] = vector.insert [[RESHI2]], [[INS0]] [1] : i32 into vector<2xi32>
 // CHECK-NEXT:    return [[INS1]] : vector<2xi32>
 func.func @muli_scalar(%a : i64, %b : i64) -> i64 {
     %m = arith.muli %a, %b : i64
@@ -707,6 +683,11 @@ func.func @muli_scalar(%a : i64, %b : i64) -> i64 {
 
 // CHECK-LABEL: func.func @muli_vector
 // CHECK-SAME:    ({{%.+}}: vector<3x2xi32>, {{%.+}}: vector<3x2xi32>) -> vector<3x2xi32>
+// CHECK-DAG:     arith.mului_extended
+// CHECK-DAG:     arith.muli
+// CHECK-DAG:     arith.muli
+// CHECK-NEXT:    arith.addi
+// CHECK-NEXT:    arith.addi
 // CHECK:       return {{%.+}} : vector<3x2xi32>
 func.func @muli_vector(%a : vector<3xi64>, %b : vector<3xi64>) -> vector<3xi64> {
     %m = arith.muli %a, %b : vector<3xi64>
@@ -926,4 +907,103 @@ func.func @xori_scalar_a_b(%a : i64, %b : i64) -> i64 {
 func.func @xori_vector_a_b(%a : vector<3xi64>, %b : vector<3xi64>) -> vector<3xi64> {
     %x = arith.xori %a, %b : vector<3xi64>
     return %x : vector<3xi64>
+}
+
+// CHECK-LABEL: func @uitofp_i64_f64
+// CHECK-SAME:    ([[ARG:%.+]]: vector<2xi32>) -> f64
+// CHECK-NEXT:    [[LOW:%.+]]    = vector.extract [[ARG]][0] : vector<2xi32>
+// CHECK-NEXT:    [[HI:%.+]]     = vector.extract [[ARG]][1] : vector<2xi32>
+// CHECK-NEXT:    [[CST0:%.+]]   = arith.constant 0 : i32
+// CHECK-NEXT:    [[HIEQ0:%.+]]  = arith.cmpi eq, [[HI]], [[CST0]] : i32
+// CHECK-NEXT:    [[LOWFP:%.+]]  = arith.uitofp [[LOW]] : i32 to f64
+// CHECK-NEXT:    [[HIFP:%.+]]   = arith.uitofp [[HI]] : i32 to f64
+// CHECK-NEXT:    [[POW:%.+]]    = arith.constant 0x41F0000000000000 : f64
+// CHECK-NEXT:    [[RESHI:%.+]]  = arith.mulf [[HIFP]], [[POW]] : f64
+// CHECK-NEXT:    [[RES:%.+]]    = arith.addf [[LOWFP]], [[RESHI]] : f64
+// CHECK-NEXT:    [[SEL:%.+]]    = arith.select [[HIEQ0]], [[LOWFP]], [[RES]] : f64
+// CHECK-NEXT:    return [[SEL]] : f64
+func.func @uitofp_i64_f64(%a : i64) -> f64 {
+    %r = arith.uitofp %a : i64 to f64
+    return %r : f64
+}
+
+// CHECK-LABEL: func @uitofp_i64_f64_vector
+// CHECK-SAME:    ([[ARG:%.+]]: vector<3x2xi32>) -> vector<3xf64>
+// CHECK-NEXT:    [[EXTLOW:%.+]] = vector.extract_strided_slice [[ARG]] {offsets = [0, 0], sizes = [3, 1], strides = [1, 1]} : vector<3x2xi32> to vector<3x1xi32>
+// CHECK-NEXT:    [[EXTHI:%.+]]  = vector.extract_strided_slice [[ARG]] {offsets = [0, 1], sizes = [3, 1], strides = [1, 1]} : vector<3x2xi32> to vector<3x1xi32>
+// CHECK-NEXT:    [[LOW:%.+]]    = vector.shape_cast [[EXTLOW]] : vector<3x1xi32> to vector<3xi32>
+// CHECK-NEXT:    [[HI:%.+]]     = vector.shape_cast [[EXTHI]] : vector<3x1xi32> to vector<3xi32>
+// CHECK-NEXT:    [[CST0:%.+]]   = arith.constant dense<0> : vector<3xi32>
+// CHECK-NEXT:    [[HIEQ0:%.+]]  = arith.cmpi eq, [[HI]], [[CST0]] : vector<3xi32>
+// CHECK-NEXT:    [[LOWFP:%.+]]  = arith.uitofp [[LOW]] : vector<3xi32> to vector<3xf64>
+// CHECK-NEXT:    [[HIFP:%.+]]   = arith.uitofp [[HI]] : vector<3xi32> to vector<3xf64>
+// CHECK-NEXT:    [[POW:%.+]]    = arith.constant dense<0x41F0000000000000> : vector<3xf64>
+// CHECK-NEXT:    [[RESHI:%.+]]  = arith.mulf [[HIFP]], [[POW]] : vector<3xf64>
+// CHECK-NEXT:    [[RES:%.+]]    = arith.addf [[LOWFP]], [[RESHI]] : vector<3xf64>
+// CHECK-NEXT:    [[SEL:%.+]]    = arith.select [[HIEQ0]], [[LOWFP]], [[RES]] : vector<3xi1>, vector<3xf64>
+// CHECK-NEXT:    return [[SEL]] : vector<3xf64>
+func.func @uitofp_i64_f64_vector(%a : vector<3xi64>) -> vector<3xf64> {
+    %r = arith.uitofp %a : vector<3xi64> to vector<3xf64>
+    return %r : vector<3xf64>
+}
+
+// CHECK-LABEL: func @uitofp_i64_f16
+// CHECK-SAME:    ([[ARG:%.+]]: vector<2xi32>) -> f16
+// CHECK-NEXT:    [[LOW:%.+]]   = vector.extract [[ARG]][0] : vector<2xi32>
+// CHECK-NEXT:    [[HI:%.+]]    = vector.extract [[ARG]][1] : vector<2xi32>
+// CHECK-NEXT:    [[CST0:%.+]]   = arith.constant 0 : i32
+// CHECK-NEXT:    [[HIEQ0:%.+]]  = arith.cmpi eq, [[HI]], [[CST0]] : i32
+// CHECK-NEXT:    [[LOWFP:%.+]]  = arith.uitofp [[LOW]] : i32 to f16
+// CHECK-NEXT:    [[HIFP:%.+]]   = arith.uitofp [[HI]] : i32 to f16
+// CHECK-NEXT:    [[POW:%.+]]    = arith.constant 0x7C00 : f16
+// CHECK-NEXT:    [[RESHI:%.+]]  = arith.mulf [[HIFP]], [[POW]] : f16
+// CHECK-NEXT:    [[RES:%.+]]    = arith.addf [[LOWFP]], [[RESHI]] : f16
+// CHECK-NEXT:    [[SEL:%.+]]    = arith.select [[HIEQ0]], [[LOWFP]], [[RES]] : f16
+// CHECK-NEXT:    return [[SEL]] : f16
+func.func @uitofp_i64_f16(%a : i64) -> f16 {
+    %r = arith.uitofp %a : i64 to f16
+    return %r : f16
+}
+
+// CHECK-LABEL: func @sitofp_i64_f64
+// CHECK-SAME:    ([[ARG:%.+]]: vector<2xi32>) -> f64
+// CHECK:         [[VONES:%.+]]  = arith.constant dense<-1> : vector<2xi32>
+// CHECK:         [[ONES1:%.+]]  = vector.extract [[VONES]][0] : vector<2xi32>
+// CHECK-NEXT:    [[ONES2:%.+]]  = vector.extract [[VONES]][1] : vector<2xi32>
+// CHECK:                          arith.xori {{%.+}}, [[ONES1]] : i32
+// CHECK-NEXT:                     arith.xori {{%.+}}, [[ONES2]] : i32
+// CHECK:         [[CST0:%.+]]   = arith.constant 0 : i32
+// CHECK:         [[HIEQ0:%.+]]  = arith.cmpi eq, [[HI:%.+]], [[CST0]] : i32
+// CHECK-NEXT:    [[LOWFP:%.+]]  = arith.uitofp [[LOW:%.+]] : i32 to f64
+// CHECK-NEXT:    [[HIFP:%.+]]   = arith.uitofp [[HI]] : i32 to f64
+// CHECK-NEXT:    [[POW:%.+]]    = arith.constant 0x41F0000000000000 : f64
+// CHECK-NEXT:    [[RESHI:%.+]]  = arith.mulf [[HIFP]], [[POW]] : f64
+// CHECK-NEXT:    [[RES:%.+]]    = arith.addf [[LOWFP]], [[RESHI]] : f64
+// CHECK-NEXT:    [[SEL:%.+]]    = arith.select [[HIEQ0]], [[LOWFP]], [[RES]] : f64
+// CHECK-NEXT:    [[NEG:%.+]]    = arith.negf [[SEL]] : f64
+// CHECK-NEXT:    [[FINAL:%.+]]  = arith.select %{{.+}}, [[NEG]], [[SEL]] : f64
+// CHECK-NEXT:    return [[FINAL]] : f64
+func.func @sitofp_i64_f64(%a : i64) -> f64 {
+    %r = arith.sitofp %a : i64 to f64
+    return %r : f64
+}
+
+// CHECK-LABEL: func @sitofp_i64_f64_vector
+// CHECK-SAME:    ([[ARG:%.+]]: vector<3x2xi32>) -> vector<3xf64>
+// CHECK:         [[VONES:%.+]]  = arith.constant dense<-1> : vector<3x2xi32>
+// CHECK:                          arith.xori
+// CHECK-NEXT:                     arith.xori
+// CHECK:         [[HIEQ0:%.+]]  = arith.cmpi eq, [[HI:%.+]], [[CST0:%.+]] : vector<3xi32>
+// CHECK-NEXT:    [[LOWFP:%.+]]  = arith.uitofp [[LOW:%.+]] : vector<3xi32> to vector<3xf64>
+// CHECK-NEXT:    [[HIFP:%.+]]   = arith.uitofp [[HI:%.+]] : vector<3xi32> to vector<3xf64>
+// CHECK-NEXT:    [[POW:%.+]]    = arith.constant dense<0x41F0000000000000> : vector<3xf64>
+// CHECK-NEXT:    [[RESHI:%.+]]  = arith.mulf [[HIFP]], [[POW]] : vector<3xf64>
+// CHECK-NEXT:    [[RES:%.+]]    = arith.addf [[LOWFP]], [[RESHI]] : vector<3xf64>
+// CHECK-NEXT:    [[SEL:%.+]]    = arith.select [[HIEQ0]], [[LOWFP]], [[RES]] : vector<3xi1>, vector<3xf64>
+// CHECK-NEXT:    [[NEG:%.+]]    = arith.negf [[SEL]] : vector<3xf64>
+// CHECK-NEXT:    [[FINAL:%.+]]  = arith.select %{{.+}}, [[NEG]], [[SEL]] : vector<3xi1>, vector<3xf64>
+// CHECK-NEXT:    return [[FINAL]] : vector<3xf64>
+func.func @sitofp_i64_f64_vector(%a : vector<3xi64>) -> vector<3xf64> {
+    %r = arith.sitofp %a : vector<3xi64> to vector<3xf64>
+    return %r : vector<3xf64>
 }

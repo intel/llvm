@@ -23,7 +23,7 @@ func.func @test_to_memref(%arg0: tensor<?xi64>, %arg1: tensor<*xi64>)
 
 // CHECK-LABEL: func @test_to_tensor
 func.func @test_to_tensor(%buf : memref<2xf32>) -> tensor<2xf32> {
-  %tensor = bufferization.to_tensor %buf : memref<2xf32>
+  %tensor = bufferization.to_tensor %buf restrict writable : memref<2xf32>
   return %tensor : tensor<2xf32>
 }
 
@@ -46,6 +46,8 @@ func.func @test_alloc_tensor_op(%t: tensor<?x5xf32>, %sz: index)
   %c100 = arith.constant 100 : index
   // CHECK: bufferization.alloc_tensor() size_hint=
   %6 = bufferization.alloc_tensor() size_hint=%c100 : tensor<100x100xf64, #CSR>
+  // CHECK: bufferization.alloc_tensor(%{{.+}}) {memory_space = "foo"} : tensor<?xf32>
+  %7 = bufferization.alloc_tensor(%sz) {memory_space = "foo"} : tensor<?xf32>
   return %1 : tensor<?x5xf32>
 }
 

@@ -12,7 +12,6 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SubtargetFeature.h"
@@ -341,18 +340,18 @@ std::string GetMCUSubPath(StringRef MCUName) {
   return "";
 }
 
-llvm::Optional<StringRef> GetMCUFamilyName(StringRef MCUName) {
+std::optional<StringRef> GetMCUFamilyName(StringRef MCUName) {
   for (const auto &MCU : MCUInfo)
     if (MCU.Name == MCUName)
-      return Optional<StringRef>(MCU.Family);
-  return Optional<StringRef>();
+      return std::optional<StringRef>(MCU.Family);
+  return std::nullopt;
 }
 
-llvm::Optional<unsigned> GetMCUSectionAddressData(StringRef MCUName) {
+std::optional<unsigned> GetMCUSectionAddressData(StringRef MCUName) {
   for (const auto &MCU : MCUInfo)
     if (MCU.Name == MCUName && MCU.DataAddr > 0)
-      return Optional<unsigned>(MCU.DataAddr);
-  return Optional<unsigned>();
+      return std::optional<unsigned>(MCU.DataAddr);
+  return std::nullopt;
 }
 
 const StringRef PossibleAVRLibcLocations[] = {
@@ -388,7 +387,7 @@ void AVRToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     return;
 
   // Omit if there is no avr-libc installed.
-  Optional<std::string> AVRLibcRoot = findAVRLibcInstallation();
+  std::optional<std::string> AVRLibcRoot = findAVRLibcInstallation();
   if (!AVRLibcRoot)
     return;
 
@@ -443,9 +442,9 @@ void AVR::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Compute information about the target AVR.
   std::string CPU = getCPUName(D, Args, getToolChain().getTriple());
-  llvm::Optional<StringRef> FamilyName = GetMCUFamilyName(CPU);
-  llvm::Optional<std::string> AVRLibcRoot = TC.findAVRLibcInstallation();
-  llvm::Optional<unsigned> SectionAddressData = GetMCUSectionAddressData(CPU);
+  std::optional<StringRef> FamilyName = GetMCUFamilyName(CPU);
+  std::optional<std::string> AVRLibcRoot = TC.findAVRLibcInstallation();
+  std::optional<unsigned> SectionAddressData = GetMCUSectionAddressData(CPU);
 
   // Compute the linker program path, and use GNU "avr-ld" as default.
   const Arg *A = Args.getLastArg(options::OPT_fuse_ld_EQ);
@@ -499,12 +498,18 @@ void AVR::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (SectionAddressData) {
-    std::string DataSectionArg =
-        std::string("-Tdata=0x") + llvm::utohexstr(SectionAddressData.value());
-    CmdArgs.push_back(Args.MakeArgString(DataSectionArg));
+    CmdArgs.push_back(
+        Args.MakeArgString("--defsym=__DATA_REGION_ORIGIN__=0x" +
+                           Twine::utohexstr(*SectionAddressData)));
   } else {
     // We do not have an entry for this CPU in the address mapping table yet.
     D.Diag(diag::warn_drv_avr_linker_section_addresses_not_implemented) << CPU;
+  }
+
+  if (D.isUsingLTO()) {
+    assert(!Inputs.empty() && "Must have at least one input.");
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+                  D.getLTOMode() == LTOK_Thin);
   }
 
   // If the family name is known, we can link with the device-specific libgcc.
@@ -547,6 +552,9 @@ void AVR::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // Add user specified linker script.
     Args.AddAllArgs(CmdArgs, options::OPT_T);
 
+    if (Args.hasFlag(options::OPT_mrelax, options::OPT_mno_relax, true))
+      CmdArgs.push_back("--relax");
+
     // Specify the family name as the emulation mode to use.
     // This is almost always required because otherwise avr-ld
     // will assume 'avr2' and warn about the program being larger
@@ -562,7 +570,7 @@ void AVR::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, Inputs, Output));
 }
 
-llvm::Optional<std::string> AVRToolChain::findAVRLibcInstallation() const {
+std::optional<std::string> AVRToolChain::findAVRLibcInstallation() const {
   // Search avr-libc installation according to avr-gcc installation.
   std::string GCCParent(GCCInstallation.getParentLibPath());
   std::string Path(GCCParent + "/avr");
@@ -580,5 +588,5 @@ llvm::Optional<std::string> AVRToolChain::findAVRLibcInstallation() const {
       return Path;
   }
 
-  return llvm::None;
+  return std::nullopt;
 }

@@ -64,19 +64,19 @@ using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::elf;
 
-static Optional<std::string> getLinkerScriptLocation(const Symbol &sym) {
+static std::optional<std::string> getLinkerScriptLocation(const Symbol &sym) {
   for (SectionCommand *cmd : script->sectionCommands)
     if (auto *assign = dyn_cast<SymbolAssignment>(cmd))
       if (assign->sym == &sym)
         return assign->location;
-  return None;
+  return std::nullopt;
 }
 
 static std::string getDefinedLocation(const Symbol &sym) {
   const char msg[] = "\n>>> defined in ";
   if (sym.file)
     return msg + toString(sym.file);
-  if (Optional<std::string> loc = getLinkerScriptLocation(sym))
+  if (std::optional<std::string> loc = getLinkerScriptLocation(sym))
     return msg + *loc;
   return "";
 }
@@ -99,8 +99,12 @@ void elf::reportRangeError(uint8_t *loc, const Relocation &rel, const Twine &v,
                            int64_t min, uint64_t max) {
   ErrorPlace errPlace = getErrorPlace(loc);
   std::string hint;
-  if (rel.sym && !rel.sym->isSection())
-    hint = "; references " + lld::toString(*rel.sym);
+  if (rel.sym) {
+    if (!rel.sym->isSection())
+      hint = "; references '" + lld::toString(*rel.sym) + '\'';
+    else if (auto *d = dyn_cast<Defined>(rel.sym))
+      hint = ("; references section '" + d->section->name + "'").str();
+  }
   if (!errPlace.srcLoc.empty())
     hint += "\n>>> referenced by " + errPlace.srcLoc;
   if (rel.sym && !rel.sym->isSection())
@@ -120,7 +124,8 @@ void elf::reportRangeError(uint8_t *loc, int64_t v, int n, const Symbol &sym,
   ErrorPlace errPlace = getErrorPlace(loc);
   std::string hint;
   if (!sym.getName().empty())
-    hint = "; references " + lld::toString(sym) + getDefinedLocation(sym);
+    hint =
+        "; references '" + lld::toString(sym) + '\'' + getDefinedLocation(sym);
   errorOrWarn(errPlace.loc + msg + " is out of range: " + Twine(v) +
               " is not in [" + Twine(llvm::minIntN(n)) + ", " +
               Twine(llvm::maxIntN(n)) + "]" + hint);
@@ -855,7 +860,7 @@ static void addRelativeReloc(InputSectionBase &isec, uint64_t offsetInSec,
   // relrDyn sections don't support odd offsets. Also, relrDyn sections
   // don't store the addend values, so we must write it to the relocated
   // address.
-  if (part.relrDyn && isec.alignment >= 2 && offsetInSec % 2 == 0) {
+  if (part.relrDyn && isec.addralign >= 2 && offsetInSec % 2 == 0) {
     isec.addReloc({expr, type, offsetInSec, addend, &sym});
     if (shard)
       part.relrDyn->relocsVec[parallel::getThreadIndex()].push_back(
@@ -1021,10 +1026,10 @@ void RelocationScanner::processAux(RelExpr expr, RelType type, uint64_t offset,
       // R_HEX_GD_PLT_B22_PCREL (call a@GDPLT) is transformed into
       // call __tls_get_addr even if the symbol is non-preemptible.
       if (!(config->emachine == EM_HEXAGON &&
-           (type == R_HEX_GD_PLT_B22_PCREL ||
-            type == R_HEX_GD_PLT_B22_PCREL_X ||
-            type == R_HEX_GD_PLT_B32_PCREL_X)))
-      expr = fromPlt(expr);
+            (type == R_HEX_GD_PLT_B22_PCREL ||
+             type == R_HEX_GD_PLT_B22_PCREL_X ||
+             type == R_HEX_GD_PLT_B32_PCREL_X)))
+        expr = fromPlt(expr);
     } else if (!isAbsoluteValue(sym)) {
       expr =
           target->adjustGotPcExpr(type, addend, sec->content().data() + offset);
@@ -1079,7 +1084,15 @@ void RelocationScanner::processAux(RelExpr expr, RelType type, uint64_t offset,
     return;
   }
 
-  bool canWrite = (sec->flags & SHF_WRITE) || !config->zText;
+  // Use a simple -z notext rule that treats all sections except .eh_frame as
+  // writable. GNU ld does not produce dynamic relocations in .eh_frame (and our
+  // SectionBase::getOffset would incorrectly adjust the offset).
+  //
+  // For MIPS, we don't implement GNU ld's DW_EH_PE_absptr to DW_EH_PE_pcrel
+  // conversion. We still emit a dynamic relocation.
+  bool canWrite = (sec->flags & SHF_WRITE) ||
+                  !(config->zText ||
+                    (isa<EhInputSection>(sec) && config->emachine != EM_MIPS));
   if (canWrite) {
     RelType rel = target->getDynRel(type);
     if (expr == R_GOT || (rel == target->symbolicRel && !sym.isPreemptible)) {
@@ -1661,40 +1674,41 @@ void elf::postScanRelocations() {
     if (!sym.isTls())
       return;
     bool isLocalInExecutable = !sym.isPreemptible && !config->shared;
+    GotSection *got = in.got.get();
 
     if (flags & NEEDS_TLSDESC) {
-      in.got->addTlsDescEntry(sym);
+      got->addTlsDescEntry(sym);
       mainPart->relaDyn->addAddendOnlyRelocIfNonPreemptible(
-          target->tlsDescRel, *in.got, in.got->getTlsDescOffset(sym), sym,
+          target->tlsDescRel, *got, got->getTlsDescOffset(sym), sym,
           target->tlsDescRel);
     }
     if (flags & NEEDS_TLSGD) {
-      in.got->addDynTlsEntry(sym);
-      uint64_t off = in.got->getGlobalDynOffset(sym);
+      got->addDynTlsEntry(sym);
+      uint64_t off = got->getGlobalDynOffset(sym);
       if (isLocalInExecutable)
         // Write one to the GOT slot.
-        in.got->addConstant({R_ADDEND, target->symbolicRel, off, 1, &sym});
+        got->addConstant({R_ADDEND, target->symbolicRel, off, 1, &sym});
       else
-        mainPart->relaDyn->addSymbolReloc(target->tlsModuleIndexRel, *in.got,
-                                          off, sym);
+        mainPart->relaDyn->addSymbolReloc(target->tlsModuleIndexRel, *got, off,
+                                          sym);
 
       // If the symbol is preemptible we need the dynamic linker to write
       // the offset too.
       uint64_t offsetOff = off + config->wordsize;
       if (sym.isPreemptible)
-        mainPart->relaDyn->addSymbolReloc(target->tlsOffsetRel, *in.got,
-                                          offsetOff, sym);
+        mainPart->relaDyn->addSymbolReloc(target->tlsOffsetRel, *got, offsetOff,
+                                          sym);
       else
-        in.got->addConstant({R_ABS, target->tlsOffsetRel, offsetOff, 0, &sym});
+        got->addConstant({R_ABS, target->tlsOffsetRel, offsetOff, 0, &sym});
     }
     if (flags & NEEDS_TLSGD_TO_IE) {
-      in.got->addEntry(sym);
-      mainPart->relaDyn->addSymbolReloc(target->tlsGotRel, *in.got,
+      got->addEntry(sym);
+      mainPart->relaDyn->addSymbolReloc(target->tlsGotRel, *got,
                                         sym.getGotOffset(), sym);
     }
     if (flags & NEEDS_GOT_DTPREL) {
-      in.got->addEntry(sym);
-      in.got->addConstant(
+      got->addEntry(sym);
+      got->addConstant(
           {R_ABS, target->tlsOffsetRel, sym.getGotOffset(), 0, &sym});
     }
 
@@ -1702,14 +1716,15 @@ void elf::postScanRelocations() {
       addTpOffsetGotEntry(sym);
   };
 
-  if (ctx.needsTlsLd.load(std::memory_order_relaxed) && in.got->addTlsIndex()) {
+  GotSection *got = in.got.get();
+  if (ctx.needsTlsLd.load(std::memory_order_relaxed) && got->addTlsIndex()) {
     static Undefined dummy(nullptr, "", STB_LOCAL, 0, 0);
     if (config->shared)
       mainPart->relaDyn->addReloc(
-          {target->tlsModuleIndexRel, in.got.get(), in.got->getTlsIndexOff()});
+          {target->tlsModuleIndexRel, got, got->getTlsIndexOff()});
     else
-      in.got->addConstant(
-          {R_ADDEND, target->symbolicRel, in.got->getTlsIndexOff(), 1, &dummy});
+      got->addConstant(
+          {R_ADDEND, target->symbolicRel, got->getTlsIndexOff(), 1, &dummy});
   }
 
   assert(symAux.size() == 1);

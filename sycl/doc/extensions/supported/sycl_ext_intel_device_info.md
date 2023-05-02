@@ -74,7 +74,7 @@ The extension supports this query in version 2 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| ext\:\:intel\:\:info\:\:device\:\:uuid | unsigned char | Returns the device UUID|
+| ext\:\:intel\:\:info\:\:device\:\:uuid | std::array<unsigned char, 16> | Returns the device UUID|
 
 
 ## Aspects ##

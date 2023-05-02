@@ -70,10 +70,13 @@ public:
   const std::string *bindName() const {
     return bindName_ ? &*bindName_ : nullptr;
   }
+  bool isExplicitBindName() const { return isExplicitBindName_; }
   void set_bindName(std::string &&name) { bindName_ = std::move(name); }
+  void set_isExplicitBindName(bool yes) { isExplicitBindName_ = yes; }
 
 private:
   std::optional<std::string> bindName_;
+  bool isExplicitBindName_{false};
 };
 
 // A subroutine or function definition, or a subprogram interface defined
@@ -105,6 +108,10 @@ public:
   Symbol *moduleInterface() { return moduleInterface_; }
   const Symbol *moduleInterface() const { return moduleInterface_; }
   void set_moduleInterface(Symbol &);
+  void ReplaceResult(Symbol &result) {
+    CHECK(result_ != nullptr);
+    result_ = &result;
+  }
 
 private:
   bool isInterface_{false}; // true if this represents an interface-body
@@ -253,12 +260,9 @@ public:
   ProcEntityDetails(ProcEntityDetails &&) = default;
   ProcEntityDetails &operator=(const ProcEntityDetails &) = default;
 
-  const ProcInterface &interface() const { return interface_; }
-  ProcInterface &interface() { return interface_; }
-  void set_interface(const ProcInterface &interface) { interface_ = interface; }
-  bool IsInterfaceSet() {
-    return interface_.symbol() != nullptr || interface_.type() != nullptr;
-  }
+  const Symbol *procInterface() const { return procInterface_; }
+  void set_procInterface(const Symbol &sym) { procInterface_ = &sym; }
+  bool IsInterfaceSet() { return procInterface_ || type(); }
   inline bool HasExplicitInterface() const;
 
   // Be advised: !init().has_value() => uninitialized pointer,
@@ -268,7 +272,7 @@ public:
   void set_init(std::nullptr_t) { init_ = nullptr; }
 
 private:
-  ProcInterface interface_;
+  const Symbol *procInterface_{nullptr};
   std::optional<const Symbol *> init_;
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const ProcEntityDetails &);
@@ -333,6 +337,7 @@ class ProcBindingDetails : public WithPassArg {
 public:
   explicit ProcBindingDetails(const Symbol &symbol) : symbol_{symbol} {}
   const Symbol &symbol() const { return symbol_; }
+  void ReplaceSymbol(const Symbol &symbol) { symbol_ = symbol; }
 
 private:
   SymbolRef symbol_; // procedure bound to; may be forward
@@ -440,8 +445,6 @@ private:
 // defined assignment, intrinsic operator, or defined I/O.
 struct GenericKind {
   ENUM_CLASS(OtherKind, Name, DefinedOp, Assignment, Concat)
-  ENUM_CLASS(DefinedIo, // defined io
-      ReadFormatted, ReadUnformatted, WriteFormatted, WriteUnformatted)
   GenericKind() : u{OtherKind::Name} {}
   template <typename T> GenericKind(const T &x) { u = x; }
   bool IsName() const { return Is(OtherKind::Name); }
@@ -450,9 +453,9 @@ struct GenericKind {
   bool IsIntrinsicOperator() const;
   bool IsOperator() const;
   std::string ToString() const;
-  static SourceName AsFortran(DefinedIo);
+  static SourceName AsFortran(common::DefinedIo);
   std::variant<OtherKind, common::NumericOperator, common::LogicalOperator,
-      common::RelationalOperator, DefinedIo>
+      common::RelationalOperator, common::DefinedIo>
       u;
 
 private:
@@ -523,9 +526,9 @@ std::string DetailsToString(const Details &);
 class Symbol {
 public:
   ENUM_CLASS(Flag,
-      Function, // symbol is a function
+      Function, // symbol is a function or statement function
       Subroutine, // symbol is a subroutine
-      StmtFunction, // symbol is a statement function (Function is set too)
+      StmtFunction, // symbol is a statement function or result
       Implicit, // symbol is implicitly typed
       ImplicitOrError, // symbol must be implicitly typed or it's an error
       ModFile, // symbol came from .mod file
@@ -536,6 +539,7 @@ public:
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement, =>object, or /init/
       InNamelist, // in a Namelist group
+      EntryDummyArgument,
       CompilerCreated, // A compiler created symbol
       // For compiler created symbols that are constant but cannot legally have
       // the PARAMETER attribute.
@@ -620,6 +624,8 @@ public:
 
   const std::string *GetBindName() const;
   void SetBindName(std::string &&);
+  bool GetIsExplicitBindName() const;
+  void SetIsExplicitBindName(bool);
   bool IsFuncResult() const;
   bool IsObjectArray() const;
   bool IsSubprogram() const;
@@ -698,7 +704,7 @@ private:
   Details details_;
 
   Symbol() {} // only created in class Symbols
-  const std::string GetDetailsName() const;
+  std::string GetDetailsName() const;
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Symbol &);
   friend llvm::raw_ostream &DumpForUnparse(
       llvm::raw_ostream &, const Symbol &, bool);
@@ -727,7 +733,7 @@ private:
             },
             [](const ObjectEntityDetails &oed) { return oed.shape().Rank(); },
             [&](const ProcEntityDetails &ped) {
-              const Symbol *iface{ped.interface().symbol()};
+              const Symbol *iface{ped.procInterface()};
               return iface ? iface->RankImpl(depth) : 0;
             },
             [](const AssocEntityDetails &aed) {
@@ -790,10 +796,7 @@ private:
 // between the two shared libraries.
 
 inline bool ProcEntityDetails::HasExplicitInterface() const {
-  if (auto *symbol{interface_.symbol()}) {
-    return symbol->HasExplicitInterface();
-  }
-  return false;
+  return procInterface_ && procInterface_->HasExplicitInterface();
 }
 
 inline Symbol &Symbol::GetUltimate() {
@@ -827,8 +830,8 @@ inline const DeclTypeSpec *Symbol::GetTypeImpl(int depth) const {
             return x.isFunction() ? x.result().GetTypeImpl(depth) : nullptr;
           },
           [&](const ProcEntityDetails &x) {
-            const Symbol *symbol{x.interface().symbol()};
-            return symbol ? symbol->GetTypeImpl(depth) : x.interface().type();
+            const Symbol *symbol{x.procInterface()};
+            return symbol ? symbol->GetTypeImpl(depth) : x.type();
           },
           [&](const ProcBindingDetails &x) {
             return x.symbol().GetTypeImpl(depth);

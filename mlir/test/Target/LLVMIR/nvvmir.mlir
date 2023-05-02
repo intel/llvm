@@ -309,13 +309,13 @@ llvm.func @nvvm_wmma_mma(%0 : i32, %1 : i32, %2 : i32, %3 : i32, %4 : i32, %5 : 
 // CHECK-LABEL: @cp_async
 llvm.func @cp_async(%arg0: !llvm.ptr<i8, 3>, %arg1: !llvm.ptr<i8, 1>) {
 // CHECK: call void @llvm.nvvm.cp.async.ca.shared.global.4(ptr addrspace(3) %{{.*}}, ptr addrspace(1) %{{.*}})
-  nvvm.cp.async.shared.global %arg0, %arg1, 4
+  nvvm.cp.async.shared.global %arg0, %arg1, 4 : !llvm.ptr<i8, 3>, !llvm.ptr<i8, 1>
 // CHECK: call void @llvm.nvvm.cp.async.ca.shared.global.8(ptr addrspace(3) %{{.*}}, ptr addrspace(1) %{{.*}})
-  nvvm.cp.async.shared.global %arg0, %arg1, 8
+  nvvm.cp.async.shared.global %arg0, %arg1, 8 : !llvm.ptr<i8, 3>, !llvm.ptr<i8, 1>
 // CHECK: call void @llvm.nvvm.cp.async.ca.shared.global.16(ptr addrspace(3) %{{.*}}, ptr addrspace(1) %{{.*}})
-  nvvm.cp.async.shared.global %arg0, %arg1, 16
+  nvvm.cp.async.shared.global %arg0, %arg1, 16 : !llvm.ptr<i8, 3>, !llvm.ptr<i8, 1>
 // CHECK: call void @llvm.nvvm.cp.async.cg.shared.global.16(ptr addrspace(3) %{{.*}}, ptr addrspace(1) %{{.*}})
-  nvvm.cp.async.shared.global %arg0, %arg1, 16 {bypass_l1}
+  nvvm.cp.async.shared.global %arg0, %arg1, 16 {bypass_l1} : !llvm.ptr<i8, 3>, !llvm.ptr<i8, 1>
 // CHECK: call void @llvm.nvvm.cp.async.commit.group()
   nvvm.cp.async.commit.group
 // CHECK: call void @llvm.nvvm.cp.async.wait.group(i32 0)
@@ -396,7 +396,7 @@ llvm.func @kernel_func() attributes {nvvm.kernel, nvvm.maxnreg = 16} {
 // CHECK:     {ptr @kernel_func, !"maxnreg", i32 16}
 // -----
 
-llvm.func @kernel_func() attributes {nvvm.kernel, nvvm.maxntid = [1,23,32], 
+llvm.func @kernel_func() attributes {nvvm.kernel, nvvm.maxntid = [1,23,32],
                                      nvvm.minctasm = 16, nvvm.maxnreg = 32} {
   llvm.return
 }
@@ -411,27 +411,27 @@ llvm.func @kernel_func() attributes {nvvm.kernel, nvvm.maxntid = [1,23,32],
 // CHECK:     {ptr @kernel_func, !"minctasm", i32 16}
 
 // -----
-// expected-error @below {{'"nvvm.minctasm"' attribute must be integer constant}}  
-llvm.func @kernel_func() attributes {nvvm.kernel, 
+// expected-error @below {{'"nvvm.minctasm"' attribute must be integer constant}}
+llvm.func @kernel_func() attributes {nvvm.kernel,
 nvvm.minctasm = "foo"} {
   llvm.return
 }
 
 
 // -----
-// expected-error @below {{'"nvvm.maxnreg"' attribute must be integer constant}}  
-llvm.func @kernel_func() attributes {nvvm.kernel, 
+// expected-error @below {{'"nvvm.maxnreg"' attribute must be integer constant}}
+llvm.func @kernel_func() attributes {nvvm.kernel,
 nvvm.maxnreg = "boo"} {
   llvm.return
 }
 // -----
-// expected-error @below {{'"nvvm.reqntid"' attribute must be integer array with maximum 3 index}}  
+// expected-error @below {{'"nvvm.reqntid"' attribute must be integer array with maximum 3 index}}
 llvm.func @kernel_func() attributes {nvvm.kernel, nvvm.reqntid = [3,4,5,6]} {
   llvm.return
 }
 
 // -----
-// expected-error @below {{'"nvvm.maxntid"' attribute must be integer array with maximum 3 index}}  
+// expected-error @below {{'"nvvm.maxntid"' attribute must be integer array with maximum 3 index}}
 llvm.func @kernel_func() attributes {nvvm.kernel, nvvm.maxntid = [3,4,5,6]} {
   llvm.return
 }

@@ -332,40 +332,6 @@ inline static unsigned getNZCVToSatisfyCondCode(CondCode Code) {
   }
 }
 
-/// Return true if Code is a reflexive relationship:
-/// forall x. (CSET Code (CMP x x)) == 1
-inline static bool isReflexive(CondCode Code) {
-  switch (Code) {
-  case EQ:
-  case HS:
-  case PL:
-  case LS:
-  case GE:
-  case LE:
-  case AL:
-  case NV:
-    return true;
-  default:
-    return false;
-  }
-}
-
-/// Return true if Code is an irreflexive relationship:
-/// forall x. (CSET Code (CMP x x)) == 0
-inline static bool isIrreflexive(CondCode Code) {
-  switch (Code) {
-  case NE:
-  case LO:
-  case MI:
-  case HI:
-  case LT:
-  case GT:
-    return true;
-  default:
-    return false;
-  }
-}
-
 } // end namespace AArch64CC
 
 struct SysAlias {
@@ -481,6 +447,14 @@ namespace AArch64SVEPRFM {
 #include "AArch64GenSystemOperands.inc"
 }
 
+namespace AArch64RPRFM {
+struct RPRFM : SysAlias {
+  using SysAlias::SysAlias;
+};
+#define GET_RPRFM_DECL
+#include "AArch64GenSystemOperands.inc"
+} // namespace AArch64RPRFM
+
 namespace AArch64SVEPredPattern {
   struct SVEPREDPAT {
     const char *Name;
@@ -528,11 +502,11 @@ inline unsigned getNumElementsFromSVEPredPattern(unsigned Pattern) {
 }
 
 /// Return specific VL predicate pattern based on the number of elements.
-inline Optional<unsigned>
+inline std::optional<unsigned>
 getSVEPredPatternFromNumElements(unsigned MinNumElts) {
   switch (MinNumElts) {
   default:
-    return None;
+    return std::nullopt;
   case 1:
   case 2:
   case 3:
@@ -566,10 +540,16 @@ namespace AArch64ExactFPImm {
 }
 
 namespace AArch64PState {
-  struct PState : SysAlias{
+  struct PStateImm0_15 : SysAlias{
     using SysAlias::SysAlias;
   };
-  #define GET_PSTATE_DECL
+  #define GET_PSTATEIMM0_15_DECL
+  #include "AArch64GenSystemOperands.inc"
+
+  struct PStateImm0_1 : SysAlias{
+    using SysAlias::SysAlias;
+  };
+  #define GET_PSTATEIMM0_1_DECL
   #include "AArch64GenSystemOperands.inc"
 }
 
@@ -831,7 +811,7 @@ inline static StringRef AArch64PACKeyIDToString(AArch64PACKey::ID KeyID) {
 }
 
 /// Return numeric key ID for 2-letter identifier string.
-inline static Optional<AArch64PACKey::ID>
+inline static std::optional<AArch64PACKey::ID>
 AArch64StringToPACKeyID(StringRef Name) {
   if (Name == "ia")
     return AArch64PACKey::IA;
@@ -841,7 +821,7 @@ AArch64StringToPACKeyID(StringRef Name) {
     return AArch64PACKey::DA;
   if (Name == "db")
     return AArch64PACKey::DB;
-  return None;
+  return std::nullopt;
 }
 
 namespace AArch64 {

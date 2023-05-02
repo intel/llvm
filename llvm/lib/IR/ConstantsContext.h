@@ -18,7 +18,6 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constant.h"
@@ -85,32 +84,6 @@ public:
 
   static bool classof(const ConstantExpr *CE) {
     return Instruction::isBinaryOp(CE->getOpcode());
-  }
-  static bool classof(const Value *V) {
-    return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
-  }
-};
-
-/// SelectConstantExpr - This class is private to Constants.cpp, and is used
-/// behind the scenes to implement select constant exprs.
-class SelectConstantExpr final : public ConstantExpr {
-public:
-  SelectConstantExpr(Constant *C1, Constant *C2, Constant *C3)
-    : ConstantExpr(C2->getType(), Instruction::Select, &Op<0>(), 3) {
-    Op<0>() = C1;
-    Op<1>() = C2;
-    Op<2>() = C3;
-  }
-
-  // allocate space for exactly three operands
-  void *operator new(size_t S) { return User::operator new(S, 3); }
-  void operator delete(void *Ptr) { User::operator delete(Ptr); }
-
-  /// Transparently provide more efficient getOperand methods.
-  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
-
-  static bool classof(const ConstantExpr *CE) {
-    return CE->getOpcode() == Instruction::Select;
   }
   static bool classof(const Value *V) {
     return isa<ConstantExpr>(V) && classof(cast<ConstantExpr>(V));
@@ -281,11 +254,6 @@ struct OperandTraits<BinaryConstantExpr>
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(BinaryConstantExpr, Value)
 
 template <>
-struct OperandTraits<SelectConstantExpr>
-    : public FixedNumOperandTraits<SelectConstantExpr, 3> {};
-DEFINE_TRANSPARENT_OPERAND_ACCESSORS(SelectConstantExpr, Value)
-
-template <>
 struct OperandTraits<ExtractElementConstantExpr>
     : public FixedNumOperandTraits<ExtractElementConstantExpr, 2> {};
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ExtractElementConstantExpr, Value)
@@ -441,7 +409,7 @@ private:
   static ArrayRef<int> getShuffleMaskIfValid(const ConstantExpr *CE) {
     if (CE->getOpcode() == Instruction::ShuffleVector)
       return CE->getShuffleMask();
-    return None;
+    return std::nullopt;
   }
 
   static Type *getSourceElementTypeIfValid(const ConstantExpr *CE) {
@@ -454,7 +422,7 @@ public:
   ConstantExprKeyType(unsigned Opcode, ArrayRef<Constant *> Ops,
                       unsigned short SubclassData = 0,
                       unsigned short SubclassOptionalData = 0,
-                      ArrayRef<int> ShuffleMask = None,
+                      ArrayRef<int> ShuffleMask = std::nullopt,
                       Type *ExplicitTy = nullptr)
       : Opcode(Opcode), SubclassOptionalData(SubclassOptionalData),
         SubclassData(SubclassData), Ops(Ops), ShuffleMask(ShuffleMask),
@@ -524,8 +492,6 @@ public:
         return new BinaryConstantExpr(Opcode, Ops[0], Ops[1],
                                       SubclassOptionalData);
       llvm_unreachable("Invalid ConstantExpr!");
-    case Instruction::Select:
-      return new SelectConstantExpr(Ops[0], Ops[1], Ops[2]);
     case Instruction::ExtractElement:
       return new ExtractElementConstantExpr(Ops[0], Ops[1]);
     case Instruction::InsertElement:

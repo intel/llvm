@@ -295,9 +295,9 @@ public:
       : OrigLoop(L), LI(LI), TLI(TLI), TTI(TTI), Legal(Legal), CM(CM), IAI(IAI),
         PSE(PSE), Hints(Hints), ORE(ORE) {}
 
-  /// Plan how to best vectorize, return the best VF and its cost, or None if
-  /// vectorization and interleaving should be avoided up front.
-  Optional<VectorizationFactor> plan(ElementCount UserVF, unsigned UserIC);
+  /// Plan how to best vectorize, return the best VF and its cost, or
+  /// std::nullopt if vectorization and interleaving should be avoided up front.
+  std::optional<VectorizationFactor> plan(ElementCount UserVF, unsigned UserIC);
 
   /// Use the VPlan-native path to plan how to best vectorize, return the best
   /// VF and its cost.
@@ -350,9 +350,12 @@ private:
 
   /// Build a VPlan using VPRecipes according to the information gather by
   /// Legal. This method is only used for the legacy inner loop vectorizer.
-  VPlanPtr buildVPlanWithVPRecipes(
-      VFRange &Range, SmallPtrSetImpl<Instruction *> &DeadInstructions,
-      const MapVector<Instruction *, Instruction *> &SinkAfter);
+  /// \p Range's largest included VF is restricted to the maximum VF the
+  /// returned VPlan is valid for. If no VPlan can be built for the input range,
+  /// set the largest included VF to the maximum VF for which no plan could be
+  /// built.
+  std::optional<VPlanPtr> tryToBuildVPlanWithVPRecipes(
+      VFRange &Range, SmallPtrSetImpl<Instruction *> &DeadInstructions);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is

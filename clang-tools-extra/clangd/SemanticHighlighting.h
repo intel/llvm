@@ -49,6 +49,9 @@ enum class HighlightingKind {
   Concept,
   Primitive,
   Macro,
+  Modifier,
+  Operator,
+  Bracket,
 
   // This one is different from the other kinds as it's a line style
   // rather than a token style.
@@ -73,6 +76,7 @@ enum class HighlightingModifier {
   UsedAsMutableReference,
   UsedAsMutablePointer,
   ConstructorOrDestructor,
+  UserDefined,
 
   FunctionScope,
   ClassScope,
@@ -102,7 +106,8 @@ bool operator<(const HighlightingToken &L, const HighlightingToken &R);
 
 // Returns all HighlightingTokens from an AST. Only generates highlights for the
 // main AST.
-std::vector<HighlightingToken> getSemanticHighlightings(ParsedAST &AST);
+std::vector<HighlightingToken>
+getSemanticHighlightings(ParsedAST &AST, bool IncludeInactiveRegionTokens);
 
 std::vector<SemanticToken> toSemanticTokens(llvm::ArrayRef<HighlightingToken>,
                                             llvm::StringRef Code);

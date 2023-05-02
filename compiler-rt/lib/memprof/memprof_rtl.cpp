@@ -29,6 +29,9 @@
 
 uptr __memprof_shadow_memory_dynamic_address; // Global interface symbol.
 
+// Allow the user to specify a profile output file via the binary.
+SANITIZER_WEAK_ATTRIBUTE char __memprof_profile_filename[1];
+
 namespace __memprof {
 
 static void MemprofDie() {
@@ -62,7 +65,6 @@ static void CheckUnwind() {
 
 // -------------------------- Globals --------------------- {{{1
 int memprof_inited;
-int memprof_init_done;
 bool memprof_init_is_running;
 int memprof_timestamp_inited;
 long memprof_init_timestamp_s;
@@ -166,6 +168,13 @@ static void MemprofInitInternal() {
   AddDieCallback(MemprofDie);
   SetCheckUnwindCallback(CheckUnwind);
 
+  // Use profile name specified via the binary itself if it exists, and hasn't
+  // been overrriden by a flag at runtime.
+  if (__memprof_profile_filename[0] != 0 && !common_flags()->log_path)
+    __sanitizer_set_report_path(__memprof_profile_filename);
+  else
+    __sanitizer_set_report_path(common_flags()->log_path);
+
   __sanitizer::InitializePlatformEarly();
 
   // Setup internal allocator callback.
@@ -185,11 +194,6 @@ static void MemprofInitInternal() {
 
   InitializeAllocator();
 
-  // On Linux MemprofThread::ThreadStart() calls malloc() that's why
-  // memprof_inited should be set to 1 prior to initializing the threads.
-  memprof_inited = 1;
-  memprof_init_is_running = false;
-
   if (flags()->atexit)
     Atexit(memprof_atexit);
 
@@ -208,7 +212,8 @@ static void MemprofInitInternal() {
 
   VReport(1, "MemProfiler Init done\n");
 
-  memprof_init_done = 1;
+  memprof_init_is_running = false;
+  memprof_inited = 1;
 }
 
 void MemprofInitTime() {

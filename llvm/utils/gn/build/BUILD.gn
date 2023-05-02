@@ -448,7 +448,7 @@ config("zdefs") {
   # -Wl,-z,defs doesn't work with sanitizers.
   # https://clang.llvm.org/docs/AddressSanitizer.html
   if (current_os != "ios" && current_os != "mac" && current_os != "win" &&
-      !(use_asan || use_tsan || use_ubsan)) {
+      current_os != "android" && !(use_asan || use_tsan || use_ubsan)) {
     ldflags = [ "-Wl,-z,defs" ]
   }
 }
@@ -485,6 +485,13 @@ config("clang_code") {
   include_dirs = [
     "//clang/include",
     "$root_gen_dir/clang/include",
+  ]
+}
+
+config("bolt_code") {
+  include_dirs = [
+    "//bolt/include",
+    "$root_gen_dir/bolt/include",
   ]
 }
 

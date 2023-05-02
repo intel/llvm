@@ -23,6 +23,7 @@
 #include "CGVTables.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenTypeCache.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Mangle.h"
@@ -1002,7 +1003,7 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
     } else {
       const ASTContext &Context = getContext();
       CharUnits PointerWidth = Context.toCharUnitsFromBits(
-          Context.getTargetInfo().getPointerWidth(0));
+          Context.getTargetInfo().getPointerWidth(LangAS::Default));
       VTableOffset = Index * PointerWidth.getQuantity();
     }
 
@@ -1250,7 +1251,7 @@ void ItaniumCXXABI::emitRethrow(CodeGenFunction &CGF, bool isNoReturn) {
   llvm::FunctionCallee Fn = CGM.CreateRuntimeFunction(FTy, "__cxa_rethrow");
 
   if (isNoReturn)
-    CGF.EmitNoreturnRuntimeCallOrInvoke(Fn, None);
+    CGF.EmitNoreturnRuntimeCallOrInvoke(Fn, std::nullopt);
   else
     CGF.EmitRuntimeCallOrInvoke(Fn);
 }
@@ -1879,11 +1880,11 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
   // values are read.
   unsigned PAlign = CGM.getItaniumVTableContext().isRelativeLayout()
                         ? 32
-                        : CGM.getTarget().getPointerAlign(0);
+                        : CGM.getTarget().getPointerAlign(LangAS::Default);
 
   VTable = CGM.CreateOrReplaceCXXRuntimeVariable(
       Name, VTableType, llvm::GlobalValue::ExternalLinkage,
-      getContext().toCharUnitsFromBits(PAlign).getQuantity());
+      getContext().toCharUnitsFromBits(PAlign).getAsAlign());
   VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
 
   // In MS C++ if you have a class with virtual functions in which you are using
@@ -1924,7 +1925,9 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
   if (CGF.ShouldEmitVTableTypeCheckedLoad(MethodDecl->getParent())) {
     VFunc = CGF.EmitVTableTypeCheckedLoad(
         MethodDecl->getParent(), VTable, TyPtr,
-        VTableIndex * CGM.getContext().getTargetInfo().getPointerWidth(0) / 8);
+        VTableIndex *
+            CGM.getContext().getTargetInfo().getPointerWidth(LangAS::Default) /
+            8);
   } else {
     CGF.EmitTypeMetadataCodeForVCall(MethodDecl->getParent(), VTable, Loc);
 
@@ -2366,8 +2369,8 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
       guardAlignment = CGF.getSizeAlign();
     } else {
       guardTy = CGF.Int64Ty;
-      guardAlignment = CharUnits::fromQuantity(
-                             CGM.getDataLayout().getABITypeAlignment(guardTy));
+      guardAlignment =
+          CharUnits::fromQuantity(CGM.getDataLayout().getABITypeAlign(guardTy));
     }
   }
   llvm::PointerType *guardPtrTy = guardTy->getPointerTo(
@@ -2385,13 +2388,15 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
     }
 
     // Create the guard variable with a zero-initializer.
-    // Just absorb linkage and visibility from the guarded variable.
+    // Just absorb linkage, visibility and dll storage class  from the guarded
+    // variable.
     guard = new llvm::GlobalVariable(CGM.getModule(), guardTy,
                                      false, var->getLinkage(),
                                      llvm::ConstantInt::get(guardTy, 0),
                                      guardName.str());
     guard->setDSOLocal(var->isDSOLocal());
     guard->setVisibility(var->getVisibility());
+    guard->setDLLStorageClass(var->getDLLStorageClass());
     // If the variable is thread-local, so is its guard variable.
     guard->setThreadLocalMode(var->getThreadLocalMode());
     guard->setAlignment(guardAlignment.getAsAlign());
@@ -3177,7 +3182,7 @@ llvm::GlobalVariable *ItaniumRTTIBuilder::GetAddrOfTypeName(
   auto Align = CGM.getContext().getTypeAlignInChars(CGM.getContext().CharTy);
 
   llvm::GlobalVariable *GV = CGM.CreateOrReplaceCXXRuntimeVariable(
-      Name, Init->getType(), Linkage, Align.getQuantity());
+      Name, Init->getType(), Linkage, Align.getAsAlign());
 
   GV->setInitializer(Init);
 
@@ -3291,6 +3296,8 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
     case BuiltinType::ShortAccum:
     case BuiltinType::Accum:
     case BuiltinType::LongAccum:
@@ -3596,32 +3603,8 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
 
-  // To generate valid device code global pointers should have global address
-  // space in SYCL.
-  bool GenTyInfoGVWithGlobalAS =
-      CGM.getLangOpts().SYCLIsDevice &&
-      CGM.getLangOpts().SYCLAllowVirtualFunctions &&
-      (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo);
-  auto VTableTy =
-      GenTyInfoGVWithGlobalAS
-          ? CGM.Int8Ty->getPointerTo(
-                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global))
-          : CGM.Int8PtrTy;
-  if (!VTable) {
-    if (GenTyInfoGVWithGlobalAS) {
-      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy, [&] {
-        return new llvm::GlobalVariable(
-            CGM.getModule(), VTableTy, /*isConstant=*/false,
-            llvm::GlobalVariable::ExternalLinkage, /*Initializer=*/nullptr,
-            VTableName, /*InsertBefore=*/nullptr,
-            llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
-            llvm::Optional<unsigned>(
-                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global)));
-      });
-    } else {
-      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy);
-    }
-  }
+  if (!VTable)
+    VTable = CGM.CreateRuntimeVariable(CGM.DefaultInt8PtrTy, VTableName);
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
 
@@ -3633,15 +3616,15 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     // The vtable address point is 8 bytes after its start:
     // 4 for the offset to top + 4 for the relative offset to rtti.
     llvm::Constant *Eight = llvm::ConstantInt::get(CGM.Int32Ty, 8);
-    VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
+    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.DefaultInt8PtrTy);
     VTable =
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-    VTable =
-        llvm::ConstantExpr::getInBoundsGetElementPtr(VTableTy, VTable, Two);
+    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.DefaultInt8PtrTy,
+                                                          VTable, Two);
   }
-  VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
+  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.DefaultInt8PtrTy);
 
   Fields.push_back(VTable);
 }
@@ -3669,7 +3652,6 @@ static llvm::GlobalVariable::LinkageTypes getTypeInfoLinkage(CodeGenModule &CGM,
     return llvm::GlobalValue::InternalLinkage;
 
   case VisibleNoLinkage:
-  case ModuleInternalLinkage:
   case ModuleLinkage:
   case ExternalLinkage:
     // RTTI is not enabled, which means that this type info struct is going
@@ -3905,8 +3887,8 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
   if (CGM.supportsCOMDAT() && GV->isWeakForLinker())
     GV->setComdat(M.getOrInsertComdat(GV->getName()));
 
-  CharUnits Align =
-      CGM.getContext().toCharUnitsFromBits(CGM.getTarget().getPointerAlign(0));
+  CharUnits Align = CGM.getContext().toCharUnitsFromBits(
+      CGM.getTarget().getPointerAlign(LangAS::Default));
   GV->setAlignment(Align.getAsAlign());
 
   // The Itanium ABI specifies that type_info objects must be globally
@@ -4084,7 +4066,8 @@ void ItaniumRTTIBuilder::BuildVMIClassTypeInfo(const CXXRecordDecl *RD) {
   // LLP64 platforms.
   QualType OffsetFlagsTy = CGM.getContext().LongTy;
   const TargetInfo &TI = CGM.getContext().getTargetInfo();
-  if (TI.getTriple().isOSCygMing() && TI.getPointerWidth(0) > TI.getLongWidth())
+  if (TI.getTriple().isOSCygMing() &&
+      TI.getPointerWidth(LangAS::Default) > TI.getLongWidth())
     OffsetFlagsTy = CGM.getContext().LongLongTy;
   llvm::Type *OffsetFlagsLTy =
       CGM.getTypes().ConvertType(OffsetFlagsTy);
@@ -4703,13 +4686,16 @@ void ItaniumCXXABI::emitBeginCatch(CodeGenFunction &CGF,
 ///   void @__clang_call_terminate(i8* %exn) nounwind noreturn
 /// This code is used only in C++.
 static llvm::FunctionCallee getClangCallTerminateFn(CodeGenModule &CGM) {
-  llvm::FunctionType *fnTy =
-    llvm::FunctionType::get(CGM.VoidTy, CGM.Int8PtrTy, /*isVarArg=*/false);
+  ASTContext &C = CGM.getContext();
+  const CGFunctionInfo &FI = CGM.getTypes().arrangeBuiltinFunctionDeclaration(
+      C.VoidTy, {C.getPointerType(C.CharTy)});
+  llvm::FunctionType *fnTy = CGM.getTypes().GetFunctionType(FI);
   llvm::FunctionCallee fnRef = CGM.CreateRuntimeFunction(
       fnTy, "__clang_call_terminate", llvm::AttributeList(), /*Local=*/true);
   llvm::Function *fn =
       cast<llvm::Function>(fnRef.getCallee()->stripPointerCasts());
   if (fn->empty()) {
+    CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, fn, /*IsThunk=*/false);
     fn->setDoesNotThrow();
     fn->setDoesNotReturn();
 

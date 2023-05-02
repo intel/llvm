@@ -1783,6 +1783,9 @@ public:
               Word("!DIR$ IGNORE_TKR"); // emitted even if tkr list is empty
               Walk(" ", tkr, ", ");
             },
+            [&](const CompilerDirective::LoopCount &lcount) {
+              Walk("!DIR$ LOOP COUNT (", lcount.v, ", ", ")");
+            },
             [&](const std::list<CompilerDirective::NameValue> &names) {
               Walk("!DIR$ ", names, " ");
             },
@@ -2043,6 +2046,10 @@ public:
     Put(":");
     Walk(std::get<OmpObjectList>(x.t));
   }
+  void Unparse(const OmpOrderClause &x) {
+    Walk(std::get<std::optional<OmpOrderModifier>>(x.t), ":");
+    Walk(std::get<OmpOrderClause::Type>(x.t));
+  }
   void Unparse(const OmpDependSinkVecLength &x) {
     Walk(std::get<DefinedOperator>(x.t));
     Walk(std::get<ScalarIntConstantExpr>(x.t));
@@ -2149,6 +2156,12 @@ public:
       break;
     case llvm::omp::Directive::OMPD_teams_distribute_simd:
       Word("TEAMS DISTRIBUTE SIMD ");
+      break;
+    case llvm::omp::Directive::OMPD_tile:
+      Word("TILE ");
+      break;
+    case llvm::omp::Directive::OMPD_unroll:
+      Word("UNROLL ");
       break;
     default:
       break;
@@ -2607,8 +2620,11 @@ public:
   WALK_NESTED_ENUM(OmpMapType, Type) // OMP map-type
   WALK_NESTED_ENUM(OmpScheduleClause, ScheduleType) // OMP schedule-type
   WALK_NESTED_ENUM(OmpDeviceClause, DeviceModifier) // OMP device modifier
+  WALK_NESTED_ENUM(OmpDeviceTypeClause, Type) // OMP DEVICE_TYPE
   WALK_NESTED_ENUM(OmpIfClause, DirectiveNameModifier) // OMP directive-modifier
   WALK_NESTED_ENUM(OmpCancelType, Type) // OMP cancel-type
+  WALK_NESTED_ENUM(OmpOrderClause, Type) // OMP order-type
+  WALK_NESTED_ENUM(OmpOrderModifier, Kind) // OMP order-modifier
 #undef WALK_NESTED_ENUM
 
   void Done() const { CHECK(indent_ == 0); }
@@ -2621,6 +2637,7 @@ private:
   void PutKeywordLetter(char);
   void Word(const char *);
   void Word(const std::string &);
+  void Word(const std::string_view &);
   void Indent() { indent_ += indentationAmount_; }
   void Outdent() {
     CHECK(indent_ >= indentationAmount_);
@@ -2776,6 +2793,12 @@ void UnparseVisitor::Word(const char *str) {
 }
 
 void UnparseVisitor::Word(const std::string &str) { Word(str.c_str()); }
+
+void UnparseVisitor::Word(const std::string_view &str) {
+  for (std::size_t j{0}; j < str.length(); ++j) {
+    PutKeywordLetter(str[j]);
+  }
+}
 
 template <typename A>
 void Unparse(llvm::raw_ostream &out, const A &root, Encoding encoding,

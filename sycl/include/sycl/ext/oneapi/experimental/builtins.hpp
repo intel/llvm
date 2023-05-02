@@ -28,9 +28,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -85,11 +83,13 @@ int printf(const FormatT *__format, Args... args) {
 namespace native {
 
 // genfloatfh tanh (genfloatfh x)
+// sycl::native::tanh is only implemented on nvptx backend so far. For other
+// backends we revert to the sycl::tanh impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_genfloatf<T>::value ||
-                                  sycl::detail::is_genfloath<T>::value,
-                              T>
+    std::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
+                         sycl::detail::is_svgenfloath<T>::value,
+                     T>
     tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
@@ -100,10 +100,46 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
+// The marray math function implementations use vectorizations of
+// size two as a simple general optimization. A more complex implementation
+// using larger vectorizations for large marray sizes is possible; however more
+// testing is required in order to ascertain the performance implications for
+// all backends.
+// sycl::native::tanh is only implemented on nvptx backend so far. For other
+// backends we revert to the sycl::tanh impl.
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<T, half> || std::is_same_v<T, float>,
+                     sycl::marray<T, N>>
+    tanh(sycl::marray<T, N> x) __NOEXC {
+  sycl::marray<T, N> res;
+
+  for (size_t i = 0; i < N / 2; i++) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    auto partial_res = native::tanh(sycl::detail::to_vec2(x, i * 2));
+#else
+    auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
+        sycl::detail::to_vec2(x, i * 2));
+#endif
+    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
+  }
+  if (N % 2) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    res[N - 1] = native::tanh(x[N - 1]);
+#else
+    res[N - 1] = __sycl_std::__invoke_tanh<T>(x[N - 1]);
+#endif
+  }
+
+  return res;
+}
+
 // genfloath exp2 (genfloath x)
+// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// For other backends we revert to the sycl::exp2 impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value, T>
+    std::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
@@ -114,11 +150,35 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
+// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// For other backends we revert to the sycl::exp2 impl.
+template <size_t N>
+inline __SYCL_ALWAYS_INLINE sycl::marray<half, N>
+exp2(sycl::marray<half, N> x) __NOEXC {
+  sycl::marray<half, N> res;
+
+  for (size_t i = 0; i < N / 2; i++) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    auto partial_res = native::exp2(sycl::detail::to_vec2(x, i * 2));
+#else
+    auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
+        sycl::detail::to_vec2(x, i * 2));
+#endif
+    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
+  }
+  if (N % 2) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    res[N - 1] = native::exp2(x[N - 1]);
+#else
+    res[N - 1] = __sycl_std::__invoke_exp2<half>(x[N - 1]);
+#endif
+  }
+  return res;
+}
+
 } // namespace native
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

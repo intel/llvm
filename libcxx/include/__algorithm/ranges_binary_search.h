@@ -24,7 +24,7 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -36,7 +36,7 @@ struct __fn {
   _LIBCPP_NODISCARD_EXT _LIBCPP_HIDE_FROM_ABI constexpr
   bool operator()(_Iter __first, _Sent __last, const _Type& __value, _Comp __comp = {}, _Proj __proj = {}) const {
     auto __ret = std::__lower_bound_impl<_RangeAlgPolicy>(__first, __last, __value, __comp, __proj);
-    return __ret != __last && !std::invoke(__comp, __value, std::invoke(__proj, *__first));
+    return __ret != __last && !std::invoke(__comp, __value, std::invoke(__proj, *__ret));
   }
 
   template <forward_range _Range, class _Type, class _Proj = identity,
@@ -46,7 +46,7 @@ struct __fn {
     auto __first = ranges::begin(__r);
     auto __last = ranges::end(__r);
     auto __ret = std::__lower_bound_impl<_RangeAlgPolicy>(__first, __last, __value, __comp, __proj);
-    return __ret != __last && !std::invoke(__comp, __value, std::invoke(__proj, *__first));
+    return __ret != __last && !std::invoke(__comp, __value, std::invoke(__proj, *__ret));
   }
 };
 } // namespace __binary_search
@@ -58,6 +58,6 @@ inline namespace __cpo {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 #endif // _LIBCPP___ALGORITHM_RANGES_BINARY_SEARCH_H

@@ -499,6 +499,10 @@ void RNBRemote::CreatePacketTable() {
       "Test the maximum speed at which packet can be sent/received."));
   t.push_back(Packet(query_transfer, &RNBRemote::HandlePacket_qXfer, NULL,
                      "qXfer:", "Support the qXfer packet."));
+  t.push_back(Packet(json_query_dyld_process_state,
+                     &RNBRemote::HandlePacket_jGetDyldProcessState, NULL,
+                     "jGetDyldProcessState",
+                     "Query the process state from dyld."));
 }
 
 void RNBRemote::FlushSTDIO() {
@@ -2837,11 +2841,21 @@ rnb_err_t RNBRemote::SendStopReplyPacketForThread(nub_thread_t tid) {
       InitializeRegisters();
 
     if (g_reg_entries != NULL) {
+      auto interesting_regset = [](int regset) -> bool {
+#if defined(__arm64__) || defined(__aarch64__)
+        // GPRs and exception registers, helpful for debugging
+        // from packet logs.
+        return regset == 1 || regset == 3;
+#else
+        return regset == 1;
+#endif
+      };
+
       DNBRegisterValue reg_value;
       for (uint32_t reg = 0; reg < g_num_reg_entries; reg++) {
         // Expedite all registers in the first register set that aren't
         // contained in other registers
-        if (g_reg_entries[reg].nub_info.set == 1 &&
+        if (interesting_regset(g_reg_entries[reg].nub_info.set) &&
             g_reg_entries[reg].nub_info.value_regs == NULL) {
           if (!DNBThreadGetRegisterValueByID(
                   pid, tid, g_reg_entries[reg].nub_info.set,
@@ -2856,6 +2870,51 @@ rnb_err_t RNBRemote::SendStopReplyPacketForThread(nub_thread_t tid) {
 
     if (did_exec) {
       ostrm << "reason:exec;";
+    } else if (tid_stop_info.reason == eStopTypeWatchpoint) {
+      ostrm << "reason:watchpoint;";
+      ostrm << "description:";
+      std::ostringstream wp_desc;
+      wp_desc << tid_stop_info.details.watchpoint.addr << " ";
+      wp_desc << tid_stop_info.details.watchpoint.hw_idx << " ";
+      wp_desc << tid_stop_info.details.watchpoint.mach_exception_addr;
+      append_hexified_string(ostrm, wp_desc.str());
+      ostrm << ";";
+
+      // Temporarily, print all of the fields we've parsed out of the ESR
+      // on a watchpoint exception.  Normally this is something we would
+      // log for LOG_WATCHPOINTS only, but this was implemented from the
+      // ARM ARM spec and hasn't been exercised on real hardware that can
+      // set most of these fields yet.  It may need to be debugged in the
+      // future, so include all of these purely for debugging by reading
+      // the packet logs; lldb isn't using these fields.
+      ostrm << "watch_addr:" << std::hex
+            << tid_stop_info.details.watchpoint.addr << ";";
+      ostrm << "me_watch_addr:" << std::hex
+            << tid_stop_info.details.watchpoint.mach_exception_addr << ";";
+      ostrm << "wp_hw_idx:" << std::hex
+            << tid_stop_info.details.watchpoint.hw_idx << ";";
+      if (tid_stop_info.details.watchpoint.esr_fields_set) {
+        ostrm << "wp_esr_iss:" << std::hex
+              << tid_stop_info.details.watchpoint.esr_fields.iss << ";";
+        ostrm << "wp_esr_wpt:" << std::hex
+              << tid_stop_info.details.watchpoint.esr_fields.wpt << ";";
+        ostrm << "wp_esr_wptv:"
+              << tid_stop_info.details.watchpoint.esr_fields.wptv << ";";
+        ostrm << "wp_esr_wpf:"
+              << tid_stop_info.details.watchpoint.esr_fields.wpf << ";";
+        ostrm << "wp_esr_fnp:"
+              << tid_stop_info.details.watchpoint.esr_fields.fnp << ";";
+        ostrm << "wp_esr_vncr:"
+              << tid_stop_info.details.watchpoint.esr_fields.vncr << ";";
+        ostrm << "wp_esr_fnv:"
+              << tid_stop_info.details.watchpoint.esr_fields.fnv << ";";
+        ostrm << "wp_esr_cm:" << tid_stop_info.details.watchpoint.esr_fields.cm
+              << ";";
+        ostrm << "wp_esr_wnr:"
+              << tid_stop_info.details.watchpoint.esr_fields.wnr << ";";
+        ostrm << "wp_esr_dfsc:" << std::hex
+              << tid_stop_info.details.watchpoint.esr_fields.dfsc << ";";
+      }
     } else if (tid_stop_info.details.exception.type) {
       ostrm << "metype:" << std::hex << tid_stop_info.details.exception.type
             << ';';
@@ -5256,6 +5315,22 @@ rnb_err_t RNBRemote::HandlePacket_qGDBServerVersion(const char *p) {
   return SendPacket(strm.str());
 }
 
+rnb_err_t RNBRemote::HandlePacket_jGetDyldProcessState(const char *p) {
+  const nub_process_t pid = m_ctx.ProcessID();
+  if (pid == INVALID_NUB_PROCESS)
+    return SendPacket("E87");
+
+  JSONGenerator::ObjectSP dyld_state_sp = DNBGetDyldProcessState(pid);
+  if (dyld_state_sp) {
+    std::ostringstream strm;
+    dyld_state_sp->DumpBinaryEscaped(strm);
+    dyld_state_sp->Clear();
+    if (strm.str().size() > 0)
+      return SendPacket(strm.str());
+  }
+  return SendPacket("E88");
+}
+
 // A helper function that retrieves a single integer value from
 // a one-level-deep JSON dictionary of key-value pairs.  e.g.
 // jThreadExtendedInfo:{"plo_pthread_tsd_base_address_offset":0,"plo_pthread_tsd_base_offset":224,"plo_pthread_tsd_entry_size":8,"thread":144305}]
@@ -5454,6 +5529,20 @@ RNBRemote::GetJSONThreadsInfo(bool threads_with_valid_stop_info_only) {
             thread_dict_sp->AddItem("medata", medata_array_sp);
           }
           break;
+
+        case eStopTypeWatchpoint: {
+          reason_value = "watchpoint";
+          thread_dict_sp->AddIntegerItem("watchpoint",
+                                         tid_stop_info.details.watchpoint.addr);
+          thread_dict_sp->AddIntegerItem(
+              "me_watch_addr",
+              tid_stop_info.details.watchpoint.mach_exception_addr);
+          std::ostringstream wp_desc;
+          wp_desc << tid_stop_info.details.watchpoint.addr << " ";
+          wp_desc << tid_stop_info.details.watchpoint.hw_idx << " ";
+          wp_desc << tid_stop_info.details.watchpoint.mach_exception_addr;
+          thread_dict_sp->AddStringItem("description", wp_desc.str());
+        } break;
 
         case eStopTypeExec:
           reason_value = "exec";

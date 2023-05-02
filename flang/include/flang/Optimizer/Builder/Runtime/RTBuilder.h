@@ -20,6 +20,7 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Common/uint128.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -290,6 +291,13 @@ getModel<const Fortran::runtime::typeInfo::DerivedType &>() {
   };
 }
 template <>
+constexpr TypeBuilderFunc
+getModel<const Fortran::runtime::typeInfo::DerivedType *>() {
+  return [](mlir::MLIRContext *context) -> mlir::Type {
+    return fir::ReferenceType::get(mlir::NoneType::get(context));
+  };
+}
+template <>
 constexpr TypeBuilderFunc getModel<void>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
     return mlir::NoneType::get(context);
@@ -411,7 +419,7 @@ static mlir::func::FuncOp getRuntimeFunc(mlir::Location loc,
     return func;
   auto funTy = RuntimeEntry::getTypeModel()(builder.getContext());
   func = builder.createFunction(loc, name, funTy);
-  func->setAttr("fir.runtime", builder.getUnitAttr());
+  func->setAttr(FIROpsDialect::getFirRuntimeAttrName(), builder.getUnitAttr());
   return func;
 }
 

@@ -66,6 +66,14 @@ add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression test
   ${SYCL_TEST_EXCLUDE}
   )
 
+add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_LIB_DUMPS_ONLY=True"
+  DEPENDS sycl-runtime-libraries llvm-readobj
+  EXCLUDE_FROM_CHECK_ALL
+  )
+
 add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-spirv)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
@@ -112,3 +120,7 @@ if(SYCL_BUILD_PI_HIP)
 
   add_dependencies(check-sycl check-sycl-hip)
 endif()
+
+if(SYCL_ENABLE_KERNEL_FUSION)
+  add_dependencies(check-sycl check-sycl-fusion)
+endif(SYCL_ENABLE_KERNEL_FUSION)

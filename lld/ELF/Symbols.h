@@ -512,12 +512,12 @@ struct ElfSym {
   static Defined *mipsGpDisp;
   static Defined *mipsLocalGp;
 
+  // __global_pointer$ for RISC-V.
+  static Defined *riscvGlobalPointer;
+
   // __rel{,a}_iplt_{start,end} symbols.
   static Defined *relaIpltStart;
   static Defined *relaIpltEnd;
-
-  // __global_pointer$ for RISC-V.
-  static Defined *riscvGlobalPointer;
 
   // _TLS_MODULE_BASE_ on targets that support TLSDESC.
   static Defined *tlsModuleBase;

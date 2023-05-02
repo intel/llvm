@@ -8,7 +8,6 @@
 // RUN: %clang_cc1 -std=c++17 -fcxx-exceptions -fsized-deallocation -frelaxed-template-template-args -DRELAXED_TEMPLATE_TEMPLATE_ARGS=1 -verify %s
 // RUN: %clang_cc1 -std=c++17 -fcxx-exceptions -fsized-deallocation -DCONCEPTS_TS=1 -verify %s
 // RUN: %clang_cc1 -std=c++14 -fno-rtti -fno-threadsafe-statics -verify %s -DNO_EXCEPTIONS -DNO_RTTI -DNO_THREADSAFE_STATICS -fsized-deallocation
-// RUN: %clang_cc1 -std=c++14 -fcoroutines-ts -DNO_EXCEPTIONS -DCOROUTINES -verify -fsized-deallocation %s
 // RUN: %clang_cc1 -std=c++14 -fchar8_t -DNO_EXCEPTIONS -DCHAR8_T -verify -fsized-deallocation %s
 // RUN: %clang_cc1 -std=c++2a -fno-char8_t -DNO_EXCEPTIONS -DNO_CHAR8_T -verify -fsized-deallocation %s
 
@@ -43,7 +42,7 @@
 #error "wrong value for __cpp_if_consteval"
 #endif
 
-#if check(multidimensional_subscript, 0, 0, 0, 0, 0, 202110)
+#if check(multidimensional_subscript, 0, 0, 0, 0, 0, 202211)
 #error "wrong value for __cpp_multidimensional_subscript"
 #endif
 
@@ -61,8 +60,7 @@
 
 // --- C++20 features ---
 
-#if check(aggregate_paren_init, 0, 0, 0, 0, 0, 0)
-// FIXME: 201902 in C++20
+#if check(aggregate_paren_init, 0, 0, 0, 0, 201902, 201902)
 #error "wrong value for __cpp_aggregate_paren_init"
 #endif
 
@@ -297,7 +295,7 @@
 #error "wrong value for __cpp_lambdas"
 #endif
 
-#if check(constexpr, 0, 200704, 201304, 201603, 201907, 202110)
+#if check(constexpr, 0, 200704, 201304, 201603, 201907, 202211)
 #error "wrong value for __cpp_constexpr"
 #endif
 
@@ -357,10 +355,4 @@
 
 #if defined(NO_EXCEPTIONS) ? check(exceptions, 0, 0, 0, 0, 0, 0) : check(exceptions, 199711, 199711, 199711, 199711, 199711, 199711)
 #error "wrong value for __cpp_exceptions"
-#endif
-
-// --- TS features --
-
-#if defined(COROUTINES) ? check(coroutines, 201703, 201703, 201703, 201703, 201703, 201703) : check(coroutines, 0, 0, 0, 0, 201703, 201703)
-#error "wrong value for __cpp_coroutines"
 #endif

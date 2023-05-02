@@ -15,12 +15,12 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/DataTypes.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -222,6 +222,20 @@ public:
     }
     return *this;
   }
+
+#if defined(__cpp_char8_t)
+  // When using `char8_t *` integers or pointers are written to the ostream
+  // instead of UTF-8 code as one might expect. This might lead to unexpected
+  // behavior, especially as `u8""` literals are of type `char8_t*` instead of
+  // type `char_t*` from C++20 onwards. Thus we disallow using them with
+  // raw_ostreams.
+  // If you have u8"" literals to stream, you can rewrite them as ordinary
+  // literals with escape sequences
+  // e.g.  replace `u8"\u00a0"` by `"\xc2\xa0"`
+  // or use `reinterpret_cast`:
+  // e.g. replace `u8"\u00a0"` by `reinterpret_cast<const char *>(u8"\u00a0")`
+  raw_ostream &operator<<(const char8_t *Str) = delete;
+#endif
 
   raw_ostream &operator<<(const char *Str) {
     // Inline fast path, particularly for constant strings where a sufficiently
@@ -442,7 +456,7 @@ class raw_fd_ostream : public raw_pwrite_stream {
   bool ShouldClose;
   bool SupportsSeeking = false;
   bool IsRegularFile = false;
-  mutable Optional<bool> HasColors;
+  mutable std::optional<bool> HasColors;
 
 #ifdef _WIN32
   /// True if this fd refers to a Windows console device. Mintty and other
@@ -739,6 +753,18 @@ class Error;
 /// temporary file after the \p Write function is finished.
 Error writeToOutput(StringRef OutputFileName,
                     std::function<Error(raw_ostream &)> Write);
+
+raw_ostream &operator<<(raw_ostream &OS, std::nullopt_t);
+
+template <typename T, typename = decltype(std::declval<raw_ostream &>()
+                                          << std::declval<const T &>())>
+raw_ostream &operator<<(raw_ostream &OS, const std::optional<T> &O) {
+  if (O)
+    OS << *O;
+  else
+    OS << std::nullopt;
+  return OS;
+}
 
 } // end namespace llvm
 

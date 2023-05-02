@@ -20,98 +20,108 @@ namespace detail {
 
 template <typename T, class BinaryOperation>
 using IsPlus =
-    bool_constant<std::is_same<BinaryOperation, sycl::plus<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::plus<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::plus<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::plus<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsMultiplies =
-    bool_constant<std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::multiplies<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::multiplies<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsMinimum =
-    bool_constant<std::is_same<BinaryOperation, sycl::minimum<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::minimum<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::minimum<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsMaximum =
-    bool_constant<std::is_same<BinaryOperation, sycl::maximum<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::maximum<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::maximum<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsBitAND =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_and<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_and<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_and<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::bit_and<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsBitOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_or<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_or<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_or<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::bit_or<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsBitXOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_xor<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_xor<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_xor<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::bit_xor<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalAND = bool_constant<
-    std::is_same<BinaryOperation, sycl::logical_and<T>>::value ||
-    std::is_same<BinaryOperation, sycl::logical_and<void>>::value>;
+using IsLogicalAND = std::bool_constant<
+    std::is_same_v<BinaryOperation, sycl::logical_and<T>> ||
+    std::is_same_v<BinaryOperation, sycl::logical_and<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsLogicalOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::logical_or<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::logical_or<void>>::value>;
+    std::bool_constant<std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
+                       std::is_same_v<BinaryOperation, sycl::logical_or<void>>>;
+
+template <typename T>
+using isComplex = std::bool_constant<std::is_same_v<T, std::complex<float>> ||
+                                     std::is_same_v<T, std::complex<double>>>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
-using IsZeroIdentityOp =
-    bool_constant<(is_geninteger<T>::value &&
-                   (IsPlus<T, BinaryOperation>::value ||
-                    IsBitOR<T, BinaryOperation>::value ||
-                    IsBitXOR<T, BinaryOperation>::value)) ||
-                  (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value)>;
+using IsZeroIdentityOp = std::bool_constant<
+    ((is_genbool<T>::value || is_geninteger<T>::value) &&
+     (IsPlus<T, BinaryOperation>::value || IsBitOR<T, BinaryOperation>::value ||
+      IsBitXOR<T, BinaryOperation>::value)) ||
+    (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value) ||
+    (isComplex<T>::value && IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
 using IsOneIdentityOp =
-    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
-                  IsMultiplies<T, BinaryOperation>::value>;
+    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
+                        is_genfloat<T>::value) &&
+                       IsMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
-using IsOnesIdentityOp = bool_constant<is_geninteger<T>::value &&
-                                       IsBitAND<T, BinaryOperation>::value>;
+using IsOnesIdentityOp =
+    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value) &&
+                       IsBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
 using IsMinimumIdentityOp =
-    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
-                  IsMinimum<T, BinaryOperation>::value>;
+    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
+                        is_genfloat<T>::value) &&
+                       IsMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
 using IsMaximumIdentityOp =
-    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
-                  IsMaximum<T, BinaryOperation>::value>;
+    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
+                        is_genfloat<T>::value) &&
+                       IsMaximum<T, BinaryOperation>::value>;
 
 // Identity = false
 template <typename T, class BinaryOperation>
-using IsFalseIdentityOp = bool_constant<IsLogicalOR<T, BinaryOperation>::value>;
+using IsFalseIdentityOp =
+    std::bool_constant<IsLogicalOR<T, BinaryOperation>::value>;
 
 // Identity = true
 template <typename T, class BinaryOperation>
-using IsTrueIdentityOp = bool_constant<IsLogicalAND<T, BinaryOperation>::value>;
+using IsTrueIdentityOp =
+    std::bool_constant<IsLogicalAND<T, BinaryOperation>::value>;
 
 template <typename T, class BinaryOperation>
 using IsKnownIdentityOp =
-    bool_constant<IsZeroIdentityOp<T, BinaryOperation>::value ||
-                  IsOneIdentityOp<T, BinaryOperation>::value ||
-                  IsOnesIdentityOp<T, BinaryOperation>::value ||
-                  IsMinimumIdentityOp<T, BinaryOperation>::value ||
-                  IsMaximumIdentityOp<T, BinaryOperation>::value ||
-                  IsFalseIdentityOp<T, BinaryOperation>::value ||
-                  IsTrueIdentityOp<T, BinaryOperation>::value>;
+    std::bool_constant<IsZeroIdentityOp<T, BinaryOperation>::value ||
+                       IsOneIdentityOp<T, BinaryOperation>::value ||
+                       IsOnesIdentityOp<T, BinaryOperation>::value ||
+                       IsMinimumIdentityOp<T, BinaryOperation>::value ||
+                       IsMaximumIdentityOp<T, BinaryOperation>::value ||
+                       IsFalseIdentityOp<T, BinaryOperation>::value ||
+                       IsTrueIdentityOp<T, BinaryOperation>::value>;
 
 template <typename BinaryOperation, typename AccumulatorT>
 struct has_known_identity_impl
@@ -129,7 +139,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(0);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -178,7 +188,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(1);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -218,7 +228,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(-1LL);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -249,7 +259,7 @@ struct known_identity_impl<BinaryOperation, AccumulatorT,
           : (std::numeric_limits<AccumulatorT>::max)());
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -287,7 +297,7 @@ struct known_identity_impl<BinaryOperation, AccumulatorT,
           : std::numeric_limits<AccumulatorT>::lowest());
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -324,7 +334,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(false);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -352,7 +362,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(true);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -381,7 +391,7 @@ struct has_known_identity
                                       std::decay_t<AccumulatorT>> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-__SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
+inline constexpr bool has_known_identity_v =
     sycl::has_known_identity<BinaryOperation, AccumulatorT>::value;
 
 // ---- known_identity
@@ -391,7 +401,7 @@ struct known_identity
                                   std::decay_t<AccumulatorT>> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-__SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
+inline constexpr AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

@@ -17,12 +17,13 @@
 #include <__iterator/concepts.h>
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/iterator_traits.h>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_integral.h>
 #include <__utility/convert_to_integral.h>
+#include <__utility/declval.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
-#include <cstdlib>
 #include <limits>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -56,7 +57,7 @@ void __advance(_RandIter& __i, typename iterator_traits<_RandIter>::difference_t
 
 template <
     class _InputIter, class _Distance,
-    class _IntegralDistance = decltype(_VSTD::__convert_to_integral(declval<_Distance>())),
+    class _IntegralDistance = decltype(_VSTD::__convert_to_integral(std::declval<_Distance>())),
     class = __enable_if_t<is_integral<_IntegralDistance>::value> >
 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
 void advance(_InputIter& __i, _Distance __orig_n) {
@@ -67,7 +68,7 @@ void advance(_InputIter& __i, _Distance __orig_n) {
   _VSTD::__advance(__i, __n, typename iterator_traits<_InputIter>::iterator_category());
 }
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // [range.iter.op.advance]
 
@@ -157,9 +158,9 @@ public:
                __a > 0  ? __a >= __b :
                           __a <= __b;
       };
-      if (const auto __M = __bound_sentinel - __i; __magnitude_geq(__n, __M)) {
+      if (const auto __m = __bound_sentinel - __i; __magnitude_geq(__n, __m)) {
         (*this)(__i, __bound_sentinel);
-        return __n - __M;
+        return __n - __m;
       }
 
       // Otherwise, equivalent to `ranges::advance(i, n)`.
@@ -194,7 +195,7 @@ inline namespace __cpo {
 } // namespace __cpo
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

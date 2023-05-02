@@ -17,6 +17,7 @@
 #include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -57,6 +58,7 @@ private:
   void writeDynamicSymbolTable(raw_ostream &OS);
   void writeFunctionStarts(raw_ostream &OS);
   void writeChainedFixups(raw_ostream &OS);
+  void writeDyldExportsTrie(raw_ostream &OS);
   void writeDataInCode(raw_ostream &OS);
 
   void dumpExportEntry(raw_ostream &OS, MachOYAML::ExportEntry &Entry);
@@ -314,7 +316,12 @@ Error MachOWriter::writeSectionData(raw_ostream &OS) {
         if (OS.tell() - fileStart > Sec.offset && Sec.offset != (uint32_t)0)
           return createStringError(
               errc::invalid_argument,
-              "wrote too much data somewhere, section offsets don't line up");
+              llvm::formatv(
+                  "wrote too much data somewhere, section offsets in "
+                  "section {0} for segment {1} don't line up: "
+                  "[cursor={2:x}], [fileStart={3:x}], [sectionOffset={4:x}]",
+                  Sec.sectname, Sec.segname, OS.tell(), fileStart,
+                  Sec.offset.value));
 
         StringRef SectName(Sec.sectname,
                            strnlen(Sec.sectname, sizeof(Sec.sectname)));
@@ -489,6 +496,7 @@ void MachOWriter::writeLinkEditData(raw_ostream &OS) {
   MachO::dysymtab_command *DSymtabCmd = nullptr;
   MachO::linkedit_data_command *FunctionStartsCmd = nullptr;
   MachO::linkedit_data_command *ChainedFixupsCmd = nullptr;
+  MachO::linkedit_data_command *DyldExportsTrieCmd = nullptr;
   MachO::linkedit_data_command *DataInCodeCmd = nullptr;
   for (auto &LC : Obj.LoadCommands) {
     switch (LC.Data.load_command_data.cmd) {
@@ -526,6 +534,11 @@ void MachOWriter::writeLinkEditData(raw_ostream &OS) {
       ChainedFixupsCmd = &LC.Data.linkedit_data_command_data;
       WriteQueue.push_back(std::make_pair(ChainedFixupsCmd->dataoff,
                                           &MachOWriter::writeChainedFixups));
+      break;
+    case MachO::LC_DYLD_EXPORTS_TRIE:
+      DyldExportsTrieCmd = &LC.Data.linkedit_data_command_data;
+      WriteQueue.push_back(std::make_pair(DyldExportsTrieCmd->dataoff,
+                                          &MachOWriter::writeDyldExportsTrie));
       break;
     case MachO::LC_DATA_IN_CODE:
       DataInCodeCmd = &LC.Data.linkedit_data_command_data;
@@ -613,6 +626,10 @@ void MachOWriter::writeChainedFixups(raw_ostream &OS) {
   if (Obj.LinkEdit.ChainedFixups.size() > 0)
     OS.write(reinterpret_cast<const char *>(Obj.LinkEdit.ChainedFixups.data()),
              Obj.LinkEdit.ChainedFixups.size());
+}
+
+void MachOWriter::writeDyldExportsTrie(raw_ostream &OS) {
+  dumpExportEntry(OS, Obj.LinkEdit.ExportTrie);
 }
 
 class UniversalWriter {

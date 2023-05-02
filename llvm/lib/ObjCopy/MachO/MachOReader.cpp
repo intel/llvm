@@ -284,10 +284,14 @@ void MachOReader::readLazyBindInfo(Object &O) const {
 }
 
 void MachOReader::readExportInfo(Object &O) const {
-  O.Exports.Trie = MachOObj.getDyldInfoExportsTrie();
+  // This information can be in LC_DYLD_INFO or in LC_DYLD_EXPORTS_TRIE
+  ArrayRef<uint8_t> Trie = MachOObj.getDyldInfoExportsTrie();
+  if (Trie.empty())
+    Trie = MachOObj.getDyldExportsTrie();
+  O.Exports.Trie = Trie;
 }
 
-void MachOReader::readLinkData(Object &O, Optional<size_t> LCIndex,
+void MachOReader::readLinkData(Object &O, std::optional<size_t> LCIndex,
                                LinkData &LD) const {
   if (!LCIndex)
     return;
@@ -329,7 +333,7 @@ void MachOReader::readIndirectSymbolTable(Object &O) const {
   for (uint32_t i = 0; i < DySymTab.nindirectsyms; ++i) {
     uint32_t Index = MachOObj.getIndirectSymbolTableEntry(DySymTab, i);
     if ((Index & AbsOrLocalMask) != 0)
-      O.IndirectSymTable.Symbols.emplace_back(Index, None);
+      O.IndirectSymTable.Symbols.emplace_back(Index, std::nullopt);
     else
       O.IndirectSymTable.Symbols.emplace_back(
           Index, O.SymTable.getSymbolByIndex(Index));

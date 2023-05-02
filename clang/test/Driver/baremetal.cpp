@@ -135,7 +135,7 @@
 // CHECK-RV64-SAME: "-Lsome{{[/\\]+}}directory{{[/\\]+}}user{{[/\\]+}}asked{{[/\\]+}}for"
 // CHECK-RV64-SAME: "-L[[SYSROOT:[^"]+]]{{[/\\]+}}lib"
 // CHECK-RV64-SAME: "-L[[RESOURCE_DIR:[^"]+]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
-// CHECK-RV64-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-o" "{{.*}}.tmp.out"
+// CHECK-RV64-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-X" "-o" "{{.*}}.tmp.out"
 
 // RUN: %clangxx %s -### --target=riscv64-unknown-elf 2>&1 \
 // RUN:     --sysroot=%S/Inputs/basic_riscv64_tree/riscv64-unknown-elf \
@@ -145,7 +145,7 @@
 // CHECK-RV64-DEFAULTCXX-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}basic_riscv64_tree{{[/\\]+}}riscv64-unknown-elf{{[/\\]+}}lib"
 // CHECK-RV64-DEFAULTCXX-SAME: "-L[[RESOURCE_DIR]]{{.*}}{{[/\\]+}}lib{{[/\\]+}}baremetal"
 // CHECK-RV64-DEFAULTCXX-SAME: "-lc++" "-lc++abi" "-lunwind"
-// CHECK-RV64-DEFAULTCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-o" "a.out"
+// CHECK-RV64-DEFAULTCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-X" "-o" "a.out"
 
 // RUN: %clangxx %s -### --target=riscv64-unknown-elf 2>&1 \
 // RUN:     --sysroot=%S/Inputs/basic_riscv64_tree/riscv64-unknown-elf \
@@ -158,7 +158,7 @@
 // CHECK-RV64-LIBCXX-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}basic_riscv64_tree{{[/\\]+}}riscv64-unknown-elf{{[/\\]+}}lib"
 // CHECK-RV64-LIBCXX-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
 // CHECK-RV64-LIBCXX-SAME: "-lc++" "-lc++abi" "-lunwind"
-// CHECK-RV64-LIBCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-o" "a.out"
+// CHECK-RV64-LIBCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-X" "-o" "a.out"
 
 // RUN: %clangxx %s -### 2>&1 --target=riscv64-unknown-elf \
 // RUN:     --sysroot=%S/Inputs/basic_riscv64_tree/riscv64-unknown-elf \
@@ -171,7 +171,7 @@
 // CHECK-RV64-LIBSTDCXX-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}basic_riscv64_tree{{[/\\]+}}riscv64-unknown-elf{{[/\\]+}}lib"
 // CHECK-RV64-LIBSTDCXX-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
 // CHECK-RV64-LIBSTDCXX-SAME: "-lstdc++" "-lsupc++" "-lunwind"
-// CHECK-RV64-LIBSTDCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-o" "a.out"
+// CHECK-RV64-LIBSTDCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv64" "-X" "-o" "a.out"
 
 // RUN: %clang %s -### 2>&1 --target=riscv32-unknown-elf \
 // RUN:     -L some/directory/user/asked/for \
@@ -187,7 +187,7 @@
 // CHECK-RV32-SAME: "-Lsome{{[/\\]+}}directory{{[/\\]+}}user{{[/\\]+}}asked{{[/\\]+}}for"
 // CHECK-RV32-SAME: "-L[[SYSROOT:[^"]+]]{{[/\\]+}}lib"
 // CHECK-RV32-SAME: "-L[[RESOURCE_DIR:[^"]+]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
-// CHECK-RV32-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-o" "a.out"
+// CHECK-RV32-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-X" "-o" "a.out"
 
 // RUN: %clangxx %s -### 2>&1 --target=riscv32-unknown-elf \
 // RUN:     --sysroot=%S/Inputs/basic_riscv32_tree/riscv32-unknown-elf \
@@ -197,7 +197,7 @@
 // CHECK-RV32-DEFAULTCXX-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}basic_riscv32_tree{{[/\\]+}}riscv32-unknown-elf{{[/\\]+}}lib"
 // CHECK-RV32-DEFAULTCXX-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
 // CHECK-RV32-DEFAULTCXX-SAME: "-lc++" "-lc++abi" "-lunwind"
-// CHECK-RV32-DEFAULTCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-o" "a.out"
+// CHECK-RV32-DEFAULTCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-X" "-o" "a.out"
 
 // RUN: %clangxx %s -### 2>&1 --target=riscv32-unknown-elf \
 // RUN:     --sysroot=%S/Inputs/basic_riscv32_tree/riscv32-unknown-elf \
@@ -210,7 +210,7 @@
 // CHECK-RV32-LIBCXX-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}basic_riscv32_tree{{[/\\]+}}riscv32-unknown-elf{{[/\\]+}}lib"
 // CHECK-RV32-LIBCXX-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
 // CHECK-RV32-LIBCXX-SAME: "-lc++" "-lc++abi" "-lunwind"
-// CHECK-RV32-LIBCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-o" "a.out"
+// CHECK-RV32-LIBCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-X" "-o" "a.out"
 
 // RUN: %clangxx %s -### 2>&1 --target=riscv32-unknown-elf \
 // RUN:     --sysroot=%S/Inputs/basic_riscv32_tree/riscv32-unknown-elf \
@@ -223,7 +223,7 @@
 // CHECK-RV32-LIBSTDCXX-SAME: "-L{{[^"]*}}{{[/\\]+}}Inputs{{[/\\]+}}basic_riscv32_tree{{[/\\]+}}riscv32-unknown-elf{{[/\\]+}}lib"
 // CHECK-RV32-LIBSTDCXX-SAME: "-L[[RESOURCE_DIR]]{{[/\\]+}}lib{{[/\\]+}}baremetal"
 // CHECK-RV32-LIBSTDCXX-SAME: "-lstdc++" "-lsupc++" "-lunwind"
-// CHECK-RV32-LIBSTDCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-o" "a.out"
+// CHECK-RV32-LIBSTDCXX-SAME: "-lc" "-lm" "-lclang_rt.builtins-riscv32" "-X" "-o" "a.out"
 
 // RUN: %clang %s -### 2>&1 --target=riscv64-unknown-elf \
 // RUN:     -nostdlibinc -nobuiltininc \
@@ -340,3 +340,27 @@
 // CHECK-RV32IMAFC-NEXT: ld{{(.exe)?}}" "{{.*}}.o" "-Bstatic"
 // CHECK-RV32IMAFC-SAME: "-L[[SYSROOT:[^"]+]]{{[/\\]+}}rv32imafc{{[/\\]+}}ilp32f{{[/\\]+}}lib"
 // CHECK-RV32IMAFC-SAME: "-L[[RESOURCE_DIR:[^"]+]]{{[/\\]+}}lib{{[/\\]+}}baremetal{{[/\\]+}}rv32imafc{{[/\\]+}}ilp32f"
+
+// Check that compiler-rt library without the arch filename suffix will
+// be used if present.
+// RUN: rm -rf %T/baremetal_clang_rt_noarch
+// RUN: mkdir -p %T/baremetal_clang_rt_noarch/lib
+// RUN: touch %T/baremetal_clang_rt_noarch/lib/libclang_rt.builtins.a
+// RUN: %clang %s -### 2>&1 \
+// RUN:     --target=armv6m-none-eabi \
+// RUN:     --sysroot=%T/baremetal_clang_rt_noarch \
+// RUN:   | FileCheck --check-prefix=CHECK-CLANGRT-NOARCH %s
+// CHECK-CLANGRT-NOARCH: "-lclang_rt.builtins"
+// CHECK-CLANGRT-NOARCH-NOT: "-lclang_rt.builtins-armv6m"
+
+// Check that compiler-rt library with the arch filename suffix will be
+// used if present.
+// RUN: rm -rf %T/baremetal_clang_rt_arch
+// RUN: mkdir -p %T/baremetal_clang_rt_arch/lib
+// RUN: touch %T/baremetal_clang_rt_arch/lib/libclang_rt.builtins-armv6m.a
+// RUN: %clang %s -### 2>&1 \
+// RUN:     --target=armv6m-none-eabi \
+// RUN:     --sysroot=%T/baremetal_clang_rt_arch \
+// RUN:   | FileCheck --check-prefix=CHECK-CLANGRT-ARCH %s
+// CHECK-CLANGRT-ARCH: "-lclang_rt.builtins-armv6m"
+// CHECK-CLANGRT-ARCH-NOT: "-lclang_rt.builtins"

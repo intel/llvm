@@ -19,12 +19,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
-#include "llvm/Analysis/CFLAndersAliasAnalysis.h"
-#include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/CodeGen/ExpandReductions.h"
+#include "llvm/CodeGen/FPBuiltinFnSelection.h"
 #include "llvm/CodeGen/MachinePassManager.h"
 #include "llvm/CodeGen/PreISelIntrinsicLowering.h"
 #include "llvm/CodeGen/ReplaceWithVeclib.h"
@@ -191,7 +190,7 @@ protected:
     // This special-casing introduces less adaptor passes. If we have the need
     // of adding module passes after function passes, we could change the
     // implementation to accommodate that.
-    Optional<bool> AddingFunctionPasses;
+    std::optional<bool> AddingFunctionPasses;
   };
 
   // Function object to maintain state while adding codegen machine passes.
@@ -483,26 +482,11 @@ Error CodeGenPassBuilder<Derived>::buildPipeline(
   return Error::success();
 }
 
-static inline AAManager registerAAAnalyses(CFLAAType UseCFLAA) {
+static inline AAManager registerAAAnalyses() {
   AAManager AA;
 
   // The order in which these are registered determines their priority when
   // being queried.
-
-  switch (UseCFLAA) {
-  case CFLAAType::Steensgaard:
-    AA.registerFunctionAnalysis<CFLSteensAA>();
-    break;
-  case CFLAAType::Andersen:
-    AA.registerFunctionAnalysis<CFLAndersAA>();
-    break;
-  case CFLAAType::Both:
-    AA.registerFunctionAnalysis<CFLAndersAA>();
-    AA.registerFunctionAnalysis<CFLSteensAA>();
-    break;
-  default:
-    break;
-  }
 
   // Basic AliasAnalysis support.
   // Add TypeBasedAliasAnalysis before BasicAliasAnalysis so that
@@ -527,7 +511,7 @@ void CodeGenPassBuilder<Derived>::registerModuleAnalyses(
 template <typename Derived>
 void CodeGenPassBuilder<Derived>::registerFunctionAnalyses(
     FunctionAnalysisManager &FAM) const {
-  FAM.registerPass([this] { return registerAAAnalyses(this->Opt.UseCFLAA); });
+  FAM.registerPass([this] { return registerAAAnalyses(); });
 
 #define FUNCTION_ANALYSIS(NAME, PASS_NAME, CONSTRUCTOR)                        \
   FAM.registerPass([&] { return PASS_NAME CONSTRUCTOR; });
@@ -599,6 +583,7 @@ void CodeGenPassBuilder<Derived>::addISelPasses(AddIRPass &addPass) const {
   addPass(PreISelIntrinsicLoweringPass());
 
   derived().addIRPasses(addPass);
+  addPass(FPBuiltinFnSelectionPass());
   derived().addCodeGenPrepare(addPass);
   addPassesToHandleExceptions(addPass);
   derived().addISelPrepare(addPass);
@@ -731,6 +716,7 @@ template <typename Derived>
 void CodeGenPassBuilder<Derived>::addISelPrepare(AddIRPass &addPass) const {
   derived().addPreISel(addPass);
 
+  addPass(CallBrPrepare());
   // Add both the safe stack and the stack protection passes: each of them will
   // only protect functions that have corresponding attributes.
   addPass(SafeStackPass());
@@ -926,6 +912,7 @@ Error CodeGenPassBuilder<Derived>::addMachinePasses(
 
   addPass(StackMapLivenessPass());
   addPass(LiveDebugValuesPass());
+  addPass(MachineSanitizerBinaryMetadata());
 
   if (TM.Options.EnableMachineOutliner && getOptLevel() != CodeGenOpt::None &&
       Opt.EnableMachineOutliner != RunOutliner::NeverOutline) {
@@ -1129,6 +1116,9 @@ void CodeGenPassBuilder<Derived>::addMachineLateOptimization(
   // In addition it can also make CFG irreducible. Thus we disable it.
   if (!TM.requiresStructuredCFG())
     addPass(TailDuplicatePass());
+
+  // Cleanup of redundant (identical) address/immediate loads.
+  addPass(MachineLateInstrsCleanupPass());
 
   // Copy propagation.
   addPass(MachineCopyPropagationPass());

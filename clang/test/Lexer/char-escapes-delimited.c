@@ -58,6 +58,8 @@ void octal(void) {
 #if __WCHAR_MAX__ > 0xFFFF
   unsigned d = L'\o{37777777777}'; // ext-warning {{extension}} cxx2b-warning {{C++2b}}
   unsigned e = L'\o{40000000000}'; // expected-error {{octal escape sequence out of range}}
+  unsigned f = L'\o{100000000000}'; // expected-error {{octal escape sequence out of range}}
+  unsigned g = L'\o{200000000000}'; // expected-error {{octal escape sequence out of range}}
 #else
   unsigned d = L'\o{177777}'; // ext-warning {{extension}} cxx2b-warning {{C++2b}}
   unsigned e = L'\o{200000}'; // expected-error {{octal escape sequence out of range}}
@@ -96,6 +98,11 @@ void named(void) {
   unsigned i = u'\N{GREEK CAPITAL LETTER DELTA}'; // ext-warning {{extension}} cxx2b-warning {{C++2b}}
   char j = '\NN';                                 // expected-error {{expected '{' after '\N' escape sequence}} expected-warning {{multi-character character constant}}
   unsigned k = u'\N{LOTUS';                       // expected-error {{incomplete universal character name}}
+
+  const char* emoji = "\N{🤡}"; // expected-error {{'🤡' is not a valid Unicode character name}} \
+                                // expected-note 5{{did you mean}}
+  const char* nested = "\N{\N{SPARKLE}}"; // expected-error {{'\N{SPARKLE' is not a valid Unicode character name}} \
+                                          // expected-note 5{{did you mean}}
 }
 
 void separators(void) {

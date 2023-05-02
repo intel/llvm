@@ -15,8 +15,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -515,14 +513,14 @@ std::array<Value *, 2> Negator::getSortedOperandsOfBinOp(Instruction *I) {
   return NegatedV;
 }
 
-[[nodiscard]] Optional<Negator::Result> Negator::run(Value *Root) {
+[[nodiscard]] std::optional<Negator::Result> Negator::run(Value *Root) {
   Value *Negated = negate(Root, /*Depth=*/0);
   if (!Negated) {
     // We must cleanup newly-inserted instructions, to avoid any potential
     // endless combine looping.
     for (Instruction *I : llvm::reverse(NewInstructions))
       I->eraseFromParent();
-    return llvm::None;
+    return std::nullopt;
   }
   return std::make_pair(ArrayRef<Instruction *>(NewInstructions), Negated);
 }
@@ -538,7 +536,7 @@ std::array<Value *, 2> Negator::getSortedOperandsOfBinOp(Instruction *I) {
 
   Negator N(Root->getContext(), IC.getDataLayout(), IC.getAssumptionCache(),
             IC.getDominatorTree(), LHSIsZero);
-  Optional<Result> Res = N.run(Root);
+  std::optional<Result> Res = N.run(Root);
   if (!Res) { // Negation failed.
     LLVM_DEBUG(dbgs() << "Negator: failed to sink negation into " << *Root
                       << "\n");

@@ -19,6 +19,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 namespace mlir {
 
@@ -41,7 +42,7 @@ constexpr StringRef getReassociationAttrName() { return "reassociation"; }
 /// is folded into
 ///
 ///   result = [[0, 1, 2], [3, 4]].
-Optional<SmallVector<ReassociationIndices>> composeReassociationIndices(
+std::optional<SmallVector<ReassociationIndices>> composeReassociationIndices(
     ArrayRef<ReassociationIndices> producerReassociations,
     ArrayRef<ReassociationIndices> consumerReassociations,
     MLIRContext *context);
@@ -64,14 +65,14 @@ SmallVector<ReassociationIndices, 2> convertReassociationMapsToIndices(
     OpBuilder &b, ArrayRef<ReassociationExprs> reassociationExprs);
 
 /// Return the reassociations maps to use to reshape given the source type and
-/// the target type when possible. Return llvm::None when this computation
+/// the target type when possible. Return std::nullopt when this computation
 /// failed.
-Optional<SmallVector<ReassociationIndices>>
+std::optional<SmallVector<ReassociationIndices>>
 getReassociationIndicesForReshape(ShapedType sourceType, ShapedType targetType);
 
 /// Returns the reassociation maps to collapse `sourceShape` to `targetShape` if
 /// possible.
-Optional<SmallVector<ReassociationIndices>>
+std::optional<SmallVector<ReassociationIndices>>
 getReassociationIndicesForCollapse(ArrayRef<int64_t> sourceShape,
                                    ArrayRef<int64_t> targetShape);
 
@@ -185,7 +186,7 @@ struct ComposeReassociativeReshapeOps : public OpRewritePattern<ReshapeOpTy> {
         hasNonIdentityLayout(reshapeOp.getResult().getType()))
       return failure();
 
-    Optional<SmallVector<ReassociationIndices>> reassociationIndices =
+    std::optional<SmallVector<ReassociationIndices>> reassociationIndices =
         composeReassociationIndices(srcReshapeOp.getReassociationIndices(),
                                     reshapeOp.getReassociationIndices(),
                                     rewriter.getContext());
@@ -225,7 +226,7 @@ struct ComposeReassociativeReshapeOps : public OpRewritePattern<ReshapeOpTy> {
 //
 /// When `rank(srcType) < rank(resultType)`, then we just swap `reassociation_1`
 /// `reassociation_2` and produce `expand_shape`.
-template <typename CollapseOpTy, typename ExpandOpTy>
+template <typename CollapseOpTy, typename ExpandOpTy, typename CastOpTy>
 struct ComposeCollapseOfExpandOp : public OpRewritePattern<CollapseOpTy> {
   using OpRewritePattern<CollapseOpTy>::OpRewritePattern;
   LogicalResult matchAndRewrite(CollapseOpTy collapseOp,
@@ -250,8 +251,7 @@ struct ComposeCollapseOfExpandOp : public OpRewritePattern<CollapseOpTy> {
     SmallVector<ReassociationIndices, 4> higherRankReassociation,
         lowerRankReassociation;
 
-    bool isResultCollapsed = srcRank > resultRank;
-    if (isResultCollapsed) {
+    if (srcRank > resultRank) {
       higherRankReassociation = expandOp.getReassociationIndices();
       lowerRankReassociation = collapseOp.getReassociationIndices();
     } else {
@@ -274,12 +274,20 @@ struct ComposeCollapseOfExpandOp : public OpRewritePattern<CollapseOpTy> {
       }
       composedReassociation.push_back(composedIndices);
     }
-    if (isResultCollapsed)
+    if (srcRank > resultRank) {
       rewriter.replaceOpWithNewOp<CollapseOpTy>(
           collapseOp, resultType, expandOp.getSrc(), composedReassociation);
-    else
+    } else if (srcRank < resultRank) {
       rewriter.replaceOpWithNewOp<ExpandOpTy>(
           collapseOp, resultType, expandOp.getSrc(), composedReassociation);
+    } else {
+      // Collapses/expansions that do not change the rank are not allowed. Use
+      // a cast instead.
+      assert(llvm::equal(srcType.getShape(), resultType.getShape()) &&
+             "expected same shape");
+      rewriter.replaceOpWithNewOp<CastOpTy>(collapseOp, resultType,
+                                            expandOp.getSrc());
+    }
     return success();
   }
 };
@@ -333,7 +341,7 @@ struct ComposeExpandOfCollapseOp : public OpRewritePattern<ExpandOpTy> {
 private:
   // Attempts to find a way to collapse `srcShape` to `resultShape` by
   // collapsing subshapes defined by the reassociation indices.
-  Optional<SmallVector<ReassociationIndices>> findCollapsingReassociation(
+  std::optional<SmallVector<ReassociationIndices>> findCollapsingReassociation(
       ArrayRef<ReassociationIndices> srcReassociation,
       ArrayRef<ReassociationIndices> resultReassociation,
       ArrayRef<int64_t> srcShape, ArrayRef<int64_t> resultShape) const {
@@ -353,14 +361,14 @@ private:
         if (srcSubShape == resultSubShape)
           composedReassociation.push_back(srcIndices);
         else
-          return llvm::None;
+          return std::nullopt;
       }
 
       // Find reassociation to collapse `srcSubShape` into `resultSubShape`.
       auto subShapeReassociation =
           getReassociationIndicesForCollapse(srcSubShape, resultSubShape);
       if (!subShapeReassociation)
-        return llvm::None;
+        return std::nullopt;
 
       // Remap the subshape indices back to the original srcShape.
       for (auto &subshape_indices : *subShapeReassociation) {
@@ -468,7 +476,7 @@ struct CollapseShapeRankReducingSliceSimplificationInfo {
   RankedTensorType sliceResultType;
   /// The reassociation indices for the new collapse shape op, if required. If
   /// `None`, the slice should replace the collapse shape op.
-  Optional<SmallVector<ReassociationIndices>> newReassociationIndices;
+  std::optional<SmallVector<ReassociationIndices>> newReassociationIndices;
 };
 
 /// A collapsing reshape operation can sometimes be simplified or eliminated by
@@ -512,6 +520,19 @@ getSimplifyCollapseShapeWithRankReducingSliceInfo(
     RankedTensorType sourceType,
     ArrayRef<ReassociationIndices> reassociationIndices);
 
+struct PackingMetadata {
+  SmallVector<int64_t> insertPositions;
+  SmallVector<ReassociationIndices> reassociations;
+};
+
+/// Given a vector of `positions` indices representing desired packing insertion
+/// points into a target vector (i.e. pack/unpack.inner_dim_pos), compute the
+/// final positions in the target shape as well as the reshape reassociations.
+// Note: This should not be called with a large positions array (or the
+// implementation needs to be updated to use an N.log N sort instead of
+// repeated N^2 counts).
+PackingMetadata computePackingMetadata(int64_t packedRank,
+                                       ArrayRef<int64_t> innerDimPos);
 } // namespace mlir
 
 #endif // MLIR_DIALECT_UTILS_RESHAPEOPSUTILS_H

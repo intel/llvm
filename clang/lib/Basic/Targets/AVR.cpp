@@ -12,6 +12,7 @@
 
 #include "AVR.h"
 #include "clang/Basic/MacroBuilder.h"
+#include "llvm/ADT/StringSwitch.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -348,6 +349,58 @@ static MCUInfo AVRMcus[] = {
 } // namespace targets
 } // namespace clang
 
+static bool ArchHasELPM(StringRef Arch) {
+  return llvm::StringSwitch<bool>(Arch)
+    .Cases("31", "51", "6", true)
+    .Cases("102", "104", "105", "106", "107", true)
+    .Default(false);
+}
+
+static bool ArchHasELPMX(StringRef Arch) {
+  return llvm::StringSwitch<bool>(Arch)
+    .Cases("51", "6", true)
+    .Cases("102", "104", "105", "106", "107", true)
+    .Default(false);
+}
+
+static bool ArchHasMOVW(StringRef Arch) {
+  return llvm::StringSwitch<bool>(Arch)
+    .Cases("25", "35", "4", "5", "51", "6", true)
+    .Cases("102", "103", "104", "105", "106", "107", true)
+    .Default(false);
+}
+
+static bool ArchHasLPMX(StringRef Arch) {
+  return ArchHasMOVW(Arch); // same architectures
+}
+
+static bool ArchHasMUL(StringRef Arch) {
+  return llvm::StringSwitch<bool>(Arch)
+    .Cases("4", "5", "51", "6", true)
+    .Cases("102", "103", "104", "105", "106", "107", true)
+    .Default(false);
+}
+
+static bool ArchHasJMPCALL(StringRef Arch) {
+  return llvm::StringSwitch<bool>(Arch)
+    .Cases("3", "31", "35", "5", "51", "6", true)
+    .Cases("102", "103", "104", "105", "106", "107", true)
+    .Default(false);
+}
+
+static bool ArchHas3BytePC(StringRef Arch) {
+  // These devices have more than 128kB of program memory.
+  // Note:
+  //   - Not fully correct for arch 106: only about half the chips have more
+  //     than 128kB program memory and therefore a 3 byte PC.
+  //   - Doesn't match GCC entirely: avr-gcc thinks arch 107 goes beyond 128kB
+  //     but in fact it doesn't.
+  return llvm::StringSwitch<bool>(Arch)
+    .Case("6", true)
+    .Case("106", true)
+    .Default(false);
+}
+
 bool AVRTargetInfo::isValidCPUName(StringRef Name) const {
   return llvm::any_of(
       AVRMcus, [&](const MCUInfo &Info) { return Info.Name == Name; });
@@ -375,6 +428,23 @@ bool AVRTargetInfo::setCPU(const std::string &Name) {
   return false;
 }
 
+std::optional<std::string>
+AVRTargetInfo::handleAsmEscapedChar(char EscChar) const {
+  switch (EscChar) {
+  // "%~" represents for 'r' depends on the device has long jump/call.
+  case '~':
+    return ArchHasJMPCALL(Arch) ? std::string("") : std::string(1, 'r');
+
+  // "%!" represents for 'e' depends on the PC register size.
+  case '!':
+    return ArchHas3BytePC(Arch) ? std::string(1, 'e') : std::string("");
+
+  // This is an invalid escape character for AVR.
+  default:
+    return std::nullopt;
+  }
+}
+
 void AVRTargetInfo::getTargetDefines(const LangOptions &Opts,
                                      MacroBuilder &Builder) const {
   Builder.defineMacro("AVR");
@@ -390,16 +460,40 @@ void AVRTargetInfo::getTargetDefines(const LangOptions &Opts,
 
   Builder.defineMacro("__AVR_ARCH__", Arch);
 
+  // TODO: perhaps we should use the information from AVRDevices.td instead?
+  if (ArchHasELPM(Arch))
+    Builder.defineMacro("__AVR_HAVE_ELPM__");
+  if (ArchHasELPMX(Arch))
+    Builder.defineMacro("__AVR_HAVE_ELPMX__");
+  if (ArchHasMOVW(Arch))
+    Builder.defineMacro("__AVR_HAVE_MOVW__");
+  if (ArchHasLPMX(Arch))
+    Builder.defineMacro("__AVR_HAVE_LPMX__");
+  if (ArchHasMUL(Arch))
+    Builder.defineMacro("__AVR_HAVE_MUL__");
+  if (ArchHasJMPCALL(Arch))
+    Builder.defineMacro("__AVR_HAVE_JMP_CALL__");
+  if (ArchHas3BytePC(Arch)) {
+    // Note: some devices do support eijmp/eicall even though this macro isn't
+    // set. This is the case if they have less than 128kB flash and so
+    // eijmp/eicall isn't very useful anyway. (This matches gcc, although it's
+    // debatable whether we should be bug-compatible in this case).
+    Builder.defineMacro("__AVR_HAVE_EIJMP_EICALL__");
+    Builder.defineMacro("__AVR_3_BYTE_PC__");
+  } else {
+    Builder.defineMacro("__AVR_2_BYTE_PC__");
+  }
+
   if (NumFlashBanks >= 1)
-    Builder.defineMacro("__flash", "__attribute__((address_space(1)))");
+    Builder.defineMacro("__flash", "__attribute__((__address_space__(1)))");
   if (NumFlashBanks >= 2)
-    Builder.defineMacro("__flash1", "__attribute__((address_space(2)))");
+    Builder.defineMacro("__flash1", "__attribute__((__address_space__(2)))");
   if (NumFlashBanks >= 3)
-    Builder.defineMacro("__flash2", "__attribute__((address_space(3)))");
+    Builder.defineMacro("__flash2", "__attribute__((__address_space__(3)))");
   if (NumFlashBanks >= 4)
-    Builder.defineMacro("__flash3", "__attribute__((address_space(4)))");
+    Builder.defineMacro("__flash3", "__attribute__((__address_space__(4)))");
   if (NumFlashBanks >= 5)
-    Builder.defineMacro("__flash4", "__attribute__((address_space(5)))");
+    Builder.defineMacro("__flash4", "__attribute__((__address_space__(5)))");
   if (NumFlashBanks >= 6)
-    Builder.defineMacro("__flash5", "__attribute__((address_space(6)))");
+    Builder.defineMacro("__flash5", "__attribute__((__address_space__(6)))");
 }

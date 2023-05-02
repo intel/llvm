@@ -864,7 +864,7 @@ private:
     // TODO: We could insert relevant casts on type mismatch here.
     if (auto *LI = dyn_cast<LoadInst>(Inst))
       return LI->getType() == ExpectedType ? LI : nullptr;
-    else if (auto *SI = dyn_cast<StoreInst>(Inst)) {
+    if (auto *SI = dyn_cast<StoreInst>(Inst)) {
       Value *V = SI->getValueOperand();
       return V->getType() == ExpectedType ? V : nullptr;
     }
@@ -877,11 +877,14 @@ private:
 
   Value *getOrCreateResultNonTargetMemIntrinsic(IntrinsicInst *II,
                                                 Type *ExpectedType) const {
+    // TODO: We could insert relevant casts on type mismatch here.
     switch (II->getIntrinsicID()) {
     case Intrinsic::masked_load:
-      return II;
-    case Intrinsic::masked_store:
-      return II->getOperand(0);
+      return II->getType() == ExpectedType ? II : nullptr;
+    case Intrinsic::masked_store: {
+      Value *V = II->getOperand(0);
+      return V->getType() == ExpectedType ? V : nullptr;
+    }
     }
     return nullptr;
   }
@@ -1258,7 +1261,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
 
   // See if any instructions in the block can be eliminated.  If so, do it.  If
   // not, add them to AvailableValues.
-  for (Instruction &Inst : make_early_inc_range(BB->getInstList())) {
+  for (Instruction &Inst : make_early_inc_range(*BB)) {
     // Dead instructions should just be removed.
     if (isInstructionTriviallyDead(&Inst, &TLI)) {
       LLVM_DEBUG(dbgs() << "EarlyCSE DCE: " << Inst << '\n');
@@ -1473,6 +1476,8 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
+        if (auto *I = dyn_cast<Instruction>(Op))
+          combineMetadataForCSE(I, &Inst, false);
         if (!Inst.use_empty())
           Inst.replaceAllUsesWith(Op);
         salvageKnowledge(&Inst, &AC);
@@ -1707,10 +1712,10 @@ void EarlyCSEPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
   static_cast<PassInfoMixin<EarlyCSEPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
-  OS << "<";
+  OS << '<';
   if (UseMemorySSA)
     OS << "memssa";
-  OS << ">";
+  OS << '>';
 }
 
 namespace {

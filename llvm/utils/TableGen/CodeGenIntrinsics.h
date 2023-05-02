@@ -1,4 +1,4 @@
-//===- CodeGenIntrinsic.h - Intrinsic Class Wrapper ------------*- C++ -*--===//
+//===- CodeGenIntrinsics.h - Intrinsic Class Wrapper -----------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,11 +18,19 @@
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/ModRef.h"
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace llvm {
 class Record;
 class RecordKeeper;
+
+// FIXME: Sweep this in the near future.
+namespace tmp {
+/// getValueType - Return the MVT::SimpleValueType that the specified TableGen
+/// record corresponds to.
+MVT::SimpleValueType getValueType(Record *Rec);
+} // namespace tmp
 
 struct CodeGenIntrinsic {
   Record *TheDef;             // The actual record defining this intrinsic.

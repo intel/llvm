@@ -16,8 +16,6 @@
 #define LLVM_IR_INSTRTYPES_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringMap.h"
@@ -36,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -629,13 +628,6 @@ public:
   /// Determine if this is an integer-only cast.
   bool isIntegerCast() const;
 
-  /// A lossless cast is one that does not alter the basic value. It implies
-  /// a no-op cast but is more stringent, preventing things like int->float,
-  /// long->double, or int->ptr.
-  /// @returns true iff the cast is lossless.
-  /// Determine if this is a lossless cast.
-  bool isLosslessCast() const;
-
   /// A no-op cast is one that can be effected without changing any bits.
   /// It implies that the source and destination types are the same size. The
   /// DataLayout argument is to determine the pointer size when examining casts
@@ -832,6 +824,17 @@ public:
   /// Return the inverse of the instruction's predicate.
   Predicate getInversePredicate() const {
     return getInversePredicate(getPredicate());
+  }
+
+  /// Returns the ordered variant of a floating point compare.
+  ///
+  /// For example, UEQ -> OEQ, ULT -> OLT, OEQ -> OEQ
+  static Predicate getOrderedPredicate(Predicate Pred) {
+    return static_cast<Predicate>(Pred & FCMP_ORD);
+  }
+
+  Predicate getOrderedPredicate() const {
+    return getOrderedPredicate(getPredicate());
   }
 
   /// For example, EQ -> NE, UGT -> ULE, SLT -> SGE,
@@ -1063,6 +1066,8 @@ struct OperandTraits<CmpInst> : public FixedNumOperandTraits<CmpInst, 2> {
 };
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CmpInst, Value)
+
+raw_ostream &operator<<(raw_ostream &OS, CmpInst::Predicate Pred);
 
 /// A lightweight accessor for an operand bundle meant to be passed
 /// around by value.
@@ -1735,7 +1740,7 @@ public:
       return Align;
     if (const Function *F = getCalledFunction())
       return F->getAttributes().getRetAlignment();
-    return None;
+    return std::nullopt;
   }
 
   /// Extract the alignment for a call or parameter (0=unknown).
@@ -1793,7 +1798,10 @@ public:
   /// Extract the number of dereferenceable bytes for a call or
   /// parameter (0=unknown).
   uint64_t getRetDereferenceableBytes() const {
-    return Attrs.getRetDereferenceableBytes();
+    uint64_t Bytes = Attrs.getRetDereferenceableBytes();
+    if (const Function *F = getCalledFunction())
+      Bytes = std::max(Bytes, F->getAttributes().getRetDereferenceableBytes());
+    return Bytes;
   }
 
   /// Extract the number of dereferenceable bytes for a call or
@@ -1805,7 +1813,13 @@ public:
   /// Extract the number of dereferenceable_or_null bytes for a call
   /// (0=unknown).
   uint64_t getRetDereferenceableOrNullBytes() const {
-    return Attrs.getRetDereferenceableOrNullBytes();
+    uint64_t Bytes = Attrs.getRetDereferenceableOrNullBytes();
+    if (const Function *F = getCalledFunction()) {
+      Bytes = std::max(Bytes,
+                       F->getAttributes().getRetDereferenceableOrNullBytes());
+    }
+
+    return Bytes;
   }
 
   /// Extract the number of dereferenceable_or_null bytes for a
@@ -1813,6 +1827,14 @@ public:
   uint64_t getParamDereferenceableOrNullBytes(unsigned i) const {
     return Attrs.getParamDereferenceableOrNullBytes(i);
   }
+
+  /// Extract a test mask for disallowed floating-point value classes for the
+  /// return value.
+  FPClassTest getRetNoFPClass() const;
+
+  /// Extract a test mask for disallowed floating-point value classes for the
+  /// parameter.
+  FPClassTest getParamNoFPClass(unsigned i) const;
 
   /// Return true if the return value is known to be not null.
   /// This may be because it has the nonnull attribute, or because at least
@@ -2014,7 +2036,7 @@ public:
   ///
   /// It is an error to call this for operand bundle types that may have
   /// multiple instances of them on the same instruction.
-  Optional<OperandBundleUse> getOperandBundle(StringRef Name) const {
+  std::optional<OperandBundleUse> getOperandBundle(StringRef Name) const {
     assert(countOperandBundlesOfType(Name) < 2 && "Precondition violated!");
 
     for (unsigned i = 0, e = getNumOperandBundles(); i != e; ++i) {
@@ -2023,14 +2045,14 @@ public:
         return U;
     }
 
-    return None;
+    return std::nullopt;
   }
 
   /// Return an operand bundle by tag ID, if present.
   ///
   /// It is an error to call this for operand bundle types that may have
   /// multiple instances of them on the same instruction.
-  Optional<OperandBundleUse> getOperandBundle(uint32_t ID) const {
+  std::optional<OperandBundleUse> getOperandBundle(uint32_t ID) const {
     assert(countOperandBundlesOfType(ID) < 2 && "Precondition violated!");
 
     for (unsigned i = 0, e = getNumOperandBundles(); i != e; ++i) {
@@ -2039,7 +2061,7 @@ public:
         return U;
     }
 
-    return None;
+    return std::nullopt;
   }
 
   /// Return the list of operand bundles attached to this instruction as
@@ -2121,7 +2143,7 @@ public:
   /// OperandBundleUse.
   OperandBundleUse
   operandBundleFromBundleOpInfo(const BundleOpInfo &BOI) const {
-    auto begin = op_begin();
+    const auto *begin = op_begin();
     ArrayRef<Use> Inputs(begin + BOI.Begin, begin + BOI.End);
     return OperandBundleUse(BOI.Tag, Inputs);
   }

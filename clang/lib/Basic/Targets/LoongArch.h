@@ -15,8 +15,8 @@
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
@@ -26,7 +26,6 @@ protected:
   std::string ABI;
   bool HasFeatureD;
   bool HasFeatureF;
-  static const Builtin::Info BuiltinInfo[];
 
 public:
   LoongArchTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
@@ -55,6 +54,14 @@ public:
   const char *getClobbers() const override { return ""; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
+
+  int getEHDataRegisterNumber(unsigned RegNo) const override {
+    if (RegNo == 0)
+      return 4;
+    if (RegNo == 1)
+      return 5;
+    return -1;
+  }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
 

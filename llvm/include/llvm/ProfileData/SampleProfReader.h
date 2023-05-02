@@ -170,7 +170,7 @@
 //            Number of samples to get to the desrired percentile.
 //
 // NAME TABLE
-//    SIZE (uint32_t)
+//    SIZE (uint64_t)
 //        Number of entries in the name table.
 //    NAMES
 //        A NUL-separated list of SIZE strings.
@@ -182,7 +182,7 @@
 //        NOTE: This field should only be present for top-level functions
 //              (i.e., not inlined into any caller). Inlined function calls
 //              have no prologue, so they don't need this.
-//    NAME_IDX (uint32_t)
+//    NAME_IDX (uint64_t)
 //        Index into the name table indicating the function name.
 //    SAMPLES (uint64_t)
 //        Total number of samples collected in this function.
@@ -204,7 +204,7 @@
 //            represent all the actual functions called at runtime.
 //          CALL_TARGETS
 //            A list of NUM_CALLS entries for each called function:
-//               NAME_IDX (uint32_t)
+//               NAME_IDX (uint64_t)
 //                  Index into the name table with the callee name.
 //               SAMPLES (uint64_t)
 //                  Number of samples collected at the call site.
@@ -225,7 +225,6 @@
 #ifndef LLVM_PROFILEDATA_SAMPLEPROFREADER_H
 #define LLVM_PROFILEDATA_SAMPLEPROFREADER_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -233,14 +232,15 @@
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/GCOV.h"
 #include "llvm/ProfileData/SampleProf.h"
+#include "llvm/ProfileData/SymbolRemappingReader.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Discriminator.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/SymbolRemappingReader.h"
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <unordered_set>
@@ -250,6 +250,10 @@ namespace llvm {
 
 class raw_ostream;
 class Twine;
+
+namespace vfs {
+class FileSystem;
+} // namespace vfs
 
 namespace sampleprof {
 
@@ -270,8 +274,8 @@ public:
   /// Create a remapper from the given remapping file. The remapper will
   /// be used for profile read in by Reader.
   static ErrorOr<std::unique_ptr<SampleProfileReaderItaniumRemapper>>
-  create(const std::string Filename, SampleProfileReader &Reader,
-         LLVMContext &C);
+  create(const std::string Filename, vfs::FileSystem &FS,
+         SampleProfileReader &Reader, LLVMContext &C);
 
   /// Create a remapper from the given Buffer. The remapper will
   /// be used for profile read in by Reader.
@@ -295,7 +299,7 @@ public:
 
   /// Return the equivalent name in the profile for \p FunctionName if
   /// it exists.
-  Optional<StringRef> lookUpNameInProfile(StringRef FunctionName);
+  std::optional<StringRef> lookUpNameInProfile(StringRef FunctionName);
 
 private:
   // The buffer holding the content read from remapping file.
@@ -450,7 +454,7 @@ public:
   /// Create a remapper underlying if RemapFilename is not empty.
   /// Parameter P specifies the FSDiscriminatorPass.
   static ErrorOr<std::unique_ptr<SampleProfileReader>>
-  create(const std::string Filename, LLVMContext &C,
+  create(const std::string Filename, LLVMContext &C, vfs::FileSystem &FS,
          FSDiscriminatorPass P = FSDiscriminatorPass::Base,
          const std::string RemapFilename = "");
 
@@ -458,7 +462,7 @@ public:
   /// Create a remapper underlying if RemapFilename is not empty.
   /// Parameter P specifies the FSDiscriminatorPass.
   static ErrorOr<std::unique_ptr<SampleProfileReader>>
-  create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C,
+  create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C, vfs::FileSystem &FS,
          FSDiscriminatorPass P = FSDiscriminatorPass::Base,
          const std::string RemapFilename = "");
 
@@ -619,7 +623,7 @@ protected:
   ErrorOr<StringRef> readString();
 
   /// Read the string index and check whether it overflows the table.
-  template <typename T> inline ErrorOr<uint32_t> readStringIndex(T &Table);
+  template <typename T> inline ErrorOr<size_t> readStringIndex(T &Table);
 
   /// Return true if we've reached the end of file.
   bool at_eof() const { return Data >= End; }
@@ -700,7 +704,7 @@ private:
 
 protected:
   std::vector<SecHdrTableEntry> SecHdrTable;
-  std::error_code readSecHdrTableEntry(uint32_t Idx);
+  std::error_code readSecHdrTableEntry(uint64_t Idx);
   std::error_code readSecHdrTable();
 
   std::error_code readFuncMetadata(bool ProfileHasAttribute);

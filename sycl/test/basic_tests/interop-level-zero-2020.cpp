@@ -1,10 +1,10 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s
 
 // Test for SYCL-2020 Level Zero interop API
 
 // clang-format off
-#include <level_zero/ze_api.h>
+#include <ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
@@ -131,9 +131,6 @@ int main() {
   auto C = ext::oneapi::level_zero::make<context>(
       std::vector<device>(1, D), ZeContext,
       ext::oneapi::level_zero::ownership::keep);
-  // expected-warning@+1 {{'make<sycl::queue, nullptr>' is deprecated: Use SYCL 2020 sycl::make_queue free function}}
-  auto Q = ext::oneapi::level_zero::make<queue>(
-      Context, ZeQueue, ext::oneapi::level_zero::ownership::keep);
   // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
   auto E = ext::oneapi::level_zero::make<event>(
       Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);

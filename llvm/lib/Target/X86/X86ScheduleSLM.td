@@ -91,9 +91,8 @@ def : WriteRes<WriteZero,    []>;
 defm : X86WriteResUnsupported<WriteVecMaskedGatherWriteback>;
 
 // Load/store MXCSR.
-// FIXME: These are probably wrong. They are copy pasted from WriteStore/Load.
-def : WriteRes<WriteSTMXCSR, [SLM_IEC_RSV01, SLM_MEC_RSV]>;
-def : WriteRes<WriteLDMXCSR,  [SLM_MEC_RSV]> { let Latency = 3; }
+defm : X86WriteRes<WriteSTMXCSR, [SLM_MEC_RSV], 12,[11], 4>;
+defm : X86WriteRes<WriteLDMXCSR, [SLM_MEC_RSV], 10, [8], 5>;
 
 // Treat misc copies as a move.
 def : InstRW<[WriteMove], (instrs COPY)>;
@@ -118,9 +117,9 @@ defm : X86WriteResPairUnsupported<WriteMULX64>;
 
 defm : X86WriteRes<WriteBSWAP32, [SLM_IEC_RSV01], 1, [1], 1>;
 defm : X86WriteRes<WriteBSWAP64, [SLM_IEC_RSV01], 1, [1], 1>;
-defm : X86WriteRes<WriteCMPXCHG, [SLM_IEC_RSV01], 1, [1], 1>;
-defm : X86WriteRes<WriteCMPXCHGRMW, [SLM_IEC_RSV01, SLM_MEC_RSV], 4, [1, 2], 2>;
-defm : X86WriteRes<WriteXCHG,      [SLM_IEC_RSV01], 1, [1], 1>;
+defm : X86WriteRes<WriteCMPXCHG, [SLM_IEC_RSV01], 6, [6], 5>;
+defm : X86WriteRes<WriteCMPXCHGRMW, [SLM_IEC_RSV01, SLM_MEC_RSV], 10, [6, 2], 8>;
+defm : X86WriteRes<WriteXCHG,    [SLM_IEC_RSV01], 3, [3], 3>;
 
 defm : SLMWriteResPair<WriteShift,    [SLM_IEC_RSV0],  1>;
 defm : SLMWriteResPair<WriteShiftCL,  [SLM_IEC_RSV0],  1>;
@@ -148,7 +147,7 @@ defm : X86WriteRes<WriteBitTestImmLd,    [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RS
 defm : X86WriteRes<WriteBitTestRegLd,    [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 4, [1,1,1], 7>;
 defm : X86WriteRes<WriteBitTestSet,      [SLM_IEC_RSV0, SLM_IEC_RSV1], 1, [1,1], 1>;
 defm : X86WriteRes<WriteBitTestSetImmLd, [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 3, [1,1,1], 1>;
-defm : X86WriteRes<WriteBitTestSetRegLd, [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 3, [1,1,1], 7>;
+defm : X86WriteRes<WriteBitTestSetRegLd, [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 3, [1,1,1], 8>;
 
 // This is for simple LEAs with one or two input operands.
 // The complex ones can only execute on port 1, and they require two cycles on
@@ -408,10 +407,12 @@ defm : X86WriteResPairUnsupported<WriteVPMOV256>;
 // Vector insert/extract operations.
 defm : SLMWriteResPair<WriteVecInsert, [SLM_FPC_RSV0],  1>;
 
-def  : WriteRes<WriteVecExtract, [SLM_FPC_RSV0]>;
+def  : WriteRes<WriteVecExtract, [SLM_FPC_RSV0]> {
+  let NumMicroOps = 2;
+}
 def  : WriteRes<WriteVecExtractSt, [SLM_FPC_RSV0, SLM_MEC_RSV]> {
   let Latency = 4;
-  let NumMicroOps = 2;
+  let NumMicroOps = 5;
   let ResourceCycles = [1, 2];
 }
 
@@ -447,9 +448,9 @@ def : WriteRes<WriteMMXMOVMSK,  [SLM_FPC_RSV1]> { let Latency = 4; }
 defm : X86WriteResUnsupported<WriteVecMOVMSKY>;
 
 // AES Instructions.
-defm : SLMWriteResPair<WriteAESDecEnc, [SLM_FPC_RSV0], 8, [5]>;
-defm : SLMWriteResPair<WriteAESIMC,    [SLM_FPC_RSV0], 8, [5]>;
-defm : SLMWriteResPair<WriteAESKeyGen, [SLM_FPC_RSV0], 8, [5]>;
+defm : SLMWriteResPair<WriteAESDecEnc, [SLM_FPC_RSV0], 8, [5], 4, 1>;
+defm : SLMWriteResPair<WriteAESIMC,    [SLM_FPC_RSV0], 8, [4], 3, 1>;
+defm : SLMWriteResPair<WriteAESKeyGen, [SLM_FPC_RSV0], 8, [4], 3, 1>;
 
 // Carry-less multiplication instructions.
 defm : SLMWriteResPair<WriteCLMul, [SLM_FPC_RSV0], 10, [10], 8, 1>;

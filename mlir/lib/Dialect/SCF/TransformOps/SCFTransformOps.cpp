@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SCF/TransformOps/SCFTransformOps.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Patterns.h"
@@ -15,38 +16,32 @@
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 using namespace mlir;
 
-namespace {
-/// A simple pattern rewriter that implements no special logic.
-class SimpleRewriter : public PatternRewriter {
-public:
-  SimpleRewriter(MLIRContext *context) : PatternRewriter(context) {}
-};
-} // namespace
-
 //===----------------------------------------------------------------------===//
 // GetParentForOp
 //===----------------------------------------------------------------------===//
-
 DiagnosedSilenceableFailure
 transform::GetParentForOp::apply(transform::TransformResults &results,
                                  transform::TransformState &state) {
   SetVector<Operation *> parents;
   for (Operation *target : state.getPayloadOps(getTarget())) {
-    scf::ForOp loop;
-    Operation *current = target;
+    Operation *loop, *current = target;
     for (unsigned i = 0, e = getNumLoops(); i < e; ++i) {
-      loop = current->getParentOfType<scf::ForOp>();
+      loop = getAffine()
+                 ? current->getParentOfType<AffineForOp>().getOperation()
+                 : current->getParentOfType<scf::ForOp>().getOperation();
       if (!loop) {
-        DiagnosedSilenceableFailure diag = emitSilenceableError()
-                                           << "could not find an '"
-                                           << scf::ForOp::getOperationName()
-                                           << "' parent";
+        DiagnosedSilenceableFailure diag =
+            emitSilenceableError()
+            << "could not find an '"
+            << (getAffine() ? AffineForOp::getOperationName()
+                            : scf::ForOp::getOperationName())
+            << "' parent";
         diag.attachNote(target->getLoc()) << "target op";
-        results.set(getResult().cast<OpResult>(), {});
         return diag;
       }
       current = loop;
@@ -94,23 +89,20 @@ transform::LoopOutlineOp::apply(transform::TransformResults &results,
   for (Operation *target : state.getPayloadOps(getTarget())) {
     Location location = target->getLoc();
     Operation *symbolTableOp = SymbolTable::getNearestSymbolTable(target);
-    SimpleRewriter rewriter(getContext());
+    IRRewriter rewriter(getContext());
     scf::ExecuteRegionOp exec = wrapInExecuteRegion(rewriter, target);
     if (!exec) {
       DiagnosedSilenceableFailure diag = emitSilenceableError()
                                          << "failed to outline";
       diag.attachNote(target->getLoc()) << "target op";
-      results.set(getTransformed().cast<OpResult>(), {});
       return diag;
     }
     func::CallOp call;
     FailureOr<func::FuncOp> outlined = outlineSingleBlockRegion(
         rewriter, location, exec.getRegion(), getFuncName(), &call);
 
-    if (failed(outlined)) {
-      (void)reportUnknownTransformError(target);
-      return DiagnosedSilenceableFailure::definiteFailure();
-    }
+    if (failed(outlined))
+      return emitDefaultDefiniteFailure(target);
 
     if (symbolTableOp) {
       SymbolTable &symbolTable =
@@ -131,7 +123,7 @@ transform::LoopOutlineOp::apply(transform::TransformResults &results,
 
 DiagnosedSilenceableFailure
 transform::LoopPeelOp::applyToOne(scf::ForOp target,
-                                  SmallVector<Operation *> &results,
+                                  transform::ApplyToEachResultList &results,
                                   transform::TransformState &state) {
   scf::ForOp result;
   IRRewriter rewriter(target->getContext());
@@ -140,10 +132,10 @@ transform::LoopPeelOp::applyToOne(scf::ForOp target,
   //    "the loop trip count is divisible by the step"
   // is valid.
   LogicalResult status =
-      scf::peelAndCanonicalizeForLoop(rewriter, target, result);
+      scf::peelForLoopAndSimplifyBounds(rewriter, target, result);
   // TODO: Return both the peeled loop and the remainder loop.
   results.push_back(failed(status) ? target : result);
-  return DiagnosedSilenceableFailure(success());
+  return DiagnosedSilenceableFailure::success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -188,7 +180,7 @@ loopScheduling(scf::ForOp forOp,
 
 DiagnosedSilenceableFailure
 transform::LoopPipelineOp::applyToOne(scf::ForOp target,
-                                      SmallVector<Operation *> &results,
+                                      transform::ApplyToEachResultList &results,
                                       transform::TransformState &state) {
   scf::PipeliningOption options;
   options.getScheduleFn =
@@ -198,15 +190,14 @@ transform::LoopPipelineOp::applyToOne(scf::ForOp target,
                        getReadLatency());
       };
   scf::ForLoopPipeliningPattern pattern(options, target->getContext());
-  SimpleRewriter rewriter(getContext());
+  IRRewriter rewriter(getContext());
   rewriter.setInsertionPoint(target);
   FailureOr<scf::ForOp> patternResult =
-      pattern.returningMatchAndRewrite(target, rewriter);
+      scf::pipelineForLoop(rewriter, target, options);
   if (succeeded(patternResult)) {
     results.push_back(*patternResult);
-    return DiagnosedSilenceableFailure(success());
+    return DiagnosedSilenceableFailure::success();
   }
-  results.assign(1, nullptr);
   return emitDefaultSilenceableFailure(target);
 }
 
@@ -215,15 +206,84 @@ transform::LoopPipelineOp::applyToOne(scf::ForOp target,
 //===----------------------------------------------------------------------===//
 
 DiagnosedSilenceableFailure
-transform::LoopUnrollOp::applyToOne(scf::ForOp target,
-                                    SmallVector<Operation *> &results,
+transform::LoopUnrollOp::applyToOne(Operation *op,
+                                    transform::ApplyToEachResultList &results,
                                     transform::TransformState &state) {
-  if (failed(loopUnrollByFactor(target, getFactor()))) {
-    Diagnostic diag(target->getLoc(), DiagnosticSeverity::Note);
-    diag << "op failed to unroll";
-    return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+  LogicalResult result(failure());
+  if (scf::ForOp scfFor = dyn_cast<scf::ForOp>(op))
+    result = loopUnrollByFactor(scfFor, getFactor());
+  else if (AffineForOp affineFor = dyn_cast<AffineForOp>(op))
+    result = loopUnrollByFactor(affineFor, getFactor());
+
+  if (failed(result)) {
+    DiagnosedSilenceableFailure diag = emitSilenceableError()
+                                       << "failed to unroll";
+    return diag;
   }
-  return DiagnosedSilenceableFailure(success());
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// LoopCoalesceOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::LoopCoalesceOp::applyToOne(Operation *op,
+                                      transform::ApplyToEachResultList &results,
+                                      transform::TransformState &state) {
+  LogicalResult result(failure());
+  if (scf::ForOp scfForOp = dyn_cast<scf::ForOp>(op))
+    result = coalescePerfectlyNestedLoops(scfForOp);
+  else if (AffineForOp affineForOp = dyn_cast<AffineForOp>(op))
+    result = coalescePerfectlyNestedLoops(affineForOp);
+
+  results.push_back(op);
+  if (failed(result)) {
+    DiagnosedSilenceableFailure diag = emitSilenceableError()
+                                       << "failed to coalesce";
+    return diag;
+  }
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// TakeAssumedBranchOp
+//===----------------------------------------------------------------------===//
+/// Replaces the given op with the contents of the given single-block region,
+/// using the operands of the block terminator to replace operation results.
+static void replaceOpWithRegion(RewriterBase &rewriter, Operation *op,
+                                Region &region) {
+  assert(llvm::hasSingleElement(region) && "expected single-region block");
+  Block *block = &region.front();
+  Operation *terminator = block->getTerminator();
+  ValueRange results = terminator->getOperands();
+  rewriter.inlineBlockBefore(block, op, /*blockArgs=*/{});
+  rewriter.replaceOp(op, results);
+  rewriter.eraseOp(terminator);
+}
+
+DiagnosedSilenceableFailure transform::TakeAssumedBranchOp::applyToOne(
+    scf::IfOp ifOp, transform::ApplyToEachResultList &results,
+    transform::TransformState &state) {
+  TrackingListener listener(state, *this);
+  IRRewriter rewriter(ifOp->getContext(), &listener);
+  rewriter.setInsertionPoint(ifOp);
+
+  Region &region =
+      getTakeElseBranch() ? ifOp.getElseRegion() : ifOp.getThenRegion();
+  if (!llvm::hasSingleElement(region)) {
+    return emitDefiniteFailure()
+           << "requires an scf.if op with a single-block "
+           << ((getTakeElseBranch()) ? "`else`" : "`then`") << " region";
+  }
+  replaceOpWithRegion(rewriter, ifOp, region);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::TakeAssumedBranchOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getTarget(), effects);
+  modifiesPayload(effects);
 }
 
 //===----------------------------------------------------------------------===//

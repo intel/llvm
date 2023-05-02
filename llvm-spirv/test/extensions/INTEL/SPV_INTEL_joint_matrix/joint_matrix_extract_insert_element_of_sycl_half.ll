@@ -1,10 +1,10 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 
-; RUN: llvm-spirv -s %t.bc -o %t.regularized.bc
-; RUN: llvm-dis %t.regularized.bc -o %t.regularized.ll
+; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o %t.regularized.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.regularized.bc -o %t.regularized.ll
 ; RUN: FileCheck < %t.regularized.ll %s --check-prefix=CHECK-REGULARIZED
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_joint_matrix -o %t.spv
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_joint_matrix -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 

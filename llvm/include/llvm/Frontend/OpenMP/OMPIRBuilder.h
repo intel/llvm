@@ -21,11 +21,13 @@
 #include "llvm/Support/Allocator.h"
 #include <forward_list>
 #include <map>
+#include <optional>
 
 namespace llvm {
 class CanonicalLoopInfo;
 struct TargetRegionEntryInfo;
 class OffloadEntriesInfoManager;
+class OpenMPIRBuilder;
 
 /// Move the instruction after an InsertPoint to the beginning of another
 /// BasicBlock.
@@ -73,20 +75,354 @@ BasicBlock *splitBB(IRBuilder<> &Builder, bool CreateBranch, llvm::Twine Name);
 BasicBlock *splitBBWithSuffix(IRBuilderBase &Builder, bool CreateBranch,
                               llvm::Twine Suffix = ".split");
 
+/// Captures attributes that affect generating LLVM-IR using the
+/// OpenMPIRBuilder and related classes. Note that not all attributes are
+/// required for all classes or functions. In some use cases the configuration
+/// is not necessary at all, because because the only functions that are called
+/// are ones that are not dependent on the configuration.
+class OpenMPIRBuilderConfig {
+public:
+  /// Flag for specifying if the compilation is done for embedded device code
+  /// or host code.
+  std::optional<bool> IsEmbedded;
+
+  /// Flag for specifying if the compilation is done for an offloading target,
+  /// like GPU.
+  std::optional<bool> IsTargetCodegen;
+
+  /// Flag for specifying weather a requires unified_shared_memory
+  /// directive is present or not.
+  std::optional<bool> HasRequiresUnifiedSharedMemory;
+
+  // Flag for specifying if offloading is mandatory.
+  std::optional<bool> OpenMPOffloadMandatory;
+
+  /// First separator used between the initial two parts of a name.
+  std::optional<StringRef> FirstSeparator;
+  /// Separator used between all of the rest consecutive parts of s name
+  std::optional<StringRef> Separator;
+
+  OpenMPIRBuilderConfig() {}
+  OpenMPIRBuilderConfig(bool IsEmbedded, bool IsTargetCodegen,
+                        bool HasRequiresUnifiedSharedMemory,
+                        bool OpenMPOffloadMandatory)
+      : IsEmbedded(IsEmbedded), IsTargetCodegen(IsTargetCodegen),
+        HasRequiresUnifiedSharedMemory(HasRequiresUnifiedSharedMemory),
+        OpenMPOffloadMandatory(OpenMPOffloadMandatory) {}
+
+  // Getters functions that assert if the required values are not present.
+  bool isEmbedded() const {
+    assert(IsEmbedded.has_value() && "IsEmbedded is not set");
+    return *IsEmbedded;
+  }
+
+  bool isTargetCodegen() const {
+    assert(IsTargetCodegen.has_value() && "IsTargetCodegen is not set");
+    return *IsTargetCodegen;
+  }
+
+  bool hasRequiresUnifiedSharedMemory() const {
+    assert(HasRequiresUnifiedSharedMemory.has_value() &&
+           "HasUnifiedSharedMemory is not set");
+    return *HasRequiresUnifiedSharedMemory;
+  }
+
+  bool openMPOffloadMandatory() const {
+    assert(OpenMPOffloadMandatory.has_value() &&
+           "OpenMPOffloadMandatory is not set");
+    return *OpenMPOffloadMandatory;
+  }
+  // Returns the FirstSeparator if set, otherwise use the default
+  // separator depending on isTargetCodegen
+  StringRef firstSeparator() const {
+    if (FirstSeparator.has_value())
+      return *FirstSeparator;
+    if (isTargetCodegen())
+      return "_";
+    return ".";
+  }
+
+  // Returns the Separator if set, otherwise use the default
+  // separator depending on isTargetCodegen
+  StringRef separator() const {
+    if (Separator.has_value())
+      return *Separator;
+    if (isTargetCodegen())
+      return "$";
+    return ".";
+  }
+
+  void setIsEmbedded(bool Value) { IsEmbedded = Value; }
+  void setIsTargetCodegen(bool Value) { IsTargetCodegen = Value; }
+  void setHasRequiresUnifiedSharedMemory(bool Value) {
+    HasRequiresUnifiedSharedMemory = Value;
+  }
+  void setFirstSeparator(StringRef FS) { FirstSeparator = FS; }
+  void setSeparator(StringRef S) { Separator = S; }
+};
+
+/// Data structure to contain the information needed to uniquely identify
+/// a target entry.
+struct TargetRegionEntryInfo {
+  std::string ParentName;
+  unsigned DeviceID;
+  unsigned FileID;
+  unsigned Line;
+  unsigned Count;
+
+  TargetRegionEntryInfo()
+      : ParentName(""), DeviceID(0), FileID(0), Line(0), Count(0) {}
+  TargetRegionEntryInfo(StringRef ParentName, unsigned DeviceID,
+                        unsigned FileID, unsigned Line, unsigned Count = 0)
+      : ParentName(ParentName), DeviceID(DeviceID), FileID(FileID), Line(Line),
+        Count(Count) {}
+
+  static void getTargetRegionEntryFnName(SmallVectorImpl<char> &Name,
+                                         StringRef ParentName,
+                                         unsigned DeviceID, unsigned FileID,
+                                         unsigned Line, unsigned Count);
+
+  bool operator<(const TargetRegionEntryInfo RHS) const {
+    return std::make_tuple(ParentName, DeviceID, FileID, Line, Count) <
+           std::make_tuple(RHS.ParentName, RHS.DeviceID, RHS.FileID, RHS.Line,
+                           RHS.Count);
+  }
+};
+
+/// Class that manages information about offload code regions and data
+class OffloadEntriesInfoManager {
+  /// Number of entries registered so far.
+  OpenMPIRBuilder *OMPBuilder;
+  unsigned OffloadingEntriesNum = 0;
+
+public:
+  /// Base class of the entries info.
+  class OffloadEntryInfo {
+  public:
+    /// Kind of a given entry.
+    enum OffloadingEntryInfoKinds : unsigned {
+      /// Entry is a target region.
+      OffloadingEntryInfoTargetRegion = 0,
+      /// Entry is a declare target variable.
+      OffloadingEntryInfoDeviceGlobalVar = 1,
+      /// Invalid entry info.
+      OffloadingEntryInfoInvalid = ~0u
+    };
+
+  protected:
+    OffloadEntryInfo() = delete;
+    explicit OffloadEntryInfo(OffloadingEntryInfoKinds Kind) : Kind(Kind) {}
+    explicit OffloadEntryInfo(OffloadingEntryInfoKinds Kind, unsigned Order,
+                              uint32_t Flags)
+        : Flags(Flags), Order(Order), Kind(Kind) {}
+    ~OffloadEntryInfo() = default;
+
+  public:
+    bool isValid() const { return Order != ~0u; }
+    unsigned getOrder() const { return Order; }
+    OffloadingEntryInfoKinds getKind() const { return Kind; }
+    uint32_t getFlags() const { return Flags; }
+    void setFlags(uint32_t NewFlags) { Flags = NewFlags; }
+    Constant *getAddress() const { return cast_or_null<Constant>(Addr); }
+    void setAddress(Constant *V) {
+      assert(!Addr.pointsToAliveValue() && "Address has been set before!");
+      Addr = V;
+    }
+    static bool classof(const OffloadEntryInfo *Info) { return true; }
+
+  private:
+    /// Address of the entity that has to be mapped for offloading.
+    WeakTrackingVH Addr;
+
+    /// Flags associated with the device global.
+    uint32_t Flags = 0u;
+
+    /// Order this entry was emitted.
+    unsigned Order = ~0u;
+
+    OffloadingEntryInfoKinds Kind = OffloadingEntryInfoInvalid;
+  };
+
+  /// Return true if a there are no entries defined.
+  bool empty() const;
+  /// Return number of entries defined so far.
+  unsigned size() const { return OffloadingEntriesNum; }
+
+  OffloadEntriesInfoManager(OpenMPIRBuilder *builder) : OMPBuilder(builder) {}
+
+  //
+  // Target region entries related.
+  //
+
+  /// Kind of the target registry entry.
+  enum OMPTargetRegionEntryKind : uint32_t {
+    /// Mark the entry as target region.
+    OMPTargetRegionEntryTargetRegion = 0x0,
+    /// Mark the entry as a global constructor.
+    OMPTargetRegionEntryCtor = 0x02,
+    /// Mark the entry as a global destructor.
+    OMPTargetRegionEntryDtor = 0x04,
+  };
+
+  /// Target region entries info.
+  class OffloadEntryInfoTargetRegion final : public OffloadEntryInfo {
+    /// Address that can be used as the ID of the entry.
+    Constant *ID = nullptr;
+
+  public:
+    OffloadEntryInfoTargetRegion()
+        : OffloadEntryInfo(OffloadingEntryInfoTargetRegion) {}
+    explicit OffloadEntryInfoTargetRegion(unsigned Order, Constant *Addr,
+                                          Constant *ID,
+                                          OMPTargetRegionEntryKind Flags)
+        : OffloadEntryInfo(OffloadingEntryInfoTargetRegion, Order, Flags),
+          ID(ID) {
+      setAddress(Addr);
+    }
+
+    Constant *getID() const { return ID; }
+    void setID(Constant *V) {
+      assert(!ID && "ID has been set before!");
+      ID = V;
+    }
+    static bool classof(const OffloadEntryInfo *Info) {
+      return Info->getKind() == OffloadingEntryInfoTargetRegion;
+    }
+  };
+
+  /// Initialize target region entry.
+  /// This is ONLY needed for DEVICE compilation.
+  void initializeTargetRegionEntryInfo(const TargetRegionEntryInfo &EntryInfo,
+                                       unsigned Order);
+  /// Register target region entry.
+  void registerTargetRegionEntryInfo(TargetRegionEntryInfo EntryInfo,
+                                     Constant *Addr, Constant *ID,
+                                     OMPTargetRegionEntryKind Flags);
+  /// Return true if a target region entry with the provided information
+  /// exists.
+  bool hasTargetRegionEntryInfo(TargetRegionEntryInfo EntryInfo,
+                                bool IgnoreAddressId = false) const;
+
+  // Return the Name based on \a EntryInfo using the next available Count.
+  void getTargetRegionEntryFnName(SmallVectorImpl<char> &Name,
+                                  const TargetRegionEntryInfo &EntryInfo);
+
+  /// brief Applies action \a Action on all registered entries.
+  typedef function_ref<void(const TargetRegionEntryInfo &EntryInfo,
+                            const OffloadEntryInfoTargetRegion &)>
+      OffloadTargetRegionEntryInfoActTy;
+  void
+  actOnTargetRegionEntriesInfo(const OffloadTargetRegionEntryInfoActTy &Action);
+
+  //
+  // Device global variable entries related.
+  //
+
+  /// Kind of the global variable entry..
+  enum OMPTargetGlobalVarEntryKind : uint32_t {
+    /// Mark the entry as a to declare target.
+    OMPTargetGlobalVarEntryTo = 0x0,
+    /// Mark the entry as a to declare target link.
+    OMPTargetGlobalVarEntryLink = 0x1,
+  };
+
+  /// Device global variable entries info.
+  class OffloadEntryInfoDeviceGlobalVar final : public OffloadEntryInfo {
+    /// Type of the global variable.
+    int64_t VarSize;
+    GlobalValue::LinkageTypes Linkage;
+
+  public:
+    OffloadEntryInfoDeviceGlobalVar()
+        : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar) {}
+    explicit OffloadEntryInfoDeviceGlobalVar(unsigned Order,
+                                             OMPTargetGlobalVarEntryKind Flags)
+        : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar, Order, Flags) {}
+    explicit OffloadEntryInfoDeviceGlobalVar(unsigned Order, Constant *Addr,
+                                             int64_t VarSize,
+                                             OMPTargetGlobalVarEntryKind Flags,
+                                             GlobalValue::LinkageTypes Linkage)
+        : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar, Order, Flags),
+          VarSize(VarSize), Linkage(Linkage) {
+      setAddress(Addr);
+    }
+
+    int64_t getVarSize() const { return VarSize; }
+    void setVarSize(int64_t Size) { VarSize = Size; }
+    GlobalValue::LinkageTypes getLinkage() const { return Linkage; }
+    void setLinkage(GlobalValue::LinkageTypes LT) { Linkage = LT; }
+    static bool classof(const OffloadEntryInfo *Info) {
+      return Info->getKind() == OffloadingEntryInfoDeviceGlobalVar;
+    }
+  };
+
+  /// Initialize device global variable entry.
+  /// This is ONLY used for DEVICE compilation.
+  void initializeDeviceGlobalVarEntryInfo(StringRef Name,
+                                          OMPTargetGlobalVarEntryKind Flags,
+                                          unsigned Order);
+
+  /// Register device global variable entry.
+  void registerDeviceGlobalVarEntryInfo(StringRef VarName, Constant *Addr,
+                                        int64_t VarSize,
+                                        OMPTargetGlobalVarEntryKind Flags,
+                                        GlobalValue::LinkageTypes Linkage);
+  /// Checks if the variable with the given name has been registered already.
+  bool hasDeviceGlobalVarEntryInfo(StringRef VarName) const {
+    return OffloadEntriesDeviceGlobalVar.count(VarName) > 0;
+  }
+  /// Applies action \a Action on all registered entries.
+  typedef function_ref<void(StringRef, const OffloadEntryInfoDeviceGlobalVar &)>
+      OffloadDeviceGlobalVarEntryInfoActTy;
+  void actOnDeviceGlobalVarEntriesInfo(
+      const OffloadDeviceGlobalVarEntryInfoActTy &Action);
+
+private:
+  /// Return the count of entries at a particular source location.
+  unsigned
+  getTargetRegionEntryInfoCount(const TargetRegionEntryInfo &EntryInfo) const;
+
+  /// Update the count of entries at a particular source location.
+  void
+  incrementTargetRegionEntryInfoCount(const TargetRegionEntryInfo &EntryInfo);
+
+  static TargetRegionEntryInfo
+  getTargetRegionEntryCountKey(const TargetRegionEntryInfo &EntryInfo) {
+    return TargetRegionEntryInfo(EntryInfo.ParentName, EntryInfo.DeviceID,
+                                 EntryInfo.FileID, EntryInfo.Line, 0);
+  }
+
+  // Count of entries at a location.
+  std::map<TargetRegionEntryInfo, unsigned> OffloadEntriesTargetRegionCount;
+
+  // Storage for target region entries kind.
+  typedef std::map<TargetRegionEntryInfo, OffloadEntryInfoTargetRegion>
+      OffloadEntriesTargetRegionTy;
+  OffloadEntriesTargetRegionTy OffloadEntriesTargetRegion;
+  /// Storage for device global variable entries kind. The storage is to be
+  /// indexed by mangled name.
+  typedef StringMap<OffloadEntryInfoDeviceGlobalVar>
+      OffloadEntriesDeviceGlobalVarTy;
+  OffloadEntriesDeviceGlobalVarTy OffloadEntriesDeviceGlobalVar;
+};
+
 /// An interface to create LLVM-IR for OpenMP directives.
 ///
 /// Each OpenMP directive has a corresponding public generator method.
 class OpenMPIRBuilder {
 public:
   /// Create a new OpenMPIRBuilder operating on the given module \p M. This will
-  /// not have an effect on \p M (see initialize).
-  OpenMPIRBuilder(Module &M) : M(M), Builder(M.getContext()) {}
+  /// not have an effect on \p M (see initialize)
+  OpenMPIRBuilder(Module &M)
+      : M(M), Builder(M.getContext()), OffloadInfoManager(this) {}
   ~OpenMPIRBuilder();
 
   /// Initialize the internal state, this will put structures types and
   /// potentially other helpers into the underlying module. Must be called
   /// before any other method and only once!
   void initialize();
+
+  void setConfig(OpenMPIRBuilderConfig C) { Config = C; }
 
   /// Finalize the underlying module, e.g., by outlining regions.
   /// \param Fn                    The function to be finalized. If not used,
@@ -98,6 +434,16 @@ public:
 
   /// Type used throughout for insertion points.
   using InsertPointTy = IRBuilder<>::InsertPoint;
+
+  /// Get the create a name using the platform specific separators.
+  /// \param Parts parts of the final name that needs separation
+  /// The created name has a first separator between the first and second part
+  /// and a second separator between all other parts.
+  /// E.g. with FirstSeparator "$" and Separator "." and
+  /// parts: "p1", "p2", "p3", "p4"
+  /// The resulting name is "p1$p2.p3.p4"
+  /// The separators are retrieved from the OpenMPIRBuilderConfig.
+  std::string createPlatformSpecificName(ArrayRef<StringRef> Parts) const;
 
   /// Callback type for variable finalization (think destructors).
   ///
@@ -403,6 +749,13 @@ public:
                                    ArrayRef<CanonicalLoopInfo *> Loops,
                                    InsertPointTy ComputeIP);
 
+  /// Get the default alignment value for given target
+  ///
+  /// \param TargetTriple   Target triple
+  /// \param Features       StringMap which describes extra CPU features
+  static unsigned getOpenMPDefaultSimdAlign(const Triple &TargetTriple,
+                                            const StringMap<bool> &Features);
+
 private:
   /// Modifies the canonical loop to be a statically-scheduled workshare loop.
   ///
@@ -677,7 +1030,7 @@ public:
                            InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
                            bool Tied = true, Value *Final = nullptr,
                            Value *IfCondition = nullptr,
-                           ArrayRef<DependData *> Dependencies = {});
+                           SmallVector<DependData> Dependencies = {});
 
   /// Generator for the taskgroup construct
   ///
@@ -882,6 +1235,7 @@ public:
   /// Generate a target region entry call.
   ///
   /// \param Loc The location at which the request originated and is fulfilled.
+  /// \param AllocaIP The insertion point to be used for alloca instructions.
   /// \param Return Return value of the created function returned by reference.
   /// \param DeviceID Identifier for the device via the 'device' clause.
   /// \param NumTeams Numer of teams for the region via the 'num_teams' clause
@@ -889,12 +1243,11 @@ public:
   /// \param NumThreads Number of threads via the 'thread_limit' clause.
   /// \param HostPtr Pointer to the host-side pointer of the target kernel.
   /// \param KernelArgs Array of arguments to the kernel.
-  /// \param NoWaitArgs Optional array of arguments to the nowait kernel.
-  InsertPointTy emitTargetKernel(const LocationDescription &Loc, Value *&Return,
+  InsertPointTy emitTargetKernel(const LocationDescription &Loc,
+                                 InsertPointTy AllocaIP, Value *&Return,
                                  Value *Ident, Value *DeviceID, Value *NumTeams,
                                  Value *NumThreads, Value *HostPtr,
-                                 ArrayRef<Value *> KernelArgs,
-                                 ArrayRef<Value *> NoWaitArgs = {});
+                                 ArrayRef<Value *> KernelArgs);
 
   /// Generate a barrier runtime call.
   ///
@@ -942,6 +1295,9 @@ public:
   /// \param Ident The ident (ident_t*) describing the query origin.
   Value *getOrCreateThreadID(Value *Ident);
 
+  /// The OpenMPIRBuilder Configuration
+  OpenMPIRBuilderConfig Config;
+
   /// The underlying LLVM-IR module
   Module &M;
 
@@ -953,6 +1309,9 @@ public:
 
   /// Map to remember existing ident_t*.
   DenseMap<std::pair<Constant *, uint64_t>, Constant *> IdentMap;
+
+  /// Info manager to keep track of target regions.
+  OffloadEntriesInfoManager OffloadInfoManager;
 
   /// Helper that contains information about regions we need to outline
   /// during finalization.
@@ -986,7 +1345,10 @@ public:
   /// <critical_section_name> + ".var" for "omp critical" directives; 2)
   /// <mangled_name_for_global_var> + ".cache." for cache for threadprivate
   /// variables.
-  StringMap<AssertingVH<Constant>, BumpPtrAllocator> InternalVars;
+  StringMap<Constant*, BumpPtrAllocator> InternalVars;
+
+  /// Computes the size of type in bytes.
+  Value *getSizeInBytes(Value *BasePtr);
 
   /// Create the global variable holding the offload mappings information.
   GlobalVariable *createOffloadMaptypes(SmallVectorImpl<uint64_t> &Mappings,
@@ -1094,11 +1456,10 @@ public:
                                     bool EmitDebug = false,
                                     bool ForEndCall = false);
 
-  /// Creates offloading entry for the provided entry ID \a ID,
-  /// address \a Addr, size \a Size, and flags \a Flags.
-  void createOffloadEntry(bool IsTargetCodegen, Constant *ID, Constant *Addr,
-                          uint64_t Size, int32_t Flags,
-                          GlobalValue::LinkageTypes);
+  /// Creates offloading entry for the provided entry ID \a ID, address \a
+  /// Addr, size \a Size, and flags \a Flags.
+  void createOffloadEntry(Constant *ID, Constant *Addr, uint64_t Size,
+                          int32_t Flags, GlobalValue::LinkageTypes);
 
   /// The kind of errors that can occur when emitting the offload entries and
   /// metadata.
@@ -1120,9 +1481,6 @@ public:
   //
   // We only generate metadata for function that contain target regions.
   void createOffloadEntriesAndInfoMetadata(
-      OffloadEntriesInfoManager &OffloadEntriesInfoManager,
-      bool IsTargetCodegen, bool IsEmbedded,
-      bool HasRequiresUnifiedSharedMemory,
       EmitMetadataErrorReportFunctionTy &ErrorReportFunction);
 
 public:
@@ -1359,19 +1717,113 @@ public:
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD,
-                                 bool RequiresFullRuntime);
+  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD);
 
   /// Create a runtime call for kmpc_target_deinit
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD,
-                          bool RequiresFullRuntime);
+  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD);
 
   ///}
+
+private:
+  // Sets the function attributes expected for the outlined function
+  void setOutlinedTargetRegionFunctionAttributes(Function *OutlinedFn,
+                                                 int32_t NumTeams,
+                                                 int32_t NumThreads);
+
+  // Creates the function ID/Address for the given outlined function.
+  // In the case of an embedded device function the address of the function is
+  // used, in the case of a non-offload function a constant is created.
+  Constant *createOutlinedFunctionID(Function *OutlinedFn,
+                                     StringRef EntryFnIDName);
+
+  // Creates the region entry address for the outlined function
+  Constant *createTargetRegionEntryAddr(Function *OutlinedFunction,
+                                        StringRef EntryFnName);
+
+public:
+  /// Functions used to generate a function with the given name.
+  using FunctionGenCallback = std::function<Function *(StringRef FunctionName)>;
+
+  /// Create a unique name for the entry function using the source location
+  /// information of the current target region. The name will be something like:
+  ///
+  /// __omp_offloading_DD_FFFF_PP_lBB[_CC]
+  ///
+  /// where DD_FFFF is an ID unique to the file (device and file IDs), PP is the
+  /// mangled name of the function that encloses the target region and BB is the
+  /// line number of the target region. CC is a count added when more than one
+  /// region is located at the same location.
+  ///
+  /// If this target outline function is not an offload entry, we don't need to
+  /// register it. This may happen if it is guarded by an if clause that is
+  /// false at compile time, or no target archs have been specified.
+  ///
+  /// The created target region ID is used by the runtime library to identify
+  /// the current target region, so it only has to be unique and not
+  /// necessarily point to anything. It could be the pointer to the outlined
+  /// function that implements the target region, but we aren't using that so
+  /// that the compiler doesn't need to keep that, and could therefore inline
+  /// the host function if proven worthwhile during optimization. In the other
+  /// hand, if emitting code for the device, the ID has to be the function
+  /// address so that it can retrieved from the offloading entry and launched
+  /// by the runtime library. We also mark the outlined function to have
+  /// external linkage in case we are emitting code for the device, because
+  /// these functions will be entry points to the device.
+  ///
+  /// \param InfoManager The info manager keeping track of the offload entries
+  /// \param EntryInfo The entry information about the function
+  /// \param GenerateFunctionCallback The callback function to generate the code
+  /// \param NumTeams Number default teams
+  /// \param NumThreads Number default threads
+  /// \param OutlinedFunction Pointer to the outlined function
+  /// \param EntryFnIDName Name of the ID o be created
+  void emitTargetRegionFunction(TargetRegionEntryInfo &EntryInfo,
+                                FunctionGenCallback &GenerateFunctionCallback,
+                                int32_t NumTeams, int32_t NumThreads,
+                                bool IsOffloadEntry, Function *&OutlinedFn,
+                                Constant *&OutlinedFnID);
+
+  /// Registers the given function and sets up the attribtues of the function
+  /// Returns the FunctionID.
+  ///
+  /// \param InfoManager The info manager keeping track of the offload entries
+  /// \param EntryInfo The entry information about the function
+  /// \param OutlinedFunction Pointer to the outlined function
+  /// \param EntryFnName Name of the outlined function
+  /// \param EntryFnIDName Name of the ID o be created
+  /// \param NumTeams Number default teams
+  /// \param NumThreads Number default threads
+  Constant *registerTargetRegionFunction(TargetRegionEntryInfo &EntryInfo,
+                                         Function *OutlinedFunction,
+                                         StringRef EntryFnName,
+                                         StringRef EntryFnIDName,
+                                         int32_t NumTeams, int32_t NumThreads);
+
+  /// Generator for '#omp target data'
+  ///
+  /// \param Loc The location where the target data construct was encountered.
+  /// \param CodeGenIP The insertion point at which the target directive code
+  /// should be placed.
+  /// \param MapTypeFlags BitVector storing the mapType flags for the
+  /// mapOperands.
+  /// \param MapNames Names for the mapOperands.
+  /// \param MapperAllocas Pointers to the AllocInsts for the map clause.
+  /// \param IsBegin If true then emits begin mapper call otherwise emits
+  /// end mapper call.
+  /// \param DeviceID Stores the DeviceID from the device clause.
+  /// \param IfCond Value which corresponds to the if clause condition.
+  /// \param ProcessMapOpCB Callback that generates code for the map clause.
+  /// \param BodyGenCB Callback that will generate the region code.
+  OpenMPIRBuilder::InsertPointTy createTargetData(
+      const LocationDescription &Loc, OpenMPIRBuilder::InsertPointTy CodeGenIP,
+      SmallVectorImpl<uint64_t> &MapTypeFlags,
+      SmallVectorImpl<Constant *> &MapNames,
+      struct MapperAllocas &MapperAllocas, bool IsBegin, int64_t DeviceID,
+      Value *IfCond, BodyGenCallbackTy ProcessMapOpCB,
+      BodyGenCallbackTy BodyGenCB = {});
 
   /// Declarations for LLVM-IR types (simple, array, function and structure) are
   /// generated below. Their names are defined and used in OpenMPKinds.def. Here
@@ -1713,10 +2165,7 @@ public:
   ///
   /// \param M         Module to load Metadata info from. Module passed maybe
   /// loaded from bitcode file, i.e, different from OpenMPIRBuilder::M module.
-  /// \param OffloadEntriesInfoManager Initialize Offload Entry information.
-  void
-  loadOffloadInfoMetadata(Module &M,
-                          OffloadEntriesInfoManager &OffloadEntriesInfoManager);
+  void loadOffloadInfoMetadata(Module &M);
 
   /// Gets (if variable with the given name already exist) or creates
   /// internal global variable with the specified Name. The created variable has
@@ -1726,251 +2175,6 @@ public:
   /// \param Name Name of the variable.
   GlobalVariable *getOrCreateInternalVariable(Type *Ty, const StringRef &Name,
                                               unsigned AddressSpace = 0);
-};
-
-/// Data structure to contain the information needed to uniquely identify
-/// a target entry.
-struct TargetRegionEntryInfo {
-  std::string ParentName;
-  unsigned DeviceID;
-  unsigned FileID;
-  unsigned Line;
-  unsigned Count;
-
-  TargetRegionEntryInfo()
-      : ParentName(""), DeviceID(0), FileID(0), Line(0), Count(0) {}
-  TargetRegionEntryInfo(StringRef ParentName, unsigned DeviceID,
-                        unsigned FileID, unsigned Line, unsigned Count = 0)
-      : ParentName(ParentName), DeviceID(DeviceID), FileID(FileID), Line(Line),
-        Count(Count) {}
-
-  static void getTargetRegionEntryFnName(SmallVectorImpl<char> &Name,
-                                         StringRef ParentName,
-                                         unsigned DeviceID, unsigned FileID,
-                                         unsigned Line, unsigned Count);
-
-  bool operator<(const TargetRegionEntryInfo RHS) const {
-    return std::make_tuple(ParentName, DeviceID, FileID, Line, Count) <
-           std::make_tuple(RHS.ParentName, RHS.DeviceID, RHS.FileID, RHS.Line,
-                           RHS.Count);
-  }
-};
-
-/// Class that manages information about offload code regions and data
-class OffloadEntriesInfoManager {
-  /// Number of entries registered so far.
-  unsigned OffloadingEntriesNum = 0;
-
-public:
-  /// Base class of the entries info.
-  class OffloadEntryInfo {
-  public:
-    /// Kind of a given entry.
-    enum OffloadingEntryInfoKinds : unsigned {
-      /// Entry is a target region.
-      OffloadingEntryInfoTargetRegion = 0,
-      /// Entry is a declare target variable.
-      OffloadingEntryInfoDeviceGlobalVar = 1,
-      /// Invalid entry info.
-      OffloadingEntryInfoInvalid = ~0u
-    };
-
-  protected:
-    OffloadEntryInfo() = delete;
-    explicit OffloadEntryInfo(OffloadingEntryInfoKinds Kind) : Kind(Kind) {}
-    explicit OffloadEntryInfo(OffloadingEntryInfoKinds Kind, unsigned Order,
-                              uint32_t Flags)
-        : Flags(Flags), Order(Order), Kind(Kind) {}
-    ~OffloadEntryInfo() = default;
-
-  public:
-    bool isValid() const { return Order != ~0u; }
-    unsigned getOrder() const { return Order; }
-    OffloadingEntryInfoKinds getKind() const { return Kind; }
-    uint32_t getFlags() const { return Flags; }
-    void setFlags(uint32_t NewFlags) { Flags = NewFlags; }
-    Constant *getAddress() const { return cast_or_null<Constant>(Addr); }
-    void setAddress(Constant *V) {
-      assert(!Addr.pointsToAliveValue() && "Address has been set before!");
-      Addr = V;
-    }
-    static bool classof(const OffloadEntryInfo *Info) { return true; }
-
-  private:
-    /// Address of the entity that has to be mapped for offloading.
-    WeakTrackingVH Addr;
-
-    /// Flags associated with the device global.
-    uint32_t Flags = 0u;
-
-    /// Order this entry was emitted.
-    unsigned Order = ~0u;
-
-    OffloadingEntryInfoKinds Kind = OffloadingEntryInfoInvalid;
-  };
-
-  /// Return true if a there are no entries defined.
-  bool empty() const;
-  /// Return number of entries defined so far.
-  unsigned size() const { return OffloadingEntriesNum; }
-  explicit OffloadEntriesInfoManager() {}
-
-  //
-  // Target region entries related.
-  //
-
-  /// Kind of the target registry entry.
-  enum OMPTargetRegionEntryKind : uint32_t {
-    /// Mark the entry as target region.
-    OMPTargetRegionEntryTargetRegion = 0x0,
-    /// Mark the entry as a global constructor.
-    OMPTargetRegionEntryCtor = 0x02,
-    /// Mark the entry as a global destructor.
-    OMPTargetRegionEntryDtor = 0x04,
-  };
-
-  /// Target region entries info.
-  class OffloadEntryInfoTargetRegion final : public OffloadEntryInfo {
-    /// Address that can be used as the ID of the entry.
-    Constant *ID = nullptr;
-
-  public:
-    OffloadEntryInfoTargetRegion()
-        : OffloadEntryInfo(OffloadingEntryInfoTargetRegion) {}
-    explicit OffloadEntryInfoTargetRegion(unsigned Order, Constant *Addr,
-                                          Constant *ID,
-                                          OMPTargetRegionEntryKind Flags)
-        : OffloadEntryInfo(OffloadingEntryInfoTargetRegion, Order, Flags),
-          ID(ID) {
-      setAddress(Addr);
-    }
-
-    Constant *getID() const { return ID; }
-    void setID(Constant *V) {
-      assert(!ID && "ID has been set before!");
-      ID = V;
-    }
-    static bool classof(const OffloadEntryInfo *Info) {
-      return Info->getKind() == OffloadingEntryInfoTargetRegion;
-    }
-  };
-
-  /// Initialize target region entry.
-  /// This is ONLY needed for DEVICE compilation.
-  void initializeTargetRegionEntryInfo(const TargetRegionEntryInfo &EntryInfo,
-                                       unsigned Order);
-  /// Register target region entry.
-  void registerTargetRegionEntryInfo(TargetRegionEntryInfo EntryInfo,
-                                     Constant *Addr, Constant *ID,
-                                     OMPTargetRegionEntryKind Flags,
-                                     bool IsDevice);
-  /// Return true if a target region entry with the provided information
-  /// exists.
-  bool hasTargetRegionEntryInfo(TargetRegionEntryInfo EntryInfo,
-                                bool IgnoreAddressId = false) const;
-
-  // Return the Name based on \a EntryInfo using the next available Count.
-  void getTargetRegionEntryFnName(SmallVectorImpl<char> &Name,
-                                  const TargetRegionEntryInfo &EntryInfo);
-
-  /// brief Applies action \a Action on all registered entries.
-  typedef function_ref<void(const TargetRegionEntryInfo &EntryInfo,
-                            const OffloadEntryInfoTargetRegion &)>
-      OffloadTargetRegionEntryInfoActTy;
-  void
-  actOnTargetRegionEntriesInfo(const OffloadTargetRegionEntryInfoActTy &Action);
-
-  //
-  // Device global variable entries related.
-  //
-
-  /// Kind of the global variable entry..
-  enum OMPTargetGlobalVarEntryKind : uint32_t {
-    /// Mark the entry as a to declare target.
-    OMPTargetGlobalVarEntryTo = 0x0,
-    /// Mark the entry as a to declare target link.
-    OMPTargetGlobalVarEntryLink = 0x1,
-  };
-
-  /// Device global variable entries info.
-  class OffloadEntryInfoDeviceGlobalVar final : public OffloadEntryInfo {
-    /// Type of the global variable.
-    int64_t VarSize;
-    GlobalValue::LinkageTypes Linkage;
-
-  public:
-    OffloadEntryInfoDeviceGlobalVar()
-        : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar) {}
-    explicit OffloadEntryInfoDeviceGlobalVar(unsigned Order,
-                                             OMPTargetGlobalVarEntryKind Flags)
-        : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar, Order, Flags) {}
-    explicit OffloadEntryInfoDeviceGlobalVar(unsigned Order, Constant *Addr,
-                                             int64_t VarSize,
-                                             OMPTargetGlobalVarEntryKind Flags,
-                                             GlobalValue::LinkageTypes Linkage)
-        : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar, Order, Flags),
-          VarSize(VarSize), Linkage(Linkage) {
-      setAddress(Addr);
-    }
-
-    int64_t getVarSize() const { return VarSize; }
-    void setVarSize(int64_t Size) { VarSize = Size; }
-    GlobalValue::LinkageTypes getLinkage() const { return Linkage; }
-    void setLinkage(GlobalValue::LinkageTypes LT) { Linkage = LT; }
-    static bool classof(const OffloadEntryInfo *Info) {
-      return Info->getKind() == OffloadingEntryInfoDeviceGlobalVar;
-    }
-  };
-
-  /// Initialize device global variable entry.
-  /// This is ONLY used for DEVICE compilation.
-  void initializeDeviceGlobalVarEntryInfo(StringRef Name,
-                                          OMPTargetGlobalVarEntryKind Flags,
-                                          unsigned Order);
-
-  /// Register device global variable entry.
-  void registerDeviceGlobalVarEntryInfo(StringRef VarName, Constant *Addr,
-                                        int64_t VarSize,
-                                        OMPTargetGlobalVarEntryKind Flags,
-                                        GlobalValue::LinkageTypes Linkage,
-                                        bool IsDevice);
-  /// Checks if the variable with the given name has been registered already.
-  bool hasDeviceGlobalVarEntryInfo(StringRef VarName) const {
-    return OffloadEntriesDeviceGlobalVar.count(VarName) > 0;
-  }
-  /// Applies action \a Action on all registered entries.
-  typedef function_ref<void(StringRef, const OffloadEntryInfoDeviceGlobalVar &)>
-      OffloadDeviceGlobalVarEntryInfoActTy;
-  void actOnDeviceGlobalVarEntriesInfo(
-      const OffloadDeviceGlobalVarEntryInfoActTy &Action);
-
-private:
-  /// Return the count of entries at a particular source location.
-  unsigned
-  getTargetRegionEntryInfoCount(const TargetRegionEntryInfo &EntryInfo) const;
-
-  /// Update the count of entries at a particular source location.
-  void
-  incrementTargetRegionEntryInfoCount(const TargetRegionEntryInfo &EntryInfo);
-
-  static TargetRegionEntryInfo
-  getTargetRegionEntryCountKey(const TargetRegionEntryInfo &EntryInfo) {
-    return TargetRegionEntryInfo(EntryInfo.ParentName, EntryInfo.DeviceID,
-                                 EntryInfo.FileID, EntryInfo.Line, 0);
-  }
-
-  // Count of entries at a location.
-  std::map<TargetRegionEntryInfo, unsigned> OffloadEntriesTargetRegionCount;
-
-  // Storage for target region entries kind.
-  typedef std::map<TargetRegionEntryInfo, OffloadEntryInfoTargetRegion>
-      OffloadEntriesTargetRegionTy;
-  OffloadEntriesTargetRegionTy OffloadEntriesTargetRegion;
-  /// Storage for device global variable entries kind. The storage is to be
-  /// indexed by mangled name.
-  typedef StringMap<OffloadEntryInfoDeviceGlobalVar>
-      OffloadEntriesDeviceGlobalVarTy;
-  OffloadEntriesDeviceGlobalVarTy OffloadEntriesDeviceGlobalVar;
 };
 
 /// Class to represented the control flow structure of an OpenMP canonical loop.

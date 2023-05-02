@@ -7,8 +7,38 @@ add_header_library(
   DEPENDS
     libc.include.stdlib
     libc.src.__support.CPP.bitset
+    libc.src.__support.common
     .memory_utils.memcpy_implementation
     .memory_utils.bzero_implementation
+)
+
+add_header_library(
+  allocating_string_utils
+  HDRS
+    allocating_string_utils.h
+  DEPENDS
+    .memory_utils.memcpy_implementation
+    libc.include.stdlib
+    libc.src.__support.CPP.optional
+    libc.src.__support.macros.config
+)
+
+add_entrypoint_object(
+  bcopy
+  SRCS
+    bcopy.cpp
+  HDRS
+    bcopy.h
+)
+
+add_entrypoint_object(
+  index
+  SRCS
+    index.cpp
+  HDRS
+    index.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -19,7 +49,6 @@ add_entrypoint_object(
     memccpy.h
 )
 
-
 add_entrypoint_object(
   mempcpy
   SRCS
@@ -28,6 +57,16 @@ add_entrypoint_object(
     mempcpy.h
   DEPENDS
     .memory_utils.memcpy_implementation
+)
+
+add_entrypoint_object(
+  memmem
+  SRCS
+    memmem.cpp
+  HDRS
+    memmem.h
+  DEPENDS
+    .memory_utils.memmem_implementation
 )
 
 add_entrypoint_object(
@@ -46,6 +85,16 @@ add_entrypoint_object(
     memrchr.cpp
   HDRS
     memrchr.h
+)
+
+add_entrypoint_object(
+  rindex
+  SRCS
+    rindex.cpp
+  HDRS
+    rindex.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -86,6 +135,18 @@ add_entrypoint_object(
     strchr.cpp
   HDRS
     strchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strchrnul
+  SRCS
+    strchrnul.cpp
+  HDRS
+    strchrnul.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -94,6 +155,30 @@ add_entrypoint_object(
     strcmp.cpp
   HDRS
     strcmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strcasecmp
+  SRCS
+    strcasecmp.cpp
+  HDRS
+    strcasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
+)
+
+add_entrypoint_object(
+  strcasestr
+  SRCS
+    strcasestr.cpp
+  HDRS
+    strcasestr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -135,6 +220,7 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.errno.errno
 )
 
 add_entrypoint_object(
@@ -186,6 +272,7 @@ add_entrypoint_object(
   HDRS
     strlen.h
   DEPENDS
+    .string_utils
     libc.include.string
 )
 
@@ -206,6 +293,19 @@ add_entrypoint_object(
     strncmp.cpp
   HDRS
     strncmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strncasecmp
+  SRCS
+    strncasecmp.cpp
+  HDRS
+    strncasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -226,6 +326,7 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.__support.CPP.new
 )
 
 add_entrypoint_object(
@@ -254,6 +355,18 @@ add_entrypoint_object(
     strrchr.cpp
   HDRS
     strrchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strsep
+  SRCS
+    strsep.cpp
+  HDRS
+    strsep.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -282,6 +395,8 @@ add_entrypoint_object(
     strstr.cpp
   HDRS
     strstr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
 )
 
 add_entrypoint_object(
@@ -302,6 +417,17 @@ add_entrypoint_object(
     strtok_r.h
   DEPENDS
     .string_utils
+)
+
+add_entrypoint_object(
+  strxfrm
+  SRCS
+    strxfrm.cpp
+  HDRS
+    strxfrm.h
+  DEPENDS
+    .string_utils
+    .memory_utils.memcpy_implementation
 )
 
 # Helper to define a function with multiple implementations

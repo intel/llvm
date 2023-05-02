@@ -571,6 +571,19 @@ enum NodeType {
   /// vector, but not the other way around.
   EXTRACT_SUBVECTOR,
 
+  /// VECTOR_DEINTERLEAVE(VEC1, VEC2) - Returns two vectors with all input and
+  /// output vectors having the same type. The first output contains the even
+  /// indices from CONCAT_VECTORS(VEC1, VEC2), with the second output
+  /// containing the odd indices. The relative order of elements within an
+  /// output match that of the concatenated input.
+  VECTOR_DEINTERLEAVE,
+
+  /// VECTOR_INTERLEAVE(VEC1, VEC2) - Returns two vectors with all input and
+  /// output vectors having the same type. The first output contains the
+  /// result of interleaving the low half of CONCAT_VECTORS(VEC1, VEC2), with
+  /// the second output containing the result of interleaving the high half.
+  VECTOR_INTERLEAVE,
+
   /// VECTOR_REVERSE(VECTOR) - Returns a vector, of the same type as VECTOR,
   /// whose elements are shuffled using the following algorithm:
   ///   RESULT[i] = VECTOR[VECTOR.ElementCount - 1 - i]
@@ -859,12 +872,11 @@ enum NodeType {
   ///  3 Round to -inf
   ///  4 Round to nearest, ties to zero
   /// Result is rounding mode and chain. Input is a chain.
-  /// TODO: Rename this node to GET_ROUNDING.
-  FLT_ROUNDS_,
+  GET_ROUNDING,
 
   /// Set rounding mode.
   /// The first operand is a chain pointer. The second specifies the required
-  /// rounding mode, encoded in the same way as used in '``FLT_ROUNDS_``'.
+  /// rounding mode, encoded in the same way as used in '``GET_ROUNDING``'.
   SET_ROUNDING,
 
   /// X = FP_EXTEND(Y) - Extend a smaller FP type into a larger FP type.
@@ -1149,6 +1161,9 @@ enum NodeType {
   /// operand and output are the same floating type.
   ARITH_FENCE,
 
+  /// MEMBARRIER - Compiler barrier only; generate a no-op.
+  MEMBARRIER,
+
   /// OUTCHAIN = ATOMIC_FENCE(INCHAIN, ordering, scope)
   /// This corresponds to the fence instruction. It takes an input chain, and
   /// two integer constants: an AtomicOrdering and a SynchronizationScope.
@@ -1197,6 +1212,8 @@ enum NodeType {
   ATOMIC_LOAD_FSUB,
   ATOMIC_LOAD_FMAX,
   ATOMIC_LOAD_FMIN,
+  ATOMIC_LOAD_UINC_WRAP,
+  ATOMIC_LOAD_UDEC_WRAP,
 
   // Masked load and store - consecutive vector load and store operations
   // with additional mask operand that prevents memory accesses to the
@@ -1337,10 +1354,16 @@ bool isVPBinaryOp(unsigned Opcode);
 bool isVPReduction(unsigned Opcode);
 
 /// The operand position of the vector mask.
-Optional<unsigned> getVPMaskIdx(unsigned Opcode);
+std::optional<unsigned> getVPMaskIdx(unsigned Opcode);
 
 /// The operand position of the explicit vector length parameter.
-Optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
+std::optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
+
+/// Translate this VP Opcode to its corresponding non-VP Opcode.
+std::optional<unsigned> getBaseOpcodeForVP(unsigned Opcode, bool hasFPExcept);
+
+/// Translate this non-VP Opcode to its corresponding VP Opcode.
+unsigned getVPForBaseOpcode(unsigned Opcode);
 
 //===--------------------------------------------------------------------===//
 /// MemIndexedMode enum - This enum defines the load / store indexed

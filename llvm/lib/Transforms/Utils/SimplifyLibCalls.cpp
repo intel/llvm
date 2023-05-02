@@ -14,7 +14,6 @@
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -29,6 +28,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
@@ -511,7 +511,8 @@ Value *LibCallSimplifier::optimizeStrCmp(CallInst *CI, IRBuilderBase &B) {
 
   // strcmp(x, y)  -> cnst  (if both x and y are constant strings)
   if (HasStr1 && HasStr2)
-    return ConstantInt::get(CI->getType(), Str1.compare(Str2));
+    return ConstantInt::get(CI->getType(),
+                            std::clamp(Str1.compare(Str2), -1, 1));
 
   if (HasStr1 && Str1.empty()) // strcmp("", x) -> -*x
     return B.CreateNeg(B.CreateZExt(
@@ -595,7 +596,8 @@ Value *LibCallSimplifier::optimizeStrNCmp(CallInst *CI, IRBuilderBase &B) {
     // Avoid truncating the 64-bit Length to 32 bits in ILP32.
     StringRef SubStr1 = substr(Str1, Length);
     StringRef SubStr2 = substr(Str2, Length);
-    return ConstantInt::get(CI->getType(), SubStr1.compare(SubStr2));
+    return ConstantInt::get(CI->getType(),
+                            std::clamp(SubStr1.compare(SubStr2), -1, 1));
   }
 
   if (HasStr1 && Str1.empty()) // strncmp("", x, n) -> -*x
@@ -1475,7 +1477,7 @@ static Value *optimizeMemCmpConstantSize(CallInst *CI, Value *LHS, Value *RHS,
   // to legal integers or equality comparison. See block below this.
   if (DL.isLegalInteger(Len * 8) && isOnlyUsedInZeroEqualityComparison(CI)) {
     IntegerType *IntType = IntegerType::get(CI->getContext(), Len * 8);
-    unsigned PrefAlignment = DL.getPrefTypeAlignment(IntType);
+    Align PrefAlignment = DL.getPrefTypeAlign(IntType);
 
     // First, see if we can fold either argument to a constant.
     Value *LHSV = nullptr;
@@ -1937,7 +1939,8 @@ Value *LibCallSimplifier::replacePowWithExp(CallInst *Pow, IRBuilderBase &B) {
   AttributeList NoAttrs; // Attributes are only meaningful on the original call
 
   // pow(2.0, itofp(x)) -> ldexp(1.0, x)
-  if (match(Base, m_SpecificFP(2.0)) &&
+  // TODO: This does not work for vectors because there is no ldexp intrinsic.
+  if (!Ty->isVectorTy() && match(Base, m_SpecificFP(2.0)) &&
       (isa<SIToFPInst>(Expo) || isa<UIToFPInst>(Expo)) &&
       hasFloatFn(M, TLI, Ty, LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl)) {
     if (Value *ExpoI = getIntToFPVal(Expo, B, TLI->getIntSize()))
@@ -2215,17 +2218,25 @@ Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilderBase &B) {
       hasFloatVersion(M, Name))
     Ret = optimizeUnaryDoubleFP(CI, B, TLI, true);
 
+  // Bail out for vectors because the code below only expects scalars.
+  // TODO: This could be allowed if we had a ldexp intrinsic (D14327).
   Type *Ty = CI->getType();
-  Value *Op = CI->getArgOperand(0);
+  if (Ty->isVectorTy())
+    return Ret;
 
   // exp2(sitofp(x)) -> ldexp(1.0, sext(x))  if sizeof(x) <= IntSize
   // exp2(uitofp(x)) -> ldexp(1.0, zext(x))  if sizeof(x) < IntSize
+  Value *Op = CI->getArgOperand(0);
   if ((isa<SIToFPInst>(Op) || isa<UIToFPInst>(Op)) &&
       hasFloatFn(M, TLI, Ty, LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl)) {
-    if (Value *Exp = getIntToFPVal(Op, B, TLI->getIntSize()))
-      return emitBinaryFloatFnCall(ConstantFP::get(Ty, 1.0), Exp, TLI,
-                                   LibFunc_ldexp, LibFunc_ldexpf,
-                                   LibFunc_ldexpl, B, AttributeList());
+    if (Value *Exp = getIntToFPVal(Op, B, TLI->getIntSize())) {
+      IRBuilderBase::FastMathFlagGuard Guard(B);
+      B.setFastMathFlags(CI->getFastMathFlags());
+      return copyFlags(
+          *CI, emitBinaryFloatFnCall(ConstantFP::get(Ty, 1.0), Exp, TLI,
+                                     LibFunc_ldexp, LibFunc_ldexpf,
+                                     LibFunc_ldexpl, B, AttributeList()));
+    }
   }
 
   return Ret;
@@ -2577,7 +2588,7 @@ static bool insertSinCosCall(IRBuilderBase &B, Function *OrigCallee, Value *Arg,
   return true;
 }
 
-Value *LibCallSimplifier::optimizeSinCosPi(CallInst *CI, IRBuilderBase &B) {
+Value *LibCallSimplifier::optimizeSinCosPi(CallInst *CI, bool IsSin, IRBuilderBase &B) {
   // Make sure the prototype is as expected, otherwise the rest of the
   // function is probably invalid and likely to abort.
   if (!isTrigLibCall(CI))
@@ -2616,7 +2627,7 @@ Value *LibCallSimplifier::optimizeSinCosPi(CallInst *CI, IRBuilderBase &B) {
   replaceTrigInsts(CosCalls, Cos);
   replaceTrigInsts(SinCosCalls, SinCos);
 
-  return nullptr;
+  return IsSin ? Sin : Cos;
 }
 
 void LibCallSimplifier::classifyArgUse(
@@ -3459,9 +3470,10 @@ Value *LibCallSimplifier::optimizeFloatingPointLibCall(CallInst *CI,
   switch (Func) {
   case LibFunc_sinpif:
   case LibFunc_sinpi:
+    return optimizeSinCosPi(CI, /*IsSin*/true, Builder);
   case LibFunc_cospif:
   case LibFunc_cospi:
-    return optimizeSinCosPi(CI, Builder);
+    return optimizeSinCosPi(CI, /*IsSin*/false, Builder);
   case LibFunc_powf:
   case LibFunc_pow:
   case LibFunc_powl:
@@ -3746,12 +3758,9 @@ void LibCallSimplifier::eraseFromParent(Instruction *I) {
 // Fortified Library Call Optimizations
 //===----------------------------------------------------------------------===//
 
-bool
-FortifiedLibCallSimplifier::isFortifiedCallFoldable(CallInst *CI,
-                                                    unsigned ObjSizeOp,
-                                                    Optional<unsigned> SizeOp,
-                                                    Optional<unsigned> StrOp,
-                                                    Optional<unsigned> FlagOp) {
+bool FortifiedLibCallSimplifier::isFortifiedCallFoldable(
+    CallInst *CI, unsigned ObjSizeOp, std::optional<unsigned> SizeOp,
+    std::optional<unsigned> StrOp, std::optional<unsigned> FlagOp) {
   // If this function takes a flag argument, the implementation may use it to
   // perform extra checks. Don't fold into the non-checking variant.
   if (FlagOp) {
@@ -3855,7 +3864,7 @@ Value *FortifiedLibCallSimplifier::optimizeStrpCpyChk(CallInst *CI,
   // st[rp]cpy_chk call which may fail at runtime if the size is too long.
   // TODO: It might be nice to get a maximum length out of the possible
   // string lengths for varying.
-  if (isFortifiedCallFoldable(CI, 2, None, 1)) {
+  if (isFortifiedCallFoldable(CI, 2, std::nullopt, 1)) {
     if (Func == LibFunc_strcpy_chk)
       return copyFlags(*CI, emitStrCpy(Dst, Src, B, TLI));
     else
@@ -3886,7 +3895,7 @@ Value *FortifiedLibCallSimplifier::optimizeStrpCpyChk(CallInst *CI,
 
 Value *FortifiedLibCallSimplifier::optimizeStrLenChk(CallInst *CI,
                                                      IRBuilderBase &B) {
-  if (isFortifiedCallFoldable(CI, 1, None, 0))
+  if (isFortifiedCallFoldable(CI, 1, std::nullopt, 0))
     return copyFlags(*CI, emitStrLen(CI->getArgOperand(0), B,
                                      CI->getModule()->getDataLayout(), TLI));
   return nullptr;
@@ -3921,7 +3930,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemCCpyChk(CallInst *CI,
 
 Value *FortifiedLibCallSimplifier::optimizeSNPrintfChk(CallInst *CI,
                                                        IRBuilderBase &B) {
-  if (isFortifiedCallFoldable(CI, 3, 1, None, 2)) {
+  if (isFortifiedCallFoldable(CI, 3, 1, std::nullopt, 2)) {
     SmallVector<Value *, 8> VariadicArgs(drop_begin(CI->args(), 5));
     return copyFlags(*CI,
                      emitSNPrintf(CI->getArgOperand(0), CI->getArgOperand(1),
@@ -3933,7 +3942,7 @@ Value *FortifiedLibCallSimplifier::optimizeSNPrintfChk(CallInst *CI,
 
 Value *FortifiedLibCallSimplifier::optimizeSPrintfChk(CallInst *CI,
                                                       IRBuilderBase &B) {
-  if (isFortifiedCallFoldable(CI, 2, None, None, 1)) {
+  if (isFortifiedCallFoldable(CI, 2, std::nullopt, std::nullopt, 1)) {
     SmallVector<Value *, 8> VariadicArgs(drop_begin(CI->args(), 4));
     return copyFlags(*CI,
                      emitSPrintf(CI->getArgOperand(0), CI->getArgOperand(3),
@@ -3984,7 +3993,7 @@ Value *FortifiedLibCallSimplifier::optimizeStrLCpyChk(CallInst *CI,
 
 Value *FortifiedLibCallSimplifier::optimizeVSNPrintfChk(CallInst *CI,
                                                         IRBuilderBase &B) {
-  if (isFortifiedCallFoldable(CI, 3, 1, None, 2))
+  if (isFortifiedCallFoldable(CI, 3, 1, std::nullopt, 2))
     return copyFlags(
         *CI, emitVSNPrintf(CI->getArgOperand(0), CI->getArgOperand(1),
                            CI->getArgOperand(4), CI->getArgOperand(5), B, TLI));
@@ -3994,7 +4003,7 @@ Value *FortifiedLibCallSimplifier::optimizeVSNPrintfChk(CallInst *CI,
 
 Value *FortifiedLibCallSimplifier::optimizeVSPrintfChk(CallInst *CI,
                                                        IRBuilderBase &B) {
-  if (isFortifiedCallFoldable(CI, 2, None, None, 1))
+  if (isFortifiedCallFoldable(CI, 2, std::nullopt, std::nullopt, 1))
     return copyFlags(*CI,
                      emitVSPrintf(CI->getArgOperand(0), CI->getArgOperand(3),
                                   CI->getArgOperand(4), B, TLI));

@@ -23,6 +23,7 @@
 #include "lldb/Utility/Timer.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/ThreadPool.h"
+#include <optional>
 
 using namespace lldb_private;
 using namespace lldb;
@@ -81,7 +82,7 @@ void ManualDWARFIndex::Index() {
 
   // Keep memory down by clearing DIEs for any units if indexing
   // caused us to load the unit's DIEs.
-  std::vector<llvm::Optional<DWARFUnit::ScopedExtractDIEs>> clear_cu_dies(
+  std::vector<std::optional<DWARFUnit::ScopedExtractDIEs>> clear_cu_dies(
       units_to_index.size());
   auto parser_fn = [&](size_t cu_idx) {
     IndexUnit(*units_to_index[cu_idx], dwp_dwarf, sets[cu_idx]);
@@ -142,7 +143,7 @@ void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, SymbolFileDWARFDwo *dwp,
 
   if (log) {
     m_module.LogMessage(
-        log, "ManualDWARFIndex::IndexUnit for unit at .debug_info[0x%8.8x]",
+        log, "ManualDWARFIndex::IndexUnit for unit at .debug_info[{0:x16}]",
         unit.GetOffset());
   }
 
@@ -161,12 +162,13 @@ void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, SymbolFileDWARFDwo *dwp,
   // though as some functions have template parameter types and other things
   // that cause extra copies of types to be included, but we should find these
   // types in the .dwo file only as methods could have return types removed and
-  // we don't have to index incomplete types from the skeletone compile unit.
+  // we don't have to index incomplete types from the skeleton compile unit.
   if (unit.GetDWOId()) {
+    // Index the .dwo or dwp instead of the skeleton unit.
     if (SymbolFileDWARFDwo *dwo_symbol_file = unit.GetDwoSymbolFile()) {
       // Type units in a dwp file are indexed separately, so we just need to
-      // process the split unit here. However, if the split unit is in a dwo file,
-      // then we need to process type units here.
+      // process the split unit here. However, if the split unit is in a dwo
+      // file, then we need to process type units here.
       if (dwo_symbol_file == dwp) {
         IndexUnitImpl(unit.GetNonSkeletonUnit(), cu_language, set);
       } else {
@@ -174,11 +176,22 @@ void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, SymbolFileDWARFDwo *dwp,
         for (size_t i = 0; i < dwo_info.GetNumUnits(); ++i)
           IndexUnitImpl(*dwo_info.GetUnitAtIndex(i), cu_language, set);
       }
+      return;
     }
-  } else {
-    // We either have a normal compile unit which we want to index.
-    IndexUnitImpl(unit, cu_language, set);
+    // This was a DWARF5 skeleton CU and the .dwo file couldn't be located.
+    if (unit.GetVersion() >= 5 && unit.IsSkeletonUnit())
+      return;
+
+    // Either this is a DWARF 4 + fission CU with the .dwo file
+    // missing, or it's a -gmodules pch or pcm. Try to detect the
+    // latter by checking whether the first DIE is a DW_TAG_module.
+    // If it's a pch/pcm, continue indexing it.
+    if (unit.GetDIE(unit.GetFirstDIEOffset()).GetFirstChild().Tag() !=
+        llvm::dwarf::DW_TAG_module)
+      return;
   }
+  // We have a normal compile unit which we want to index.
+  IndexUnitImpl(unit, cu_language, set);
 }
 
 void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
@@ -195,6 +208,7 @@ void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
     case DW_TAG_enumeration_type:
     case DW_TAG_inlined_subroutine:
     case DW_TAG_namespace:
+    case DW_TAG_imported_declaration:
     case DW_TAG_string_type:
     case DW_TAG_structure_type:
     case DW_TAG_subprogram:
@@ -341,6 +355,7 @@ void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
       break;
 
     case DW_TAG_namespace:
+    case DW_TAG_imported_declaration:
       if (name)
         set.namespaces.Insert(ConstString(name), ref);
       break;
@@ -386,7 +401,6 @@ void ManualDWARFIndex::GetGlobalVariables(
 
 void ManualDWARFIndex::GetGlobalVariables(
     DWARFUnit &unit, llvm::function_ref<bool(DWARFDIE die)> callback) {
-  lldbassert(!unit.GetSymbolFileDWARF().GetDwoNum());
   Index();
   m_set.globals.FindAllEntriesForUnit(unit, DIERefCallback(callback));
 }
@@ -524,7 +538,10 @@ enum DataID {
   kDataIDEnd = 255u,
 
 };
-constexpr uint32_t CURRENT_CACHE_VERSION = 1;
+
+// Version 2 changes the encoding of DIERef objects used in the DWARF manual
+// index name tables. See DIERef class for details.
+constexpr uint32_t CURRENT_CACHE_VERSION = 2;
 
 bool ManualDWARFIndex::IndexSet::Decode(const DataExtractor &data,
                                         lldb::offset_t *offset_ptr) {

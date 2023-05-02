@@ -18,6 +18,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/AssignmentTrackingAnalysis.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -33,6 +34,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -104,36 +106,67 @@ class SelectionDAGBuilder {
 
   /// Helper type for DanglingDebugInfoMap.
   class DanglingDebugInfo {
-    const DbgValueInst *DI = nullptr;
+    using DbgValTy = const DbgValueInst *;
+    using VarLocTy = const VarLocInfo *;
+    PointerUnion<DbgValTy, VarLocTy> Info;
     unsigned SDNodeOrder = 0;
 
   public:
     DanglingDebugInfo() = default;
     DanglingDebugInfo(const DbgValueInst *DI, unsigned SDNO)
-        : DI(DI), SDNodeOrder(SDNO) {
-      assert(!DI->hasArgList() &&
-             "Dangling variadic debug values not supported yet");
-    }
+        : Info(DI), SDNodeOrder(SDNO) {}
+    DanglingDebugInfo(const VarLocInfo *VarLoc, unsigned SDNO)
+        : Info(VarLoc), SDNodeOrder(SDNO) {}
 
-    DILocalVariable *getVariable() const { return DI->getVariable(); }
-    DIExpression *getExpression() const { return DI->getExpression(); }
+    DILocalVariable *getVariable(const FunctionVarLocs *Locs) const {
+      if (Info.is<VarLocTy>())
+        return Locs->getDILocalVariable(Info.get<VarLocTy>()->VariableID);
+      return Info.get<DbgValTy>()->getVariable();
+    }
+    DIExpression *getExpression() const {
+      if (Info.is<VarLocTy>())
+        return Info.get<VarLocTy>()->Expr;
+      return Info.get<DbgValTy>()->getExpression();
+    }
     Value *getVariableLocationOp(unsigned Idx) const {
       assert(Idx == 0 && "Dangling variadic debug values not supported yet");
-      return DI->getVariableLocationOp(Idx);
+      if (Info.is<VarLocTy>())
+        return Info.get<VarLocTy>()->Values.getVariableLocationOp(Idx);
+      return Info.get<DbgValTy>()->getVariableLocationOp(Idx);
     }
-    DebugLoc getDebugLoc() const { return DI->getDebugLoc(); }
+    DebugLoc getDebugLoc() const {
+      if (Info.is<VarLocTy>())
+        return Info.get<VarLocTy>()->DL;
+      return Info.get<DbgValTy>()->getDebugLoc();
+    }
     unsigned getSDNodeOrder() const { return SDNodeOrder; }
 
-    friend raw_ostream &operator<<(raw_ostream &OS,
-                                   const DanglingDebugInfo &Info) {
-      OS << "DDI(var=" << *Info.getVariable()
-         << ", val= " << *Info.getVariableLocationOp(0)
-         << ", expr=" << *Info.getExpression()
-         << ", order=" << Info.getSDNodeOrder()
-         << ", loc=" << Info.getDebugLoc() << ")";
-      return OS;
-    }
+    /// Helper for printing DanglingDebugInfo. This hoop-jumping is to
+    /// accommodate the fact that an argument is required for getVariable.
+    /// Call SelectionDAGBuilder::printDDI instead of using directly.
+    struct Print {
+      Print(const DanglingDebugInfo &DDI, const FunctionVarLocs *VarLocs)
+          : DDI(DDI), VarLocs(VarLocs) {}
+      const DanglingDebugInfo &DDI;
+      const FunctionVarLocs *VarLocs;
+      friend raw_ostream &operator<<(raw_ostream &OS,
+                                     const DanglingDebugInfo::Print &P) {
+        OS << "DDI(var=" << *P.DDI.getVariable(P.VarLocs)
+           << ", val= " << *P.DDI.getVariableLocationOp(0)
+           << ", expr=" << *P.DDI.getExpression()
+           << ", order=" << P.DDI.getSDNodeOrder()
+           << ", loc=" << P.DDI.getDebugLoc() << ")";
+        return OS;
+      }
+    };
   };
+
+  /// Returns an object that defines `raw_ostream &operator<<` for printing.
+  /// Usage example:
+  ////    errs() << printDDI(MyDanglingInfo) << " is dangling\n";
+  DanglingDebugInfo::Print printDDI(const DanglingDebugInfo &DDI) {
+    return DanglingDebugInfo::Print(DDI, DAG.getFunctionVarLocs());
+  }
 
   /// Helper type for DanglingDebugInfoMap.
   typedef std::vector<DanglingDebugInfo> DanglingDebugInfoVector;
@@ -141,6 +174,10 @@ class SelectionDAGBuilder {
   /// Keeps track of dbg_values for which we have not yet seen the referent.
   /// We defer handling these until we do see it.
   MapVector<const Value*, DanglingDebugInfoVector> DanglingDebugInfoMap;
+
+  /// Cache the module flag for whether we should use debug-info assignment
+  /// tracking.
+  bool AssignmentTrackingEnabled = false;
 
 public:
   /// Loads are not emitted to the program immediately.  We bunch them up and
@@ -316,6 +353,7 @@ public:
 
   /// Register a dbg_value which relies on a Value which we have not yet seen.
   void addDanglingDebugInfo(const DbgValueInst *DI, unsigned Order);
+  void addDanglingDebugInfo(const VarLocInfo *VarLoc, unsigned Order);
 
   /// If we have dangling debug info that describes \p Variable, or an
   /// overlapping part of variable considering the \p Expr, then this method
@@ -500,6 +538,7 @@ private:
   // These all get lowered before this pass.
   void visitInvoke(const InvokeInst &I);
   void visitCallBr(const CallBrInst &I);
+  void visitCallBrLandingPad(const CallInst &I);
   void visitResume(const ResumeInst &I);
 
   void visitUnary(const User &I, unsigned Opcode);
@@ -586,17 +625,17 @@ private:
   void visitTargetIntrinsic(const CallInst &I, unsigned Intrinsic);
   void visitConstrainedFPIntrinsic(const ConstrainedFPIntrinsic &FPI);
   void visitVPLoad(const VPIntrinsic &VPIntrin, EVT VT,
-                   SmallVector<SDValue, 7> &OpValues);
+                   const SmallVectorImpl<SDValue> &OpValues);
   void visitVPStore(const VPIntrinsic &VPIntrin,
-                    SmallVector<SDValue, 7> &OpValues);
+                    const SmallVectorImpl<SDValue> &OpValues);
   void visitVPGather(const VPIntrinsic &VPIntrin, EVT VT,
-                     SmallVector<SDValue, 7> &OpValues);
+                     const SmallVectorImpl<SDValue> &OpValues);
   void visitVPScatter(const VPIntrinsic &VPIntrin,
-                      SmallVector<SDValue, 7> &OpValues);
+                      const SmallVectorImpl<SDValue> &OpValues);
   void visitVPStridedLoad(const VPIntrinsic &VPIntrin, EVT VT,
-                          SmallVectorImpl<SDValue> &OpValues);
+                          const SmallVectorImpl<SDValue> &OpValues);
   void visitVPStridedStore(const VPIntrinsic &VPIntrin,
-                           SmallVectorImpl<SDValue> &OpValues);
+                           const SmallVectorImpl<SDValue> &OpValues);
   void visitVPCmp(const VPCmpIntrinsic &VPIntrin);
   void visitVectorPredicationIntrinsic(const VPIntrinsic &VPIntrin);
 
@@ -614,6 +653,8 @@ private:
   void visitVectorReduce(const CallInst &I, unsigned Intrinsic);
   void visitVectorReverse(const CallInst &I);
   void visitVectorSplice(const CallInst &I);
+  void visitVectorInterleave(const CallInst &I);
+  void visitVectorDeinterleave(const CallInst &I);
   void visitStepVector(const CallInst &I);
 
   void visitUserOp1(const Instruction &I) {
@@ -635,7 +676,6 @@ private:
   /// EmitFuncArgumentDbgValue.
   enum class FuncArgumentDbgValueKind {
     Value,   // This was originally a llvm.dbg.value.
-    Addr,    // This was originally a llvm.dbg.addr.
     Declare, // This was originally a llvm.dbg.declare.
   };
 
@@ -702,14 +742,14 @@ struct RegsForValue {
 
   /// Records if this value needs to be treated in an ABI dependant manner,
   /// different to normal type legalization.
-  Optional<CallingConv::ID> CallConv;
+  std::optional<CallingConv::ID> CallConv;
 
   RegsForValue() = default;
   RegsForValue(const SmallVector<unsigned, 4> &regs, MVT regvt, EVT valuevt,
-               Optional<CallingConv::ID> CC = None);
+               std::optional<CallingConv::ID> CC = std::nullopt);
   RegsForValue(LLVMContext &Context, const TargetLowering &TLI,
                const DataLayout &DL, unsigned Reg, Type *Ty,
-               Optional<CallingConv::ID> CC);
+               std::optional<CallingConv::ID> CC);
 
   bool isABIMangled() const { return CallConv.has_value(); }
 
@@ -726,7 +766,7 @@ struct RegsForValue {
   /// updates them for the output Chain/Flag. If the Flag pointer is NULL, no
   /// flag is used.
   SDValue getCopyFromRegs(SelectionDAG &DAG, FunctionLoweringInfo &FuncInfo,
-                          const SDLoc &dl, SDValue &Chain, SDValue *Flag,
+                          const SDLoc &dl, SDValue &Chain, SDValue *Glue,
                           const Value *V = nullptr) const;
 
   /// Emit a series of CopyToReg nodes that copies the specified value into the
@@ -735,7 +775,7 @@ struct RegsForValue {
   /// flag is used. If V is not nullptr, then it is used in printing better
   /// diagnostic messages on error.
   void getCopyToRegs(SDValue Val, SelectionDAG &DAG, const SDLoc &dl,
-                     SDValue &Chain, SDValue *Flag, const Value *V = nullptr,
+                     SDValue &Chain, SDValue *Glue, const Value *V = nullptr,
                      ISD::NodeType PreferredExtendType = ISD::ANY_EXTEND) const;
 
   /// Add this value to the specified inlineasm node operand list. This adds the

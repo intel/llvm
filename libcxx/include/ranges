@@ -49,6 +49,8 @@ namespace std::ranges {
     using range_reference_t = iter_reference_t<iterator_t<R>>;
   template<range R>
     using range_rvalue_reference_t = iter_rvalue_reference_t<iterator_t<R>>;
+  template <range R>
+    using range_common_reference_t = iter_common_reference_t<iterator_t<R>>;
 
   // [range.sized], sized ranges
   template<class>
@@ -114,6 +116,27 @@ namespace std::ranges {
 
   template<range R>
     using borrowed_subrange_t = see below;
+
+  // [range.elements], elements view
+  template<input_range V, size_t N>
+    requires see below
+  class elements_view;
+
+  template<class T, size_t N>
+    inline constexpr bool enable_borrowed_range<elements_view<T, N>> =
+      enable_borrowed_range<T>;
+
+  template<class R>
+    using keys_view = elements_view<R, 0>;
+  template<class R>
+    using values_view = elements_view<R, 1>;
+
+  namespace views {
+    template<size_t N>
+      inline constexpr unspecified elements = unspecified;
+    inline constexpr auto keys = elements<0>;
+    inline constexpr auto values = elements<1>;
+  }
 
   // [range.empty], empty view
   template<class T>
@@ -244,8 +267,15 @@ namespace std::ranges {
              (forward_range<V> || tiny-range<Pattern>)
   class lazy_split_view;
 
+  // [range.split], split view
+  template<forward_range V, forward_range Pattern>
+    requires view<V> && view<Pattern> &&
+             indirectly_comparable<iterator_t<V>, iterator_t<Pattern>, ranges::equal_to>
+  class split_view;
+
   namespace views {
     inline constexpr unspecified lazy_split = unspecified;
+    inline constexpr unspecified split = unspecified;
   }
 
   // [range.istream], istream view
@@ -271,6 +301,13 @@ namespace std::ranges {
       (enable_borrowed_range<Views> && ...);
 
   namespace views { inline constexpr unspecified zip = unspecified; }    // C++2b
+
+  // [range.as.rvalue]
+  template <view V>
+    requires input_range<V>
+  class as_rvalue_view; // since C++23
+
+  namespace views { inline constexpr unspecified as_rvalue ) unspecified; } // since C++23
 }
 
 namespace std {
@@ -309,6 +346,7 @@ namespace std {
 #include <__config>
 #include <__ranges/access.h>
 #include <__ranges/all.h>
+#include <__ranges/as_rvalue_view.h>
 #include <__ranges/common_view.h>
 #include <__ranges/concepts.h>
 #include <__ranges/counted.h>
@@ -316,6 +354,7 @@ namespace std {
 #include <__ranges/data.h>
 #include <__ranges/drop_view.h>
 #include <__ranges/drop_while_view.h>
+#include <__ranges/elements_view.h>
 #include <__ranges/empty.h>
 #include <__ranges/empty_view.h>
 #include <__ranges/enable_borrowed_range.h>
@@ -330,6 +369,7 @@ namespace std {
 #include <__ranges/reverse_view.h>
 #include <__ranges/single_view.h>
 #include <__ranges/size.h>
+#include <__ranges/split_view.h>
 #include <__ranges/subrange.h>
 #include <__ranges/take_view.h>
 #include <__ranges/take_while_view.h>
@@ -337,7 +377,6 @@ namespace std {
 #include <__ranges/view_interface.h>
 #include <__ranges/views.h>
 #include <__ranges/zip_view.h>
-#include <type_traits>
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
@@ -357,6 +396,11 @@ namespace std {
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
+#endif
+
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <cstdlib>
+#  include <type_traits>
 #endif
 
 #endif // _LIBCPP_RANGES

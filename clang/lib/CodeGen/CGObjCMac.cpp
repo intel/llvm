@@ -2407,8 +2407,8 @@ void IvarLayoutBuilder::visitBlock(const CGBlockInfo &blockInfo) {
     Qualifiers::GC GCAttr = GetGCAttrTypeForType(CGM.getContext(), type);
 
     if (GCAttr == Qualifiers::Strong) {
-      assert(CGM.getContext().getTypeSize(type)
-                == CGM.getTarget().getPointerWidth(0));
+      assert(CGM.getContext().getTypeSize(type) ==
+             CGM.getTarget().getPointerWidth(LangAS::Default));
       IvarsInfo.push_back(IvarInfo(fieldOffset, /*size in words*/ 1));
     }
   }
@@ -2701,7 +2701,7 @@ llvm::Constant *CGObjCCommonMac::getBitmapBlockLayout(bool ComputeByrefLayout) {
   llvm::Constant *nullPtr = llvm::Constant::getNullValue(CGM.Int8PtrTy);
   if (RunSkipBlockVars.empty())
     return nullPtr;
-  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(0);
+  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(LangAS::Default);
   unsigned ByteSizeInBits = CGM.getTarget().getCharWidth();
   unsigned WordSizeInBytes = WordSizeInBits/ByteSizeInBits;
 
@@ -2887,7 +2887,7 @@ void CGObjCCommonMac::fillRunSkipBlockVars(CodeGenModule &CGM,
   RunSkipBlockVars.clear();
   bool hasUnion = false;
 
-  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(0);
+  unsigned WordSizeInBits = CGM.getTarget().getPointerWidth(LangAS::Default);
   unsigned ByteSizeInBits = CGM.getTarget().getCharWidth();
   unsigned WordSizeInBytes = WordSizeInBits/ByteSizeInBits;
 
@@ -6208,8 +6208,7 @@ void CGObjCNonFragileABIMac::AddModuleClassList(
   llvm::GlobalVariable *GV = new llvm::GlobalVariable(
       CGM.getModule(), Init->getType(), false,
       llvm::GlobalValue::PrivateLinkage, Init, SymbolName);
-  GV->setAlignment(
-      llvm::Align(CGM.getDataLayout().getABITypeAlignment(Init->getType())));
+  GV->setAlignment(CGM.getDataLayout().getABITypeAlign(Init->getType()));
   GV->setSection(SectionName);
   CGM.addCompilerUsedGlobal(GV);
 }
@@ -6441,8 +6440,7 @@ CGObjCNonFragileABIMac::BuildClassObject(const ObjCInterfaceDecl *CI,
 
   if (CGM.getTriple().isOSBinFormatMachO())
     GV->setSection("__DATA, __objc_data");
-  GV->setAlignment(llvm::Align(
-      CGM.getDataLayout().getABITypeAlignment(ObjCTypes.ClassnfABITy)));
+  GV->setAlignment(CGM.getDataLayout().getABITypeAlign(ObjCTypes.ClassnfABITy));
   if (!CGM.getTriple().isOSBinFormatCOFF())
     if (HiddenVisibility)
       GV->setVisibility(llvm::GlobalValue::HiddenVisibility);
@@ -6903,8 +6901,8 @@ CGObjCNonFragileABIMac::EmitIvarOffsetVar(const ObjCInterfaceDecl *ID,
   llvm::GlobalVariable *IvarOffsetGV = ObjCIvarOffsetVariable(ID, Ivar);
   IvarOffsetGV->setInitializer(
       llvm::ConstantInt::get(ObjCTypes.IvarOffsetVarTy, Offset));
-  IvarOffsetGV->setAlignment(llvm::Align(
-      CGM.getDataLayout().getABITypeAlignment(ObjCTypes.IvarOffsetVarTy)));
+  IvarOffsetGV->setAlignment(
+      CGM.getDataLayout().getABITypeAlign(ObjCTypes.IvarOffsetVarTy));
 
   if (!CGM.getTriple().isOSBinFormatCOFF()) {
     // FIXME: This matches gcc, but shouldn't the visibility be set on the use
@@ -7132,8 +7130,8 @@ llvm::Constant *CGObjCNonFragileABIMac::GetOrEmitProtocol(
                              ProtocolRef);
   if (!CGM.getTriple().isOSBinFormatMachO())
     PTGV->setComdat(CGM.getModule().getOrInsertComdat(ProtocolRef));
-  PTGV->setAlignment(llvm::Align(
-      CGM.getDataLayout().getABITypeAlignment(ObjCTypes.ProtocolnfABIPtrTy)));
+  PTGV->setAlignment(
+      CGM.getDataLayout().getABITypeAlign(ObjCTypes.ProtocolnfABIPtrTy));
   PTGV->setSection(GetSectionName("__objc_protolist",
                                   "coalesced,no_dead_strip"));
   PTGV->setVisibility(llvm::GlobalValue::HiddenVisibility);
@@ -7232,7 +7230,7 @@ CGObjCNonFragileABIMac::EmitIvarOffset(CodeGen::CodeGenFunction &CGF,
     if (IsIvarOffsetKnownIdempotent(CGF, Ivar))
       cast<llvm::LoadInst>(IvarOffsetValue)
           ->setMetadata(CGM.getModule().getMDKindID("invariant.load"),
-                        llvm::MDNode::get(VMContext, None));
+                        llvm::MDNode::get(VMContext, std::nullopt));
   }
 
   // This could be 32bit int or 64bit integer depending on the architecture.
@@ -7433,7 +7431,7 @@ CGObjCNonFragileABIMac::GetClassGlobal(StringRef Name,
       GV->eraseFromParent();
     }
     GV = NewGV;
-    CGM.getModule().getGlobalList().push_back(GV);
+    CGM.getModule().insertGlobalVariable(GV);
   }
 
   assert(GV->getLinkage() == L);
@@ -7632,7 +7630,7 @@ llvm::Value *CGObjCNonFragileABIMac::EmitSelector(CodeGenFunction &CGF,
 
   llvm::LoadInst* LI = CGF.Builder.CreateLoad(Addr);
   LI->setMetadata(CGM.getModule().getMDKindID("invariant.load"),
-                  llvm::MDNode::get(VMContext, None));
+                  llvm::MDNode::get(VMContext, std::nullopt));
   return LI;
 }
 

@@ -58,7 +58,11 @@ tablegen("AMDGPUGenMCPseudoLowering") {
 }
 
 tablegen("AMDGPUGenRegisterBank") {
-  visibility = [ ":LLVMAMDGPUCodeGen" ]
+  visibility = [
+    ":LLVMAMDGPUCodeGen",
+    "Utils",
+    "//llvm/unittests/Target/AMDGPU:AMDGPUTests",
+  ]
   args = [ "-gen-register-bank" ]
   td_file = "AMDGPU.td"
 }
@@ -115,6 +119,7 @@ static_library("LLVMAMDGPUCodeGen") {
     "//llvm/lib/Passes",
     "//llvm/lib/Support",
     "//llvm/lib/Target",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Transforms/IPO",
     "//llvm/lib/Transforms/Scalar",
     "//llvm/lib/Transforms/Utils",
@@ -167,9 +172,10 @@ static_library("LLVMAMDGPUCodeGen") {
     "AMDGPUPromoteKernelArguments.cpp",
     "AMDGPUPropagateAttributes.cpp",
     "AMDGPURegBankCombiner.cpp",
+    "AMDGPURegBankSelect.cpp",
     "AMDGPURegisterBankInfo.cpp",
     "AMDGPUReleaseVGPRs.cpp",
-    "AMDGPUReplaceLDSUseWithPointer.cpp",
+    "AMDGPURemoveIncompatibleFunctions.cpp",
     "AMDGPUResourceUsageAnalysis.cpp",
     "AMDGPURewriteOutArguments.cpp",
     "AMDGPURewriteUndefForPHI.cpp",
@@ -230,6 +236,7 @@ static_library("LLVMAMDGPUCodeGen") {
     "SIMachineScheduler.cpp",
     "SIMemoryLegalizer.cpp",
     "SIModeRegister.cpp",
+    "SIModeRegisterDefaults.cpp",
     "SIOptimizeExecMasking.cpp",
     "SIOptimizeExecMaskingPreRA.cpp",
     "SIOptimizeVGPRLiveRange.cpp",

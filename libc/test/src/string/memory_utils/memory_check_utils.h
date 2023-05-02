@@ -10,22 +10,12 @@
 #define LIBC_TEST_SRC_STRING_MEMORY_UTILS_MEMORY_CHECK_UTILS_H
 
 #include "src/__support/CPP/span.h"
+#include "src/__support/macros/sanitizer.h"
 #include "src/string/memory_utils/utils.h"
 #include <assert.h> // assert
 #include <stddef.h> // size_t
 #include <stdint.h> // uintxx_t
 #include <stdlib.h> // malloc/free
-
-#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
-#include <sanitizer/asan_interface.h>
-#define ASAN_POISON_MEMORY_REGION(addr, size)                                  \
-  __asan_poison_memory_region((addr), (size))
-#define ASAN_UNPOISON_MEMORY_REGION(addr, size)                                \
-  __asan_unpoison_memory_region((addr), (size))
-#else
-#define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-#define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-#endif
 
 namespace __llvm_libc {
 
@@ -75,7 +65,7 @@ static inline char GetRandomChar() {
   static constexpr const uint64_t m = 1ULL << 31;
   static uint64_t seed = 123456789;
   seed = (a * seed + c) % m;
-  return seed;
+  return static_cast<char>(seed);
 }
 
 // Randomize the content of the buffer.
@@ -85,8 +75,8 @@ static inline void Randomize(cpp::span<char> buffer) {
 }
 
 // Copy one span to another.
-__attribute__((no_builtin)) static inline void
-ReferenceCopy(cpp::span<char> dst, const cpp::span<char> src) {
+static inline void ReferenceCopy(cpp::span<char> dst,
+                                 const cpp::span<char> src) {
   assert(dst.size() == src.size());
   for (size_t i = 0; i < dst.size(); ++i)
     dst[i] = src[i];

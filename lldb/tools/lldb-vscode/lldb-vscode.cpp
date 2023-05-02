@@ -32,6 +32,10 @@
 #include <unistd.h>
 #endif
 
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -79,11 +83,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr llvm::StringLiteral NAME##_init[] = VALUE;                  \
+  static constexpr llvm::ArrayRef<llvm::StringLiteral> NAME(                   \
+      NAME##_init, std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
-static const llvm::opt::OptTable::Info InfoTable[] = {
+static constexpr llvm::opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {PREFIX,      NAME,      HELPTEXT,                                           \
@@ -93,9 +100,9 @@ static const llvm::opt::OptTable::Info InfoTable[] = {
 #include "Options.inc"
 #undef OPTION
 };
-class LLDBVSCodeOptTable : public llvm::opt::OptTable {
+class LLDBVSCodeOptTable : public llvm::opt::GenericOptTable {
 public:
-  LLDBVSCodeOptTable() : OptTable(InfoTable, true) {}
+  LLDBVSCodeOptTable() : llvm::opt::GenericOptTable(InfoTable, true) {}
 };
 
 typedef void (*RequestCallback)(const llvm::json::Object &command);
@@ -1062,8 +1069,9 @@ void request_completions(const llvm::json::Object &request) {
     text = text.substr(1);
     actual_column--;
   } else {
-    text = "p " + text;
-    actual_column += 2;
+    char command[] = "expression -- ";
+    text = command + text;
+    actual_column += strlen(command);
   }
   lldb::SBStringList matches;
   lldb::SBStringList descriptions;
@@ -1558,8 +1566,12 @@ llvm::Error request_runInTerminal(const llvm::json::Object &launch_request) {
 
   RunInTerminalDebugAdapterCommChannel comm_channel(comm_file.m_path);
 
+  lldb::pid_t debugger_pid = LLDB_INVALID_PROCESS_ID;
+#if !defined(_WIN32)
+  debugger_pid = getpid();
+#endif
   llvm::json::Object reverse_request = CreateRunInTerminalReverseRequest(
-      launch_request, g_vsc.debug_adaptor_path, comm_file.m_path);
+      launch_request, g_vsc.debug_adaptor_path, comm_file.m_path, debugger_pid);
   llvm::json::Object reverse_response;
   lldb_vscode::PacketStatus status =
       g_vsc.SendReverseRequest(reverse_request, reverse_response);
@@ -3137,11 +3149,21 @@ EXAMPLES:
 // In case of errors launching the target, a suitable error message will be
 // emitted to the debug adaptor.
 void LaunchRunInTerminalTarget(llvm::opt::Arg &target_arg,
-                               llvm::StringRef comm_file, char *argv[]) {
+                               llvm::StringRef comm_file,
+                               lldb::pid_t debugger_pid, char *argv[]) {
 #if defined(_WIN32)
   llvm::errs() << "runInTerminal is only supported on POSIX systems\n";
   exit(EXIT_FAILURE);
 #else
+
+  // On Linux with the Yama security module enabled, a process can only attach
+  // to its descendants by default. In the runInTerminal case the target
+  // process is launched by the client so we need to allow tracing explicitly.
+#if defined(__linux__)
+  if (debugger_pid != LLDB_INVALID_PROCESS_ID)
+    (void)prctl(PR_SET_PTRACER, debugger_pid, 0, 0, 0);
+#endif
+
   RunInTerminalLauncherCommChannel comm_channel(comm_file);
   if (llvm::Error err = comm_channel.NotifyPid()) {
     llvm::errs() << llvm::toString(std::move(err)) << "\n";
@@ -3224,7 +3246,7 @@ int main(int argc, char *argv[]) {
 
   LLDBVSCodeOptTable T;
   unsigned MAI, MAC;
-  llvm::ArrayRef<const char *> ArgsArr = llvm::makeArrayRef(argv + 1, argc);
+  llvm::ArrayRef<const char *> ArgsArr = llvm::ArrayRef(argv + 1, argc);
   llvm::opt::InputArgList input_args = T.ParseArgs(ArgsArr, MAI, MAC);
 
   if (input_args.hasArg(OPT_help)) {
@@ -3234,13 +3256,23 @@ int main(int argc, char *argv[]) {
 
   if (llvm::opt::Arg *target_arg = input_args.getLastArg(OPT_launch_target)) {
     if (llvm::opt::Arg *comm_file = input_args.getLastArg(OPT_comm_file)) {
+      lldb::pid_t pid = LLDB_INVALID_PROCESS_ID;
+      llvm::opt::Arg *debugger_pid = input_args.getLastArg(OPT_debugger_pid);
+      if (debugger_pid) {
+        llvm::StringRef debugger_pid_value = debugger_pid->getValue();
+        if (debugger_pid_value.getAsInteger(10, pid)) {
+          llvm::errs() << "'" << debugger_pid_value << "' is not a valid "
+                          "PID\n";
+          return EXIT_FAILURE;
+        }
+      }
       int target_args_pos = argc;
       for (int i = 0; i < argc; i++)
         if (strcmp(argv[i], "--launch-target") == 0) {
           target_args_pos = i + 1;
           break;
         }
-      LaunchRunInTerminalTarget(*target_arg, comm_file->getValue(),
+      LaunchRunInTerminalTarget(*target_arg, comm_file->getValue(), pid,
                                 argv + target_args_pos);
     } else {
       llvm::errs() << "\"--launch-target\" requires \"--comm-file\" to be "

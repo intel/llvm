@@ -10,6 +10,7 @@
 #define LLVM_LIB_TARGET_HEXAGON_HEXAGONDEPARCH_H
 
 #include "llvm/ADT/StringSwitch.h"
+#include <optional>
 
 namespace llvm {
 namespace Hexagon {
@@ -29,8 +30,8 @@ enum class ArchEnum {
   V73
 };
 
-inline Optional<Hexagon::ArchEnum> getCpu(StringRef CPU) {
-  return StringSwitch<Optional<Hexagon::ArchEnum>>(CPU)
+inline std::optional<Hexagon::ArchEnum> getCpu(StringRef CPU) {
+  return StringSwitch<std::optional<Hexagon::ArchEnum>>(CPU)
       .Case("generic", Hexagon::ArchEnum::V5)
       .Case("hexagonv5", Hexagon::ArchEnum::V5)
       .Case("hexagonv55", Hexagon::ArchEnum::V55)
@@ -45,7 +46,7 @@ inline Optional<Hexagon::ArchEnum> getCpu(StringRef CPU) {
       .Case("hexagonv71", Hexagon::ArchEnum::V71)
       .Case("hexagonv71t", Hexagon::ArchEnum::V71)
       .Case("hexagonv73", Hexagon::ArchEnum::V73)
-      .Default(None);
+      .Default(std::nullopt);
 }
 } // namespace Hexagon
 } // namespace llvm

@@ -37,7 +37,7 @@ public:
   static constexpr const char *GetNodeName(const T &) { return N; }
 #define NODE_ENUM(T, E) \
   static std::string GetNodeName(const T::E &x) { \
-    return #E " = "s + T::EnumToString(x); \
+    return #E " = "s + std::string{T::EnumToString(x)}; \
   }
 #define NODE(T1, T2) NODE_NAME(T1::T2, #T2)
   NODE_NAME(bool, "bool")
@@ -190,6 +190,7 @@ public:
   NODE(CommonStmt, Block)
   NODE(parser, CompilerDirective)
   NODE(CompilerDirective, IgnoreTKR)
+  NODE(CompilerDirective, LoopCount)
   NODE(CompilerDirective, NameValue)
   NODE(parser, ComplexLiteralConstant)
   NODE(parser, ComplexPart)
@@ -513,6 +514,10 @@ public:
   }
   NODE(parser, OmpObject)
   NODE(parser, OmpObjectList)
+  NODE(parser, OmpOrderClause)
+  NODE_ENUM(OmpOrderClause, Type)
+  NODE(parser, OmpOrderModifier)
+  NODE_ENUM(OmpOrderModifier, Kind)
   NODE(parser, OmpProcBindClause)
   NODE_ENUM(OmpProcBindClause, Type)
   NODE(parser, OmpReductionClause)
@@ -527,6 +532,8 @@ public:
   NODE_ENUM(OmpScheduleClause, ScheduleType)
   NODE(parser, OmpDeviceClause)
   NODE_ENUM(OmpDeviceClause, DeviceModifier)
+  NODE(parser, OmpDeviceTypeClause)
+  NODE_ENUM(OmpDeviceTypeClause, Type)
   NODE(parser, OmpScheduleModifier)
   NODE(OmpScheduleModifier, Modifier1)
   NODE(OmpScheduleModifier, Modifier2)

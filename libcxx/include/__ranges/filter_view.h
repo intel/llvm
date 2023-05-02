@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_FILTER_VIEW_H
 #define _LIBCPP___RANGES_FILTER_VIEW_H
 
@@ -34,7 +35,6 @@
 #include <__utility/forward.h>
 #include <__utility/in_place.h>
 #include <__utility/move.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -42,7 +42,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
   template<input_range _View, indirect_unary_predicate<iterator_t<_View>> _Pred>
@@ -64,10 +64,8 @@ namespace ranges {
     _LIBCPP_HIDE_FROM_ABI
     filter_view() requires default_initializable<_View> && default_initializable<_Pred> = default;
 
-    _LIBCPP_HIDE_FROM_ABI
-    constexpr filter_view(_View __base, _Pred __pred)
-      : __base_(std::move(__base)), __pred_(in_place, std::move(__pred))
-    { }
+    _LIBCPP_HIDE_FROM_ABI constexpr _LIBCPP_EXPLICIT_SINCE_CXX23 filter_view(_View __base, _Pred __pred)
+        : __base_(std::move(__base)), __pred_(in_place, std::move(__pred)) {}
 
     template<class _Vp = _View>
     _LIBCPP_HIDE_FROM_ABI
@@ -119,6 +117,7 @@ namespace ranges {
   template<input_range _View, indirect_unary_predicate<iterator_t<_View>> _Pred>
     requires view<_View> && is_object_v<_Pred>
   class filter_view<_View, _Pred>::__iterator : public __filter_iterator_category<_View> {
+
   public:
     _LIBCPP_NO_UNIQUE_ADDRESS iterator_t<_View> __current_ = iterator_t<_View>();
     _LIBCPP_NO_UNIQUE_ADDRESS filter_view* __parent_ = nullptr;
@@ -178,9 +177,9 @@ namespace ranges {
     }
     _LIBCPP_HIDE_FROM_ABI
     constexpr __iterator operator--(int) requires bidirectional_range<_View> {
-      auto tmp = *this;
+      auto __tmp = *this;
       --*this;
-      return tmp;
+      return __tmp;
     }
 
     _LIBCPP_HIDE_FROM_ABI
@@ -223,8 +222,8 @@ namespace ranges {
     _LIBCPP_HIDE_FROM_ABI
     constexpr sentinel_t<_View> base() const { return __end_; }
 
-    _LIBCPP_HIDE_FROM_ABI
-    friend constexpr bool operator==(__iterator const& __x, __sentinel const& __y) {
+    _LIBCPP_HIDE_FROM_ABI friend constexpr bool
+    operator==(__iterator const& __x, __sentinel const& __y) {
       return __x.__current_ == __y.__end_;
     }
   };
@@ -255,7 +254,7 @@ inline namespace __cpo {
 
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

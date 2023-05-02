@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_STRING_UTIL_MESSAGE_MAPPER
-#define LLVM_LIBC_SRC_SUPPORT_STRING_UTIL_MESSAGE_MAPPER
+#ifndef LLVM_LIBC_SRC_SUPPORT_STRING_UTIL_MESSAGE_MAPPER_H
+#define LLVM_LIBC_SRC_SUPPORT_STRING_UTIL_MESSAGE_MAPPER_H
 
 #include "src/__support/CPP/optional.h"
 #include "src/__support/CPP/string_view.h"
@@ -45,7 +45,7 @@ public:
     for (size_t i = 0; i < raw_array_len; ++i)
       string_mappings[raw_array[i].num] = raw_array[i].msg;
 
-    size_t string_array_index = 0;
+    int string_array_index = 0;
     for (size_t cur_num = 0; cur_num < ARR_SIZE; ++cur_num) {
       if (string_mappings[cur_num].size() != 0) {
         msg_offsets[cur_num] = string_array_index;
@@ -74,4 +74,4 @@ public:
 } // namespace internal
 } // namespace __llvm_libc
 
-#endif // LLVM_LIBC_SRC_SUPPORT_STRING_UTIL_MESSAGE_MAPPER
+#endif // LLVM_LIBC_SRC_SUPPORT_STRING_UTIL_MESSAGE_MAPPER_H

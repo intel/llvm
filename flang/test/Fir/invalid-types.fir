@@ -166,4 +166,9 @@ func.func private @oth3() -> !fir.vector<10:>
 // -----
 
 // expected-error@+1 {{invalid element type}}
-func.func private @upe() -> !fir.class<!fir.logical<1>>
+func.func private @upe() -> !fir.class<!fir.box<i32>>
+
+// -----
+
+// expected-error@+1 {{invalid element type}}
+func.func private @upe() -> !fir.box<!fir.class<none>>

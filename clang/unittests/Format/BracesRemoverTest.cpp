@@ -6,66 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
-
-#include "../Tooling/ReplacementTest.h"
-#include "FormatTestUtils.h"
+#include "FormatTestBase.h"
 
 #define DEBUG_TYPE "braces-remover-test"
 
 namespace clang {
 namespace format {
+namespace test {
 namespace {
 
-// TODO:
-// Refactor the class declaration, which is copied from BracesInserterTest.cpp.
-class BracesRemoverTest : public ::testing::Test {
-protected:
-  std::string format(llvm::StringRef Code, const FormatStyle &Style,
-                     const std::vector<tooling::Range> &Ranges) {
-    LLVM_DEBUG(llvm::errs() << "---\n");
-    LLVM_DEBUG(llvm::errs() << Code << "\n\n");
-    auto NonEmptyRanges = Ranges;
-    if (Ranges.empty())
-      NonEmptyRanges = {1, tooling::Range(0, Code.size())};
-    FormattingAttemptStatus Status;
-    tooling::Replacements Replaces =
-        reformat(Style, Code, NonEmptyRanges, "<stdin>", &Status);
-    EXPECT_EQ(true, Status.FormatComplete) << Code << "\n\n";
-    ReplacementCount = Replaces.size();
-    auto Result = applyAllReplacements(Code, Replaces);
-    EXPECT_TRUE(static_cast<bool>(Result));
-    LLVM_DEBUG(llvm::errs() << "\n" << *Result << "\n\n");
-    return *Result;
-  }
-
-  void _verifyFormat(const char *File, int Line, llvm::StringRef Expected,
-                     llvm::StringRef Code,
-                     const FormatStyle &Style = getLLVMStyle(),
-                     const std::vector<tooling::Range> &Ranges = {}) {
-    testing::ScopedTrace t(File, Line, ::testing::Message() << Code.str());
-    EXPECT_EQ(Expected.str(), format(Expected, Style, Ranges))
-        << "Expected code is not stable";
-    EXPECT_EQ(Expected.str(), format(Code, Style, Ranges));
-    if (Style.Language == FormatStyle::LK_Cpp && Ranges.empty()) {
-      // Objective-C++ is a superset of C++, so everything checked for C++
-      // needs to be checked for Objective-C++ as well.
-      FormatStyle ObjCStyle = Style;
-      ObjCStyle.Language = FormatStyle::LK_ObjC;
-      EXPECT_EQ(Expected.str(), format(test::messUp(Code), ObjCStyle, Ranges));
-    }
-  }
-
-  void _verifyFormat(const char *File, int Line, llvm::StringRef Code,
-                     const FormatStyle &Style = getLLVMStyle(),
-                     const std::vector<tooling::Range> &Ranges = {}) {
-    _verifyFormat(File, Line, Code, Code, Style, Ranges);
-  }
-
-  int ReplacementCount;
-};
-
-#define verifyFormat(...) _verifyFormat(__FILE__, __LINE__, __VA_ARGS__)
+class BracesRemoverTest : public FormatTestBase {};
 
 TEST_F(BracesRemoverTest, RemoveBraces) {
   FormatStyle Style = getLLVMStyle();
@@ -202,6 +152,20 @@ TEST_F(BracesRemoverTest, RemoveBraces) {
                "while (i > 0) { --i; }\n"
                "// clang-format on\n"
                "while (j < 0) { ++j; }",
+               Style);
+
+  verifyFormat("for (;;) {\n"
+               "  for (;;)\n"
+               "    for (;;)\n"
+               "      a;\n"
+               "}",
+               "for (;;) {\n"
+               "  for (;;) {\n"
+               "    for (;;) {\n"
+               "      a;\n"
+               "    }\n"
+               "  }\n"
+               "}",
                Style);
 
   verifyFormat("if (a)\n"
@@ -669,6 +633,41 @@ TEST_F(BracesRemoverTest, RemoveBraces) {
                "return a;",
                Style);
 
+  verifyFormat("if (a)\n"
+               "#ifdef FOO\n"
+               "  if (b)\n"
+               "    bar = c;\n"
+               "  else\n"
+               "#endif\n"
+               "  {\n"
+               "    foo = d;\n"
+               "#ifdef FOO\n"
+               "    bar = e;\n"
+               "#else\n"
+               "  bar = f;\n" // FIXME: should be indented 1 more level.
+               "#endif\n"
+               "  }\n"
+               "else\n"
+               "  bar = g;",
+               "if (a)\n"
+               "#ifdef FOO\n"
+               "  if (b)\n"
+               "    bar = c;\n"
+               "  else\n"
+               "#endif\n"
+               "  {\n"
+               "    foo = d;\n"
+               "#ifdef FOO\n"
+               "    bar = e;\n"
+               "#else\n"
+               "    bar = f;\n"
+               "#endif\n"
+               "  }\n"
+               "else {\n"
+               "  bar = g;\n"
+               "}",
+               Style);
+
   Style.ColumnLimit = 65;
   verifyFormat("if (condition) {\n"
                "  ff(Indices,\n"
@@ -776,6 +775,17 @@ TEST_F(BracesRemoverTest, RemoveBraces) {
                "    e;\n"
                "  } else\n"
                "    f = g(foo, bar, baz);\n"
+               "}",
+               Style);
+
+  verifyFormat("if (foo)\n"
+               "  f();\n"
+               "else if (bar || baz)\n"
+               "  g();",
+               "if (foo) {\n"
+               "  f();\n"
+               "} else if (bar || baz) {\n"
+               "  g();\n"
                "}",
                Style);
 
@@ -922,5 +932,6 @@ TEST_F(BracesRemoverTest, RemoveBraces) {
 }
 
 } // namespace
+} // namespace test
 } // namespace format
 } // namespace clang

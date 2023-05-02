@@ -27,6 +27,7 @@
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/UnixSignals.h"
 #include "lldb/Utility/StreamString.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -40,7 +41,7 @@ struct PtrauthInstructionInfo {
 
 /// Get any pointer-authentication related information about the instruction
 /// at address \p at_addr.
-static llvm::Optional<PtrauthInstructionInfo>
+static std::optional<PtrauthInstructionInfo>
 GetPtrauthInstructionInfo(Target &target, const ArchSpec &arch,
                           const Address &at_addr) {
   const char *plugin_name = nullptr;
@@ -50,12 +51,12 @@ GetPtrauthInstructionInfo(Target &target, const ArchSpec &arch,
   DisassemblerSP disassembler_sp = Disassembler::DisassembleRange(
       arch, plugin_name, flavor, target, range_bounds, prefer_file_cache);
   if (!disassembler_sp)
-    return llvm::None;
+    return std::nullopt;
 
   InstructionList &insn_list = disassembler_sp->GetInstructionList();
   InstructionSP insn = insn_list.GetInstructionAtIndex(0);
   if (!insn)
-    return llvm::None;
+    return std::nullopt;
 
   return PtrauthInstructionInfo{insn->IsAuthenticated(), insn->IsLoad(),
                                 insn->DoesBranch()};
@@ -568,9 +569,9 @@ StopInfoMachException::MachException::Name(exception_type_t exc_type) {
   return NULL;
 }
 
-llvm::Optional<exception_type_t>
+std::optional<exception_type_t>
 StopInfoMachException::MachException::ExceptionCode(const char *name) {
-  return llvm::StringSwitch<llvm::Optional<exception_type_t>>(name)
+  return llvm::StringSwitch<std::optional<exception_type_t>>(name)
       .Case("EXC_BAD_ACCESS", EXC_BAD_ACCESS)
       .Case("EXC_BAD_INSTRUCTION", EXC_BAD_INSTRUCTION)
       .Case("EXC_ARITHMETIC", EXC_ARITHMETIC)
@@ -590,7 +591,7 @@ StopInfoMachException::MachException::ExceptionCode(const char *name) {
 #ifdef EXC_CORPSE_NOTIFY
       .Case("EXC_CORPSE_NOTIFY", EXC_CORPSE_NOTIFY)
 #endif
-      .Default(llvm::None);
+      .Default(std::nullopt);
 }
 #endif
 

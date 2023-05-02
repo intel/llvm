@@ -58,6 +58,7 @@ DLWRAP(cuModuleUnload, 1)
 DLWRAP(cuStreamCreate, 2)
 DLWRAP(cuStreamDestroy, 1)
 DLWRAP(cuStreamSynchronize, 1)
+DLWRAP(cuStreamQuery, 1)
 DLWRAP(cuCtxSetCurrent, 1)
 DLWRAP(cuDevicePrimaryCtxRelease, 1)
 DLWRAP(cuDevicePrimaryCtxGetState, 3)
@@ -84,8 +85,12 @@ DLWRAP_FINALIZE()
 #define DYNAMIC_CUDA_PATH "libcuda.so"
 #endif
 
+#ifndef TARGET_NAME
 #define TARGET_NAME CUDA
+#endif
+#ifndef DEBUG_PREFIX
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
+#endif
 
 static bool checkForCUDA() {
   // return true if dlopen succeeded and all functions found

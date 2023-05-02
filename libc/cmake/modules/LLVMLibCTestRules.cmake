@@ -16,6 +16,11 @@ function(get_object_files_for_test result skipped_entrypoints_list)
   set(object_files "")
   set(skipped_list "")
   foreach(dep IN LISTS ARGN)
+    if (NOT TARGET ${dep})
+      # Skip any tests whose dependencies have not been defined.
+      list(APPEND skipped_list ${dep})
+      continue()
+    endif()
     get_target_property(dep_type ${dep} "TARGET_TYPE")
     if(NOT dep_type)
       # Target for which TARGET_TYPE property is not set do not
@@ -101,16 +106,17 @@ function(create_libc_unittest fq_target_name)
     # machine specific object library. Such a test would be testing internals of
     # the libc and it is assumed that they will be rare in practice. So, they
     # can be skipped in the corresponding CMake files using platform specific
-    # logic. This pattern is followed in the loader tests for example.
+    # logic. This pattern is followed in the startup tests for example.
     #
     # Another pattern that is present currently is to detect machine
     # capabilities and add entrypoints and tests accordingly. That approach is
     # much lower level approach and is independent of the kind of skipping that
     # is happening here at the entrypoint level.
-
-    set(msg "Skipping unittest ${fq_target_name} as it has missing deps: "
-            "${skipped_entrypoints_list}.")
-    message(STATUS ${msg})
+    if(LIBC_CMAKE_VERBOSE_LOGGING)
+      set(msg "Skipping unittest ${fq_target_name} as it has missing deps: "
+              "${skipped_entrypoints_list}.")
+      message(STATUS ${msg})
+    endif()
     return()
   endif()
 
@@ -123,26 +129,32 @@ function(create_libc_unittest fq_target_name)
     endif()
   endif()
 
+  if(LIBC_UNITTEST_NO_RUN_POSTBUILD)
+    set(fq_build_target_name ${fq_target_name})
+  else()
+    set(fq_build_target_name ${fq_target_name}.__build__)
+  endif()
+
   add_executable(
-    ${fq_target_name}
+    ${fq_build_target_name}
     EXCLUDE_FROM_ALL
     ${LIBC_UNITTEST_SRCS}
     ${LIBC_UNITTEST_HDRS}
   )
   target_include_directories(
-    ${fq_target_name}
+    ${fq_build_target_name}
     PRIVATE
       ${LIBC_SOURCE_DIR}
       ${LIBC_BUILD_DIR}
       ${LIBC_BUILD_DIR}/include
   )
   target_compile_options(
-    ${fq_target_name}
-    PRIVATE ${LIBC_COMPILE_OPTIONS_DEFAULT}
+    ${fq_build_target_name}
+    PRIVATE -fpie ${LIBC_COMPILE_OPTIONS_DEFAULT}
   )
   if(LIBC_UNITTEST_COMPILE_OPTIONS)
     target_compile_options(
-      ${fq_target_name}
+      ${fq_build_target_name}
       PRIVATE ${LIBC_UNITTEST_COMPILE_OPTIONS}
     )
   endif()
@@ -150,7 +162,7 @@ function(create_libc_unittest fq_target_name)
     set(LIBC_UNITTEST_CXX_STANDARD ${CMAKE_CXX_STANDARD})
   endif()
   set_target_properties(
-    ${fq_target_name}
+    ${fq_build_target_name}
     PROPERTIES
       CXX_STANDARD ${LIBC_UNITTEST_CXX_STANDARD}
   )
@@ -158,11 +170,11 @@ function(create_libc_unittest fq_target_name)
   # Test object files will depend on LINK_LIBRARIES passed down from `add_fp_unittest`
   set(link_libraries ${link_object_files} ${LIBC_UNITTEST_LINK_LIBRARIES})
 
-  set_target_properties(${fq_target_name}
+  set_target_properties(${fq_build_target_name}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
   add_dependencies(
-    ${fq_target_name}
+    ${fq_build_target_name}
     ${fq_deps_list}
   )
 
@@ -173,13 +185,13 @@ function(create_libc_unittest fq_target_name)
     list(APPEND link_libraries LibcUnitTest LibcUnitTestMain libc_test_utils)
   endif()
 
-  target_link_libraries(${fq_target_name} PRIVATE ${link_libraries})
+  target_link_libraries(${fq_build_target_name} PRIVATE ${link_libraries})
 
   if(NOT LIBC_UNITTEST_NO_RUN_POSTBUILD)
-    add_custom_command(
-      TARGET ${fq_target_name}
-      POST_BUILD
-      COMMAND $<TARGET_FILE:${fq_target_name}>
+    add_custom_target(
+      ${fq_target_name}
+      COMMAND $<TARGET_FILE:${fq_build_target_name}>
+      COMMENT "Running unit test ${fq_target_name}"
     )
   endif()
 
@@ -288,7 +300,7 @@ endfunction(add_libc_unittest)
 
 function(add_libc_testsuite suite_name)
   add_custom_target(${suite_name})
-  add_dependencies(check-llvmlibc ${suite_name})
+  add_dependencies(libc-unit-tests ${suite_name})
 endfunction(add_libc_testsuite)
 
 function(add_libc_exhaustive_testsuite suite_name)
@@ -314,7 +326,7 @@ function(add_libc_fuzzer target_name)
     "LIBC_FUZZER"
     "" # No optional arguments
     "" # Single value arguments
-    "SRCS;HDRS;DEPENDS" # Multi-value arguments
+    "SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi-value arguments
     ${ARGN}
   )
   if(NOT LIBC_FUZZER_SRCS)
@@ -331,9 +343,11 @@ function(add_libc_fuzzer target_name)
   get_object_files_for_test(
       link_object_files skipped_entrypoints_list ${fq_deps_list})
   if(skipped_entrypoints_list)
-    set(msg "Skipping fuzzer target ${fq_target_name} as it has missing deps: "
-            "${skipped_entrypoints_list}.")
-    message(STATUS ${msg})
+    if(LIBC_CMAKE_VERBOSE_LOGGING)
+      set(msg "Skipping fuzzer target ${fq_target_name} as it has missing deps: "
+              "${skipped_entrypoints_list}.")
+      message(STATUS ${msg})
+    endif()
     add_custom_target(${fq_target_name})
 
     # A post build custom command is used to avoid running the command always.
@@ -369,13 +383,18 @@ function(add_libc_fuzzer target_name)
     ${fq_deps_list}
   )
   add_dependencies(libc-fuzzer ${fq_target_name})
+
+  target_compile_options(${fq_target_name}
+    PRIVATE
+    ${LIBC_FUZZER_COMPILE_OPTIONS})
+
 endfunction(add_libc_fuzzer)
 
 # Rule to add an integration test. An integration test is like a unit test
-# but does not use the system libc. Not even the loader from the system libc
-# is linked to the final executable. The final exe is fully statically linked.
-# The libc that the final exe links to consists of only the object files of
-# the DEPENDS targets.
+# but does not use the system libc. Not even the startup objects from the
+# system libc are linked in to the final executable. The final exe is fully
+# statically linked. The libc that the final exe links to consists of only
+# the object files of the DEPENDS targets.
 # 
 # Usage:
 #   add_integration_test(
@@ -383,28 +402,25 @@ endfunction(add_libc_fuzzer)
 #     SUITE <the suite to which the test should belong>
 #     SRCS <src1.cpp> [src2.cpp ...]
 #     HDRS [hdr1.cpp ...]
-#     LOADER <fully qualified loader target name>
 #     DEPENDS <list of entrypoint or other object targets>
 #     ARGS <list of command line arguments to be passed to the test>
 #     ENV <list of environment variables to set before running the test>
 #     COMPILE_OPTIONS <list of special compile options for this target>
 #   )
 #
-# The loader target should provide a property named LOADER_OBJECT which is
-# the full path to the object file produces when the loader is built.
-#
 # The DEPENDS list can be empty. If not empty, it should be a list of
 # targets added with add_entrypoint_object or add_object_library.
 function(add_integration_test test_name)
   get_fq_target_name(${test_name} fq_target_name)
-  if(NOT (${LIBC_TARGET_OS} STREQUAL "linux"))
+  set(supported_targets gpu linux)
+  if(NOT (${LIBC_TARGET_OS} IN_LIST supported_targets))
     message(STATUS "Skipping ${fq_target_name} as it is not available on ${LIBC_TARGET_OS}.")
     return()
   endif()
   cmake_parse_arguments(
     "INTEGRATION_TEST"
     "" # No optional arguments
-    "SUITE;LOADER" # Single value arguments
+    "SUITE" # Single value arguments
     "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS" # Multi-value arguments
     ${ARGN}
   )
@@ -412,28 +428,30 @@ function(add_integration_test test_name)
   if(NOT INTEGRATION_TEST_SUITE)
     message(FATAL_ERROR "SUITE not specified for ${fq_target_name}")
   endif()
-  if(NOT INTEGRATION_TEST_LOADER)
-    message(FATAL_ERROR "The LOADER to link to the integration test is missing.")
-  endif()
   if(NOT INTEGRATION_TEST_SRCS)
     message(FATAL_ERROR "The SRCS list for add_integration_test is missing.")
+  endif()
+  if(NOT TARGET libc.startup.${LIBC_TARGET_OS}.crt1)
+    message(FATAL_ERROR "The 'crt1' target for the integration test is missing.")
   endif()
 
   get_fq_target_name(${test_name}.libc fq_libc_target_name)
 
   get_fq_deps_list(fq_deps_list ${INTEGRATION_TEST_DEPENDS})
-  # All integration tests setup TLS area and the main thread's self object.
-  # So, we need to link in the threads implementation. Likewise, the startup
-  # code also has to run init_array callbacks which potentially register
-  # their own atexit callbacks. So, link in exit and atexit also with all
-  # integration tests.
-  list(
-      APPEND fq_deps_list
-      libc.src.__support.threads.thread
-      libc.src.stdlib.atexit
-      libc.src.stdlib.exit
-      libc.src.unistd.environ
-      libc.utils.IntegrationTest.test)
+  list(APPEND fq_deps_list
+      # All integration tests use the operating system's startup object with the
+      # integration test object and need to inherit the same dependencies.
+      libc.startup.${LIBC_TARGET_OS}.crt1
+      libc.test.IntegrationTest.test
+      # We always add the memory functions objects. This is because the
+      # compiler's codegen can emit calls to the C memory functions.
+      libc.src.string.bcmp
+      libc.src.string.bzero
+      libc.src.string.memcmp
+      libc.src.string.memcpy
+      libc.src.string.memmove
+      libc.src.string.memset
+  )
   list(REMOVE_DUPLICATES fq_deps_list)
 
   # TODO: Instead of gathering internal object files from entrypoints,
@@ -441,90 +459,81 @@ function(add_integration_test test_name)
   get_object_files_for_test(
       link_object_files skipped_entrypoints_list ${fq_deps_list})
   if(skipped_entrypoints_list)
-    message(STATUS "Skipping ${fq_target_name} as it has skipped deps.")
+    if(LIBC_CMAKE_VERBOSE_LOGGING)
+      set(msg "Skipping unittest ${fq_target_name} as it has missing deps: "
+              "${skipped_entrypoints_list}.")
+      message(STATUS ${msg})
+    endif()
     return()
   endif()
+  list(REMOVE_DUPLICATES link_object_files)
 
-  # Create a sysroot structure
-  set(sysroot ${CMAKE_CURRENT_BINARY_DIR}/${test_name}/sysroot)
-  file(MAKE_DIRECTORY ${sysroot})
-  file(MAKE_DIRECTORY ${sysroot}/include)
-  set(sysroot_lib ${sysroot}/lib)
-  file(MAKE_DIRECTORY ${sysroot_lib})
-  get_target_property(loader_object_file ${INTEGRATION_TEST_LOADER} LOADER_OBJECT)
-  get_target_property(crti_object_file libc.loader.linux.crti LOADER_OBJECT)
-  get_target_property(crtn_object_file libc.loader.linux.crtn LOADER_OBJECT)
-  set(dummy_archive $<TARGET_PROPERTY:libc_integration_test_dummy,ARCHIVE_OUTPUT_DIRECTORY>/lib$<TARGET_PROPERTY:libc_integration_test_dummy,ARCHIVE_OUTPUT_NAME>.a)
-  if(NOT loader_object_file)
-    message(FATAL_ERROR "Missing LOADER_OBJECT property of ${INTEGRATION_TEST_LOADER}.")
-  endif()
-  set(loader_dst ${sysroot_lib}/${LIBC_TARGET_ARCHITECTURE}-linux-gnu/crt1.o)
-  add_custom_command(
-    OUTPUT ${loader_dst} ${sysroot}/lib/crti.o ${sysroot}/lib/crtn.o ${sysroot}/lib/libm.a ${sysroot}/lib/libc++.a
-    COMMAND cmake -E copy ${loader_object_file} ${loader_dst}
-    COMMAND cmake -E copy ${crti_object_file} ${sysroot}/lib
-    COMMAND cmake -E copy ${crtn_object_file} ${sysroot}/lib
-    # We copy the dummy archive as libm.a and libc++.a as the compiler drivers expect them.
-    COMMAND cmake -E copy ${dummy_archive} ${sysroot}/lib/libm.a
-    COMMAND cmake -E copy ${dummy_archive} ${sysroot}/lib/libc++.a
-    DEPENDS ${INTEGRATION_TEST_LOADER} libc.loader.linux.crti libc.loader.linux.crtn libc_integration_test_dummy
-  )
-  add_custom_target(
-    ${fq_target_name}.__copy_loader__
-    DEPENDS ${loader_dst}
-  )
-
+  # Make a library of all deps
   add_library(
-    ${fq_libc_target_name}
+    ${fq_target_name}.__libc__
     STATIC
-    ${link_object_files}
-    # We add the memory functions objects explicitly. Note that we
-    # are adding objects of the targets which contain the public
-    # C symbols. This is because compiler codegen can emit calls to
-    # the C memory functions.
-    $<TARGET_OBJECTS:libc.src.string.bcmp>
-    $<TARGET_OBJECTS:libc.src.string.bzero>
-    $<TARGET_OBJECTS:libc.src.string.memcmp>
-    $<TARGET_OBJECTS:libc.src.string.memcpy>
-    $<TARGET_OBJECTS:libc.src.string.memmove>
-    $<TARGET_OBJECTS:libc.src.string.memset>
-  )
-  set_target_properties(${fq_libc_target_name} PROPERTIES ARCHIVE_OUTPUT_NAME c)
-  set_target_properties(${fq_libc_target_name} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${sysroot_lib})
-
-  add_executable(
-    ${fq_target_name}
     EXCLUDE_FROM_ALL
+    ${link_object_files}
+  )
+  set_target_properties(${fq_target_name}.__libc__
+      PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  set_target_properties(${fq_target_name}.__libc__
+      PROPERTIES ARCHIVE_OUTPUT_NAME ${fq_target_name}.libc)
+
+  set(fq_build_target_name ${fq_target_name}.__build__)
+  add_executable(
+    ${fq_build_target_name}
+    EXCLUDE_FROM_ALL
+    # The NVIDIA 'nvlink' linker does not currently support static libraries.
+    $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${link_object_files}>
     ${INTEGRATION_TEST_SRCS}
     ${INTEGRATION_TEST_HDRS}
   )
-  set_target_properties(${fq_target_name}
+  set_target_properties(${fq_build_target_name}
       PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   target_include_directories(
-    ${fq_target_name}
+    ${fq_build_target_name}
     PRIVATE
       ${LIBC_SOURCE_DIR}
       ${LIBC_BUILD_DIR}
       ${LIBC_BUILD_DIR}/include
   )
-  target_compile_options(${fq_target_name} PRIVATE -ffreestanding ${INTEGRATION_TEST_COMPILE_OPTIONS})
-  # We set a number of link options to prevent picking up system libc binaries.
-  # Also, we restrict the integration tests to fully static executables. The
-  # rtlib is set to compiler-rt to make the compiler drivers pick up the compiler
-  # runtime binaries using full paths. Otherwise, files like crtbegin.o are passed
-  # as is (and not as paths like /usr/lib/.../crtbegin.o).
-  target_link_options(${fq_target_name} PRIVATE --sysroot=${sysroot} -static -stdlib=libc++ --rtlib=compiler-rt)
-  add_dependencies(${fq_target_name}
-                   ${fq_target_name}.__copy_loader__
-                   ${fq_libc_target_name}
-                   libc.utils.IntegrationTest.test
+  target_compile_options(${fq_build_target_name}
+                         PRIVATE -fpie -ffreestanding ${INTEGRATION_TEST_COMPILE_OPTIONS})
+  # The GPU build requires overriding the default CMake triple and architecture.
+  if(LIBC_GPU_TARGET_ARCHITECTURE_IS_AMDGPU)
+    target_compile_options(${fq_build_target_name} PRIVATE
+                           -mcpu=${LIBC_GPU_TARGET_ARCHITECTURE} -flto
+                           --target=${LIBC_GPU_TARGET_TRIPLE})
+  elseif(LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
+    target_compile_options(${fq_build_target_name} PRIVATE
+                           --cuda-path=${LIBC_CUDA_ROOT}
+                           -march=${LIBC_GPU_TARGET_ARCHITECTURE}
+                           --target=${LIBC_GPU_TARGET_TRIPLE})
+  endif()
+
+  target_link_options(${fq_build_target_name} PRIVATE -nostdlib -static)
+  target_link_libraries(
+    ${fq_build_target_name}
+    # The NVIDIA 'nvlink' linker does not currently support static libraries.
+    $<$<NOT:$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>>:${fq_target_name}.__libc__>
+    libc.startup.${LIBC_TARGET_OS}.crt1
+    libc.test.IntegrationTest.test)
+  add_dependencies(${fq_build_target_name}
+                   libc.test.IntegrationTest.test
                    ${INTEGRATION_TEST_DEPENDS})
 
-  add_custom_command(
-    TARGET ${fq_target_name}
-    POST_BUILD
-    COMMAND ${INTEGRATION_TEST_ENV} $<TARGET_FILE:${fq_target_name}> ${INTEGRATION_TEST_ARGS}
-  )
+  # Tests on the GPU require an external loader utility to launch the kernel.
+  if(TARGET libc.utils.gpu.loader)
+    get_target_property(gpu_loader_exe libc.utils.gpu.loader "EXECUTABLE")
+  endif()
 
+  add_custom_target(
+    ${fq_target_name}
+    COMMAND ${INTEGRATION_TEST_ENV}
+            $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${gpu_loader_exe}>
+            $<TARGET_FILE:${fq_build_target_name}> ${INTEGRATION_TEST_ARGS}
+    COMMENT "Running integration test ${fq_target_name}"
+  )
   add_dependencies(${INTEGRATION_TEST_SUITE} ${fq_target_name})
 endfunction(add_integration_test)

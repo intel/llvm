@@ -61,7 +61,7 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
   /// Returns true if the given region 'src' can be inlined into the region
   /// 'dest' that is attached to an operation registered to the current dialect.
   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     // Return true here when inlining into spirv.func, spirv.mlir.selection, and
     // spirv.mlir.loop operations.
     auto *op = dest->getParentOp();
@@ -72,7 +72,7 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
   /// dialect, can be inlined into the region 'dest' that is attached to an
   /// operation registered to the current dialect.
   bool isLegalToInline(Operation *op, Region *dest, bool wouldBeCloned,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     // TODO: Enable inlining structured control flows with return.
     if ((isa<spirv::SelectionOp, spirv::LoopOp>(op)) &&
         containsReturn(op->getRegion(0)))
@@ -142,15 +142,15 @@ std::string SPIRVDialect::getAttributeName(Decoration decoration) {
 
 // Forward declarations.
 template <typename ValTy>
-static Optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
-                                      DialectAsmParser &parser);
+static std::optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
+                                           DialectAsmParser &parser);
 template <>
-Optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
-                                    DialectAsmParser &parser);
+std::optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
+                                         DialectAsmParser &parser);
 
 template <>
-Optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
-                                            DialectAsmParser &parser);
+std::optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
+                                                 DialectAsmParser &parser);
 
 static Type parseAndVerifyType(SPIRVDialect const &dialect,
                                DialectAsmParser &parser) {
@@ -264,7 +264,7 @@ static LogicalResult parseOptionalArrayStride(const SPIRVDialect &dialect,
     return failure();
 
   SMLoc strideLoc = parser.getCurrentLocation();
-  Optional<unsigned> optStride = parseAndVerify<unsigned>(dialect, parser);
+  std::optional<unsigned> optStride = parseAndVerify<unsigned>(dialect, parser);
   if (!optStride)
     return failure();
 
@@ -474,12 +474,12 @@ static Type parseMatrixType(SPIRVDialect const &dialect,
 // Specialize this function to parse each of the parameters that define an
 // ImageType. By default it assumes this is an enum type.
 template <typename ValTy>
-static Optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
-                                      DialectAsmParser &parser) {
+static std::optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
+                                           DialectAsmParser &parser) {
   StringRef enumSpec;
   SMLoc enumLoc = parser.getCurrentLocation();
   if (parser.parseKeyword(&enumSpec)) {
-    return llvm::None;
+    return std::nullopt;
   }
 
   auto val = spirv::symbolizeEnum<ValTy>(enumSpec);
@@ -489,27 +489,27 @@ static Optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
 }
 
 template <>
-Optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
-                                    DialectAsmParser &parser) {
+std::optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
+                                         DialectAsmParser &parser) {
   // TODO: Further verify that the element type can be sampled
   auto ty = parseAndVerifyType(dialect, parser);
   if (!ty)
-    return llvm::None;
+    return std::nullopt;
   return ty;
 }
 
 template <typename IntTy>
-static Optional<IntTy> parseAndVerifyInteger(SPIRVDialect const &dialect,
-                                             DialectAsmParser &parser) {
+static std::optional<IntTy> parseAndVerifyInteger(SPIRVDialect const &dialect,
+                                                  DialectAsmParser &parser) {
   IntTy offsetVal = std::numeric_limits<IntTy>::max();
   if (parser.parseInteger(offsetVal))
-    return llvm::None;
+    return std::nullopt;
   return offsetVal;
 }
 
 template <>
-Optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
-                                            DialectAsmParser &parser) {
+std::optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
+                                                 DialectAsmParser &parser) {
   return parseAndVerifyInteger<unsigned>(dialect, parser);
 }
 
@@ -520,18 +520,18 @@ namespace {
 // (termination condition) needs partial specialization.
 template <typename ParseType, typename... Args>
 struct ParseCommaSeparatedList {
-  Optional<std::tuple<ParseType, Args...>>
+  std::optional<std::tuple<ParseType, Args...>>
   operator()(SPIRVDialect const &dialect, DialectAsmParser &parser) const {
     auto parseVal = parseAndVerify<ParseType>(dialect, parser);
     if (!parseVal)
-      return llvm::None;
+      return std::nullopt;
 
     auto numArgs = std::tuple_size<std::tuple<Args...>>::value;
     if (numArgs != 0 && failed(parser.parseComma()))
-      return llvm::None;
+      return std::nullopt;
     auto remainingValues = ParseCommaSeparatedList<Args...>{}(dialect, parser);
     if (!remainingValues)
-      return llvm::None;
+      return std::nullopt;
     return std::tuple_cat(std::tuple<ParseType>(parseVal.value()),
                           remainingValues.value());
   }
@@ -541,11 +541,11 @@ struct ParseCommaSeparatedList {
 // specs to parse the last element of the list.
 template <typename ParseType>
 struct ParseCommaSeparatedList<ParseType> {
-  Optional<std::tuple<ParseType>> operator()(SPIRVDialect const &dialect,
-                                             DialectAsmParser &parser) const {
+  std::optional<std::tuple<ParseType>>
+  operator()(SPIRVDialect const &dialect, DialectAsmParser &parser) const {
     if (auto value = parseAndVerify<ParseType>(dialect, parser))
       return std::tuple<ParseType>(*value);
-    return llvm::None;
+    return std::nullopt;
   }
 };
 } // namespace

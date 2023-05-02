@@ -10,6 +10,9 @@ add_mlir_dialect_library(MLIRAMDGPUDialect
   MLIRAMDGPUIncGen
 
   LINK_LIBS PUBLIC
+  MLIRArithDialect
+  # Needed for GPU address space enum definition
+  MLIRGPUOps
   MLIRIR
   MLIRSideEffectInterfaces
   )

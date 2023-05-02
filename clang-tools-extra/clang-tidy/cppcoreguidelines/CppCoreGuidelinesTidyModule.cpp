@@ -14,10 +14,13 @@
 #include "../modernize/AvoidCArraysCheck.h"
 #include "../modernize/UseOverrideCheck.h"
 #include "../readability/MagicNumbersCheck.h"
+#include "AvoidCaptureDefaultWhenCapturingThisCheck.h"
+#include "AvoidCapturingLambdaCoroutinesCheck.h"
 #include "AvoidConstOrRefDataMembersCheck.h"
 #include "AvoidDoWhileCheck.h"
 #include "AvoidGotoCheck.h"
 #include "AvoidNonConstGlobalVariablesCheck.h"
+#include "AvoidReferenceCoroutineParametersCheck.h"
 #include "InitVariablesCheck.h"
 #include "InterfacesGlobalInitCheck.h"
 #include "MacroUsageCheck.h"
@@ -35,18 +38,22 @@
 #include "ProTypeStaticCastDowncastCheck.h"
 #include "ProTypeUnionAccessCheck.h"
 #include "ProTypeVarargCheck.h"
+#include "RvalueReferenceParamNotMovedCheck.h"
 #include "SlicingCheck.h"
 #include "SpecialMemberFunctionsCheck.h"
 #include "VirtualClassDestructorCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace cppcoreguidelines {
 
 /// A module containing checks of the C++ Core Guidelines
 class CppCoreGuidelinesModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
+    CheckFactories.registerCheck<AvoidCaptureDefaultWhenCapturingThisCheck>(
+        "cppcoreguidelines-avoid-capture-default-when-capturing-this");
+    CheckFactories.registerCheck<AvoidCapturingLambdaCoroutinesCheck>(
+        "cppcoreguidelines-avoid-capturing-lambda-coroutines");
     CheckFactories.registerCheck<modernize::AvoidCArraysCheck>(
         "cppcoreguidelines-avoid-c-arrays");
     CheckFactories.registerCheck<AvoidConstOrRefDataMembersCheck>(
@@ -59,6 +66,8 @@ public:
         "cppcoreguidelines-avoid-magic-numbers");
     CheckFactories.registerCheck<AvoidNonConstGlobalVariablesCheck>(
         "cppcoreguidelines-avoid-non-const-global-variables");
+    CheckFactories.registerCheck<AvoidReferenceCoroutineParametersCheck>(
+        "cppcoreguidelines-avoid-reference-coroutine-parameters");
     CheckFactories.registerCheck<modernize::UseOverrideCheck>(
         "cppcoreguidelines-explicit-virtual-functions");
     CheckFactories.registerCheck<InitVariablesCheck>(
@@ -96,6 +105,8 @@ public:
         "cppcoreguidelines-pro-type-union-access");
     CheckFactories.registerCheck<ProTypeVarargCheck>(
         "cppcoreguidelines-pro-type-vararg");
+    CheckFactories.registerCheck<RvalueReferenceParamNotMovedCheck>(
+        "cppcoreguidelines-rvalue-reference-param-not-moved");
     CheckFactories.registerCheck<SpecialMemberFunctionsCheck>(
         "cppcoreguidelines-special-member-functions");
     CheckFactories.registerCheck<SlicingCheck>("cppcoreguidelines-slicing");
@@ -126,5 +137,4 @@ static ClangTidyModuleRegistry::Add<CppCoreGuidelinesModule>
 // and thus register the CppCoreGuidelinesModule.
 volatile int CppCoreGuidelinesModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

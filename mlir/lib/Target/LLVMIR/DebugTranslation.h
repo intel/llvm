@@ -61,6 +61,7 @@ private:
   llvm::DIFile *translateFile(StringRef fileName);
 
   /// Translate the given attribute to the corresponding llvm debug metadata.
+  llvm::DIType *translateImpl(DINullTypeAttr attr);
   llvm::DIBasicType *translateImpl(DIBasicTypeAttr attr);
   llvm::DICompileUnit *translateImpl(DICompileUnitAttr attr);
   llvm::DICompositeType *translateImpl(DICompositeTypeAttr attr);
@@ -68,12 +69,18 @@ private:
   llvm::DIFile *translateImpl(DIFileAttr attr);
   llvm::DILexicalBlock *translateImpl(DILexicalBlockAttr attr);
   llvm::DILexicalBlockFile *translateImpl(DILexicalBlockFileAttr attr);
+  llvm::DILocalScope *translateImpl(DILocalScopeAttr attr);
   llvm::DILocalVariable *translateImpl(DILocalVariableAttr attr);
   llvm::DIScope *translateImpl(DIScopeAttr attr);
   llvm::DISubprogram *translateImpl(DISubprogramAttr attr);
+  llvm::DINamespace *translateImpl(DINamespaceAttr attr);
   llvm::DISubrange *translateImpl(DISubrangeAttr attr);
   llvm::DISubroutineType *translateImpl(DISubroutineTypeAttr attr);
   llvm::DIType *translateImpl(DITypeAttr attr);
+
+  /// Constructs a string metadata node from the string attribute. Returns
+  /// nullptr if `stringAttr` is null or contains and empty string.
+  llvm::MDString *getMDStringOrNull(StringAttr stringAttr);
 
   /// A mapping between mlir location+scope and the corresponding llvm debug
   /// metadata.

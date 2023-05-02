@@ -24,10 +24,10 @@ template <typename propertyT, typename syclObjectT>
 struct is_property_of : public std::false_type {};
 
 template <typename propertyT>
-__SYCL_INLINE_CONSTEXPR bool is_property_v = is_property<propertyT>::value;
+inline constexpr bool is_property_v = is_property<propertyT>::value;
 
 template <typename propertyT, typename syclObjectT>
-__SYCL_INLINE_CONSTEXPR bool is_property_of_v =
+inline constexpr bool is_property_of_v =
     is_property_of<propertyT, syclObjectT>::value;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

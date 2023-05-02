@@ -44,18 +44,36 @@ during ESIMD_EMULATOR plug-in software module generation. Details on
 building CM_EMU library for ESIMD_EMULATOR such as required packages
 are described in [ESIMD CPU Emulation](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
 
-## Command line option / environment variable options
+## Environment variable
 
-There is no special command line option or environment variable
-required for building and running ESIMD kernels with ESIMD_EMULATOR
-backend.
+For running ESIMD kernels with the ESIMD_EMULATOR backend, the CM_EMU
+library requires 'CM_RT_PLATFORM' environment variable set in order to
+specify the target platform you want to emulate.
+
+> `$ export CM_RT_PLATFORM=SKL`
+
+List of target platforms supported by CM_EMU is as follows
+
+- SKL
+- BXT
+- KBL
+- ICLLP
+- TGLLP
+- RKL
+- DG1
+- ADLP
+- ADLS
+- ADLN
+- DG2
+- MTL
+- PVC
 
 ## Running ESIMD code under emulation mode
 
 Compilation step for ESIMD kernels prepared for ESIMD_EMULATOR backend
 is same as for OpenCL and Level Zero backends. Full runnable code
 sample used below can be found on the [github
-repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
+repo](/sycl/test-e2e/ESIMD/vadd_usm.cpp).
 
 To compile using the open-source Intel DPC++ compiler:
 > `$ clang++ -fsycl vadd_usm.cpp`
@@ -64,51 +82,47 @@ To compile using Intel(R) OneAPI Toolkit:
 > `$ dpcpp vadd_usm.cpp`
 
 To run under emulation through ESIMD_EMULATOR backend:
-> `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
+> `$ ONEAPI_DEVICE_SELECTOR=ext_intel_esimd_emulator:gpu ./a.out`
 
 Please note that ESIMD_EMULATOR backend cannot be picked up as default
 device automatically. To enable it, `ext_intel_esimd_emulator:gpu` device must
-be specified among other devices explicitly in `SYCL_DEVICE_FILTER` environment
+be specified among other devices explicitly in `ONEAPI_DEVICE_SELECTOR` environment
 variable. The emulator device effectively replaces any Intel GPU device for SYCL runtime,
 so they can't be used simultaneously by a SYCL offload application process. On the other
 hand, it is OK to mix the emulator with non-Intel GPU devices or CPU device in
-`SYCL_DEVICE_FILTER`.
+`ONEAPI_DEVICE_SELECTOR`.
 
-## Running ESIMD examples from [ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github with ESIMD_EMULATOR backend
+## Running ESIMD examples from [ESIMD test suite](/sycl/test-e2e/ESIMD/) on github with ESIMD_EMULATOR backend
 
 ```
 # Get sources
-git clone https://github.com/intel/llvm-test-suite
-cd llvm-test-suite
+git clone https://github.com/intel/llvm
+cd llvm/sycl/test-e2e
 mkdir build && cd build
 
 # Configure for make utility with compiler tools available in $PATH
 cmake \
- -DCMAKE_CXX_COMPILER=clang++ \
- -DTEST_SUITE_SUBDIRS=SYCL \
- -DSYCL_BE="ext_intel_esimd_emulator" \
- -DSYCL_TARGET_DEVICES="gpu" \
+ -DSYCL_CXX_COMPILER=clang++ \
+ -DSYCL_TEST_E2E_TARGETS="ext_intel_esimd_emulator:gpu" \
  ..
 
 # Build and Run
-make check
+make check-sycl-e2e
 
 # Or, for Ninja utility
-cmake -G Ninja \
- -DCMAKE_CXX_COMPILER=clang++ \
- -DTEST_SUITE_SUBDIRS=SYCL \
- -DSYCL_BE="ext_intel_esimd_emulator" \
- -DSYCL_TARGET_DEVICES="gpu" \
+cmake  -G Ninja \
+ -DSYCL_CXX_COMPILER=clang++ \
+ -DSYCL_TEST_E2E_TARGETS="ext_intel_esimd_emulator:gpu" \
  ..
 
 # Build and Run
-ninja check
+ninja check-sycl-e2e
 
 ```
 
-Note that only [ESIMD Kernels](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are
+Note that only [ESIMD Kernels](/sycl/test-e2e/ESIMD/) are
 tested with above command examples due to ESIMD_EMULATOR's limitations
-below.
+below. And, if 'CM_RT_PLATFORM' is not set, 'skl' is set by default.
 
 ## Limitation
 - The emulator is available only on Linux for now. Windows support is WIP.

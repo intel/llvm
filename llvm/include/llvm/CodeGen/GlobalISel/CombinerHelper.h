@@ -79,14 +79,6 @@ struct ShiftOfShiftedLogic {
 
 using BuildFnTy = std::function<void(MachineIRBuilder &)>;
 
-struct MergeTruncStoresInfo {
-  SmallVector<GStore *> FoundStores;
-  GStore *LowestIdxStore = nullptr;
-  Register WideSrcVal;
-  bool NeedBSwap = false;
-  bool NeedRotate = false;
-};
-
 using OperandBuildSteps =
     SmallVector<std::function<void(MachineInstrBuilder &)>, 4>;
 struct InstructionBuildSteps {
@@ -359,9 +351,9 @@ public:
 
   /// Transform fp_instr(cst) to constant result of the fp operation.
   bool matchCombineConstantFoldFpUnary(MachineInstr &MI,
-                                       Optional<APFloat> &Cst);
+                                       std::optional<APFloat> &Cst);
   void applyCombineConstantFoldFpUnary(MachineInstr &MI,
-                                       Optional<APFloat> &Cst);
+                                       std::optional<APFloat> &Cst);
 
   /// Transform IntToPtr(PtrToInt(x)) to x if cast is in the same address space.
   bool matchCombineI2PToP2I(MachineInstr &MI, Register &Reg);
@@ -406,12 +398,17 @@ public:
   void applyCombineTruncOfExt(MachineInstr &MI,
                               std::pair<Register, unsigned> &MatchInfo);
 
-  /// Transform trunc (shl x, K) to shl (trunc x),
-  /// K => K < VT.getScalarSizeInBits().
-  bool matchCombineTruncOfShl(MachineInstr &MI,
-                              std::pair<Register, Register> &MatchInfo);
-  void applyCombineTruncOfShl(MachineInstr &MI,
-                              std::pair<Register, Register> &MatchInfo);
+  /// Transform trunc (shl x, K) to shl (trunc x), K
+  ///    if K < VT.getScalarSizeInBits().
+  ///
+  /// Transforms trunc ([al]shr x, K) to (trunc ([al]shr (MidVT (trunc x)), K))
+  ///    if K <= (MidVT.getScalarSizeInBits() - VT.getScalarSizeInBits())
+  /// MidVT is obtained by finding a legal type between the trunc's src and dst
+  /// types.
+  bool matchCombineTruncOfShift(MachineInstr &MI,
+                                std::pair<MachineInstr *, LLT> &MatchInfo);
+  void applyCombineTruncOfShift(MachineInstr &MI,
+                                std::pair<MachineInstr *, LLT> &MatchInfo);
 
   /// Transform G_MUL(x, -1) to G_SUB(0, x)
   void applyCombineMulByNegativeOne(MachineInstr &MI);
@@ -571,9 +568,6 @@ public:
   /// And check if the tree can be replaced with a M-bit load + possibly a
   /// bswap.
   bool matchLoadOrCombine(MachineInstr &MI, BuildFnTy &MatchInfo);
-
-  bool matchTruncStoreMerge(MachineInstr &MI, MergeTruncStoresInfo &MatchInfo);
-  void applyTruncStoreMerge(MachineInstr &MI, MergeTruncStoresInfo &MatchInfo);
 
   bool matchExtendThroughPhis(MachineInstr &MI, MachineInstr *&ExtMI);
   void applyExtendThroughPhis(MachineInstr &MI, MachineInstr *&ExtMI);
@@ -784,6 +778,9 @@ public:
   ///   (X ^ Y) != X -> Y != 0
   bool matchRedundantBinOpInEquality(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  /// Match shifts greater or equal to the bitwidth of the operation.
+  bool matchShiftsTooBig(MachineInstr &MI);
+
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that
   /// can be usefully and legally folded into it as a post-indexing operation.
@@ -805,7 +802,7 @@ private:
   /// \param [in] Root - The search root.
   ///
   /// \returns The Registers found during the search.
-  Optional<SmallVector<Register, 8>>
+  std::optional<SmallVector<Register, 8>>
   findCandidatesForLoadOrCombine(const MachineInstr *Root) const;
 
   /// Helper function for matchLoadOrCombine.
@@ -819,7 +816,7 @@ private:
   ///
   /// \returns On success, a 3-tuple containing lowest-index load found, the
   /// lowest index, and the last load in the sequence.
-  Optional<std::tuple<GZExtLoad *, int64_t, GZExtLoad *>>
+  std::optional<std::tuple<GZExtLoad *, int64_t, GZExtLoad *>>
   findLoadOffsetsForLoadOrCombine(
       SmallDenseMap<int64_t, int64_t, 8> &MemOffset2Idx,
       const SmallVector<Register, 8> &RegsToVisit,

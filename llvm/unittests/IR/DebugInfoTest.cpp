@@ -84,7 +84,7 @@ TEST(DINodeTest, splitFlags) {
   {                                                                            \
     SmallVector<DINode::DIFlags, 8> V;                                         \
     EXPECT_EQ(REMAINDER, DINode::splitFlags(FLAGS, V));                        \
-    EXPECT_TRUE(makeArrayRef(V).equals(VECTOR));                               \
+    EXPECT_TRUE(ArrayRef(V).equals(VECTOR));                                   \
   }
   CHECK_SPLIT(DINode::FlagPublic, {DINode::FlagPublic}, DINode::FlagZero);
   CHECK_SPLIT(DINode::FlagProtected, {DINode::FlagProtected}, DINode::FlagZero);
@@ -188,6 +188,24 @@ TEST(MetadataTest, DeleteInstUsedByDbgValue) {
   I.eraseFromParent();
   EXPECT_EQ(DVIs[0]->getNumVariableLocationOps(), 1u);
   EXPECT_TRUE(isa<UndefValue>(DVIs[0]->getValue(0)));
+}
+
+TEST(DIBuiler, CreateFile) {
+  LLVMContext Ctx;
+  std::unique_ptr<Module> M(new Module("MyModule", Ctx));
+  DIBuilder DIB(*M);
+
+  DIFile *F = DIB.createFile("main.c", "/");
+  EXPECT_EQ(std::nullopt, F->getSource());
+
+  std::optional<DIFile::ChecksumInfo<StringRef>> Checksum;
+  std::optional<StringRef> Source;
+  F = DIB.createFile("main.c", "/", Checksum, Source);
+  EXPECT_EQ(Source, F->getSource());
+
+  Source = "";
+  F = DIB.createFile("main.c", "/", Checksum, Source);
+  EXPECT_EQ(Source, F->getSource());
 }
 
 TEST(DIBuilder, CreateFortranArrayTypeWithAttributes) {
@@ -303,69 +321,62 @@ TEST(DIBuilder, DIEnumerator) {
   EXPECT_FALSE(E2);
 }
 
-TEST(DIBuilder, createDbgAddr) {
+TEST(DbgAssignIntrinsicTest, replaceVariableLocationOp) {
   LLVMContext C;
   std::unique_ptr<Module> M = parseIR(C, R"(
-    define void @f() !dbg !6 {
-      %a = alloca i16, align 8
-      ;; It is important that we put the debug marker on the return.
-      ;; We take advantage of that to conjure up a debug loc without
-      ;; having to synthesize one programatically.
-      ret void, !dbg !11
+    define dso_local void @fun(i32 %v1, ptr %p1, ptr %p2) !dbg !7 {
+    entry:
+      call void @llvm.dbg.assign(metadata i32 %v1, metadata !14, metadata !DIExpression(), metadata !17, metadata ptr %p1, metadata !DIExpression()), !dbg !16
+      ret void
     }
-    declare void @llvm.dbg.value(metadata, metadata, metadata) #0
-    attributes #0 = { nounwind readnone speculatable willreturn }
+
+    declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, metadata)
 
     !llvm.dbg.cu = !{!0}
-    !llvm.module.flags = !{!5}
+    !llvm.module.flags = !{!3}
 
-    !0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "debugify", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2)
-    !1 = !DIFile(filename: "t.ll", directory: "/")
-    !2 = !{}
-    !5 = !{i32 2, !"Debug Info Version", i32 3}
-    !6 = distinct !DISubprogram(name: "foo", linkageName: "foo", scope: null, file: !1, line: 1, type: !7, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !8)
-    !7 = !DISubroutineType(types: !2)
-    !8 = !{!9}
-    !9 = !DILocalVariable(name: "1", scope: !6, file: !1, line: 1, type: !10)
-    !10 = !DIBasicType(name: "ty16", size: 16, encoding: DW_ATE_unsigned)
-    !11 = !DILocation(line: 1, column: 1, scope: !6)
-)");
-  auto *F = M->getFunction("f");
-  auto *EntryBlock = &F->getEntryBlock();
+    !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 14.0.0", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, splitDebugInlining: false, nameTableKind: None)
+    !1 = !DIFile(filename: "test.cpp", directory: "/")
+    !3 = !{i32 2, !"Debug Info Version", i32 3}
+    !7 = distinct !DISubprogram(name: "fun", linkageName: "fun", scope: !1, file: !1, line: 2, type: !8, scopeLine: 2, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !11)
+    !8 = !DISubroutineType(types: !9)
+    !9 = !{null}
+    !10 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+    !11 = !{}
+    !14 = !DILocalVariable(name: "Local", scope: !7, file: !1, line: 3, type: !10)
+    !16 = !DILocation(line: 0, scope: !7)
+    !17 = distinct !DIAssignID()
+    )");
+  // Check the test IR isn't malformed.
+  ASSERT_TRUE(M);
 
-  auto *CU =
-      cast<DICompileUnit>(M->getNamedMetadata("llvm.dbg.cu")->getOperand(0));
-  auto *Alloca = &*EntryBlock->begin();
-  auto *Ret = EntryBlock->getTerminator();
+  Function &Fun = *M->getFunction("fun");
+  Value *V1 = Fun.getArg(0);
+  Value *P1 = Fun.getArg(1);
+  Value *P2 = Fun.getArg(2);
+  DbgAssignIntrinsic *DAI = cast<DbgAssignIntrinsic>(Fun.begin()->begin());
+  ASSERT_TRUE(V1 == DAI->getVariableLocationOp(0));
+  ASSERT_TRUE(P1 == DAI->getAddress());
 
-  auto *SP = cast<DISubprogram>(F->getMetadata(LLVMContext::MD_dbg));
-  auto *File = SP->getFile();
-  std::string Name = "myName";
-  const auto *Loc = Ret->getDebugLoc().get();
+#define TEST_REPLACE(Old, New, ExpectedValue, ExpectedAddr)                    \
+  DAI->replaceVariableLocationOp(Old, New);                                    \
+  EXPECT_EQ(DAI->getVariableLocationOp(0), ExpectedValue);                     \
+  EXPECT_EQ(DAI->getAddress(), ExpectedAddr);
 
-  IRBuilder<> Builder(EntryBlock);
-  DIBuilder DIB(*M, true, CU);
-  DIType *DT = DIB.createBasicType("ty16", 16, dwarf::DW_ATE_unsigned);
+  // Replace address only.
+  TEST_REPLACE(/*Old*/ P1, /*New*/ P2, /*Value*/ V1, /*Address*/ P2);
+  // Replace value only.
+  TEST_REPLACE(/*Old*/ V1, /*New*/ P2, /*Value*/ P2, /*Address*/ P2);
+  // Replace both.
+  TEST_REPLACE(/*Old*/ P2, /*New*/ P1, /*Value*/ P1, /*Address*/ P1);
 
-  DILocalVariable *LocalVar =
-      DIB.createAutoVariable(SP, Name, File, 5 /*line*/, DT,
-                             /*AlwaysPreserve=*/true);
-
-  auto *Inst = DIB.insertDbgAddrIntrinsic(Alloca, LocalVar,
-                                          DIB.createExpression(), Loc, Ret);
-
-  DIB.finalize();
-
-  EXPECT_EQ(Inst->getDebugLoc().get(), Loc);
-
-  auto *MD0 = cast<MetadataAsValue>(Inst->getOperand(0))->getMetadata();
-  auto *MD0Local = cast<LocalAsMetadata>(MD0);
-  EXPECT_EQ(MD0Local->getValue(), Alloca);
-  auto *MD1 = cast<MetadataAsValue>(Inst->getOperand(1))->getMetadata();
-  EXPECT_EQ(MD1->getMetadataID(), Metadata::MetadataKind::DILocalVariableKind);
-  auto *MD2 = cast<MetadataAsValue>(Inst->getOperand(2))->getMetadata();
-  auto *MDExp = cast<DIExpression>(MD2);
-  EXPECT_EQ(MDExp->getNumElements(), 0u);
+  // Replace address only, value uses a DIArgList.
+  // Value = {DIArgList(V1)}, Addr = P1.
+  DAI->setRawLocation(DIArgList::get(C, ValueAsMetadata::get(V1)));
+  DAI->setExpression(DIExpression::get(
+      C, {dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_stack_value}));
+  TEST_REPLACE(/*Old*/ P1, /*New*/ P2, /*Value*/ V1, /*Address*/ P2);
+#undef TEST_REPLACE
 }
 
 TEST(AssignmentTrackingTest, Utils) {

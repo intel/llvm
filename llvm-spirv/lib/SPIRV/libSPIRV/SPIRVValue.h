@@ -98,8 +98,10 @@ public:
 
   void setAlignment(SPIRVWord);
   void setVolatile(bool IsVolatile);
-  void setNoSignedWrap(bool HasNoSignedWrap);
-  void setNoUnsignedWrap(bool HasNoUnsignedWrap);
+
+  template <spv::Decoration NoIntegerWrapDecoration>
+  void setNoIntegerDecorationWrap(bool HasNoIntegerWrap);
+
   void setFPFastMathMode(SPIRVWord FPFastMathMode);
 
   void validate() const override {
@@ -123,8 +125,8 @@ public:
     return Type->getRequiredCapability();
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    llvm::Optional<ExtensionID> EV;
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    std::optional<ExtensionID> EV;
     if (!hasType())
       return EV;
     EV = Type->getRequiredExtension();

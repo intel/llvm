@@ -1,5 +1,9 @@
+set(LLVM_TARGET_DEFINITIONS ${PROJECT_SOURCE_DIR}/include/llvm/CodeGen/ValueTypes.td)
+tablegen(LLVM GenVT.inc -gen-vt)
+
 set(LLVM_LINK_COMPONENTS
   Support
+  TargetParser
   )
 
 add_llvm_unittest(SupportTests
@@ -7,7 +11,6 @@ add_llvm_unittest(SupportTests
   AlignmentTest.cpp
   AlignOfTest.cpp
   AllocatorTest.cpp
-  AnnotationsTest.cpp
   ARMAttributeParser.cpp
   ArrayRecyclerTest.cpp
   Base64Test.cpp
@@ -25,10 +28,10 @@ add_llvm_unittest(SupportTests
   ConvertUTFTest.cpp
   CRCTest.cpp
   CSKYAttributeParserTest.cpp
-  CSKYTargetParserTest.cpp
   DataExtractorTest.cpp
-  DebugTest.cpp
   DebugCounterTest.cpp
+  DebugTest.cpp
+  DivisionByConstantTest.cpp
   DJBTest.cpp
   EndianStreamTest.cpp
   EndianTest.cpp
@@ -44,18 +47,16 @@ add_llvm_unittest(SupportTests
   FSUniqueIDTest.cpp
   GlobPatternTest.cpp
   HashBuilderTest.cpp
-  Host.cpp
   IndexedAccessorTest.cpp
   InstructionCostTest.cpp
-  ItaniumManglingCanonicalizerTest.cpp
   JSONTest.cpp
   KnownBitsTest.cpp
   LEB128Test.cpp
-  LinearPolyBaseTest.cpp
   LineIteratorTest.cpp
   LockFileManagerTest.cpp
   MatchersTest.cpp
   MD5Test.cpp
+  MVTTest.cpp
   ManagedStatic.cpp
   MathExtrasTest.cpp
   MemoryBufferRefTest.cpp
@@ -72,6 +73,7 @@ add_llvm_unittest(SupportTests
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp
   RISCVAttributeParserTest.cpp
+  RISCVISAInfoTest.cpp
   ScaledNumberTest.cpp
   SimpleTableTest.cpp
   ScopedPrinterTest.cpp
@@ -80,17 +82,15 @@ add_llvm_unittest(SupportTests
   SpecialCaseListTest.cpp
   SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
-  SymbolRemappingReaderTest.cpp
   TarWriterTest.cpp
-  TargetParserTest.cpp
   TaskQueueTest.cpp
-  ThreadLocalTest.cpp
   ThreadPool.cpp
   Threading.cpp
   TimerTest.cpp
   TimeProfilerTest.cpp
   ToolOutputFileTest.cpp
   TypeNameTest.cpp
+  TypeSizeTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
   TrigramIndexTest.cpp
@@ -107,6 +107,7 @@ add_llvm_unittest(SupportTests
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
   xxhashTest.cpp
+  GenVT.inc
   )
 
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport)

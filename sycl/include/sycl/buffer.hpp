@@ -9,11 +9,13 @@
 #pragma once
 
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
@@ -33,6 +35,10 @@ class host_accessor;
 
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
+
+namespace ext::oneapi {
+template <typename SYCLObjT> class weak_object;
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -117,6 +123,8 @@ protected:
 
   size_t getSize() const;
 
+  void handleRelease() const;
+
   std::shared_ptr<detail::buffer_impl> impl;
 };
 
@@ -132,12 +140,13 @@ protected:
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
-          typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
-                                                            (dimensions <= 3)>>
-class buffer : public detail::buffer_plain {
+          typename __Enabled =
+              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
+class buffer : public detail::buffer_plain,
+               public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   // TODO check is_device_copyable<T>::value after converting sycl::vec into a
   // trivially copyable class.
-  static_assert(!std::is_same<T, std::string>::value,
+  static_assert(!std::is_same_v<T, std::string>,
                 "'std::string' is not a device copyable type");
 
 public:
@@ -146,22 +155,22 @@ public:
   using const_reference = const value_type &;
   using allocator_type = AllocatorT;
   template <int dims>
-  using EnableIfOneDimension = typename detail::enable_if_t<1 == dims>;
+  using EnableIfOneDimension = typename std::enable_if_t<1 == dims>;
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      detail::void_t<detail::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<
-                             decltype(std::declval<Container>().data())> (*)[],
-                         const T (*)[]>::value>,
-                     decltype(std::declval<Container>().size())>;
+      std::void_t<std::enable_if_t<std::is_convertible_v<
+                      detail::remove_pointer_t<
+                          decltype(std::declval<Container>().data())> (*)[],
+                      const T (*)[]>>,
+                  decltype(std::declval<Container>().size())>;
   template <class It>
-  using EnableIfItInputIterator = detail::enable_if_t<
-      std::is_convertible<typename std::iterator_traits<It>::iterator_category,
-                          std::input_iterator_tag>::value>;
+  using EnableIfItInputIterator = std::enable_if_t<std::is_convertible_v<
+      typename std::iterator_traits<It>::iterator_category,
+      std::input_iterator_tag>>;
   template <typename ItA, typename ItB>
-  using EnableIfSameNonConstIterators = typename detail::enable_if_t<
-      std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
+  using EnableIfSameNonConstIterators = typename std::enable_if_t<
+      std::is_same_v<ItA, ItB> && !std::is_const_v<ItA>, ItA>;
 
   std::array<size_t, 3> rangeToArray(range<3> &r) { return {r[0], r[1], r[2]}; }
 
@@ -244,7 +253,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            bufferRange.size() * sizeof(T),
+            hostData, bufferRange.size() * sizeof(T),
             detail::getNextPowerOfTwo(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
@@ -335,9 +344,9 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
@@ -368,9 +377,9 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
@@ -457,7 +466,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -495,10 +504,16 @@ public:
   }
 
   template <access::mode mode>
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(
-      const detail::code_location CodeLoc = detail::code_location::current()) {
+  __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
+                        "use get_host_access instead")
+  accessor<
+      T, dimensions, mode, access::target::host_buffer,
+      access::placeholder::false_t,
+      ext::oneapi::
+          accessor_property_list<>> get_access(const detail::code_location
+                                                   CodeLoc =
+                                                       detail::code_location::
+                                                           current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(*this, {}, CodeLoc);
@@ -522,11 +537,18 @@ public:
   }
 
   template <access::mode mode>
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(
-      range<dimensions> accessRange, id<dimensions> accessOffset = {},
-      const detail::code_location CodeLoc = detail::code_location::current()) {
+  __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
+                        "use get_host_access instead")
+  accessor<
+      T, dimensions, mode, access::target::host_buffer,
+      access::placeholder::false_t,
+      ext::oneapi::
+          accessor_property_list<>> get_access(range<dimensions> accessRange,
+                                               id<dimensions> accessOffset = {},
+                                               const detail::code_location
+                                                   CodeLoc =
+                                                       detail::code_location::
+                                                           current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
@@ -537,8 +559,6 @@ public:
                     ext::oneapi::accessor_property_list<>>(
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
-
-#if __cplusplus >= 201703L
 
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
@@ -558,8 +578,6 @@ public:
     return host_accessor{*this, commandGroupHandler, args...};
   }
 
-#endif
-
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {
     this->set_final_data_internal(finalData);
@@ -570,8 +588,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  detail::enable_if_t<
-      std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -643,11 +660,11 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  typename std::enable_if<
+  std::enable_if_t<
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
       buffer<ReinterpretT, ReinterpretDim,
              typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-                 std::remove_const_t<ReinterpretT>>>>::type
+                 std::remove_const_t<ReinterpretT>>>>
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
                   typename std::allocator_traits<AllocatorT>::
@@ -656,10 +673,10 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  typename std::enable_if<
-      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
-                                (sizeof(ReinterpretT) != sizeof(T))),
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  std::enable_if_t<(ReinterpretDim == 1) &&
+                       ((dimensions != ReinterpretDim) ||
+                        (sizeof(ReinterpretT) != sizeof(T))),
+                   buffer<ReinterpretT, ReinterpretDim, AllocatorT>>
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
@@ -702,6 +719,11 @@ private:
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
   detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
+  template <typename SYCLObjT> friend class ext::oneapi::weak_object;
+
+  // NOTE: These members are required for reconstructing the buffer, but are not
+  // part of the implementation class. If more members are added, they should
+  // also be added to the weak_object specialization for buffers.
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer

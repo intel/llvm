@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <utility>
+#include <optional>
 
 #include "IRModule.h"
 
@@ -19,7 +20,6 @@ namespace py = pybind11;
 using namespace mlir;
 using namespace mlir::python;
 
-using llvm::Optional;
 using llvm::SmallVector;
 using llvm::Twine;
 
@@ -344,15 +344,10 @@ public:
     c.def_static(
         "get",
         [](PyType &type, double value, DefaultingPyLocation loc) {
+          PyMlirContext::ErrorCapture errors(loc->getContext());
           MlirAttribute attr = mlirFloatAttrDoubleGetChecked(loc, type, value);
-          // TODO: Rework error reporting once diagnostic engine is exposed
-          // in C API.
-          if (mlirAttributeIsNull(attr)) {
-            throw SetPyError(PyExc_ValueError,
-                             Twine("invalid '") +
-                                 py::repr(py::cast(type)).cast<std::string>() +
-                                 "' and expected floating point type.");
-          }
+          if (mlirAttributeIsNull(attr))
+            throw MLIRError("Invalid attribute", errors.take());
           return PyFloatAttribute(type.getContext(), attr);
         },
         py::arg("type"), py::arg("value"), py::arg("loc") = py::none(),
@@ -495,9 +490,9 @@ public:
         "data",
         [](PyOpaqueAttribute &self) {
           MlirStringRef stringRef = mlirOpaqueAttrGetData(self);
-          return py::str(stringRef.data, stringRef.length);
+          return py::bytes(stringRef.data, stringRef.length);
         },
-        "Returns the data for the Opaqued attributes as a string");
+        "Returns the data for the Opaqued attributes as `bytes`");
   }
 };
 
@@ -533,6 +528,13 @@ public:
           return py::str(stringRef.data, stringRef.length);
         },
         "Returns the value of the string attribute");
+    c.def_property_readonly(
+        "value_bytes",
+        [](PyStringAttribute &self) {
+          MlirStringRef stringRef = mlirStringAttrGetValue(self);
+          return py::bytes(stringRef.data, stringRef.length);
+        },
+        "Returns the value of the string attribute as `bytes`");
   }
 };
 
@@ -545,8 +547,9 @@ public:
   using PyConcreteAttribute::PyConcreteAttribute;
 
   static PyDenseElementsAttribute
-  getFromBuffer(py::buffer array, bool signless, Optional<PyType> explicitType,
-                Optional<std::vector<int64_t>> explicitShape,
+  getFromBuffer(py::buffer array, bool signless,
+                std::optional<PyType> explicitType,
+                std::optional<std::vector<int64_t>> explicitShape,
                 DefaultingPyMlirContext contextWrapper) {
     // Request a contiguous view. In exotic cases, this will cause a copy.
     int flags = PyBUF_C_CONTIGUOUS | PyBUF_FORMAT;
@@ -572,7 +575,7 @@ public:
     // Notably, this excludes, bool (which needs to be bit-packed) and
     // other exotics which do not have a direct representation in the buffer
     // protocol (i.e. complex, etc).
-    Optional<MlirType> bulkLoadElementType;
+    std::optional<MlirType> bulkLoadElementType;
     if (explicitType) {
       bulkLoadElementType = *explicitType;
     } else if (arrayInfo.format == "f") {
@@ -628,8 +631,17 @@ public:
       }
     }
     if (bulkLoadElementType) {
-      auto shapedType = mlirRankedTensorTypeGet(
-          shape.size(), shape.data(), *bulkLoadElementType, encodingAttr);
+      MlirType shapedType;
+      if (mlirTypeIsAShaped(*bulkLoadElementType)) {
+        if (explicitShape) {
+          throw std::invalid_argument("Shape can only be specified explicitly "
+                                      "when the type is not a shaped type.");
+        }
+        shapedType = *bulkLoadElementType;
+      } else {
+        shapedType = mlirRankedTensorTypeGet(
+            shape.size(), shape.data(), *bulkLoadElementType, encodingAttr);
+      }
       size_t rawBufferSize = arrayInfo.size * arrayInfo.itemsize;
       MlirAttribute attr = mlirDenseElementsAttrRawBufferGet(
           shapedType, rawBufferSize, arrayInfo.ptr);
@@ -683,13 +695,6 @@ public:
   intptr_t dunderLen() { return mlirElementsAttrGetNumElements(*this); }
 
   py::buffer_info accessBuffer() {
-    if (mlirDenseElementsAttrIsSplat(*this)) {
-      // TODO: Currently crashes the program.
-      // Reported as https://github.com/pybind/pybind11/issues/3336
-      throw std::invalid_argument(
-          "unsupported data type for conversion to Python buffer");
-    }
-
     MlirType shapedType = mlirAttributeGetType(*this);
     MlirType elementType = mlirShapedTypeGetElementType(shapedType);
     std::string format;
@@ -772,6 +777,16 @@ public:
                                [](PyDenseElementsAttribute &self) -> bool {
                                  return mlirDenseElementsAttrIsSplat(self);
                                })
+        .def("get_splat_value",
+             [](PyDenseElementsAttribute &self) -> PyAttribute {
+               if (!mlirDenseElementsAttrIsSplat(self)) {
+                 throw SetPyError(
+                     PyExc_ValueError,
+                     "get_splat_value called on a non-splat attribute");
+               }
+               return PyAttribute(self.getContext(),
+                                  mlirDenseElementsAttrGetSplatValue(self));
+             })
         .def_buffer(&PyDenseElementsAttribute::accessBuffer);
   }
 
@@ -806,15 +821,18 @@ private:
       shape.push_back(mlirShapedTypeGetDimSize(shapedType, i));
     // Prepare the strides for the buffer_info.
     SmallVector<intptr_t, 4> strides;
-    intptr_t strideFactor = 1;
-    for (intptr_t i = 1; i < rank; ++i) {
-      strideFactor = 1;
-      for (intptr_t j = i; j < rank; ++j) {
-        strideFactor *= mlirShapedTypeGetDimSize(shapedType, j);
+    if (mlirDenseElementsAttrIsSplat(*this)) {
+      // Splats are special, only the single value is stored.
+      strides.assign(rank, 0);
+    } else {
+      for (intptr_t i = 1; i < rank; ++i) {
+        intptr_t strideFactor = 1;
+        for (intptr_t j = i; j < rank; ++j)
+          strideFactor *= mlirShapedTypeGetDimSize(shapedType, j);
+        strides.push_back(sizeof(Type) * strideFactor);
       }
-      strides.push_back(sizeof(Type) * strideFactor);
+      strides.push_back(sizeof(Type));
     }
-    strides.push_back(sizeof(Type));
     std::string format;
     if (explicitFormat) {
       format = explicitFormat;

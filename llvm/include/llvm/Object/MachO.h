@@ -19,7 +19,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Swift.h"
@@ -31,6 +30,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -503,6 +503,8 @@ public:
   basic_symbol_iterator symbol_begin() const override;
   basic_symbol_iterator symbol_end() const override;
 
+  bool is64Bit() const override;
+
   // MachO specific.
   symbol_iterator getSymbolByIndex(unsigned Index) const;
   uint64_t getSymbolIndex(DataRefImpl Symb) const;
@@ -514,7 +516,9 @@ public:
 
   StringRef getFileFormatName() const override;
   Triple::ArchType getArch() const override;
-  SubtargetFeatures getFeatures() const override { return SubtargetFeatures(); }
+  Expected<SubtargetFeatures> getFeatures() const override {
+    return SubtargetFeatures();
+  }
   Triple getArchTriple(const char **McpuDefault = nullptr) const;
 
   relocation_iterator section_rel_begin(unsigned Index) const;
@@ -711,27 +715,29 @@ public:
   ArrayRef<uint8_t> getDyldInfoBindOpcodes() const;
   ArrayRef<uint8_t> getDyldInfoWeakBindOpcodes() const;
   ArrayRef<uint8_t> getDyldInfoLazyBindOpcodes() const;
+  ArrayRef<uint8_t> getDyldInfoExportsTrie() const;
+
   /// If the optional is None, no header was found, but the object was
   /// well-formed.
-  Expected<Optional<MachO::dyld_chained_fixups_header>>
+  Expected<std::optional<MachO::dyld_chained_fixups_header>>
   getChainedFixupsHeader() const;
   Expected<std::vector<ChainedFixupTarget>> getDyldChainedFixupTargets() const;
 
   // Note: This is a limited, temporary API, which will be removed when Apple
   // upstreams their implementation. Please do not rely on this.
-  Expected<Optional<MachO::linkedit_data_command>>
+  Expected<std::optional<MachO::linkedit_data_command>>
   getChainedFixupsLoadCommand() const;
   // Returns the number of sections listed in dyld_chained_starts_in_image, and
   // a ChainedFixupsSegment for each segment that has fixups.
   Expected<std::pair<size_t, std::vector<ChainedFixupsSegment>>>
   getChainedFixupsSegments() const;
+  ArrayRef<uint8_t> getDyldExportsTrie() const;
 
-  ArrayRef<uint8_t> getDyldInfoExportsTrie() const;
   SmallVector<uint64_t> getFunctionStarts() const;
   ArrayRef<uint8_t> getUuid() const;
 
   StringRef getStringTableData() const;
-  bool is64Bit() const;
+
   void ReadULEB128s(uint64_t Index, SmallVectorImpl<uint64_t> &Out) const;
 
   static StringRef guessLibraryShortName(StringRef Name, bool &isFramework,
@@ -856,6 +862,7 @@ private:
   const char *DyldInfoLoadCmd = nullptr;
   const char *FuncStartsLoadCmd = nullptr;
   const char *DyldChainedFixupsLoadCmd = nullptr;
+  const char *DyldExportsTrieLoadCmd = nullptr;
   const char *UuidLoadCmd = nullptr;
   bool HasPageZeroSegment = false;
 };

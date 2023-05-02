@@ -16,7 +16,7 @@
 // http://www.boost.org/LICENSE_1_0.txt
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c %s
+// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=%sycl_triple %s
 
 // This is a sanity check test to verify that the automatic boost/mp11 import
 // into SYCL is not badly broken.

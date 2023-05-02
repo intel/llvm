@@ -90,7 +90,12 @@ public:
 
   /// Returns the name of the function decl this code
   /// was generated for.
-  const std::string getName() const { return F->getNameInfo().getAsString(); }
+  const std::string getName() const {
+    if (!F)
+      return "<<expr>>";
+
+    return F->getQualifiedNameAsString();
+  }
 
   /// Returns the location.
   SourceLocation getLoc() const { return Loc; }
@@ -129,11 +134,18 @@ public:
 
   /// Checks if the function is a constructor.
   bool isConstructor() const { return isa<CXXConstructorDecl>(F); }
+  /// Checks if the function is a destructor.
+  bool isDestructor() const { return isa<CXXDestructorDecl>(F); }
 
   /// Checks if the function is fully done compiling.
   bool isFullyCompiled() const { return IsFullyCompiled; }
 
   bool hasThisPointer() const { return HasThisPointer; }
+
+  // Checks if the funtion already has a body attached.
+  bool hasBody() const { return HasBody; }
+
+  unsigned getBuiltinID() const { return F->getBuiltinID(); }
 
   unsigned getNumParams() const { return ParamTypes.size(); }
 
@@ -145,13 +157,15 @@ private:
            bool HasThisPointer, bool HasRVO);
 
   /// Sets the code of a function.
-  void setCode(unsigned NewFrameSize, std::vector<char> &&NewCode, SourceMap &&NewSrcMap,
-               llvm::SmallVector<Scope, 2> &&NewScopes) {
+  void setCode(unsigned NewFrameSize, std::vector<char> &&NewCode,
+               SourceMap &&NewSrcMap, llvm::SmallVector<Scope, 2> &&NewScopes,
+               bool NewHasBody) {
     FrameSize = NewFrameSize;
     Code = std::move(NewCode);
     SrcMap = std::move(NewSrcMap);
     Scopes = std::move(NewScopes);
     IsValid = true;
+    HasBody = NewHasBody;
   }
 
   void setIsFullyCompiled(bool FC) { IsFullyCompiled = FC; }
@@ -192,6 +206,8 @@ private:
   /// the return value is constructed in the caller's stack frame.
   /// This is done for functions that return non-primive values.
   bool HasRVO = false;
+  /// If we've already compiled the function's body.
+  bool HasBody = false;
 
 public:
   /// Dumps the disassembled bytecode to \c llvm::errs().

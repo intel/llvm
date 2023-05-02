@@ -48,18 +48,17 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
   let summary = "Normalize memrefs";
    let description = [{
     This pass transforms memref types with a non-trivial
-    [layout map](https://mlir.llvm.org/docs/LangRef/#layout-map) into
-    memref types with an identity layout map, e.g. (i, j) -> (i, j). This
+    [layout map](https://mlir.llvm.org/docs/Dialects/Builtin/#affine-map-layout)
+    into memref types with an identity layout map, e.g. (i, j) -> (i, j). This
     pass is inter-procedural, in the sense that it can modify function
     interfaces and call sites that pass memref types. In order to modify
     memref types while preserving the original behavior, users of those
     memref types are also modified to incorporate the resulting layout map.
-    For instance, an [AffineLoadOp]
-    (https://mlir.llvm.org/docs/Dialects/Affine/#affineload-affineloadop)
+    For instance, an [AffineLoadOp](https://mlir.llvm.org/docs/Dialects/Affine/#affineload-mliraffineloadop)
     will be updated to compose the layout map with with the affine expression
-    contained in the op. Operations marked with the [MemRefsNormalizable]
-    (https://mlir.llvm.org/docs/Traits/#memrefsnormalizable) trait are
-    expected to be normalizable. Supported operations include affine
+    contained in the op. Operations marked with the
+    [MemRefsNormalizable](https://mlir.llvm.org/docs/Traits/#memrefsnormalizable)
+    trait are expected to be normalizable. Supported operations include affine
     operations, memref.alloc, memref.dealloc, and func.return.
 
     Given an appropriate layout map specified in the code, this transformation
@@ -189,15 +188,16 @@ def ResolveShapedTypeResultDims : Pass<"resolve-shaped-type-result-dims"> {
   ];
 }
 
-def SimplifyExtractStridedMetadata : Pass<"simplify-extract-strided-metadata"> {
-  let summary = "Simplify extract_strided_metadata ops";
+def ExpandStridedMetadata : Pass<"expand-strided-metadata"> {
+  let summary = "Expand memref operations into easier to analyze constructs";
   let description = [{
-    The pass simplifies extract_strided_metadata(other_op(memref)) to
-    extract_strided_metadata(memref) when it is possible to model the effect
-    of other_op directly with affine maps applied to the result of
-    extract_strided_metadata.
+    The pass expands memref operations that modify the metadata of a memref
+    (sizes, offset, strides) into a sequence of easier to analyze constructs.
+    In particular, this pass transforms operations into explicit sequence of
+    operations that model the effect of this operation on the different metadata.
+    This pass uses affine constructs to materialize these effects.
   }];
-  let constructor = "mlir::memref::createSimplifyExtractStridedMetadataPass()";
+  let constructor = "mlir::memref::createExpandStridedMetadataPass()";
   let dependentDialects = [
       "AffineDialect", "memref::MemRefDialect"
   ];

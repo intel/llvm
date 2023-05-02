@@ -40,7 +40,7 @@
 #include "Types.h"
 #include "Utils.h"
 
-using namespace _OMP;
+using namespace ompx;
 
 #pragma omp begin declare target device_type(nohost)
 
@@ -54,7 +54,11 @@ uint32_t determineNumberOfThreads(int32_t NumThreadsClause) {
   if (NThreadsICV != 0 && NThreadsICV < NumThreads)
     NumThreads = NThreadsICV;
 
-  // Round down to a multiple of WARPSIZE since it is legal to do so in OpenMP.
+  // SPMD mode allows any number of threads, for generic mode we round down to a
+  // multiple of WARPSIZE since it is legal to do so in OpenMP.
+  if (mapping::isSPMDMode())
+    return NumThreads;
+
   if (NumThreads < mapping::getWarpSize())
     NumThreads = 1;
   else

@@ -71,9 +71,9 @@ Defined *ElfSym::globalOffsetTable;
 Defined *ElfSym::mipsGp;
 Defined *ElfSym::mipsGpDisp;
 Defined *ElfSym::mipsLocalGp;
+Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::relaIpltStart;
 Defined *ElfSym::relaIpltEnd;
-Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
 SmallVector<SymbolAux, 0> elf::symAux;
 

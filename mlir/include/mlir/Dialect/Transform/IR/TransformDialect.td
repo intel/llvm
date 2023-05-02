@@ -23,7 +23,26 @@ def Transform_Dialect : Dialect {
     "::mlir::pdl_interp::PDLInterpDialect",
   ];
 
+  let hasOperationAttrVerify = 1;
+
   let extraClassDeclaration = [{
+      /// Name of the attribute attachable to the symbol table operation
+      /// containing named sequences. This is used to trigger verification.
+      constexpr const static llvm::StringLiteral
+          kWithNamedSequenceAttrName = "transform.with_named_sequence";
+
+      /// Names of the attribute attachable to an operation so it can be
+      /// identified as root by the default interpreter pass.
+      constexpr const static llvm::StringLiteral
+          kTargetTagAttrName = "transform.target_tag";
+
+      /// Names of the attributes indicating whether an argument of an external
+      /// transform dialect symbol is consumed or only read.
+      constexpr const static llvm::StringLiteral
+          kArgConsumedAttrName = "transform.consumed";
+      constexpr const static llvm::StringLiteral
+          kArgReadOnlyAttrName = "transform.readonly";
+
       /// Returns the named PDL constraint functions available in the dialect
       /// as a map from their name to the function.
       const ::llvm::StringMap<::mlir::PDLConstraintFunction> &
@@ -102,7 +121,7 @@ def Transform_Dialect : Dialect {
   }];
 }
 
-// Base class for ops that belong to the tranfsorm dialect. Ops defined in
+// Base class for ops that belong to the transform dialect. Ops defined in
 // extensions of this dialect may also use this.
 class TransformDialectOp<string mnemonic, list<Trait> traits = []>
     : Op<Transform_Dialect, mnemonic, traits>;

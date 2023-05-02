@@ -16,8 +16,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -25,7 +23,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeCommon.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/LLVMBitCodes.h"
@@ -71,6 +68,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -78,6 +76,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -96,7 +95,9 @@ static cl::opt<bool> WriteRelBFToSummary(
     "write-relbf-to-summary", cl::Hidden, cl::init(false),
     cl::desc("Write relative block frequency to function summary "));
 
+namespace llvm {
 extern FunctionSummary::ForceSummaryHotnessType ForceSummaryEdgesCold;
+}
 
 namespace {
 
@@ -523,10 +524,10 @@ private:
   void writeModStrings();
   void writeCombinedGlobalValueSummary();
 
-  Optional<unsigned> getValueId(GlobalValue::GUID ValGUID) {
+  std::optional<unsigned> getValueId(GlobalValue::GUID ValGUID) {
     auto VMI = GUIDToValueIdMap.find(ValGUID);
     if (VMI == GUIDToValueIdMap.end())
-      return None;
+      return std::nullopt;
     return VMI->second;
   }
 
@@ -603,6 +604,10 @@ static unsigned getEncodedRMWOperation(AtomicRMWInst::BinOp Op) {
   case AtomicRMWInst::FSub: return bitc::RMW_FSUB;
   case AtomicRMWInst::FMax: return bitc::RMW_FMAX;
   case AtomicRMWInst::FMin: return bitc::RMW_FMIN;
+  case AtomicRMWInst::UIncWrap:
+    return bitc::RMW_UINC_WRAP;
+  case AtomicRMWInst::UDecWrap:
+    return bitc::RMW_UDEC_WRAP;
   }
 }
 
@@ -676,6 +681,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_ALLOC_KIND;
   case Attribute::Memory:
     return bitc::ATTR_KIND_MEMORY;
+  case Attribute::NoFPClass:
+    return bitc::ATTR_KIND_NOFPCLASS;
   case Attribute::Naked:
     return bitc::ATTR_KIND_NAKED;
   case Attribute::Nest:
@@ -894,15 +901,8 @@ void ModuleBitcodeWriter::writeTypeTable() {
 
   uint64_t NumBits = VE.computeBitsRequiredForTypeIndicies();
 
-  // Abbrev for TYPE_CODE_POINTER.
-  auto Abbv = std::make_shared<BitCodeAbbrev>();
-  Abbv->Add(BitCodeAbbrevOp(bitc::TYPE_CODE_POINTER));
-  Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, NumBits));
-  Abbv->Add(BitCodeAbbrevOp(0));  // Addrspace = 0
-  unsigned PtrAbbrev = Stream.EmitAbbrev(std::move(Abbv));
-
   // Abbrev for TYPE_CODE_OPAQUE_POINTER.
-  Abbv = std::make_shared<BitCodeAbbrev>();
+  auto Abbv = std::make_shared<BitCodeAbbrev>();
   Abbv->Add(BitCodeAbbrevOp(bitc::TYPE_CODE_OPAQUE_POINTER));
   Abbv->Add(BitCodeAbbrevOp(0)); // Addrspace = 0
   unsigned OpaquePtrAbbrev = Stream.EmitAbbrev(std::move(Abbv));
@@ -988,8 +988,6 @@ void ModuleBitcodeWriter::writeTypeTable() {
         Code = bitc::TYPE_CODE_POINTER;
         TypeVals.push_back(VE.getTypeID(PTy->getNonOpaquePointerElementType()));
         TypeVals.push_back(AddressSpace);
-        if (AddressSpace == 0)
-          AbbrevToUse = PtrAbbrev;
       }
       break;
     }
@@ -1049,6 +1047,18 @@ void ModuleBitcodeWriter::writeTypeTable() {
       TypeVals.push_back(VE.getTypeID(VT->getElementType()));
       if (isa<ScalableVectorType>(VT))
         TypeVals.push_back(true);
+      break;
+    }
+    case Type::TargetExtTyID: {
+      TargetExtType *TET = cast<TargetExtType>(T);
+      Code = bitc::TYPE_CODE_TARGET_TYPE;
+      writeStringRecord(Stream, bitc::TYPE_CODE_STRUCT_NAME, TET->getName(),
+                        StructNameAbbrev);
+      TypeVals.push_back(TET->getNumTypeParameters());
+      for (Type *InnerTy : TET->type_params())
+        TypeVals.push_back(VE.getTypeID(InnerTy));
+      for (unsigned IntParam : TET->int_params())
+        TypeVals.push_back(IntParam);
       break;
     }
     case Type::TypedPointerTyID:
@@ -1806,7 +1816,7 @@ void ModuleBitcodeWriter::writeDIFile(const DIFile *N,
   }
   auto Source = N->getRawSource();
   if (Source)
-    Record.push_back(VE.getMetadataOrNullID(*Source));
+    Record.push_back(VE.getMetadataOrNullID(Source));
 
   Stream.EmitRecord(bitc::METADATA_FILE, Record, Abbrev);
   Record.clear();
@@ -2655,7 +2665,7 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         Code = bitc::CST_CODE_CE_GEP;
         const auto *GO = cast<GEPOperator>(C);
         Record.push_back(VE.getTypeID(GO->getSourceElementType()));
-        if (Optional<unsigned> Idx = GO->getInRangeIndex()) {
+        if (std::optional<unsigned> Idx = GO->getInRangeIndex()) {
           Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX;
           Record.push_back((*Idx << 1) | GO->isInBounds());
         } else if (GO->isInBounds())
@@ -2666,12 +2676,6 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         }
         break;
       }
-      case Instruction::Select:
-        Code = bitc::CST_CODE_CE_SELECT;
-        Record.push_back(VE.getValueID(C->getOperand(0)));
-        Record.push_back(VE.getValueID(C->getOperand(1)));
-        Record.push_back(VE.getValueID(C->getOperand(2)));
-        break;
       case Instruction::ExtractElement:
         Code = bitc::CST_CODE_CE_EXTRACTELT;
         Record.push_back(VE.getTypeID(C->getOperand(0)->getType()));
@@ -3809,7 +3813,7 @@ static void writeFunctionTypeMetadataRecords(BitstreamWriter &Stream,
       Record.push_back(Arg.Calls.size());
       for (auto &Call : Arg.Calls) {
         Record.push_back(Call.ParamNo);
-        Optional<unsigned> ValueID = GetValueID(Call.Callee);
+        std::optional<unsigned> ValueID = GetValueID(Call.Callee);
         if (!ValueID) {
           // If ValueID is unknown we can't drop just this call, we must drop
           // entire parameter.
@@ -3973,7 +3977,7 @@ void ModuleBitcodeWriterBase::writePerModuleFunctionSummaryRecord(
   FunctionSummary *FS = cast<FunctionSummary>(Summary);
 
   writeFunctionTypeMetadataRecords(
-      Stream, FS, [&](const ValueInfo &VI) -> Optional<unsigned> {
+      Stream, FS, [&](const ValueInfo &VI) -> std::optional<unsigned> {
         return {VE.getValueID(VI.getValue())};
       });
 
@@ -4427,9 +4431,9 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
       return;
     }
 
-    auto GetValueId = [&](const ValueInfo &VI) -> Optional<unsigned> {
+    auto GetValueId = [&](const ValueInfo &VI) -> std::optional<unsigned> {
       if (!VI)
-        return None;
+        return std::nullopt;
       return getValueId(VI.getGUID());
     };
 
@@ -4441,7 +4445,7 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
         Stream, FS, CallsiteAbbrev, AllocAbbrev,
         /*PerModule*/ false,
         /*GetValueId*/ [&](const ValueInfo &VI) -> unsigned {
-          Optional<unsigned> ValueID = GetValueId(VI);
+          std::optional<unsigned> ValueID = GetValueId(VI);
           // This can happen in shared index files for distributed ThinLTO if
           // the callee function summary is not included. Record 0 which we
           // will have to deal with conservatively when doing any kind of
@@ -4497,7 +4501,7 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
     for (auto &EI : FS->calls()) {
       // If this GUID doesn't have a value id, it doesn't have a function
       // summary and we don't need to record any calls to it.
-      Optional<unsigned> CallValueId = GetValueId(EI.first);
+      std::optional<unsigned> CallValueId = GetValueId(EI.first);
       if (!CallValueId)
         continue;
       NameVals.push_back(*CallValueId);

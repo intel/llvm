@@ -16,7 +16,6 @@
 #define LLVM_CODEGEN_TARGETREGISTERINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -201,7 +200,7 @@ public:
   ///
   /// By default, this method returns all registers in the class.
   ArrayRef<MCPhysReg> getRawAllocationOrder(const MachineFunction &MF) const {
-    return OrderFunc ? OrderFunc(MF) : makeArrayRef(begin(), getNumRegs());
+    return OrderFunc ? OrderFunc(MF) : ArrayRef(begin(), getNumRegs());
   }
 
   /// Returns the combination of all lane masks of register in this class.
@@ -358,7 +357,7 @@ public:
     unsigned NumRegs = getNumRegs();
     assert(Idx < InfoDesc->NumCosts && "CostPerUse index out of bounds");
 
-    return makeArrayRef(&InfoDesc->CostPerUse[Idx * NumRegs], NumRegs);
+    return ArrayRef(&InfoDesc->CostPerUse[Idx * NumRegs], NumRegs);
   }
 
   /// Return true if the register is in the allocation of any register class.
@@ -531,7 +530,7 @@ public:
   /// The absence of an explanation does not mean that the register is not
   /// reserved (meaning, you should check that PhysReg is in fact reserved
   /// before calling this).
-  virtual llvm::Optional<std::string>
+  virtual std::optional<std::string>
   explainReservedReg(const MachineFunction &MF, MCRegister PhysReg) const {
     return {};
   }
@@ -693,6 +692,14 @@ public:
   /// Debugging helper: dump register in human readable form to dbgs() stream.
   static void dumpReg(Register Reg, unsigned SubRegIndex = 0,
                       const TargetRegisterInfo *TRI = nullptr);
+
+  /// Return target defined base register class for a physical register.
+  /// This is the register class with the lowest BaseClassOrder containing the
+  /// register.
+  /// Will be nullptr if the register is not in any base register class.
+  virtual const TargetRegisterClass *getPhysRegBaseClass(MCRegister Reg) const {
+    return nullptr;
+  }
 
 protected:
   /// Overridden by TableGen in targets that have sub-registers.
@@ -1248,7 +1255,7 @@ class BitMaskClassIterator {
     // Otherwise look for the first bit set from the right
     // (representation of the class ID is big endian).
     // See getSubClassMask for more details on the representation.
-    unsigned Offset = countTrailingZeros(CurrentChunk);
+    unsigned Offset = llvm::countr_zero(CurrentChunk);
     // Add the Offset to the adjusted base number of this chunk: Idx.
     // This is the ID of the register class.
     ID = Idx + Offset;

@@ -969,6 +969,8 @@ public:
   section_iterator section_begin() const override;
   section_iterator section_end() const override;
 
+  bool is64Bit() const override { return false; }
+
   const coff_section *getCOFFSection(const SectionRef &Section) const;
   COFFSymbolRef getCOFFSymbol(const DataRefImpl &Ref) const;
   COFFSymbolRef getCOFFSymbol(const SymbolRef &Symbol) const;
@@ -980,7 +982,9 @@ public:
   StringRef getFileFormatName() const override;
   Triple::ArchType getArch() const override;
   Expected<uint64_t> getStartAddress() const override;
-  SubtargetFeatures getFeatures() const override { return SubtargetFeatures(); }
+  Expected<SubtargetFeatures> getFeatures() const override {
+    return SubtargetFeatures();
+  }
 
   import_directory_iterator import_directory_begin() const;
   import_directory_iterator import_directory_end() const;

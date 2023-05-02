@@ -105,7 +105,7 @@ KnownBits KnownBits::sextInReg(unsigned SrcBitWidth) const {
 KnownBits KnownBits::makeGE(const APInt &Val) const {
   // Count the number of leading bit positions where our underlying value is
   // known to be less than or equal to Val.
-  unsigned N = (Zero | Val).countLeadingOnes();
+  unsigned N = (Zero | Val).countl_one();
 
   // For each of those bit positions, if Val has a 1 in that bit then our
   // underlying value must also have a 1.
@@ -330,65 +330,65 @@ KnownBits KnownBits::ashr(const KnownBits &LHS, const KnownBits &RHS) {
   return Known;
 }
 
-Optional<bool> KnownBits::eq(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::eq(const KnownBits &LHS, const KnownBits &RHS) {
   if (LHS.isConstant() && RHS.isConstant())
-    return Optional<bool>(LHS.getConstant() == RHS.getConstant());
+    return std::optional<bool>(LHS.getConstant() == RHS.getConstant());
   if (LHS.One.intersects(RHS.Zero) || RHS.One.intersects(LHS.Zero))
-    return Optional<bool>(false);
-  return None;
+    return std::optional<bool>(false);
+  return std::nullopt;
 }
 
-Optional<bool> KnownBits::ne(const KnownBits &LHS, const KnownBits &RHS) {
-  if (Optional<bool> KnownEQ = eq(LHS, RHS))
-    return Optional<bool>(!*KnownEQ);
-  return None;
+std::optional<bool> KnownBits::ne(const KnownBits &LHS, const KnownBits &RHS) {
+  if (std::optional<bool> KnownEQ = eq(LHS, RHS))
+    return std::optional<bool>(!*KnownEQ);
+  return std::nullopt;
 }
 
-Optional<bool> KnownBits::ugt(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::ugt(const KnownBits &LHS, const KnownBits &RHS) {
   // LHS >u RHS -> false if umax(LHS) <= umax(RHS)
   if (LHS.getMaxValue().ule(RHS.getMinValue()))
-    return Optional<bool>(false);
+    return std::optional<bool>(false);
   // LHS >u RHS -> true if umin(LHS) > umax(RHS)
   if (LHS.getMinValue().ugt(RHS.getMaxValue()))
-    return Optional<bool>(true);
-  return None;
+    return std::optional<bool>(true);
+  return std::nullopt;
 }
 
-Optional<bool> KnownBits::uge(const KnownBits &LHS, const KnownBits &RHS) {
-  if (Optional<bool> IsUGT = ugt(RHS, LHS))
-    return Optional<bool>(!*IsUGT);
-  return None;
+std::optional<bool> KnownBits::uge(const KnownBits &LHS, const KnownBits &RHS) {
+  if (std::optional<bool> IsUGT = ugt(RHS, LHS))
+    return std::optional<bool>(!*IsUGT);
+  return std::nullopt;
 }
 
-Optional<bool> KnownBits::ult(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::ult(const KnownBits &LHS, const KnownBits &RHS) {
   return ugt(RHS, LHS);
 }
 
-Optional<bool> KnownBits::ule(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::ule(const KnownBits &LHS, const KnownBits &RHS) {
   return uge(RHS, LHS);
 }
 
-Optional<bool> KnownBits::sgt(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::sgt(const KnownBits &LHS, const KnownBits &RHS) {
   // LHS >s RHS -> false if smax(LHS) <= smax(RHS)
   if (LHS.getSignedMaxValue().sle(RHS.getSignedMinValue()))
-    return Optional<bool>(false);
+    return std::optional<bool>(false);
   // LHS >s RHS -> true if smin(LHS) > smax(RHS)
   if (LHS.getSignedMinValue().sgt(RHS.getSignedMaxValue()))
-    return Optional<bool>(true);
-  return None;
+    return std::optional<bool>(true);
+  return std::nullopt;
 }
 
-Optional<bool> KnownBits::sge(const KnownBits &LHS, const KnownBits &RHS) {
-  if (Optional<bool> KnownSGT = sgt(RHS, LHS))
-    return Optional<bool>(!*KnownSGT);
-  return None;
+std::optional<bool> KnownBits::sge(const KnownBits &LHS, const KnownBits &RHS) {
+  if (std::optional<bool> KnownSGT = sgt(RHS, LHS))
+    return std::optional<bool>(!*KnownSGT);
+  return std::nullopt;
 }
 
-Optional<bool> KnownBits::slt(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::slt(const KnownBits &LHS, const KnownBits &RHS) {
   return sgt(RHS, LHS);
 }
 
-Optional<bool> KnownBits::sle(const KnownBits &LHS, const KnownBits &RHS) {
+std::optional<bool> KnownBits::sle(const KnownBits &LHS, const KnownBits &RHS) {
   return sge(RHS, LHS);
 }
 
@@ -432,7 +432,7 @@ KnownBits KnownBits::mul(const KnownBits &LHS, const KnownBits &RHS,
   // fit in the bitwidth (it must not overflow).
   bool HasOverflow;
   APInt UMaxResult = UMaxLHS.umul_ov(UMaxRHS, HasOverflow);
-  unsigned LeadZ = HasOverflow ? 0 : UMaxResult.countLeadingZeros();
+  unsigned LeadZ = HasOverflow ? 0 : UMaxResult.countl_zero();
 
   // The result of the bottom bits of an integer multiply can be
   // inferred by looking at the bottom bits of both operands and
@@ -481,8 +481,8 @@ KnownBits KnownBits::mul(const KnownBits &LHS, const KnownBits &RHS,
 
   // How many times we'd be able to divide each argument by 2 (shr by 1).
   // This gives us the number of trailing zeros on the multiplication result.
-  unsigned TrailBitsKnown0 = (LHS.Zero | LHS.One).countTrailingOnes();
-  unsigned TrailBitsKnown1 = (RHS.Zero | RHS.One).countTrailingOnes();
+  unsigned TrailBitsKnown0 = (LHS.Zero | LHS.One).countr_one();
+  unsigned TrailBitsKnown1 = (RHS.Zero | RHS.One).countr_one();
   unsigned TrailZero0 = LHS.countMinTrailingZeros();
   unsigned TrailZero1 = RHS.countMinTrailingZeros();
   unsigned TrailZ = TrailZero0 + TrailZero1;
@@ -621,6 +621,27 @@ KnownBits &KnownBits::operator^=(const KnownBits &RHS) {
   One = (Zero & RHS.One) | (One & RHS.Zero);
   Zero = std::move(Z);
   return *this;
+}
+
+KnownBits KnownBits::blsi() const {
+  unsigned BitWidth = getBitWidth();
+  KnownBits Known(Zero, APInt(BitWidth, 0));
+  unsigned Max = countMaxTrailingZeros();
+  Known.Zero.setBitsFrom(std::min(Max + 1, BitWidth));
+  unsigned Min = countMinTrailingZeros();
+  if (Max == Min && Max < BitWidth)
+    Known.One.setBit(Max);
+  return Known;
+}
+
+KnownBits KnownBits::blsmsk() const {
+  unsigned BitWidth = getBitWidth();
+  KnownBits Known(BitWidth);
+  unsigned Max = countMaxTrailingZeros();
+  Known.Zero.setBitsFrom(std::min(Max + 1, BitWidth));
+  unsigned Min = countMinTrailingZeros();
+  Known.One.setLowBits(std::min(Min + 1, BitWidth));
+  return Known;
 }
 
 void KnownBits::print(raw_ostream &OS) const {

@@ -16,7 +16,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/SubtargetFeature.h"
@@ -34,6 +33,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <cstdint>
 
@@ -55,7 +55,8 @@ class ELFObjectFileBase : public ObjectFile {
 
   SubtargetFeatures getMIPSFeatures() const;
   SubtargetFeatures getARMFeatures() const;
-  SubtargetFeatures getRISCVFeatures() const;
+  Expected<SubtargetFeatures> getRISCVFeatures() const;
+  SubtargetFeatures getLoongArchFeatures() const;
 
   StringRef getAMDGPUCPUName() const;
 
@@ -86,9 +87,9 @@ public:
 
   static bool classof(const Binary *v) { return v->isELF(); }
 
-  SubtargetFeatures getFeatures() const override;
+  Expected<SubtargetFeatures> getFeatures() const override;
 
-  Optional<StringRef> tryGetCPUName() const override;
+  std::optional<StringRef> tryGetCPUName() const override;
 
   void setARMSubArch(Triple &TheTriple) const override;
 
@@ -96,7 +97,7 @@ public:
 
   virtual uint16_t getEMachine() const = 0;
 
-  std::vector<std::pair<Optional<DataRefImpl>, uint64_t>>
+  std::vector<std::pair<std::optional<DataRefImpl>, uint64_t>>
   getPltAddresses() const;
 
   /// Returns a vector containing a symbol version for each dynamic symbol.
@@ -107,7 +108,7 @@ public:
   // `TextSectionIndex` is specified, only returns the BB address maps
   // corresponding to the section with that index.
   Expected<std::vector<BBAddrMap>>
-  readBBAddrMap(Optional<unsigned> TextSectionIndex = None) const;
+  readBBAddrMap(std::optional<unsigned> TextSectionIndex = std::nullopt) const;
 };
 
 class ELFSectionRef : public SectionRef {
@@ -430,6 +431,8 @@ public:
 
   basic_symbol_iterator symbol_begin() const override;
   basic_symbol_iterator symbol_end() const override;
+
+  bool is64Bit() const override { return getBytesInAddress() == 8; }
 
   elf_symbol_iterator dynamic_symbol_begin() const;
   elf_symbol_iterator dynamic_symbol_end() const;
@@ -859,13 +862,12 @@ Expected<ArrayRef<uint8_t>>
 ELFObjectFile<ELFT>::getSectionContents(DataRefImpl Sec) const {
   const Elf_Shdr *EShdr = getSection(Sec);
   if (EShdr->sh_type == ELF::SHT_NOBITS)
-    return makeArrayRef((const uint8_t *)base(), 0);
+    return ArrayRef((const uint8_t *)base(), (size_t)0);
   if (Error E =
           checkOffset(getMemoryBufferRef(),
                       (uintptr_t)base() + EShdr->sh_offset, EShdr->sh_size))
     return std::move(E);
-  return makeArrayRef((const uint8_t *)base() + EShdr->sh_offset,
-                      EShdr->sh_size);
+  return ArrayRef((const uint8_t *)base() + EShdr->sh_offset, EShdr->sh_size);
 }
 
 template <class ELFT>
@@ -1216,6 +1218,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "elf32-amdgpu";
     case ELF::EM_LOONGARCH:
       return "elf32-loongarch";
+    case ELF::EM_XTENSA:
+      return "elf32-xtensa";
     default:
       return "elf32-unknown";
     }
@@ -1339,6 +1343,9 @@ template <class ELFT> Triple::ArchType ELFObjectFile<ELFT>::getArch() const {
     default:
       report_fatal_error("Invalid ELFCLASS!");
     }
+
+  case ELF::EM_XTENSA:
+    return Triple::xtensa;
 
   default:
     return Triple::UnknownArch;

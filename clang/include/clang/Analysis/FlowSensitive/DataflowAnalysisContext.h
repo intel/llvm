@@ -27,12 +27,14 @@
 #include "llvm/Support/Compiler.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace clang {
 namespace dataflow {
+class Logger;
 
 /// Skip past nodes that the CFG does not emit. These nodes are invisible to
 /// flow-sensitive analysis, and should be ignored as they will effectively not
@@ -50,29 +52,85 @@ const Stmt &ignoreCFGOmittedNodes(const Stmt &S);
 /// Returns the set of all fields in the type.
 llvm::DenseSet<const FieldDecl *> getObjectFields(QualType Type);
 
+struct ContextSensitiveOptions {
+  /// The maximum depth to analyze. A value of zero is equivalent to disabling
+  /// context-sensitive analysis entirely.
+  unsigned Depth = 2;
+};
+
 /// Owns objects that encompass the state of a program and stores context that
 /// is used during dataflow analysis.
 class DataflowAnalysisContext {
 public:
+  struct Options {
+    /// Options for analyzing function bodies when present in the translation
+    /// unit, or empty to disable context-sensitive analysis. Note that this is
+    /// fundamentally limited: some constructs, such as recursion, are
+    /// explicitly unsupported.
+    std::optional<ContextSensitiveOptions> ContextSensitiveOpts;
+
+    /// If provided, analysis details will be recorded here.
+    /// (This is always non-null within an AnalysisContext, the framework
+    /// provides a fallback no-op logger).
+    Logger *Log = nullptr;
+  };
+
   /// Constructs a dataflow analysis context.
   ///
   /// Requirements:
   ///
   ///  `S` must not be null.
-  DataflowAnalysisContext(std::unique_ptr<Solver> S)
-      : S(std::move(S)), TrueVal(createAtomicBoolValue()),
-        FalseVal(createAtomicBoolValue()) {
-    assert(this->S != nullptr);
+  DataflowAnalysisContext(std::unique_ptr<Solver> S,
+                          Options Opts = Options{
+                              /*ContextSensitiveOpts=*/std::nullopt,
+                              /*Logger=*/nullptr});
+  ~DataflowAnalysisContext();
+
+  /// Creates a `T` (some subclass of `StorageLocation`), forwarding `args` to
+  /// the constructor, and returns a reference to it.
+  ///
+  /// The `DataflowAnalysisContext` takes ownership of the created object. The
+  /// object will be destroyed when the `DataflowAnalysisContext` is destroyed.
+  template <typename T, typename... Args>
+  std::enable_if_t<std::is_base_of<StorageLocation, T>::value, T &>
+  create(Args &&...args) {
+    // Note: If allocation of individual `StorageLocation`s turns out to be
+    // costly, consider creating specializations of `create<T>` for commonly
+    // used `StorageLocation` subclasses and make them use a `BumpPtrAllocator`.
+    return *cast<T>(
+        Locs.emplace_back(std::make_unique<T>(std::forward<Args>(args)...))
+            .get());
+  }
+
+  /// Creates a `T` (some subclass of `Value`), forwarding `args` to the
+  /// constructor, and returns a reference to it.
+  ///
+  /// The `DataflowAnalysisContext` takes ownership of the created object. The
+  /// object will be destroyed when the `DataflowAnalysisContext` is destroyed.
+  template <typename T, typename... Args>
+  std::enable_if_t<std::is_base_of<Value, T>::value, T &>
+  create(Args &&...args) {
+    // Note: If allocation of individual `Value`s turns out to be costly,
+    // consider creating specializations of `create<T>` for commonly used
+    // `Value` subclasses and make them use a `BumpPtrAllocator`.
+    return *cast<T>(
+        Vals.emplace_back(std::make_unique<T>(std::forward<Args>(args)...))
+            .get());
   }
 
   /// Takes ownership of `Loc` and returns a reference to it.
+  ///
+  /// This function is deprecated. Instead of
+  /// `takeOwnership(std::make_unique<SomeStorageLocation>(args))`, prefer
+  /// `create<SomeStorageLocation>(args)`.
   ///
   /// Requirements:
   ///
   ///  `Loc` must not be null.
   template <typename T>
-  std::enable_if_t<std::is_base_of<StorageLocation, T>::value, T &>
-  takeOwnership(std::unique_ptr<T> Loc) {
+  LLVM_DEPRECATED("use create<T> instead", "")
+  std::enable_if_t<std::is_base_of<StorageLocation, T>::value,
+                   T &> takeOwnership(std::unique_ptr<T> Loc) {
     assert(Loc != nullptr);
     Locs.push_back(std::move(Loc));
     return *cast<T>(Locs.back().get());
@@ -80,12 +138,17 @@ public:
 
   /// Takes ownership of `Val` and returns a reference to it.
   ///
+  /// This function is deprecated. Instead of
+  /// `takeOwnership(std::make_unique<SomeValue>(args))`, prefer
+  /// `create<SomeValue>(args)`.
+  ///
   /// Requirements:
   ///
   ///  `Val` must not be null.
   template <typename T>
-  std::enable_if_t<std::is_base_of<Value, T>::value, T &>
-  takeOwnership(std::unique_ptr<T> Val) {
+  LLVM_DEPRECATED("use create<T> instead", "")
+  std::enable_if_t<std::is_base_of<Value, T>::value, T &> takeOwnership(
+      std::unique_ptr<T> Val) {
     assert(Val != nullptr);
     Vals.push_back(std::move(Val));
     return *cast<T>(Vals.back().get());
@@ -108,7 +171,7 @@ public:
   ///
   ///  `D` must not be assigned a storage location.
   void setStorageLocation(const ValueDecl &D, StorageLocation &Loc) {
-    assert(DeclToLoc.find(&D) == DeclToLoc.end());
+    assert(!DeclToLoc.contains(&D));
     DeclToLoc[&D] = &Loc;
   }
 
@@ -126,7 +189,7 @@ public:
   ///  `E` must not be assigned a storage location.
   void setStorageLocation(const Expr &E, StorageLocation &Loc) {
     const Expr &CanonE = ignoreCFGOmittedNodes(E);
-    assert(ExprToLoc.find(&CanonE) == ExprToLoc.end());
+    assert(!ExprToLoc.contains(&CanonE));
     ExprToLoc[&CanonE] = &Loc;
   }
 
@@ -149,9 +212,9 @@ public:
   }
 
   /// Creates an atomic boolean value.
-  AtomicBoolValue &createAtomicBoolValue() {
-    return takeOwnership(std::make_unique<AtomicBoolValue>());
-  }
+  LLVM_DEPRECATED("use create<AtomicBoolValue> instead",
+                  "create<AtomicBoolValue>")
+  AtomicBoolValue &createAtomicBoolValue() { return create<AtomicBoolValue>(); }
 
   /// Creates a Top value for booleans. Each instance is unique and can be
   /// assigned a distinct truth value during solving.
@@ -161,9 +224,8 @@ public:
   /// implementation so that `Top iff Top` has a consistent meaning, regardless
   /// of the identity of `Top`. Moreover, I think the meaning should be
   /// `false`.
-  TopBoolValue &createTopBoolValue() {
-    return takeOwnership(std::make_unique<TopBoolValue>());
-  }
+  LLVM_DEPRECATED("use create<TopBoolValue> instead", "create<TopBoolValue>")
+  TopBoolValue &createTopBoolValue() { return create<TopBoolValue>(); }
 
   /// Returns a boolean value that represents the conjunction of `LHS` and
   /// `RHS`. Subsequent calls with the same arguments, regardless of their
@@ -247,13 +309,18 @@ public:
   /// `Val2` imposed by the flow condition.
   bool equivalentBoolValues(BoolValue &Val1, BoolValue &Val2);
 
-  LLVM_DUMP_METHOD void dumpFlowCondition(AtomicBoolValue &Token);
+  LLVM_DUMP_METHOD void dumpFlowCondition(AtomicBoolValue &Token,
+                                          llvm::raw_ostream &OS = llvm::dbgs());
 
   /// Returns the `ControlFlowContext` registered for `F`, if any. Otherwise,
   /// returns null.
   const ControlFlowContext *getControlFlowContext(const FunctionDecl *F);
 
+  const Options &getOptions() { return Opts; }
+
 private:
+  friend class Environment;
+
   struct NullableQualTypeDenseMapInfo : private llvm::DenseMapInfo<QualType> {
     static QualType getEmptyKey() {
       // Allow a NULL `QualType` by using a different value as the empty key.
@@ -264,6 +331,13 @@ private:
     using DenseMapInfo::getTombstoneKey;
     using DenseMapInfo::isEqual;
   };
+
+  // Extends the set of modeled field declarations.
+  void addModeledFields(const llvm::DenseSet<const FieldDecl *> &Fields);
+
+  /// Returns the fields of `Type`, limited to the set of fields modeled by this
+  /// context.
+  llvm::DenseSet<const FieldDecl *> getReferencedFields(QualType Type);
 
   /// Adds all constraints of the flow condition identified by `Token` and all
   /// of its transitive dependencies to `Constraints`. `VisitedTokens` is used
@@ -330,6 +404,8 @@ private:
   AtomicBoolValue &TrueVal;
   AtomicBoolValue &FalseVal;
 
+  Options Opts;
+
   // Indices that are used to avoid recreating the same composite boolean
   // values.
   llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, ConjunctionValue *>
@@ -359,6 +435,11 @@ private:
   llvm::DenseMap<AtomicBoolValue *, BoolValue *> FlowConditionConstraints;
 
   llvm::DenseMap<const FunctionDecl *, ControlFlowContext> FunctionContexts;
+
+  // Fields modeled by environments covered by this context.
+  llvm::DenseSet<const FieldDecl *> ModeledFields;
+
+  std::unique_ptr<Logger> LogOwner; // If created via flags.
 };
 
 } // namespace dataflow

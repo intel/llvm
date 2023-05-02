@@ -753,6 +753,15 @@ public:
     // Only 1 DWORD in the mask should have any procs set.
     // Return the appropriate index, or -1 for an invalid mask.
     virtual int get_proc_group() const { return -1; }
+    int get_max_cpu() const {
+      int cpu;
+      int max_cpu = -1;
+      KMP_CPU_SET_ITERATE(cpu, this) {
+        if (cpu > max_cpu)
+          max_cpu = cpu;
+      }
+      return max_cpu;
+    }
   };
   void *operator new(size_t n);
   void operator delete(void *p);
@@ -836,6 +845,26 @@ typedef struct kmp_affinity_flags_t {
 } kmp_affinity_flags_t;
 KMP_BUILD_ASSERT(sizeof(kmp_affinity_flags_t) == 4);
 
+typedef struct kmp_affinity_ids_t {
+  int ids[KMP_HW_LAST];
+  int operator[](size_t idx) const { return ids[idx]; }
+  int &operator[](size_t idx) { return ids[idx]; }
+  kmp_affinity_ids_t &operator=(const kmp_affinity_ids_t &rhs) {
+    for (int i = 0; i < KMP_HW_LAST; ++i)
+      ids[i] = rhs[i];
+    return *this;
+  }
+} kmp_affinity_ids_t;
+
+typedef struct kmp_affinity_attrs_t {
+  int core_type : 8;
+  int core_eff : 8;
+  unsigned valid : 1;
+  unsigned reserved : 15;
+} kmp_affinity_attrs_t;
+#define KMP_AFFINITY_ATTRS_UNKNOWN                                             \
+  { KMP_HW_CORE_TYPE_UNKNOWN, kmp_hw_attr_t::UNKNOWN_CORE_EFF, 0, 0 }
+
 typedef struct kmp_affinity_t {
   char *proclist;
   enum affinity_type type;
@@ -846,6 +875,8 @@ typedef struct kmp_affinity_t {
   kmp_affinity_flags_t flags;
   unsigned num_masks;
   kmp_affin_mask_t *masks;
+  kmp_affinity_ids_t *ids;
+  kmp_affinity_attrs_t *attrs;
   unsigned num_os_id_masks;
   kmp_affin_mask_t *os_id_masks;
   const char *env_var;
@@ -855,7 +886,7 @@ typedef struct kmp_affinity_t {
   {                                                                            \
     nullptr, affinity_default, KMP_HW_UNKNOWN, -1, 0, 0,                       \
         {TRUE, FALSE, TRUE, affinity_respect_mask_default, FALSE, FALSE}, 0,   \
-        nullptr, 0, nullptr, env                                               \
+        nullptr, nullptr, nullptr, 0, nullptr, env                             \
   }
 
 extern enum affinity_top_method __kmp_affinity_top_method;
@@ -1033,6 +1064,7 @@ typedef struct kmp_allocator_t {
   kmp_allocator_t *fb_data;
   kmp_uint64 pool_size;
   kmp_uint64 pool_used;
+  bool pinned;
 } kmp_allocator_t;
 
 extern omp_allocator_handle_t __kmpc_init_allocator(int gtid,
@@ -2500,6 +2532,10 @@ typedef struct kmp_tasking_flags { /* Total struct must be exactly 32 bits */
 
 } kmp_tasking_flags_t;
 
+typedef struct kmp_target_data {
+  void *async_handle; // libomptarget async handle for task completion query
+} kmp_target_data_t;
+
 struct kmp_taskdata { /* aligned during dynamic allocation       */
   kmp_int32 td_task_id; /* id, assigned by debugger                */
   kmp_tasking_flags_t td_flags; /* task flags                              */
@@ -2542,6 +2578,7 @@ struct kmp_taskdata { /* aligned during dynamic allocation       */
 #if OMPT_SUPPORT
   ompt_task_info_t ompt_task_info;
 #endif
+  kmp_target_data_t td_target_data;
 }; // struct kmp_taskdata
 
 // Make sure padding above worked
@@ -2705,6 +2742,8 @@ typedef struct KMP_ALIGN_CACHE kmp_base_info {
 
 #if KMP_AFFINITY_SUPPORTED
   kmp_affin_mask_t *th_affin_mask; /* thread's current affinity mask */
+  kmp_affinity_ids_t th_topology_ids; /* thread's current topology ids */
+  kmp_affinity_attrs_t th_topology_attrs; /* thread's current topology attrs */
 #endif
   omp_allocator_handle_t th_def_allocator; /* default allocator */
   /* The data set by the primary thread at reinit, then R/W by the worker */
@@ -3616,7 +3655,7 @@ extern void __kmp_check_stack_overlap(kmp_info_t *thr);
 extern void __kmp_expand_host_name(char *buffer, size_t size);
 extern void __kmp_expand_file_name(char *result, size_t rlen, char *pattern);
 
-#if KMP_ARCH_X86 || KMP_ARCH_X86_64 || (KMP_OS_WINDOWS && KMP_ARCH_AARCH64)
+#if KMP_ARCH_X86 || KMP_ARCH_X86_64 || (KMP_OS_WINDOWS && (KMP_ARCH_AARCH64 || KMP_ARCH_ARM))
 extern void
 __kmp_initialize_system_tick(void); /* Initialize timer tick value */
 #endif
@@ -3901,6 +3940,9 @@ KMP_EXPORT kmp_int32 __kmpc_bound_num_threads(ident_t *);
 KMP_EXPORT kmp_int32 __kmpc_ok_to_fork(ident_t *);
 KMP_EXPORT void __kmpc_fork_call(ident_t *, kmp_int32 nargs,
                                  kmpc_micro microtask, ...);
+KMP_EXPORT void __kmpc_fork_call_if(ident_t *loc, kmp_int32 nargs,
+                                    kmpc_micro microtask, kmp_int32 cond,
+                                    void *args);
 
 KMP_EXPORT void __kmpc_serialized_parallel(ident_t *, kmp_int32 global_tid);
 KMP_EXPORT void __kmpc_end_serialized_parallel(ident_t *, kmp_int32 global_tid);
@@ -3973,7 +4015,6 @@ KMP_EXPORT void __kmpc_omp_task_complete_if0(ident_t *loc_ref, kmp_int32 gtid,
 KMP_EXPORT kmp_int32 __kmpc_omp_task_parts(ident_t *loc_ref, kmp_int32 gtid,
                                            kmp_task_t *new_task);
 KMP_EXPORT kmp_int32 __kmpc_omp_taskwait(ident_t *loc_ref, kmp_int32 gtid);
-
 KMP_EXPORT kmp_int32 __kmpc_omp_taskyield(ident_t *loc_ref, kmp_int32 gtid,
                                           int end_part);
 
@@ -3997,6 +4038,15 @@ KMP_EXPORT void __kmpc_omp_wait_deps(ident_t *loc_ref, kmp_int32 gtid,
                                      kmp_depend_info_t *dep_list,
                                      kmp_int32 ndeps_noalias,
                                      kmp_depend_info_t *noalias_dep_list);
+/* __kmpc_omp_taskwait_deps_51 : Function for OpenMP 5.1 nowait clause.
+ *                               Placeholder for taskwait with nowait clause.*/
+KMP_EXPORT void __kmpc_omp_taskwait_deps_51(ident_t *loc_ref, kmp_int32 gtid,
+                                            kmp_int32 ndeps,
+                                            kmp_depend_info_t *dep_list,
+                                            kmp_int32 ndeps_noalias,
+                                            kmp_depend_info_t *noalias_dep_list,
+                                            kmp_int32 has_no_wait);
+
 extern kmp_int32 __kmp_omp_task(kmp_int32 gtid, kmp_task_t *new_task,
                                 bool serialize_immediate);
 
@@ -4037,6 +4087,10 @@ KMP_EXPORT void __kmp_set_num_teams(int num_teams);
 KMP_EXPORT int __kmp_get_max_teams(void);
 KMP_EXPORT void __kmp_set_teams_thread_limit(int limit);
 KMP_EXPORT int __kmp_get_teams_thread_limit(void);
+
+/* Interface target task integration */
+KMP_EXPORT void **__kmpc_omp_get_target_async_handle_ptr(kmp_int32 gtid);
+KMP_EXPORT bool __kmpc_omp_has_task_team(kmp_int32 gtid);
 
 /* Lock interface routines (fast versions with gtid passed in) */
 KMP_EXPORT void __kmpc_init_lock(ident_t *loc, kmp_int32 gtid,
@@ -4129,13 +4183,6 @@ KMP_EXPORT void __kmpc_doacross_fini(ident_t *loc, kmp_int32 gtid);
 KMP_EXPORT void *__kmpc_threadprivate_cached(ident_t *loc, kmp_int32 global_tid,
                                              void *data, size_t size,
                                              void ***cache);
-
-// Symbols for MS mutual detection.
-extern int _You_must_link_with_exactly_one_OpenMP_library;
-extern int _You_must_link_with_Intel_OpenMP_library;
-#if KMP_OS_WINDOWS && (KMP_VERSION_MAJOR > 4)
-extern int _You_must_link_with_Microsoft_OpenMP_library;
-#endif
 
 // The routines below are not exported.
 // Consider making them 'static' in corresponding source files.

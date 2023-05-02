@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 namespace clang {
@@ -116,6 +117,8 @@ public:
                                        SourceLocation RAngleLoc,
                                        Expr *RequiresClause);
 
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &C) const;
+
   /// Iterates through the template parameters in this list.
   using iterator = NamedDecl **;
 
@@ -129,11 +132,9 @@ public:
 
   unsigned size() const { return NumParams; }
 
-  ArrayRef<NamedDecl*> asArray() {
-    return llvm::makeArrayRef(begin(), end());
-  }
+  ArrayRef<NamedDecl *> asArray() { return llvm::ArrayRef(begin(), end()); }
   ArrayRef<const NamedDecl*> asArray() const {
-    return llvm::makeArrayRef(begin(), size());
+    return llvm::ArrayRef(begin(), size());
   }
 
   NamedDecl* getParam(unsigned Idx) {
@@ -289,7 +290,7 @@ public:
 
   /// Produce this as an array ref.
   ArrayRef<TemplateArgument> asArray() const {
-    return llvm::makeArrayRef(data(), size());
+    return llvm::ArrayRef(data(), size());
   }
 
   /// Retrieve the number of template arguments in this
@@ -617,7 +618,7 @@ public:
 
   static void
   Profile(llvm::FoldingSetNodeID &ID, ArrayRef<TemplateArgument> TemplateArgs,
-          ASTContext &Context) {
+          const ASTContext &Context) {
     ID.AddInteger(TemplateArgs.size());
     for (const TemplateArgument &TemplateArg : TemplateArgs)
       TemplateArg.Profile(ID, Context);
@@ -741,7 +742,7 @@ public:
   unsigned getNumTemplateArgs() const { return NumArgs; }
 
   llvm::ArrayRef<TemplateArgumentLoc> arguments() const {
-    return llvm::makeArrayRef(getTemplateArgs(), getNumTemplateArgs());
+    return llvm::ArrayRef(getTemplateArgs(), getNumTemplateArgs());
   }
 
   /// Returns the nth template argument.
@@ -851,7 +852,7 @@ protected:
     /// template.
     ///
     /// This pointer refers to the template arguments (there are as
-    /// many template arguments as template parameaters) for the
+    /// many template arguments as template parameters) for the
     /// template, and is allocated lazily, since most templates do not
     /// require the use of this information.
     TemplateArgument *InjectedArgs = nullptr;
@@ -1238,21 +1239,19 @@ class TemplateTypeParmDecl final : public TypeDecl,
 
   TemplateTypeParmDecl(DeclContext *DC, SourceLocation KeyLoc,
                        SourceLocation IdLoc, IdentifierInfo *Id, bool Typename,
-                       bool HasTypeConstraint, Optional<unsigned> NumExpanded)
+                       bool HasTypeConstraint,
+                       std::optional<unsigned> NumExpanded)
       : TypeDecl(TemplateTypeParm, DC, IdLoc, Id, KeyLoc), Typename(Typename),
         HasTypeConstraint(HasTypeConstraint), TypeConstraintInitialized(false),
         ExpandedParameterPack(NumExpanded),
         NumExpanded(NumExpanded.value_or(0)) {}
 
 public:
-  static TemplateTypeParmDecl *Create(const ASTContext &C, DeclContext *DC,
-                                      SourceLocation KeyLoc,
-                                      SourceLocation NameLoc,
-                                      unsigned D, unsigned P,
-                                      IdentifierInfo *Id, bool Typename,
-                                      bool ParameterPack,
-                                      bool HasTypeConstraint = false,
-                                      Optional<unsigned> NumExpanded = None);
+  static TemplateTypeParmDecl *
+  Create(const ASTContext &C, DeclContext *DC, SourceLocation KeyLoc,
+         SourceLocation NameLoc, unsigned D, unsigned P, IdentifierInfo *Id,
+         bool Typename, bool ParameterPack, bool HasTypeConstraint = false,
+         std::optional<unsigned> NumExpanded = std::nullopt);
   static TemplateTypeParmDecl *CreateDeserialized(const ASTContext &C,
                                                   unsigned ID);
   static TemplateTypeParmDecl *CreateDeserialized(const ASTContext &C,
@@ -2084,7 +2083,7 @@ public:
 
   static void
   Profile(llvm::FoldingSetNodeID &ID, ArrayRef<TemplateArgument> TemplateArgs,
-          ASTContext &Context) {
+          const ASTContext &Context) {
     ID.AddInteger(TemplateArgs.size());
     for (const TemplateArgument &TemplateArg : TemplateArgs)
       TemplateArg.Profile(ID, Context);
@@ -2260,7 +2259,7 @@ public:
 
   static void
   Profile(llvm::FoldingSetNodeID &ID, ArrayRef<TemplateArgument> TemplateArgs,
-          TemplateParameterList *TPL, ASTContext &Context);
+          TemplateParameterList *TPL, const ASTContext &Context);
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
 
@@ -2929,13 +2928,15 @@ public:
     return ExplicitInfo ? ExplicitInfo->TemplateKeywordLoc : SourceLocation();
   }
 
+  SourceRange getSourceRange() const override LLVM_READONLY;
+
   void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, TemplateArgs->asArray(), getASTContext());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID,
                       ArrayRef<TemplateArgument> TemplateArgs,
-                      ASTContext &Context) {
+                      const ASTContext &Context) {
     ID.AddInteger(TemplateArgs.size());
     for (const TemplateArgument &TemplateArg : TemplateArgs)
       TemplateArg.Profile(ID, Context);
@@ -3086,6 +3087,8 @@ public:
     return First->InstantiatedFromMember.setInt(true);
   }
 
+  SourceRange getSourceRange() const override LLVM_READONLY;
+
   void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, getTemplateArgs().asArray(), getTemplateParameters(),
             getASTContext());
@@ -3093,7 +3096,7 @@ public:
 
   static void
   Profile(llvm::FoldingSetNodeID &ID, ArrayRef<TemplateArgument> TemplateArgs,
-          TemplateParameterList *TPL, ASTContext &Context);
+          TemplateParameterList *TPL, const ASTContext &Context);
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
 
@@ -3437,7 +3440,7 @@ inline TemplateDecl *getAsTypeTemplateDecl(Decl *D) {
 ///
 /// In \c A<int,int>::B, \c NTs and \c TTs have expanded pack size 2, and \c Us
 /// is not a pack expansion, so returns an empty Optional.
-inline Optional<unsigned> getExpandedPackSize(const NamedDecl *Param) {
+inline std::optional<unsigned> getExpandedPackSize(const NamedDecl *Param) {
   if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(Param)) {
     if (TTP->isExpandedParameterPack())
       return TTP->getNumExpansionParameters();
@@ -3453,7 +3456,7 @@ inline Optional<unsigned> getExpandedPackSize(const NamedDecl *Param) {
       return TTP->getNumExpansionTemplateParameters();
   }
 
-  return None;
+  return std::nullopt;
 }
 
 /// Internal helper used by Subst* nodes to retrieve the parameter list

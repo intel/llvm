@@ -1206,7 +1206,12 @@ public:
     this->destroy_range(this->begin(), this->end());
   }
 
-  explicit SmallVector(size_t Size, const T &Value = T())
+  explicit SmallVector(size_t Size)
+    : SmallVectorImpl<T>(N) {
+    this->resize(Size);
+  }
+
+  SmallVector(size_t Size, const T &Value)
     : SmallVectorImpl<T>(N) {
     this->assign(Size, Value);
   }
@@ -1311,6 +1316,12 @@ SmallVector<Out, Size> to_vector_of(R &&Range) {
 template <typename Out, typename R> SmallVector<Out> to_vector_of(R &&Range) {
   return {std::begin(Range), std::end(Range)};
 }
+
+// Explicit instantiations
+extern template class llvm::SmallVectorBase<uint32_t>;
+#if SIZE_MAX > UINT32_MAX
+extern template class llvm::SmallVectorBase<uint64_t>;
+#endif
 
 } // end namespace llvm
 

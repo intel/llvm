@@ -22,8 +22,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class device;
 class device_selector;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 namespace detail {
 class filter_selector_impl;
 } // namespace detail
@@ -38,8 +37,7 @@ public:
 private:
   std::shared_ptr<detail::filter_selector_impl> impl;
 };
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 #ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {

@@ -171,8 +171,9 @@ namespace llvm {
       return Length == RHS.Length && compare_insensitive(RHS) == 0;
     }
 
-    /// compare - Compare two strings; the result is -1, 0, or 1 if this string
-    /// is lexicographically less than, equal to, or greater than the \p RHS.
+    /// compare - Compare two strings; the result is negative, zero, or positive
+    /// if this string is lexicographically less than, equal to, or greater than
+    /// the \p RHS.
     [[nodiscard]] int compare(StringRef RHS) const {
       // Check the prefix for a mismatch.
       if (int Res = compareMemory(Data, RHS.Data, std::min(Length, RHS.Length)))
@@ -292,13 +293,7 @@ namespace llvm {
     /// \returns The index of the first occurrence of \p C, or npos if not
     /// found.
     [[nodiscard]] size_t find(char C, size_t From = 0) const {
-      size_t FindBegin = std::min(From, Length);
-      if (FindBegin < Length) { // Avoid calling memchr with nullptr.
-        // Just forward to memchr, which is faster than a hand-rolled loop.
-        if (const void *P = ::memchr(Data + FindBegin, C, Length - FindBegin))
-          return static_cast<const char *>(P) - Data;
-      }
-      return npos;
+      return std::string_view(*this).find(C, From);
     }
 
     /// Search for the first character \p C in the string, ignoring case.
@@ -348,12 +343,11 @@ namespace llvm {
     /// \returns The index of the last occurrence of \p C, or npos if not
     /// found.
     [[nodiscard]] size_t rfind(char C, size_t From = npos) const {
-      From = std::min(From, Length);
-      size_t i = From;
-      while (i != 0) {
-        --i;
-        if (Data[i] == C)
-          return i;
+      size_t I = std::min(From, Length);
+      while (I) {
+        --I;
+        if (Data[I] == C)
+          return I;
       }
       return npos;
     }
@@ -454,8 +448,8 @@ namespace llvm {
     /// Return the number of occurrences of \p C in the string.
     [[nodiscard]] size_t count(char C) const {
       size_t Count = 0;
-      for (size_t i = 0, e = Length; i != e; ++i)
-        if (Data[i] == C)
+      for (size_t I = 0; I != Length; ++I)
+        if (Data[I] == C)
           ++Count;
       return Count;
     }
@@ -561,7 +555,8 @@ namespace llvm {
     /// \param N The number of characters to included in the substring. If N
     /// exceeds the number of characters remaining in the string, the string
     /// suffix (starting with \p Start) will be returned.
-    [[nodiscard]] StringRef substr(size_t Start, size_t N = npos) const {
+    [[nodiscard]] constexpr StringRef substr(size_t Start,
+                                             size_t N = npos) const {
       Start = std::min(Start, Length);
       return StringRef(Data + Start, std::min(N, Length - Start));
     }
@@ -628,7 +623,7 @@ namespace llvm {
       if (!starts_with(Prefix))
         return false;
 
-      *this = drop_front(Prefix.size());
+      *this = substr(Prefix.size());
       return true;
     }
 
@@ -638,7 +633,7 @@ namespace llvm {
       if (!startswith_insensitive(Prefix))
         return false;
 
-      *this = drop_front(Prefix.size());
+      *this = substr(Prefix.size());
       return true;
     }
 
@@ -648,7 +643,7 @@ namespace llvm {
       if (!ends_with(Suffix))
         return false;
 
-      *this = drop_back(Suffix.size());
+      *this = substr(0, size() - Suffix.size());
       return true;
     }
 
@@ -658,7 +653,7 @@ namespace llvm {
       if (!endswith_insensitive(Suffix))
         return false;
 
-      *this = drop_back(Suffix.size());
+      *this = substr(0, size() - Suffix.size());
       return true;
     }
 
@@ -675,7 +670,7 @@ namespace llvm {
     /// be returned.
     [[nodiscard]] StringRef slice(size_t Start, size_t End) const {
       Start = std::min(Start, Length);
-      End = std::min(std::max(Start, End), Length);
+      End = std::clamp(End, Start, Length);
       return StringRef(Data + Start, End - Start);
     }
 
@@ -877,19 +872,19 @@ namespace llvm {
   inline bool operator!=(StringRef LHS, StringRef RHS) { return !(LHS == RHS); }
 
   inline bool operator<(StringRef LHS, StringRef RHS) {
-    return LHS.compare(RHS) == -1;
+    return LHS.compare(RHS) < 0;
   }
 
   inline bool operator<=(StringRef LHS, StringRef RHS) {
-    return LHS.compare(RHS) != 1;
+    return LHS.compare(RHS) <= 0;
   }
 
   inline bool operator>(StringRef LHS, StringRef RHS) {
-    return LHS.compare(RHS) == 1;
+    return LHS.compare(RHS) > 0;
   }
 
   inline bool operator>=(StringRef LHS, StringRef RHS) {
-    return LHS.compare(RHS) != -1;
+    return LHS.compare(RHS) >= 0;
   }
 
   inline std::string &operator+=(std::string &buffer, StringRef string) {

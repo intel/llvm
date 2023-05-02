@@ -20,6 +20,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include <cassert>
+#include <optional>
 
 namespace llvm {
 
@@ -140,6 +141,15 @@ public:
     /// parsed. If such a scope is a ContinueScope, it's invalid to jump to the
     /// continue block from here.
     ConditionVarScope = 0x2000000,
+
+    /// This is a scope of some OpenMP directive with
+    /// order clause which specifies concurrent
+    OpenMPOrderClauseScope = 0x4000000,
+    /// This is the scope for a lambda, after the lambda introducer.
+    /// Lambdas need two FunctionPrototypeScope scopes (because there is a
+    /// template scope in between), the outer scope does not increase the
+    /// depth of recursion.
+    LambdaScope = 0x8000000,
   };
 
 private:
@@ -215,9 +225,9 @@ private:
   ///  1) pointer to VarDecl that denotes NRVO candidate itself.
   ///  2) nullptr value means that NRVO is not allowed in this scope
   ///     (e.g. return a function parameter).
-  ///  3) None value means that there is no NRVO candidate in this scope
+  ///  3) std::nullopt value means that there is no NRVO candidate in this scope
   ///     (i.e. there are no return statements in this scope).
-  Optional<VarDecl *> NRVO;
+  std::optional<VarDecl *> NRVO;
 
   /// Represents return slots for NRVO candidates in the current scope.
   /// If a variable is present in this set, it means that a return slot is
@@ -486,6 +496,12 @@ public:
   bool isOpenMPLoopScope() const {
     const Scope *P = getParent();
     return P && P->isOpenMPLoopDirectiveScope();
+  }
+
+  /// Determine whether this scope is some OpenMP directive with
+  /// order clause which specifies concurrent scope.
+  bool isOpenMPOrderClauseScope() const {
+    return getFlags() & Scope::OpenMPOrderClauseScope;
   }
 
   /// Determine whether this scope is a while/do/for statement, which can have

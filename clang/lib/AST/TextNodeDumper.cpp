@@ -1809,6 +1809,8 @@ void TextNodeDumper::VisitVarDecl(const VarDecl *D) {
     case VarDecl::ListInit:
       OS << " listinit";
       break;
+    case VarDecl::ParenListInit:
+      OS << " parenlistinit";
     }
   }
   if (D->needsDestruction(D->getASTContext()))
@@ -1934,6 +1936,8 @@ void TextNodeDumper::VisitNamespaceDecl(const NamespaceDecl *D) {
   dumpName(D);
   if (D->isInline())
     OS << " inline";
+  if (D->isNested())
+    OS << " nested";
   if (!D->isOriginalNamespace())
     dumpDeclRef(D->getOriginalNamespace(), "original");
 }

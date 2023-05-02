@@ -10,6 +10,7 @@
 #define LLDB_SYMBOL_COMPILERTYPE_H
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -163,6 +164,8 @@ public:
 
   bool IsFunctionPointerType() const;
 
+  bool IsMemberFunctionPointerType() const;
+
   bool
   IsBlockPointerType(CompilerType *function_pointer_type_ptr = nullptr) const;
 
@@ -193,6 +196,8 @@ public:
 
   bool IsScalarType() const;
 
+  bool IsTemplateType() const;
+
   bool IsTypedefType() const;
 
   bool IsVoidType() const;
@@ -202,6 +207,8 @@ public:
   /// \{
   bool GetCompleteType() const;
   /// \}
+
+  bool IsForcefullyCompleted() const;
 
   /// AST related queries.
   /// \{
@@ -322,16 +329,15 @@ public:
   struct IntegralTemplateArgument;
 
   /// Return the size of the type in bytes.
-  llvm::Optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope) const;
+  std::optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope) const;
   /// Return the size of the type in bits.
-  llvm::Optional<uint64_t> GetBitSize(ExecutionContextScope *exe_scope) const;
+  std::optional<uint64_t> GetBitSize(ExecutionContextScope *exe_scope) const;
 
   lldb::Encoding GetEncoding(uint64_t &count) const;
 
   lldb::Format GetFormat() const;
 
-  llvm::Optional<size_t>
-  GetTypeBitAlign(ExecutionContextScope *exe_scope) const;
+  std::optional<size_t> GetTypeBitAlign(ExecutionContextScope *exe_scope) const;
 
   uint32_t GetNumChildren(bool omit_empty_base_classes,
                           const ExecutionContext *exe_ctx) const;
@@ -414,7 +420,7 @@ public:
   /// expanded to their supplied arguments. With expand_pack set to false, an
   /// arguement pack will count as 1 argument and it is invalid to call this
   /// method on the pack argument.
-  llvm::Optional<IntegralTemplateArgument>
+  std::optional<IntegralTemplateArgument>
   GetIntegralTemplateArgument(size_t idx, bool expand_pack = false) const;
 
   CompilerType GetTypeForFormatters() const;

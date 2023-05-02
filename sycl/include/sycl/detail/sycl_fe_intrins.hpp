@@ -19,10 +19,10 @@
 // Post-link tool traces the ID to a string literal it points to and assigns
 // integer ID.
 template <typename T>
-SYCL_EXTERNAL T __sycl_getScalarSpecConstantValue(const char *ID);
+__DPCPP_SYCL_EXTERNAL T __sycl_getScalarSpecConstantValue(const char *ID);
 
 template <typename T>
-SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
+__DPCPP_SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 
 // The intrinsics below are used to implement support SYCL2020 specialization
 // constants. SYCL2020 version requires more parameters compared to the initial
@@ -36,16 +36,15 @@ SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 // specialization constant and should be used if native specialization constants
 // are not available.
 template <typename T>
-SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID,
-                                                      const void *DefaultValue,
-                                                      const void *RTBuffer);
+__DPCPP_SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 
 template <typename T>
-SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(
+__DPCPP_SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(
     const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 
 // Request a fixed-size allocation in local address space at kernel scope.
-extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
+extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
 __sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
 
 #endif

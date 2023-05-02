@@ -302,7 +302,7 @@ INITIALIZE_PASS(RegAllocFast, "regallocfast", "Fast Register Allocator", false,
                 false)
 
 bool RegAllocFast::shouldAllocateRegister(const Register Reg) const {
-  assert(Register::isVirtualRegister(Reg));
+  assert(Reg.isVirtual());
   const TargetRegisterClass &RC = *MRI->getRegClass(Reg);
   return ShouldAllocateClass(*TRI, RC);
 }
@@ -435,7 +435,8 @@ void RegAllocFast::spill(MachineBasicBlock::iterator Before, Register VirtReg,
   LLVM_DEBUG(dbgs() << " to stack slot #" << FI << '\n');
 
   const TargetRegisterClass &RC = *MRI->getRegClass(VirtReg);
-  TII->storeRegToStackSlot(*MBB, Before, AssignedReg, Kill, FI, &RC, TRI);
+  TII->storeRegToStackSlot(*MBB, Before, AssignedReg, Kill, FI, &RC, TRI,
+                           VirtReg);
   ++NumStores;
 
   MachineBasicBlock::iterator FirstTerm = MBB->getFirstTerminator();
@@ -450,6 +451,9 @@ void RegAllocFast::spill(MachineBasicBlock::iterator Before, Register VirtReg,
     SpilledOperandsMap[MO->getParent()].push_back(MO);
   for (auto MISpilledOperands : SpilledOperandsMap) {
     MachineInstr &DBG = *MISpilledOperands.first;
+    // We don't have enough support for tracking operands of DBG_VALUE_LISTs.
+    if (DBG.isDebugValueList())
+      continue;
     MachineInstr *NewDV = buildDbgValueForSpill(
         *MBB, Before, *MISpilledOperands.first, FI, MISpilledOperands.second);
     assert(NewDV->getParent() == MBB && "dangling parent pointer");
@@ -489,7 +493,7 @@ void RegAllocFast::reload(MachineBasicBlock::iterator Before, Register VirtReg,
                     << printReg(PhysReg, TRI) << '\n');
   int FI = getStackSpaceFor(VirtReg);
   const TargetRegisterClass &RC = *MRI->getRegClass(VirtReg);
-  TII->loadRegFromStackSlot(*MBB, Before, PhysReg, FI, &RC, TRI);
+  TII->loadRegFromStackSlot(*MBB, Before, PhysReg, FI, &RC, TRI, VirtReg);
   ++NumLoads;
 }
 
@@ -845,7 +849,7 @@ void RegAllocFast::allocVirtReg(MachineInstr &MI, LiveReg &LR,
 void RegAllocFast::allocVirtRegUndef(MachineOperand &MO) {
   assert(MO.isUndef() && "expected undef use");
   Register VirtReg = MO.getReg();
-  assert(Register::isVirtualRegister(VirtReg) && "Expected virtreg");
+  assert(VirtReg.isVirtual() && "Expected virtreg");
   if (!shouldAllocateRegister(VirtReg))
     return;
 
@@ -944,6 +948,23 @@ void RegAllocFast::defineVirtReg(MachineInstr &MI, unsigned OpNum,
                         << LRI->Reloaded << '\n');
       bool Kill = LRI->LastUse == nullptr;
       spill(SpillBefore, VirtReg, PhysReg, Kill, LRI->LiveOut);
+
+      // We need to place additional spills for each indirect destination of an
+      // INLINEASM_BR.
+      if (MI.getOpcode() == TargetOpcode::INLINEASM_BR) {
+        int FI = StackSlotForVirtReg[VirtReg];
+        const TargetRegisterClass &RC = *MRI->getRegClass(VirtReg);
+        for (MachineOperand &MO : MI.operands()) {
+          if (MO.isMBB()) {
+            MachineBasicBlock *Succ = MO.getMBB();
+            TII->storeRegToStackSlot(*Succ, Succ->begin(), PhysReg, Kill,
+                FI, &RC, TRI, VirtReg);
+            ++NumStores;
+            Succ->addLiveIn(PhysReg);
+          }
+        }
+      }
+
       LRI->LastUse = nullptr;
     }
     LRI->LiveOut = false;
@@ -1300,9 +1321,11 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
       if (!MO.isReg() || !MO.isDef())
         continue;
 
+      Register Reg = MO.getReg();
+
       // subreg defs don't free the full register. We left the subreg number
       // around as a marker in setPhysReg() to recognize this case here.
-      if (MO.getSubReg() != 0) {
+      if (Reg.isPhysical() && MO.getSubReg() != 0) {
         MO.setSubReg(0);
         continue;
       }
@@ -1313,7 +1336,6 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
       // Do not free tied operands and early clobbers.
       if ((MO.isTied() && !TiedOpIsUndef(MO, I)) || MO.isEarlyClobber())
         continue;
-      Register Reg = MO.getReg();
       if (!Reg)
         continue;
       if (Reg.isVirtual()) {
@@ -1442,7 +1464,7 @@ void RegAllocFast::handleDebugValue(MachineInstr &MI) {
   // Ignore DBG_VALUEs that aren't based on virtual registers. These are
   // mostly constants and frame indices.
   for (Register Reg : MI.getUsedDebugRegs()) {
-    if (!Register::isVirtualRegister(Reg))
+    if (!Reg.isVirtual())
       continue;
     if (!shouldAllocateRegister(Reg))
       continue;

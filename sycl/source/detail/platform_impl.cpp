@@ -12,6 +12,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <sycl/backend.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
@@ -75,23 +76,27 @@ static bool IsBannedPlatform(platform Platform) {
   // To avoid problems on default users and deployment of DPC++ on platforms
   // where CUDA is available, the OpenCL support is disabled.
   //
-  auto IsNVIDIAOpenCL = [](platform Platform) {
+  // There is also no support for the AMD HSA backend for OpenCL consumption,
+  // as well as reported problems with device queries, so AMD OpenCL support
+  // is disabled as well.
+  //
+  auto IsMatchingOpenCL = [](platform Platform, const std::string_view name) {
     if (getSyclObjImpl(Platform)->is_host())
       return false;
 
-    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
-                             "NVIDIA CUDA") != std::string::npos;
-    const auto Backend =
-        detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
-    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "NVIDIA CUDA OpenCL platform found but is not compatible."
-                << std::endl;
+    const bool HasNameMatch = Platform.get_info<info::platform::name>().find(
+                                  name) != std::string::npos;
+    const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
+    const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) &&
+        IsMatchingOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: " << name
+                << " OpenCL platform found but is not compatible." << std::endl;
     }
-    return IsCUDAOCL;
+    return IsMatchingOCL;
   };
-  return IsNVIDIAOpenCL(Platform);
+  return IsMatchingOpenCL(Platform, "NVIDIA CUDA") ||
+         IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
 // This routine has the side effect of registering each platform's last device
@@ -126,8 +131,13 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        if (!Platform.get_devices(info::device_type::all).empty())
+
+        // The SYCL spec says that a platform has one or more devices. ( SYCL
+        // 2020 4.6.2 ) If we have an empty platform, we don't report it back
+        // from platform::get_platforms().
+        if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
+        }
       }
     }
   }
@@ -153,11 +163,12 @@ std::vector<platform> platform_impl::get_platforms() {
 // to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
 // in the places where the functionality diverges between these two
 // environment variables.
-// The return value is a vector that represents the indices of the chosen 
+// The return value is a vector that represents the indices of the chosen
 // devices.
 template <typename ListT, typename FilterT>
 static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                              RT::PiPlatform Platform, ListT *FilterList) {
+                                           RT::PiPlatform Platform,
+                                           ListT *FilterList) {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
@@ -174,10 +185,7 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     // not add it to the list of available devices.
     std::sort(FilterList->get().begin(), FilterList->get().end(),
               [](const ods_target &filter1, const ods_target &filter2) {
-                std::ignore = filter1;
-                if (filter2.IsNegativeTarget)
-                  return false;
-                return true;
+                return filter1.IsNegativeTarget && !filter2.IsNegativeTarget;
               });
   }
 
@@ -199,7 +207,14 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     return original_indices;
   }
   plugin &Plugin = *It;
-  backend Backend = Plugin.getBackend();
+
+  // Find out backend of the platform
+  RT::PiPlatformBackend PiBackend;
+  Plugin.call<PiApiKind::piPlatformGetInfo>(
+      Platform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(RT::PiPlatformBackend),
+      &PiBackend, nullptr);
+  backend Backend = convertBackend(PiBackend);
+
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
@@ -316,7 +331,7 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, const std::vector<int>& original_indices,
+    ods_target_list *OdsTargetList, const std::vector<int> &original_indices,
     PlatformImplPtr PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
@@ -343,8 +358,7 @@ static std::vector<device> amendDeviceAndSubDevices(
                           target.DeviceType));
 
         } else if (target.DeviceNum) { // opencl:0
-          deviceMatch =
-              (target.DeviceNum.value() == original_indices[i]);
+          deviceMatch = (target.DeviceNum.value() == original_indices[i]);
         }
 
         if (deviceMatch) {
@@ -474,7 +488,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
       0, // CP info::device_type::all
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
-  const backend Backend = Plugin.getBackend();
+  const backend Backend = getBackend();
 
   if (NumDevices == 0) {
     // If platform doesn't have devices (even without filter)
@@ -501,6 +515,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       pi::cast<RT::PiDeviceType>(DeviceType), // CP info::device_type::all
       NumDevices, PiDevices.data(), nullptr);
 
+  // Some elements of PiDevices vector might be filtered out, so make a copy of
+  // handles to do a cleanup later
+  std::vector<RT::PiDevice> PiDevicesToCleanUp = PiDevices;
+
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
@@ -518,8 +536,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
         PiDevices, MPlatform, OdsTargetList);
   } else if (FilterList) {
-    PlatformDeviceIndices = filterDeviceFilter<device_filter_list, device_filter>(
-        PiDevices, MPlatform, FilterList);
+    PlatformDeviceIndices =
+        filterDeviceFilter<device_filter_list, device_filter>(
+            PiDevices, MPlatform, FilterList);
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
@@ -531,6 +550,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
+
+  // The reference counter for handles, that we used to create sycl objects, is
+  // incremented, so we need to call release here.
+  for (RT::PiDevice &PiDev : PiDevicesToCleanUp)
+    Plugin.call<PiApiKind::piDeviceRelease>(PiDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them

@@ -23,6 +23,11 @@ def AMDGPU_Dialect : Dialect {
     that will eventually be executed on AMD hardware.
   }];
 
+
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "gpu::GPUDialect"
+  ];
   let useDefaultAttributePrinterParser = 1;
 }
 
@@ -42,10 +47,11 @@ def AMDGPU_RawBufferLoadOp :
                    DefaultValuedAttr<BoolAttr, "true">:$boundsCheck,
                    OptionalAttr<I32Attr>:$indexOffset,
                    Optional<I32>:$sgprOffset)>,
-    Results<(outs AnyTypeOf<[BF16, F16, F32, I32, I8,
+    Results<(outs AnyTypeOf<[BF16, F16, F32, I32, I8, F8E5M2FNUZ, F8E4M3FNUZ,
                               VectorOfLengthAndType<[2, 4], [F32, I32]>,
                               VectorOfLengthAndType<[2, 4, 8], [F16, BF16]>,
-                              VectorOfLengthAndType<[2, 4, 8, 16], [I8]>]>:$value)> {
+                              VectorOfLengthAndType<[2, 4, 8, 16],
+                                [I8, F8E5M2FNUZ, F8E4M3FNUZ]>]>:$value)> {
 
   let summary = "Raw Buffer load, exposing GCN features";
   let description = [{
@@ -81,8 +87,9 @@ def AMDGPU_RawBufferLoadOp :
   let assemblyFormat = [{
     attr-dict $memref `[` $indices `]`
       (`sgprOffset` $sgprOffset^)? `:`
-      type($memref) `,` type($indices) `->` type($value)
+      type($memref) (`,` type($indices)^)? `->` type($value)
   }];
+  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -90,10 +97,11 @@ def AMDGPU_RawBufferLoadOp :
 def AMDGPU_RawBufferStoreOp :
     AMDGPU_Op<"raw_buffer_store", [AllElementTypesMatch<["value", "memref"]>,
       AttrSizedOperandSegments]>,
-    Arguments<(ins AnyTypeOf<[BF16, F16, F32, I32, I8,
+    Arguments<(ins AnyTypeOf<[BF16, F16, F32, I32, I8, F8E5M2FNUZ, F8E4M3FNUZ,
                               VectorOfLengthAndType<[2, 4], [F32, I32]>,
                               VectorOfLengthAndType<[2, 4, 8], [F16, BF16]>,
-                              VectorOfLengthAndType<[2, 4, 8, 16], [I8]>]>:$value,
+                              VectorOfLengthAndType<[2, 4, 8, 16],
+                                [I8, F8E5M2FNUZ, F8E4M3FNUZ]>]>:$value,
                    Arg<AnyMemRef, "buffer to store to", [MemWrite]>:$memref,
                    Variadic<I32>:$indices,
                    DefaultValuedAttr<BoolAttr, "true">:$boundsCheck,
@@ -122,8 +130,9 @@ def AMDGPU_RawBufferStoreOp :
   let assemblyFormat = [{
     attr-dict $value `->` $memref `[` $indices `]`
       (`sgprOffset` $sgprOffset^)? `:`
-      type($value) `->` type($memref) `,` type($indices)
+      type($value) `->` type($memref) (`,` type($indices)^)?
   }];
+  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -162,6 +171,121 @@ def AMDGPU_RawBufferAtomicFaddOp :
       (`sgprOffset` $sgprOffset^)? `:`
       type($value) `->` type($memref) `,` type($indices)
   }];
+  let hasCanonicalizer = 1;
+  let hasVerifier = 1;
+}
+
+// Raw buffer atomic floating point max
+def AMDGPU_RawBufferAtomicFmaxOp :
+    AMDGPU_Op<"raw_buffer_atomic_fmax", [AllElementTypesMatch<["value", "memref"]>,
+      AttrSizedOperandSegments]>,
+    Arguments<(ins F32:$value,
+                   Arg<AnyMemRef, "buffer to operate on", [MemRead, MemWrite]>:$memref,
+                   Variadic<I32>:$indices,
+                   DefaultValuedAttr<BoolAttr, "true">:$boundsCheck,
+                   OptionalAttr<I32Attr>:$indexOffset,
+                   Optional<I32>:$sgprOffset)> {
+
+  let summary = "Raw Buffer Floating-point Atomic Max (non-GFX9)";
+  let description = [{
+    The `amdgpu.raw_buffer_atomic_fmax` op is a wrapper around the
+    buffer-based atomic floating point max available on AMD GPUs (except GFX9).
+
+    The index into the buffer is computed as for `memref.store` with the addition
+    of `indexOffset` (which is used to aid in emitting vectorized code) and,
+    if present `sgprOffset` (which is added after bounds checks and includes
+    any non-zero offset on the memref type).
+
+    All indexing components are given in terms of the memref's element size, not
+    the byte lengths required by the intrinsic.
+
+    Out of bounds atomic operations are ignored in hardware.
+
+    See `amdgpu.raw_buffer_load` for a description of how the underlying
+    instruction is constructed.
+  }];
+  let assemblyFormat = [{
+    attr-dict $value `->` $memref `[` $indices `]`
+      (`sgprOffset` $sgprOffset^)? `:`
+      type($value) `->` type($memref) `,` type($indices)
+  }];
+  let hasCanonicalizer = 1;
+  let hasVerifier = 1;
+}
+
+// Raw buffer atomic signed integer max
+def AMDGPU_RawBufferAtomicSmaxOp :
+    AMDGPU_Op<"raw_buffer_atomic_smax", [
+      AttrSizedOperandSegments]>,
+    Arguments<(ins I32:$value,
+                   Arg<AnyMemRef, "buffer to operate on", [MemRead, MemWrite]>:$memref,
+                   Variadic<I32>:$indices,
+                   DefaultValuedAttr<BoolAttr, "true">:$boundsCheck,
+                   OptionalAttr<I32Attr>:$indexOffset,
+                   Optional<I32>:$sgprOffset)> {
+
+  let summary = "Raw Buffer Signed Integer Atomic Max";
+  let description = [{
+    The `amdgpu.raw_buffer_atomic_smax` op is a wrapper around the
+    buffer-based atomic signed integer max available on AMD GPUs.
+
+    The index into the buffer is computed as for `memref.store` with the addition
+    of `indexOffset` (which is used to aid in emitting vectorized code) and,
+    if present `sgprOffset` (which is added after bounds checks and includes
+    any non-zero offset on the memref type).
+
+    All indexing components are given in terms of the memref's element size, not
+    the byte lengths required by the intrinsic.
+
+    Out of bounds atomic operations are ignored in hardware.
+
+    See `amdgpu.raw_buffer_load` for a description of how the underlying
+    instruction is constructed.
+  }];
+  let assemblyFormat = [{
+    attr-dict $value `->` $memref `[` $indices `]`
+      (`sgprOffset` $sgprOffset^)? `:`
+      type($value) `->` type($memref) `,` type($indices)
+  }];
+  let hasCanonicalizer = 1;
+  let hasVerifier = 1;
+}
+
+// Raw buffer atomic unsigned integer min
+def AMDGPU_RawBufferAtomicUminOp :
+    AMDGPU_Op<"raw_buffer_atomic_umin", [
+      AttrSizedOperandSegments]>,
+    Arguments<(ins I32:$value,
+                   Arg<AnyMemRef, "buffer to operate on", [MemRead, MemWrite]>:$memref,
+                   Variadic<I32>:$indices,
+                   DefaultValuedAttr<BoolAttr, "true">:$boundsCheck,
+                   OptionalAttr<I32Attr>:$indexOffset,
+                   Optional<I32>:$sgprOffset)> {
+
+  let summary = "Raw Buffer Unsigned Integer Atomic Min";
+  let description = [{
+    The `amdgpu.raw_buffer_atomic_umin` op is a wrapper around the
+    buffer-based atomic signed integer min available on AMD GPUs.
+
+    The index into the buffer is computed as for `memref.store` with the addition
+    of `indexOffset` (which is used to aid in emitting vectorized code) and,
+    if present `sgprOffset` (which is added after bounds checks and includes
+    any non-zero offset on the memref type).
+
+    All indexing components are given in terms of the memref's element size, not
+    the byte lengths required by the intrinsic.
+
+    Out of bounds atomic operations are ignored in hardware.
+
+    See `amdgpu.raw_buffer_load` for a description of how the underlying
+    instruction is constructed.
+  }];
+  let assemblyFormat = [{
+    attr-dict $value `->` $memref `[` $indices `]`
+      (`sgprOffset` $sgprOffset^)? `:`
+      type($value) `->` type($memref) `,` type($indices)
+  }];
+  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -207,15 +331,15 @@ def MFMAInTypes : AnyTypeOf<[F32, F64, I32, I64,
                              VectorOfLengthAndType<[2], [F32]>,
                              VectorOfLengthAndType<[4], [F16]>,
                              VectorOfLengthAndType<[2, 4], [BF16]>,
-                             VectorOfLengthAndType<[4, 8], [I8]>]>;
+                             VectorOfLengthAndType<[4, 8], [I8]>,
+                             VectorOfLengthAndType<[8], [F8E5M2FNUZ, F8E4M3FNUZ]>]>;
 def MFMAOutTypes : AnyTypeOf<[F64,
                               VectorOfLengthAndType<[4, 16, 32], [F32]>,
                               VectorOfLengthAndType<[4, 16, 32], [I32]>,
                               VectorOfLengthAndType<[4], [F64]>]>;
 
 def AMDGPU_MFMAOp :
-    AMDGPU_Op<"mfma", [AllTypesMatch<["sourceA", "sourceB"]>,
-                        AllTypesMatch<["destC", "destD"]>,
+    AMDGPU_Op<"mfma", [AllTypesMatch<["destC", "destD"]>,
                         Pure]>,
     Arguments<(ins
                    I32Attr:$m,
@@ -266,7 +390,7 @@ def AMDGPU_MFMAOp :
     $sourceA `*` $sourceB `+` $destC
     attr-dict
     `blgp` `=` $blgp
-    `:` type($sourceA) `,` type($destC)
+    `:` type($sourceA) `,` type($sourceB) `,` type($destC)
   }];
   let hasVerifier = 1;
 }

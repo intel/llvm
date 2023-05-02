@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace altera {
+namespace clang::tidy::altera {
 
 void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
   // Find any function that calls barrier but does not call an ID function.
@@ -24,17 +22,16 @@ void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       // Find function declarations...
       functionDecl(
-          allOf(
-              // That are OpenCL kernels...
-              hasAttr(attr::Kind::OpenCLKernel),
-              // And call a barrier function (either 1.x or 2.x version)...
-              forEachDescendant(callExpr(callee(functionDecl(hasAnyName(
-                                             "barrier", "work_group_barrier"))))
-                                    .bind("barrier")),
-              // But do not call an ID function.
-              unless(hasDescendant(callExpr(callee(functionDecl(
-                  hasAnyName("get_global_id", "get_local_id", "get_group_id",
-                             "get_local_linear_id"))))))))
+          // That are OpenCL kernels...
+          hasAttr(attr::Kind::OpenCLKernel),
+          // And call a barrier function (either 1.x or 2.x version)...
+          forEachDescendant(callExpr(callee(functionDecl(hasAnyName(
+                                         "barrier", "work_group_barrier"))))
+                                .bind("barrier")),
+          // But do not call an ID function.
+          unless(hasDescendant(callExpr(callee(functionDecl(
+              hasAnyName("get_global_id", "get_local_id", "get_group_id",
+                         "get_local_linear_id")))))))
           .bind("function"),
       this);
 }
@@ -57,8 +54,8 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
     bool IsNDRange = false;
     if (MatchedDecl->hasAttr<ReqdWorkGroupSizeAttr>()) {
       const auto *Attribute = MatchedDecl->getAttr<ReqdWorkGroupSizeAttr>();
-      if (*Attribute->getXDimVal() > 1 || *Attribute->getYDimVal() > 1 ||
-          *Attribute->getZDimVal() > 1)
+      if (Attribute->getXDim() > 1 || Attribute->getYDim() > 1 ||
+          Attribute->getZDim() > 1)
         IsNDRange = true;
     }
     if (IsNDRange) // No warning if kernel is treated as an NDRange.
@@ -79,6 +76,4 @@ void SingleWorkItemBarrierCheck::storeOptions(
   Options.store(Opts, "AOCVersion", AOCVersion);
 }
 
-} // namespace altera
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::altera

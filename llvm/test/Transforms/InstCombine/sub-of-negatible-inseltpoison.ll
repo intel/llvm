@@ -145,7 +145,7 @@ define i8 @t7(i8 %x, i1 %y, i8 %z) {
 }
 define i8 @n8(i8 %x, i1 %y, i8 %z) {
 ; CHECK-LABEL: @n8(
-; CHECK-NEXT:    [[T0:%.*]] = shl i8 1, [[Z:%.*]]
+; CHECK-NEXT:    [[T0:%.*]] = shl nuw i8 1, [[Z:%.*]]
 ; CHECK-NEXT:    call void @use8(i8 [[T0]])
 ; CHECK-NEXT:    [[T1:%.*]] = select i1 [[Y:%.*]], i8 0, i8 [[T0]]
 ; CHECK-NEXT:    [[T2:%.*]] = sub i8 [[X:%.*]], [[T1]]
@@ -1296,8 +1296,8 @@ define i8 @negate_abs(i8 %x, i8 %y) {
 ; CHECK-LABEL: @negate_abs(
 ; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
 ; CHECK-NEXT:    call void @use8(i8 [[T0]])
-; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[X]], i1 false)
-; CHECK-NEXT:    [[T3:%.*]] = sub i8 [[Y:%.*]], [[TMP1]]
+; CHECK-NEXT:    [[T2:%.*]] = call i8 @llvm.abs.i8(i8 [[X]], i1 false)
+; CHECK-NEXT:    [[T3:%.*]] = sub i8 [[Y:%.*]], [[T2]]
 ; CHECK-NEXT:    ret i8 [[T3]]
 ;
   %t0 = sub i8 0, %x

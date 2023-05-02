@@ -1,0 +1,118 @@
+= sycl_ext_oneapi_cuda_tex_cache_read
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+
+This extension is supported by all backends. However, as described in the following sections, this extension is currently only functionally useful in the `ext_oneapi_cuda` backend.
+
+
+== Overview
+
+When used with the `ext_oneapi_cuda` backend only, this extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read-only texture cache. The texture cache is designed for random access reads and is most performant when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache. This extension introduces a free function, `ldg`, that is available for all backends and devices; however this function will only make use of a special hardware feature (the texture cache) when called from the `ext_oneapi_cuda` backend. The only reason that `ldg` is supported on backends other than `ext_oneapi_cuda` is to allow for code portability.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_CUDA_TEX_CACHE_READ` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== `ldg` free function
+
+This extension adds a single templated free function which may be called from device
+code. This function is not available in host code.
+
+```
+namespace sycl::ext::oneapi::experimental::cuda {
+
+template<typename T>
+T ldg(const T* ptr);
+
+} // namespace sycl::ext::oneapi::experimental::cuda
+```
+
+`ldg` returns the data of type `T` located at address `ptr`. When called from the `ext_oneapi_cuda` backend the data is cached in the read-only texture cache.
+When called from any other backend a copy of the data stored at address `ptr` is returned without using any special cache.
+
+The template parameter `T` can be one of `char`, `signed char`, `short`, `int`, `long`, `long long`, `unsigned char`, `unsigned short`, `unsigned int`, `unsigned long`, `unsigned long long`, `vec<char, 2>`, `vec<char, 4>`, `vec<short, 2>`, `vec<short, 4>`, `vec<int, 2>`, `vec<int, 4>`, `vec<long long, 2>`, `vec<uchar, 2>`, `vec<uchar, 4>`, `vec<ushort, 2>`, `vec<ushort, 4>`, `vec<uint, 2>`, `vec<uint, 4>`, `vec<unsigned long long, 2>`, `float`, `vec<float, 2>`, `vec<float, 4>`, `double`, or `vec<double, 2>`.
+
+=== Example of usage
+
+```
+    h.parallel_for<class kernel_name>(range, [=](sycl::nd_item<1> item) {
+      const int idx = item.get_global_id(0);
+      auto cachedA = sycl::ext::oneapi::experimental::cuda::ldg(&A[idx]);
+      auto cachedB = sycl::ext::oneapi::experimental::cuda::ldg(&B[idx]);
+      C[idx] = cachedA + cachedB;
+    });
+```
+
+IMPORTANT: Sometimes the compiler may not be sure that the read-only condition is satisfied. In such cases users can mark the declaration of the pointer used as the argument to `ldg` with both the `const` and `$$__$$restrict$$__$$` qualifiers, which may aid the compiler in detecting the read-only condition. Additionally, data returned from `ldg`, e.g. `cacheA` and `cacheB` in the above example, should not be written to at any point within the kernel. If such data is written to at any point in the kernel, the code will compile and execute correctly, however the texture cache will not be used.
+
+=== Issues
+
+- Investigate exposing this functionality through annotated_ptr once the sycl_ext_oneapi_annotated_ptr becomes finalized.

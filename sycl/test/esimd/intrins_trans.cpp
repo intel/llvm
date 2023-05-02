@@ -86,11 +86,13 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   using PH = sycl::access::placeholder;
 
-  sycl::accessor<sycl::cl_int4, 2, sycl::access::mode::read,
-                 sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 2,
+                 sycl::access::mode::read, sycl::access::target::image,
+                 PH::false_t>
       pA;
-  sycl::accessor<sycl::cl_int4, 2, sycl::access::mode::write,
-                 sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::vec<sycl::opencl::cl_int, 4>, 2,
+                 sycl::access::mode::write, sycl::access::target::image,
+                 PH::false_t>
       pB;
 
   auto d = __esimd_wrregion<float, 16 /*ret size*/, 8 /*write size*/,
@@ -258,6 +260,20 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     use(x);
   }
   {
+    vec<int, 8> src0 = get8i();
+    auto x = __esimd_svm_atomic1<atomic_op::smin, int, 8>(get8ui64(), src0,
+                                                          get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.atomic.imin.v8i32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> undef)
+    use(x);
+  }
+  {
+    vec<int, 8> src0 = get8i();
+    auto x = __esimd_svm_atomic1<atomic_op::smax, int, 8>(get8ui64(), src0,
+                                                          get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.atomic.imax.v8i32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> undef)
+    use(x);
+  }
+  {
     constexpr SurfaceIndex si = 0;
     vec<float, 8> x =
         __esimd_media_ld<float, 2, 4, 0, SurfaceIndex, 0, 4>(si, 0, 0);
@@ -285,5 +301,13 @@ SYCL_EXTERNAL void test_math_intrins() SYCL_ESIMD_FUNCTION {
     auto y = __esimd_ieee_sqrt<float, 8>(x);
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.ieee.sqrt.v8f32(<8 x float> %{{[a-zA-Z0-9.]+}})
     use(y);
+  }
+  {
+    vec<int, 8> x0 = get8i();
+    vec<int, 8> x1 = get8i();
+    vec<int, 8> x2 = get8i();
+    auto res = __esimd_bfn<0xff, int, 8>(x0, x1, x2);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.bfn.v8i32.v8i32(<8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, i8 -1)
+    use(res);
   }
 }

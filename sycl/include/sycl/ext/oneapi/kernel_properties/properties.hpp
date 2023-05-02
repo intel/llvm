@@ -17,9 +17,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 // Trait for checking that all size_t values are non-zero.
 template <size_t... Xs> struct AllNonZero {
@@ -175,17 +173,16 @@ template <typename T, typename = void>
 struct HasKernelPropertiesGetMethod : std::false_type {};
 
 template <typename T>
-struct HasKernelPropertiesGetMethod<
-    T, sycl::detail::void_t<decltype(std::declval<T>().get(
-           std::declval<properties_tag>()))>> : std::true_type {
+struct HasKernelPropertiesGetMethod<T,
+                                    std::void_t<decltype(std::declval<T>().get(
+                                        std::declval<properties_tag>()))>>
+    : std::true_type {
   using properties_t =
       decltype(std::declval<T>().get(std::declval<properties_tag>()));
 };
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

@@ -1,0 +1,8 @@
+{
+  global:
+    /* Export everything from jit_compiler namespace */
+    _ZN12jit_compiler*;
+
+  local:
+    *;
+};

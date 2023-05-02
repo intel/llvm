@@ -13,7 +13,7 @@
 ; mechanism works even when many spills happen.
 
 ; Just test that it compiles successfully.
-define amdgpu_kernel void @test(<1280 x i32> addrspace(1)* %out, <1280 x i32> addrspace(1)* %in) {
+define amdgpu_kernel void @test(ptr addrspace(1) %out, ptr addrspace(1) %in) {
 ; GFX6-LABEL: test:
 ; GFX6:       ; %bb.0: ; %entry
 ; GFX6-NEXT:    s_mov_b32 s44, SCRATCH_RSRC_DWORD0
@@ -10055,8 +10055,8 @@ entry:
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %tid = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
 
-  %aptr = getelementptr <1280 x i32>, <1280 x i32> addrspace(1)* %in, i32 %tid
-  %a = load <1280 x i32>, <1280 x i32> addrspace(1)* %aptr
+  %aptr = getelementptr <1280 x i32>, ptr addrspace(1) %in, i32 %tid
+  %a = load <1280 x i32>, ptr addrspace(1) %aptr
 
 ; mark most VGPR registers as used to increase register pressure
   call void asm sideeffect "", "~{v4},~{v8},~{v12},~{v16},~{v20},~{v24},~{v28},~{v32}" ()
@@ -10067,13 +10067,13 @@ entry:
   call void asm sideeffect "", "~{v164},~{v168},~{v172},~{v176},~{v180},~{v184},~{v188},~{v192}" ()
   call void asm sideeffect "", "~{v196},~{v200},~{v204},~{v208},~{v212},~{v216},~{v220},~{v224}" ()
 
-  %outptr = getelementptr <1280 x i32>, <1280 x i32> addrspace(1)* %out, i32 %tid
-  store <1280 x i32> %a, <1280 x i32> addrspace(1)* %outptr
+  %outptr = getelementptr <1280 x i32>, ptr addrspace(1) %out, i32 %tid
+  store <1280 x i32> %a, ptr addrspace(1) %outptr
 
   ret void
 }
 
-define amdgpu_kernel void @test_limited_sgpr(<64 x i32> addrspace(1)* %out, <64 x i32> addrspace(1)* %in) #0 {
+define amdgpu_kernel void @test_limited_sgpr(ptr addrspace(1) %out, ptr addrspace(1) %in) #0 {
 ; GFX6-LABEL: test_limited_sgpr:
 ; GFX6:       ; %bb.0: ; %entry
 ; GFX6-NEXT:    s_mov_b32 s40, SCRATCH_RSRC_DWORD0
@@ -10551,7 +10551,6 @@ define amdgpu_kernel void @test_limited_sgpr(<64 x i32> addrspace(1)* %out, <64 
 ; GFX6-NEXT:    s_waitcnt expcnt(0)
 ; GFX6-NEXT:    ;;#ASMSTART
 ; GFX6-NEXT:    ;;#ASMEND
-; GFX6-NEXT:    s_mov_b32 s2, 0x84800
 ; GFX6-NEXT:    buffer_load_dword v17, off, s[40:43], s2 ; 4-byte Folded Reload
 ; GFX6-NEXT:    buffer_load_dword v18, off, s[40:43], s2 offset:4 ; 4-byte Folded Reload
 ; GFX6-NEXT:    buffer_load_dword v19, off, s[40:43], s2 offset:8 ; 4-byte Folded Reload
@@ -10796,7 +10795,7 @@ define amdgpu_kernel void @test_limited_sgpr(<64 x i32> addrspace(1)* %out, <64 
 ; GFX9-FLATSCR-NEXT:    scratch_store_dwordx4 off, v[20:23], s0 ; 16-byte Folded Spill
 ; GFX9-FLATSCR-NEXT:    s_movk_i32 s0, 0x2100
 ; GFX9-FLATSCR-NEXT:    scratch_store_dwordx4 off, v[8:11], s0 ; 16-byte Folded Spill
-; GFX9-FLATSCR-NEXT:    s_movk_i32 s0, 0x2100
+; GFX9-FLATSCR-NEXT:    s_nop 0
 ; GFX9-FLATSCR-NEXT:    ;;#ASMSTART
 ; GFX9-FLATSCR-NEXT:    ;;#ASMEND
 ; GFX9-FLATSCR-NEXT:    scratch_load_dwordx4 v[8:11], off, s0 ; 16-byte Folded Reload
@@ -11032,7 +11031,6 @@ define amdgpu_kernel void @test_limited_sgpr(<64 x i32> addrspace(1)* %out, <64 
 ; GFX10-FLATSCR-NEXT:    v_mov_b32_e32 v35, v60
 ; GFX10-FLATSCR-NEXT:    ;;#ASMSTART
 ; GFX10-FLATSCR-NEXT:    ;;#ASMEND
-; GFX10-FLATSCR-NEXT:    s_movk_i32 s0, 0x2010
 ; GFX10-FLATSCR-NEXT:    v_mov_b32_e32 v36, v65
 ; GFX10-FLATSCR-NEXT:    v_mov_b32_e32 v37, v66
 ; GFX10-FLATSCR-NEXT:    v_mov_b32_e32 v38, v67
@@ -11100,16 +11098,16 @@ entry:
   %tid = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
 
 ; allocate enough scratch to go beyond 2^12 addressing
-  %scratch = alloca <1280 x i32>, align 8, addrspace(5)
+  %scratch = alloca <1280 x i32>, align 16, addrspace(5)
 
 ; load VGPR data
-  %aptr = getelementptr <64 x i32>, <64 x i32> addrspace(1)* %in, i32 %tid
-  %a = load <64 x i32>, <64 x i32> addrspace(1)* %aptr
+  %aptr = getelementptr <64 x i32>, ptr addrspace(1) %in, i32 %tid
+  %a = load <64 x i32>, ptr addrspace(1) %aptr
 
 ; make sure scratch is used
   %x = extractelement <64 x i32> %a, i32 0
-  %sptr0 = getelementptr <1280 x i32>, <1280 x i32> addrspace(5)* %scratch, i32 %x, i32 0
-  store i32 1, i32 addrspace(5)* %sptr0
+  %sptr0 = getelementptr <1280 x i32>, ptr addrspace(5) %scratch, i32 %x, i32 0
+  store i32 1, ptr addrspace(5) %sptr0
 
 ; fill up SGPRs
   %sgpr0 = call <8 x i32> asm sideeffect "; def $0", "=s" ()
@@ -11139,8 +11137,8 @@ bb0:
   br label %ret
 
 ret:
-  %outptr = getelementptr <64 x i32>, <64 x i32> addrspace(1)* %out, i32 %tid
-  store <64 x i32> %a, <64 x i32> addrspace(1)* %outptr
+  %outptr = getelementptr <64 x i32>, ptr addrspace(1) %out, i32 %tid
+  store <64 x i32> %a, ptr addrspace(1) %outptr
 
   ret void
 }

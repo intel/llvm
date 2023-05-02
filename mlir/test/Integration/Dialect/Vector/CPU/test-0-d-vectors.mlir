@@ -1,6 +1,6 @@
-// RUN: mlir-opt %s -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-opt %s -convert-scf-to-cf -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_c_runner_utils | \
 // RUN: FileCheck %s
 
 func.func @extract_element_0d(%a: vector<f32>) {
@@ -106,7 +106,7 @@ func.func @create_mask_0d(%zero : index, %one : index) {
 }
 
 func.func @reduce_add(%arg0: vector<f32>) {
-  %0 = vector.reduction <add>, %arg0 : vector<f32> into f32    
+  %0 = vector.reduction <add>, %arg0 : vector<f32> into f32
   vector.print %0 : f32
   // CHECK: 5
   return

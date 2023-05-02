@@ -1,4 +1,4 @@
-// RUN: %clangxx -Wno-unused-command-line-argument -Werror -fsycl %s -c
+// RUN: %clangxx -Wno-unused-command-line-argument -Werror -fsycl -fsyntax-only %s
 
 // clang-format off
 #include <sycl/sycl.hpp>

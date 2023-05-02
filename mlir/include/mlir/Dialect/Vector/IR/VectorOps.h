@@ -110,37 +110,10 @@ void populateFlattenVectorTransferPatterns(RewritePatternSet &patterns,
 void populateBubbleVectorBitCastOpPatterns(RewritePatternSet &patterns,
                                            PatternBenefit benefit = 1);
 
-/// Collect a set of transfer read/write lowering patterns.
-///
-/// These patterns lower transfer ops to simpler ops like `vector.load`,
-/// `vector.store` and `vector.broadcast`. Only transfers with a transfer rank
-/// of a most `maxTransferRank` are lowered. This is useful when combined with
-/// VectorToSCF, which reduces the rank of vector transfer ops.
-void populateVectorTransferLoweringPatterns(
-    RewritePatternSet &patterns,
-    llvm::Optional<unsigned> maxTransferRank = llvm::None,
-    PatternBenefit benefit = 1);
-
 /// These patterns materialize masks for various vector ops such as transfers.
 void populateVectorMaskMaterializationPatterns(RewritePatternSet &patterns,
                                                bool force32BitVectorIndices,
                                                PatternBenefit benefit = 1);
-
-/// Collects patterns to progressively lower vector.broadcast ops on high-D
-/// vectors to low-D vector ops.
-void populateVectorBroadcastLoweringPatterns(RewritePatternSet &patterns,
-                                             PatternBenefit benefit = 1);
-
-/// Collects patterns to progressively lower vector mask ops into elementary
-/// selection and insertion ops.
-void populateVectorMaskOpLoweringPatterns(RewritePatternSet &patterns,
-                                          PatternBenefit benefit = 1);
-
-/// Collects patterns to progressively lower vector.shape_cast ops on high-D
-/// vectors into 1-D/2-D vector ops by generating data movement extract/insert
-/// ops.
-void populateVectorShapeCastLoweringPatterns(RewritePatternSet &patterns,
-                                             PatternBenefit benefit = 1);
 
 /// Returns the integer type required for subscripts in the vector dialect.
 IntegerType getVectorSubscriptType(Builder &builder);
@@ -186,7 +159,7 @@ bool isDisjointTransferSet(VectorTransferOpInterface transferA,
 /// Return the result value of reducing two scalar/vector values with the
 /// corresponding arith operation.
 Value makeArithReduction(OpBuilder &b, Location loc, CombiningKind kind,
-                         Value v1, Value v2);
+                         Value v1, Value acc, Value mask = Value());
 
 /// Returns true if `attr` has "parallel" iterator type semantics.
 inline bool isParallelIterator(Attribute attr) {
@@ -197,6 +170,29 @@ inline bool isParallelIterator(Attribute attr) {
 inline bool isReductionIterator(Attribute attr) {
   return attr.cast<IteratorTypeAttr>().getValue() == IteratorType::reduction;
 }
+
+//===----------------------------------------------------------------------===//
+// Vector Masking Utilities
+//===----------------------------------------------------------------------===//
+
+/// Create the vector.yield-ended region of a vector.mask op with `maskableOp`
+/// as masked operation.
+void createMaskOpRegion(OpBuilder &builder, Operation *maskableOp);
+
+/// Creates a vector.mask operation around a maskable operation. Returns the
+/// vector.mask operation if the mask provided is valid. Otherwise, returns the
+/// maskable operation itself.
+Operation *maskOperation(OpBuilder &builder, Operation *maskableOp, Value mask,
+                         Value passthru = Value());
+
+/// Creates a vector select operation that picks values from `newValue` or
+/// `passthru` for each result vector lane based on `mask`. This utility is used
+/// to propagate the pass-thru value for masked-out or expeculatively executed
+/// lanes. VP intrinsics do not support pass-thru values and every mask-out lane
+/// is set to poison. LLVM backends are usually able to match op + select
+/// patterns and fold them into a native target instructions.
+Value selectPassthru(OpBuilder &builder, Value mask, Value newValue,
+                     Value passthru);
 
 } // namespace vector
 } // namespace mlir

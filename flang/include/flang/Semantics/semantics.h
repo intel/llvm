@@ -145,6 +145,14 @@ public:
     return *this;
   }
 
+  bool anyDefinedIntrinsicOperator() const {
+    return anyDefinedIntrinsicOperator_;
+  }
+  SemanticsContext &set_anyDefinedIntrinsicOperator(bool yes = true) {
+    anyDefinedIntrinsicOperator_ = yes;
+    return *this;
+  }
+
   const DeclTypeSpec &MakeNumericType(TypeCategory, int kind = 0);
   const DeclTypeSpec &MakeLogicalType(int kind = 0);
 
@@ -168,10 +176,12 @@ public:
     return messages_.Say(std::move(msg));
   }
   template <typename... A>
-  void SayWithDecl(const Symbol &symbol, const parser::CharBlock &at,
-      parser::MessageFixedText &&msg, A &&...args) {
+  parser::Message &SayWithDecl(const Symbol &symbol,
+      const parser::CharBlock &at, parser::MessageFixedText &&msg,
+      A &&...args) {
     auto &message{Say(at, std::move(msg), args...)};
     evaluate::AttachDeclaration(&message, symbol);
+    return message;
   }
 
   const Scope &FindScope(parser::CharBlock) const;
@@ -205,6 +215,9 @@ public:
   // Defines builtinsScope_ from the __Fortran_builtins module
   void UseFortranBuiltinsModule();
   const Scope *GetBuiltinsScope() const { return builtinsScope_; }
+
+  void UsePPCFortranBuiltinsModule();
+  const Scope *GetPPCBuiltinsScope() const { return ppcBuiltinsScope_; }
 
   // Saves a module file's parse tree so that it remains available
   // during semantics.
@@ -266,8 +279,10 @@ private:
   UnorderedSymbolSet errorSymbols_;
   std::set<std::string> tempNames_;
   const Scope *builtinsScope_{nullptr}; // module __Fortran_builtins
+  const Scope *ppcBuiltinsScope_{nullptr}; // module __Fortran_PPC_intrinsics
   std::list<parser::Program> modFileParseTrees_;
   std::unique_ptr<CommonBlockMap> commonBlockMap_;
+  bool anyDefinedIntrinsicOperator_{false};
 };
 
 class Semantics {

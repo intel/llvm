@@ -50,9 +50,6 @@ static_assert(ints2.a == -20, "");
 static_assert(ints2.b == -30, "");
 static_assert(!ints2.c, "");
 
-#if __cplusplus >= 201703L
-// FIXME: In c++14, this uses a MaterializeTemporaryExpr,
-//   which the new interpreter doesn't support yet.
 constexpr Ints getInts() {
   return {64, 128, true};
 }
@@ -60,7 +57,6 @@ constexpr Ints ints3 = getInts();
 static_assert(ints3.a == 64, "");
 static_assert(ints3.b == 128, "");
 static_assert(ints3.c, "");
-#endif
 
 constexpr Ints ints4 = {
   .a = 40 * 50,
@@ -88,9 +84,13 @@ struct Ints2 {
   int a = 10;
   int b;
 };
-// FIXME: Broken in the new constant interpreter.
-//   Should be rejected, but without asan errors.
-//constexpr Ints2 ints2;
+constexpr Ints2 ints22; // expected-error {{without a user-provided default constructor}} \
+                        // expected-error {{must be initialized by a constant expression}} \
+                        // ref-error {{without a user-provided default constructor}}
+
+constexpr Ints2 I2 = Ints2{12, 25};
+static_assert(I2.a == 12, "");
+static_assert(I2.b == 25, "");
 
 class C {
   public:
@@ -98,9 +98,17 @@ class C {
     int b;
 
   constexpr C() : a(100), b(200) {}
+
+  constexpr C get() const {
+    return *this;
+  }
 };
 
 constexpr C c;
+static_assert(c.a == 100, "");
+static_assert(c.b == 200, "");
+
+constexpr C c2 = C().get();
 static_assert(c.a == 100, "");
 static_assert(c.b == 200, "");
 
@@ -124,14 +132,16 @@ constexpr const C* getPointer() {
 }
 static_assert(getPointer()->a == 100, "");
 
-#if __cplusplus >= 201703L
-// FIXME: In c++14, this uses a MaterializeTemporaryExpr,
-//   which the new interpreter doesn't support yet.
 constexpr C RVOAndParams(const C *c) {
   return C();
 }
 constexpr C RVOAndParamsResult = RVOAndParams(&c);
-#endif
+
+/// Parameter and return value have different types.
+constexpr C RVOAndParams(int a) {
+  return C();
+}
+constexpr C RVOAndParamsResult2 = RVOAndParams(12);
 
 class Bar { // expected-note {{definition of 'Bar' is not complete}} \
             // ref-note {{definition of 'Bar' is not complete}}
@@ -152,26 +162,27 @@ constexpr int locals() {
   c.a = 10;
 
   // Assignment, not an initializer.
-  // c = C(); FIXME
+  c = C();
   c.a = 10;
 
 
   // Assignment, not an initializer.
-  //c = RVOAndParams(&c); FIXME
+  c = RVOAndParams(&c);
 
   return c.a;
 }
-static_assert(locals() == 10, "");
+static_assert(locals() == 100, "");
 
 namespace thisPointer {
   struct S {
     constexpr int get12() { return 12; }
   };
 
-  constexpr int foo() { // ref-error {{never produces a constant expression}}
+  constexpr int foo() { // ref-error {{never produces a constant expression}} \
+                        // expected-error {{never produces a constant expression}}
     S *s = nullptr;
     return s->get12(); // ref-note 2{{member call on dereferenced null pointer}} \
-                       // expected-note {{member call on dereferenced null pointer}}
+                       // expected-note 2{{member call on dereferenced null pointer}}
 
   }
   static_assert(foo() == 12, ""); // ref-error {{not an integral constant expression}} \
@@ -228,6 +239,7 @@ struct S {
     this->a; // expected-warning {{expression result unused}} \
              // ref-warning {{expression result unused}}
     get5();
+    getInts();
   }
 
   constexpr int m() const {
@@ -237,6 +249,100 @@ struct S {
 };
 constexpr S s;
 static_assert(s.m() == 1, "");
+
+namespace InitializerTemporaries {
+  class Bar {
+  private:
+    int a;
+
+  public:
+    constexpr Bar() : a(10) {}
+    constexpr int getA() const { return a; }
+  };
+
+  class Foo {
+  public:
+    int a;
+
+    constexpr Foo() : a(Bar().getA()) {}
+  };
+  constexpr Foo F;
+  static_assert(F.a == 10, "");
+
+
+  /// Needs constexpr destructors.
+#if __cplusplus >= 202002L
+  /// Does
+  ///    Arr[Pos] = Value;
+  ///    ++Pos;
+  /// in its destructor.
+  class BitSetter {
+  private:
+    int *Arr;
+    int &Pos;
+    int Value;
+
+  public:
+    constexpr BitSetter(int *Arr, int &Pos, int Value) :
+      Arr(Arr), Pos(Pos), Value(Value) {}
+
+    constexpr int getValue() const { return 0; }
+    constexpr ~BitSetter() {
+      Arr[Pos] = Value;
+      ++Pos;
+    }
+  };
+
+  class Test {
+    int a, b, c;
+  public:
+    constexpr Test(int *Arr, int &Pos) :
+      a(BitSetter(Arr, Pos, 1).getValue()),
+      b(BitSetter(Arr, Pos, 2).getValue()),
+      c(BitSetter(Arr, Pos, 3).getValue())
+    {}
+  };
+
+
+  constexpr int T(int Index) {
+    int Arr[] = {0, 0, 0};
+    int Pos = 0;
+
+    {
+      auto T = Test(Arr, Pos);
+      // End of scope, should destroy Test.
+    }
+
+    return Arr[Index];
+  }
+
+  static_assert(T(0) == 1);
+  static_assert(T(1) == 2);
+  static_assert(T(2) == 3);
+#endif
+}
+
+#if __cplusplus >= 201703L
+namespace BaseInit {
+  class _A {public: int a;};
+  class _B : public _A {};
+  class _C : public _B {};
+
+  constexpr _C c{12};
+  constexpr const _B &b = c;
+  static_assert(b.a == 12);
+
+  class A {public: int a;};
+  class B : public A {};
+  class C : public A {};
+  class D : public B, public C {};
+
+  // This initializes D::B::A::a and not D::C::A::a.
+  constexpr D d{12};
+  static_assert(d.B::a == 12);
+  static_assert(d.C::a == 0);
+};
+#endif
 
 namespace MI {
   class A {
@@ -274,7 +380,7 @@ namespace MI {
 };
 
 namespace DeriveFailures {
-  struct Base { // ref-note 2{{declared here}}
+  struct Base { // ref-note 2{{declared here}} expected-note {{declared here}}
     int Val;
   };
 
@@ -282,16 +388,19 @@ namespace DeriveFailures {
     int OtherVal;
 
     constexpr Derived(int i) : OtherVal(i) {} // ref-error {{never produces a constant expression}} \
-                                              // ref-note 2{{non-constexpr constructor 'Base' cannot be used in a constant expression}}
+                                              // ref-note 2{{non-constexpr constructor 'Base' cannot be used in a constant expression}} \
+                                              // expected-note {{non-constexpr constructor 'Base' cannot be used in a constant expression}}
   };
 
-  // FIXME: This is currently not being diagnosed with the new constant interpreter.
   constexpr Derived D(12); // ref-error {{must be initialized by a constant expression}} \
                            // ref-note {{in call to 'Derived(12)'}} \
                            // ref-note {{declared here}} \
-                           // expected-error {{must be initialized by a constant expression}}
+                           // expected-error {{must be initialized by a constant expression}} \
+                           // expected-note {{in call to 'Derived(12)'}}
   static_assert(D.Val == 0, ""); // ref-error {{not an integral constant expression}} \
-                                 // ref-note {{initializer of 'D' is not a constant expression}}
+                                 // ref-note {{initializer of 'D' is not a constant expression}} \
+                                 // expected-error {{not an integral constant expression}} \
+                                 // expected-note {{read of object outside its lifetime}}
 
   struct AnotherBase {
     int Val;
@@ -313,7 +422,8 @@ namespace DeriveFailures {
   };
 
   struct YetAnotherDerived : YetAnotherBase {
-    using YetAnotherBase::YetAnotherBase; //ref-note {{declared here}}
+    using YetAnotherBase::YetAnotherBase; // ref-note {{declared here}} \
+                                          // expected-note {{declared here}}
     int OtherVal;
 
     constexpr bool doit() const { return Val == OtherVal; }
@@ -321,6 +431,60 @@ namespace DeriveFailures {
 
   constexpr YetAnotherDerived Oops(0); // ref-error {{must be initialized by a constant expression}} \
                                        // ref-note {{constructor inherited from base class 'YetAnotherBase' cannot be used in a constant expression}} \
-                                       // expected-error {{must be initialized by a constant expression}}
-                                       // FIXME: Missing reason for rejection.
+                                       // expected-error {{must be initialized by a constant expression}} \
+                                       // expected-note {{constructor inherited from base class 'YetAnotherBase' cannot be used in a constant expression}}
 };
+
+namespace EmptyCtor {
+  struct piecewise_construct_t { explicit piecewise_construct_t() = default; };
+  constexpr piecewise_construct_t piecewise_construct =
+    piecewise_construct_t();
+};
+
+namespace ConditionalInit {
+  struct S { int a; };
+
+  constexpr S getS(bool b) {
+    return b ? S{12} : S{13};
+  }
+
+  static_assert(getS(true).a == 12, "");
+  static_assert(getS(false).a == 13, "");
+};
+/// FIXME: The following tests are broken.
+///   They are using CXXDefaultInitExprs which contain a CXXThisExpr. The This pointer
+///   in those refers to the declaration we are currently initializing, *not* the
+///   This pointer of the current stack frame. This is something we haven't
+///   implemented in the new interpreter yet.
+namespace DeclRefs {
+  struct A{ int m; const int &f = m; }; // expected-note {{implicit use of 'this'}}
+
+  constexpr A a{10}; // expected-error {{must be initialized by a constant expression}}
+  static_assert(a.m == 10, "");
+  static_assert(a.f == 10, ""); // expected-error {{not an integral constant expression}} \
+                                // expected-note {{read of object outside its lifetime}}
+
+  class Foo {
+  public:
+    int z = 1337;
+    constexpr int a() const {
+      A b{this->z};
+
+      return b.f;
+    }
+  };
+  constexpr Foo f;
+  static_assert(f.a() == 1337, "");
+
+
+  struct B {
+    A a = A{100};
+  };
+  constexpr B b;
+  /// FIXME: The following two lines don't work because we don't get the
+  ///   pointers on the LHS correct. They make us run into an assertion
+  ///   in CheckEvaluationResult. However, this may just be caused by the
+  ///   problems in the previous examples.
+  //static_assert(b.a.m == 100, "");
+  //static_assert(b.a.f == 100, "");
+}

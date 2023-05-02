@@ -406,82 +406,168 @@ ror(T1 src0, T2 src1) {
 /// @addtogroup sycl_esimd_math
 /// @{
 
-// imul
-#ifndef ESIMD_HAS_LONG_LONG
-// use mulh instruction for high half
-template <typename T0, typename T1, typename U, int SZ>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value &&
-                                      __ESIMD_DNS::is_dword_type<T1>::value &&
-                                      __ESIMD_DNS::is_dword_type<U>::value,
-                                  __ESIMD_NS::simd<T0, SZ>>
-    imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  ComputationTy Src0 = src0;
-  ComputationTy Src1 = src1;
-  rmd = Src0 * Src1;
-  if constexpr (std::is_unsigned<T0>::value)
-    return __esimd_umulh(Src0.data(), Src1.data());
-  else
-    return __esimd_smulh(Src0.data(), Src1.data());
+/// Computes the 64-bit result of two 32-bit element vectors \p src0 and
+/// \p src1 multiplication. The result is returned in two separate 32-bit
+/// vectors. The low 32-bit parts of the results are written to the output
+/// parameter \p rmd and the upper parts of the results are returned from
+/// the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N> imul_impl(__ESIMD_NS::simd<T, N> &rmd,
+                                             __ESIMD_NS::simd<T0, N> src0,
+                                             __ESIMD_NS::simd<T1, N> src1) {
+  static_assert(__ESIMD_DNS::is_dword_type<T>::value &&
+                    __ESIMD_DNS::is_dword_type<T0>::value &&
+                    __ESIMD_DNS::is_dword_type<T1>::value,
+                "expected 32-bit integer vector operands.");
+  using Comp32T = __ESIMD_DNS::computation_type_t<T0, T1>;
+  auto Src0 = src0.template bit_cast_view<Comp32T>();
+  auto Src1 = src1.template bit_cast_view<Comp32T>();
+
+  // Compute the result using 64-bit multiplication operation.
+  using Comp64T =
+      std::conditional_t<std::is_signed_v<Comp32T>, int64_t, uint64_t>;
+  __ESIMD_NS::simd<Comp64T, N> Product64 = Src0;
+  Product64 *= Src1;
+
+  // Split the 32-bit high and low parts to return them from this function.
+  auto Product32 = Product64.template bit_cast_view<T>();
+  if constexpr (N == 1) {
+    rmd = Product32[0];
+    return Product32[1];
+  } else {
+    rmd = Product32.template select<N, 2>(0);
+    return Product32.template select<N, 2>(1);
+  }
 }
 
-#else
-// imul bdw+ version: use qw=dw*dw multiply.
-// We need to special case SZ==1 to avoid "error: when select size is 1, the
-// stride must also be 1" on the selects.
-template <typename T0, typename T1, typename U, int SZ>
-__ESIMD_API
-    std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value &&
-                         __ESIMD_DNS::is_dword_type<T1>::value &&
-                         __ESIMD_DNS::is_dword_type<U>::value && SZ == 1,
-                     __ESIMD_NS::simd<T0, SZ>>
-    imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(rmd), long long>;
-  ComputationTy Product = convert<long long>(src0);
-  Product *= src1;
-  rmd = Product.bit_cast_view<T0>().select<1, 1>[0];
-  return Product.bit_cast_view<T0>().select<1, 1>[1];
+/// Computes the 64-bit multiply result of two 32-bit integer vectors \p src0
+/// and \p src1. The result is returned in two separate 32-bit vectors.
+/// The low 32-bit parts of the result are written to the output parameter
+/// \p rmd and the upper parts of the result are returned from the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N> imul(__ESIMD_NS::simd<T, N> &rmd,
+                                        __ESIMD_NS::simd<T0, N> src0,
+                                        __ESIMD_NS::simd<T1, N> src1) {
+  return imul_impl<T, T0, T1, N>(rmd, src0, src1);
 }
 
-template <typename T0, typename T1, typename U, int SZ>
-__ESIMD_API
-    std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value &&
-                         __ESIMD_DNS::is_dword_type<T1>::value &&
-                         __ESIMD_DNS::is_dword_type<U>::value && SZ != 1,
-                     __ESIMD_NS::simd<T0, SZ>>
-    imul(__ESIMD_NS::simd<T0, SZ> &rmd, __ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(rmd), long long>;
-  ComputationTy Product = convert<long long>(src0);
-  Product *= src1;
-  rmd = Product.bit_cast_view<T0>().select<SZ, 2>(0);
-  return Product.bit_cast_view<T0>().select<SZ, 2>(1);
-}
-#endif
-
-// TODO: document
-template <typename T0, typename T1, typename U, int SZ>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-imul(__ESIMD_NS::simd<T0, SZ> &rmd, U src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return esimd::imul(rmd, src1, src0);
+/// Computes the 64-bit multiply result of 32-bit integer vector \p src0 and
+/// 32-bit integer scalar \p src1. The result is returned in two separate 32-bit
+/// vectors. The low 32-bit parts of the result is written to the output
+/// parameter \p rmd and the upper part of the results is returned from
+/// the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T1>::value,
+                             __ESIMD_NS::simd<T, N>>
+imul(__ESIMD_NS::simd<T, N> &rmd, __ESIMD_NS::simd<T0, N> src0, T1 src1) {
+  __ESIMD_NS::simd<T1, N> Src1V = src1;
+  return esimd::imul_impl<T, T0, T1, N>(rmd, src0, Src1V);
 }
 
-// TODO: document
-template <typename T0, typename T, typename U>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
-                                      __ESIMD_DNS::is_esimd_scalar<U>::value &&
-                                      __ESIMD_DNS::is_esimd_scalar<T0>::value,
-                                  T0>
-    imul(__ESIMD_NS::simd<T0, 1> &rmd, T src0, U src1) {
-  __ESIMD_NS::simd<T, 1> src_0 = src0;
-  __ESIMD_NS::simd<U, 1> src_1 = src1;
-  __ESIMD_NS::simd<T0, 1> res =
-      esimd::imul(rmd, src_0.select_all(), src_1.select_all());
-  return res[0];
+/// Computes the 64-bit multiply result of a scalar 32-bit integer \p src0 and
+/// 32-bit integer vector \p src1. The result is returned in two separate 32-bit
+/// vectors. The low 32-bit parts of the result is written to the output
+/// parameter \p rmd and the upper part of the results is returned from
+/// the function.
+template <typename T, typename T0, typename T1, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T0>::value,
+                             __ESIMD_NS::simd<T, N>>
+imul(__ESIMD_NS::simd<T, N> &rmd, T0 src0, __ESIMD_NS::simd<T1, N> src1) {
+  __ESIMD_NS::simd<T0, N> Src0V = src0;
+  return esimd::imul_impl<T, T0, T1, N>(rmd, Src0V, src1);
+}
+
+/// Computes the 64-bit multiply result of two scalar 32-bit integer values
+/// \p src0 and \p src1. The result is returned in two separate 32-bit scalars.
+/// The low 32-bit part of the result is written to the output parameter \p rmd
+/// and the upper part of the result is returned from the function.
+template <typename T, typename T0, typename T1>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value &&
+                                 __ESIMD_DNS::is_dword_type<T0>::value &&
+                                 __ESIMD_DNS::is_dword_type<T1>::value,
+                             T>
+imul(T &rmd, T0 src0, T1 src1) {
+  __ESIMD_NS::simd<T, 1> RmdV = rmd;
+  __ESIMD_NS::simd<T0, 1> Src0V = src0;
+  __ESIMD_NS::simd<T1, 1> Src1V = src1;
+  __ESIMD_NS::simd<T, 1> Res =
+      esimd::imul_impl<T, T0, T1, 1>(RmdV, Src0V, Src1V);
+  rmd = RmdV[0];
+  return Res[0];
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_addc<uint32_t, N>(src0.data(), src1.data());
+
+  carry = Result.first;
+  return Result.second;
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return addc(carry, src0, Src1V);
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return addc(carry, Src0V, src1);
+}
+
+__ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> CarryV = carry;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = addc(CarryV, Src0V, Src1V);
+  carry = CarryV[0];
+  return Res[0];
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_subb<uint32_t, N>(src0.data(), src1.data());
+
+  borrow = Result.first;
+  return Result.second;
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return subb(borrow, src0, Src1V);
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return subb(borrow, Src0V, src1);
+}
+
+__ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> BorrowV = borrow;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
+  borrow = BorrowV[0];
+  return Res[0];
 }
 
 /// Integral quotient (vector version)
@@ -763,7 +849,7 @@ line(float P, float Q, __ESIMD_NS::simd<T, SZ> src1, Sat sat = {}) {
 // The only input and return types for these APIs are floats.
 // In order to be able to use the old emu code, we keep the template argument
 // for the type, although the type "T" can only be float.
-// We use enable_if to force the float type only.
+// We use std::enable_if to force the float type only.
 // If the gen is not specified we warn the programmer that they are potentially
 // using a less efficient implementation if not on GEN10 or above.
 
@@ -1032,7 +1118,7 @@ __ESIMD_API __ESIMD_NS::simd<float, SZ> lrp(__ESIMD_NS::simd<float, SZ> src0,
 // The only input and return types for these APIs are floats.
 // In order to be able to use the old emu code, we keep the template argument
 // for the type, although the type "T" can only be float.
-// We use enable_if to force the float type only.
+// We use std::enable_if to force the float type only.
 // If the gen is not specified we warn the programmer that they are potentially
 // using less efficient implementation.
 template <typename T, int SZ, typename U, typename V,
@@ -1152,18 +1238,23 @@ sincos(__ESIMD_NS::simd<float, SZ> &dstcos, U src0, Sat sat = {}) {
 
 /// @cond ESIMD_DETAIL
 namespace detail {
-constexpr double HDR_CONST_PI = 3.1415926535897932384626433832795;
+constexpr double __ESIMD_CONST_PI = 3.1415926535897932384626433832795;
 } // namespace detail
 /// @endcond ESIMD_DETAIL
 
 template <typename T, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<std::is_floating_point<T>::value, __ESIMD_NS::simd<T, SZ>>
-    atan(__ESIMD_NS::simd<T, SZ> src0) {
+ESIMD_NODEBUG ESIMD_INLINE __ESIMD_NS::simd<T, SZ>
+atan(__ESIMD_NS::simd<T, SZ> src0) {
+  static_assert(std::is_floating_point<T>::value,
+                "Floating point argument type is expected.");
   __ESIMD_NS::simd<T, SZ> Src0 = __ESIMD_NS::abs(src0);
 
-  __ESIMD_NS::simd_mask<SZ> Neg = src0 < T(0.0);
+  __ESIMD_NS::simd<T, SZ> OneP((T)1.0);
+  __ESIMD_NS::simd<T, SZ> OneN((T)-1.0);
+  __ESIMD_NS::simd<T, SZ> sign;
   __ESIMD_NS::simd_mask<SZ> Gt1 = Src0 > T(1.0);
+
+  sign.merge(OneN, OneP, src0 < 0);
 
   Src0.merge(__ESIMD_NS::inv(Src0), Gt1);
 
@@ -1179,13 +1270,14 @@ ESIMD_NODEBUG ESIMD_INLINE
        ((Src0 * T(0.395889) + T(1.12158)) * Src0P2) + (Src0 * T(0.636918)) +
        T(1.0));
 
-  Result.merge(Result - T(detail::HDR_CONST_PI / 2.0), Gt1);
-  Result.merge(Result, Neg);
-  return Result;
+  Result.merge(Result - T(detail::__ESIMD_CONST_PI) / T(2.0), Gt1);
+
+  return __ESIMD_NS::abs(Result) * sign;
 }
 
-template <typename T>
-__ESIMD_API std::enable_if_t<std::is_floating_point<T>::value, T> atan(T src0) {
+template <typename T> __ESIMD_API T atan(T src0) {
+  static_assert(std::is_floating_point<T>::value,
+                "Floating point argument type is expected.");
   __ESIMD_NS::simd<T, 1> Src0 = src0;
   __ESIMD_NS::simd<T, 1> Result = esimd::atan(Src0);
   return Result[0];
@@ -1218,7 +1310,7 @@ ESIMD_NODEBUG ESIMD_INLINE
       __ESIMD_NS::rsqrt(Src01m * T(2.0));
 
   Result.merge(T(0.0), TooBig);
-  Result.merge(T(detail::HDR_CONST_PI) - Result, Neg);
+  Result.merge(T(detail::__ESIMD_CONST_PI) - Result, Neg);
   return Result;
 }
 
@@ -1238,7 +1330,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   __ESIMD_NS::simd_mask<SZ> Neg = src0 < T(0.0);
 
   __ESIMD_NS::simd<T, SZ> Result =
-      T(detail::HDR_CONST_PI / 2.0) - esimd::acos(__ESIMD_NS::abs(src0));
+      T(detail::__ESIMD_CONST_PI / 2.0) - esimd::acos(__ESIMD_NS::abs(src0));
 
   Result.merge(-Result, Neg);
   return Result;
@@ -1309,41 +1401,28 @@ template <int N> __ESIMD_NS::simd<float, N> tanh(__ESIMD_NS::simd<float, N> x);
 /* ------------------------- Extended Math Routines
  * -------------------------------------------------*/
 
-/// @cond ESIMD_DETAIL
-
-namespace detail {
-static auto constexpr CONST_PI = 3.14159f;
-static auto constexpr CMPI = 3.14159265f;
-} // namespace detail
-
-/// @endcond ESIMD_DETAIL
-
 // For vector input
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N>
 atan2_fast(__ESIMD_NS::simd<float, N> y, __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> a0;
-  __ESIMD_NS::simd<float, N> a1;
-  __ESIMD_NS::simd<float, N> atan2;
-
-  __ESIMD_NS::simd_mask<N> mask = (y >= 0.0f);
-  a0.merge(detail::CONST_PI * 0.5f, detail::CONST_PI * 1.5f, mask);
-  a1.merge(0, detail::CONST_PI * 2.0f, mask);
-
-  a1.merge(detail::CONST_PI, x < 0.0f);
-
-  __ESIMD_NS::simd<float, N> xy = x * y;
-  __ESIMD_NS::simd<float, N> x2 = x * x;
-  __ESIMD_NS::simd<float, N> y2 = y * y;
-
   /* smallest such that 1.0+CONST_DBL_EPSILON != 1.0 */
-  constexpr auto CONST_DBL_EPSILON = 0.00001f;
+  constexpr float CONST_DBL_EPSILON = 0.00001f;
+  __ESIMD_NS::simd<float, N> OneP(1.0f);
+  __ESIMD_NS::simd<float, N> OneN(-1.0f);
+  __ESIMD_NS::simd<float, N> sign;
+  __ESIMD_NS::simd<float, N> atan2;
+  __ESIMD_NS::simd<float, N> r;
+  __ESIMD_NS::simd_mask<N> mask = x < 0;
+  __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y) + CONST_DBL_EPSILON;
 
-  a0 -= (xy / (y2 + x2 * 0.28f + CONST_DBL_EPSILON));
-  a1 += (xy / (x2 + y2 * 0.28f + CONST_DBL_EPSILON));
+  r.merge((x + abs_y) / (abs_y - x), (x - abs_y) / (x + abs_y), mask);
+  atan2.merge(float(detail::__ESIMD_CONST_PI) * 0.75f,
+              float(detail::__ESIMD_CONST_PI) * 0.25f, mask);
+  atan2 += (0.1963f * r * r - 0.9817f) * r;
 
-  atan2.merge(a1, a0, y2 <= x2);
-  return atan2;
+  sign.merge(OneN, OneP, y < 0);
+
+  return atan2 * sign;
 }
 
 //   For Scalar Input
@@ -1360,30 +1439,30 @@ template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
                                               __ESIMD_NS::simd<float, N> x) {
   __ESIMD_NS::simd<float, N> v_distance;
-  __ESIMD_NS::simd<float, N> v_y0;
   __ESIMD_NS::simd<float, N> atan2;
   __ESIMD_NS::simd_mask<N> mask;
 
-  mask = (x < 0);
-  v_y0.merge(detail::CONST_PI, 0, mask);
+  constexpr float CONST_DBL_EPSILON = 0.00001f;
+
+  mask = (x < -CONST_DBL_EPSILON && y < CONST_DBL_EPSILON && y >= 0.f);
+  atan2.merge(float(detail::__ESIMD_CONST_PI), 0.f, mask);
+  mask = (x < -CONST_DBL_EPSILON && y > -CONST_DBL_EPSILON && y < 0);
+  atan2.merge(float(-detail::__ESIMD_CONST_PI), mask);
+  mask = (x < CONST_DBL_EPSILON && __ESIMD_NS::abs(y) > CONST_DBL_EPSILON);
   v_distance = __ESIMD_NS::sqrt(x * x + y * y);
-  mask = (__ESIMD_NS::abs<float>(y) < 0.000001f);
-  atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
+  atan2.merge(2.0f * esimd::atan((v_distance - x) / y), mask);
+
+  mask = (x > 0.f);
+  atan2.merge(2.0f * esimd::atan(y / (v_distance + x)), mask);
+
   return atan2;
 }
 
 // For Scalar Input
 template <> ESIMD_INLINE float atan2(float y, float x) {
-  float v_distance;
-  float v_y0;
-  __ESIMD_NS::simd<float, 1> atan2;
-  __ESIMD_NS::simd_mask<1> mask;
-
-  mask = (x < 0);
-  v_y0 = mask[0] ? detail::CONST_PI : 0;
-  v_distance = __ESIMD_NS::sqrt<float>(x * x + y * y);
-  mask = (__ESIMD_NS::abs<float>(y) < 0.000001f);
-  atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
+  __ESIMD_NS::simd<float, 1> vy = y;
+  __ESIMD_NS::simd<float, 1> vx = x;
+  __ESIMD_NS::simd<float, 1> atan2 = esimd::atan2(vy, vx);
   return atan2[0];
 }
 
@@ -1394,6 +1473,7 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                              __ESIMD_NS::simd<float, N> x) {
   __ESIMD_NS::simd<float, N> abs_x = __ESIMD_NS::abs(x);
   __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y);
+
   auto fmod_sign_mask = (y.template bit_cast_view<int32_t>()) & 0x80000000;
 
   __ESIMD_NS::simd<float, N> reminder =
@@ -1423,18 +1503,19 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x) {
 
   __ESIMD_NS::simd<float, N> sign;
   __ESIMD_NS::simd<float, N> fTrig;
-  __ESIMD_NS::simd<float, N> TwoPI(6.2831853f);
-  __ESIMD_NS::simd<float, N> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, N> OneP(1.f);
-  __ESIMD_NS::simd<float, N> OneN(-1.f);
+  __ESIMD_NS::simd<float, N> TwoPI(float(detail::__ESIMD_CONST_PI) * 2.0f);
+  __ESIMD_NS::simd<float, N> CmpI((float)detail::__ESIMD_CONST_PI);
+  __ESIMD_NS::simd<float, N> OneP(1.0f);
+  __ESIMD_NS::simd<float, N> OneN(-1.0f);
 
   x = esimd::fmod(x, TwoPI);
+  x.merge(TwoPI + x, x < 0);
 
-  x1.merge(CmpI - x, x - CmpI, (x <= detail::CMPI));
-  x1.merge(x, (x <= detail::CMPI * 0.5f));
-  x1.merge(CmpI * 2 - x, (x > detail::CMPI * 1.5f));
+  x1.merge(CmpI - x, x - CmpI, (x <= float(detail::__ESIMD_CONST_PI)));
+  x1.merge(x, (x <= float(detail::__ESIMD_CONST_PI) * 0.5f));
+  x1.merge(TwoPI - x, (x > float(detail::__ESIMD_CONST_PI) * 1.5f));
 
-  sign.merge(OneN, OneP, (x > detail::CMPI));
+  sign.merge(OneN, OneP, (x > float(detail::__ESIMD_CONST_PI)));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
@@ -1449,106 +1530,20 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x) {
 }
 
 // scalar Input
-template <typename T> ESIMD_INLINE float sin_emu(T x0) {
-  __ESIMD_NS::simd<float, 1> x1;
-  __ESIMD_NS::simd<float, 1> x2;
-  __ESIMD_NS::simd<float, 1> t3;
-
-  __ESIMD_NS::simd<float, 1> sign;
-  __ESIMD_NS::simd<float, 1> fTrig;
-  float TwoPI = detail::CMPI * 2.0f;
-
-  __ESIMD_NS::simd<float, 1> x = esimd::fmod(x0, TwoPI);
-
-  __ESIMD_NS::simd<float, 1> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, 1> OneP(1.f);
-  __ESIMD_NS::simd<float, 1> OneN(-1.f);
-
-  x1.merge(CmpI - x, x - CmpI, (x <= detail::CMPI));
-  x1.merge(x, (x <= detail::CMPI * 0.5f));
-  x1.merge(CmpI * 2.0f - x, (x > detail::CMPI * 1.5f));
-
-  sign.merge(OneN, OneP, (x > detail::CMPI));
-
-  x2 = x1 * x1;
-  t3 = x2 * x1 * 0.1666667f;
-
-  fTrig =
-      x1 + t3 * (OneN + x2 * 0.05f *
-                            (OneP + x2 * 0.0238095f *
-                                        (OneN + x2 * 0.0138889f *
-                                                    (OneP - x2 * 0.0090909f))));
-  fTrig *= sign;
-  return fTrig[0];
+template <> ESIMD_INLINE float sin_emu(float x0) {
+  return esimd::sin_emu(__ESIMD_NS::simd<float, 1>(x0))[0];
 }
 
 // cos_emu - EU emulation for sin(x)
 // For Vector input
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> cos_emu(__ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> x1;
-  __ESIMD_NS::simd<float, N> x2;
-  __ESIMD_NS::simd<float, N> t2;
-  __ESIMD_NS::simd<float, N> t3;
-
-  __ESIMD_NS::simd<float, N> sign;
-  __ESIMD_NS::simd<float, N> fTrig;
-  __ESIMD_NS::simd<float, N> TwoPI(6.2831853f);
-  __ESIMD_NS::simd<float, N> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, N> OneP(1.f);
-  __ESIMD_NS::simd<float, N> OneN(-1.f);
-
-  x = esimd::fmod(x, TwoPI);
-
-  x1.merge(x - detail::CMPI * 0.5f, CmpI * 1.5f - x, (x <= detail::CMPI));
-  x1.merge(CmpI * 0.5f - x, (x <= detail::CMPI * 0.5f));
-  x1.merge(x - detail::CMPI * 1.5f, (x > detail::CMPI * 1.5f));
-
-  sign.merge(1, -1, ((x < detail::CMPI * 0.5f) | (x >= detail::CMPI * 1.5f)));
-
-  x2 = x1 * x1;
-  t3 = x2 * x1 * 0.1666667f;
-  fTrig =
-      x1 + t3 * (OneN + x2 * 0.05f *
-                            (OneP + x2 * 0.0238095f *
-                                        (OneN + x2 * 0.0138889f *
-                                                    (OneP - x2 * 0.0090909f))));
-  fTrig *= sign;
-  return fTrig;
+  return esimd::sin_emu(0.5f * float(detail::__ESIMD_CONST_PI) - x);
 }
 
 // scalar Input
-template <typename T> ESIMD_INLINE float cos_emu(T x0) {
-  __ESIMD_NS::simd<float, 1> x1;
-  __ESIMD_NS::simd<float, 1> x2;
-  __ESIMD_NS::simd<float, 1> t3;
-
-  __ESIMD_NS::simd<float, 1> sign;
-  __ESIMD_NS::simd<float, 1> fTrig;
-  float TwoPI = detail::CMPI * 2.0f;
-
-  __ESIMD_NS::simd<float, 1> x = esimd::fmod(x0, TwoPI);
-
-  __ESIMD_NS::simd<float, 1> CmpI(detail::CMPI);
-  __ESIMD_NS::simd<float, 1> OneP(1.f);
-  __ESIMD_NS::simd<float, 1> OneN(-1.f);
-
-  x1.merge(x - detail::CMPI * 0.5f, CmpI * 1.5f - x, (x <= detail::CMPI));
-  x1.merge(CmpI * 0.5f - x, (x <= detail::CMPI * 0.5f));
-  x1.merge(x - detail::CMPI * 1.5f, (x > detail::CMPI * 1.5f));
-
-  sign.merge(OneP, OneN,
-             ((x < detail::CMPI * 0.5f) | (x >= detail::CMPI * 1.5f)));
-
-  x2 = x1 * x1;
-  t3 = x2 * x1 * 0.1666667f;
-  fTrig =
-      x1 + t3 * (OneN + x2 * 0.05f *
-                            (OneP + x2 * 0.0238095f *
-                                        (OneN + x2 * 0.0138889f *
-                                                    (OneP - x2 * 0.0090909f))));
-  fTrig *= sign;
-  return fTrig[0];
+template <> ESIMD_INLINE float cos_emu(float x0) {
+  return esimd::cos_emu(__ESIMD_NS::simd<float, 1>(x0))[0];
 }
 
 /// @cond ESIMD_DETAIL
@@ -1805,6 +1800,106 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
     return __ESIMD_NS::saturate<T>(result);
 }
 /// @} sycl_esimd_systolic_array_api
+
+/// @addtogroup sycl_esimd_logical
+/// @{
+
+/// This enum is used to encode all possible logical operations performed
+/// on the 3 input operands. It is used as a template argument of the bfn()
+/// function.
+/// Example: d = bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(s0, s1, s2);
+enum class bfn_t : uint8_t { x = 0xAA, y = 0xCC, z = 0xF0 };
+
+static constexpr bfn_t operator~(bfn_t x) {
+  uint8_t val = static_cast<uint8_t>(x);
+  uint8_t res = ~val;
+  return static_cast<bfn_t>(res);
+}
+
+static constexpr bfn_t operator|(bfn_t x, bfn_t y) {
+  uint8_t arg0 = static_cast<uint8_t>(x);
+  uint8_t arg1 = static_cast<uint8_t>(y);
+  uint8_t res = arg0 | arg1;
+  return static_cast<bfn_t>(res);
+}
+
+static constexpr bfn_t operator&(bfn_t x, bfn_t y) {
+  uint8_t arg0 = static_cast<uint8_t>(x);
+  uint8_t arg1 = static_cast<uint8_t>(y);
+  uint8_t res = arg0 & arg1;
+  return static_cast<bfn_t>(res);
+}
+
+static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
+  uint8_t arg0 = static_cast<uint8_t>(x);
+  uint8_t arg1 = static_cast<uint8_t>(y);
+  uint8_t res = arg0 ^ arg1;
+  return static_cast<bfn_t>(res);
+}
+
+/// Performs binary function computation with three vector operands.
+/// @tparam FuncControl boolean function control expressed with bfn_t
+/// enum values.
+/// @tparam T type of the input vector element.
+/// @tparam N size of the input vector.
+/// @param s0 First boolean function argument.
+/// @param s1 Second boolean function argument.
+/// @param s2 Third boolean function argument.
+template <bfn_t FuncControl, typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>>
+bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+    __ESIMD_NS::simd<T, N> src2) {
+  if constexpr ((sizeof(T) == 8) || ((sizeof(T) == 1) && (N % 4 == 0)) ||
+                ((sizeof(T) == 2) && (N % 2 == 0))) {
+    // Bitcast Nx8-byte vectors to 2xN vectors of 4-byte integers.
+    // Bitcast Nx1-byte vectors to N/4 vectors of 4-byte integers.
+    // Bitcast Nx2-byte vectors to N/2 vectors of 4-byte integers.
+    auto Result = __ESIMD_ENS::bfn<FuncControl>(
+        src0.template bit_cast_view<int32_t>().read(),
+        src1.template bit_cast_view<int32_t>().read(),
+        src2.template bit_cast_view<int32_t>().read());
+    return Result.template bit_cast_view<T>();
+  } else if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
+    constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
+    return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
+  } else if constexpr (N % 2 == 0) {
+    // Bitcast Nx1-byte vectors (N is even) to N/2 vectors of 2-byte integers.
+    auto Result = __ESIMD_ENS::bfn<FuncControl>(
+        src0.template bit_cast_view<int16_t>().read(),
+        src1.template bit_cast_view<int16_t>().read(),
+        src2.template bit_cast_view<int16_t>().read());
+    return Result.template bit_cast_view<T>();
+  } else {
+    // Odd number of 1-byte elements.
+    __ESIMD_NS::simd<T, N + 1> Src0, Src1, Src2;
+    Src0.template select<N, 1>() = src0;
+    Src1.template select<N, 1>() = src1;
+    Src2.template select<N, 1>() = src2;
+    auto Result = __ESIMD_ENS::bfn<FuncControl>(Src0, Src1, Src2);
+    return Result.template select<N, 1>();
+  }
+}
+
+/// Performs binary function computation with three scalar operands.
+/// @tparam FuncControl boolean function control expressed with bfn_t enum
+/// values.
+/// @tparam T type of the input vector element.
+/// @param s0 First boolean function argument.
+/// @param s1 Second boolean function argument.
+/// @param s2 Third boolean function argument.
+template <bfn_t FuncControl, typename T>
+ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T>::value && std::is_integral_v<T>, T>
+bfn(T src0, T src1, T src2) {
+  __ESIMD_NS::simd<T, 1> Src0 = src0;
+  __ESIMD_NS::simd<T, 1> Src1 = src1;
+  __ESIMD_NS::simd<T, 1> Src2 = src2;
+  __ESIMD_NS::simd<T, 1> Result =
+      esimd::bfn<FuncControl, T, 1>(Src0, Src1, Src2);
+  return Result[0];
+}
+
+/// @} sycl_esimd_logical
 
 } // namespace ext::intel::experimental::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

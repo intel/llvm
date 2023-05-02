@@ -57,6 +57,14 @@ static NVVM::MMATypes getElementType(gpu::MMAMatrixType type) {
   if (type.getElementType().isF32())
     return type.getOperand().equals("COp") ? NVVM::MMATypes::f32
                                            : NVVM::MMATypes::tf32;
+
+  if (type.getElementType().isSignedInteger(8))
+    return NVVM::MMATypes::s8;
+  if (type.getElementType().isUnsignedInteger(8))
+    return NVVM::MMATypes::u8;
+  // Accumulator type is signless and implies signed.
+  if (type.getElementType().isInteger(32))
+    return NVVM::MMATypes::s32;
   llvm_unreachable("Unsupported type");
 }
 
@@ -79,6 +87,9 @@ struct WmmaLoadOpToNVVMLowering
 
     // Get the shape of the MMAMatrix type being returned. The shape will
     // choose which intrinsic this op will be lowered to.
+    NVVM::MMALayout layout = subgroupMmaLoadMatrixOp.getTranspose()
+                                 ? NVVM::MMALayout::col
+                                 : NVVM::MMALayout::row;
     gpu::MMAMatrixType retType =
         subgroupMmaLoadMatrixOp.getRes().getType().cast<gpu::MMAMatrixType>();
     ArrayRef<int64_t> retTypeShape = retType.getShape();
@@ -101,7 +112,6 @@ struct WmmaLoadOpToNVVMLowering
       n = retTypeShape[1];
       k = NVVM::WMMALoadOp::inferKDimension(m, n, eltype);
     }
-    NVVM::MMALayout layout = NVVM::MMALayout::row;
     NVVM::MMAFrag frag = convertOperand(retType.getOperand());
     // Check that there is an exisiting instruction for the combination we need.
     if (NVVM::WMMALoadOp::getIntrinsicID(m, n, k, layout, eltype, frag) == 0)
@@ -150,7 +160,9 @@ struct WmmaStoreOpToNVVMLowering
     gpu::MMAMatrixType srcType =
         subgroupMmaStoreMatrixOp.getSrc().getType().cast<gpu::MMAMatrixType>();
     ArrayRef<int64_t> srcTypeShape = srcType.getShape();
-    NVVM::MMALayout layout = NVVM::MMALayout::row;
+    NVVM::MMALayout layout = subgroupMmaStoreMatrixOp.getTranspose()
+                                 ? NVVM::MMALayout::col
+                                 : NVVM::MMALayout::row;
     NVVM::MMATypes eltype = getElementType(srcType);
     int64_t m = srcTypeShape[0];
     int64_t n = srcTypeShape[1];
@@ -220,19 +232,30 @@ struct WmmaMmaOpToNVVMLowering
     int64_t m = cTypeShape[0];
     int64_t n = cTypeShape[1];
     int64_t k = aTypeShape[1];
-    NVVM::MMALayout layout = NVVM::MMALayout::row;
+    NVVM::MMALayout aLayout = subgroupMmaComputeOp.getATranspose()
+                                  ? NVVM::MMALayout::col
+                                  : NVVM::MMALayout::row;
+    NVVM::MMALayout bLayout = subgroupMmaComputeOp.getBTranspose()
+                                  ? NVVM::MMALayout::col
+                                  : NVVM::MMALayout::row;
     NVVM::MMATypes sourceType = getElementType(aType);
     NVVM::MMATypes destType = getElementType(cType);
-    if (NVVM::WMMAMmaOp::getIntrinsicID(m, n, k, layout, layout, sourceType,
+    if (NVVM::WMMAMmaOp::getIntrinsicID(m, n, k, aLayout, bLayout, sourceType,
                                         destType) == 0)
       return rewriter.notifyMatchFailure(op, kInvalidCaseStr);
+
+    NVVM::MMATypes bElementType = getElementType(
+        subgroupMmaComputeOp.getOpB().getType().cast<gpu::MMAMatrixType>());
+    if (bElementType != sourceType)
+      return rewriter.notifyMatchFailure(
+          op, "WMMA compute op input matrix element types must match.");
 
     unpackOp(adaptor.getOpA());
     unpackOp(adaptor.getOpB());
     unpackOp(adaptor.getOpC());
 
     rewriter.replaceOpWithNewOp<NVVM::WMMAMmaOp>(
-        op, adaptor.getOpC().getType(), m, n, k, layout, layout, sourceType,
+        op, adaptor.getOpC().getType(), m, n, k, aLayout, bLayout, sourceType,
         destType, unpackedOps);
     return success();
   }
@@ -357,8 +380,10 @@ struct WmmaElementwiseOpToNVVMLowering
 LLVM::LLVMStructType mlir::convertMMAToLLVMType(gpu::MMAMatrixType type) {
   NVVM::MMAFrag frag = convertOperand(type.getOperand());
   NVVM::MMATypes eltType = getElementType(type);
+  auto nRow = type.getShape()[0];
+  auto nCol = type.getShape()[1];
   std::pair<Type, unsigned> typeInfo =
-      NVVM::inferMMAType(eltType, frag, type.getContext());
+      NVVM::inferMMAType(eltType, frag, nRow, nCol, type.getContext());
   return LLVM::LLVMStructType::getLiteral(
       type.getContext(), SmallVector<Type, 8>(typeInfo.second, typeInfo.first));
 }

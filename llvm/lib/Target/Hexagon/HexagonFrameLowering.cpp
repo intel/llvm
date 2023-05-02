@@ -17,8 +17,6 @@
 #include "MCTargetDesc/HexagonBaseInfo.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
@@ -60,6 +58,7 @@
 #include <iterator>
 #include <limits>
 #include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -989,7 +988,7 @@ bool HexagonFrameLowering::updateExitPaths(MachineBasicBlock &MBB,
   return ReachedExit;
 }
 
-static Optional<MachineBasicBlock::iterator>
+static std::optional<MachineBasicBlock::iterator>
 findCFILocation(MachineBasicBlock &B) {
     // The CFI instructions need to be inserted right after allocframe.
     // An exception to this is a situation where allocframe is bundled
@@ -1017,15 +1016,13 @@ findCFILocation(MachineBasicBlock &B) {
       if (HasAllocFrame)
         return HasCall ? It : std::next(It);
     }
-    return None;
+    return std::nullopt;
 }
 
 void HexagonFrameLowering::insertCFIInstructions(MachineFunction &MF) const {
-  for (auto &B : MF) {
-    auto At = findCFILocation(B);
-    if (At)
-      insertCFIInstructionsAt(B, At.value());
-  }
+    for (auto &B : MF)
+      if (auto At = findCFILocation(B))
+        insertCFIInstructionsAt(B, *At);
 }
 
 void HexagonFrameLowering::insertCFIInstructionsAt(MachineBasicBlock &MBB,
@@ -1419,7 +1416,7 @@ bool HexagonFrameLowering::insertCSRSpillsInBlock(MachineBasicBlock &MBB,
     bool IsKill = !HRI.isEHReturnCalleeSaveReg(Reg);
     int FI = I.getFrameIdx();
     const TargetRegisterClass *RC = HRI.getMinimalPhysRegClass(Reg);
-    HII.storeRegToStackSlot(MBB, MI, Reg, IsKill, FI, RC, &HRI);
+    HII.storeRegToStackSlot(MBB, MI, Reg, IsKill, FI, RC, &HRI, Register());
     if (IsKill)
       MBB.addLiveIn(Reg);
   }
@@ -1484,7 +1481,7 @@ bool HexagonFrameLowering::insertCSRRestoresInBlock(MachineBasicBlock &MBB,
     Register Reg = I.getReg();
     const TargetRegisterClass *RC = HRI.getMinimalPhysRegClass(Reg);
     int FI = I.getFrameIdx();
-    HII.loadRegFromStackSlot(MBB, MI, Reg, FI, RC, &HRI);
+    HII.loadRegFromStackSlot(MBB, MI, Reg, FI, RC, &HRI, Register());
   }
 
   return true;
@@ -1829,7 +1826,7 @@ bool HexagonFrameLowering::expandStoreVecPred(MachineBasicBlock &B,
     .addReg(TmpR0, RegState::Kill);
 
   auto *HRI = B.getParent()->getSubtarget<HexagonSubtarget>().getRegisterInfo();
-  HII.storeRegToStackSlot(B, It, TmpR1, true, FI, RC, HRI);
+  HII.storeRegToStackSlot(B, It, TmpR1, true, FI, RC, HRI, Register());
   expandStoreVec(B, std::prev(It), MRI, HII, NewRegs);
 
   NewRegs.push_back(TmpR0);
@@ -1860,7 +1857,7 @@ bool HexagonFrameLowering::expandLoadVecPred(MachineBasicBlock &B,
     .addImm(0x01010101);
   MachineFunction &MF = *B.getParent();
   auto *HRI = MF.getSubtarget<HexagonSubtarget>().getRegisterInfo();
-  HII.loadRegFromStackSlot(B, It, TmpR1, FI, RC, HRI);
+  HII.loadRegFromStackSlot(B, It, TmpR1, FI, RC, HRI, Register());
   expandLoadVec(B, std::prev(It), MRI, HII, NewRegs);
 
   BuildMI(B, It, DL, HII.get(Hexagon::V6_vandvrt), DstR)

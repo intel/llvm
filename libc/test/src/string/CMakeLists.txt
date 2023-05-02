@@ -3,6 +3,35 @@ add_libc_testsuite(libc_string_unittests)
 add_subdirectory(memory_utils)
 
 add_libc_unittest(
+  bcopy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    bcopy_test.cpp
+  DEPENDS
+    libc.src.string.bcopy
+  LINK_LIBRARIES
+    LibcMemoryHelpers
+)
+
+add_header_library(
+  strchr_test_support
+  HDRS
+    StrchrTest.h
+)
+
+add_libc_unittest(
+  index_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    index_test.cpp
+  DEPENDS
+    libc.src.string.index
+    .strchr_test_support
+)
+
+add_libc_unittest(
   memccpy_test
   SUITE
     libc_string_unittests
@@ -23,6 +52,16 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  memmem_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    memmem_test.cpp
+  DEPENDS
+    libc.src.string.memmem
+)
+
+add_libc_unittest(
   memchr_test
   SUITE
     libc_string_unittests
@@ -40,6 +79,17 @@ add_libc_unittest(
     memrchr_test.cpp
   DEPENDS
     libc.src.string.memrchr
+)
+
+add_libc_unittest(
+  rindex_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    rindex_test.cpp
+  DEPENDS
+    libc.src.string.rindex
+    .strchr_test_support
 )
 
 add_libc_unittest(
@@ -80,6 +130,17 @@ add_libc_unittest(
     strchr_test.cpp
   DEPENDS
     libc.src.string.strchr
+    .strchr_test_support
+)
+
+add_libc_unittest(
+  strchrnul_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strchrnul_test.cpp
+  DEPENDS
+    libc.src.string.strchrnul
 )
 
 add_libc_unittest(
@@ -90,6 +151,26 @@ add_libc_unittest(
     strcmp_test.cpp
   DEPENDS
     libc.src.string.strcmp
+)
+
+add_libc_unittest(
+  strcasecmp_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strcasecmp_test.cpp
+  DEPENDS
+    libc.src.string.strcasecmp
+)
+
+add_libc_unittest(
+  strcasestr_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strcasestr_test.cpp
+  DEPENDS
+    libc.src.string.strcasestr
 )
 
 add_libc_unittest(
@@ -131,6 +212,7 @@ add_libc_unittest(
   DEPENDS
     libc.include.stdlib
     libc.src.string.strdup
+    libc.src.errno.errno
 )
 
 add_libc_unittest(
@@ -205,6 +287,16 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  strncasecmp_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strncasecmp_test.cpp
+  DEPENDS
+    libc.src.string.strncasecmp
+)
+
+add_libc_unittest(
   strncpy_test
   SUITE
     libc_string_unittests
@@ -253,6 +345,17 @@ add_libc_unittest(
     strrchr_test.cpp
   DEPENDS
     libc.src.string.strrchr
+    .strchr_test_support
+)
+
+add_libc_unittest(
+  strsep_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strsep_test.cpp
+  DEPENDS
+    libc.src.string.strsep
 )
 
 add_libc_unittest(
@@ -305,6 +408,16 @@ add_libc_unittest(
     libc.src.string.strtok_r
 )
 
+add_libc_unittest(
+  strxfrm_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strxfrm_test.cpp
+  DEPENDS
+    libc.src.string.strxfrm
+)
+
 # Tests all implementations that can run on the target CPU.
 function(add_libc_multi_impl_test name)
   get_property(fq_implementations GLOBAL PROPERTY ${name}_implementations)
@@ -323,6 +436,7 @@ function(add_libc_multi_impl_test name)
         ${ARGN}
         DEPENDS
           ${fq_config_name}
+          libc.src.__support.macros.sanitizer
       )
       get_fq_target_name(${fq_config_name}_test fq_target_name)
     else()

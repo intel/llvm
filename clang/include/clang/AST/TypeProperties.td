@@ -666,10 +666,10 @@ let Class = TemplateSpecializationType in {
   def : Property<"underlyingType", Optional<QualType>> {
     let Read = [{
       node->isTypeAlias()
-        ? llvm::Optional<QualType>(node->getAliasedType())
+        ? std::optional<QualType>(node->getAliasedType())
         : node->isCanonicalUnqualified()
-            ? llvm::None
-            : llvm::Optional<QualType>(node->getCanonicalTypeInternal())
+            ? std::nullopt
+            : std::optional<QualType>(node->getCanonicalTypeInternal())
     }];
   }
 
@@ -819,6 +819,10 @@ let Class = BuiltinType in {
       case BuiltinType::ID: return ctx.SINGLETON_ID;
 #include "clang/Basic/RISCVVTypes.def"
 
+#define WASM_TYPE(NAME, ID, SINGLETON_ID) \
+      case BuiltinType::ID: return ctx.SINGLETON_ID;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+
 #define BUILTIN_TYPE(ID, SINGLETON_ID) \
       case BuiltinType::ID: return ctx.SINGLETON_ID;
 #include "clang/AST/BuiltinTypes.def"
@@ -840,8 +844,8 @@ let Class = DependentNameType in {
   def : Property<"underlyingType", Optional<QualType>> {
     let Read = [{
       node->isCanonicalUnqualified()
-        ? llvm::None
-        : llvm::Optional<QualType>(node->getCanonicalTypeInternal())
+        ? std::nullopt
+        : std::optional<QualType>(node->getCanonicalTypeInternal())
     }];
   }
 

@@ -12,6 +12,7 @@
 
 #include "mlir/Conversion/VectorToSPIRV/VectorToSPIRV.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
@@ -19,9 +20,14 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/TypeUtilities.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/FormatVariadic.h"
 #include <numeric>
 
 using namespace mlir;
@@ -30,6 +36,13 @@ using namespace mlir;
 /// attribute.
 static uint64_t getFirstIntValue(ArrayAttr attr) {
   return (*attr.getAsValueRange<IntegerAttr>().begin()).getZExtValue();
+}
+
+/// Returns the number of bits for the given scalar/vector type.
+static int getNumBits(Type type) {
+  if (auto vectorType = type.dyn_cast<VectorType>())
+    return vectorType.cast<ShapedType>().getSizeInBits();
+  return type.getIntOrFloatBitWidth();
 }
 
 namespace {
@@ -45,12 +58,24 @@ struct VectorBitcastConvert final
     if (!dstType)
       return failure();
 
-    if (dstType == adaptor.getSource().getType())
+    if (dstType == adaptor.getSource().getType()) {
       rewriter.replaceOp(bitcastOp, adaptor.getSource());
-    else
-      rewriter.replaceOpWithNewOp<spirv::BitcastOp>(bitcastOp, dstType,
-                                                    adaptor.getSource());
+      return success();
+    }
 
+    // Check that the source and destination type have the same bitwidth.
+    // Depending on the target environment, we may need to emulate certain
+    // types, which can cause issue with bitcast.
+    Type srcType = adaptor.getSource().getType();
+    if (getNumBits(dstType) != getNumBits(srcType)) {
+      return rewriter.notifyMatchFailure(
+          bitcastOp,
+          llvm::formatv("different source ({0}) and target ({1}) bitwidth",
+                        srcType, dstType));
+    }
+
+    rewriter.replaceOpWithNewOp<spirv::BitcastOp>(bitcastOp, dstType,
+                                                  adaptor.getSource());
     return success();
   }
 };
@@ -62,7 +87,8 @@ struct VectorBroadcastConvert final
   LogicalResult
   matchAndRewrite(vector::BroadcastOp castOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Type resultType = getTypeConverter()->convertType(castOp.getVectorType());
+    Type resultType =
+        getTypeConverter()->convertType(castOp.getResultVectorType());
     if (!resultType)
       return failure();
 
@@ -71,10 +97,10 @@ struct VectorBroadcastConvert final
       return success();
     }
 
-    SmallVector<Value, 4> source(castOp.getVectorType().getNumElements(),
+    SmallVector<Value, 4> source(castOp.getResultVectorType().getNumElements(),
                                  adaptor.getSource());
     rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(
-        castOp, castOp.getVectorType(), source);
+        castOp, castOp.getResultVectorType(), source);
     return success();
   }
 };
@@ -191,19 +217,23 @@ struct VectorExtractElementOpConvert final
   LogicalResult
   matchAndRewrite(vector::ExtractElementOp extractOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Type vectorType =
-        getTypeConverter()->convertType(adaptor.getVector().getType());
-    if (!vectorType)
+    Type resultType = getTypeConverter()->convertType(extractOp.getType());
+    if (!resultType)
       return failure();
 
-    if (vectorType.isa<spirv::ScalarType>()) {
+    if (adaptor.getVector().getType().isa<spirv::ScalarType>()) {
       rewriter.replaceOp(extractOp, adaptor.getVector());
       return success();
     }
 
-    rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(
-        extractOp, extractOp.getType(), adaptor.getVector(),
-        extractOp.getPosition());
+    APInt cstPos;
+    if (matchPattern(adaptor.getPosition(), m_ConstantInt(&cstPos)))
+      rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(
+          extractOp, resultType, adaptor.getVector(),
+          rewriter.getI32ArrayAttr({static_cast<int>(cstPos.getSExtValue())}));
+    else
+      rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(
+          extractOp, resultType, adaptor.getVector(), adaptor.getPosition());
     return success();
   }
 };
@@ -224,9 +254,15 @@ struct VectorInsertElementOpConvert final
       return success();
     }
 
-    rewriter.replaceOpWithNewOp<spirv::VectorInsertDynamicOp>(
-        insertOp, vectorType, insertOp.getDest(), adaptor.getSource(),
-        insertOp.getPosition());
+    APInt cstPos;
+    if (matchPattern(adaptor.getPosition(), m_ConstantInt(&cstPos)))
+      rewriter.replaceOpWithNewOp<spirv::CompositeInsertOp>(
+          insertOp, adaptor.getSource(), adaptor.getDest(),
+          cstPos.getSExtValue());
+    else
+      rewriter.replaceOpWithNewOp<spirv::VectorInsertDynamicOp>(
+          insertOp, vectorType, insertOp.getDest(), adaptor.getSource(),
+          adaptor.getPosition());
     return success();
   }
 };
@@ -304,7 +340,7 @@ struct VectorReductionPattern final
 
     // Reduce them.
     Value result = values.front();
-    for (Value next : llvm::makeArrayRef(values).drop_front()) {
+    for (Value next : llvm::ArrayRef(values).drop_front()) {
       switch (reduceOp.getKind()) {
 
 #define INT_AND_FLOAT_CASE(kind, iop, fop)                                     \
@@ -374,7 +410,7 @@ struct VectorShuffleOpConvert final
   LogicalResult
   matchAndRewrite(vector::ShuffleOp shuffleOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto oldResultType = shuffleOp.getVectorType();
+    auto oldResultType = shuffleOp.getResultVectorType();
     if (!spirv::CompositeType::isValid(oldResultType))
       return failure();
     Type newResultType = getTypeConverter()->convertType(oldResultType);
@@ -404,6 +440,84 @@ struct VectorShuffleOpConvert final
   }
 };
 
+struct VectorReductionToDotProd final : OpRewritePattern<vector::ReductionOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::ReductionOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.getKind() != vector::CombiningKind::ADD)
+      return rewriter.notifyMatchFailure(op, "combining kind is not 'add'");
+
+    auto resultType = dyn_cast<IntegerType>(op.getType());
+    if (!resultType)
+      return rewriter.notifyMatchFailure(op, "result is not an integer");
+
+    int64_t resultBitwidth = resultType.getIntOrFloatBitWidth();
+    if (!llvm::is_contained({32, 64}, resultBitwidth))
+      return rewriter.notifyMatchFailure(op, "unsupported integer bitwidth");
+
+    VectorType inVecTy = op.getSourceVectorType();
+    if (inVecTy.getNumElements() != 4 || inVecTy.getShape().size() != 1 ||
+        inVecTy.isScalable())
+      return rewriter.notifyMatchFailure(op, "unsupported vector shape");
+
+    auto mul = op.getVector().getDefiningOp<arith::MulIOp>();
+    if (!mul)
+      return rewriter.notifyMatchFailure(
+          op, "reduction operand is not 'arith.muli'");
+
+    if (succeeded(handleCase<arith::ExtSIOp, arith::ExtSIOp, spirv::SDotOp,
+                             spirv::SDotAccSatOp, false>(op, mul, rewriter)))
+      return success();
+
+    if (succeeded(handleCase<arith::ExtUIOp, arith::ExtUIOp, spirv::UDotOp,
+                             spirv::UDotAccSatOp, false>(op, mul, rewriter)))
+      return success();
+
+    if (succeeded(handleCase<arith::ExtSIOp, arith::ExtUIOp, spirv::SUDotOp,
+                             spirv::SUDotAccSatOp, false>(op, mul, rewriter)))
+      return success();
+
+    if (succeeded(handleCase<arith::ExtUIOp, arith::ExtSIOp, spirv::SUDotOp,
+                             spirv::SUDotAccSatOp, true>(op, mul, rewriter)))
+      return success();
+
+    return failure();
+  }
+
+private:
+  template <typename LhsExtensionOp, typename RhsExtensionOp, typename DotOp,
+            typename DotAccOp, bool SwapOperands>
+  static LogicalResult handleCase(vector::ReductionOp op, arith::MulIOp mul,
+                                  PatternRewriter &rewriter) {
+    auto lhs = mul.getLhs().getDefiningOp<LhsExtensionOp>();
+    if (!lhs || !getElementTypeOrSelf(lhs.getIn().getType()).isInteger(8))
+      return failure();
+
+    auto rhs = mul.getRhs().getDefiningOp<RhsExtensionOp>();
+    if (!rhs || !getElementTypeOrSelf(rhs.getIn().getType()).isInteger(8))
+      return failure();
+
+    Value lhsIn = lhs.getIn();
+    Value rhsIn = rhs.getIn();
+
+    // There's no variant of dot prod ops for unsigned LHS and signed RHS, so
+    // we have to swap operands instead in that case.
+    if (SwapOperands)
+      std::swap(lhsIn, rhsIn);
+
+    if (Value acc = op.getAcc()) {
+      rewriter.replaceOpWithNewOp<DotAccOp>(op, op.getType(), lhsIn, rhsIn, acc,
+                                            nullptr);
+    } else {
+      rewriter.replaceOpWithNewOp<DotOp>(op, op.getType(), lhsIn, rhsIn,
+                                         nullptr);
+    }
+
+    return success();
+  }
+};
+
 } // namespace
 #define CL_MAX_MIN_OPS                                                         \
   spirv::CLFMaxOp, spirv::CLFMinOp, spirv::CLUMaxOp, spirv::CLUMinOp,          \
@@ -424,4 +538,9 @@ void mlir::populateVectorToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
       VectorReductionPattern<CL_MAX_MIN_OPS>, VectorInsertStridedSliceOpConvert,
       VectorShuffleOpConvert, VectorSplatPattern>(typeConverter,
                                                   patterns.getContext());
+}
+
+void mlir::populateVectorReductionToSPIRVDotProductPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<VectorReductionToDotProd>(patterns.getContext());
 }

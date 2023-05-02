@@ -10,9 +10,22 @@
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/APSInt.h"
 
 namespace mlir {
+
+bool isZeroIndex(OpFoldResult v) {
+  if (!v)
+    return false;
+  if (auto attr = v.dyn_cast<Attribute>()) {
+    IntegerAttr intAttr = attr.dyn_cast<IntegerAttr>();
+    return intAttr && intAttr.getValue().isZero();
+  }
+  if (auto cst = v.get<Value>().getDefiningOp<arith::ConstantIndexOp>())
+    return cst.value() == 0;
+  return false;
+}
 
 std::tuple<SmallVector<OpFoldResult>, SmallVector<OpFoldResult>,
            SmallVector<OpFoldResult>>
@@ -37,8 +50,7 @@ getOffsetsSizesAndStrides(ArrayRef<Range> ranges) {
 /// come from an AttrSizedOperandSegments trait.
 void dispatchIndexOpFoldResult(OpFoldResult ofr,
                                SmallVectorImpl<Value> &dynamicVec,
-                               SmallVectorImpl<int64_t> &staticVec,
-                               int64_t sentinel) {
+                               SmallVectorImpl<int64_t> &staticVec) {
   auto v = ofr.dyn_cast<Value>();
   if (!v) {
     APInt apInt = ofr.get<Attribute>().cast<IntegerAttr>().getValue();
@@ -46,15 +58,14 @@ void dispatchIndexOpFoldResult(OpFoldResult ofr,
     return;
   }
   dynamicVec.push_back(v);
-  staticVec.push_back(sentinel);
+  staticVec.push_back(ShapedType::kDynamic);
 }
 
 void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
                                 SmallVectorImpl<Value> &dynamicVec,
-                                SmallVectorImpl<int64_t> &staticVec,
-                                int64_t sentinel) {
+                                SmallVectorImpl<int64_t> &staticVec) {
   for (OpFoldResult ofr : ofrs)
-    dispatchIndexOpFoldResult(ofr, dynamicVec, staticVec, sentinel);
+    dispatchIndexOpFoldResult(ofr, dynamicVec, staticVec);
 }
 
 /// Extract int64_t values from the assumed ArrayAttr of IntegerAttr.
@@ -79,7 +90,7 @@ OpFoldResult getAsOpFoldResult(Value val) {
 /// Given an array of values, try to extract a constant Attribute from each
 /// value. If this fails, return the original value.
 SmallVector<OpFoldResult> getAsOpFoldResult(ValueRange values) {
-  return llvm::to_vector<4>(
+  return llvm::to_vector(
       llvm::map_range(values, [](Value v) { return getAsOpFoldResult(v); }));
 }
 
@@ -92,20 +103,30 @@ SmallVector<OpFoldResult> getAsOpFoldResult(ArrayAttr arrayAttr) {
   return res;
 }
 
+OpFoldResult getAsIndexOpFoldResult(MLIRContext *ctx, int64_t val) {
+  return IntegerAttr::get(IndexType::get(ctx), val);
+}
+
+SmallVector<OpFoldResult> getAsIndexOpFoldResult(MLIRContext *ctx,
+                                                 ArrayRef<int64_t> values) {
+  return llvm::to_vector(llvm::map_range(
+      values, [ctx](int64_t v) { return getAsIndexOpFoldResult(ctx, v); }));
+}
+
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
-Optional<int64_t> getConstantIntValue(OpFoldResult ofr) {
+std::optional<int64_t> getConstantIntValue(OpFoldResult ofr) {
   // Case 1: Check for Constant integer.
   if (auto val = ofr.dyn_cast<Value>()) {
     APSInt intVal;
     if (matchPattern(val, m_ConstantInt(&intVal)))
       return intVal.getSExtValue();
-    return llvm::None;
+    return std::nullopt;
   }
   // Case 2: Check for IntegerAttr.
   Attribute attr = ofr.dyn_cast<Attribute>();
   if (auto intAttr = attr.dyn_cast_or_null<IntegerAttr>())
     return intAttr.getValue().getSExtValue();
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Return true if `ofr` is constant integer equal to `value`.
@@ -126,15 +147,106 @@ bool isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2) {
   return v1 && v1 == v2;
 }
 
-/// Helper function to convert a vector of `OpFoldResult`s into a vector of
-/// `Value`s. For each `OpFoldResult` in `valueOrAttrVec` return the fold result
-/// if it casts to  a `Value` or create an index-type constant if it casts to
-/// `IntegerAttr`. No other attribute types are supported.
-SmallVector<Value> getAsValues(OpBuilder &b, Location loc,
-                               ArrayRef<OpFoldResult> valueOrAttrVec) {
-  return llvm::to_vector<4>(
-      llvm::map_range(valueOrAttrVec, [&](OpFoldResult value) -> Value {
-        return getValueOrCreateConstantIndexOp(b, loc, value);
-      }));
+bool isEqualConstantIntOrValueArray(ArrayRef<OpFoldResult> ofrs1,
+                                    ArrayRef<OpFoldResult> ofrs2) {
+  if (ofrs1.size() != ofrs2.size())
+    return false;
+  for (auto [ofr1, ofr2] : llvm::zip_equal(ofrs1, ofrs2))
+    if (!isEqualConstantIntOrValue(ofr1, ofr2))
+      return false;
+  return true;
 }
+
+/// Return a vector of OpFoldResults with the same size a staticValues, but all
+/// elements for which ShapedType::isDynamic is true, will be replaced by
+/// dynamicValues.
+SmallVector<OpFoldResult> getMixedValues(ArrayRef<int64_t> staticValues,
+                                         ValueRange dynamicValues, Builder &b) {
+  SmallVector<OpFoldResult> res;
+  res.reserve(staticValues.size());
+  unsigned numDynamic = 0;
+  unsigned count = static_cast<unsigned>(staticValues.size());
+  for (unsigned idx = 0; idx < count; ++idx) {
+    int64_t value = staticValues[idx];
+    res.push_back(ShapedType::isDynamic(value)
+                      ? OpFoldResult{dynamicValues[numDynamic++]}
+                      : OpFoldResult{b.getI64IntegerAttr(staticValues[idx])});
+  }
+  return res;
+}
+
+/// Decompose a vector of mixed static or dynamic values into the corresponding
+/// pair of arrays. This is the inverse function of `getMixedValues`.
+std::pair<ArrayAttr, SmallVector<Value>>
+decomposeMixedValues(Builder &b,
+                     const SmallVectorImpl<OpFoldResult> &mixedValues) {
+  SmallVector<int64_t> staticValues;
+  SmallVector<Value> dynamicValues;
+  for (const auto &it : mixedValues) {
+    if (it.is<Attribute>()) {
+      staticValues.push_back(it.get<Attribute>().cast<IntegerAttr>().getInt());
+    } else {
+      staticValues.push_back(ShapedType::kDynamic);
+      dynamicValues.push_back(it.get<Value>());
+    }
+  }
+  return {b.getI64ArrayAttr(staticValues), dynamicValues};
+}
+
+/// Helper to sort `values` according to matching `keys`.
+template <typename K, typename V>
+static SmallVector<V>
+getValuesSortedByKeyImpl(ArrayRef<K> keys, ArrayRef<V> values,
+                         llvm::function_ref<bool(K, K)> compare) {
+  if (keys.empty())
+    return SmallVector<V>{values};
+  assert(keys.size() == values.size() && "unexpected mismatching sizes");
+  auto indices = llvm::to_vector(llvm::seq<int64_t>(0, values.size()));
+  std::sort(indices.begin(), indices.end(),
+            [&](int64_t i, int64_t j) { return compare(keys[i], keys[j]); });
+  SmallVector<V> res;
+  res.reserve(values.size());
+  for (int64_t i = 0, e = indices.size(); i < e; ++i)
+    res.push_back(values[indices[i]]);
+  return res;
+}
+
+SmallVector<Value>
+getValuesSortedByKey(ArrayRef<Attribute> keys, ArrayRef<Value> values,
+                     llvm::function_ref<bool(Attribute, Attribute)> compare) {
+  return getValuesSortedByKeyImpl(keys, values, compare);
+}
+
+SmallVector<OpFoldResult>
+getValuesSortedByKey(ArrayRef<Attribute> keys, ArrayRef<OpFoldResult> values,
+                     llvm::function_ref<bool(Attribute, Attribute)> compare) {
+  return getValuesSortedByKeyImpl(keys, values, compare);
+}
+
+SmallVector<int64_t>
+getValuesSortedByKey(ArrayRef<Attribute> keys, ArrayRef<int64_t> values,
+                     llvm::function_ref<bool(Attribute, Attribute)> compare) {
+  return getValuesSortedByKeyImpl(keys, values, compare);
+}
+
+/// Return the number of iterations for a loop with a lower bound `lb`, upper
+/// bound `ub` and step `step`.
+std::optional<int64_t> constantTripCount(OpFoldResult lb, OpFoldResult ub,
+                                         OpFoldResult step) {
+  if (lb == ub)
+    return 0;
+
+  std::optional<int64_t> lbConstant = getConstantIntValue(lb);
+  if (!lbConstant)
+    return std::nullopt;
+  std::optional<int64_t> ubConstant = getConstantIntValue(ub);
+  if (!ubConstant)
+    return std::nullopt;
+  std::optional<int64_t> stepConstant = getConstantIntValue(step);
+  if (!stepConstant)
+    return std::nullopt;
+
+  return mlir::ceilDiv(*ubConstant - *lbConstant, *stepConstant);
+}
+
 } // namespace mlir

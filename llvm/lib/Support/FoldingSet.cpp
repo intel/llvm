@@ -15,8 +15,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/SwapByteOrder.h"
 #include <cassert>
 #include <cstring>
 using namespace llvm;
@@ -269,7 +269,7 @@ void FoldingSetBase::reserve(unsigned EltCount, const FoldingSetInfo &Info) {
   // range of 1.0 - 2.0.
   if(EltCount < capacity())
     return;
-  GrowBucketCount(PowerOf2Floor(EltCount), Info);
+  GrowBucketCount(llvm::bit_floor(EltCount), Info);
 }
 
 /// FindNodeOrInsertPos - Look up the node specified by ID.  If it exists,

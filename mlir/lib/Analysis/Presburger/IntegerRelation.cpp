@@ -22,6 +22,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/Debug.h"
 #include <numeric>
+#include <optional>
 
 #define DEBUG_TYPE "presburger"
 
@@ -763,7 +764,8 @@ bool IntegerRelation::isIntegerEmpty() const { return !findIntegerSample(); }
 ///
 /// Concatenating the samples from B and C gives a sample v in S*T, so the
 /// returned sample T*v is a sample in S.
-Optional<SmallVector<MPInt, 8>> IntegerRelation::findIntegerSample() const {
+std::optional<SmallVector<MPInt, 8>>
+IntegerRelation::findIntegerSample() const {
   // First, try the GCD test heuristic.
   if (isEmptyByGCDTest())
     return {};
@@ -802,7 +804,7 @@ Optional<SmallVector<MPInt, 8>> IntegerRelation::findIntegerSample() const {
   boundedSet.removeVarRange(numBoundedDims, boundedSet.getNumVars());
 
   // 3) Try to obtain a sample from the bounded set.
-  Optional<SmallVector<MPInt, 8>> boundedSample =
+  std::optional<SmallVector<MPInt, 8>> boundedSample =
       Simplex(boundedSet).findIntegerSample();
   if (!boundedSample)
     return {};
@@ -901,7 +903,7 @@ bool IntegerRelation::containsPoint(ArrayRef<MPInt> point) const {
 /// compute the values of the locals that have division representations and
 /// only use the integer emptiness check for the locals that don't have this.
 /// Handling this correctly requires ordering the divs, though.
-Optional<SmallVector<MPInt, 8>>
+std::optional<SmallVector<MPInt, 8>>
 IntegerRelation::containsPointNoLocal(ArrayRef<MPInt> point) const {
   assert(point.size() == getNumVars() - getNumLocalVars() &&
          "Point should contain all vars except locals!");
@@ -1080,7 +1082,7 @@ void IntegerRelation::removeRedundantConstraints() {
   equalities.resizeVertically(pos);
 }
 
-Optional<MPInt> IntegerRelation::computeVolume() const {
+std::optional<MPInt> IntegerRelation::computeVolume() const {
   assert(getNumSymbolVars() == 0 && "Symbols are not yet supported!");
 
   Simplex simplex(*this);
@@ -1378,19 +1380,19 @@ void IntegerRelation::constantFoldVarRange(unsigned pos, unsigned num) {
 
 /// Returns a non-negative constant bound on the extent (upper bound - lower
 /// bound) of the specified variable if it is found to be a constant; returns
-/// None if it's not a constant. This methods treats symbolic variables
+/// std::nullopt if it's not a constant. This methods treats symbolic variables
 /// specially, i.e., it looks for constant differences between affine
-/// expressions involving only the symbolic variables. See comments at
-/// function definition for example. 'lb', if provided, is set to the lower
-/// bound associated with the constant difference. Note that 'lb' is purely
-/// symbolic and thus will contain the coefficients of the symbolic variables
-/// and the constant coefficient.
+/// expressions involving only the symbolic variables. See comments at function
+/// definition for example. 'lb', if provided, is set to the lower bound
+/// associated with the constant difference. Note that 'lb' is purely symbolic
+/// and thus will contain the coefficients of the symbolic variables and the
+/// constant coefficient.
 //  Egs: 0 <= i <= 15, return 16.
 //       s0 + 2 <= i <= s0 + 17, returns 16. (s0 has to be a symbol)
 //       s0 + s1 + 16 <= d0 <= s0 + s1 + 31, returns 16.
 //       s0 - 7 <= 8*j <= s0 returns 1 with lb = s0, lbDivisor = 8 (since lb =
 //       ceil(s0 - 7 / 8) = floor(s0 / 8)).
-Optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
+std::optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
     unsigned pos, SmallVectorImpl<MPInt> *lb, MPInt *boundFloorDivisor,
     SmallVectorImpl<MPInt> *ub, unsigned *minLbPos, unsigned *minUbPos) const {
   assert(pos < getNumDimVars() && "Invalid variable position");
@@ -1405,7 +1407,7 @@ Optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
     // representation of the local vars.
     if (!std::all_of(eq.begin() + getNumDimAndSymbolVars(), eq.end() - 1,
                      [](const MPInt &coeff) { return coeff == 0; }))
-      return None;
+      return std::nullopt;
 
     // This variable can only take a single value.
     if (lb) {
@@ -1442,7 +1444,7 @@ Optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
   }
   if (r == e)
     // If it doesn't, there isn't a bound on it.
-    return None;
+    return std::nullopt;
 
   // Positions of constraints that are lower/upper bounds on the variable.
   SmallVector<unsigned, 4> lbIndices, ubIndices;
@@ -1455,7 +1457,7 @@ Optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
                                /*eqIndices=*/nullptr, /*offset=*/0,
                                /*num=*/getNumDimVars());
 
-  Optional<MPInt> minDiff;
+  std::optional<MPInt> minDiff;
   unsigned minLbPosition = 0, minUbPosition = 0;
   for (auto ubPos : ubIndices) {
     for (auto lbPos : lbIndices) {
@@ -1477,7 +1479,7 @@ Optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
                            atIneq(lbPos, pos));
       // This bound is non-negative by definition.
       diff = std::max<MPInt>(diff, MPInt(0));
-      if (minDiff == None || diff < minDiff) {
+      if (minDiff == std::nullopt || diff < minDiff) {
         minDiff = diff;
         minLbPosition = lbPos;
         minUbPosition = ubPos;
@@ -1516,7 +1518,7 @@ Optional<MPInt> IntegerRelation::getConstantBoundOnDimSize(
 }
 
 template <bool isLower>
-Optional<MPInt>
+std::optional<MPInt>
 IntegerRelation::computeConstantLowerOrUpperBound(unsigned pos) {
   assert(pos < getNumVars() && "invalid position");
   // Project to 'pos'.
@@ -1536,9 +1538,9 @@ IntegerRelation::computeConstantLowerOrUpperBound(unsigned pos) {
   }
   if (r == e)
     // If it doesn't, there isn't a bound on it.
-    return None;
+    return std::nullopt;
 
-  Optional<MPInt> minOrMaxConst;
+  std::optional<MPInt> minOrMaxConst;
 
   // Take the max across all const lower bounds (or min across all constant
   // upper bounds).
@@ -1563,18 +1565,18 @@ IntegerRelation::computeConstantLowerOrUpperBound(unsigned pos) {
         isLower ? ceilDiv(-atIneq(r, getNumCols() - 1), atIneq(r, 0))
                 : floorDiv(atIneq(r, getNumCols() - 1), -atIneq(r, 0));
     if (isLower) {
-      if (minOrMaxConst == None || boundConst > minOrMaxConst)
+      if (minOrMaxConst == std::nullopt || boundConst > minOrMaxConst)
         minOrMaxConst = boundConst;
     } else {
-      if (minOrMaxConst == None || boundConst < minOrMaxConst)
+      if (minOrMaxConst == std::nullopt || boundConst < minOrMaxConst)
         minOrMaxConst = boundConst;
     }
   }
   return minOrMaxConst;
 }
 
-Optional<MPInt> IntegerRelation::getConstantBound(BoundType type,
-                                                  unsigned pos) const {
+std::optional<MPInt> IntegerRelation::getConstantBound(BoundType type,
+                                                       unsigned pos) const {
   if (type == BoundType::LB)
     return IntegerRelation(*this)
         .computeConstantLowerOrUpperBound</*isLower=*/true>(pos);
@@ -1583,13 +1585,13 @@ Optional<MPInt> IntegerRelation::getConstantBound(BoundType type,
         .computeConstantLowerOrUpperBound</*isLower=*/false>(pos);
 
   assert(type == BoundType::EQ && "expected EQ");
-  Optional<MPInt> lb =
+  std::optional<MPInt> lb =
       IntegerRelation(*this).computeConstantLowerOrUpperBound</*isLower=*/true>(
           pos);
-  Optional<MPInt> ub =
+  std::optional<MPInt> ub =
       IntegerRelation(*this)
           .computeConstantLowerOrUpperBound</*isLower=*/false>(pos);
-  return (lb && ub && *lb == *ub) ? Optional<MPInt>(*ub) : None;
+  return (lb && ub && *lb == *ub) ? std::optional<MPInt>(*ub) : std::nullopt;
 }
 
 // A simple (naive and conservative) check for hyper-rectangularity.
@@ -2030,7 +2032,7 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
       if (!constLb.has_value() || !constOtherLb.has_value())
         return failure();
       std::fill(minLb.begin(), minLb.end(), 0);
-      minLb.back() = std::min(constLb.value(), constOtherLb.value());
+      minLb.back() = std::min(*constLb, *constOtherLb);
     }
 
     // Do the same for ub's but max of upper bounds. Identify max.
@@ -2046,7 +2048,7 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
       if (!constUb.has_value() || !constOtherUb.has_value())
         return failure();
       std::fill(maxUb.begin(), maxUb.end(), 0);
-      maxUb.back() = std::max(constUb.value(), constOtherUb.value());
+      maxUb.back() = std::max(*constUb, *constOtherUb);
     }
 
     std::fill(newLb.begin(), newLb.end(), 0);
@@ -2244,14 +2246,16 @@ void IntegerRelation::print(raw_ostream &os) const {
   assert(hasConsistentState());
   printSpace(os);
   for (unsigned i = 0, e = getNumEqualities(); i < e; ++i) {
+    os << " ";
     for (unsigned j = 0, f = getNumCols(); j < f; ++j) {
-      os << atEq(i, j) << " ";
+      os << atEq(i, j) << "\t";
     }
     os << "= 0\n";
   }
   for (unsigned i = 0, e = getNumInequalities(); i < e; ++i) {
+    os << " ";
     for (unsigned j = 0, f = getNumCols(); j < f; ++j) {
-      os << atIneq(i, j) << " ";
+      os << atIneq(i, j) << "\t";
     }
     os << ">= 0\n";
   }

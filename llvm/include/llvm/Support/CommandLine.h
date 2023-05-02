@@ -20,8 +20,6 @@
 #define LLVM_SUPPORT_COMMANDLINE_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -222,7 +220,7 @@ public:
   static SubCommand &getTopLevel();
 
   // Get the special subcommand that can be used to put an option into all
-  // subcomands.
+  // subcommands.
   static SubCommand &getAll();
 
   void reset();
@@ -317,7 +315,7 @@ public:
   }
 
   bool isInAllSubCommands() const {
-    return llvm::is_contained(Subs, &SubCommand::getAll());
+    return Subs.contains(&SubCommand::getAll());
   }
 
   //-------------------------------------------------------------------------===

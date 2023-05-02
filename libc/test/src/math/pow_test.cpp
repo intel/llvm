@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/errno/libc_errno.h"
 #include "src/math/pow.h"
+#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/UnitTest/FPMatcher.h"
-#include "utils/UnitTest/Test.h"
 #include <math.h>
 
 #include <errno.h>
@@ -22,7 +23,7 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 DECLARE_SPECIAL_CONSTANTS(double)
 
 TEST(LlvmLibcAsinTest, SpecialNumbers) {
-  errno = 0;
+  libc_errno = 0;
 
   EXPECT_FP_EQ(aNaN, __llvm_libc::pow(aNaN, aNaN));
   EXPECT_MATH_ERRNO(0);

@@ -66,7 +66,7 @@ public:
     Row(SimpleTable *Parent) : Parent(Parent) {}
 
     Row(SimpleTable *Parent, ArrayRef<StringRef> R) : Row(Parent) {
-      for (auto Cell : R)
+      for (auto &Cell : R)
         Cells.emplace_back(Cell.str());
     }
 
@@ -76,7 +76,7 @@ public:
 
   private:
     std::vector<std::string> Cells;
-    SimpleTable *Parent;
+    SimpleTable *Parent = nullptr;
   };
 
 public:
@@ -131,6 +131,9 @@ public:
 
   Row &operator[](int I) { return Rows[I]; }
   const Row &operator[](int I) const { return Rows[I]; }
+
+  // Merge another table into this table
+  Error merge(const SimpleTable &Other);
 
 private:
   Error addColumnName(StringRef ColName);

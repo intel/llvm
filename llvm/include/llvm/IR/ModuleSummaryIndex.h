@@ -38,6 +38,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -314,6 +315,27 @@ struct CallsiteInfo {
         StackIdIndices(std::move(StackIdIndices)) {}
 };
 
+inline raw_ostream &operator<<(raw_ostream &OS, const CallsiteInfo &SNI) {
+  OS << "Callee: " << SNI.Callee;
+  bool First = true;
+  OS << " Clones: ";
+  for (auto V : SNI.Clones) {
+    if (!First)
+      OS << ", ";
+    First = false;
+    OS << V;
+  }
+  First = true;
+  OS << " StackIds: ";
+  for (auto Id : SNI.StackIdIndices) {
+    if (!First)
+      OS << ", ";
+    First = false;
+    OS << Id;
+  }
+  return OS;
+}
+
 // Allocation type assigned to an allocation reached by a given context.
 // More can be added but initially this is just noncold and cold.
 // Values should be powers of two so that they can be ORed, in particular to
@@ -336,6 +358,19 @@ struct MIBInfo {
       : AllocType(AllocType), StackIdIndices(std::move(StackIdIndices)) {}
 };
 
+inline raw_ostream &operator<<(raw_ostream &OS, const MIBInfo &MIB) {
+  OS << "AllocType " << (unsigned)MIB.AllocType;
+  bool First = true;
+  OS << " StackIds: ";
+  for (auto Id : MIB.StackIdIndices) {
+    if (!First)
+      OS << ", ";
+    First = false;
+    OS << Id;
+  }
+  return OS;
+}
+
 /// Summary of memprof metadata on allocations.
 struct AllocInfo {
   // Used to record whole program analysis cloning decisions.
@@ -357,6 +392,22 @@ struct AllocInfo {
   AllocInfo(SmallVector<uint8_t> Versions, std::vector<MIBInfo> MIBs)
       : Versions(std::move(Versions)), MIBs(std::move(MIBs)) {}
 };
+
+inline raw_ostream &operator<<(raw_ostream &OS, const AllocInfo &AE) {
+  bool First = true;
+  OS << "Versions: ";
+  for (auto V : AE.Versions) {
+    if (!First)
+      OS << ", ";
+    First = false;
+    OS << (unsigned)V;
+  }
+  OS << " MIB:\n";
+  for (auto &M : AE.MIBs) {
+    OS << "\t\t" << M << "\n";
+  }
+  return OS;
+}
 
 /// Function and variable summary information to aid decisions and
 /// implementation of importing.
@@ -937,10 +988,20 @@ public:
     return {};
   }
 
+  CallsitesTy &mutableCallsites() {
+    assert(Callsites);
+    return *Callsites;
+  }
+
   ArrayRef<AllocInfo> allocs() const {
     if (Allocs)
       return *Allocs;
     return {};
+  }
+
+  AllocsTy &mutableAllocs() {
+    assert(Allocs);
+    return *Allocs;
   }
 
   friend struct GraphTraits<ValueInfo>;
@@ -1700,11 +1761,11 @@ public:
 
   /// For the given \p TypeId, this returns the TypeIdCompatibleVtableMap
   /// entry if present in the summary map. This may be used when importing.
-  Optional<TypeIdCompatibleVtableInfo>
+  std::optional<TypeIdCompatibleVtableInfo>
   getTypeIdCompatibleVtableSummary(StringRef TypeId) const {
     auto I = TypeIdCompatibleVtableMap.find(TypeId);
     if (I == TypeIdCompatibleVtableMap.end())
-      return None;
+      return std::nullopt;
     return I->second;
   }
 

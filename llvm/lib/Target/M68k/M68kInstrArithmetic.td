@@ -148,7 +148,7 @@ class MxBiArOp_R_RI<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
              [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))]> {
   let Inst = (ascend
     (descend 0b0000, CMD,
-             !cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+             !cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
              // The destination cannot be address register, so it's always
              // the MODE for data register direct mode.
              /*MODE*/0b000,
@@ -181,7 +181,7 @@ class MxBiArOp_MI<string MN, MxType TYPE,
              MN#"."#TYPE.Prefix#"\t$opd, $dst", []> {
   let Inst = (ascend
     (descend 0b0000, CMD,
-             !cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+             !cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
              DST_ENC.EA),
     // Source (i.e. immediate value) encoding
     MxEncAddrMode_i<"opd", TYPE.Size>.Supplement,
@@ -409,7 +409,7 @@ class MxCmp_RI<MxType TYPE>
              [(set CCR, (MxCmp TYPE.IPat:$imm, TYPE.VT:$reg))]> {
   let Inst = (ascend
     (descend 0b00001100,
-             !cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+             !cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
              // The destination cannot be address register, so it's always
              // the MODE for data register direct mode.
              /*MODE*/0b000,
@@ -428,7 +428,7 @@ class MxCmp_MI<MxType TYPE, MxOperand MEMOpd, ComplexPattern MEMPat,
              [(set CCR, (MxCmp TYPE.IPat:$imm, (load MEMPat:$mem)))]> {
   let Inst = (ascend
     (descend 0b00001100,
-             !cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+             !cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
              MEM_ENC.EA),
     // Source (i.e. immediate value) encoding
     MxEncAddrMode_i<"imm", TYPE.Size>.Supplement,
@@ -446,7 +446,7 @@ class MxCmp_BI<MxType TYPE>
   defvar AbsEncoding = MxEncAddrMode_abs<"abs", true>;
   let Inst = (ascend
     (descend 0b00001100,
-             !cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+             !cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
              AbsEncoding.EA),
     // Source (i.e. immediate value) encoding
     MxEncAddrMode_i<"imm", TYPE.Size>.Supplement,
@@ -756,7 +756,7 @@ class MxNeg_D<MxType TYPE>
              "neg."#TYPE.Prefix#"\t$dst",
              [(set TYPE.VT:$dst, (ineg TYPE.VT:$src))]> {
   let Inst = (descend 0b01000100,
-    /*SIZE*/!cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+    /*SIZE*/!cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
     //MODE without last bit
     0b00,
     //REGISTER prefixed by D/A bit
@@ -770,7 +770,7 @@ class MxNegX_D<MxType TYPE>
              "negx."#TYPE.Prefix#"\t$dst",
              [(set TYPE.VT:$dst, (MxSubX 0, TYPE.VT:$src, CCR))]> {
   let Inst = (descend 0b01000000,
-    /*SIZE*/!cast<MxNewEncSize>("MxNewEncSize"#TYPE.Size).Value,
+    /*SIZE*/!cast<MxEncSize>("MxEncSize"#TYPE.Size).Value,
     //MODE without last bit
     0b00,
     //REGISTER prefixed by D/A bit
@@ -790,6 +790,12 @@ foreach S = [8, 16, 32] in {
 def : Pat<(MxSub 0, i8 :$src), (NEG8d  MxDRD8 :$src)>;
 def : Pat<(MxSub 0, i16:$src), (NEG16d MxDRD16:$src)>;
 def : Pat<(MxSub 0, i32:$src), (NEG32d MxDRD32:$src)>;
+// SExt of i1 values.
+// Although we specify `ZeroOrOneBooleanContent` for boolean content,
+// we're still adding an AND here as we don't know the origin of the i1 value.
+def : Pat<(sext_inreg i8:$src,  i1), (NEG8d  (AND8di  MxDRD8:$src,  1))>;
+def : Pat<(sext_inreg i16:$src, i1), (NEG16d (AND16di MxDRD16:$src, 1))>;
+def : Pat<(sext_inreg i32:$src, i1), (NEG32d (AND32di MxDRD32:$src, 1))>;
 
 //===----------------------------------------------------------------------===//
 // no-CCR Patterns

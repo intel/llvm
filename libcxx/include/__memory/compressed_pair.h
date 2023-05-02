@@ -14,11 +14,18 @@
 #include <__fwd/get.h>
 #include <__fwd/tuple.h>
 #include <__tuple/tuple_indices.h>
+#include <__type_traits/decay.h>
 #include <__type_traits/dependent_type.h>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_default_constructible.h>
+#include <__type_traits/is_empty.h>
+#include <__type_traits/is_final.h>
+#include <__type_traits/is_same.h>
+#include <__type_traits/is_swappable.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/piecewise_construct.h>
-#include <type_traits>
+#include <cstddef>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -39,7 +46,7 @@ struct __compressed_pair_elem {
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__default_init_tag) {}
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__value_init_tag) : __value_() {}
 
-  template <class _Up, class = __enable_if_t<!is_same<__compressed_pair_elem, typename decay<_Up>::type>::value> >
+  template <class _Up, class = __enable_if_t<!is_same<__compressed_pair_elem, __decay_t<_Up> >::value> >
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
   explicit __compressed_pair_elem(_Up&& __u) : __value_(std::forward<_Up>(__u)) {}
 
@@ -68,7 +75,7 @@ struct __compressed_pair_elem<_Tp, _Idx, true> : private _Tp {
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__default_init_tag) {}
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__value_init_tag) : __value_type() {}
 
-  template <class _Up, class = __enable_if_t<!is_same<__compressed_pair_elem, typename decay<_Up>::type>::value> >
+  template <class _Up, class = __enable_if_t<!is_same<__compressed_pair_elem, __decay_t<_Up> >::value> >
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
   explicit __compressed_pair_elem(_Up&& __u) : __value_type(std::forward<_Up>(__u)) {}
 

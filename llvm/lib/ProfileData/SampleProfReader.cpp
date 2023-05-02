@@ -35,6 +35,7 @@
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstddef>
@@ -327,7 +328,8 @@ std::error_code SampleProfileReaderText::readImpl() {
   ProfileIsFS = ProfileIsFSDisciminator;
   FunctionSamples::ProfileIsFS = ProfileIsFS;
   for (; !LineIt.is_at_eof(); ++LineIt) {
-    if ((*LineIt)[(*LineIt).find_first_not_of(' ')] == '#')
+    size_t pos = LineIt->find_first_not_of(' ');
+    if (pos == LineIt->npos || (*LineIt)[pos] == '#')
       continue;
     // Read the header of each function.
     //
@@ -513,9 +515,9 @@ ErrorOr<T> SampleProfileReaderBinary::readUnencodedNumber() {
 }
 
 template <typename T>
-inline ErrorOr<uint32_t> SampleProfileReaderBinary::readStringIndex(T &Table) {
+inline ErrorOr<size_t> SampleProfileReaderBinary::readStringIndex(T &Table) {
   std::error_code EC;
-  auto Idx = readNumber<uint32_t>();
+  auto Idx = readNumber<size_t>();
   if (std::error_code EC = Idx.getError())
     return EC;
   if (*Idx >= Table.size())
@@ -694,7 +696,7 @@ std::error_code SampleProfileReaderBinary::readImpl() {
 
 ErrorOr<SampleContextFrames>
 SampleProfileReaderExtBinaryBase::readContextFromTable() {
-  auto ContextIdx = readNumber<uint32_t>();
+  auto ContextIdx = readNumber<size_t>();
   if (std::error_code EC = ContextIdx.getError())
     return EC;
   if (*ContextIdx >= CSNameTable->size())
@@ -956,8 +958,8 @@ std::error_code SampleProfileReaderExtBinaryBase::decompressSection(
 
   uint8_t *Buffer = Allocator.Allocate<uint8_t>(DecompressBufSize);
   size_t UCSize = DecompressBufSize;
-  llvm::Error E = compression::zlib::decompress(
-      makeArrayRef(Data, *CompressSize), Buffer, UCSize);
+  llvm::Error E = compression::zlib::decompress(ArrayRef(Data, *CompressSize),
+                                                Buffer, UCSize);
   if (E)
     return sampleprof_error::uncompress_failed;
   DecompressBuf = reinterpret_cast<const uint8_t *>(Buffer);
@@ -1064,11 +1066,11 @@ SampleProfileReaderCompactBinary::verifySPMagic(uint64_t Magic) {
 }
 
 std::error_code SampleProfileReaderBinary::readNameTable() {
-  auto Size = readNumber<uint32_t>();
+  auto Size = readNumber<size_t>();
   if (std::error_code EC = Size.getError())
     return EC;
   NameTable.reserve(*Size + NameTable.size());
-  for (uint32_t I = 0; I < *Size; ++I) {
+  for (size_t I = 0; I < *Size; ++I) {
     auto Name(readString());
     if (std::error_code EC = Name.getError())
       return EC;
@@ -1119,14 +1121,14 @@ std::error_code SampleProfileReaderExtBinaryBase::readNameTableSec(bool IsMD5) {
 // underlying raw function names that are stored in the name table, as well as
 // a callsite identifier that only makes sense for non-leaf frames.
 std::error_code SampleProfileReaderExtBinaryBase::readCSNameTableSec() {
-  auto Size = readNumber<uint32_t>();
+  auto Size = readNumber<size_t>();
   if (std::error_code EC = Size.getError())
     return EC;
 
   std::vector<SampleContextFrameVector> *PNameVec =
       new std::vector<SampleContextFrameVector>();
   PNameVec->reserve(*Size);
-  for (uint32_t I = 0; I < *Size; ++I) {
+  for (size_t I = 0; I < *Size; ++I) {
     PNameVec->emplace_back(SampleContextFrameVector());
     auto ContextSize = readNumber<uint32_t>();
     if (std::error_code EC = ContextSize.getError())
@@ -1247,7 +1249,7 @@ std::error_code SampleProfileReaderCompactBinary::readNameTable() {
 }
 
 std::error_code
-SampleProfileReaderExtBinaryBase::readSecHdrTableEntry(uint32_t Idx) {
+SampleProfileReaderExtBinaryBase::readSecHdrTableEntry(uint64_t Idx) {
   SecHdrTableEntry Entry;
   auto Type = readUnencodedNumber<uint64_t>();
   if (std::error_code EC = Type.getError())
@@ -1820,26 +1822,23 @@ void SampleProfileReaderItaniumRemapper::applyRemapping(LLVMContext &Ctx) {
   RemappingApplied = true;
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 SampleProfileReaderItaniumRemapper::lookUpNameInProfile(StringRef Fname) {
   if (auto Key = Remappings->lookup(Fname))
     return NameMap.lookup(Key);
-  return None;
+  return std::nullopt;
 }
 
 /// Prepare a memory buffer for the contents of \p Filename.
 ///
 /// \returns an error code indicating the status of the buffer.
 static ErrorOr<std::unique_ptr<MemoryBuffer>>
-setupMemoryBuffer(const Twine &Filename) {
-  auto BufferOrErr = MemoryBuffer::getFileOrSTDIN(Filename, /*IsText=*/true);
+setupMemoryBuffer(const Twine &Filename, vfs::FileSystem &FS) {
+  auto BufferOrErr = Filename.str() == "-" ? MemoryBuffer::getSTDIN()
+                                           : FS.getBufferForFile(Filename);
   if (std::error_code EC = BufferOrErr.getError())
     return EC;
   auto Buffer = std::move(BufferOrErr.get());
-
-  // Check the file.
-  if (uint64_t(Buffer->getBufferSize()) > std::numeric_limits<uint32_t>::max())
-    return sampleprof_error::too_large;
 
   return std::move(Buffer);
 }
@@ -1857,12 +1856,12 @@ setupMemoryBuffer(const Twine &Filename) {
 /// \returns an error code indicating the status of the created reader.
 ErrorOr<std::unique_ptr<SampleProfileReader>>
 SampleProfileReader::create(const std::string Filename, LLVMContext &C,
-                            FSDiscriminatorPass P,
+                            vfs::FileSystem &FS, FSDiscriminatorPass P,
                             const std::string RemapFilename) {
-  auto BufferOrError = setupMemoryBuffer(Filename);
+  auto BufferOrError = setupMemoryBuffer(Filename, FS);
   if (std::error_code EC = BufferOrError.getError())
     return EC;
-  return create(BufferOrError.get(), C, P, RemapFilename);
+  return create(BufferOrError.get(), C, FS, P, RemapFilename);
 }
 
 /// Create a sample profile remapper from the given input, to remap the
@@ -1877,9 +1876,10 @@ SampleProfileReader::create(const std::string Filename, LLVMContext &C,
 /// \returns an error code indicating the status of the created reader.
 ErrorOr<std::unique_ptr<SampleProfileReaderItaniumRemapper>>
 SampleProfileReaderItaniumRemapper::create(const std::string Filename,
+                                           vfs::FileSystem &FS,
                                            SampleProfileReader &Reader,
                                            LLVMContext &C) {
-  auto BufferOrError = setupMemoryBuffer(Filename);
+  auto BufferOrError = setupMemoryBuffer(Filename, FS);
   if (std::error_code EC = BufferOrError.getError())
     return EC;
   return create(BufferOrError.get(), Reader, C);
@@ -1927,7 +1927,7 @@ SampleProfileReaderItaniumRemapper::create(std::unique_ptr<MemoryBuffer> &B,
 /// \returns an error code indicating the status of the created reader.
 ErrorOr<std::unique_ptr<SampleProfileReader>>
 SampleProfileReader::create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C,
-                            FSDiscriminatorPass P,
+                            vfs::FileSystem &FS, FSDiscriminatorPass P,
                             const std::string RemapFilename) {
   std::unique_ptr<SampleProfileReader> Reader;
   if (SampleProfileReaderRawBinary::hasFormat(*B))
@@ -1944,8 +1944,8 @@ SampleProfileReader::create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C,
     return sampleprof_error::unrecognized_format;
 
   if (!RemapFilename.empty()) {
-    auto ReaderOrErr =
-        SampleProfileReaderItaniumRemapper::create(RemapFilename, *Reader, C);
+    auto ReaderOrErr = SampleProfileReaderItaniumRemapper::create(
+        RemapFilename, FS, *Reader, C);
     if (std::error_code EC = ReaderOrErr.getError()) {
       std::string Msg = "Could not create remapper: " + EC.message();
       C.diagnose(DiagnosticInfoSampleProfile(RemapFilename, Msg));

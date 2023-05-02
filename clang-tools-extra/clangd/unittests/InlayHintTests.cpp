@@ -33,7 +33,7 @@ using ::testing::IsEmpty;
 
 std::vector<InlayHint> hintsOfKind(ParsedAST &AST, InlayHintKind Kind) {
   std::vector<InlayHint> Result;
-  for (auto &Hint : inlayHints(AST, /*RestrictRange=*/llvm::None)) {
+  for (auto &Hint : inlayHints(AST, /*RestrictRange=*/std::nullopt)) {
     if (Hint.kind == Kind)
       Result.push_back(Hint);
   }
@@ -93,7 +93,7 @@ void assertHints(InlayHintKind Kind, llvm::StringRef AnnotatedSource,
   // Sneak in a cross-cutting check that hints are disabled by config.
   // We'll hit an assertion failure if addInlayHint still gets called.
   WithContextValue WithCfg(Config::Key, noHintsConfig());
-  EXPECT_THAT(inlayHints(AST, llvm::None), IsEmpty());
+  EXPECT_THAT(inlayHints(AST, std::nullopt), IsEmpty());
 }
 
 // Hack to allow expression-statements operating on parameter packs in C++14.
@@ -1050,9 +1050,15 @@ TEST(ParameterHints, ParamNameComment) {
     void bar() {
       foo(/*param*/42);
       foo( /* param = */ 42);
+#define X 42
+#define Y X
+#define Z(...) Y
+      foo(/*param=*/Z(a));
+      foo($macro[[Z(a)]]);
       foo(/* the answer */$param[[42]]);
     }
   )cpp",
+                       ExpectedHint{"param: ", "macro"},
                        ExpectedHint{"param: ", "param"});
 }
 
@@ -1256,6 +1262,13 @@ TEST(TypeHints, StructuredBindings_NoInitializer) {
   )cpp");
 }
 
+TEST(TypeHints, InvalidType) {
+  assertTypeHints(R"cpp(
+    auto x = (unknown_type)42; /*error-ok*/
+    auto *y = (unknown_ptr)nullptr;
+  )cpp");
+}
+
 TEST(TypeHints, ReturnTypeDeduction) {
   assertTypeHints(
       R"cpp(
@@ -1359,6 +1372,34 @@ TEST(TypeHints, Aliased) {
   auto AST = TU.build();
 
   EXPECT_THAT(hintsOfKind(AST, InlayHintKind::Type), IsEmpty());
+}
+
+TEST(TypeHints, Decltype) {
+  assertTypeHints(R"cpp(
+    $a[[decltype(0)]] a;
+    $b[[decltype(a)]] b;
+    const $c[[decltype(0)]] &c = b;
+
+    // Don't show for dependent type
+    template <class T>
+    constexpr decltype(T{}) d;
+
+    $e[[decltype(0)]] e();
+    auto f() -> $f[[decltype(0)]];
+
+    template <class, class> struct Foo;
+    using G = Foo<$g[[decltype(0)]], float>;
+
+    auto $h[[h]] = $i[[decltype(0)]]{};
+
+    // No crash
+    /* error-ok */
+    auto $j[[s]];
+  )cpp",
+                  ExpectedHint{": int", "a"}, ExpectedHint{": int", "b"},
+                  ExpectedHint{": int", "c"}, ExpectedHint{": int", "e"},
+                  ExpectedHint{": int", "f"}, ExpectedHint{": int", "g"},
+                  ExpectedHint{": int", "h"}, ExpectedHint{": int", "i"});
 }
 
 TEST(DesignatorHints, Basic) {

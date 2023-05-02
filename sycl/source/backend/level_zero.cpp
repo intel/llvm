@@ -15,9 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace level_zero {
+namespace ext::oneapi::level_zero {
 using namespace detail;
 
 //----------------------------------------------------------------------------
@@ -81,6 +79,16 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                             backend::ext_oneapi_level_zero);
 }
 
+__SYCL_EXPORT queue make_queue2(const context &Context, const device &Device,
+                                pi_native_handle NativeHandle,
+                                bool IsImmCmdList, bool KeepOwnership,
+                                const property_list &Properties) {
+  const auto &ContextImpl = getSyclObjImpl(Context);
+  return detail::make_queue2(
+      NativeHandle, IsImmCmdList, Context, &Device, KeepOwnership, Properties,
+      ContextImpl->get_async_handler(), backend::ext_oneapi_level_zero);
+}
+
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<event>
 __SYCL_EXPORT event make_event(const context &Context,
@@ -90,8 +98,6 @@ __SYCL_EXPORT event make_event(const context &Context,
                             backend::ext_oneapi_level_zero);
 }
 
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::level_zero
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

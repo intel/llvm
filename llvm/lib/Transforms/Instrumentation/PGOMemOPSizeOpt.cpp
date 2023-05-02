@@ -317,7 +317,7 @@ bool MemOPSizeOpt::perform(MemOp MO) {
     }
 
     if (!SeenSizeId.insert(V).second) {
-      errs() << "Invalid Profile Data in Function " << Func.getName()
+      errs() << "warning: Invalid Profile Data in Function " << Func.getName()
              << ": Two identical values in MemOp value counts.\n";
       return false;
     }
@@ -422,7 +422,7 @@ bool MemOPSizeOpt::perform(MemOp MO) {
     assert(SizeType && "Expected integer type size argument.");
     ConstantInt *CaseSizeId = ConstantInt::get(SizeType, SizeId);
     NewMO.setLength(CaseSizeId);
-    CaseBB->getInstList().push_back(NewMO.I);
+    NewMO.I->insertInto(CaseBB, CaseBB->end());
     IRBuilder<> IRBCase(CaseBB);
     IRBCase.CreateBr(MergeBB);
     SI->addCase(CaseSizeId, CaseBB);

@@ -38,58 +38,30 @@ struct TRIFuncObjBad2 {
 
 // Tests for the default values of [[sycl::reqd_work_group_size()]].
 
-// FIXME: This should be accepted instead of error which turns out to be
-// an implementation bug that shouldn't be visible to the user as there
-// aren't really any default values. The dimensionality of the attribute
-// must match the kernel, so three different forms of the attribute
-// (one, two, and three argument) can be used instead of assuming default
-// values. This prevents redeclaring the function with a different
-// dimensionality.
-struct TRIFuncObjBad3 {
-  [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
+struct TRIFuncObjGood3 {
+  [[intel::num_simd_work_items(3)]]
+  [[sycl::reqd_work_group_size(3)]]
   void
   operator()() const {}
 };
 
-// FIXME: This should be accepted instead of error which turns out to be
-// an implementation bug that shouldn't be visible to the user as there
-// aren't really any default values. The dimensionality of the attribute
-// must match the kernel, so three different forms of the attribute
-// (one, two, and three argument) can be used instead of assuming default
-// values. This prevents redeclaring the function with a different
-// dimensionality.
-struct TRIFuncObjBad4 {
-  [[sycl::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+struct TRIFuncObjGood4 {
+  [[sycl::reqd_work_group_size(3)]]
+  [[intel::num_simd_work_items(3)]]
   void
   operator()() const {}
 };
 
-// FIXME: This should be accepted instead of error which turns out to be
-// an implementation bug that shouldn't be visible to the user as there
-// aren't really any default values. The dimensionality of the attribute
-// must match the kernel, so three different forms of the attribute
-// (one, two, and three argument) can be used instead of assuming default
-// values. This prevents redeclaring the function with a different
-// dimensionality.
-struct TRIFuncObjBad5 {
-  [[intel::num_simd_work_items(4)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
+struct TRIFuncObjGood5 {
+  [[intel::num_simd_work_items(4)]]
+  [[sycl::reqd_work_group_size(4, 64)]]
   void
   operator()() const {}
 };
 
-// FIXME: This should be accepted instead of error which turns out to be
-// an implementation bug that shouldn't be visible to the user as there
-// aren't really any default values. The dimensionality of the attribute
-// must match the kernel, so three different forms of the attribute
-// (one, two, and three argument) can be used instead of assuming default
-// values. This prevents redeclaring the function with a different
-// dimensionality.
-struct TRIFuncObjBad6 {
-  [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(4)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+struct TRIFuncObjGood6 {
+  [[sycl::reqd_work_group_size(4, 64)]]
+  [[intel::num_simd_work_items(4)]]
   void
   operator()() const {}
 };
@@ -225,13 +197,13 @@ int main() {
 
     h.single_task<class test_kernel4>(TRIFuncObjBad2());
 
-    h.single_task<class test_kernel5>(TRIFuncObjBad3());
+    h.single_task<class test_kernel5>(TRIFuncObjGood3());
 
-    h.single_task<class test_kernel6>(TRIFuncObjBad4());
+    h.single_task<class test_kernel6>(TRIFuncObjGood4());
 
-    h.single_task<class test_kernel7>(TRIFuncObjBad5());
+    h.single_task<class test_kernel7>(TRIFuncObjGood5());
 
-    h.single_task<class test_kernel8>(TRIFuncObjBad6());
+    h.single_task<class test_kernel8>(TRIFuncObjGood6());
 
     h.single_task<class test_kernel9>(TRIFuncObjBad7());
 

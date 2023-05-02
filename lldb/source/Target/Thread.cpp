@@ -53,6 +53,7 @@
 #include "lldb/lldb-enumerations.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -149,9 +150,8 @@ uint64_t ThreadProperties::GetMaxBacktraceDepth() const {
 
 // Thread Event Data
 
-ConstString Thread::ThreadEventData::GetFlavorString() {
-  static ConstString g_flavor("Thread::ThreadEventData");
-  return g_flavor;
+llvm::StringRef Thread::ThreadEventData::GetFlavorString() {
+  return "Thread::ThreadEventData";
 }
 
 Thread::ThreadEventData::ThreadEventData(const lldb::ThreadSP thread_sp)
@@ -587,35 +587,8 @@ std::string Thread::GetStopDescriptionRaw() {
   return raw_stop_description;
 }
 
-void Thread::SelectMostRelevantFrame() {
-  Log *log = GetLog(LLDBLog::Thread);
-
-  auto frames_list_sp = GetStackFrameList();
-
-  // Only the top frame should be recognized.
-  auto frame_sp = frames_list_sp->GetFrameAtIndex(0);
-
-  auto recognized_frame_sp = frame_sp->GetRecognizedFrame();
-
-  if (!recognized_frame_sp) {
-    LLDB_LOG(log, "Frame #0 not recognized");
-    return;
-  }
-
-  if (StackFrameSP most_relevant_frame_sp =
-          recognized_frame_sp->GetMostRelevantFrame()) {
-    LLDB_LOG(log, "Found most relevant frame at index {0}",
-             most_relevant_frame_sp->GetFrameIndex());
-    SetSelectedFrame(most_relevant_frame_sp.get());
-  } else {
-    LLDB_LOG(log, "No relevant frame!");
-  }
-}
-
 void Thread::WillStop() {
   ThreadPlan *current_plan = GetCurrentPlan();
-
-  SelectMostRelevantFrame();
 
   // FIXME: I may decide to disallow threads with no plans.  In which
   // case this should go to an assert.
@@ -1084,7 +1057,7 @@ ThreadPlanStack &Thread::GetPlans() const {
   // queries GetDescription makes, and only assert if you try to run the thread.
   if (!m_null_plan_stack_up)
     m_null_plan_stack_up = std::make_unique<ThreadPlanStack>(*this, true);
-  return *(m_null_plan_stack_up.get());
+  return *m_null_plan_stack_up;
 }
 
 void Thread::PushPlan(ThreadPlanSP thread_plan_sp) {
@@ -1663,6 +1636,10 @@ addr_t Thread::GetThreadLocalData(const ModuleSP module,
 bool Thread::SafeToCallFunctions() {
   Process *process = GetProcess().get();
   if (process) {
+    DynamicLoader *loader = GetProcess()->GetDynamicLoader();
+    if (loader && loader->IsFullyInitialized() == false)
+      return false;
+
     SystemRuntime *runtime = process->GetSystemRuntime();
     if (runtime) {
       return runtime->SafeToCallFunctionsOnThisThread(shared_from_this());
@@ -2042,10 +2019,10 @@ lldb::ValueObjectSP Thread::GetSiginfoValue() {
   if (!type.IsValid())
     return ValueObjectConstResult::Create(&target, Status("no siginfo_t for the platform"));
 
-  llvm::Optional<uint64_t> type_size = type.GetByteSize(nullptr);
+  std::optional<uint64_t> type_size = type.GetByteSize(nullptr);
   assert(type_size);
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> data =
-      GetSiginfo(type_size.value());
+      GetSiginfo(*type_size);
   if (!data)
     return ValueObjectConstResult::Create(&target, Status(data.takeError()));
 

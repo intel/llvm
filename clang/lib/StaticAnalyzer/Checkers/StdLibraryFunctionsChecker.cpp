@@ -52,6 +52,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 
+#include <optional>
 #include <string>
 
 using namespace clang;
@@ -64,58 +65,160 @@ class StdLibraryFunctionsChecker
   class Summary;
 
   /// Specify how much the analyzer engine should entrust modeling this function
-  /// to us. If he doesn't, he performs additional invalidations.
-  enum InvalidationKind { NoEvalCall, EvalCallAsPure };
+  /// to us.
+  enum InvalidationKind {
+    /// No \c eval::Call for the function, it can be modeled elsewhere.
+    /// This checker checks only pre and post conditions.
+    NoEvalCall,
+    /// The function is modeled completely in this checker.
+    EvalCallAsPure
+  };
 
-  // The universal integral type to use in value range descriptions.
-  // Unsigned to make sure overflows are well-defined.
+  /// Given a range, should the argument stay inside or outside this range?
+  enum RangeKind { OutOfRange, WithinRange };
+
+  static RangeKind negateKind(RangeKind K) {
+    switch (K) {
+    case OutOfRange:
+      return WithinRange;
+    case WithinRange:
+      return OutOfRange;
+    }
+    llvm_unreachable("Unknown range kind");
+  }
+
+  /// The universal integral type to use in value range descriptions.
+  /// Unsigned to make sure overflows are well-defined.
   typedef uint64_t RangeInt;
 
-  /// Normally, describes a single range constraint, eg. {{0, 1}, {3, 4}} is
-  /// a non-negative integer, which less than 5 and not equal to 2. For
-  /// `ComparesToArgument', holds information about how exactly to compare to
-  /// the argument.
+  /// Describes a single range constraint. Eg. {{0, 1}, {3, 4}} is
+  /// a non-negative integer, which less than 5 and not equal to 2.
   typedef std::vector<std::pair<RangeInt, RangeInt>> IntRangeVector;
 
   /// A reference to an argument or return value by its number.
   /// ArgNo in CallExpr and CallEvent is defined as Unsigned, but
   /// obviously uint32_t should be enough for all practical purposes.
   typedef uint32_t ArgNo;
+  /// Special argument number for specifying the return value.
   static const ArgNo Ret;
 
-  /// Returns the string representation of an argument index.
+  /// Get a string representation of an argument index.
   /// E.g.: (1) -> '1st arg', (2) - > '2nd arg'
-  static SmallString<8> getArgDesc(ArgNo);
+  static void printArgDesc(ArgNo, llvm::raw_ostream &Out);
+  /// Append textual description of a numeric range [RMin,RMax] to
+  /// \p Out.
+  static void appendInsideRangeDesc(llvm::APSInt RMin, llvm::APSInt RMax,
+                                    QualType ArgT, BasicValueFactory &BVF,
+                                    llvm::raw_ostream &Out);
+  /// Append textual description of a numeric range out of [RMin,RMax] to
+  /// \p Out.
+  static void appendOutOfRangeDesc(llvm::APSInt RMin, llvm::APSInt RMax,
+                                   QualType ArgT, BasicValueFactory &BVF,
+                                   llvm::raw_ostream &Out);
 
   class ValueConstraint;
 
-  // Pointer to the ValueConstraint. We need a copyable, polymorphic and
-  // default initialize able type (vector needs that). A raw pointer was good,
-  // however, we cannot default initialize that. unique_ptr makes the Summary
-  // class non-copyable, therefore not an option. Releasing the copyability
-  // requirement would render the initialization of the Summary map infeasible.
+  /// Pointer to the ValueConstraint. We need a copyable, polymorphic and
+  /// default initializable type (vector needs that). A raw pointer was good,
+  /// however, we cannot default initialize that. unique_ptr makes the Summary
+  /// class non-copyable, therefore not an option. Releasing the copyability
+  /// requirement would render the initialization of the Summary map infeasible.
+  /// Mind that a pointer to a new value constraint is created when the negate
+  /// function is used.
   using ValueConstraintPtr = std::shared_ptr<ValueConstraint>;
 
   /// Polymorphic base class that represents a constraint on a given argument
   /// (or return value) of a function. Derived classes implement different kind
   /// of constraints, e.g range constraints or correlation between two
   /// arguments.
+  /// These are used as argument constraints (preconditions) of functions, in
+  /// which case a bug report may be emitted if the constraint is not satisfied.
+  /// Another use is as conditions for summary cases, to create different
+  /// classes of behavior for a function. In this case no description of the
+  /// constraint is needed because the summary cases have an own (not generated)
+  /// description string.
   class ValueConstraint {
   public:
     ValueConstraint(ArgNo ArgN) : ArgN(ArgN) {}
     virtual ~ValueConstraint() {}
+
     /// Apply the effects of the constraint on the given program state. If null
     /// is returned then the constraint is not feasible.
     virtual ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                                   const Summary &Summary,
                                   CheckerContext &C) const = 0;
+
+    /// Represents that in which context do we require a description of the
+    /// constraint.
+    enum DescriptionKind {
+      /// Describe a constraint that was violated.
+      /// Description should start with something like "should be".
+      Violation,
+      /// Describe a constraint that was assumed to be true.
+      /// This can be used when a precondition is satisfied, or when a summary
+      /// case is applied.
+      /// Description should start with something like "is".
+      Assumption
+    };
+
+    /// Give a description that explains the constraint to the user. Used when
+    /// a bug is reported or when the constraint is applied and displayed as a
+    /// note. The description should not mention the argument (getArgNo).
+    /// See StdLibraryFunctionsChecker::reportBug about how this function is
+    /// used (this function is used not only there).
+    virtual void describe(DescriptionKind DK, const CallEvent &Call,
+                          ProgramStateRef State, const Summary &Summary,
+                          llvm::raw_ostream &Out) const {
+      // There are some descendant classes that are not used as argument
+      // constraints, e.g. ComparisonConstraint. In that case we can safely
+      // ignore the implementation of this function.
+      llvm_unreachable(
+          "Description not implemented for summary case constraints");
+    }
+
+    /// Give a description that explains the actual argument value (where the
+    /// current ValueConstraint applies to) to the user. This function should be
+    /// called only when the current constraint is satisfied by the argument.
+    /// It should produce a more precise description than the constraint itself.
+    /// The actual value of the argument and the program state can be used to
+    /// make the description more precise. In the most simple case, if the
+    /// argument has a fixed known value this value can be printed into \p Out,
+    /// this is done by default.
+    /// The function should return true if a description was printed to \p Out,
+    /// otherwise false.
+    /// See StdLibraryFunctionsChecker::reportBug about how this function is
+    /// used.
+    virtual bool describeArgumentValue(const CallEvent &Call,
+                                       ProgramStateRef State,
+                                       const Summary &Summary,
+                                       llvm::raw_ostream &Out) const {
+      if (auto N = getArgSVal(Call, getArgNo()).getAs<NonLoc>()) {
+        if (const llvm::APSInt *Int = N->getAsInteger()) {
+          Out << *Int;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /// Return those arguments that should be tracked when we report a bug about
+    /// argument constraint violation. By default it is the argument that is
+    /// constrained, however, in some special cases we need to track other
+    /// arguments as well. E.g. a buffer size might be encoded in another
+    /// argument.
+    /// The "return value" argument number can not occur as returned value.
+    virtual std::vector<ArgNo> getArgsToTrack() const { return {ArgN}; }
+
+    /// Get a constraint that represents exactly the opposite of the current.
     virtual ValueConstraintPtr negate() const {
       llvm_unreachable("Not implemented");
     };
 
-    // Check whether the constraint is malformed or not. It is malformed if the
-    // specified argument has a mismatch with the given FunctionDecl (e.g. the
-    // arg number is out-of-range of the function's argument list).
+    /// Check whether the constraint is malformed or not. It is malformed if the
+    /// specified argument has a mismatch with the given FunctionDecl (e.g. the
+    /// arg number is out-of-range of the function's argument list).
+    /// This condition can indicate if a probably wrong or unexpected function
+    /// was found where the constraint is to be applied.
     bool checkValidity(const FunctionDecl *FD) const {
       const bool ValidArg = ArgN == Ret || ArgN < FD->getNumParams();
       assert(ValidArg && "Arg out of range!");
@@ -124,104 +227,75 @@ class StdLibraryFunctionsChecker
       // Subclasses may further refine the validation.
       return checkSpecificValidity(FD);
     }
+
+    /// Return the argument number (may be placeholder for "return value").
     ArgNo getArgNo() const { return ArgN; }
 
-    // Return those arguments that should be tracked when we report a bug. By
-    // default it is the argument that is constrained, however, in some special
-    // cases we need to track other arguments as well. E.g. a buffer size might
-    // be encoded in another argument.
-    virtual std::vector<ArgNo> getArgsToTrack() const { return {ArgN}; }
-
-    virtual StringRef getName() const = 0;
-
-    // Represents that in which context do we require a description of the
-    // constraint.
-    enum class DescriptionKind {
-      // The constraint is violated.
-      Violation,
-      // We assume that the constraint is satisfied.
-      Assumption
-    };
-
-    // Give a description that explains the constraint to the user. Used when
-    // the bug is reported.
-    virtual std::string describe(DescriptionKind DK, ProgramStateRef State,
-                                 const Summary &Summary) const {
-      // There are some descendant classes that are not used as argument
-      // constraints, e.g. ComparisonConstraint. In that case we can safely
-      // ignore the implementation of this function.
-      llvm_unreachable("Not implemented");
-    }
-
   protected:
-    ArgNo ArgN; // Argument to which we apply the constraint.
+    /// Argument to which to apply the constraint. It can be a real argument of
+    /// the function to check, or a special value to indicate the return value
+    /// of the function.
+    /// Every constraint is assigned to one main argument, even if other
+    /// arguments are involved.
+    ArgNo ArgN;
 
-    /// Do polymorphic validation check on the constraint.
+    /// Do constraint-specific validation check.
     virtual bool checkSpecificValidity(const FunctionDecl *FD) const {
       return true;
     }
   };
 
-  /// Given a range, should the argument stay inside or outside this range?
-  enum RangeKind { OutOfRange, WithinRange };
-
-  /// Encapsulates a range on a single symbol.
+  /// Check if a single argument falls into a specific "range".
+  /// A range is formed as a set of intervals.
+  /// E.g. \code {['A', 'Z'], ['a', 'z'], ['_', '_']} \endcode
+  /// The intervals are closed intervals that contain one or more values.
+  ///
+  /// The default constructed RangeConstraint has an empty range, applying
+  /// such constraint does not involve any assumptions, thus the State remains
+  /// unchanged. This is meaningful, if the range is dependent on a looked up
+  /// type (e.g. [0, Socklen_tMax]). If the type is not found, then the range
+  /// is default initialized to be empty.
   class RangeConstraint : public ValueConstraint {
+    /// The constraint can be specified by allowing or disallowing the range.
+    /// WithinRange indicates allowing the range, OutOfRange indicates
+    /// disallowing it (allowing the complementary range).
     RangeKind Kind;
-    // A range is formed as a set of intervals (sub-ranges).
-    // E.g. {['A', 'Z'], ['a', 'z']}
-    //
-    // The default constructed RangeConstraint has an empty range set, applying
-    // such constraint does not involve any assumptions, thus the State remains
-    // unchanged. This is meaningful, if the range is dependent on a looked up
-    // type (e.g. [0, Socklen_tMax]). If the type is not found, then the range
-    // is default initialized to be empty.
+
+    /// A set of intervals.
     IntRangeVector Ranges;
 
-  public:
-    StringRef getName() const override { return "Range"; }
-    RangeConstraint(ArgNo ArgN, RangeKind Kind, const IntRangeVector &Ranges)
-        : ValueConstraint(ArgN), Kind(Kind), Ranges(Ranges) {}
+    /// A textual description of this constraint for the specific case where the
+    /// constraint is used. If empty a generated description will be used that
+    /// is built from the range of the constraint.
+    StringRef Description;
 
-    std::string describe(DescriptionKind DK, ProgramStateRef State,
-                         const Summary &Summary) const override;
+  public:
+    RangeConstraint(ArgNo ArgN, RangeKind Kind, const IntRangeVector &Ranges,
+                    StringRef Desc = "")
+        : ValueConstraint(ArgN), Kind(Kind), Ranges(Ranges), Description(Desc) {
+    }
 
     const IntRangeVector &getRanges() const { return Ranges; }
 
-  private:
-    ProgramStateRef applyAsOutOfRange(ProgramStateRef State,
-                                      const CallEvent &Call,
-                                      const Summary &Summary) const;
-    ProgramStateRef applyAsWithinRange(ProgramStateRef State,
-                                       const CallEvent &Call,
-                                       const Summary &Summary) const;
-
-  public:
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
-                          CheckerContext &C) const override {
-      switch (Kind) {
-      case OutOfRange:
-        return applyAsOutOfRange(State, Call, Summary);
-      case WithinRange:
-        return applyAsWithinRange(State, Call, Summary);
-      }
-      llvm_unreachable("Unknown range kind!");
-    }
+                          CheckerContext &C) const override;
+
+    void describe(DescriptionKind DK, const CallEvent &Call,
+                  ProgramStateRef State, const Summary &Summary,
+                  llvm::raw_ostream &Out) const override;
+
+    bool describeArgumentValue(const CallEvent &Call, ProgramStateRef State,
+                               const Summary &Summary,
+                               llvm::raw_ostream &Out) const override;
 
     ValueConstraintPtr negate() const override {
       RangeConstraint Tmp(*this);
-      switch (Kind) {
-      case OutOfRange:
-        Tmp.Kind = WithinRange;
-        break;
-      case WithinRange:
-        Tmp.Kind = OutOfRange;
-        break;
-      }
+      Tmp.Kind = negateKind(Kind);
       return std::make_shared<RangeConstraint>(Tmp);
     }
 
+  protected:
     bool checkSpecificValidity(const FunctionDecl *FD) const override {
       const bool ValidArg =
           getArgType(FD, ArgN)->isIntegralType(FD->getASTContext());
@@ -229,14 +303,52 @@ class StdLibraryFunctionsChecker
              "This constraint should be applied on an integral type");
       return ValidArg;
     }
+
+  private:
+    /// A callback function that is used when iterating over the range
+    /// intervals. It gets the begin and end (inclusive) of one interval.
+    /// This is used to make any kind of task possible that needs an iteration
+    /// over the intervals.
+    using RangeApplyFunction =
+        std::function<bool(const llvm::APSInt &Min, const llvm::APSInt &Max)>;
+
+    /// Call a function on the intervals of the range.
+    /// The function is called with all intervals in the range.
+    void applyOnWithinRange(BasicValueFactory &BVF, QualType ArgT,
+                            const RangeApplyFunction &F) const;
+    /// Call a function on all intervals in the complementary range.
+    /// The function is called with all intervals that fall out of the range.
+    /// E.g. consider an interval list [A, B] and [C, D]
+    /// \code
+    /// -------+--------+------------------+------------+----------->
+    ///        A        B                  C            D
+    /// \endcode
+    /// We get the ranges [-inf, A - 1], [D + 1, +inf], [B + 1, C - 1].
+    /// The \p ArgT is used to determine the min and max of the type that is
+    /// used as "-inf" and "+inf".
+    void applyOnOutOfRange(BasicValueFactory &BVF, QualType ArgT,
+                           const RangeApplyFunction &F) const;
+    /// Call a function on the intervals of the range or the complementary
+    /// range.
+    void applyOnRange(RangeKind Kind, BasicValueFactory &BVF, QualType ArgT,
+                      const RangeApplyFunction &F) const {
+      switch (Kind) {
+      case OutOfRange:
+        applyOnOutOfRange(BVF, ArgT, F);
+        break;
+      case WithinRange:
+        applyOnWithinRange(BVF, ArgT, F);
+        break;
+      };
+    }
   };
 
+  /// Check relation of an argument to another.
   class ComparisonConstraint : public ValueConstraint {
     BinaryOperator::Opcode Opcode;
     ArgNo OtherArgN;
 
   public:
-    StringRef getName() const override { return "Comparison"; };
     ComparisonConstraint(ArgNo ArgN, BinaryOperator::Opcode Opcode,
                          ArgNo OtherArgN)
         : ValueConstraint(ArgN), Opcode(Opcode), OtherArgN(OtherArgN) {}
@@ -247,28 +359,27 @@ class StdLibraryFunctionsChecker
                           CheckerContext &C) const override;
   };
 
+  /// Check null or non-null-ness of an argument that is of pointer type.
   class NotNullConstraint : public ValueConstraint {
     using ValueConstraint::ValueConstraint;
     // This variable has a role when we negate the constraint.
     bool CannotBeNull = true;
 
   public:
-    std::string describe(DescriptionKind DK, ProgramStateRef State,
-                         const Summary &Summary) const override;
-    StringRef getName() const override { return "NonNull"; }
+    NotNullConstraint(ArgNo ArgN, bool CannotBeNull = true)
+        : ValueConstraint(ArgN), CannotBeNull(CannotBeNull) {}
+
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
-                          CheckerContext &C) const override {
-      SVal V = getArgSVal(Call, getArgNo());
-      if (V.isUndef())
-        return State;
+                          CheckerContext &C) const override;
 
-      DefinedOrUnknownSVal L = V.castAs<DefinedOrUnknownSVal>();
-      if (!isa<Loc>(L))
-        return State;
+    void describe(DescriptionKind DK, const CallEvent &Call,
+                  ProgramStateRef State, const Summary &Summary,
+                  llvm::raw_ostream &Out) const override;
 
-      return State->assume(L, CannotBeNull);
-    }
+    bool describeArgumentValue(const CallEvent &Call, ProgramStateRef State,
+                               const Summary &Summary,
+                               llvm::raw_ostream &Out) const override;
 
     ValueConstraintPtr negate() const override {
       NotNullConstraint Tmp(*this);
@@ -276,6 +387,7 @@ class StdLibraryFunctionsChecker
       return std::make_shared<NotNullConstraint>(Tmp);
     }
 
+  protected:
     bool checkSpecificValidity(const FunctionDecl *FD) const override {
       const bool ValidArg = getArgType(FD, ArgN)->isPointerType();
       assert(ValidArg &&
@@ -296,18 +408,17 @@ class StdLibraryFunctionsChecker
   //   // Here, ptr is the buffer, and its minimum size is `size * nmemb`.
   class BufferSizeConstraint : public ValueConstraint {
     // The concrete value which is the minimum size for the buffer.
-    llvm::Optional<llvm::APSInt> ConcreteSize;
+    std::optional<llvm::APSInt> ConcreteSize;
     // The argument which holds the size of the buffer.
-    llvm::Optional<ArgNo> SizeArgN;
+    std::optional<ArgNo> SizeArgN;
     // The argument which is a multiplier to size. This is set in case of
     // `fread` like functions where the size is computed as a multiplication of
     // two arguments.
-    llvm::Optional<ArgNo> SizeMultiplierArgN;
+    std::optional<ArgNo> SizeMultiplierArgN;
     // The operator we use in apply. This is negated in negate().
     BinaryOperator::Opcode Op = BO_LE;
 
   public:
-    StringRef getName() const override { return "BufferSize"; }
     BufferSizeConstraint(ArgNo Buffer, llvm::APSInt BufMinSize)
         : ValueConstraint(Buffer), ConcreteSize(BufMinSize) {}
     BufferSizeConstraint(ArgNo Buffer, ArgNo BufSize)
@@ -315,6 +426,14 @@ class StdLibraryFunctionsChecker
     BufferSizeConstraint(ArgNo Buffer, ArgNo BufSize, ArgNo BufSizeMultiplier)
         : ValueConstraint(Buffer), SizeArgN(BufSize),
           SizeMultiplierArgN(BufSizeMultiplier) {}
+
+    ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
+                          const Summary &Summary,
+                          CheckerContext &C) const override;
+
+    void describe(DescriptionKind DK, const CallEvent &Call,
+                  ProgramStateRef State, const Summary &Summary,
+                  llvm::raw_ostream &Out) const override;
 
     std::vector<ArgNo> getArgsToTrack() const override {
       std::vector<ArgNo> Result{ArgN};
@@ -325,57 +444,13 @@ class StdLibraryFunctionsChecker
       return Result;
     }
 
-    std::string describe(DescriptionKind DK, ProgramStateRef State,
-                         const Summary &Summary) const override;
-
-    ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
-                          const Summary &Summary,
-                          CheckerContext &C) const override {
-      SValBuilder &SvalBuilder = C.getSValBuilder();
-      // The buffer argument.
-      SVal BufV = getArgSVal(Call, getArgNo());
-
-      // Get the size constraint.
-      const SVal SizeV = [this, &State, &Call, &Summary, &SvalBuilder]() {
-        if (ConcreteSize) {
-          return SVal(SvalBuilder.makeIntVal(*ConcreteSize));
-        }
-        assert(SizeArgN && "The constraint must be either a concrete value or "
-                           "encoded in an argument.");
-        // The size argument.
-        SVal SizeV = getArgSVal(Call, *SizeArgN);
-        // Multiply with another argument if given.
-        if (SizeMultiplierArgN) {
-          SVal SizeMulV = getArgSVal(Call, *SizeMultiplierArgN);
-          SizeV = SvalBuilder.evalBinOp(State, BO_Mul, SizeV, SizeMulV,
-                                        Summary.getArgType(*SizeArgN));
-        }
-        return SizeV;
-      }();
-
-      // The dynamic size of the buffer argument, got from the analyzer engine.
-      SVal BufDynSize = getDynamicExtentWithOffset(State, BufV);
-
-      SVal Feasible = SvalBuilder.evalBinOp(State, Op, SizeV, BufDynSize,
-                                            SvalBuilder.getContext().BoolTy);
-      if (auto F = Feasible.getAs<DefinedOrUnknownSVal>())
-        return State->assume(*F, true);
-
-      // We can get here only if the size argument or the dynamic size is
-      // undefined. But the dynamic size should never be undefined, only
-      // unknown. So, here, the size of the argument is undefined, i.e. we
-      // cannot apply the constraint. Actually, other checkers like
-      // CallAndMessage should catch this situation earlier, because we call a
-      // function with an uninitialized argument.
-      llvm_unreachable("Size argument or the dynamic size is Undefined");
-    }
-
     ValueConstraintPtr negate() const override {
       BufferSizeConstraint Tmp(*this);
       Tmp.Op = BinaryOperator::negateComparisonOp(Op);
       return std::make_shared<BufferSizeConstraint>(Tmp);
     }
 
+  protected:
     bool checkSpecificValidity(const FunctionDecl *FD) const override {
       const bool ValidArg = getArgType(FD, ArgN)->isPointerType();
       assert(ValidArg &&
@@ -418,6 +493,31 @@ class StdLibraryFunctionsChecker
     static int Tag;
   };
 
+  /// Reset errno constraints to irrelevant.
+  /// This is applicable to functions that may change 'errno' and are not
+  /// modeled elsewhere.
+  class ResetErrnoConstraint : public ErrnoConstraintBase {
+  public:
+    ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
+                          const Summary &Summary,
+                          CheckerContext &C) const override {
+      return errno_modeling::setErrnoState(State, errno_modeling::Irrelevant);
+    }
+  };
+
+  /// Do not change errno constraints.
+  /// This is applicable to functions that are modeled in another checker
+  /// and the already set errno constraints should not be changed in the
+  /// post-call event.
+  class NoErrnoConstraint : public ErrnoConstraintBase {
+  public:
+    ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
+                          const Summary &Summary,
+                          CheckerContext &C) const override {
+      return State;
+    }
+  };
+
   /// Set errno constraint at failure cases of standard functions.
   /// Failure case: 'errno' becomes not equal to 0 and may or may not be checked
   /// by the program. \c ErrnoChecker does not emit a bug report after such a
@@ -455,14 +555,18 @@ class StdLibraryFunctionsChecker
     }
   };
 
-  /// Set errno constraints if use of 'errno' is irrelevant to the
-  /// modeled function or modeling is not possible.
-  class NoErrnoConstraint : public ErrnoConstraintBase {
+  class ErrnoMustBeCheckedConstraint : public ErrnoConstraintBase {
   public:
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
                           CheckerContext &C) const override {
-      return errno_modeling::setErrnoState(State, errno_modeling::Irrelevant);
+      return errno_modeling::setErrnoStdMustBeChecked(State, C,
+                                                      Call.getOriginExpr());
+    }
+
+    const NoteTag *describe(CheckerContext &C,
+                            StringRef FunctionName) const override {
+      return errno_modeling::getNoteTagForStdMustBeChecked(C, FunctionName);
     }
   };
 
@@ -509,8 +613,8 @@ class StdLibraryFunctionsChecker
     StringRef getNote() const { return Note; }
   };
 
-  using ArgTypes = std::vector<Optional<QualType>>;
-  using RetType = Optional<QualType>;
+  using ArgTypes = std::vector<std::optional<QualType>>;
+  using RetType = std::optional<QualType>;
 
   // A placeholder type, we use it whenever we do not care about the concrete
   // type in a Signature.
@@ -532,7 +636,7 @@ class StdLibraryFunctionsChecker
     // Construct a signature from optional types. If any of the optional types
     // are not set then the signature will be invalid.
     Signature(ArgTypes ArgTys, RetType RetTy) {
-      for (Optional<QualType> Arg : ArgTys) {
+      for (std::optional<QualType> Arg : ArgTys) {
         if (!Arg) {
           Invalid = true;
           return;
@@ -666,6 +770,11 @@ class StdLibraryFunctionsChecker
   static SVal getArgSVal(const CallEvent &Call, ArgNo ArgN) {
     return ArgN == Ret ? Call.getReturnValue() : Call.getArgSVal(ArgN);
   }
+  static std::string getFunctionName(const CallEvent &Call) {
+    assert(Call.getDecl() &&
+           "Call was found by a summary, should have declaration");
+    return cast<NamedDecl>(Call.getDecl())->getNameAsString();
+  }
 
 public:
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
@@ -685,40 +794,46 @@ public:
   bool ShouldAssumeControlledEnvironment = false;
 
 private:
-  Optional<Summary> findFunctionSummary(const FunctionDecl *FD,
-                                        CheckerContext &C) const;
-  Optional<Summary> findFunctionSummary(const CallEvent &Call,
-                                        CheckerContext &C) const;
+  std::optional<Summary> findFunctionSummary(const FunctionDecl *FD,
+                                             CheckerContext &C) const;
+  std::optional<Summary> findFunctionSummary(const CallEvent &Call,
+                                             CheckerContext &C) const;
 
   void initFunctionSummaries(CheckerContext &C) const;
 
   void reportBug(const CallEvent &Call, ExplodedNode *N,
-                 const ValueConstraint *VC, const Summary &Summary,
-                 CheckerContext &C) const {
+                 const ValueConstraint *VC, const ValueConstraint *NegatedVC,
+                 const Summary &Summary, CheckerContext &C) const {
     if (!ChecksEnabled[CK_StdCLibraryFunctionArgsChecker])
       return;
-    std::string Msg =
-        (Twine("Function argument constraint is not satisfied, constraint: ") +
-         VC->getName().data())
-            .str();
+    assert(Call.getDecl() &&
+           "Function found in summary must have a declaration available");
+    SmallString<256> Msg;
+    llvm::raw_svector_ostream MsgOs(Msg);
+
+    MsgOs << "The ";
+    printArgDesc(VC->getArgNo(), MsgOs);
+    MsgOs << " to '" << getFunctionName(Call) << "' ";
+    bool ValuesPrinted =
+        NegatedVC->describeArgumentValue(Call, N->getState(), Summary, MsgOs);
+    if (ValuesPrinted)
+      MsgOs << " but ";
+    else
+      MsgOs << "is out of the accepted range; It ";
+    VC->describe(ValueConstraint::Violation, Call, C.getState(), Summary,
+                 MsgOs);
+    Msg[0] = toupper(Msg[0]);
     if (!BT_InvalidArg)
       BT_InvalidArg = std::make_unique<BugType>(
           CheckNames[CK_StdCLibraryFunctionArgsChecker],
-          "Unsatisfied argument constraints", categories::LogicError);
+          "Function call with invalid argument", categories::LogicError);
     auto R = std::make_unique<PathSensitiveBugReport>(*BT_InvalidArg, Msg, N);
 
-    for (ArgNo ArgN : VC->getArgsToTrack())
+    for (ArgNo ArgN : VC->getArgsToTrack()) {
       bugreporter::trackExpressionValue(N, Call.getArgExpr(ArgN), *R);
-
-    // Highlight the range of the argument that was violated.
-    R->addRange(Call.getArgSourceRange(VC->getArgNo()));
-
-    // Describe the argument constraint violation in a note.
-    std::string Descr = VC->describe(
-        ValueConstraint::DescriptionKind::Violation, C.getState(), Summary);
-    // Capitalize the first letter b/c we want a full sentence.
-    Descr[0] = toupper(Descr[0]);
-    R->addNote(Descr, R->getLocation(), Call.getArgSourceRange(VC->getArgNo()));
+      // All tracked arguments are important, highlight them.
+      R->addRange(Call.getArgSourceRange(ArgN));
+    }
 
     C.emitReport(std::move(R));
   }
@@ -728,7 +843,9 @@ private:
   /// Usually if a failure return value exists for function, that function
   /// needs different cases for success and failure with different errno
   /// constraints (and different return value constraints).
-  const NoErrnoConstraint ErrnoIrrelevant{};
+  const NoErrnoConstraint ErrnoUnchanged{};
+  const ResetErrnoConstraint ErrnoIrrelevant{};
+  const ErrnoMustBeCheckedConstraint ErrnoMustBeChecked{};
   const SuccessErrnoConstraint ErrnoMustNotBeChecked{};
   const FailureErrnoConstraint ErrnoNEZeroIrrelevant{};
 };
@@ -738,177 +855,221 @@ int StdLibraryFunctionsChecker::ErrnoConstraintBase::Tag = 0;
 const StdLibraryFunctionsChecker::ArgNo StdLibraryFunctionsChecker::Ret =
     std::numeric_limits<ArgNo>::max();
 
-} // end of anonymous namespace
-
 static BasicValueFactory &getBVF(ProgramStateRef State) {
   ProgramStateManager &Mgr = State->getStateManager();
   SValBuilder &SVB = Mgr.getSValBuilder();
   return SVB.getBasicValueFactory();
 }
 
-std::string StdLibraryFunctionsChecker::NotNullConstraint::describe(
-    DescriptionKind DK, ProgramStateRef State, const Summary &Summary) const {
-  SmallString<48> Result;
-  const auto Violation = ValueConstraint::DescriptionKind::Violation;
-  Result += "the ";
-  Result += getArgDesc(ArgN);
-  Result += DK == Violation ? " should not be NULL" : " is not NULL";
-  return Result.c_str();
+} // end of anonymous namespace
+
+void StdLibraryFunctionsChecker::printArgDesc(
+    StdLibraryFunctionsChecker::ArgNo ArgN, llvm::raw_ostream &Out) {
+  Out << std::to_string(ArgN + 1);
+  Out << llvm::getOrdinalSuffix(ArgN + 1);
+  Out << " argument";
 }
 
-std::string StdLibraryFunctionsChecker::RangeConstraint::describe(
-    DescriptionKind DK, ProgramStateRef State, const Summary &Summary) const {
-
-  BasicValueFactory &BVF = getBVF(State);
-
-  QualType T = Summary.getArgType(getArgNo());
-  SmallString<48> Result;
-  const auto Violation = ValueConstraint::DescriptionKind::Violation;
-  Result += "the ";
-  Result += getArgDesc(ArgN);
-  Result += DK == Violation ? " should be " : " is ";
-
-  // Range kind as a string.
-  Kind == OutOfRange ? Result += "out of" : Result += "within";
-
-  // Get the range values as a string.
-  Result += " the range ";
-  if (Ranges.size() > 1)
-    Result += "[";
-  unsigned I = Ranges.size();
-  for (const std::pair<RangeInt, RangeInt> &R : Ranges) {
-    Result += "[";
-    const llvm::APSInt &Min = BVF.getValue(R.first, T);
-    const llvm::APSInt &Max = BVF.getValue(R.second, T);
-    Min.toString(Result);
-    Result += ", ";
-    Max.toString(Result);
-    Result += "]";
-    if (--I > 0)
-      Result += ", ";
+void StdLibraryFunctionsChecker::appendInsideRangeDesc(llvm::APSInt RMin,
+                                                       llvm::APSInt RMax,
+                                                       QualType ArgT,
+                                                       BasicValueFactory &BVF,
+                                                       llvm::raw_ostream &Out) {
+  if (RMin.isZero() && RMax.isZero())
+    Out << "zero";
+  else if (RMin == RMax)
+    Out << RMin;
+  else if (RMin == BVF.getMinValue(ArgT)) {
+    if (RMax == -1)
+      Out << "< 0";
+    else
+      Out << "<= " << RMax;
+  } else if (RMax == BVF.getMaxValue(ArgT)) {
+    if (RMin.isOne())
+      Out << "> 0";
+    else
+      Out << ">= " << RMin;
+  } else if (RMin.isNegative() == RMax.isNegative() &&
+             RMin.getLimitedValue() == RMax.getLimitedValue() - 1) {
+    Out << RMin << " or " << RMax;
+  } else {
+    Out << "between " << RMin << " and " << RMax;
   }
-  if (Ranges.size() > 1)
-    Result += "]";
-
-  return Result.c_str();
 }
 
-SmallString<8>
-StdLibraryFunctionsChecker::getArgDesc(StdLibraryFunctionsChecker::ArgNo ArgN) {
-  SmallString<8> Result;
-  Result += std::to_string(ArgN + 1);
-  Result += llvm::getOrdinalSuffix(ArgN + 1);
-  Result += " argument";
-  return Result;
+void StdLibraryFunctionsChecker::appendOutOfRangeDesc(llvm::APSInt RMin,
+                                                      llvm::APSInt RMax,
+                                                      QualType ArgT,
+                                                      BasicValueFactory &BVF,
+                                                      llvm::raw_ostream &Out) {
+  if (RMin.isZero() && RMax.isZero())
+    Out << "nonzero";
+  else if (RMin == RMax) {
+    Out << "not equal to " << RMin;
+  } else if (RMin == BVF.getMinValue(ArgT)) {
+    if (RMax == -1)
+      Out << ">= 0";
+    else
+      Out << "> " << RMax;
+  } else if (RMax == BVF.getMaxValue(ArgT)) {
+    if (RMin.isOne())
+      Out << "<= 0";
+    else
+      Out << "< " << RMin;
+  } else if (RMin.isNegative() == RMax.isNegative() &&
+             RMin.getLimitedValue() == RMax.getLimitedValue() - 1) {
+    Out << "not " << RMin << " and not " << RMax;
+  } else {
+    Out << "not between " << RMin << " and " << RMax;
+  }
 }
 
-std::string StdLibraryFunctionsChecker::BufferSizeConstraint::describe(
-    DescriptionKind DK, ProgramStateRef State, const Summary &Summary) const {
-  SmallString<96> Result;
-  const auto Violation = ValueConstraint::DescriptionKind::Violation;
-  Result += "the size of the ";
-  Result += getArgDesc(ArgN);
-  Result += DK == Violation ? " should be " : " is ";
-  Result += "equal to or greater than the value of ";
-  if (ConcreteSize) {
-    ConcreteSize->toString(Result);
-  } else if (SizeArgN) {
-    Result += "the ";
-    Result += getArgDesc(*SizeArgN);
-    if (SizeMultiplierArgN) {
-      Result += " times the ";
-      Result += getArgDesc(*SizeMultiplierArgN);
+void StdLibraryFunctionsChecker::RangeConstraint::applyOnWithinRange(
+    BasicValueFactory &BVF, QualType ArgT, const RangeApplyFunction &F) const {
+  if (Ranges.empty())
+    return;
+
+  const IntRangeVector &R = getRanges();
+  size_t E = R.size();
+  for (size_t I = 0; I != E; ++I) {
+    const llvm::APSInt &Min = BVF.getValue(R[I].first, ArgT);
+    const llvm::APSInt &Max = BVF.getValue(R[I].second, ArgT);
+    assert(Min <= Max);
+    if (!F(Min, Max))
+      return;
+  }
+}
+
+void StdLibraryFunctionsChecker::RangeConstraint::applyOnOutOfRange(
+    BasicValueFactory &BVF, QualType ArgT, const RangeApplyFunction &F) const {
+  if (Ranges.empty())
+    return;
+
+  const IntRangeVector &R = getRanges();
+  size_t E = R.size();
+
+  const llvm::APSInt &MinusInf = BVF.getMinValue(ArgT);
+  const llvm::APSInt &PlusInf = BVF.getMaxValue(ArgT);
+
+  const llvm::APSInt &RangeLeft = BVF.getValue(R[0].first - 1ULL, ArgT);
+  const llvm::APSInt &RangeRight = BVF.getValue(R[E - 1].second + 1ULL, ArgT);
+
+  // Iterate over the "holes" between intervals.
+  for (size_t I = 1; I != E; ++I) {
+    const llvm::APSInt &Min = BVF.getValue(R[I - 1].second + 1ULL, ArgT);
+    const llvm::APSInt &Max = BVF.getValue(R[I].first - 1ULL, ArgT);
+    if (Min <= Max) {
+      if (!F(Min, Max))
+        return;
     }
   }
-  return Result.c_str();
+  // Check the interval [T_MIN, min(R) - 1].
+  if (RangeLeft != PlusInf) {
+    assert(MinusInf <= RangeLeft);
+    if (!F(MinusInf, RangeLeft))
+      return;
+  }
+  // Check the interval [max(R) + 1, T_MAX],
+  if (RangeRight != MinusInf) {
+    assert(RangeRight <= PlusInf);
+    if (!F(RangeRight, PlusInf))
+      return;
+  }
 }
 
-ProgramStateRef StdLibraryFunctionsChecker::RangeConstraint::applyAsOutOfRange(
-    ProgramStateRef State, const CallEvent &Call,
-    const Summary &Summary) const {
-  if (Ranges.empty())
-    return State;
-
-  ProgramStateManager &Mgr = State->getStateManager();
-  SValBuilder &SVB = Mgr.getSValBuilder();
-  BasicValueFactory &BVF = SVB.getBasicValueFactory();
-  ConstraintManager &CM = Mgr.getConstraintManager();
-  QualType T = Summary.getArgType(getArgNo());
+ProgramStateRef StdLibraryFunctionsChecker::RangeConstraint::apply(
+    ProgramStateRef State, const CallEvent &Call, const Summary &Summary,
+    CheckerContext &C) const {
+  ConstraintManager &CM = C.getConstraintManager();
   SVal V = getArgSVal(Call, getArgNo());
+  QualType T = Summary.getArgType(getArgNo());
 
   if (auto N = V.getAs<NonLoc>()) {
-    const IntRangeVector &R = getRanges();
-    size_t E = R.size();
-    for (size_t I = 0; I != E; ++I) {
-      const llvm::APSInt &Min = BVF.getValue(R[I].first, T);
-      const llvm::APSInt &Max = BVF.getValue(R[I].second, T);
-      assert(Min <= Max);
+    auto ExcludeRangeFromArg = [&](const llvm::APSInt &Min,
+                                   const llvm::APSInt &Max) {
       State = CM.assumeInclusiveRange(State, *N, Min, Max, false);
-      if (!State)
-        break;
-    }
+      return static_cast<bool>(State);
+    };
+    // "OutOfRange R" is handled by excluding all ranges in R.
+    // "WithinRange R" is treated as "OutOfRange [T_MIN, T_MAX] \ R".
+    applyOnRange(negateKind(Kind), C.getSValBuilder().getBasicValueFactory(), T,
+                 ExcludeRangeFromArg);
   }
 
   return State;
 }
 
-ProgramStateRef StdLibraryFunctionsChecker::RangeConstraint::applyAsWithinRange(
-    ProgramStateRef State, const CallEvent &Call,
-    const Summary &Summary) const {
-  if (Ranges.empty())
-    return State;
+void StdLibraryFunctionsChecker::RangeConstraint::describe(
+    DescriptionKind DK, const CallEvent &Call, ProgramStateRef State,
+    const Summary &Summary, llvm::raw_ostream &Out) const {
 
-  ProgramStateManager &Mgr = State->getStateManager();
-  SValBuilder &SVB = Mgr.getSValBuilder();
-  BasicValueFactory &BVF = SVB.getBasicValueFactory();
-  ConstraintManager &CM = Mgr.getConstraintManager();
+  BasicValueFactory &BVF = getBVF(State);
   QualType T = Summary.getArgType(getArgNo());
-  SVal V = getArgSVal(Call, getArgNo());
 
-  // "WithinRange R" is treated as "outside [T_MIN, T_MAX] \ R".
-  // We cut off [T_MIN, min(R) - 1] and [max(R) + 1, T_MAX] if necessary,
-  // and then cut away all holes in R one by one.
-  //
-  // E.g. consider a range list R as [A, B] and [C, D]
-  // -------+--------+------------------+------------+----------->
-  //        A        B                  C            D
-  // Then we assume that the value is not in [-inf, A - 1],
-  // then not in [D + 1, +inf], then not in [B + 1, C - 1]
-  if (auto N = V.getAs<NonLoc>()) {
-    const IntRangeVector &R = getRanges();
-    size_t E = R.size();
-
-    const llvm::APSInt &MinusInf = BVF.getMinValue(T);
-    const llvm::APSInt &PlusInf = BVF.getMaxValue(T);
-
-    const llvm::APSInt &Left = BVF.getValue(R[0].first - 1ULL, T);
-    if (Left != PlusInf) {
-      assert(MinusInf <= Left);
-      State = CM.assumeInclusiveRange(State, *N, MinusInf, Left, false);
-      if (!State)
-        return nullptr;
-    }
-
-    const llvm::APSInt &Right = BVF.getValue(R[E - 1].second + 1ULL, T);
-    if (Right != MinusInf) {
-      assert(Right <= PlusInf);
-      State = CM.assumeInclusiveRange(State, *N, Right, PlusInf, false);
-      if (!State)
-        return nullptr;
-    }
-
-    for (size_t I = 1; I != E; ++I) {
-      const llvm::APSInt &Min = BVF.getValue(R[I - 1].second + 1ULL, T);
-      const llvm::APSInt &Max = BVF.getValue(R[I].first - 1ULL, T);
-      if (Min <= Max) {
-        State = CM.assumeInclusiveRange(State, *N, Min, Max, false);
-        if (!State)
-          return nullptr;
+  Out << ((DK == Violation) ? "should be " : "is ");
+  if (!Description.empty()) {
+    Out << Description;
+  } else {
+    unsigned I = Ranges.size();
+    if (Kind == WithinRange) {
+      for (const std::pair<RangeInt, RangeInt> &R : Ranges) {
+        appendInsideRangeDesc(BVF.getValue(R.first, T),
+                              BVF.getValue(R.second, T), T, BVF, Out);
+        if (--I > 0)
+          Out << " or ";
+      }
+    } else {
+      for (const std::pair<RangeInt, RangeInt> &R : Ranges) {
+        appendOutOfRangeDesc(BVF.getValue(R.first, T),
+                             BVF.getValue(R.second, T), T, BVF, Out);
+        if (--I > 0)
+          Out << " and ";
       }
     }
   }
+}
 
-  return State;
+bool StdLibraryFunctionsChecker::RangeConstraint::describeArgumentValue(
+    const CallEvent &Call, ProgramStateRef State, const Summary &Summary,
+    llvm::raw_ostream &Out) const {
+  unsigned int NRanges = 0;
+  bool HaveAllRanges = true;
+
+  ProgramStateManager &Mgr = State->getStateManager();
+  BasicValueFactory &BVF = Mgr.getSValBuilder().getBasicValueFactory();
+  ConstraintManager &CM = Mgr.getConstraintManager();
+  SVal V = getArgSVal(Call, getArgNo());
+
+  if (auto N = V.getAs<NonLoc>()) {
+    if (const llvm::APSInt *Int = N->getAsInteger()) {
+      Out << "is ";
+      Out << *Int;
+      return true;
+    }
+    QualType T = Summary.getArgType(getArgNo());
+    SmallString<128> MoreInfo;
+    llvm::raw_svector_ostream MoreInfoOs(MoreInfo);
+    auto ApplyF = [&](const llvm::APSInt &Min, const llvm::APSInt &Max) {
+      if (CM.assumeInclusiveRange(State, *N, Min, Max, true)) {
+        if (NRanges > 0)
+          MoreInfoOs << " or ";
+        appendInsideRangeDesc(Min, Max, T, BVF, MoreInfoOs);
+        ++NRanges;
+      } else {
+        HaveAllRanges = false;
+      }
+      return true;
+    };
+
+    applyOnRange(Kind, BVF, T, ApplyF);
+    assert(NRanges > 0);
+    if (!HaveAllRanges || NRanges == 1) {
+      Out << "is ";
+      Out << MoreInfo;
+      return true;
+    }
+  }
+  return false;
 }
 
 ProgramStateRef StdLibraryFunctionsChecker::ComparisonConstraint::apply(
@@ -933,9 +1094,101 @@ ProgramStateRef StdLibraryFunctionsChecker::ComparisonConstraint::apply(
   return State;
 }
 
+ProgramStateRef StdLibraryFunctionsChecker::NotNullConstraint::apply(
+    ProgramStateRef State, const CallEvent &Call, const Summary &Summary,
+    CheckerContext &C) const {
+  SVal V = getArgSVal(Call, getArgNo());
+  if (V.isUndef())
+    return State;
+
+  DefinedOrUnknownSVal L = V.castAs<DefinedOrUnknownSVal>();
+  if (!isa<Loc>(L))
+    return State;
+
+  return State->assume(L, CannotBeNull);
+}
+
+void StdLibraryFunctionsChecker::NotNullConstraint::describe(
+    DescriptionKind DK, const CallEvent &Call, ProgramStateRef State,
+    const Summary &Summary, llvm::raw_ostream &Out) const {
+  assert(CannotBeNull &&
+         "Describe should not be used when the value must be NULL");
+  if (DK == Violation)
+    Out << "should not be NULL";
+  else
+    Out << "is not NULL";
+}
+
+bool StdLibraryFunctionsChecker::NotNullConstraint::describeArgumentValue(
+    const CallEvent &Call, ProgramStateRef State, const Summary &Summary,
+    llvm::raw_ostream &Out) const {
+  assert(!CannotBeNull && "This function is used when the value is NULL");
+  Out << "is NULL";
+  return true;
+}
+
+ProgramStateRef StdLibraryFunctionsChecker::BufferSizeConstraint::apply(
+    ProgramStateRef State, const CallEvent &Call, const Summary &Summary,
+    CheckerContext &C) const {
+  SValBuilder &SvalBuilder = C.getSValBuilder();
+  // The buffer argument.
+  SVal BufV = getArgSVal(Call, getArgNo());
+
+  // Get the size constraint.
+  const SVal SizeV = [this, &State, &Call, &Summary, &SvalBuilder]() {
+    if (ConcreteSize) {
+      return SVal(SvalBuilder.makeIntVal(*ConcreteSize));
+    }
+    assert(SizeArgN && "The constraint must be either a concrete value or "
+                       "encoded in an argument.");
+    // The size argument.
+    SVal SizeV = getArgSVal(Call, *SizeArgN);
+    // Multiply with another argument if given.
+    if (SizeMultiplierArgN) {
+      SVal SizeMulV = getArgSVal(Call, *SizeMultiplierArgN);
+      SizeV = SvalBuilder.evalBinOp(State, BO_Mul, SizeV, SizeMulV,
+                                    Summary.getArgType(*SizeArgN));
+    }
+    return SizeV;
+  }();
+
+  // The dynamic size of the buffer argument, got from the analyzer engine.
+  SVal BufDynSize = getDynamicExtentWithOffset(State, BufV);
+
+  SVal Feasible = SvalBuilder.evalBinOp(State, Op, SizeV, BufDynSize,
+                                        SvalBuilder.getContext().BoolTy);
+  if (auto F = Feasible.getAs<DefinedOrUnknownSVal>())
+    return State->assume(*F, true);
+
+  // We can get here only if the size argument or the dynamic size is
+  // undefined. But the dynamic size should never be undefined, only
+  // unknown. So, here, the size of the argument is undefined, i.e. we
+  // cannot apply the constraint. Actually, other checkers like
+  // CallAndMessage should catch this situation earlier, because we call a
+  // function with an uninitialized argument.
+  llvm_unreachable("Size argument or the dynamic size is Undefined");
+}
+
+void StdLibraryFunctionsChecker::BufferSizeConstraint::describe(
+    DescriptionKind DK, const CallEvent &Call, ProgramStateRef State,
+    const Summary &Summary, llvm::raw_ostream &Out) const {
+  Out << ((DK == Violation) ? "should be " : "is ");
+  Out << "a buffer with size equal to or greater than ";
+  if (ConcreteSize) {
+    Out << *ConcreteSize;
+  } else if (SizeArgN) {
+    Out << "the value of the ";
+    printArgDesc(*SizeArgN, Out);
+    if (SizeMultiplierArgN) {
+      Out << " times the ";
+      printArgDesc(*SizeMultiplierArgN, Out);
+    }
+  }
+}
+
 void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
                                               CheckerContext &C) const {
-  Optional<Summary> FoundSummary = findFunctionSummary(Call, C);
+  std::optional<Summary> FoundSummary = findFunctionSummary(Call, C);
   if (!FoundSummary)
     return;
 
@@ -945,13 +1198,15 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
   ProgramStateRef NewState = State;
   ExplodedNode *NewNode = C.getPredecessor();
   for (const ValueConstraintPtr &Constraint : Summary.getArgConstraints()) {
+    ValueConstraintPtr NegatedConstraint = Constraint->negate();
     ProgramStateRef SuccessSt = Constraint->apply(NewState, Call, Summary, C);
     ProgramStateRef FailureSt =
-        Constraint->negate()->apply(NewState, Call, Summary, C);
+        NegatedConstraint->apply(NewState, Call, Summary, C);
     // The argument constraint is not satisfied.
     if (FailureSt && !SuccessSt) {
-      if (ExplodedNode *N = C.generateErrorNode(NewState))
-        reportBug(Call, N, Constraint.get(), Summary, C);
+      if (ExplodedNode *N = C.generateErrorNode(State, NewNode))
+        reportBug(Call, N, Constraint.get(), NegatedConstraint.get(), Summary,
+                  C);
       break;
     }
     // We will apply the constraint even if we cannot reason about the
@@ -961,10 +1216,15 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
     assert(SuccessSt);
     NewState = SuccessSt;
     if (NewState != State) {
-      SmallString<64> Msg;
-      Msg += "Assuming ";
-      Msg += Constraint->describe(ValueConstraint::DescriptionKind::Assumption,
-                                  NewState, Summary);
+      SmallString<128> Msg;
+      llvm::raw_svector_ostream Os(Msg);
+      Os << "Assuming that the ";
+      printArgDesc(Constraint->getArgNo(), Os);
+      Os << " to '";
+      Os << getFunctionName(Call);
+      Os << "' ";
+      Constraint->describe(ValueConstraint::Assumption, Call, NewState, Summary,
+                           Os);
       const auto ArgSVal = Call.getArgSVal(Constraint->getArgNo());
       NewNode = C.addTransition(
           NewState, NewNode,
@@ -979,7 +1239,7 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
 
 void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
                                                CheckerContext &C) const {
-  Optional<Summary> FoundSummary = findFunctionSummary(Call, C);
+  std::optional<Summary> FoundSummary = findFunctionSummary(Call, C);
   if (!FoundSummary)
     return;
 
@@ -1018,13 +1278,23 @@ void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
             /*IsPrunable=*/true);
         C.addTransition(NewState, Tag);
       }
+    } else if (NewState == State) {
+      // It is possible that the function was evaluated in a checker callback
+      // where the state constraints are already applied, then no change happens
+      // here to the state (if the ErrnoConstraint did not change it either).
+      // If the evaluated function requires a NoteTag for errno change, it is
+      // added here.
+      if (const auto *D = dyn_cast_or_null<FunctionDecl>(Call.getDecl()))
+        if (const NoteTag *NT =
+                Case.getErrnoConstraint().describe(C, D->getNameAsString()))
+          C.addTransition(NewState, NT);
     }
   }
 }
 
 bool StdLibraryFunctionsChecker::evalCall(const CallEvent &Call,
                                           CheckerContext &C) const {
-  Optional<Summary> FoundSummary = findFunctionSummary(Call, C);
+  std::optional<Summary> FoundSummary = findFunctionSummary(Call, C);
   if (!FoundSummary)
     return false;
 
@@ -1091,26 +1361,26 @@ bool StdLibraryFunctionsChecker::Signature::matches(
   return true;
 }
 
-Optional<StdLibraryFunctionsChecker::Summary>
+std::optional<StdLibraryFunctionsChecker::Summary>
 StdLibraryFunctionsChecker::findFunctionSummary(const FunctionDecl *FD,
                                                 CheckerContext &C) const {
   if (!FD)
-    return None;
+    return std::nullopt;
 
   initFunctionSummaries(C);
 
   auto FSMI = FunctionSummaryMap.find(FD->getCanonicalDecl());
   if (FSMI == FunctionSummaryMap.end())
-    return None;
+    return std::nullopt;
   return FSMI->second;
 }
 
-Optional<StdLibraryFunctionsChecker::Summary>
+std::optional<StdLibraryFunctionsChecker::Summary>
 StdLibraryFunctionsChecker::findFunctionSummary(const CallEvent &Call,
                                                 CheckerContext &C) const {
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
   if (!FD)
-    return None;
+    return std::nullopt;
   return findFunctionSummary(FD, C);
 }
 
@@ -1131,11 +1401,11 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     LookupType(const ASTContext &ACtx) : ACtx(ACtx) {}
 
     // Find the type. If not found then the optional is not set.
-    llvm::Optional<QualType> operator()(StringRef Name) {
+    std::optional<QualType> operator()(StringRef Name) {
       IdentifierInfo &II = ACtx.Idents.get(Name);
       auto LookupRes = ACtx.getTranslationUnitDecl()->lookup(&II);
       if (LookupRes.empty())
-        return None;
+        return std::nullopt;
 
       // Prioritze typedef declarations.
       // This is needed in case of C struct typedefs. E.g.:
@@ -1153,7 +1423,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       for (Decl *D : LookupRes)
         if (auto *TD = dyn_cast<TypeDecl>(D))
           return ACtx.getTypeDeclType(TD).getCanonicalType();
-      return None;
+      return std::nullopt;
     }
   } lookupTy(ACtx);
 
@@ -1167,10 +1437,10 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     QualType operator()(QualType Ty) {
       return ACtx.getLangOpts().C99 ? ACtx.getRestrictType(Ty) : Ty;
     }
-    Optional<QualType> operator()(Optional<QualType> Ty) {
+    std::optional<QualType> operator()(std::optional<QualType> Ty) {
       if (Ty)
         return operator()(*Ty);
-      return None;
+      return std::nullopt;
     }
   } getRestrictTy(ACtx);
   class GetPointerTy {
@@ -1179,16 +1449,16 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   public:
     GetPointerTy(const ASTContext &ACtx) : ACtx(ACtx) {}
     QualType operator()(QualType Ty) { return ACtx.getPointerType(Ty); }
-    Optional<QualType> operator()(Optional<QualType> Ty) {
+    std::optional<QualType> operator()(std::optional<QualType> Ty) {
       if (Ty)
         return operator()(*Ty);
-      return None;
+      return std::nullopt;
     }
   } getPointerTy(ACtx);
   class {
   public:
-    Optional<QualType> operator()(Optional<QualType> Ty) {
-      return Ty ? Optional<QualType>(Ty->withConst()) : None;
+    std::optional<QualType> operator()(std::optional<QualType> Ty) {
+      return Ty ? std::optional<QualType>(Ty->withConst()) : std::nullopt;
     }
     QualType operator()(QualType Ty) { return Ty.withConst(); }
   } getConstTy;
@@ -1197,14 +1467,14 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
 
   public:
     GetMaxValue(BasicValueFactory &BVF) : BVF(BVF) {}
-    Optional<RangeInt> operator()(QualType Ty) {
+    std::optional<RangeInt> operator()(QualType Ty) {
       return BVF.getMaxValue(Ty).getLimitedValue();
     }
-    Optional<RangeInt> operator()(Optional<QualType> Ty) {
+    std::optional<RangeInt> operator()(std::optional<QualType> Ty) {
       if (Ty) {
         return operator()(*Ty);
       }
-      return None;
+      return std::nullopt;
     }
   } getMaxValue(BVF);
 
@@ -1260,7 +1530,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   // The platform dependent value of EOF.
   // Try our best to parse this from the Preprocessor, otherwise fallback to -1.
   const auto EOFv = [&C]() -> RangeInt {
-    if (const llvm::Optional<int> OptInt =
+    if (const std::optional<int> OptInt =
             tryExpandAsInteger("EOF", C.getPreprocessor()))
       return *OptInt;
     return -1;
@@ -1314,9 +1584,9 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   } addToFunctionSummaryMap(ACtx, FunctionSummaryMap, DisplayLoadedSummaries);
 
   // Below are helpers functions to create the summaries.
-  auto ArgumentCondition = [](ArgNo ArgN, RangeKind Kind,
-                              IntRangeVector Ranges) {
-    return std::make_shared<RangeConstraint>(ArgN, Kind, Ranges);
+  auto ArgumentCondition = [](ArgNo ArgN, RangeKind Kind, IntRangeVector Ranges,
+                              StringRef Desc = "") {
+    return std::make_shared<RangeConstraint>(ArgN, Kind, Ranges, Desc);
   };
   auto BufferSize = [](auto... Args) {
     return std::make_shared<BufferSizeConstraint>(Args...);
@@ -1333,13 +1603,13 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     auto operator()(RangeInt b, RangeInt e) {
       return IntRangeVector{std::pair<RangeInt, RangeInt>{b, e}};
     }
-    auto operator()(RangeInt b, Optional<RangeInt> e) {
+    auto operator()(RangeInt b, std::optional<RangeInt> e) {
       if (e)
         return IntRangeVector{std::pair<RangeInt, RangeInt>{b, *e}};
       return IntRangeVector{};
     }
     auto operator()(std::pair<RangeInt, RangeInt> i0,
-                    std::pair<RangeInt, Optional<RangeInt>> i1) {
+                    std::pair<RangeInt, std::optional<RangeInt>> i1) {
       if (i1.second)
         return IntRangeVector{i0, {i1.first, *(i1.second)}};
       return IntRangeVector{i0};
@@ -1352,10 +1622,18 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   auto NotNull = [&](ArgNo ArgN) {
     return std::make_shared<NotNullConstraint>(ArgN);
   };
+  auto IsNull = [&](ArgNo ArgN) {
+    return std::make_shared<NotNullConstraint>(ArgN, false);
+  };
 
-  Optional<QualType> FileTy = lookupTy("FILE");
-  Optional<QualType> FilePtrTy = getPointerTy(FileTy);
-  Optional<QualType> FilePtrRestrictTy = getRestrictTy(FilePtrTy);
+  std::optional<QualType> FileTy = lookupTy("FILE");
+  std::optional<QualType> FilePtrTy = getPointerTy(FileTy);
+  std::optional<QualType> FilePtrRestrictTy = getRestrictTy(FilePtrTy);
+
+  std::optional<QualType> FPosTTy = lookupTy("fpos_t");
+  std::optional<QualType> FPosTPtrTy = getPointerTy(FPosTTy);
+  std::optional<QualType> ConstFPosTPtrTy = getPointerTy(getConstTy(FPosTTy));
+  std::optional<QualType> FPosTPtrRestrictTy = getRestrictTy(FPosTPtrTy);
 
   // We are finally ready to define specifications for all supported functions.
   //
@@ -1391,8 +1669,9 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                    {{'0', '9'}, {'A', 'Z'}, {'a', 'z'}, {128, UCharRangeMax}}),
                ReturnValueCondition(WithinRange, SingleValue(0))},
               ErrnoIrrelevant, "Assuming the character is non-alphanumeric")
-          .ArgConstraint(ArgumentCondition(
-              0U, WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})));
+          .ArgConstraint(ArgumentCondition(0U, WithinRange,
+                                           {{EOFv, EOFv}, {0, UCharRangeMax}},
+                                           "an unsigned char value or EOF")));
   addToFunctionSummaryMap(
       "isalpha", Signature(ArgTypes{IntTy}, RetType{IntTy}),
       Summary(EvalCallAsPure)
@@ -1551,18 +1830,21 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   addToFunctionSummaryMap(
       "toupper", Signature(ArgTypes{IntTy}, RetType{IntTy}),
       Summary(EvalCallAsPure)
-          .ArgConstraint(ArgumentCondition(
-              0U, WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})));
+          .ArgConstraint(ArgumentCondition(0U, WithinRange,
+                                           {{EOFv, EOFv}, {0, UCharRangeMax}},
+                                           "an unsigned char value or EOF")));
   addToFunctionSummaryMap(
       "tolower", Signature(ArgTypes{IntTy}, RetType{IntTy}),
       Summary(EvalCallAsPure)
-          .ArgConstraint(ArgumentCondition(
-              0U, WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})));
+          .ArgConstraint(ArgumentCondition(0U, WithinRange,
+                                           {{EOFv, EOFv}, {0, UCharRangeMax}},
+                                           "an unsigned char value or EOF")));
   addToFunctionSummaryMap(
       "toascii", Signature(ArgTypes{IntTy}, RetType{IntTy}),
       Summary(EvalCallAsPure)
-          .ArgConstraint(ArgumentCondition(
-              0U, WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})));
+          .ArgConstraint(ArgumentCondition(0U, WithinRange,
+                                           {{EOFv, EOFv}, {0, UCharRangeMax}},
+                                           "an unsigned char value or EOF")));
 
   // The getc() family of functions that returns either a char or an EOF.
   addToFunctionSummaryMap(
@@ -1581,11 +1863,23 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   // read()-like functions that never return more than buffer size.
   auto FreadSummary =
       Summary(NoEvalCall)
-          .Case({ReturnValueCondition(LessThanOrEq, ArgNo(2)),
+          .Case({ArgumentCondition(1U, WithinRange, Range(1, SizeMax)),
+                 ArgumentCondition(2U, WithinRange, Range(1, SizeMax)),
+                 ReturnValueCondition(BO_LT, ArgNo(2)),
                  ReturnValueCondition(WithinRange, Range(0, SizeMax))},
-                ErrnoIrrelevant)
+                ErrnoNEZeroIrrelevant)
+          .Case({ArgumentCondition(1U, WithinRange, Range(1, SizeMax)),
+                 ReturnValueCondition(BO_EQ, ArgNo(2)),
+                 ReturnValueCondition(WithinRange, Range(0, SizeMax))},
+                ErrnoMustNotBeChecked)
+          .Case({ArgumentCondition(1U, WithinRange, SingleValue(0)),
+                 ReturnValueCondition(WithinRange, SingleValue(0))},
+                ErrnoMustNotBeChecked)
           .ArgConstraint(NotNull(ArgNo(0)))
           .ArgConstraint(NotNull(ArgNo(3)))
+          // FIXME: It should be allowed to have a null buffer if any of
+          // args 1 or 2 are zero. Remove NotNull check of arg 0, add a check
+          // for non-null buffer if non-zero size to BufferSizeConstraint?
           .ArgConstraint(BufferSize(/*Buffer=*/ArgNo(0), /*BufSize=*/ArgNo(1),
                                     /*BufSizeMultiplier=*/ArgNo(2)));
 
@@ -1604,8 +1898,8 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                                     RetType{SizeTy}),
                           FreadSummary);
 
-  Optional<QualType> Ssize_tTy = lookupTy("ssize_t");
-  Optional<RangeInt> Ssize_tMax = getMaxValue(Ssize_tTy);
+  std::optional<QualType> Ssize_tTy = lookupTy("ssize_t");
+  std::optional<RangeInt> Ssize_tMax = getMaxValue(Ssize_tTy);
 
   auto ReadSummary =
       Summary(NoEvalCall)
@@ -1671,6 +1965,142 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   }
 
   if (ModelPOSIX) {
+    const auto ReturnsZeroOrMinusOne =
+        ConstraintSet{ReturnValueCondition(WithinRange, Range(-1, 0))};
+    const auto ReturnsZero =
+        ConstraintSet{ReturnValueCondition(WithinRange, SingleValue(0))};
+    const auto ReturnsMinusOne =
+        ConstraintSet{ReturnValueCondition(WithinRange, SingleValue(-1))};
+    const auto ReturnsNonnegative =
+        ConstraintSet{ReturnValueCondition(WithinRange, Range(0, IntMax))};
+    const auto ReturnsNonZero =
+        ConstraintSet{ReturnValueCondition(OutOfRange, SingleValue(0))};
+    const auto ReturnsFileDescriptor =
+        ConstraintSet{ReturnValueCondition(WithinRange, Range(-1, IntMax))};
+    const auto &ReturnsValidFileDescriptor = ReturnsNonnegative;
+
+    // FILE *fopen(const char *restrict pathname, const char *restrict mode);
+    addToFunctionSummaryMap(
+        "fopen",
+        Signature(ArgTypes{ConstCharPtrRestrictTy, ConstCharPtrRestrictTy},
+                  RetType{FilePtrTy}),
+        Summary(NoEvalCall)
+            .Case({NotNull(Ret)}, ErrnoMustNotBeChecked)
+            .Case({IsNull(Ret)}, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0)))
+            .ArgConstraint(NotNull(ArgNo(1))));
+
+    // FILE *tmpfile(void);
+    addToFunctionSummaryMap("tmpfile",
+                            Signature(ArgTypes{}, RetType{FilePtrTy}),
+                            Summary(NoEvalCall)
+                                .Case({NotNull(Ret)}, ErrnoMustNotBeChecked)
+                                .Case({IsNull(Ret)}, ErrnoNEZeroIrrelevant));
+
+    // FILE *freopen(const char *restrict pathname, const char *restrict mode,
+    //               FILE *restrict stream);
+    addToFunctionSummaryMap(
+        "freopen",
+        Signature(ArgTypes{ConstCharPtrRestrictTy, ConstCharPtrRestrictTy,
+                           FilePtrRestrictTy},
+                  RetType{FilePtrTy}),
+        Summary(NoEvalCall)
+            .Case({ReturnValueCondition(BO_EQ, ArgNo(2))},
+                  ErrnoMustNotBeChecked)
+            .Case({IsNull(Ret)}, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(1)))
+            .ArgConstraint(NotNull(ArgNo(2))));
+
+    // int fclose(FILE *stream);
+    addToFunctionSummaryMap(
+        "fclose", Signature(ArgTypes{FilePtrTy}, RetType{IntTy}),
+        Summary(NoEvalCall)
+            .Case(ReturnsZero, ErrnoMustNotBeChecked)
+            .Case({ReturnValueCondition(WithinRange, SingleValue(EOFv))},
+                  ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0))));
+
+    // int fseek(FILE *stream, long offset, int whence);
+    // FIXME: It can be possible to get the 'SEEK_' values (like EOFv) and use
+    // these for condition of arg 2.
+    // Now the range [0,2] is used (the `SEEK_*` constants are usually 0,1,2).
+    addToFunctionSummaryMap(
+        "fseek", Signature(ArgTypes{FilePtrTy, LongTy, IntTy}, RetType{IntTy}),
+        Summary(NoEvalCall)
+            .Case(ReturnsZero, ErrnoMustNotBeChecked)
+            .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0)))
+            .ArgConstraint(ArgumentCondition(2, WithinRange, {{0, 2}})));
+
+    // int fgetpos(FILE *restrict stream, fpos_t *restrict pos);
+    // From 'The Open Group Base Specifications Issue 7, 2018 edition':
+    // "The fgetpos() function shall not change the setting of errno if
+    // successful."
+    addToFunctionSummaryMap(
+        "fgetpos",
+        Signature(ArgTypes{FilePtrRestrictTy, FPosTPtrRestrictTy},
+                  RetType{IntTy}),
+        Summary(NoEvalCall)
+            .Case(ReturnsZero, ErrnoUnchanged)
+            .Case(ReturnsNonZero, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0)))
+            .ArgConstraint(NotNull(ArgNo(1))));
+
+    // int fsetpos(FILE *stream, const fpos_t *pos);
+    // From 'The Open Group Base Specifications Issue 7, 2018 edition':
+    // "The fsetpos() function shall not change the setting of errno if
+    // successful."
+    addToFunctionSummaryMap(
+        "fsetpos",
+        Signature(ArgTypes{FilePtrTy, ConstFPosTPtrTy}, RetType{IntTy}),
+        Summary(NoEvalCall)
+            .Case(ReturnsZero, ErrnoUnchanged)
+            .Case(ReturnsNonZero, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0)))
+            .ArgConstraint(NotNull(ArgNo(1))));
+
+    // long ftell(FILE *stream);
+    // From 'The Open Group Base Specifications Issue 7, 2018 edition':
+    // "The ftell() function shall not change the setting of errno if
+    // successful."
+    addToFunctionSummaryMap(
+        "ftell", Signature(ArgTypes{FilePtrTy}, RetType{LongTy}),
+        Summary(NoEvalCall)
+            .Case({ReturnValueCondition(WithinRange, Range(1, LongMax))},
+                  ErrnoUnchanged)
+            .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0))));
+
+    // int fileno(FILE *stream);
+    addToFunctionSummaryMap(
+        "fileno", Signature(ArgTypes{FilePtrTy}, RetType{IntTy}),
+        Summary(NoEvalCall)
+            .Case(ReturnsValidFileDescriptor, ErrnoMustNotBeChecked)
+            .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
+            .ArgConstraint(NotNull(ArgNo(0))));
+
+    // void rewind(FILE *stream);
+    // This function indicates error only by setting of 'errno'.
+    addToFunctionSummaryMap("rewind",
+                            Signature(ArgTypes{FilePtrTy}, RetType{VoidTy}),
+                            Summary(NoEvalCall)
+                                .Case({}, ErrnoMustBeChecked)
+                                .ArgConstraint(NotNull(ArgNo(0))));
+
+    // void clearerr(FILE *stream);
+    addToFunctionSummaryMap(
+        "clearerr", Signature(ArgTypes{FilePtrTy}, RetType{VoidTy}),
+        Summary(NoEvalCall).ArgConstraint(NotNull(ArgNo(0))));
+
+    // int feof(FILE *stream);
+    addToFunctionSummaryMap(
+        "feof", Signature(ArgTypes{FilePtrTy}, RetType{IntTy}),
+        Summary(NoEvalCall).ArgConstraint(NotNull(ArgNo(0))));
+
+    // int ferror(FILE *stream);
+    addToFunctionSummaryMap(
+        "ferror", Signature(ArgTypes{FilePtrTy}, RetType{IntTy}),
+        Summary(NoEvalCall).ArgConstraint(NotNull(ArgNo(0))));
 
     // long a64l(const char *str64);
     addToFunctionSummaryMap(
@@ -1683,18 +2113,6 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                             Summary(NoEvalCall)
                                 .ArgConstraint(ArgumentCondition(
                                     0, WithinRange, Range(0, LongMax))));
-
-    const auto ReturnsZeroOrMinusOne =
-        ConstraintSet{ReturnValueCondition(WithinRange, Range(-1, 0))};
-    const auto ReturnsZero =
-        ConstraintSet{ReturnValueCondition(WithinRange, SingleValue(0))};
-    const auto ReturnsMinusOne =
-        ConstraintSet{ReturnValueCondition(WithinRange, SingleValue(-1))};
-    const auto ReturnsNonnegative =
-        ConstraintSet{ReturnValueCondition(WithinRange, Range(0, IntMax))};
-    const auto ReturnsFileDescriptor =
-        ConstraintSet{ReturnValueCondition(WithinRange, Range(-1, IntMax))};
-    const auto &ReturnsValidFileDescriptor = ReturnsNonnegative;
 
     // int access(const char *pathname, int amode);
     addToFunctionSummaryMap(
@@ -1759,7 +2177,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                                 .ArgConstraint(ArgumentCondition(
                                     0, WithinRange, Range(0, IntMax))));
 
-    Optional<QualType> Off_tTy = lookupTy("off_t");
+    std::optional<QualType> Off_tTy = lookupTy("off_t");
 
     // int truncate(const char *path, off_t length);
     addToFunctionSummaryMap(
@@ -1801,7 +2219,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(
                 ArgumentCondition(0, WithinRange, Range(0, IntMax))));
 
-    Optional<QualType> Mode_tTy = lookupTy("mode_t");
+    std::optional<QualType> Mode_tTy = lookupTy("mode_t");
 
     // int creat(const char *pathname, mode_t mode);
     addToFunctionSummaryMap(
@@ -1818,8 +2236,8 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(
                 ArgumentCondition(0, WithinRange, Range(0, UnsignedIntMax))));
 
-    Optional<QualType> DirTy = lookupTy("DIR");
-    Optional<QualType> DirPtrTy = getPointerTy(DirTy);
+    std::optional<QualType> DirTy = lookupTy("DIR");
+    std::optional<QualType> DirPtrTy = getPointerTy(DirTy);
 
     // int dirfd(DIR *dirp);
     addToFunctionSummaryMap(
@@ -1902,7 +2320,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
             .ArgConstraint(NotNull(ArgNo(1))));
 
-    Optional<QualType> Dev_tTy = lookupTy("dev_t");
+    std::optional<QualType> Dev_tTy = lookupTy("dev_t");
 
     // int mknod(const char *pathname, mode_t mode, dev_t dev);
     addToFunctionSummaryMap(
@@ -1951,8 +2369,8 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(
                 ArgumentCondition(0, WithinRange, Range(0, IntMax))));
 
-    Optional<QualType> Uid_tTy = lookupTy("uid_t");
-    Optional<QualType> Gid_tTy = lookupTy("gid_t");
+    std::optional<QualType> Uid_tTy = lookupTy("uid_t");
+    std::optional<QualType> Gid_tTy = lookupTy("gid_t");
 
     // int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
     //              int flags);
@@ -2051,9 +2469,10 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(ArgumentCondition(0, WithinRange, Range(0, IntMax)))
             .ArgConstraint(NotNull(ArgNo(1))));
 
-    Optional<QualType> StructStatTy = lookupTy("stat");
-    Optional<QualType> StructStatPtrTy = getPointerTy(StructStatTy);
-    Optional<QualType> StructStatPtrRestrictTy = getRestrictTy(StructStatPtrTy);
+    std::optional<QualType> StructStatTy = lookupTy("stat");
+    std::optional<QualType> StructStatPtrTy = getPointerTy(StructStatTy);
+    std::optional<QualType> StructStatPtrRestrictTy =
+        getRestrictTy(StructStatPtrTy);
 
     // int fstat(int fd, struct stat *statbuf);
     addToFunctionSummaryMap(
@@ -2182,14 +2601,6 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
         "rand_r", Signature(ArgTypes{UnsignedIntPtrTy}, RetType{IntTy}),
         Summary(NoEvalCall).ArgConstraint(NotNull(ArgNo(0))));
 
-    // int fileno(FILE *stream);
-    addToFunctionSummaryMap(
-        "fileno", Signature(ArgTypes{FilePtrTy}, RetType{IntTy}),
-        Summary(NoEvalCall)
-            .Case(ReturnsValidFileDescriptor, ErrnoMustNotBeChecked)
-            .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
-            .ArgConstraint(NotNull(ArgNo(0))));
-
     // int fseeko(FILE *stream, off_t offset, int whence);
     addToFunctionSummaryMap(
         "fseeko",
@@ -2215,7 +2626,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(
                 ArgumentCondition(4, WithinRange, Range(-1, IntMax))));
 
-    Optional<QualType> Off64_tTy = lookupTy("off64_t");
+    std::optional<QualType> Off64_tTy = lookupTy("off64_t");
     // void *mmap64(void *addr, size_t length, int prot, int flags, int fd,
     // off64_t offset);
     // FIXME: Improve for errno modeling.
@@ -2340,18 +2751,20 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(NotNull(ArgNo(1)))
             .ArgConstraint(NotNull(ArgNo(2))));
 
-    Optional<QualType> StructSockaddrTy = lookupTy("sockaddr");
-    Optional<QualType> StructSockaddrPtrTy = getPointerTy(StructSockaddrTy);
-    Optional<QualType> ConstStructSockaddrPtrTy =
+    std::optional<QualType> StructSockaddrTy = lookupTy("sockaddr");
+    std::optional<QualType> StructSockaddrPtrTy =
+        getPointerTy(StructSockaddrTy);
+    std::optional<QualType> ConstStructSockaddrPtrTy =
         getPointerTy(getConstTy(StructSockaddrTy));
-    Optional<QualType> StructSockaddrPtrRestrictTy =
+    std::optional<QualType> StructSockaddrPtrRestrictTy =
         getRestrictTy(StructSockaddrPtrTy);
-    Optional<QualType> ConstStructSockaddrPtrRestrictTy =
+    std::optional<QualType> ConstStructSockaddrPtrRestrictTy =
         getRestrictTy(ConstStructSockaddrPtrTy);
-    Optional<QualType> Socklen_tTy = lookupTy("socklen_t");
-    Optional<QualType> Socklen_tPtrTy = getPointerTy(Socklen_tTy);
-    Optional<QualType> Socklen_tPtrRestrictTy = getRestrictTy(Socklen_tPtrTy);
-    Optional<RangeInt> Socklen_tMax = getMaxValue(Socklen_tTy);
+    std::optional<QualType> Socklen_tTy = lookupTy("socklen_t");
+    std::optional<QualType> Socklen_tPtrTy = getPointerTy(Socklen_tTy);
+    std::optional<QualType> Socklen_tPtrRestrictTy =
+        getRestrictTy(Socklen_tPtrTy);
+    std::optional<RangeInt> Socklen_tMax = getMaxValue(Socklen_tTy);
 
     // In 'socket.h' of some libc implementations with C99, sockaddr parameter
     // is a transparent union of the underlying sockaddr_ family of pointers
@@ -2550,9 +2963,9 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(BufferSize(/*Buffer=*/ArgNo(1),
                                       /*BufSize=*/ArgNo(2))));
 
-    Optional<QualType> StructMsghdrTy = lookupTy("msghdr");
-    Optional<QualType> StructMsghdrPtrTy = getPointerTy(StructMsghdrTy);
-    Optional<QualType> ConstStructMsghdrPtrTy =
+    std::optional<QualType> StructMsghdrTy = lookupTy("msghdr");
+    std::optional<QualType> StructMsghdrPtrTy = getPointerTy(StructMsghdrTy);
+    std::optional<QualType> ConstStructMsghdrPtrTy =
         getPointerTy(getConstTy(StructMsghdrTy));
 
     // ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
@@ -2658,8 +3071,8 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .ArgConstraint(
                 ArgumentCondition(5, WithinRange, Range(0, Socklen_tMax))));
 
-    Optional<QualType> StructUtimbufTy = lookupTy("utimbuf");
-    Optional<QualType> StructUtimbufPtrTy = getPointerTy(StructUtimbufTy);
+    std::optional<QualType> StructUtimbufTy = lookupTy("utimbuf");
+    std::optional<QualType> StructUtimbufPtrTy = getPointerTy(StructUtimbufTy);
 
     // int utime(const char *filename, struct utimbuf *buf);
     addToFunctionSummaryMap(
@@ -2670,9 +3083,10 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
             .ArgConstraint(NotNull(ArgNo(0))));
 
-    Optional<QualType> StructTimespecTy = lookupTy("timespec");
-    Optional<QualType> StructTimespecPtrTy = getPointerTy(StructTimespecTy);
-    Optional<QualType> ConstStructTimespecPtrTy =
+    std::optional<QualType> StructTimespecTy = lookupTy("timespec");
+    std::optional<QualType> StructTimespecPtrTy =
+        getPointerTy(StructTimespecTy);
+    std::optional<QualType> ConstStructTimespecPtrTy =
         getPointerTy(getConstTy(StructTimespecTy));
 
     // int futimens(int fd, const struct timespec times[2]);
@@ -2696,8 +3110,8 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                                 .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
                                 .ArgConstraint(NotNull(ArgNo(1))));
 
-    Optional<QualType> StructTimevalTy = lookupTy("timeval");
-    Optional<QualType> ConstStructTimevalPtrTy =
+    std::optional<QualType> StructTimevalTy = lookupTy("timeval");
+    std::optional<QualType> ConstStructTimevalPtrTy =
         getPointerTy(getConstTy(StructTimevalTy));
 
     // int utimes(const char *filename, const struct timeval times[2]);
@@ -2720,17 +3134,19 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
             .ArgConstraint(NotNull(ArgNo(0))));
 
-    Optional<QualType> Time_tTy = lookupTy("time_t");
-    Optional<QualType> ConstTime_tPtrTy = getPointerTy(getConstTy(Time_tTy));
-    Optional<QualType> ConstTime_tPtrRestrictTy =
+    std::optional<QualType> Time_tTy = lookupTy("time_t");
+    std::optional<QualType> ConstTime_tPtrTy =
+        getPointerTy(getConstTy(Time_tTy));
+    std::optional<QualType> ConstTime_tPtrRestrictTy =
         getRestrictTy(ConstTime_tPtrTy);
 
-    Optional<QualType> StructTmTy = lookupTy("tm");
-    Optional<QualType> StructTmPtrTy = getPointerTy(StructTmTy);
-    Optional<QualType> StructTmPtrRestrictTy = getRestrictTy(StructTmPtrTy);
-    Optional<QualType> ConstStructTmPtrTy =
+    std::optional<QualType> StructTmTy = lookupTy("tm");
+    std::optional<QualType> StructTmPtrTy = getPointerTy(StructTmTy);
+    std::optional<QualType> StructTmPtrRestrictTy =
+        getRestrictTy(StructTmPtrTy);
+    std::optional<QualType> ConstStructTmPtrTy =
         getPointerTy(getConstTy(StructTmTy));
-    Optional<QualType> ConstStructTmPtrRestrictTy =
+    std::optional<QualType> ConstStructTmPtrRestrictTy =
         getRestrictTy(ConstStructTmPtrTy);
 
     // struct tm * localtime(const time_t *tp);
@@ -2786,7 +3202,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
         "gmtime", Signature(ArgTypes{ConstTime_tPtrTy}, RetType{StructTmPtrTy}),
         Summary(NoEvalCall).ArgConstraint(NotNull(ArgNo(0))));
 
-    Optional<QualType> Clockid_tTy = lookupTy("clockid_t");
+    std::optional<QualType> Clockid_tTy = lookupTy("clockid_t");
 
     // int clock_gettime(clockid_t clock_id, struct timespec *tp);
     addToFunctionSummaryMap(
@@ -2797,8 +3213,9 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
             .ArgConstraint(NotNull(ArgNo(1))));
 
-    Optional<QualType> StructItimervalTy = lookupTy("itimerval");
-    Optional<QualType> StructItimervalPtrTy = getPointerTy(StructItimervalTy);
+    std::optional<QualType> StructItimervalTy = lookupTy("itimerval");
+    std::optional<QualType> StructItimervalPtrTy =
+        getPointerTy(StructItimervalTy);
 
     // int getitimer(int which, struct itimerval *curr_value);
     addToFunctionSummaryMap(
@@ -2809,25 +3226,30 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant)
             .ArgConstraint(NotNull(ArgNo(1))));
 
-    Optional<QualType> Pthread_cond_tTy = lookupTy("pthread_cond_t");
-    Optional<QualType> Pthread_cond_tPtrTy = getPointerTy(Pthread_cond_tTy);
-    Optional<QualType> Pthread_tTy = lookupTy("pthread_t");
-    Optional<QualType> Pthread_tPtrTy = getPointerTy(Pthread_tTy);
-    Optional<QualType> Pthread_tPtrRestrictTy = getRestrictTy(Pthread_tPtrTy);
-    Optional<QualType> Pthread_mutex_tTy = lookupTy("pthread_mutex_t");
-    Optional<QualType> Pthread_mutex_tPtrTy = getPointerTy(Pthread_mutex_tTy);
-    Optional<QualType> Pthread_mutex_tPtrRestrictTy =
+    std::optional<QualType> Pthread_cond_tTy = lookupTy("pthread_cond_t");
+    std::optional<QualType> Pthread_cond_tPtrTy =
+        getPointerTy(Pthread_cond_tTy);
+    std::optional<QualType> Pthread_tTy = lookupTy("pthread_t");
+    std::optional<QualType> Pthread_tPtrTy = getPointerTy(Pthread_tTy);
+    std::optional<QualType> Pthread_tPtrRestrictTy =
+        getRestrictTy(Pthread_tPtrTy);
+    std::optional<QualType> Pthread_mutex_tTy = lookupTy("pthread_mutex_t");
+    std::optional<QualType> Pthread_mutex_tPtrTy =
+        getPointerTy(Pthread_mutex_tTy);
+    std::optional<QualType> Pthread_mutex_tPtrRestrictTy =
         getRestrictTy(Pthread_mutex_tPtrTy);
-    Optional<QualType> Pthread_attr_tTy = lookupTy("pthread_attr_t");
-    Optional<QualType> Pthread_attr_tPtrTy = getPointerTy(Pthread_attr_tTy);
-    Optional<QualType> ConstPthread_attr_tPtrTy =
+    std::optional<QualType> Pthread_attr_tTy = lookupTy("pthread_attr_t");
+    std::optional<QualType> Pthread_attr_tPtrTy =
+        getPointerTy(Pthread_attr_tTy);
+    std::optional<QualType> ConstPthread_attr_tPtrTy =
         getPointerTy(getConstTy(Pthread_attr_tTy));
-    Optional<QualType> ConstPthread_attr_tPtrRestrictTy =
+    std::optional<QualType> ConstPthread_attr_tPtrRestrictTy =
         getRestrictTy(ConstPthread_attr_tPtrTy);
-    Optional<QualType> Pthread_mutexattr_tTy = lookupTy("pthread_mutexattr_t");
-    Optional<QualType> ConstPthread_mutexattr_tPtrTy =
+    std::optional<QualType> Pthread_mutexattr_tTy =
+        lookupTy("pthread_mutexattr_t");
+    std::optional<QualType> ConstPthread_mutexattr_tPtrTy =
         getPointerTy(getConstTy(Pthread_mutexattr_tTy));
-    Optional<QualType> ConstPthread_mutexattr_tPtrRestrictTy =
+    std::optional<QualType> ConstPthread_mutexattr_tPtrRestrictTy =
         getRestrictTy(ConstPthread_mutexattr_tPtrTy);
 
     QualType PthreadStartRoutineTy = getPointerTy(
@@ -2905,11 +3327,13 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
 
   // Functions for testing.
   if (ChecksEnabled[CK_StdCLibraryFunctionsTesterChecker]) {
+    const RangeInt IntMin = BVF.getMinValue(IntTy).getLimitedValue();
+
     addToFunctionSummaryMap(
         "__not_null", Signature(ArgTypes{IntPtrTy}, RetType{IntTy}),
         Summary(EvalCallAsPure).ArgConstraint(NotNull(ArgNo(0))));
 
-    // Test range values.
+    // Test inside range constraints.
     addToFunctionSummaryMap(
         "__single_val_0", Signature(ArgTypes{IntTy}, RetType{IntTy}),
         Summary(EvalCallAsPure)
@@ -2922,11 +3346,124 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
         "__range_1_2", Signature(ArgTypes{IntTy}, RetType{IntTy}),
         Summary(EvalCallAsPure)
             .ArgConstraint(ArgumentCondition(0U, WithinRange, Range(1, 2))));
-    addToFunctionSummaryMap("__range_1_2__4_5",
+    addToFunctionSummaryMap(
+        "__range_m1_1", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, WithinRange, Range(-1, 1))));
+    addToFunctionSummaryMap(
+        "__range_m2_m1", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, WithinRange, Range(-2, -1))));
+    addToFunctionSummaryMap(
+        "__range_m10_10", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, WithinRange, Range(-10, 10))));
+    addToFunctionSummaryMap("__range_m1_inf",
                             Signature(ArgTypes{IntTy}, RetType{IntTy}),
                             Summary(EvalCallAsPure)
                                 .ArgConstraint(ArgumentCondition(
-                                    0U, WithinRange, Range({1, 2}, {4, 5}))));
+                                    0U, WithinRange, Range(-1, IntMax))));
+    addToFunctionSummaryMap("__range_0_inf",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, WithinRange, Range(0, IntMax))));
+    addToFunctionSummaryMap("__range_1_inf",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, WithinRange, Range(1, IntMax))));
+    addToFunctionSummaryMap("__range_minf_m1",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, WithinRange, Range(IntMin, -1))));
+    addToFunctionSummaryMap("__range_minf_0",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, WithinRange, Range(IntMin, 0))));
+    addToFunctionSummaryMap("__range_minf_1",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, WithinRange, Range(IntMin, 1))));
+    addToFunctionSummaryMap("__range_1_2__4_6",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, WithinRange, Range({1, 2}, {4, 6}))));
+    addToFunctionSummaryMap(
+        "__range_1_2__4_inf", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, WithinRange,
+                                             Range({1, 2}, {4, IntMax}))));
+
+    // Test out of range constraints.
+    addToFunctionSummaryMap(
+        "__single_val_out_0", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, OutOfRange, SingleValue(0))));
+    addToFunctionSummaryMap(
+        "__single_val_out_1", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, OutOfRange, SingleValue(1))));
+    addToFunctionSummaryMap(
+        "__range_out_1_2", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, OutOfRange, Range(1, 2))));
+    addToFunctionSummaryMap(
+        "__range_out_m1_1", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, OutOfRange, Range(-1, 1))));
+    addToFunctionSummaryMap(
+        "__range_out_m2_m1", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, OutOfRange, Range(-2, -1))));
+    addToFunctionSummaryMap(
+        "__range_out_m10_10", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, OutOfRange, Range(-10, 10))));
+    addToFunctionSummaryMap("__range_out_m1_inf",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range(-1, IntMax))));
+    addToFunctionSummaryMap("__range_out_0_inf",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range(0, IntMax))));
+    addToFunctionSummaryMap("__range_out_1_inf",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range(1, IntMax))));
+    addToFunctionSummaryMap("__range_out_minf_m1",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range(IntMin, -1))));
+    addToFunctionSummaryMap("__range_out_minf_0",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range(IntMin, 0))));
+    addToFunctionSummaryMap("__range_out_minf_1",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range(IntMin, 1))));
+    addToFunctionSummaryMap("__range_out_1_2__4_6",
+                            Signature(ArgTypes{IntTy}, RetType{IntTy}),
+                            Summary(EvalCallAsPure)
+                                .ArgConstraint(ArgumentCondition(
+                                    0U, OutOfRange, Range({1, 2}, {4, 6}))));
+    addToFunctionSummaryMap(
+        "__range_out_1_2__4_inf", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(
+                ArgumentCondition(0U, OutOfRange, Range({1, 2}, {4, IntMax}))));
 
     // Test range kind.
     addToFunctionSummaryMap(
@@ -2982,6 +3519,36 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
          "__test_restrict_param_2"},
         Signature(ArgTypes{VoidPtrRestrictTy}, RetType{VoidTy}),
         Summary(EvalCallAsPure));
+
+    // Test the application of cases.
+    addToFunctionSummaryMap(
+        "__test_case_note", Signature(ArgTypes{}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .Case({ReturnValueCondition(WithinRange, SingleValue(0))},
+                  ErrnoIrrelevant, "Function returns 0")
+            .Case({ReturnValueCondition(WithinRange, SingleValue(1))},
+                  ErrnoIrrelevant, "Function returns 1"));
+    addToFunctionSummaryMap(
+        "__test_case_range_1_2__4_6",
+        Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .Case({ArgumentCondition(0U, WithinRange,
+                                     IntRangeVector{{IntMin, 0}, {3, 3}}),
+                   ReturnValueCondition(WithinRange, SingleValue(1))},
+                  ErrnoIrrelevant)
+            .Case({ArgumentCondition(0U, WithinRange,
+                                     IntRangeVector{{3, 3}, {7, IntMax}}),
+                   ReturnValueCondition(WithinRange, SingleValue(2))},
+                  ErrnoIrrelevant)
+            .Case({ArgumentCondition(0U, WithinRange,
+                                     IntRangeVector{{IntMin, 0}, {7, IntMax}}),
+                   ReturnValueCondition(WithinRange, SingleValue(3))},
+                  ErrnoIrrelevant)
+            .Case({ArgumentCondition(
+                       0U, WithinRange,
+                       IntRangeVector{{IntMin, 0}, {3, 3}, {7, IntMax}}),
+                   ReturnValueCondition(WithinRange, SingleValue(4))},
+                  ErrnoIrrelevant));
   }
 
   SummariesInitialized = true;

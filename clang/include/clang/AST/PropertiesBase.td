@@ -41,7 +41,7 @@ class RefPropertyType<string className> : PropertyType<className # "*"> {
   let PackOptional =
     "value ? *value : nullptr";
   let UnpackOptional =
-    "value ? llvm::Optional<" # CXXName # ">(value) : llvm::None";
+    "value ? std::optional<" # CXXName # ">(value) : std::nullopt";
 }
 
 /// Property types that correspond to a specific subclass of another type.
@@ -58,7 +58,7 @@ class DefaultValuePropertyType<string typeName = ""> : PropertyType<typeName> {
   let PackOptional =
     "value ? *value : " # CXXName # "()";
   let UnpackOptional =
-    "value.isNull() ? llvm::None : llvm::Optional<" # CXXName # ">(value)";
+    "value.isNull() ? std::nullopt : std::optional<" # CXXName # ">(value)";
 }
 
 /// Property types that correspond to integer types and support optional
@@ -67,7 +67,7 @@ class CountPropertyType<string typeName = ""> : PropertyType<typeName> {
   let PackOptional =
     "value ? *value + 1 : 0";
   let UnpackOptional =
-    "value ? llvm::Optional<" # CXXName # ">(value - 1) : llvm::None";
+    "value ? std::optional<" # CXXName # ">(value - 1) : std::nullopt";
 }
 
 def APInt : PropertyType<"llvm::APInt"> { let PassByReference = 1; }
@@ -155,7 +155,7 @@ class Array<PropertyType element> : PropertyType {
   let BufferElementTypes = [ element ];
 }
 
-/// llvm::Optional<T>.  The corresponding C++ type is generally just the
+/// std::optional<T>.  The corresponding C++ type is generally just the
 /// corresponding C++ type of the element.
 ///
 /// Optional<Unsigned> may restrict the range of the operand for some
@@ -517,20 +517,16 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
   def : Creator<[{
     (void)ctx;
     APValue::LValueBase base;
-    QualType elemTy;
     if (hasBase) {
       if (isTypeInfo) {
         base = APValue::LValueBase::getTypeInfo(
-            TypeInfoLValue(typeInfo.value().getTypePtr()), type.value());
-        elemTy = base.getTypeInfoType();
+            TypeInfoLValue(typeInfo->getTypePtr()), *type);
       } else if (isExpr) {
-        base = APValue::LValueBase(cast<Expr>(stmt.value()),
-                                   callIndex.value(), version.value());
-        elemTy = base.get<const Expr *>()->getType();
+        base = APValue::LValueBase(cast<Expr>(*stmt),
+                                   *callIndex, *version);
       } else {
-        base = APValue::LValueBase(cast<ValueDecl>(decl.value()),
-                                   callIndex.value(), version.value());
-        elemTy = base.get<const ValueDecl *>()->getType();
+        base = APValue::LValueBase(cast<ValueDecl>(*decl),
+                                   *callIndex, *version);
       }
     }
     CharUnits offset = CharUnits::fromQuantity(offsetQuantity);
@@ -543,7 +539,6 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
     auto pathLength = lvaluePath->Path.size();
     APValue::LValuePathEntry *path = result.setLValueUninit(
         base, offset, pathLength, isLValueOnePastTheEnd, isNullPtr).data();
-    assert(lvaluePath->getType() == elemTy && "Unexpected type reference!");
     llvm::copy(lvaluePath->Path, path);
     return result;
   }]>;
@@ -750,8 +745,11 @@ let Class = PropertyTypeCase<TemplateArgument, "Type"> in {
   def : Property<"type", QualType> {
     let Read = [{ node.getAsType() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(type);
+    return TemplateArgument(type, /* isNullPtr */ false, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Declaration"> in {
@@ -761,16 +759,22 @@ let Class = PropertyTypeCase<TemplateArgument, "Declaration"> in {
   def : Property<"parameterType", QualType> {
     let Read = [{ node.getParamTypeForDecl() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(declaration, parameterType);
+    return TemplateArgument(declaration, parameterType, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "NullPtr"> in {
   def : Property<"type", QualType> {
     let Read = [{ node.getNullPtrType() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(type, /*nullptr*/ true);
+    return TemplateArgument(type, /*nullptr*/ true, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
@@ -780,16 +784,22 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
   def : Property<"type", QualType> {
     let Read = [{ node.getIntegralType() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(ctx, value, type);
+    return TemplateArgument(ctx, value, type, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Template"> in {
   def : Property<"name", TemplateName> {
     let Read = [{ node.getAsTemplateOrTemplatePattern() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(name);
+    return TemplateArgument(name, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "TemplateExpansion"> in {
@@ -799,22 +809,29 @@ let Class = PropertyTypeCase<TemplateArgument, "TemplateExpansion"> in {
   def : Property<"numExpansions", Optional<UInt32>> {
     let Read = [{
       // Translate unsigned -> uint32_t just in case.
-      node.getNumTemplateExpansions().transform(
-        [](unsigned i) { return uint32_t(i); })
+      llvm::transformOptional(node.getNumTemplateExpansions(),
+                              [](unsigned i) { return uint32_t(i); })
     }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    auto numExpansionsUnsigned =
-      numExpansions.transform([](uint32_t i) { return unsigned(i); });
-    return TemplateArgument(name, numExpansionsUnsigned);
+    auto numExpansionsUnsigned = llvm::transformOptional(
+        numExpansions, [](uint32_t i) { return unsigned(i); });
+
+    return TemplateArgument(name, numExpansionsUnsigned, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Expression"> in {
   def : Property<"expression", ExprRef> {
     let Read = [{ node.getAsExpr() }];
   }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
   def : Creator<[{
-    return TemplateArgument(expression);
+    return TemplateArgument(expression, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Pack"> in {
@@ -826,6 +843,6 @@ let Class = PropertyTypeCase<TemplateArgument, "Pack"> in {
     TemplateArgument *ctxElements = new (ctx) TemplateArgument[elements.size()];
     for (size_t i = 0, e = elements.size(); i != e; ++i)
       ctxElements[i] = elements[i];
-    return TemplateArgument(llvm::makeArrayRef(ctxElements, elements.size()));
+    return TemplateArgument(llvm::ArrayRef(ctxElements, elements.size()));
   }]>;
 }

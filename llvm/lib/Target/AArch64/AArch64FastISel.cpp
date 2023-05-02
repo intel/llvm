@@ -189,9 +189,9 @@ private:
   void addLoadStoreOperands(Address &Addr, const MachineInstrBuilder &MIB,
                             MachineMemOperand::Flags Flags,
                             unsigned ScaleFactor, MachineMemOperand *MMO);
-  bool isMemCpySmall(uint64_t Len, unsigned Alignment);
+  bool isMemCpySmall(uint64_t Len, MaybeAlign Alignment);
   bool tryEmitSmallMemCpy(Address Dest, Address Src, uint64_t Len,
-                          unsigned Alignment);
+                          MaybeAlign Alignment);
   bool foldXALUIntrinsic(AArch64CC::CondCode &CC, const Instruction *I,
                          const Value *Cond);
   bool optimizeIntExtLoad(const Instruction *I, MVT RetVT, MVT SrcVT);
@@ -495,6 +495,30 @@ unsigned AArch64FastISel::materializeGV(const GlobalValue *GV) {
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, TII.get(AArch64::ADRP),
             ADRPReg)
         .addGlobalAddress(GV, 0, AArch64II::MO_PAGE | OpFlags);
+
+    if (OpFlags & AArch64II::MO_TAGGED) {
+      // MO_TAGGED on the page indicates a tagged address. Set the tag now.
+      // We do so by creating a MOVK that sets bits 48-63 of the register to
+      // (global address + 0x100000000 - PC) >> 48. This assumes that we're in
+      // the small code model so we can assume a binary size of <= 4GB, which
+      // makes the untagged PC relative offset positive. The binary must also be
+      // loaded into address range [0, 2^48). Both of these properties need to
+      // be ensured at runtime when using tagged addresses.
+      //
+      // TODO: There is duplicate logic in AArch64ExpandPseudoInsts.cpp that
+      // also uses BuildMI for making an ADRP (+ MOVK) + ADD, but the operands
+      // are not exactly 1:1 with FastISel so we cannot easily abstract this
+      // out. At some point, it would be nice to find a way to not have this
+      // duplciate code.
+      unsigned DstReg = createResultReg(&AArch64::GPR64commonRegClass);
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, TII.get(AArch64::MOVKXi),
+              DstReg)
+          .addReg(ADRPReg)
+          .addGlobalAddress(GV, /*Offset=*/0x100000000,
+                            AArch64II::MO_PREL | AArch64II::MO_G3)
+          .addImm(48);
+      ADRPReg = DstReg;
+    }
 
     ResultReg = createResultReg(&AArch64::GPR64spRegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, TII.get(AArch64::ADDXri),
@@ -3266,15 +3290,15 @@ bool AArch64FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   return finishCall(CLI, RetVT, NumBytes);
 }
 
-bool AArch64FastISel::isMemCpySmall(uint64_t Len, unsigned Alignment) {
+bool AArch64FastISel::isMemCpySmall(uint64_t Len, MaybeAlign Alignment) {
   if (Alignment)
-    return Len / Alignment <= 4;
+    return Len / Alignment->value() <= 4;
   else
     return Len < 32;
 }
 
 bool AArch64FastISel::tryEmitSmallMemCpy(Address Dest, Address Src,
-                                         uint64_t Len, unsigned Alignment) {
+                                         uint64_t Len, MaybeAlign Alignment) {
   // Make sure we don't bloat code by inlining very large memcpy's.
   if (!isMemCpySmall(Len, Alignment))
     return false;
@@ -3285,7 +3309,7 @@ bool AArch64FastISel::tryEmitSmallMemCpy(Address Dest, Address Src,
 
   while (Len) {
     MVT VT;
-    if (!Alignment || Alignment >= 8) {
+    if (!Alignment || *Alignment >= 8) {
       if (Len >= 8)
         VT = MVT::i64;
       else if (Len >= 4)
@@ -3296,10 +3320,11 @@ bool AArch64FastISel::tryEmitSmallMemCpy(Address Dest, Address Src,
         VT = MVT::i8;
       }
     } else {
+      assert(Alignment && "Alignment is set in this branch");
       // Bound based on alignment.
-      if (Len >= 4 && Alignment == 4)
+      if (Len >= 4 && *Alignment == 4)
         VT = MVT::i32;
-      else if (Len >= 2 && Alignment == 2)
+      else if (Len >= 2 && *Alignment == 2)
         VT = MVT::i16;
       else {
         VT = MVT::i8;
@@ -3474,8 +3499,10 @@ bool AArch64FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
       // Small memcpy's are common enough that we want to do them without a call
       // if possible.
       uint64_t Len = cast<ConstantInt>(MTI->getLength())->getZExtValue();
-      unsigned Alignment = MinAlign(MTI->getDestAlignment(),
-                                    MTI->getSourceAlignment());
+      MaybeAlign Alignment;
+      if (MTI->getDestAlign() || MTI->getSourceAlign())
+        Alignment = std::min(MTI->getDestAlign().valueOrOne(),
+                             MTI->getSourceAlign().valueOrOne());
       if (isMemCpySmall(Len, Alignment)) {
         Address Dest, Src;
         if (!computeAddress(MTI->getRawDest(), Dest) ||
@@ -4821,7 +4848,7 @@ bool AArch64FastISel::selectSDiv(const Instruction *I) {
       !(C.isPowerOf2() || C.isNegatedPowerOf2()))
     return selectBinaryOp(I, ISD::SDIV);
 
-  unsigned Lg2 = C.countTrailingZeros();
+  unsigned Lg2 = C.countr_zero();
   Register Src0Reg = getRegForValue(I->getOperand(0));
   if (!Src0Reg)
     return false;

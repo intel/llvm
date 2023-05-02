@@ -254,6 +254,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
                              const TargetOptions &Opts)
     : TargetInfo(Triple), FPMath(FP_Default), IsAAPCS(true), LDREX(0),
       HW_FP(0) {
+  bool IsFreeBSD = Triple.isOSFreeBSD();
   bool IsOpenBSD = Triple.isOSOpenBSD();
   bool IsNetBSD = Triple.isOSNetBSD();
 
@@ -309,6 +310,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
     case llvm::Triple::GNUEABIHF:
     case llvm::Triple::MuslEABI:
     case llvm::Triple::MuslEABIHF:
+    case llvm::Triple::OpenHOS:
       setABI("aapcs-linux");
       break;
     case llvm::Triple::EABIHF:
@@ -321,7 +323,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
     default:
       if (IsNetBSD)
         setABI("apcs-gnu");
-      else if (IsOpenBSD)
+      else if (IsFreeBSD || IsOpenBSD)
         setABI("aapcs-linux");
       else
         setABI("aapcs");
@@ -451,7 +453,7 @@ bool ARMTargetInfo::initFeatureMap(
   }
 
   // get default FPU features
-  unsigned FPUKind = llvm::ARM::getDefaultFPU(CPU, Arch);
+  llvm::ARM::FPUKind FPUKind = llvm::ARM::getDefaultFPU(CPU, Arch);
   llvm::ARM::getFPUFeatures(FPUKind, TargetFeatures);
 
   // get default Extension features
@@ -991,31 +993,31 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   }
 }
 
-const Builtin::Info ARMTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsNEON.def"
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LANGBUILTIN(ID, TYPE, ATTRS, LANG)                                     \
-  {#ID, TYPE, ATTRS, nullptr, LANG, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, LANG},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define TARGET_HEADER_BUILTIN(ID, TYPE, ATTRS, HEADER, LANGS, FEATURE)         \
-  {#ID, TYPE, ATTRS, HEADER, LANGS, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::HEADER, LANGS},
 #include "clang/Basic/BuiltinsARM.def"
 };
 
 ArrayRef<Builtin::Info> ARMTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::ARM::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::ARM::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }
 
 bool ARMTargetInfo::isCLZForZeroUndef() const { return false; }
@@ -1046,7 +1048,7 @@ const char *const ARMTargetInfo::GCCRegNames[] = {
     "q12", "q13", "q14", "q15"};
 
 ArrayRef<const char *> ARMTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 const TargetInfo::GCCRegAlias ARMTargetInfo::GCCRegAliases[] = {
@@ -1059,7 +1061,7 @@ const TargetInfo::GCCRegAlias ARMTargetInfo::GCCRegAliases[] = {
 };
 
 ArrayRef<TargetInfo::GCCRegAlias> ARMTargetInfo::getGCCRegAliases() const {
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
 bool ARMTargetInfo::validateAsmConstraint(
@@ -1404,11 +1406,6 @@ DarwinARMTargetInfo::DarwinARMTargetInfo(const llvm::Triple &Triple,
                                          const TargetOptions &Opts)
     : DarwinTargetInfo<ARMleTargetInfo>(Triple, Opts) {
   HasAlignMac68kSupport = true;
-  // iOS always has 64-bit atomic instructions.
-  // FIXME: This should be based off of the target features in
-  // ARMleTargetInfo.
-  MaxAtomicInlineWidth = 64;
-
   if (Triple.isWatchABI()) {
     // Darwin on iOS uses a variant of the ARM C++ ABI.
     TheCXXABI.set(TargetCXXABI::WatchOS);

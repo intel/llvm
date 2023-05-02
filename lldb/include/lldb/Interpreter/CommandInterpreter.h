@@ -26,6 +26,7 @@
 #include "lldb/lldb-private.h"
 
 #include <mutex>
+#include <optional>
 #include <stack>
 
 namespace lldb_private {
@@ -351,9 +352,10 @@ public:
                      CommandReturnObject &result);
 
   bool HandleCommand(const char *command_line, LazyBool add_to_history,
-                     CommandReturnObject &result);
+                     CommandReturnObject &result,
+                     bool force_repeat_command = false);
 
-  bool WasInterrupted() const;
+  bool InterruptCommand();
 
   /// Execute a list of commands in sequence.
   ///
@@ -406,7 +408,7 @@ public:
 
   /// Returns the auto-suggestion string that should be added to the given
   /// command line.
-  llvm::Optional<std::string> GetAutoSuggestionForCommand(llvm::StringRef line);
+  std::optional<std::string> GetAutoSuggestionForCommand(llvm::StringRef line);
 
   // This handles command line completion.
   void HandleCompletion(CompletionRequest &request);
@@ -627,7 +629,7 @@ public:
   /// \return \b true if the session transcript was successfully written to
   /// disk, \b false otherwise.
   bool SaveTranscript(CommandReturnObject &result,
-                      llvm::Optional<std::string> output_file = llvm::None);
+                      std::optional<std::string> output_file = std::nullopt);
 
   FileSpec GetCurrentSourceDir();
 
@@ -635,8 +637,15 @@ public:
 
   bool IOHandlerInterrupt(IOHandler &io_handler) override;
 
+  Status PreprocessCommand(std::string &command);
+  Status PreprocessToken(std::string &token);
+
 protected:
   friend class Debugger;
+
+  // This checks just the RunCommandInterpreter interruption state.  It is only
+  // meant to be used in Debugger::InterruptRequested
+  bool WasInterrupted() const;
 
   // IOHandlerDelegate functions
   void IOHandlerInputComplete(IOHandler &io_handler,
@@ -664,8 +673,6 @@ private:
   void OverrideExecutionContext(const ExecutionContext &override_context);
 
   void RestoreExecutionContext();
-
-  Status PreprocessCommand(std::string &command);
 
   void SourceInitFile(FileSpec file, CommandReturnObject &result);
 
@@ -700,7 +707,6 @@ private:
 
   void StartHandlingCommand();
   void FinishHandlingCommand();
-  bool InterruptCommand();
 
   Debugger &m_debugger; // The debugger session that this interpreter is
                         // associated with
@@ -742,7 +748,7 @@ private:
 
   // The exit code the user has requested when calling the 'quit' command.
   // No value means the user hasn't set a custom exit code so far.
-  llvm::Optional<int> m_quit_exit_code;
+  std::optional<int> m_quit_exit_code;
   // If the driver is accepts custom exit codes for the 'quit' command.
   bool m_allow_exit_code = false;
 

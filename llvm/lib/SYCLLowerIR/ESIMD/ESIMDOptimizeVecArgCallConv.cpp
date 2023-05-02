@@ -19,6 +19,7 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
 
@@ -76,7 +77,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
   if (Uses.size() == 0) {
     return nullptr;
   }
-  Value *Addr = esimd::stripCastsAndZeroGEPs((*Uses.begin())->get());
+  Value *Addr = sycl::utils::stripCastsAndZeroGEPs((*Uses.begin())->get());
 
   for (const auto *UU : Uses) {
     const User *U = UU->getUser();
@@ -92,7 +93,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
     }
 
     if (const auto *SI = dyn_cast<StoreInst>(U)) {
-      if (esimd::stripCastsAndZeroGEPs(SI->getPointerOperand()) != Addr) {
+      if (sycl::utils::stripCastsAndZeroGEPs(SI->getPointerOperand()) != Addr) {
         // the pointer escapes into memory
         return nullptr;
       }
@@ -167,7 +168,7 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
   //   }
   {
     SmallPtrSet<const Use *, 4> Uses;
-    esimd::collectUsesLookThroughCastsAndZeroGEPs(&FormalParam, Uses);
+    sycl::utils::collectUsesLookThroughCastsAndZeroGEPs(&FormalParam, Uses);
     bool LoadMet = 0;
     bool StoreMet = 0;
     ContentT = getMemTypeIfSameAddressLoadsStores(Uses, LoadMet, StoreMet);
@@ -225,14 +226,14 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
     if (!Call || (Call->getCalledFunction() != F)) {
       return nullptr;
     }
-    Value *ActualParam = esimd::stripCastsAndZeroGEPs(
+    Value *ActualParam = sycl::utils::stripCastsAndZeroGEPs(
         Call->getArgOperand(FormalParam.getArgNo()));
 
     if (!IsSret && !isa<AllocaInst>(ActualParam)) {
       return nullptr;
     }
     SmallPtrSet<const Use *, 4> Uses;
-    esimd::collectUsesLookThroughCastsAndZeroGEPs(ActualParam, Uses);
+    sycl::utils::collectUsesLookThroughCastsAndZeroGEPs(ActualParam, Uses);
     bool LoadMet = 0;
     bool StoreMet = 0;
 
@@ -461,9 +462,9 @@ static bool processFunction(Function *F) {
       NewParamTs.push_back(Arg.getType());
       continue;
     }
-    OptimizeableParams.emplace_back(std::move(PI));
+    OptimizeableParams.push_back(PI);
 
-    if (OptimizeableParams.back().isSret()) {
+    if (PI.isSret()) {
       continue; // optimizeable 'sret' parameter is removed in the clone
     }
     // parameter is converted from 'by pointer' to 'by value' passing, its type
@@ -509,7 +510,7 @@ ESIMDOptimizeVecArgCallConvPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   for (Function &F : M) {
     const bool FReplaced = processFunction(&F);
-    Modified &= FReplaced;
+    Modified |= FReplaced;
 
     if (FReplaced) {
       ToErase.push_back(&F);

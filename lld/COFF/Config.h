@@ -96,7 +96,7 @@ enum class ICFLevel {
 // Global configuration.
 struct Configuration {
   enum ManifestKind { Default, SideBySide, Embed, No };
-  bool is64() { return machine == AMD64 || machine == ARM64; }
+  bool is64() const { return machine == AMD64 || machine == ARM64; }
 
   llvm::COFF::MachineTypes machine = IMAGE_FILE_MACHINE_UNKNOWN;
   size_t wordsize;
@@ -162,6 +162,8 @@ struct Configuration {
 
   // Used for /opt:lldlto=N
   unsigned ltoo = 2;
+  // Used for /opt:lldltocgo=N
+  std::optional<unsigned> ltoCgo;
 
   // Used for /opt:lldltojobs=N
   std::string thinLTOJobs;
@@ -216,8 +218,16 @@ struct Configuration {
   // Used for /thinlto-index-only:
   llvm::StringRef thinLTOIndexOnlyArg;
 
-  // Used for /thinlto-object-prefix-replace:
-  std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
+  // Used for /thinlto-prefix-replace:
+  // Replace the prefix in paths generated for ThinLTO, replacing
+  // thinLTOPrefixReplaceOld with thinLTOPrefixReplaceNew. If
+  // thinLTOPrefixReplaceNativeObject is defined, replace the prefix of object
+  // file paths written to the response file given in the
+  // --thinlto-index-only=${response} option with
+  // thinLTOPrefixReplaceNativeObject, instead of thinLTOPrefixReplaceNew.
+  llvm::StringRef thinLTOPrefixReplaceOld;
+  llvm::StringRef thinLTOPrefixReplaceNew;
+  llvm::StringRef thinLTOPrefixReplaceNativeObject;
 
   // Used for /thinlto-object-suffix-replace:
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
@@ -289,9 +299,8 @@ struct Configuration {
   bool autoImport = false;
   bool pseudoRelocs = false;
   bool stdcallFixup = false;
+  bool writeCheckSum = false;
 };
-
-extern std::unique_ptr<Configuration> config;
 
 } // namespace lld::coff
 

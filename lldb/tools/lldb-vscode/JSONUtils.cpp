@@ -8,10 +8,10 @@
 
 #include <algorithm>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <string.h>
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatAdapters.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -47,7 +47,7 @@ llvm::StringRef GetAsString(const llvm::json::Value &value) {
 
 // Gets a string from a JSON object using the key, or returns an empty string.
 llvm::StringRef GetString(const llvm::json::Object &obj, llvm::StringRef key) {
-  if (llvm::Optional<llvm::StringRef> value = obj.getString(key))
+  if (std::optional<llvm::StringRef> value = obj.getString(key))
     return *value;
   return llvm::StringRef();
 }
@@ -307,8 +307,8 @@ llvm::json::Value CreateScope(const llvm::StringRef name,
 //   "required": [ "verified" ]
 // }
 llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp,
-                                   llvm::Optional<llvm::StringRef> request_path,
-                                   llvm::Optional<uint32_t> request_line) {
+                                   std::optional<llvm::StringRef> request_path,
+                                   std::optional<uint32_t> request_line) {
   // Each breakpoint location is treated as a separate breakpoint for VS code.
   // They don't have the notion of a single breakpoint with multiple locations.
   llvm::json::Object object;
@@ -439,8 +439,8 @@ llvm::json::Value CreateModule(lldb::SBModule &module) {
 }
 
 void AppendBreakpoint(lldb::SBBreakpoint &bp, llvm::json::Array &breakpoints,
-                      llvm::Optional<llvm::StringRef> request_path,
-                      llvm::Optional<uint32_t> request_line) {
+                      std::optional<llvm::StringRef> request_path,
+                      std::optional<uint32_t> request_line) {
   breakpoints.emplace_back(CreateBreakpoint(bp, request_path, request_line));
 }
 
@@ -1102,7 +1102,8 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit) {
 llvm::json::Object
 CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
                                   llvm::StringRef debug_adaptor_path,
-                                  llvm::StringRef comm_file) {
+                                  llvm::StringRef comm_file,
+                                  lldb::pid_t debugger_pid) {
   llvm::json::Object reverse_request;
   reverse_request.try_emplace("type", "request");
   reverse_request.try_emplace("command", "runInTerminal");
@@ -1115,8 +1116,13 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
   auto launch_request_arguments = launch_request.getObject("arguments");
   // The program path must be the first entry in the "args" field
   std::vector<std::string> args = {
-      debug_adaptor_path.str(), "--comm-file", comm_file.str(),
-      "--launch-target", GetString(launch_request_arguments, "program").str()};
+      debug_adaptor_path.str(), "--comm-file", comm_file.str()};
+  if (debugger_pid != LLDB_INVALID_PROCESS_ID) {
+    args.push_back("--debugger-pid");
+    args.push_back(std::to_string(debugger_pid));
+  }
+  args.push_back("--launch-target");
+  args.push_back(GetString(launch_request_arguments, "program").str());
   std::vector<std::string> target_args =
       GetStrings(launch_request_arguments, "args");
   args.insert(args.end(), target_args.begin(), target_args.end());

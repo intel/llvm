@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_impl.hpp>
+#include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
 
@@ -36,7 +37,8 @@ device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
-    : MDevice(Device), MIsHostDevice(false) {
+    : MDevice(Device), MIsHostDevice(false),
+      MDeviceHostBaseTime(std::make_pair(0, 0)) {
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
@@ -109,14 +111,39 @@ platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 
+template <typename Param>
+typename Param::return_type device_impl::get_info() const {
+  if (is_host()) {
+    return get_device_info_host<Param>();
+  }
+  return get_device_info<Param>(MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+}
+// Explicitly instantiate all device info traits
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template ReturnT device_impl::get_info<info::device::Desc>() const;
+
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  template ReturnT device_impl::get_info<info::device::Desc>() const;
+
+#include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  device_impl::get_info<Namespace::info::DescType::Desc>() const;
+
+#include <sycl/info/ext_codeplay_device_traits.def>
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   if (MIsHostDevice)
     // TODO: implement extension management for host device;
     return false;
-
-  std::string AllExtensionNames = get_device_info_string(
-      this->getHandleRef(), PiInfoCode<info::device::extensions>::value,
-      this->getPlugin());
+  std::string AllExtensionNames =
+      get_device_info_string(PiInfoCode<info::device::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -250,9 +277,31 @@ std::vector<device> device_impl::create_sub_devices(
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
+std::vector<device> device_impl::create_sub_devices() const {
+  assert(!MIsHostDevice && "Partitioning is not supported on host.");
+
+  if (!is_partition_supported(
+          info::partition_property::ext_intel_partition_by_cslice)) {
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::ext_intel_partition_by_cslice.",
+        PI_ERROR_INVALID_OPERATION);
+  }
+
+  const pi_device_partition_property Properties[2] = {
+      PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0};
+
+  pi_uint32 SubDevicesCount = 0;
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
+      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+
+  return create_sub_devices(Properties, SubDevicesCount);
+}
+
 pi_native_handle device_impl::getNative() const {
   auto Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
+  if (getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piDeviceRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
@@ -272,6 +321,11 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::accelerator:
     return is_accelerator();
   case aspect::custom:
+    return false;
+  // TODO: Implement this for FPGA and ESIMD emulators.
+  case aspect::emulated:
+    return false;
+  case aspect::host_debuggable:
     return false;
   case aspect::fp16:
     return has_extension("cl_khr_fp16");
@@ -297,20 +351,21 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_device_allocations>();
   case aspect::usm_host_allocations:
     return get_info<info::device::usm_host_allocations>();
+  case aspect::ext_intel_mem_channel:
+    return get_info<info::device::ext_intel_mem_channel>();
   case aspect::usm_atomic_host_allocations:
     return is_host() ||
-           (get_device_info_impl<
-                pi_usm_capabilities,
-                info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
+           (get_device_info_impl<pi_usm_capabilities,
+                                 info::device::usm_host_allocations>::
+                get(MPlatform->getDeviceImpl(MDevice)) &
             PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
     return is_host() ||
-           (get_device_info_impl<
-                pi_usm_capabilities,
-                info::device::usm_shared_allocations>::get(MDevice,
-                                                           getPlugin()) &
+           (get_device_info_impl<pi_usm_capabilities,
+                                 info::device::usm_shared_allocations>::
+                get(MPlatform->getDeviceImpl(MDevice)) &
             PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
@@ -389,10 +444,9 @@ bool device_impl::has(aspect Aspect) const {
             &async_barrier_supported, nullptr) == PI_SUCCESS;
     return call_successful && async_barrier_supported;
   }
-  default:
-    throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_ERROR_INVALID_DEVICE);
   }
+  throw runtime_error("This device aspect has not been implemented yet.",
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
@@ -411,6 +465,56 @@ std::string device_impl::getDeviceName() const {
                  [this]() { MDeviceName = get_info<info::device::name>(); });
 
   return MDeviceName;
+}
+
+// On first call this function queries for device timestamp
+// along with host synchronized timestamp and stores it in memeber varaible
+// MDeviceHostBaseTime. Subsequent calls to this function would just retrieve
+// the host timestamp, compute difference against the host timestamp in
+// MDeviceHostBaseTime and calculate the device timestamp based on the
+// difference.
+//
+// The MDeviceHostBaseTime is refreshed with new device and host timestamp
+// after a certain interval (determined by TimeTillRefresh) to account for
+// clock drift between host and device.
+//
+uint64_t device_impl::getCurrentDeviceTime() {
+  using namespace std::chrono;
+  uint64_t HostTime =
+      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+          .count();
+  if (MIsHostDevice) {
+    return HostTime;
+  }
+
+  // To account for potential clock drift between host clock and device clock.
+  // The value set is arbitrary: 200 seconds
+  constexpr uint64_t TimeTillRefresh = 200e9;
+  uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
+
+  if (Diff > TimeTillRefresh || Diff <= 0) {
+    auto Plugin = getPlugin();
+    auto Result =
+        Plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+            MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
+
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      char *p = nullptr;
+      Plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
+      std::string errorMsg(p ? p : "");
+      throw sycl::feature_not_supported(
+          "Device and/or backend does not support querying timestamp: " +
+              errorMsg,
+          Result);
+    } else {
+      Plugin.checkPiResult(Result);
+    }
+    // Until next sync we will compute device time based on the host time
+    // returned in HostTime, so make this our base host time.
+    MDeviceHostBaseTime.second = HostTime;
+    Diff = 0;
+  }
+  return MDeviceHostBaseTime.first + Diff;
 }
 
 } // namespace detail

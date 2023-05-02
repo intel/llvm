@@ -8,7 +8,7 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/group_sort_impl.hpp>
 #include <sycl/detail/type_traits.hpp>
@@ -18,16 +18,14 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 
 // ---- traits
 template <typename T, typename = void> struct has_difference_type {};
 
 template <typename T>
-struct has_difference_type<T, sycl::detail::void_t<typename T::difference_type>>
+struct has_difference_type<T, std::void_t<typename T::difference_type>>
     : std::true_type {};
 
 template <typename T> struct has_difference_type<T *> : std::true_type {};
@@ -51,9 +49,8 @@ struct is_sorter_impl {
 template <typename Sorter, typename Group,
           typename Ptr> // multi_ptr has difference_type and don't have other
                         // iterator's fields
-struct is_sorter_impl<
-    Sorter, Group, Ptr,
-    sycl::detail::void_t<typename has_difference_type<Ptr>::type>> {
+struct is_sorter_impl<Sorter, Group, Ptr,
+                      std::void_t<typename has_difference_type<Ptr>::type>> {
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
@@ -70,7 +67,7 @@ struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 
 // ---- sort_over_group
 template <typename Group, typename T, typename Sorter>
-typename std::enable_if<detail::is_sorter<Sorter, Group, T>::value, T>::type
+std::enable_if_t<detail::is_sorter<Sorter, Group, T>::value, T>
 sort_over_group(Group group, T value, Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sorter(group, value);
@@ -84,8 +81,8 @@ sort_over_group(Group group, T value, Sorter sorter) {
 #endif
 }
 
-template <typename Group, typename T, typename Compare, std::size_t Extent>
-typename std::enable_if<!detail::is_sorter<Compare, Group, T>::value, T>::type
+template <typename Group, typename T, typename Compare, size_t Extent>
+std::enable_if_t<!detail::is_sorter<Compare, Group, T>::value, T>
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value, Compare comp) {
   return sort_over_group(
@@ -93,8 +90,8 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
       experimental::default_sorter<Compare>(exec.get_memory(), comp));
 }
 
-template <typename Group, typename T, std::size_t Extent>
-typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, T>::type
+template <typename Group, typename T, size_t Extent>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, T>
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value) {
   return sort_over_group(exec.get_group(), value,
@@ -103,8 +100,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 
 // ---- joint_sort
 template <typename Group, typename Iter, typename Sorter>
-typename std::enable_if<detail::is_sorter<Sorter, Group, Iter>::value,
-                        void>::type
+std::enable_if_t<detail::is_sorter<Sorter, Group, Iter>::value, void>
 joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   sorter(group, first, last);
@@ -119,26 +115,23 @@ joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
 #endif
 }
 
-template <typename Group, typename Iter, typename Compare, std::size_t Extent>
-typename std::enable_if<!detail::is_sorter<Compare, Group, Iter>::value,
-                        void>::type
+template <typename Group, typename Iter, typename Compare, size_t Extent>
+std::enable_if_t<!detail::is_sorter<Compare, Group, Iter>::value, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last, Compare comp) {
   joint_sort(exec.get_group(), first, last,
              experimental::default_sorter<Compare>(exec.get_memory(), comp));
 }
 
-template <typename Group, typename Iter, std::size_t Extent>
-typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, void>::type
+template <typename Group, typename Iter, size_t Extent>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last) {
   joint_sort(exec.get_group(), first, last,
              experimental::default_sorter<>(exec.get_memory()));
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-#endif // __cplusplus >=201703L
+#endif

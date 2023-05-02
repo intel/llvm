@@ -41,6 +41,7 @@
 #define LLVM_CODEGEN_MACHINEPIPELINER_H
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/CodeGen/DFAPacketizer.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/RegisterClassInfo.h"
@@ -309,7 +310,7 @@ private:
   bool canUseLastOffsetValue(MachineInstr *MI, unsigned &BasePos,
                              unsigned &OffsetPos, unsigned &NewBase,
                              int64_t &NewOffset);
-  void postprocessDAG();
+  void postProcessDAG();
   /// Set the Minimum Initiation Interval for this schedule attempt.
   void setMII(unsigned ResMII, unsigned RecMII);
   /// Set the Maximum Initiation Interval for this schedule attempt.

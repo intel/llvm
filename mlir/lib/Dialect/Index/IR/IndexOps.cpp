@@ -11,6 +11,8 @@
 #include "mlir/Dialect/Index/IR/IndexDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/ADT/SmallString.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::index;
@@ -62,14 +64,15 @@ Operation *IndexDialect::materializeConstant(OpBuilder &b, Attribute value,
 /// the integer result, which in turn must satisfy the above property.
 static OpFoldResult foldBinaryOpUnchecked(
     ArrayRef<Attribute> operands,
-    function_ref<Optional<APInt>(const APInt &, const APInt &)> calculate) {
+    function_ref<std::optional<APInt>(const APInt &, const APInt &)>
+        calculate) {
   assert(operands.size() == 2 && "binary operation expected 2 operands");
   auto lhs = dyn_cast_if_present<IntegerAttr>(operands[0]);
   auto rhs = dyn_cast_if_present<IntegerAttr>(operands[1]);
   if (!lhs || !rhs)
     return {};
 
-  Optional<APInt> result = calculate(lhs.getValue(), rhs.getValue());
+  std::optional<APInt> result = calculate(lhs.getValue(), rhs.getValue());
   if (!result)
     return {};
   assert(result->trunc(32) ==
@@ -83,11 +86,12 @@ static OpFoldResult foldBinaryOpUnchecked(
 /// bits of the results.
 ///
 /// The function accepts a lambda that computes the integer result in both
-/// 64-bit and 32-bit. If either call returns `None`, the operation is not
-/// folded.
+/// 64-bit and 32-bit. If either call returns `std::nullopt`, the operation is
+/// not folded.
 static OpFoldResult foldBinaryOpChecked(
     ArrayRef<Attribute> operands,
-    function_ref<Optional<APInt>(const APInt &, const APInt &lhs)> calculate) {
+    function_ref<std::optional<APInt>(const APInt &, const APInt &lhs)>
+        calculate) {
   assert(operands.size() == 2 && "binary operation expected 2 operands");
   auto lhs = dyn_cast_if_present<IntegerAttr>(operands[0]);
   auto rhs = dyn_cast_if_present<IntegerAttr>(operands[1]);
@@ -96,10 +100,10 @@ static OpFoldResult foldBinaryOpChecked(
     return {};
 
   // Compute the 64-bit result and the 32-bit result.
-  Optional<APInt> result64 = calculate(lhs.getValue(), rhs.getValue());
+  std::optional<APInt> result64 = calculate(lhs.getValue(), rhs.getValue());
   if (!result64)
     return {};
-  Optional<APInt> result32 =
+  std::optional<APInt> result32 =
       calculate(lhs.getValue().trunc(32), rhs.getValue().trunc(32));
   if (!result32)
     return {};
@@ -114,39 +118,43 @@ static OpFoldResult foldBinaryOpChecked(
 // AddOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult AddOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpUnchecked(
-      operands, [](const APInt &lhs, const APInt &rhs) { return lhs + rhs; });
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs + rhs; });
 }
 
 //===----------------------------------------------------------------------===//
 // SubOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult SubOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult SubOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpUnchecked(
-      operands, [](const APInt &lhs, const APInt &rhs) { return lhs - rhs; });
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs - rhs; });
 }
 
 //===----------------------------------------------------------------------===//
 // MulOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult MulOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult MulOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpUnchecked(
-      operands, [](const APInt &lhs, const APInt &rhs) { return lhs * rhs; });
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs * rhs; });
 }
 
 //===----------------------------------------------------------------------===//
 // DivSOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult DivSOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult DivSOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpChecked(
-      operands, [](const APInt &lhs, const APInt &rhs) -> Optional<APInt> {
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
         // Don't fold division by zero.
         if (rhs.isZero())
-          return None;
+          return std::nullopt;
         return lhs.sdiv(rhs);
       });
 }
@@ -155,12 +163,13 @@ OpFoldResult DivSOp::fold(ArrayRef<Attribute> operands) {
 // DivUOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult DivUOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult DivUOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpChecked(
-      operands, [](const APInt &lhs, const APInt &rhs) -> Optional<APInt> {
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
         // Don't fold division by zero.
         if (rhs.isZero())
-          return None;
+          return std::nullopt;
         return lhs.udiv(rhs);
       });
 }
@@ -171,10 +180,10 @@ OpFoldResult DivUOp::fold(ArrayRef<Attribute> operands) {
 
 /// Compute `ceildivs(n, m)` as `x = m > 0 ? -1 : 1` and then
 /// `n*m > 0 ? (n+x)/m + 1 : -(-n/m)`.
-static Optional<APInt> calculateCeilDivS(const APInt &n, const APInt &m) {
+static std::optional<APInt> calculateCeilDivS(const APInt &n, const APInt &m) {
   // Don't fold division by zero.
   if (m.isZero())
-    return None;
+    return std::nullopt;
   // Short-circuit the zero case.
   if (n.isZero())
     return n;
@@ -192,21 +201,22 @@ static Optional<APInt> calculateCeilDivS(const APInt &n, const APInt &m) {
   return (n + x).sdiv(m) + 1;
 }
 
-OpFoldResult CeilDivSOp::fold(ArrayRef<Attribute> operands) {
-  return foldBinaryOpChecked(operands, calculateCeilDivS);
+OpFoldResult CeilDivSOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(adaptor.getOperands(), calculateCeilDivS);
 }
 
 //===----------------------------------------------------------------------===//
 // CeilDivUOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult CeilDivUOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult CeilDivUOp::fold(FoldAdaptor adaptor) {
   // Compute `ceildivu(n, m)` as `n == 0 ? 0 : (n-1)/m + 1`.
   return foldBinaryOpChecked(
-      operands, [](const APInt &n, const APInt &m) -> Optional<APInt> {
+      adaptor.getOperands(),
+      [](const APInt &n, const APInt &m) -> std::optional<APInt> {
         // Don't fold division by zero.
         if (m.isZero())
-          return None;
+          return std::nullopt;
         // Short-circuit the zero case.
         if (n.isZero())
           return n;
@@ -221,10 +231,10 @@ OpFoldResult CeilDivUOp::fold(ArrayRef<Attribute> operands) {
 
 /// Compute `floordivs(n, m)` as `x = m < 0 ? 1 : -1` and then
 /// `n*m < 0 ? -1 - (x-n)/m : n/m`.
-static Optional<APInt> calculateFloorDivS(const APInt &n, const APInt &m) {
+static std::optional<APInt> calculateFloorDivS(const APInt &n, const APInt &m) {
   // Don't fold division by zero.
   if (m.isZero())
-    return None;
+    return std::nullopt;
   // Short-circuit the zero case.
   if (n.isZero())
     return n;
@@ -241,47 +251,69 @@ static Optional<APInt> calculateFloorDivS(const APInt &n, const APInt &m) {
   return -1 - (x - n).sdiv(m);
 }
 
-OpFoldResult FloorDivSOp::fold(ArrayRef<Attribute> operands) {
-  return foldBinaryOpChecked(operands, calculateFloorDivS);
+OpFoldResult FloorDivSOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(adaptor.getOperands(), calculateFloorDivS);
 }
 
 //===----------------------------------------------------------------------===//
 // RemSOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult RemSOp::fold(ArrayRef<Attribute> operands) {
-  return foldBinaryOpChecked(operands, [](const APInt &lhs, const APInt &rhs) {
-    return lhs.srem(rhs);
-  });
+OpFoldResult RemSOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs.srem(rhs); });
 }
 
 //===----------------------------------------------------------------------===//
 // RemUOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult RemUOp::fold(ArrayRef<Attribute> operands) {
-  return foldBinaryOpChecked(operands, [](const APInt &lhs, const APInt &rhs) {
-    return lhs.urem(rhs);
-  });
+OpFoldResult RemUOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs.urem(rhs); });
 }
 
 //===----------------------------------------------------------------------===//
 // MaxSOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult MaxSOp::fold(ArrayRef<Attribute> operands) {
-  return foldBinaryOpChecked(operands, [](const APInt &lhs, const APInt &rhs) {
-    return lhs.sgt(rhs) ? lhs : rhs;
-  });
+OpFoldResult MaxSOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(adaptor.getOperands(),
+                             [](const APInt &lhs, const APInt &rhs) {
+                               return lhs.sgt(rhs) ? lhs : rhs;
+                             });
 }
 
 //===----------------------------------------------------------------------===//
 // MaxUOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult MaxUOp::fold(ArrayRef<Attribute> operands) {
-  return foldBinaryOpChecked(operands, [](const APInt &lhs, const APInt &rhs) {
-    return lhs.ugt(rhs) ? lhs : rhs;
+OpFoldResult MaxUOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(adaptor.getOperands(),
+                             [](const APInt &lhs, const APInt &rhs) {
+                               return lhs.ugt(rhs) ? lhs : rhs;
+                             });
+}
+
+//===----------------------------------------------------------------------===//
+// MinSOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MinSOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(adaptor.getOperands(), [](const APInt &lhs, const APInt &rhs) {
+    return lhs.slt(rhs) ? lhs : rhs;
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// MinUOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MinUOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpChecked(adaptor.getOperands(), [](const APInt &lhs, const APInt &rhs) {
+    return lhs.ult(rhs) ? lhs : rhs;
   });
 }
 
@@ -289,9 +321,10 @@ OpFoldResult MaxUOp::fold(ArrayRef<Attribute> operands) {
 // ShlOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ShlOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult ShlOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpUnchecked(
-      operands, [](const APInt &lhs, const APInt &rhs) -> Optional<APInt> {
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
         // We cannot fold if the RHS is greater than or equal to 32 because
         // this would be UB in 32-bit systems but not on 64-bit systems. RHS is
         // already treated as unsigned.
@@ -305,9 +338,10 @@ OpFoldResult ShlOp::fold(ArrayRef<Attribute> operands) {
 // ShrSOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ShrSOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult ShrSOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpChecked(
-      operands, [](const APInt &lhs, const APInt &rhs) -> Optional<APInt> {
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
         // Don't fold if RHS is greater than or equal to 32.
         if (rhs.uge(32))
           return {};
@@ -319,14 +353,45 @@ OpFoldResult ShrSOp::fold(ArrayRef<Attribute> operands) {
 // ShrUOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ShrUOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult ShrUOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpChecked(
-      operands, [](const APInt &lhs, const APInt &rhs) -> Optional<APInt> {
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
         // Don't fold if RHS is greater than or equal to 32.
         if (rhs.uge(32))
           return {};
         return lhs.lshr(rhs);
       });
+}
+
+//===----------------------------------------------------------------------===//
+// AndOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AndOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpUnchecked(
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs & rhs; });
+}
+
+//===----------------------------------------------------------------------===//
+// OrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult OrOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpUnchecked(
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs | rhs; });
+}
+
+//===----------------------------------------------------------------------===//
+// XOrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult XOrOp::fold(FoldAdaptor adaptor) {
+  return foldBinaryOpUnchecked(
+      adaptor.getOperands(),
+      [](const APInt &lhs, const APInt &rhs) { return lhs ^ rhs; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -377,10 +442,9 @@ bool compareIndices(const APInt &lhs, const APInt &rhs,
   llvm_unreachable("unhandled IndexCmpPredicate predicate");
 }
 
-OpFoldResult CmpOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "compare expected 2 operands");
-  auto lhs = dyn_cast_if_present<IntegerAttr>(operands[0]);
-  auto rhs = dyn_cast_if_present<IntegerAttr>(operands[1]);
+OpFoldResult CmpOp::fold(FoldAdaptor adaptor) {
+  auto lhs = dyn_cast_if_present<IntegerAttr>(adaptor.getLhs());
+  auto rhs = dyn_cast_if_present<IntegerAttr>(adaptor.getRhs());
   if (!lhs || !rhs)
     return {};
 
@@ -397,9 +461,15 @@ OpFoldResult CmpOp::fold(ArrayRef<Attribute> operands) {
 // ConstantOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ConstantOp::fold(ArrayRef<Attribute> operands) {
-  return getValueAttr();
+void ConstantOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  SmallString<32> specialNameBuffer;
+  llvm::raw_svector_ostream specialName(specialNameBuffer);
+  specialName << "idx" << getValueAttr().getValue();
+  setNameFn(getResult(), specialName.str());
 }
+
+OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) { return getValueAttr(); }
 
 void ConstantOp::build(OpBuilder &b, OperationState &state, int64_t value) {
   build(b, state, b.getIndexType(), b.getIndexAttr(value));
@@ -409,8 +479,13 @@ void ConstantOp::build(OpBuilder &b, OperationState &state, int64_t value) {
 // BoolConstantOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult BoolConstantOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult BoolConstantOp::fold(FoldAdaptor adaptor) {
   return getValueAttr();
+}
+
+void BoolConstantOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), getValue() ? "true" : "false");
 }
 
 //===----------------------------------------------------------------------===//

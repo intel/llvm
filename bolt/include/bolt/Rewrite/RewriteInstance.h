@@ -43,13 +43,13 @@ class RewriteInstance {
 public:
   // This constructor has complex initialization that can fail during
   // construction. Constructors can’t return errors, so clients must test \p Err
-  // after the object is constructed. Use createRewriteInstance instead.
+  // after the object is constructed. Use `create` method instead.
   RewriteInstance(llvm::object::ELFObjectFileBase *File, const int Argc,
                   const char *const *Argv, StringRef ToolPath, Error &Err);
 
   static Expected<std::unique_ptr<RewriteInstance>>
-  createRewriteInstance(llvm::object::ELFObjectFileBase *File, const int Argc,
-                        const char *const *Argv, StringRef ToolPath);
+  create(llvm::object::ELFObjectFileBase *File, const int Argc,
+         const char *const *Argv, StringRef ToolPath);
   ~RewriteInstance();
 
   /// Assign profile from \p Filename to this instance.
@@ -79,8 +79,9 @@ public:
   void parseBuildID();
 
   /// The build-id is typically a stream of 20 bytes. Return these bytes in
-  /// printable hexadecimal form if they are available, or NoneType otherwise.
-  Optional<std::string> getPrintableBuildID() const;
+  /// printable hexadecimal form if they are available, or std::nullopt
+  /// otherwise.
+  std::optional<std::string> getPrintableBuildID() const;
 
   /// If this instance uses a profile, return appropriate profile reader.
   const ProfileReaderBase *getProfileReader() const {
@@ -93,6 +94,9 @@ private:
   /// Populate array of binary functions and other objects of interest
   /// from meta data in the file.
   void discoverFileObjects();
+
+  /// Process fragments, locate parent functions.
+  void registerFragments();
 
   /// Read info from special sections. E.g. eh_frame and .gcc_except_table
   /// for exception and stack unwinding information.
@@ -133,6 +137,9 @@ private:
 
   /// Read relocations from a given section.
   void readDynamicRelocations(const object::SectionRef &Section, bool IsJmpRel);
+
+  /// Read relocations from a given RELR section.
+  void readDynamicRelrRelocations(BinarySection &Section);
 
   /// Print relocation information.
   void printRelocationInfo(const RelocationRef &Rel, StringRef SymbolName,
@@ -246,7 +253,7 @@ private:
   /// The \p SymbolName, \p SymbolAddress, \p Addend and \p ExtractedValue
   /// parameters will be set on success. The \p Skip argument indicates
   /// that the relocation was analyzed, but it must not be processed.
-  bool analyzeRelocation(const object::RelocationRef &Rel, uint64_t RType,
+  bool analyzeRelocation(const object::RelocationRef &Rel, uint64_t &RType,
                          std::string &SymbolName, bool &IsSectionRelocation,
                          uint64_t &SymbolAddress, int64_t &Addend,
                          uint64_t &ExtractedValue, bool &Skip) const;
@@ -307,6 +314,9 @@ private:
 
   /// Patch allocatable relocation sections.
   ELF_FUNCTION(void, patchELFAllocatableRelaSections);
+
+  /// Patch allocatable relr section.
+  ELF_FUNCTION(void, patchELFAllocatableRelrSection);
 
   /// Finalize memory image of section header string table.
   ELF_FUNCTION(void, finalizeSectionStringTable);
@@ -470,16 +480,25 @@ private:
   uint64_t NewTextSegmentOffset{0};
   uint64_t NewTextSegmentSize{0};
 
+  /// New writable segment info.
+  uint64_t NewWritableSegmentAddress{0};
+  uint64_t NewWritableSegmentSize{0};
+
   /// Track next available address for new allocatable sections.
   uint64_t NextAvailableAddress{0};
 
   /// Location and size of dynamic relocations.
-  Optional<uint64_t> DynamicRelocationsAddress;
+  std::optional<uint64_t> DynamicRelocationsAddress;
   uint64_t DynamicRelocationsSize{0};
   uint64_t DynamicRelativeRelocationsCount{0};
 
+  // Location and size of .relr.dyn relocations.
+  std::optional<uint64_t> DynamicRelrAddress;
+  uint64_t DynamicRelrSize{0};
+  uint64_t DynamicRelrEntrySize{0};
+
   /// PLT relocations are special kind of dynamic relocations stored separately.
-  Optional<uint64_t> PLTRelocationsAddress;
+  std::optional<uint64_t> PLTRelocationsAddress;
   uint64_t PLTRelocationsSize{0};
 
   /// True if relocation of specified type came from .rela.plt
@@ -542,18 +561,6 @@ private:
   /// Exception handling and stack unwinding information in this binary.
   ErrorOr<BinarySection &> LSDASection{std::errc::bad_address};
   ErrorOr<BinarySection &> EHFrameSection{std::errc::bad_address};
-
-  /// .got.plt sections.
-  ///
-  /// Contains jump slots (addresses) indirectly referenced by
-  /// instructions in .plt section.
-  ErrorOr<BinarySection &> GOTPLTSection{std::errc::bad_address};
-
-  /// .rela.plt section.
-  ///
-  /// Contains relocations against .got.plt.
-  ErrorOr<BinarySection &> RelaPLTSection{std::errc::bad_address};
-  ErrorOr<BinarySection &> RelaDynSection{std::errc::bad_address};
 
   /// .note.gnu.build-id section.
   ErrorOr<BinarySection &> BuildIDSection{std::errc::bad_address};

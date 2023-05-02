@@ -1,23 +1,41 @@
+//===-- Unittests for getrandom -------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "src/errno/libc_errno.h"
 #include "src/math/fabs.h"
 #include "src/sys/random/getrandom.h"
 #include "test/ErrnoSetterMatcher.h"
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
 TEST(LlvmLibcGetRandomTest, InvalidFlag) {
   using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
   static constexpr size_t SIZE = 256;
   char data[SIZE];
-  errno = 0;
+  libc_errno = 0;
   ASSERT_THAT(__llvm_libc::getrandom(data, SIZE, -1), Fails(EINVAL));
-  errno = 0;
+  libc_errno = 0;
 }
 
 TEST(LlvmLibcGetRandomTest, InvalidBuffer) {
   using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
 
-  errno = 0;
+  libc_errno = 0;
   ASSERT_THAT(__llvm_libc::getrandom(nullptr, 65536, 0), Fails(EFAULT));
-  errno = 0;
+  libc_errno = 0;
+}
+
+TEST(LlvmLibcGetRandomTest, ReturnsSize) {
+  static constexpr size_t SIZE = 8192;
+  uint8_t buf[SIZE];
+  for (size_t i = 0; i < SIZE; ++i) {
+    // Without GRND_RANDOM set this should never fail.
+    ASSERT_EQ(__llvm_libc::getrandom(buf, i, 0), static_cast<ssize_t>(i));
+  }
 }
 
 TEST(LlvmLibcGetRandomTest, PiEstimation) {

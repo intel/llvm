@@ -12,6 +12,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -26,30 +27,16 @@ constexpr unsigned EAMTestKernelNumArgs = 4;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<EAMTestKernel> {
+template <>
+struct KernelInfo<EAMTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
   static constexpr const char *getName() { return EAMTestKernelName; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
-template <> struct KernelInfo<EAMTestKernel2> {
+template <>
+struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
   static constexpr const char *getName() { return EAMTestKernel2Name; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -139,7 +126,7 @@ public:
           std::move(CGH->MEvents), std::move(CGH->MArgs),
           std::move(CGH->MKernelName), std::move(CGH->MOSModuleHandle),
           std::move(CGH->MStreamStorage), std::move(MImpl->MAuxiliaryResources),
-          CGH->MCGType, CGH->MCodeLoc));
+          CGH->MCGType, {}, CGH->MCodeLoc));
       break;
     }
     default:
@@ -151,7 +138,7 @@ public:
   }
 };
 
-sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
+const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
     const sycl::kernel_bundle<sycl::bundle_state::input> &KernelBundle,
     std::shared_ptr<sycl::detail::queue_impl> QueueImpl) {
 
@@ -206,13 +193,12 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
           {sycl::get_kernel_id<EAMTestKernel>(),
            sycl::get_kernel_id<EAMTestKernel2>()});
 
-  sycl::detail::ProgramManager::KernelArgMask EliminatedArgMask =
+  const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
                                  sycl::detail::getSyclObjImpl(Queue));
 
-  sycl::detail::ProgramManager::KernelArgMask ExpElimArgMask(
-      EAMTestKernelNumArgs);
+  sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);
   ExpElimArgMask[0] = ExpElimArgMask[2] = true;
 
-  EXPECT_EQ(EliminatedArgMask, ExpElimArgMask);
+  EXPECT_EQ(*EliminatedArgMask, ExpElimArgMask);
 }

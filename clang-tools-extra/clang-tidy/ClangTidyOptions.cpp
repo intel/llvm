@@ -16,6 +16,7 @@
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/YAMLTraits.h"
+#include <optional>
 #include <utility>
 
 #define DEBUG_TYPE "clang-tidy-options"
@@ -27,8 +28,7 @@ using OptionsSource = clang::tidy::ClangTidyOptionsProvider::OptionsSource;
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(FileFilter)
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(FileFilter::LineRange)
 
-namespace llvm {
-namespace yaml {
+namespace llvm::yaml {
 
 // Map std::pair<int, int> to a JSON array of size 2.
 template <> struct SequenceTraits<FileFilter::LineRange> {
@@ -117,13 +117,54 @@ void yamlize(IO &IO, ClangTidyOptions::OptionMap &Options, bool,
   }
 }
 
+struct ChecksVariant {
+  std::optional<std::string> AsString;
+  std::optional<std::vector<std::string>> AsVector;
+};
+
+template <>
+void yamlize(IO &IO, ChecksVariant &Checks, bool, EmptyContext &Ctx) {
+  if (!IO.outputting()) {
+    // Special case for reading from YAML
+    // Must support reading from both a string or a list
+    Input &I = reinterpret_cast<Input &>(IO);
+    if (isa<ScalarNode, BlockScalarNode>(I.getCurrentNode())) {
+      Checks.AsString = std::string();
+      yamlize(IO, *Checks.AsString, true, Ctx);
+    } else if (isa<SequenceNode>(I.getCurrentNode())) {
+      Checks.AsVector = std::vector<std::string>();
+      yamlize(IO, *Checks.AsVector, true, Ctx);
+    } else {
+      IO.setError("expected string or sequence");
+    }
+  }
+}
+
+static void mapChecks(IO &IO, std::optional<std::string> &Checks) {
+  if (IO.outputting()) {
+    // Output always a string
+    IO.mapOptional("Checks", Checks);
+  } else {
+    // Input as either a string or a list
+    ChecksVariant ChecksAsVariant;
+    IO.mapOptional("Checks", ChecksAsVariant);
+    if (ChecksAsVariant.AsString)
+      Checks = ChecksAsVariant.AsString;
+    else if (ChecksAsVariant.AsVector)
+      Checks = llvm::join(*ChecksAsVariant.AsVector, ",");
+  }
+}
+
 template <> struct MappingTraits<ClangTidyOptions> {
   static void mapping(IO &IO, ClangTidyOptions &Options) {
     bool Ignored = false;
-    IO.mapOptional("Checks", Options.Checks);
+    mapChecks(IO, Options.Checks);
     IO.mapOptional("WarningsAsErrors", Options.WarningsAsErrors);
+    IO.mapOptional("HeaderFileExtensions", Options.HeaderFileExtensions);
+    IO.mapOptional("ImplementationFileExtensions",
+                   Options.ImplementationFileExtensions);
     IO.mapOptional("HeaderFilterRegex", Options.HeaderFilterRegex);
-    IO.mapOptional("AnalyzeTemporaryDtors", Ignored); // legacy compatibility
+    IO.mapOptional("AnalyzeTemporaryDtors", Ignored); // deprecated
     IO.mapOptional("FormatStyle", Options.FormatStyle);
     IO.mapOptional("User", Options.User);
     IO.mapOptional("CheckOptions", Options.CheckOptions);
@@ -134,20 +175,20 @@ template <> struct MappingTraits<ClangTidyOptions> {
   }
 };
 
-} // namespace yaml
-} // namespace llvm
+} // namespace llvm::yaml
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 ClangTidyOptions ClangTidyOptions::getDefaults() {
   ClangTidyOptions Options;
   Options.Checks = "";
   Options.WarningsAsErrors = "";
+  Options.HeaderFileExtensions = {"", "h", "hh", "hpp", "hxx"};
+  Options.ImplementationFileExtensions = {"c", "cc", "cpp", "cxx"};
   Options.HeaderFilterRegex = "";
   Options.SystemHeaders = false;
   Options.FormatStyle = "none";
-  Options.User = llvm::None;
+  Options.User = std::nullopt;
   for (const ClangTidyModuleRegistry::entry &Module :
        ClangTidyModuleRegistry::entries())
     Options.mergeWith(Module.instantiate()->getModuleOptions(), 0);
@@ -155,7 +196,7 @@ ClangTidyOptions ClangTidyOptions::getDefaults() {
 }
 
 template <typename T>
-static void mergeVectors(Optional<T> &Dest, const Optional<T> &Src) {
+static void mergeVectors(std::optional<T> &Dest, const std::optional<T> &Src) {
   if (Src) {
     if (Dest)
       Dest->insert(Dest->end(), Src->begin(), Src->end());
@@ -164,14 +205,14 @@ static void mergeVectors(Optional<T> &Dest, const Optional<T> &Src) {
   }
 }
 
-static void mergeCommaSeparatedLists(Optional<std::string> &Dest,
-                                     const Optional<std::string> &Src) {
+static void mergeCommaSeparatedLists(std::optional<std::string> &Dest,
+                                     const std::optional<std::string> &Src) {
   if (Src)
     Dest = (Dest && !Dest->empty() ? *Dest + "," : "") + *Src;
 }
 
 template <typename T>
-static void overrideValue(Optional<T> &Dest, const Optional<T> &Src) {
+static void overrideValue(std::optional<T> &Dest, const std::optional<T> &Src) {
   if (Src)
     Dest = Src;
 }
@@ -180,6 +221,9 @@ ClangTidyOptions &ClangTidyOptions::mergeWith(const ClangTidyOptions &Other,
                                               unsigned Order) {
   mergeCommaSeparatedLists(Checks, Other.Checks);
   mergeCommaSeparatedLists(WarningsAsErrors, Other.WarningsAsErrors);
+  overrideValue(HeaderFileExtensions, Other.HeaderFileExtensions);
+  overrideValue(ImplementationFileExtensions,
+                Other.ImplementationFileExtensions);
   overrideValue(HeaderFilterRegex, Other.HeaderFilterRegex);
   overrideValue(SystemHeaders, Other.SystemHeaders);
   overrideValue(FormatStyle, Other.FormatStyle);
@@ -289,7 +333,7 @@ void FileOptionsBaseProvider::addRawFileOptions(
   StringRef Path = llvm::sys::path::parent_path(AbsolutePath);
   for (StringRef CurrentPath = Path; !CurrentPath.empty();
        CurrentPath = llvm::sys::path::parent_path(CurrentPath)) {
-    llvm::Optional<OptionsSource> Result;
+    std::optional<OptionsSource> Result;
 
     auto Iter = CachedOptions.find(CurrentPath);
     if (Iter != CachedOptions.end())
@@ -359,7 +403,7 @@ FileOptionsProvider::getRawOptions(StringRef FileName) {
   return RawOptions;
 }
 
-llvm::Optional<OptionsSource>
+std::optional<OptionsSource>
 FileOptionsBaseProvider::tryReadConfigFile(StringRef Directory) {
   assert(!Directory.empty());
 
@@ -368,7 +412,7 @@ FileOptionsBaseProvider::tryReadConfigFile(StringRef Directory) {
   if (!DirectoryStatus || !DirectoryStatus->isDirectory()) {
     llvm::errs() << "Error reading configuration from " << Directory
                  << ": directory doesn't exist.\n";
-    return llvm::None;
+    return std::nullopt;
   }
 
   for (const ConfigFileHandler &ConfigHandler : ConfigHandlers) {
@@ -403,7 +447,7 @@ FileOptionsBaseProvider::tryReadConfigFile(StringRef Directory) {
     }
     return OptionsSource(*ParsedOptions, std::string(ConfigFile));
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Parses -line-filter option and stores it to the \c Options.
@@ -451,5 +495,4 @@ std::string configurationAsText(const ClangTidyOptions &Options) {
   return Stream.str();
 }
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

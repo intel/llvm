@@ -616,7 +616,10 @@ def : InstRW<[P10W_DX_5C, P10W_DISP_ANY, P10DX_Read, P10DX_Read],
     VMUL10EUQ,
     VSUBCUQ,
     VSUBUQM,
+    XSCMPEQQP,
     XSCMPEXPQP,
+    XSCMPGEQP,
+    XSCMPGTQP,
     XSCMPOQP,
     XSCMPUQP,
     XSMAXCQP,
@@ -647,6 +650,8 @@ def : InstRW<[P10W_F2_4C, P10W_DISP_ANY],
 // 4 Cycles ALU2 operations, 1 input operands
 def : InstRW<[P10W_F2_4C, P10W_DISP_ANY, P10F2_Read],
       (instrs
+    CBCDTD, CBCDTD8,
+    CDTBCD, CDTBCD8,
     CNTLZD,
     CNTLZD_rec,
     CNTLZW, CNTLZW8,
@@ -999,7 +1004,6 @@ def : InstRW<[P10W_FX_3C, P10W_DISP_ANY, P10FX_Read, P10FX_Read],
     CRANDC,
     CRNAND,
     CRNOR,
-    CRNOT,
     CROR,
     CRORC,
     CR6UNSET, CRUNSET, CRXOR,
@@ -1199,6 +1203,13 @@ def : InstRW<[P10W_FX_3C, P10W_DISP_EVEN, P10W_DISP_ANY, P10FX_Read, P10FX_Read]
     SUBFE8_rec, SUBFE_rec,
     SUBFE8O_rec, SUBFEO_rec,
     SUBF8O_rec, SUBFO_rec
+)>;
+
+// 2-way crack instructions
+// 3 Cycles ALU operations, and 4 Cycles ALU2 operations, 2 input operands
+def : InstRW<[P10W_FX_3C, P10W_DISP_EVEN, P10W_F2_4C, P10W_DISP_ANY],
+      (instrs
+    ADDG6S, ADDG6S8
 )>;
 
 // 2-way crack instructions
@@ -1624,6 +1635,9 @@ def : InstRW<[P10W_PM_4C, P10W_DISP_ANY],
 // 4 Cycles Permute operations, 1 input operands
 def : InstRW<[P10W_PM_4C, P10W_DISP_ANY, P10PM_Read],
       (instrs
+    BRD,
+    BRH, BRH8,
+    BRW, BRW8,
     LVSL,
     LVSR,
     LXVKQ,
@@ -1710,9 +1724,7 @@ def : InstRW<[P10W_PM_4C, P10W_DISP_ANY, P10PM_Read, P10PM_Read],
     XXGENPCVWM,
     XXMRGHW,
     XXMRGLW,
-    XXPERM,
     XXPERMDI, XXPERMDIs,
-    XXPERMR,
     XXSLDWI, XXSLDWIs,
     XXSPLTW, XXSPLTWs
 )>;
@@ -1752,7 +1764,9 @@ def : InstRW<[P10W_PM_4C, P10W_DISP_ANY, P10PM_Read, P10PM_Read, P10PM_Read],
     VSLDBI,
     VSLDOI,
     VSRDBI,
-    XXINSERTW
+    XXINSERTW,
+    XXPERM,
+    XXPERMR
 )>;
 
 // 2-way crack instructions
@@ -1972,6 +1986,7 @@ def : InstRW<[P10W_SX, P10W_DISP_ANY],
       (instrs
     ATTN,
     CP_ABORT,
+    CRNOT,
     DCBA,
     DCBI,
     DCBZL,

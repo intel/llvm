@@ -5,6 +5,7 @@ clang_compiler_add_cxx_check()
 # FIXME: use SANITIZER_COMMON_SUPPORTED_ARCH here
 filter_available_targets(SANITIZER_UNITTEST_SUPPORTED_ARCH x86_64 i386 mips64 mips64el riscv64 sparcv9 sparc)
 if(APPLE)
+  list(APPEND SANITIZER_UNITTEST_SUPPORTED_ARCH arm64)
   darwin_filter_host_archs(SANITIZER_UNITTEST_SUPPORTED_ARCH SANITIZER_UNITTEST_SUPPORTED_ARCH)
 endif()
 
@@ -34,6 +35,7 @@ set(SANITIZER_UNITTESTS
   sanitizer_posix_test.cpp
   sanitizer_printf_test.cpp
   sanitizer_procmaps_test.cpp
+  sanitizer_procmaps_mac_test.cpp
   sanitizer_ring_buffer_test.cpp
   sanitizer_quarantine_test.cpp
   sanitizer_stack_store_test.cpp
@@ -111,6 +113,8 @@ endif()
 # The default stack size for clang is 8M.
 if(MSVC)
   list(APPEND SANITIZER_TEST_LINK_FLAGS_COMMON -Wl,/STACK:0xC00000)
+elseif (MINGW)
+  list(APPEND SANITIZER_TEST_LINK_FLAGS_COMMON -Wl,--stack=0xC00000)
 endif()
 
 set(SANITIZER_TEST_LINK_LIBS)

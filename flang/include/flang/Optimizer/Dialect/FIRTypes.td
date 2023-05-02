@@ -128,7 +128,7 @@ def fir_CharacterType : FIR_Type<"Character", "char"> {
     static constexpr LenType singleton() { return 1; }
 
     /// Character has a LEN value which is not a compile-time known constant.
-    static constexpr LenType unknownLen() { return mlir::ShapedType::kDynamicSize; }
+    static constexpr LenType unknownLen() { return mlir::ShapedType::kDynamic; }
 
     /// Character LEN is a runtime value.
     bool hasDynamicLen() { return getLen() == unknownLen(); }
@@ -356,6 +356,7 @@ def fir_RecordType : FIR_Type<"Record", "type"> {
     unsigned getNumLenParams() { return getLenParamList().size(); }
     bool isDependentType() { return getNumLenParams(); }
 
+    bool isFinalized() const;
     void finalize(llvm::ArrayRef<TypePair> lenPList,
                   llvm::ArrayRef<TypePair> typeList);
 
@@ -482,9 +483,9 @@ def fir_SequenceType : FIR_Type<"Sequence", "array"> {
     // Does the sequence have unknown shape? (`array<* x T>`)
     bool hasUnknownShape() const { return getShape().empty(); }
 
-    // The value `kDynamicSize` represents an unknown extent for a dimension
+    // The value `kDynamic` represents an unknown extent for a dimension
     static constexpr Extent getUnknownExtent() {
-      return mlir::ShapedType::kDynamicSize;
+      return mlir::ShapedType::kDynamic;
     }
   }];
 }
@@ -560,6 +561,7 @@ def fir_VoidType : FIR_Type<"Void", "void"> {
 // Whether a type is a BaseBoxType
 def IsBaseBoxTypePred
         : CPred<"$_self.isa<::fir::BaseBoxType>()">;
+def fir_BaseBoxType : Type<IsBaseBoxTypePred, "fir.box or fir.class type">;
 
 // Generalized FIR and standard dialect types representing intrinsic types
 def AnyIntegerLike : TypeConstraint<Or<[SignlessIntegerLike.predicate,

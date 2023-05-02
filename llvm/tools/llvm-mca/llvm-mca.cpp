@@ -53,13 +53,13 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/TargetParser/Host.h"
 
 using namespace llvm;
 
@@ -321,6 +321,9 @@ int main(int argc, char **argv) {
   InitializeAllTargetMCs();
   InitializeAllAsmParsers();
   InitializeAllTargetMCAs();
+
+  // Register the Target and CPU printer for --version.
+  cl::AddExtraVersionPrinter(sys::printDefaultTargetAndDetectedCPU);
 
   // Enable printing of available targets when flag --version is specified.
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);

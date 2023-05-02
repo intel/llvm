@@ -9,8 +9,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 namespace detail {
 
@@ -81,7 +80,6 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary -o %t0.o %S/Inputs/type-mapping-bug2.ll
 ; RUN: opt -module-summary -o %t1.o %s
-; RUN: llvm-lto2 run -o %t2 %t0.o %t1.o -r %t0.o,c,px -r %t1.o,a,px -r %t1.o,b,px
+; RUN: llvm-lto2 run -opaque-pointers -o %t2 %t0.o %t1.o -r %t0.o,c,px -r %t1.o,a,px -r %t1.o,b,px
 ;
 ; Test for the issue described in https://bugs.llvm.org/show_bug.cgi?id=37684
 
@@ -16,7 +16,7 @@ define %"T1" @a() {
   unreachable
 }
 
-define i1 @b(%"T2"*) {
+define i1 @b(ptr) {
   unreachable
 }
 
@@ -32,7 +32,7 @@ define i1 @b(%"T2"*) {
 
 ; The reference to @b and T2 that will be loaded in %t0.o
 
-!7 = !DITemplateValueParameter(value: i1 (%"T2"*)* @b)
+!7 = !DITemplateValueParameter(value: ptr @b)
 !8 = distinct !DISubprogram(unit: !2)
 
 ; This DICompositeType is uniqued against !5 in Inputs/type-mapping-bug2.ll,

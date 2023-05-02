@@ -13,9 +13,10 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/IndentedOstream.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/GraphWriter.h"
+#include <map>
+#include <optional>
 #include <utility>
 
 namespace mlir {
@@ -33,7 +34,8 @@ static const StringRef kShapeNone = "plain";
 /// Return the size limits for eliding large attributes.
 static int64_t getLargeAttributeSizeLimit() {
   // Use the default from the printer flags if possible.
-  if (Optional<int64_t> limit = OpPrintingFlags().getLargeElementsAttrLimit())
+  if (std::optional<int64_t> limit =
+          OpPrintingFlags().getLargeElementsAttrLimit())
     return *limit;
   return 16;
 }
@@ -56,7 +58,7 @@ static std::string quoteString(const std::string &str) {
   return "\"" + str + "\"";
 }
 
-using AttributeMap = llvm::StringMap<std::string>;
+using AttributeMap = std::map<std::string, std::string>;
 
 namespace {
 
@@ -69,11 +71,11 @@ namespace {
 /// cluster, an invisible "anchor" node is created.
 struct Node {
 public:
-  Node(int id = 0, Optional<int> clusterId = llvm::None)
+  Node(int id = 0, std::optional<int> clusterId = std::nullopt)
       : id(id), clusterId(clusterId) {}
 
   int id;
-  Optional<int> clusterId;
+  std::optional<int> clusterId;
 };
 
 /// This pass generates a Graphviz dataflow visualization of an MLIR operation.
@@ -132,7 +134,7 @@ private:
   void emitAttrList(raw_ostream &os, const AttributeMap &map) {
     os << "[";
     interleaveComma(map, os, [&](const auto &it) {
-      os << this->attrStmt(it.getKey(), it.getValue());
+      os << this->attrStmt(it.first, it.second);
     });
     os << "]";
   }
@@ -253,7 +255,7 @@ private:
         valueToNode[blockArg] = emitNodeStmt(getLabel(blockArg));
 
       // Emit a node for each operation.
-      Optional<Node> prevNode;
+      std::optional<Node> prevNode;
       for (Operation &op : block) {
         Node nextNode = processOperation(&op);
         if (printControlFlowEdges && prevNode)

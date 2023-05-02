@@ -6,9 +6,17 @@ project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
+
 # The XPTI framework requires the includes from
 # the proxy implementation of XPTI
-set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
+if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
+  if (NOT DEFINED XPTI_SOURCE_DIR)
+    # If XPTI_SOURCE_DIR is not provided then assume that xpti is in-tree and not external.
+    set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
+  else()
+    set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
+  endif()
+endif()
 
 # Create a soft option for enabling the use of TBB
 option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
@@ -17,6 +25,7 @@ option(XPTI_ENABLE_WERROR OFF)
 option(XPTI_BUILD_SAMPLES OFF)
 option(XPTI_BUILD_BENCHMARK OFF)
 option(XPTI_ENABLE_STATISTICS OFF)
+option(XPTI_ENABLE_TESTS ON)
 
 if (XPTI_ENABLE_WERROR)
   if(MSVC)
@@ -55,7 +64,10 @@ add_subdirectory(src)
 
 add_custom_target(check-xptifw)
 
-add_subdirectory(unit_test)
+if (XPTI_ENABLE_TESTS)
+  add_subdirectory(unit_test)
+endif()
+
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)

@@ -214,8 +214,13 @@ static DecodeStatus DecodeUnconditionalBranch(MCInst &Inst, uint32_t insn,
                                               uint64_t Address,
                                               const MCDisassembler *Decoder);
 static DecodeStatus
-DecodeSystemPStateInstruction(MCInst &Inst, uint32_t insn, uint64_t Address,
-                              const MCDisassembler *Decoder);
+DecodeSystemPStateImm0_15Instruction(MCInst &Inst, uint32_t insn,
+                                     uint64_t Address,
+                                     const MCDisassembler *Decoder);
+static DecodeStatus
+DecodeSystemPStateImm0_1Instruction(MCInst &Inst, uint32_t insn,
+                                    uint64_t Address,
+                                    const MCDisassembler *Decoder);
 static DecodeStatus DecodeTestAndBranch(MCInst &Inst, uint32_t insn,
                                         uint64_t Address,
                                         const MCDisassembler *Decoder);
@@ -262,6 +267,9 @@ DecodeWSeqPairsClassRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
 static DecodeStatus
 DecodeXSeqPairsClassRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
                                   const MCDisassembler *Decoder);
+static DecodeStatus DecodeSyspXzrInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Addr,
+                                             const MCDisassembler *Decoder);
 static DecodeStatus
 DecodeSVELogicalImmInstruction(MCInst &Inst, uint32_t insn, uint64_t Address,
                                const MCDisassembler *Decoder);
@@ -282,6 +290,9 @@ static DecodeStatus DecodeCPYMemOpInstruction(MCInst &Inst, uint32_t insn,
 static DecodeStatus DecodeSETMemOpInstruction(MCInst &Inst, uint32_t insn,
                                               uint64_t Addr,
                                               const MCDisassembler *Decoder);
+static DecodeStatus DecodePRFMRegInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Address,
+                                             const MCDisassembler *Decoder);
 
 #include "AArch64GenDisassemblerTables.inc"
 #include "AArch64GenInstrInfo.inc"
@@ -325,8 +336,8 @@ DecodeStatus AArch64Disassembler::getInstruction(MCInst &MI, uint64_t &Size,
     // operand for the accumulator (ZA) or implicit immediate zero which isn't
     // encoded, manually insert operand.
     for (unsigned i = 0; i < Desc.getNumOperands(); i++) {
-      if (Desc.OpInfo[i].OperandType == MCOI::OPERAND_REGISTER) {
-        switch (Desc.OpInfo[i].RegClass) {
+      if (Desc.operands()[i].OperandType == MCOI::OPERAND_REGISTER) {
+        switch (Desc.operands()[i].RegClass) {
         default:
           break;
         case AArch64::MPRRegClassID:
@@ -339,7 +350,7 @@ DecodeStatus AArch64Disassembler::getInstruction(MCInst &MI, uint64_t &Size,
           MI.insert(MI.begin() + i, MCOperand::createReg(AArch64::ZT0));
           break;
         }
-      } else if (Desc.OpInfo[i].OperandType ==
+      } else if (Desc.operands()[i].OperandType ==
                  AArch64::OPERAND_IMPLICIT_IMM_0) {
         MI.insert(MI.begin() + i, MCOperand::createImm(0));
       }
@@ -1808,29 +1819,49 @@ static DecodeStatus DecodeUnconditionalBranch(MCInst &Inst, uint32_t insn,
   return Success;
 }
 
+static bool isInvalidPState(uint64_t Op1, uint64_t Op2) {
+  return Op1 == 0b000 && (Op2 == 0b000 || // CFINV
+                          Op2 == 0b001 || // XAFlag
+                          Op2 == 0b010);  // AXFlag
+}
+
 static DecodeStatus
-DecodeSystemPStateInstruction(MCInst &Inst, uint32_t insn, uint64_t Addr,
-                              const MCDisassembler *Decoder) {
+DecodeSystemPStateImm0_15Instruction(MCInst &Inst, uint32_t insn, uint64_t Addr,
+                                     const MCDisassembler *Decoder) {
   uint64_t op1 = fieldFromInstruction(insn, 16, 3);
   uint64_t op2 = fieldFromInstruction(insn, 5, 3);
-  uint64_t crm = fieldFromInstruction(insn, 8, 4);
+  uint64_t imm = fieldFromInstruction(insn, 8, 4);
   uint64_t pstate_field = (op1 << 3) | op2;
 
-  switch (pstate_field) {
-  case 0x01: // XAFlag
-  case 0x02: // AXFlag
-    return Fail;
-  }
-
-  if ((pstate_field == AArch64PState::PAN  ||
-       pstate_field == AArch64PState::UAO  ||
-       pstate_field == AArch64PState::SSBS) && crm > 1)
+  if (isInvalidPState(op1, op2))
     return Fail;
 
   Inst.addOperand(MCOperand::createImm(pstate_field));
-  Inst.addOperand(MCOperand::createImm(crm));
+  Inst.addOperand(MCOperand::createImm(imm));
 
-  auto PState = AArch64PState::lookupPStateByEncoding(pstate_field);
+  auto PState = AArch64PState::lookupPStateImm0_15ByEncoding(pstate_field);
+  if (PState &&
+      PState->haveFeatures(Decoder->getSubtargetInfo().getFeatureBits()))
+    return Success;
+  return Fail;
+}
+
+static DecodeStatus
+DecodeSystemPStateImm0_1Instruction(MCInst &Inst, uint32_t insn, uint64_t Addr,
+                                    const MCDisassembler *Decoder) {
+  uint64_t op1 = fieldFromInstruction(insn, 16, 3);
+  uint64_t op2 = fieldFromInstruction(insn, 5, 3);
+  uint64_t crm_high = fieldFromInstruction(insn, 9, 3);
+  uint64_t imm = fieldFromInstruction(insn, 8, 1);
+  uint64_t pstate_field = (crm_high << 6) | (op1 << 3) | op2;
+
+  if (isInvalidPState(op1, op2))
+    return Fail;
+
+  Inst.addOperand(MCOperand::createImm(pstate_field));
+  Inst.addOperand(MCOperand::createImm(imm));
+
+  auto PState = AArch64PState::lookupPStateImm0_1ByEncoding(pstate_field);
   if (PState &&
       PState->haveFeatures(Decoder->getSubtargetInfo().getFeatureBits()))
     return Success;
@@ -1887,6 +1918,26 @@ DecodeXSeqPairsClassRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
   return DecodeGPRSeqPairsClassRegisterClass(Inst,
                                              AArch64::XSeqPairsClassRegClassID,
                                              RegNo, Addr, Decoder);
+}
+
+static DecodeStatus DecodeSyspXzrInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Addr,
+                                             const MCDisassembler *Decoder) {
+  unsigned op1 = fieldFromInstruction(insn, 16, 3);
+  unsigned CRn = fieldFromInstruction(insn, 12, 4);
+  unsigned CRm = fieldFromInstruction(insn, 8, 4);
+  unsigned op2 = fieldFromInstruction(insn, 5, 3);
+  unsigned Rt = fieldFromInstruction(insn, 0, 5);
+  if (Rt != 0b11111)
+    return Fail;
+
+  Inst.addOperand(MCOperand::createImm(op1));
+  Inst.addOperand(MCOperand::createImm(CRn));
+  Inst.addOperand(MCOperand::createImm(CRm));
+  Inst.addOperand(MCOperand::createImm(op2));
+  DecodeGPR64RegisterClass(Inst, Rt, Addr, Decoder);
+
+  return Success;
 }
 
 static DecodeStatus
@@ -1996,4 +2047,38 @@ static DecodeStatus DecodeSETMemOpInstruction(MCInst &Inst, uint32_t insn,
     return MCDisassembler::Fail;
 
   return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodePRFMRegInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Addr,
+                                             const MCDisassembler *Decoder) {
+  // PRFM with Rt = '11xxx' should be decoded as RPRFM.
+  // Fail to decode and defer to fallback decoder table to decode RPRFM.
+  unsigned Mask = 0x18;
+  uint64_t Rt = fieldFromInstruction(insn, 0, 5);
+  if ((Rt & Mask) == Mask)
+    return Fail;
+
+  uint64_t Rn = fieldFromInstruction(insn, 5, 5);
+  uint64_t Shift = fieldFromInstruction(insn, 12, 1);
+  uint64_t Extend = fieldFromInstruction(insn, 15, 1);
+  uint64_t Rm = fieldFromInstruction(insn, 16, 5);
+
+  Inst.addOperand(MCOperand::createImm(Rt));
+  DecodeGPR64spRegisterClass(Inst, Rn, Addr, Decoder);
+
+  switch (Inst.getOpcode()) {
+  default:
+    return Fail;
+  case AArch64::PRFMroW:
+    DecodeGPR32RegisterClass(Inst, Rm, Addr, Decoder);
+    break;
+  case AArch64::PRFMroX:
+    DecodeGPR64RegisterClass(Inst, Rm, Addr, Decoder);
+    break;
+  }
+
+  DecodeMemExtend(Inst, (Extend << 1) | Shift, Addr, Decoder);
+
+  return Success;
 }

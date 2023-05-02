@@ -47,16 +47,25 @@ struct attr_value_binder {
   }
 };
 
-/// Check to see if the specified operation is ConstantLike.  This includes some
-/// quick filters to avoid a semi-expensive test in the common case.
-static bool isConstantLike(Operation *op) {
-  return op->getNumOperands() == 0 && op->getNumResults() == 1 &&
-         op->hasTrait<OpTrait::ConstantLike>();
-}
-
 /// The matcher that matches operations that have the `ConstantLike` trait.
 struct constant_op_matcher {
-  bool match(Operation *op) { return isConstantLike(op); }
+  bool match(Operation *op) { return op->hasTrait<OpTrait::ConstantLike>(); }
+};
+
+/// The matcher that matches operations that have the specified op name.
+struct NameOpMatcher {
+  NameOpMatcher(StringRef name) : name(name) {}
+  bool match(Operation *op) { return op->getName().getStringRef() == name; }
+
+  StringRef name;
+};
+
+/// The matcher that matches operations that have the specified attribute name.
+struct AttrOpMatcher {
+  AttrOpMatcher(StringRef attrName) : attrName(attrName) {}
+  bool match(Operation *op) { return op->hasAttr(attrName); }
+
+  StringRef attrName;
 };
 
 /// The matcher that matches operations that have the `ConstantLike` trait, and
@@ -72,12 +81,12 @@ struct constant_op_binder {
   constant_op_binder() : bind_value(nullptr) {}
 
   bool match(Operation *op) {
-    if (!isConstantLike(op))
+    if (!op->hasTrait<OpTrait::ConstantLike>())
       return false;
 
     // Fold the constant to an attribute.
     SmallVector<OpFoldResult, 1> foldedOp;
-    LogicalResult result = op->fold(/*operands=*/llvm::None, foldedOp);
+    LogicalResult result = op->fold(/*operands=*/std::nullopt, foldedOp);
     (void)result;
     assert(succeeded(result) && "expected ConstantLike op to be foldable");
 
@@ -88,6 +97,29 @@ struct constant_op_binder {
     }
     return false;
   }
+};
+
+/// The matcher that matches operations that have the specified attribute
+/// name, and binds the attribute value.
+template <typename AttrT>
+struct AttrOpBinder {
+  /// Creates a matcher instance that binds the attribute value to
+  /// bind_value if match succeeds.
+  AttrOpBinder(StringRef attrName, AttrT *bindValue)
+      : attrName(attrName), bindValue(bindValue) {}
+  /// Creates a matcher instance that doesn't bind if match succeeds.
+  AttrOpBinder(StringRef attrName) : attrName(attrName), bindValue(nullptr) {}
+
+  bool match(Operation *op) {
+    if (auto attr = op->getAttrOfType<AttrT>(attrName)) {
+      if (bindValue)
+        *bindValue = attr;
+      return true;
+    }
+    return false;
+  }
+  StringRef attrName;
+  AttrT *bindValue;
 };
 
 /// The matcher that matches a constant scalar / vector splat / tensor splat
@@ -256,11 +288,28 @@ inline detail::constant_op_matcher m_Constant() {
   return detail::constant_op_matcher();
 }
 
+/// Matches a named attribute operation.
+inline detail::AttrOpMatcher m_Attr(StringRef attrName) {
+  return detail::AttrOpMatcher(attrName);
+}
+
+/// Matches a named operation.
+inline detail::NameOpMatcher m_Op(StringRef opName) {
+  return detail::NameOpMatcher(opName);
+}
+
 /// Matches a value from a constant foldable operation and writes the value to
 /// bind_value.
 template <typename AttrT>
 inline detail::constant_op_binder<AttrT> m_Constant(AttrT *bind_value) {
   return detail::constant_op_binder<AttrT>(bind_value);
+}
+
+/// Matches a named attribute operation and writes the value to bind_value.
+template <typename AttrT>
+inline detail::AttrOpBinder<AttrT> m_Attr(StringRef attrName,
+                                          AttrT *bindValue) {
+  return detail::AttrOpBinder<AttrT>(attrName, bindValue);
 }
 
 /// Matches a constant scalar / vector splat / tensor splat float (both positive

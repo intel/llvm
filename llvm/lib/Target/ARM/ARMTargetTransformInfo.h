@@ -26,6 +26,7 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include <optional>
 
 namespace llvm {
 
@@ -118,9 +119,9 @@ public:
     return !ST->isTargetDarwin() && !ST->hasMVEFloatOps();
   }
 
-  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
-                                               IntrinsicInst &II) const;
-  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+  std::optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                                    IntrinsicInst &II) const;
+  std::optional<Value *> simplifyDemandedVectorEltsIntrinsic(
       InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
       APInt &UndefElts2, APInt &UndefElts3,
       std::function<void(Instruction *, unsigned, APInt, APInt &)>
@@ -177,7 +178,7 @@ public:
     llvm_unreachable("Unsupported register kind");
   }
 
-  unsigned getMaxInterleaveFactor(unsigned VF) {
+  unsigned getMaxInterleaveFactor(ElementCount VF) {
     return ST->getMaxInterleaveFactor();
   }
 
@@ -215,7 +216,7 @@ public:
                                  ArrayRef<int> Mask,
                                  TTI::TargetCostKind CostKind, int Index,
                                  VectorType *SubTp,
-                                 ArrayRef<const Value *> Args = None);
+                                 ArrayRef<const Value *> Args = std::nullopt);
 
   bool preferInLoopReduction(unsigned Opcode, Type *Ty,
                              TTI::ReductionFlags Flags) const;
@@ -240,7 +241,8 @@ public:
 
   using BaseT::getVectorInstrCost;
   InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
-                                     unsigned Index);
+                                     TTI::TargetCostKind CostKind,
+                                     unsigned Index, Value *Op0, Value *Op1);
 
   InstructionCost getAddressComputationCost(Type *Val, ScalarEvolution *SE,
                                             const SCEV *Ptr);
@@ -274,11 +276,11 @@ public:
                                          const Instruction *I = nullptr);
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
-                                             Optional<FastMathFlags> FMF,
+                                             std::optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind);
   InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
                                            Type *ResTy, VectorType *ValTy,
-                                           Optional<FastMathFlags> FMF,
+                                           FastMathFlags FMF,
                                            TTI::TargetCostKind CostKind);
   InstructionCost getMulAccReductionCost(bool IsUnsigned, Type *ResTy,
                                          VectorType *ValTy,
@@ -301,16 +303,13 @@ public:
                                 AssumptionCache &AC,
                                 TargetLibraryInfo *LibInfo,
                                 HardwareLoopInfo &HWLoopInfo);
-  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
-                                   DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL,
-                                   InterleavedAccessInfo *IAI);
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI);
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
                                OptimizationRemarkEmitter *ORE);
 
-  PredicationStyle emitGetActiveLaneMask() const;
+  TailFoldingStyle
+  getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) const;
 
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                              TTI::PeelingPreferences &PP);
@@ -323,6 +322,9 @@ public:
 
     return true;
   }
+
+  bool hasArmWideBranch(bool Thumb) const;
+
   /// @}
 };
 

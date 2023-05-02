@@ -92,6 +92,10 @@ static void ReportGlobal(const Global &g, const char *prefix) {
   if (info.line != 0) {
     Report("  location: name=%s, %d\n", info.file, static_cast<int>(info.line));
   }
+  else if (g.gcc_location != 0) {
+    // Fallback to Global::gcc_location
+    Report("  location: name=%s, %d\n", g.gcc_location->filename, g.gcc_location->line_no);
+  }
 }
 
 static u32 FindRegistrationSite(const Global *g) {
@@ -148,9 +152,9 @@ static void CheckODRViolationViaIndicator(const Global *g) {
   for (ListOfGlobals *l = list_of_all_globals; l; l = l->next) {
     if (g->odr_indicator == l->g->odr_indicator &&
         (flags()->detect_odr_violation >= 2 || g->size != l->g->size) &&
-        !IsODRViolationSuppressed(MaybeDemangleGlobalName(g->name)))
-      ReportODRViolation(g, FindRegistrationSite(g), l->g,
-                         FindRegistrationSite(l->g));
+        !IsODRViolationSuppressed(g->name))
+      ReportODRViolation(g, FindRegistrationSite(g),
+                         l->g, FindRegistrationSite(l->g));
   }
 }
 
@@ -164,7 +168,7 @@ static void CheckODRViolationViaPoisoning(const Global *g) {
     for (ListOfGlobals *l = list_of_all_globals; l; l = l->next) {
       if (g->beg == l->g->beg &&
           (flags()->detect_odr_violation >= 2 || g->size != l->g->size) &&
-          !IsODRViolationSuppressed(MaybeDemangleGlobalName(g->name)))
+          !IsODRViolationSuppressed(g->name))
         ReportODRViolation(g, FindRegistrationSite(g),
                            l->g, FindRegistrationSite(l->g));
     }
@@ -302,6 +306,11 @@ void PrintGlobalLocation(InternalScopedString *str, const __asan_global &g) {
 
   if (info.line != 0) {
     str->append("%s:%d", info.file, static_cast<int>(info.line));
+  } else if (g.gcc_location != 0) {
+    // Fallback to Global::gcc_location
+    str->append("%s", g.gcc_location->filename ? g.gcc_location->filename : g.module_name);
+    if (g.gcc_location->line_no) str->append(":%d", g.gcc_location->line_no);
+    if (g.gcc_location->column_no) str->append(":%d", g.gcc_location->column_no);
   } else {
     str->append("%s", g.module_name);
   }

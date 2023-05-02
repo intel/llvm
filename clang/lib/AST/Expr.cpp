@@ -37,6 +37,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstring>
+#include <optional>
 using namespace clang;
 
 const Expr *Expr::getBestDynamicClassTypeExpr() const {
@@ -641,11 +642,12 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
                                                getTypeSourceInfo()->getType());
 }
 
-static llvm::Optional<unsigned>
+static std::optional<unsigned>
 UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
   if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-    return RD->getDeviceLambdaManglingNumber();
-  return llvm::None;
+    if (RD->isLambda())
+      return RD->getDeviceLambdaManglingNumber();
+  return std::nullopt;
 }
 
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
@@ -2016,6 +2018,10 @@ Expr *ignoreImplicitSemaNodes(Expr *E) {
   if (auto *Full = dyn_cast<FullExpr>(E))
     return Full->getSubExpr();
 
+  if (auto *CPLIE = dyn_cast<CXXParenListInitExpr>(E);
+      CPLIE && CPLIE->getInitExprs().size() == 1)
+    return CPLIE->getInitExprs()[0];
+
   return E;
 }
 } // namespace
@@ -2292,6 +2298,8 @@ StringRef SourceLocExpr::getBuiltinStr() const {
   switch (getIdentKind()) {
   case File:
     return "__builtin_FILE";
+  case FileName:
+    return "__builtin_FILE_NAME";
   case Function:
     return "__builtin_FUNCTION";
   case Line:
@@ -2330,6 +2338,14 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   };
 
   switch (getIdentKind()) {
+  case SourceLocExpr::FileName: {
+    // __builtin_FILE_NAME() is a Clang-specific extension that expands to the
+    // the last part of __builtin_FILE().
+    SmallString<256> FileName;
+    clang::Preprocessor::processPathToFileName(
+        FileName, PLoc, Ctx.getLangOpts(), Ctx.getTargetInfo());
+    return MakeStringLiteral(FileName);
+  }
   case SourceLocExpr::File: {
     SmallString<256> Path(PLoc.getFilename());
     clang::Preprocessor::processPathForFileMacro(Path, Ctx.getLangOpts(),
@@ -3703,6 +3719,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ShuffleVectorExprClass:
   case ConvertVectorExprClass:
   case AsTypeExprClass:
+  case CXXParenListInitExprClass:
     // These have a side-effect if any subexpression does.
     break;
 
@@ -4446,10 +4463,10 @@ GenericSelectionExpr::CreateEmpty(const ASTContext &Context,
 //  DesignatedInitExpr
 //===----------------------------------------------------------------------===//
 
-IdentifierInfo *DesignatedInitExpr::Designator::getFieldName() const {
-  assert(Kind == FieldDesignator && "Only valid on a field designator");
-  if (Field.NameOrField & 0x01)
-    return reinterpret_cast<IdentifierInfo *>(Field.NameOrField & ~0x01);
+const IdentifierInfo *DesignatedInitExpr::Designator::getFieldName() const {
+  assert(isFieldDesignator() && "Only valid on a field designator");
+  if (FieldInfo.NameOrField & 0x01)
+    return reinterpret_cast<IdentifierInfo *>(FieldInfo.NameOrField & ~0x01);
   return getField()->getIdentifier();
 }
 
@@ -4525,14 +4542,11 @@ SourceRange DesignatedInitExpr::getDesignatorsSourceRange() const {
 }
 
 SourceLocation DesignatedInitExpr::getBeginLoc() const {
-  SourceLocation StartLoc;
   auto *DIE = const_cast<DesignatedInitExpr *>(this);
   Designator &First = *DIE->getDesignator(0);
   if (First.isFieldDesignator())
-    StartLoc = GNUSyntax ? First.Field.FieldLoc : First.Field.DotLoc;
-  else
-    StartLoc = First.ArrayOrRange.LBracketLoc;
-  return StartLoc;
+    return GNUSyntax ? First.getFieldLoc() : First.getDotLoc();
+  return First.getLBracketLoc();
 }
 
 SourceLocation DesignatedInitExpr::getEndLoc() const {
@@ -4540,20 +4554,18 @@ SourceLocation DesignatedInitExpr::getEndLoc() const {
 }
 
 Expr *DesignatedInitExpr::getArrayIndex(const Designator& D) const {
-  assert(D.Kind == Designator::ArrayDesignator && "Requires array designator");
-  return getSubExpr(D.ArrayOrRange.Index + 1);
+  assert(D.isArrayDesignator() && "Requires array designator");
+  return getSubExpr(D.getArrayIndex() + 1);
 }
 
 Expr *DesignatedInitExpr::getArrayRangeStart(const Designator &D) const {
-  assert(D.Kind == Designator::ArrayRangeDesignator &&
-         "Requires array range designator");
-  return getSubExpr(D.ArrayOrRange.Index + 1);
+  assert(D.isArrayRangeDesignator() && "Requires array range designator");
+  return getSubExpr(D.getArrayIndex() + 1);
 }
 
 Expr *DesignatedInitExpr::getArrayRangeEnd(const Designator &D) const {
-  assert(D.Kind == Designator::ArrayRangeDesignator &&
-         "Requires array range designator");
-  return getSubExpr(D.ArrayOrRange.Index + 2);
+  assert(D.isArrayRangeDesignator() && "Requires array range designator");
+  return getSubExpr(D.getArrayIndex() + 2);
 }
 
 /// Replaces the designator at index @p Idx with the series
@@ -4592,7 +4604,8 @@ DesignatedInitUpdateExpr::DesignatedInitUpdateExpr(const ASTContext &C,
            OK_Ordinary) {
   BaseAndUpdaterExprs[0] = baseExpr;
 
-  InitListExpr *ILE = new (C) InitListExpr(C, lBraceLoc, None, rBraceLoc);
+  InitListExpr *ILE =
+      new (C) InitListExpr(C, lBraceLoc, std::nullopt, rBraceLoc);
   ILE->setType(baseExpr->getType());
   BaseAndUpdaterExprs[1] = ILE;
 

@@ -1,4 +1,4 @@
-//===-- RISCVInstrFormatsV.td - RISCV V Instruction Formats --*- tablegen -*-=//
+//===-- RISCVInstrFormatsV.td - RISC-V V Instruction Formats -*- tablegen -*-=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -175,7 +175,7 @@ class RVInstIVI<bits<6> funct6, dag outs, dag ins, string opcodestr,
   let Inst{25} = vm;
   let Inst{24-20} = vs2;
   let Inst{19-15} = imm;
-  let Inst{14-12} = 0b011;
+  let Inst{14-12} = OPIVI.Value;
   let Inst{11-7} = vd;
   let Opcode = OPC_OP_V.Value;
 

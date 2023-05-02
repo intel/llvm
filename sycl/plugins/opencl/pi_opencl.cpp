@@ -29,6 +29,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
@@ -67,6 +68,13 @@ CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
 CONSTFIX char clGetDeviceFunctionPointerName[] =
     "clGetDeviceFunctionPointerINTEL";
+CONSTFIX char clEnqueueWriteGlobalVariableName[] =
+    "clEnqueueWriteGlobalVariableINTEL";
+CONSTFIX char clEnqueueReadGlobalVariableName[] =
+    "clEnqueueReadGlobalVariableINTEL";
+// Names of host pipe functions queried from OpenCL
+CONSTFIX char clEnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
+CONSTFIX char clEnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
 
 #undef CONSTFIX
 
@@ -87,6 +95,30 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O0")) {
+    *backend_option = "-cl-opt-disable";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-O1"sv || frontend_option == "-O2"sv ||
+      frontend_option == "-O3"sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 static cl_int getPlatformVersion(cl_platform_id plat,
@@ -162,7 +194,9 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
-  if (auto F = FuncPtrs[context]) {
+  auto It = FuncPtrs.find(context);
+  if (It != FuncPtrs.end()) {
+    auto F = It->second;
     // if cached that extension is not available return nullptr and
     // PI_ERROR_INVALID_VALUE
     *fptr = F;
@@ -276,9 +310,240 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // This query is missing before OpenCL 3.0
+    // Check version and handle appropriately
+    OCLV::OpenCLVersion devVer;
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    // Minimum required capability to be returned
+    // For OpenCL 1.2, this is all that is required
+    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED;
+
+    if (devVer >= OCLV::V3_0) {
+      // For OpenCL >=3.0, the query should be implemented
+      cl_device_atomic_capabilities cl_capabilities = 0;
+      cl_int ret_err = clGetDeviceInfo(
+          deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+          sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return cast<pi_result>(ret_err);
+
+      // Mask operation to only consider atomic_memory_order* capabilities
+      cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED |
+                    CL_DEVICE_ATOMIC_ORDER_ACQ_REL |
+                    CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+      cl_capabilities &= mask;
+
+      // The memory order capabilities are hierarchical, if one is implied, all
+      // preceding capbilities are implied as well. Especially in the case of
+      // ACQ_REL.
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+        capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
+        capabilities |= PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE |
+                        PI_MEMORY_ORDER_RELEASE;
+      }
+    } else if (devVer >= OCLV::V2_0) {
+      // For OpenCL 2.x, return all capabilities
+      // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_memory_consistency_model)
+      capabilities |= PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE |
+                      PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST;
+    }
+
+    if (paramValue) {
+      if (paramValueSize < sizeof(pi_memory_order_capabilities))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+
+      std::memcpy(paramValue, &capabilities, sizeof(capabilities));
+    }
+
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(capabilities);
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities result = PI_MEMORY_SCOPE_WORK_ITEM |
+                                          PI_MEMORY_SCOPE_SUB_GROUP |
+                                          PI_MEMORY_SCOPE_WORK_GROUP;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
+             "Violates minimum mandated guarantee");
+
+      // Because scopes are hierarchical, wider scopes support all narrower
+      // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+      // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+        result |= PI_MEMORY_SCOPE_DEVICE;
+      }
+
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+        result |= PI_MEMORY_SCOPE_SYSTEM;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are WORK_GROUP, we
+      // already initialized using it.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+        // ALL_DEVICES
+        result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2
+    pi_memory_order_capabilities result =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_RELAXED) &&
+             "Violates minimum mandated guarantee");
+      assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) &&
+             "Violates minimum mandated guarantee");
+
+      // We already initialized to minimum mandated capabilities. Just
+      // check stronger orders.
+      if (devCapabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+        result |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are RELAXED | ACQ_REL, we
+      // already initialized using these.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are RELAXED | ACQ_REL |
+        // SEQ_CST
+        result |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities result = PI_MEMORY_SCOPE_WORK_ITEM |
+                                          PI_MEMORY_SCOPE_SUB_GROUP |
+                                          PI_MEMORY_SCOPE_WORK_GROUP;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
+             "Violates minimum mandated guarantee");
+
+      // Because scopes are hierarchical, wider scopes support all narrower
+      // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+      // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+        result |= PI_MEMORY_SCOPE_DEVICE;
+      }
+
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+        result |= PI_MEMORY_SCOPE_SYSTEM;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are WORK_GROUP, we
+      // already initialized using it.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+        // ALL_DEVICES
+        result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
     cl_bool result = CL_FALSE;
@@ -334,7 +599,76 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         out[2] = Max;
       return PI_SUCCESS;
     }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    pi_int32 result = 1;
+    std::memcpy(paramValue, &result, sizeof(pi_int32));
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+    // Corresponding OpenCL query is only available starting with OpenCL 2.1 and
+    // we have to emulate it on older OpenCL runtimes.
+    OCLV::OpenCLVersion version;
+    cl_int err = getDeviceVersion(cast<cl_device_id>(device), version);
+    if (err != CL_SUCCESS)
+      return static_cast<pi_result>(err);
 
+    if (version >= OCLV::V2_1) {
+      err = clGetDeviceInfo(cast<cl_device_id>(device),
+                            cast<cl_device_info>(paramName), paramValueSize,
+                            paramValue, paramValueSizeRet);
+      if (err != CL_SUCCESS)
+        return static_cast<pi_result>(err);
+
+      if (paramValue && *static_cast<cl_uint *>(paramValue) == 0u) {
+        // OpenCL returns 0 if sub-groups are not supported, but SYCL 2020 spec
+        // says that minimum possible value is 1.
+        cl_uint value = 1u;
+        std::memcpy(paramValue, &value, sizeof(cl_uint));
+      }
+
+      return static_cast<pi_result>(err);
+    }
+
+    // Otherwise, we can't query anything, because even cl_khr_subgroups does
+    // not provide similar query. Therefore, simply return minimum possible
+    // value 1 here.
+    if (paramValue && paramValueSize < sizeof(cl_uint))
+      return static_cast<pi_result>(CL_INVALID_VALUE);
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(cl_uint);
+
+    if (paramValue) {
+      cl_uint value = 1u;
+      std::memcpy(paramValue, &value, sizeof(cl_uint));
+    }
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    const char *value = "";
+    size_t valueSize = (strlen(value) + 1) * sizeof(char);
+    if (paramValue)
+      std::memcpy(paramValue, value, valueSize);
+    if (paramValueSizeRet != nullptr)
+      *paramValueSizeRet = valueSize;
+    return PI_SUCCESS;
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    cl_int ret_err = CL_SUCCESS;
+    cl_bool result = CL_FALSE;
+    bool supported = false;
+
+    ret_err =
+        checkDeviceExtensions(cast<cl_device_id>(device),
+                              {"cl_intel_mem_channel_property"}, supported);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    result = supported;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -356,6 +690,32 @@ pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     result = PI_SUCCESS;
   }
   return static_cast<pi_result>(result);
+}
+
+pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info paramName,
+                            size_t paramValueSize, void *paramValue,
+                            size_t *paramValueSizeRet) {
+
+  switch (paramName) {
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    pi_platform_backend result = PI_EXT_PLATFORM_BACKEND_OPENCL;
+    if (paramValue) {
+      if (paramValueSize < sizeof(result))
+        return PI_ERROR_INVALID_VALUE;
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  default: {
+    cl_int result = clGetPlatformInfo(
+        cast<cl_platform_id>(platform), cast<cl_platform_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -461,6 +821,20 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
@@ -474,9 +848,10 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   // Check that unexpected bits are not set.
   assert(!(properties &
-           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+           ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+             PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
@@ -505,6 +880,28 @@ pi_result piQueueCreate(pi_context context, pi_device device,
   return cast<pi_result>(ret_err);
 }
 
+pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  if (queue == nullptr) {
+    return PI_ERROR_INVALID_QUEUE;
+  }
+
+  switch (param_name) {
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY:
+    // OpenCL doesn't provide API to check the status of the queue.
+    return PI_ERROR_INVALID_VALUE;
+  default:
+    cl_int CLErr = clGetCommandQueueInfo(
+        cast<cl_command_queue>(queue), cast<cl_command_queue_info>(param_name),
+        param_value_size, param_value, param_value_size_ret);
+    if (CLErr != CL_SUCCESS) {
+      return cast<pi_result>(CLErr);
+    }
+  }
+  return PI_SUCCESS;
+}
+
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                            pi_context, pi_device,
                                            bool ownNativeHandle,
@@ -514,6 +911,16 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   clRetainCommandQueue(cast<cl_command_queue>(nativeHandle));
   return PI_SUCCESS;
+}
+
+pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *piQueue) {
+  (void)NativeHandleDesc;
+  (void)Properties;
+  return piextQueueCreateWithNativeHandle(nativeHandle, context, device,
+                                          ownNativeHandle, piQueue);
 }
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
@@ -729,7 +1136,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(Res);
 
   std::string ClResult(Size, ' ');
-  ret_err =
+  Res =
       clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
                        ClResult.size(), &ClResult[0], nullptr);
   if (Res != CL_SUCCESS)
@@ -787,6 +1194,36 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   assert(ownNativeHandle == false);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
+}
+
+pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
+                           size_t paramValueSize, void *paramValue,
+                           size_t *paramValueSizeRet) {
+  switch (paramName) {
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT: {
+    // 2D USM memops are not supported.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // These queries should be dealt with in context_impl.cpp by calling the
+    // queries of each device separately and building the intersection set.
+    setErrorMessage("These queries should have never come here.",
+                    PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+  default:
+    cl_int result = clGetContextInfo(
+        cast<cl_context>(context), cast<cl_context_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
 }
 
 pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
@@ -848,6 +1285,19 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
+  return PI_SUCCESS;
+}
+
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *Img) {
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  assert(Img != nullptr);
+  *Img = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -964,6 +1414,32 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       cast<cl_kernel>(kernel), cast<cl_device_id>(device),
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,
       sizeof(size_t), &ret_val, param_value_size_ret));
+
+  if (ret_err == CL_INVALID_OPERATION) {
+    // clGetKernelSubGroupInfo returns CL_INVALID_OPERATION if the device does
+    // not support subgroups.
+
+    if (param_name == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
+      ret_val = 1; // Minimum required by SYCL 2020 spec
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_COMPILE_NUM_SUB_GROUPS) {
+      ret_val = 0; // Not specified by kernel
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
+      // Return the maximum work group size for the kernel
+      size_t kernel_work_group_size = 0;
+      pi_result pi_ret_err = piKernelGetGroupInfo(
+          kernel, device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
+          &kernel_work_group_size, nullptr);
+      if (pi_ret_err != PI_SUCCESS)
+        return pi_ret_err;
+      ret_val = kernel_work_group_size;
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
+      ret_val = 0; // Not specified by kernel
+      ret_err = CL_SUCCESS;
+    }
+  }
 
   if (ret_err != CL_SUCCESS)
     return cast<pi_result>(ret_err);
@@ -1369,6 +1845,98 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   */
 }
 
+/// USM 2D Fill API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pattern_size is the size in bytes of the pattern
+/// \param pitch is the total width of the destination memory including padding
+/// \param width is width in bytes of each row to fill
+/// \param height is height the columns to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                              size_t pitch, size_t pattern_size,
+                                              const void *pattern, size_t width,
+                                              size_t height,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event) {
+  std::ignore = queue;
+  std::ignore = ptr;
+  std::ignore = pitch;
+  std::ignore = pattern_size;
+  std::ignore = pattern;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// USM 2D Memset API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to memset
+/// \param value contains the byte to set with
+/// \param pitch is the total width of the destination memory including padding
+/// \param width is width in bytes of each row to memset
+/// \param height is height the columns to memset
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemset2D(
+    pi_queue queue, void *ptr, size_t pitch, int value, size_t width,
+    size_t height, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  std::ignore = queue;
+  std::ignore = ptr;
+  std::ignore = pitch;
+  std::ignore = value;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// USM 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
+    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
+    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
+    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
+    pi_event *event) {
+  std::ignore = queue;
+  std::ignore = blocking;
+  std::ignore = dst_ptr;
+  std::ignore = dst_pitch;
+  std::ignore = src_ptr;
+  std::ignore = src_pitch;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 /// API to query information about USM allocated pointers
 /// Valid Queries:
 ///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
@@ -1399,6 +1967,147 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr, param_name,
                                      param_value_size, param_value,
                                      param_value_size_ret));
+  }
+
+  return RetVal;
+}
+
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueWriteGlobalVariable_fn)(
+    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t,
+    const void *, cl_uint, const cl_event *, cl_event *);
+
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueReadGlobalVariable_fn)(
+    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t, void *,
+    cl_uint, const cl_event *, cl_event *);
+
+/// API for writing data from host to a device global variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
+/// \param blocking_write is true if the write should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  cl_context Ctx = nullptr;
+  cl_int Res =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(Ctx), &Ctx, nullptr);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clEnqueueWriteGlobalVariable_fn F = nullptr;
+  Res = getExtFuncFromContext<clEnqueueWriteGlobalVariableName, decltype(F)>(
+      cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_ERROR_INVALID_OPERATION;
+  Res = F(cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+          blocking_write, count, offset, src, num_events_in_wait_list,
+          cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
+  return cast<pi_result>(Res);
+}
+
+/// API reading data from a device global variable to host.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
+/// \param blocking_read is true if the read should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  cl_context Ctx = nullptr;
+  cl_int Res =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(Ctx), &Ctx, nullptr);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clEnqueueReadGlobalVariable_fn F = nullptr;
+  Res = getExtFuncFromContext<clEnqueueReadGlobalVariableName, decltype(F)>(
+      cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_ERROR_INVALID_OPERATION;
+  Res = F(cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+          blocking_read, count, offset, dst, num_events_in_wait_list,
+          cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
+  return cast<pi_result>(Res);
+}
+
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueReadHostPipeName,
+                                           clEnqueueReadHostPipeINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
+        blocking, ptr, size, num_events_in_waitlist,
+        cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
+  }
+
+  return RetVal;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeName,
+                                           clEnqueueWriteHostPipeINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
+        blocking, ptr, size, num_events_in_waitlist,
+        cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
   }
 
   return RetVal;
@@ -1487,6 +2196,13 @@ pi_result piextQueueGetNativeHandle(pi_queue queue,
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
+pi_result piextQueueGetNativeHandle2(pi_queue queue,
+                                     pi_native_handle *nativeHandle,
+                                     int32_t *NativeHandleDesc) {
+  (void)NativeHandleDesc;
+  return piextGetNativeHandle(queue, nativeHandle);
+}
+
 pi_result piextMemGetNativeHandle(pi_mem mem, pi_native_handle *nativeHandle) {
   return piextGetNativeHandle(mem, nativeHandle);
 }
@@ -1502,10 +2218,54 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 }
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  return PI_SUCCESS;
+}
+
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  OCLV::OpenCLVersion devVer, platVer;
+  cl_platform_id platform;
+  cl_device_id deviceID = cast<cl_device_id>(Device);
+
+  // TODO: Cache OpenCL version for each device and platform
+  auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                                 sizeof(cl_platform_id), &platform, nullptr);
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getDeviceVersion(deviceID, devVer);
+
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getPlatformVersion(platform, platVer);
+
+  if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
+    setErrorMessage(
+        "OpenCL version for device and/or platform is less than 2.1",
+        PI_ERROR_INVALID_OPERATION);
+    return PI_ERROR_INVALID_OPERATION;
+  }
+
+  if (DeviceTime) {
+    uint64_t dummy;
+    clGetDeviceAndHostTimer(deviceID, DeviceTime,
+                            HostTime == nullptr ? &dummy : HostTime);
+
+  } else if (HostTime) {
+    clGetHostTimer(deviceID, HostTime);
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1526,7 +2286,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Platform
   _PI_CL(piPlatformsGet, piPlatformsGet)
-  _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  _PI_CL(piPlatformGetInfo, piPlatformGetInfo)
   _PI_CL(piextPlatformGetNativeHandle, piextPlatformGetNativeHandle)
   _PI_CL(piextPlatformCreateWithNativeHandle,
          piextPlatformCreateWithNativeHandle)
@@ -1542,20 +2302,24 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceCreateWithNativeHandle, piextDeviceCreateWithNativeHandle)
   // Context
   _PI_CL(piContextCreate, piContextCreate)
-  _PI_CL(piContextGetInfo, clGetContextInfo)
+  _PI_CL(piContextGetInfo, piContextGetInfo)
   _PI_CL(piContextRetain, clRetainContext)
   _PI_CL(piContextRelease, clReleaseContext)
   _PI_CL(piextContextGetNativeHandle, piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
-  _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
+  _PI_CL(piextQueueCreate, piextQueueCreate)
+  _PI_CL(piextQueueCreate2, piextQueueCreate)
+  _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2, piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, piMemBufferCreate)
   _PI_CL(piMemImageCreate, piMemImageCreate)
@@ -1636,16 +2400,35 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemcpy, piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueFill2D, piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
+  _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         piextEnqueueDeviceGlobalVariableRead)
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, piPluginGetBackendOption)
 
 #undef _PI_CL
 
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_opencl.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 
 } // end extern 'C'

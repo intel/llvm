@@ -12,8 +12,10 @@
 #include <__config>
 #include <__iterator/iterator_traits.h>
 #include <__memory/pointer_traits.h>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_copy_constructible.h>
+#include <__utility/declval.h>
 #include <__utility/move.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -61,6 +63,14 @@ inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
 decltype(_Impl::__unwrap(std::declval<_Iter>())) __unwrap_iter(_Iter __i) _NOEXCEPT {
   return _Impl::__unwrap(__i);
 }
+
+// Allow input_iterators to be passed to __unwrap_iter (but not __rewrap_iter)
+#if _LIBCPP_STD_VER >= 20
+template <class _Iter, __enable_if_t<!is_copy_constructible<_Iter>::value, int> = 0>
+inline _LIBCPP_HIDE_FROM_ABI constexpr _Iter __unwrap_iter(_Iter __i) noexcept {
+  return __i;
+}
+#endif
 
 template <class _OrigIter, class _Iter, class _Impl = __unwrap_iter_impl<_OrigIter> >
 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR _OrigIter __rewrap_iter(_OrigIter __orig_iter, _Iter __iter) _NOEXCEPT {

@@ -60,6 +60,7 @@ set(hip_files
   __clang_hip_libdevice_declares.h
   __clang_hip_cmath.h
   __clang_hip_math.h
+  __clang_hip_stdlib.h
   __clang_hip_runtime_wrapper.h
   )
 
@@ -116,6 +117,7 @@ set(x86_files
 # Intrinsics
   adxintrin.h
   ammintrin.h
+  amxcomplexintrin.h
   amxfp16intrin.h
   amxintrin.h
   avx2intrin.h
@@ -252,6 +254,7 @@ set(files
 
 set(cuda_wrapper_files
   cuda_wrappers/algorithm
+  cuda_wrappers/cmath
   cuda_wrappers/complex
   cuda_wrappers/new
 )
@@ -394,6 +397,7 @@ add_dependencies("clang-resource-headers"
                  "hexagon-resource-headers"
                  "hip-resource-headers"
                  "hlsl-resource-headers"
+                 "loongarch-resource-headers"
                  "mips-resource-headers"
                  "ppc-resource-headers"
                  "ppc-htm-resource-headers"

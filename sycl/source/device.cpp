@@ -15,6 +15,8 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
+#include <algorithm>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -117,6 +119,14 @@ template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::partition_by_affinity_domain>(
     info::partition_affinity_domain AffinityDomain) const;
 
+template <info::partition_property prop>
+std::vector<device> device::create_sub_devices() const {
+  return impl->create_sub_devices();
+}
+
+template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
+    info::partition_property::ext_intel_partition_by_cslice>() const;
+
 bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }
@@ -142,6 +152,31 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
     return impl->template get_info<info::device::parent_device>();
 }
 
+template <>
+__SYCL_EXPORT std::vector<sycl::aspect>
+device::get_info<info::device::aspects>() const {
+  std::vector<sycl::aspect> DeviceAspects{
+#define __SYCL_ASPECT(ASPECT, ID) aspect::ASPECT,
+#include <sycl/info/aspects.def>
+#undef __SYCL_ASPECT
+  };
+
+  auto UnsupportedAspects = std::remove_if(
+      DeviceAspects.begin(), DeviceAspects.end(), [&](aspect Aspect) {
+        try {
+          return !impl->has(Aspect);
+        } catch (const runtime_error &ex) {
+          if (ex.get_cl_code() == PI_ERROR_INVALID_DEVICE)
+            return true;
+          throw;
+        }
+      });
+
+  DeviceAspects.erase(UnsupportedAspects, DeviceAspects.end());
+
+  return DeviceAspects;
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
@@ -155,11 +190,12 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
   template __SYCL_EXPORT ReturnT                                               \
   device::get_info<Namespace::info::DescType::Desc>() const;
 
+#include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend device::get_backend() const noexcept { return getImplBackend(impl); }
+backend device::get_backend() const noexcept { return impl->getBackend(); }
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 

@@ -19,7 +19,7 @@
 #include "test_macros.h"
 
 template <typename CharT>
-void test ( const CharT *s, size_t len ) {
+void test ( const CharT *s, std::size_t len ) {
     std::basic_string_view<CharT> sv ( s, len );
     assert ( sv.length() == len );
     assert ( sv.data() == s );
@@ -33,8 +33,10 @@ int main(int, char**) {
     test ( "ABCDE", 5 );
     test ( "a", 1 );
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test ( L"ABCDE", 5 );
     test ( L"a", 1 );
+#endif
 
 #if TEST_STD_VER >= 11
     test ( u"ABCDE", 5 );

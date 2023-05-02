@@ -25,7 +25,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -40,6 +39,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -145,6 +145,9 @@ public:
 
   /// Return the LLVM type of this SCEV expression.
   Type *getType() const;
+
+  /// Return operands of this SCEV expression.
+  ArrayRef<const SCEV *> operands() const;
 
   /// Return true if the expression is a constant zero.
   bool isZero() const;
@@ -537,10 +540,10 @@ public:
 
   /// Parse NSW/NUW flags from add/sub/mul IR binary operation \p Op into
   /// SCEV no-wrap flags, and deduce flag[s] that aren't known yet.
-  /// Does not mutate the original instruction. Returns None if it could not
-  /// deduce more precise flags than the instruction already has, otherwise
+  /// Does not mutate the original instruction. Returns std::nullopt if it could
+  /// not deduce more precise flags than the instruction already has, otherwise
   /// returns proven flags.
-  Optional<SCEV::NoWrapFlags>
+  std::optional<SCEV::NoWrapFlags>
   getStrengthenedNoWrapFlagsFromBinOp(const OverflowingBinaryOperator *OBO);
 
   /// Notify this ScalarEvolution that \p User directly uses SCEVs in \p Ops.
@@ -563,8 +566,13 @@ public:
   const SCEV *getLosslessPtrToIntExpr(const SCEV *Op, unsigned Depth = 0);
   const SCEV *getPtrToIntExpr(const SCEV *Op, Type *Ty);
   const SCEV *getTruncateExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
+  const SCEV *getVScale(Type *Ty);
   const SCEV *getZeroExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
+  const SCEV *getZeroExtendExprImpl(const SCEV *Op, Type *Ty,
+                                    unsigned Depth = 0);
   const SCEV *getSignExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth = 0);
+  const SCEV *getSignExtendExprImpl(const SCEV *Op, Type *Ty,
+                                    unsigned Depth = 0);
   const SCEV *getCastExpr(SCEVTypes Kind, const SCEV *Op, Type *Ty);
   const SCEV *getAnyExtendExpr(const SCEV *Op, Type *Ty);
   const SCEV *getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
@@ -614,7 +622,7 @@ public:
   /// Predicates. If successful return these <AddRecExpr, Predicates>;
   /// The function is intended to be called from PSCEV (the caller will decide
   /// whether to actually add the predicates and carry out the rewrites).
-  Optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
+  std::optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
   createAddRecFromPHIWithCasts(const SCEVUnknown *SymbolicPHI);
 
   /// Returns an expression for a GEP
@@ -648,15 +656,19 @@ public:
   /// Return a SCEV for the constant 1 of a specific type.
   const SCEV *getOne(Type *Ty) { return getConstant(Ty, 1); }
 
+  /// Return a SCEV for the constant \p Power of two.
+  const SCEV *getPowerOfTwo(Type *Ty, unsigned Power) {
+    assert(Power < getTypeSizeInBits(Ty) && "Power out of range");
+    return getConstant(APInt::getOneBitSet(getTypeSizeInBits(Ty), Power));
+  }
+
   /// Return a SCEV for the constant -1 of a specific type.
   const SCEV *getMinusOne(Type *Ty) {
     return getConstant(Ty, -1, /*isSigned=*/true);
   }
 
-  /// Return an expression for sizeof ScalableTy that is type IntTy, where
-  /// ScalableTy is a scalable vector type.
-  const SCEV *getSizeOfScalableVectorExpr(Type *IntTy,
-                                          ScalableVectorType *ScalableTy);
+  /// Return an expression for a TypeSize.
+  const SCEV *getSizeOfExpr(Type *IntTy, TypeSize Size);
 
   /// Return an expression for the alloc size of AllocTy that is type IntTy
   const SCEV *getSizeOfExpr(Type *IntTy, Type *AllocTy);
@@ -950,7 +962,7 @@ public:
   /// (at every loop iteration).  It is, at the same time, the minimum number
   /// of times S is divisible by 2.  For example, given {4,+,8} it returns 2.
   /// If S is guaranteed to be 0, it returns the bitwidth of S.
-  uint32_t GetMinTrailingZeros(const SCEV *S);
+  uint32_t getMinTrailingZeros(const SCEV *S);
 
   /// Determine the unsigned range for a particular SCEV.
   /// NOTE: This returns a copy of the reference returned by getRangeRef.
@@ -1046,9 +1058,9 @@ public:
 
   /// Check whether the condition described by Pred, LHS, and RHS is true or
   /// false. If we know it, return the evaluation of this condition. If neither
-  /// is proved, return None.
-  Optional<bool> evaluatePredicate(ICmpInst::Predicate Pred, const SCEV *LHS,
-                                   const SCEV *RHS);
+  /// is proved, return std::nullopt.
+  std::optional<bool> evaluatePredicate(ICmpInst::Predicate Pred,
+                                        const SCEV *LHS, const SCEV *RHS);
 
   /// Test if the given expression is known to satisfy the condition described
   /// by Pred, LHS, and RHS in the given Context.
@@ -1057,14 +1069,80 @@ public:
 
   /// Check whether the condition described by Pred, LHS, and RHS is true or
   /// false in the given \p Context. If we know it, return the evaluation of
-  /// this condition. If neither is proved, return None.
-  Optional<bool> evaluatePredicateAt(ICmpInst::Predicate Pred, const SCEV *LHS,
-                                     const SCEV *RHS, const Instruction *CtxI);
+  /// this condition. If neither is proved, return std::nullopt.
+  std::optional<bool> evaluatePredicateAt(ICmpInst::Predicate Pred,
+                                          const SCEV *LHS, const SCEV *RHS,
+                                          const Instruction *CtxI);
 
   /// Test if the condition described by Pred, LHS, RHS is known to be true on
   /// every iteration of the loop of the recurrency LHS.
   bool isKnownOnEveryIteration(ICmpInst::Predicate Pred,
                                const SCEVAddRecExpr *LHS, const SCEV *RHS);
+
+  /// Information about the number of loop iterations for which a loop exit's
+  /// branch condition evaluates to the not-taken path.  This is a temporary
+  /// pair of exact and max expressions that are eventually summarized in
+  /// ExitNotTakenInfo and BackedgeTakenInfo.
+  struct ExitLimit {
+    const SCEV *ExactNotTaken; // The exit is not taken exactly this many times
+    const SCEV *ConstantMaxNotTaken; // The exit is not taken at most this many
+                                     // times
+    const SCEV *SymbolicMaxNotTaken;
+
+    // Not taken either exactly ConstantMaxNotTaken or zero times
+    bool MaxOrZero = false;
+
+    /// A set of predicate guards for this ExitLimit. The result is only valid
+    /// if all of the predicates in \c Predicates evaluate to 'true' at
+    /// run-time.
+    SmallPtrSet<const SCEVPredicate *, 4> Predicates;
+
+    void addPredicate(const SCEVPredicate *P) {
+      assert(!isa<SCEVUnionPredicate>(P) && "Only add leaf predicates here!");
+      Predicates.insert(P);
+    }
+
+    /// Construct either an exact exit limit from a constant, or an unknown
+    /// one from a SCEVCouldNotCompute.  No other types of SCEVs are allowed
+    /// as arguments and asserts enforce that internally.
+    /*implicit*/ ExitLimit(const SCEV *E);
+
+    ExitLimit(
+        const SCEV *E, const SCEV *ConstantMaxNotTaken,
+        const SCEV *SymbolicMaxNotTaken, bool MaxOrZero,
+        ArrayRef<const SmallPtrSetImpl<const SCEVPredicate *> *> PredSetList =
+            std::nullopt);
+
+    ExitLimit(const SCEV *E, const SCEV *ConstantMaxNotTaken,
+              const SCEV *SymbolicMaxNotTaken, bool MaxOrZero,
+              const SmallPtrSetImpl<const SCEVPredicate *> &PredSet);
+
+    /// Test whether this ExitLimit contains any computed information, or
+    /// whether it's all SCEVCouldNotCompute values.
+    bool hasAnyInfo() const {
+      return !isa<SCEVCouldNotCompute>(ExactNotTaken) ||
+             !isa<SCEVCouldNotCompute>(ConstantMaxNotTaken);
+    }
+
+    /// Test whether this ExitLimit contains all information.
+    bool hasFullInfo() const {
+      return !isa<SCEVCouldNotCompute>(ExactNotTaken);
+    }
+  };
+
+  /// Compute the number of times the backedge of the specified loop will
+  /// execute if its exit condition were a conditional branch of ExitCond.
+  ///
+  /// \p ControlsOnlyExit is true if ExitCond directly controls the only exit
+  /// branch. In this case, we can assume that the loop exits only if the
+  /// condition is true and can infer that failing to meet the condition prior
+  /// to integer wraparound results in undefined behavior.
+  ///
+  /// If \p AllowPredicates is set, this call will try to use a minimal set of
+  /// SCEV predicates in order to return an exact answer.
+  ExitLimit computeExitLimitFromCond(const Loop *L, Value *ExitCond,
+                                     bool ExitIfTrue, bool ControlsOnlyExit,
+                                     bool AllowPredicates = false);
 
   /// A predicate is said to be monotonically increasing if may go from being
   /// false to being true as the loop iterates, but never the other way
@@ -1079,8 +1157,9 @@ public:
   /// If, for all loop invariant X, the predicate "LHS `Pred` X" is
   /// monotonically increasing or decreasing, returns
   /// Some(MonotonicallyIncreasing) and Some(MonotonicallyDecreasing)
-  /// respectively. If we could not prove either of these facts, returns None.
-  Optional<MonotonicPredicateType>
+  /// respectively. If we could not prove either of these facts, returns
+  /// std::nullopt.
+  std::optional<MonotonicPredicateType>
   getMonotonicPredicateType(const SCEVAddRecExpr *LHS,
                             ICmpInst::Predicate Pred);
 
@@ -1095,8 +1174,8 @@ public:
   };
   /// If the result of the predicate LHS `Pred` RHS is loop invariant with
   /// respect to L, return a LoopInvariantPredicate with LHS and RHS being
-  /// invariants, available at L's entry. Otherwise, return None.
-  Optional<LoopInvariantPredicate>
+  /// invariants, available at L's entry. Otherwise, return std::nullopt.
+  std::optional<LoopInvariantPredicate>
   getLoopInvariantPredicate(ICmpInst::Predicate Pred, const SCEV *LHS,
                             const SCEV *RHS, const Loop *L,
                             const Instruction *CtxI = nullptr);
@@ -1104,23 +1183,26 @@ public:
   /// If the result of the predicate LHS `Pred` RHS is loop invariant with
   /// respect to L at given Context during at least first MaxIter iterations,
   /// return a LoopInvariantPredicate with LHS and RHS being invariants,
-  /// available at L's entry. Otherwise, return None. The predicate should be
-  /// the loop's exit condition.
-  Optional<LoopInvariantPredicate>
+  /// available at L's entry. Otherwise, return std::nullopt. The predicate
+  /// should be the loop's exit condition.
+  std::optional<LoopInvariantPredicate>
   getLoopInvariantExitCondDuringFirstIterations(ICmpInst::Predicate Pred,
                                                 const SCEV *LHS,
                                                 const SCEV *RHS, const Loop *L,
                                                 const Instruction *CtxI,
                                                 const SCEV *MaxIter);
 
+  std::optional<LoopInvariantPredicate>
+  getLoopInvariantExitCondDuringFirstIterationsImpl(
+      ICmpInst::Predicate Pred, const SCEV *LHS, const SCEV *RHS, const Loop *L,
+      const Instruction *CtxI, const SCEV *MaxIter);
+
   /// Simplify LHS and RHS in a comparison with predicate Pred. Return true
   /// iff any changes were made. If the operands are provably equal or
   /// unequal, LHS and RHS are set to the same value and Pred is set to either
-  /// ICMP_EQ or ICMP_NE. ControllingFiniteLoop is set if this comparison
-  /// controls the exit of a loop known to have a finite number of iterations.
+  /// ICMP_EQ or ICMP_NE.
   bool SimplifyICmpOperands(ICmpInst::Predicate &Pred, const SCEV *&LHS,
-                            const SCEV *&RHS, unsigned Depth = 0,
-                            bool ControllingFiniteLoop = false);
+                            const SCEV *&RHS, unsigned Depth = 0);
 
   /// Return the "disposition" of the given SCEV with respect to the given
   /// loop.
@@ -1188,13 +1270,14 @@ public:
       SmallPtrSetImpl<const SCEVPredicate *> &Preds);
 
   /// Compute \p LHS - \p RHS and returns the result as an APInt if it is a
-  /// constant, and None if it isn't.
+  /// constant, and std::nullopt if it isn't.
   ///
   /// This is intended to be a cheaper version of getMinusSCEV.  We can be
   /// frugal here since we just bail out of actually constructing and
   /// canonicalizing an expression in the cases where the result isn't going
   /// to be a constant.
-  Optional<APInt> computeConstantDifference(const SCEV *LHS, const SCEV *RHS);
+  std::optional<APInt> computeConstantDifference(const SCEV *LHS,
+                                                 const SCEV *RHS);
 
   /// Update no-wrap flags of an AddRec. This may drop the cached info about
   /// this AddRec (such as range info) in case if new flags may potentially
@@ -1215,6 +1298,52 @@ public:
   /// Return true if this loop is finite by assumption.  That is,
   /// to be infinite, it must also be undefined.
   bool loopIsFiniteByAssumption(const Loop *L);
+
+  class FoldID {
+    SmallVector<unsigned, 5> Bits;
+
+  public:
+    void addInteger(unsigned long I) {
+      if (sizeof(long) == sizeof(int))
+        addInteger(unsigned(I));
+      else if (sizeof(long) == sizeof(long long))
+        addInteger((unsigned long long)I);
+      else
+        llvm_unreachable("unexpected sizeof(long)");
+    }
+    void addInteger(unsigned I) { Bits.push_back(I); }
+    void addInteger(int I) { Bits.push_back(I); }
+
+    void addInteger(unsigned long long I) {
+      addInteger(unsigned(I));
+      addInteger(unsigned(I >> 32));
+    }
+
+    void addPointer(const void *Ptr) {
+      // Note: this adds pointers to the hash using sizes and endianness that
+      // depend on the host. It doesn't matter, however, because hashing on
+      // pointer values is inherently unstable. Nothing should depend on the
+      // ordering of nodes in the folding set.
+      static_assert(sizeof(uintptr_t) <= sizeof(unsigned long long),
+                    "unexpected pointer size");
+      addInteger(reinterpret_cast<uintptr_t>(Ptr));
+    }
+
+    unsigned computeHash() const {
+      unsigned Hash = Bits.size();
+      for (unsigned I = 0; I != Bits.size(); ++I)
+        Hash = detail::combineHashValue(Hash, Bits[I]);
+      return Hash;
+    }
+    bool operator==(const FoldID &RHS) const {
+      if (Bits.size() != RHS.Bits.size())
+        return false;
+      for (unsigned I = 0; I != Bits.size(); ++I)
+        if (Bits[I] != RHS.Bits[I])
+          return false;
+      return true;
+    }
+  };
 
 private:
   /// A CallbackVH to arrange for ScalarEvolution to be notified whenever a
@@ -1277,11 +1406,19 @@ private:
   /// This is a cache of the values we have analyzed so far.
   ValueExprMapType ValueExprMap;
 
+  /// This is a cache for expressions that got folded to a different existing
+  /// SCEV.
+  DenseMap<FoldID, const SCEV *> FoldCache;
+  DenseMap<const SCEV *, SmallVector<FoldID, 2>> FoldCacheUser;
+
   /// Mark predicate values currently being processed by isImpliedCond.
   SmallPtrSet<const Value *, 6> PendingLoopPredicates;
 
   /// Mark SCEVUnknown Phis currently being processed by getRangeRef.
   SmallPtrSet<const PHINode *, 6> PendingPhiRanges;
+
+  /// Mark SCEVUnknown Phis currently being processed by getRangeRefIter.
+  SmallPtrSet<const PHINode *, 6> PendingPhiRangesIter;
 
   // Mark SCEVUnknown Phis currently being processed by isImpliedViaMerge.
   SmallPtrSet<const PHINode *, 6> PendingMerges;
@@ -1301,70 +1438,24 @@ private:
   ArrayRef<Value *> getSCEVValues(const SCEV *S);
 
   /// Private helper method for the GetMinTrailingZeros method
-  uint32_t GetMinTrailingZerosImpl(const SCEV *S);
-
-  /// Information about the number of loop iterations for which a loop exit's
-  /// branch condition evaluates to the not-taken path.  This is a temporary
-  /// pair of exact and max expressions that are eventually summarized in
-  /// ExitNotTakenInfo and BackedgeTakenInfo.
-  struct ExitLimit {
-    const SCEV *ExactNotTaken; // The exit is not taken exactly this many times
-    const SCEV *MaxNotTaken; // The exit is not taken at most this many times
-
-    // Not taken either exactly MaxNotTaken or zero times
-    bool MaxOrZero = false;
-
-    /// A set of predicate guards for this ExitLimit. The result is only valid
-    /// if all of the predicates in \c Predicates evaluate to 'true' at
-    /// run-time.
-    SmallPtrSet<const SCEVPredicate *, 4> Predicates;
-
-    void addPredicate(const SCEVPredicate *P) {
-      assert(!isa<SCEVUnionPredicate>(P) && "Only add leaf predicates here!");
-      Predicates.insert(P);
-    }
-
-    /// Construct either an exact exit limit from a constant, or an unknown
-    /// one from a SCEVCouldNotCompute.  No other types of SCEVs are allowed
-    /// as arguments and asserts enforce that internally.
-    /*implicit*/ ExitLimit(const SCEV *E);
-
-    ExitLimit(
-        const SCEV *E, const SCEV *M, bool MaxOrZero,
-        ArrayRef<const SmallPtrSetImpl<const SCEVPredicate *> *> PredSetList);
-
-    ExitLimit(const SCEV *E, const SCEV *M, bool MaxOrZero,
-              const SmallPtrSetImpl<const SCEVPredicate *> &PredSet);
-
-    ExitLimit(const SCEV *E, const SCEV *M, bool MaxOrZero);
-
-    /// Test whether this ExitLimit contains any computed information, or
-    /// whether it's all SCEVCouldNotCompute values.
-    bool hasAnyInfo() const {
-      return !isa<SCEVCouldNotCompute>(ExactNotTaken) ||
-             !isa<SCEVCouldNotCompute>(MaxNotTaken);
-    }
-
-    /// Test whether this ExitLimit contains all information.
-    bool hasFullInfo() const {
-      return !isa<SCEVCouldNotCompute>(ExactNotTaken);
-    }
-  };
+  uint32_t getMinTrailingZerosImpl(const SCEV *S);
 
   /// Information about the number of times a particular loop exit may be
   /// reached before exiting the loop.
   struct ExitNotTakenInfo {
     PoisoningVH<BasicBlock> ExitingBlock;
     const SCEV *ExactNotTaken;
-    const SCEV *MaxNotTaken;
+    const SCEV *ConstantMaxNotTaken;
+    const SCEV *SymbolicMaxNotTaken;
     SmallPtrSet<const SCEVPredicate *, 4> Predicates;
 
-    explicit ExitNotTakenInfo(PoisoningVH<BasicBlock> ExitingBlock,
-                              const SCEV *ExactNotTaken,
-                              const SCEV *MaxNotTaken,
-                              const SmallPtrSet<const SCEVPredicate *, 4> &Predicates)
-      : ExitingBlock(ExitingBlock), ExactNotTaken(ExactNotTaken),
-        MaxNotTaken(ExactNotTaken), Predicates(Predicates) {}
+    explicit ExitNotTakenInfo(
+        PoisoningVH<BasicBlock> ExitingBlock, const SCEV *ExactNotTaken,
+        const SCEV *ConstantMaxNotTaken, const SCEV *SymbolicMaxNotTaken,
+        const SmallPtrSet<const SCEVPredicate *, 4> &Predicates)
+        : ExitingBlock(ExitingBlock), ExactNotTaken(ExactNotTaken),
+          ConstantMaxNotTaken(ConstantMaxNotTaken),
+          SymbolicMaxNotTaken(SymbolicMaxNotTaken), Predicates(Predicates) {}
 
     bool hasAlwaysTruePredicate() const {
       return Predicates.empty();
@@ -1458,6 +1549,10 @@ private:
 
     /// Get the symbolic max backedge taken count for the loop.
     const SCEV *getSymbolicMax(const Loop *L, ScalarEvolution *SE);
+
+    /// Get the symbolic max backedge taken count for the particular loop exit.
+    const SCEV *getSymbolicMax(const BasicBlock *ExitingBlock,
+                               ScalarEvolution *SE) const;
 
     /// Return true if the number of times this backedge is taken is either the
     /// value returned by getConstantMax or zero.
@@ -1560,7 +1655,12 @@ private:
   /// Determine the range for a particular SCEV.
   /// NOTE: This returns a reference to an entry in a cache. It must be
   /// copied if its needed for longer.
-  const ConstantRange &getRangeRef(const SCEV *S, RangeSignHint Hint);
+  const ConstantRange &getRangeRef(const SCEV *S, RangeSignHint Hint,
+                                   unsigned Depth = 0);
+
+  /// Determine the range for a particular SCEV, but evaluates ranges for
+  /// operands iteratively first.
+  const ConstantRange &getRangeRefIter(const SCEV *S, RangeSignHint Hint);
 
   /// Determines the range for the affine SCEVAddRecExpr {\p Start,+,\p Step}.
   /// Helper for \c getRange.
@@ -1612,13 +1712,12 @@ private:
   const SCEV *createNodeFromSelectLikePHI(PHINode *PN);
 
   /// Provide special handling for a select-like instruction (currently this
-  /// is either a select instruction or a phi node).  \p I is the instruction
-  /// being processed, and it is assumed equivalent to "Cond ? TrueVal :
-  /// FalseVal".
-  const SCEV *createNodeForSelectOrPHIInstWithICmpInstCond(Instruction *I,
-                                                           ICmpInst *Cond,
-                                                           Value *TrueVal,
-                                                           Value *FalseVal);
+  /// is either a select instruction or a phi node).  \p Ty is the type of the
+  /// instruction being processed, that is assumed equivalent to
+  /// "Cond ? TrueVal : FalseVal".
+  std::optional<const SCEV *>
+  createNodeForSelectOrPHIInstWithICmpInstCond(Type *Ty, ICmpInst *Cond,
+                                               Value *TrueVal, Value *FalseVal);
 
   /// See if we can model this select-like instruction via umin_seq expression.
   const SCEV *createNodeForSelectOrPHIViaUMinSeq(Value *I, Value *Cond,
@@ -1661,20 +1760,6 @@ private:
   ExitLimit computeExitLimit(const Loop *L, BasicBlock *ExitingBlock,
                              bool AllowPredicates = false);
 
-  /// Compute the number of times the backedge of the specified loop will
-  /// execute if its exit condition were a conditional branch of ExitCond.
-  ///
-  /// \p ControlsExit is true if ExitCond directly controls the exit
-  /// branch. In this case, we can assume that the loop exits only if the
-  /// condition is true and can infer that failing to meet the condition prior
-  /// to integer wraparound results in undefined behavior.
-  ///
-  /// If \p AllowPredicates is set, this call will try to use a minimal set of
-  /// SCEV predicates in order to return an exact answer.
-  ExitLimit computeExitLimitFromCond(const Loop *L, Value *ExitCond,
-                                     bool ExitIfTrue, bool ControlsExit,
-                                     bool AllowPredicates = false);
-
   /// Return a symbolic upper bound for the backedge taken count of the loop.
   /// This is more general than getConstantMaxBackedgeTakenCount as it returns
   /// an arbitrary expression as opposed to only constants.
@@ -1684,11 +1769,11 @@ private:
   // complexity.
 
   class ExitLimitCache {
-    // It may look like we need key on the whole (L, ExitIfTrue, ControlsExit,
-    // AllowPredicates) tuple, but recursive calls to
+    // It may look like we need key on the whole (L, ExitIfTrue,
+    // ControlsOnlyExit, AllowPredicates) tuple, but recursive calls to
     // computeExitLimitFromCondCached from computeExitLimitFromCondImpl only
-    // vary the in \c ExitCond and \c ControlsExit parameters.  We remember the
-    // initial values of the other values to assert our assumption.
+    // vary the in \c ExitCond and \c ControlsOnlyExit parameters.  We remember
+    // the initial values of the other values to assert our assumption.
     SmallDenseMap<PointerIntPair<Value *, 1>, ExitLimit> TripCountMap;
 
     const Loop *L;
@@ -1699,11 +1784,13 @@ private:
     ExitLimitCache(const Loop *L, bool ExitIfTrue, bool AllowPredicates)
         : L(L), ExitIfTrue(ExitIfTrue), AllowPredicates(AllowPredicates) {}
 
-    Optional<ExitLimit> find(const Loop *L, Value *ExitCond, bool ExitIfTrue,
-                             bool ControlsExit, bool AllowPredicates);
+    std::optional<ExitLimit> find(const Loop *L, Value *ExitCond,
+                                  bool ExitIfTrue, bool ControlsOnlyExit,
+                                  bool AllowPredicates);
 
     void insert(const Loop *L, Value *ExitCond, bool ExitIfTrue,
-                bool ControlsExit, bool AllowPredicates, const ExitLimit &EL);
+                bool ControlsOnlyExit, bool AllowPredicates,
+                const ExitLimit &EL);
   };
 
   using ExitLimitCacheTy = ExitLimitCache;
@@ -1711,16 +1798,15 @@ private:
   ExitLimit computeExitLimitFromCondCached(ExitLimitCacheTy &Cache,
                                            const Loop *L, Value *ExitCond,
                                            bool ExitIfTrue,
-                                           bool ControlsExit,
+                                           bool ControlsOnlyExit,
                                            bool AllowPredicates);
   ExitLimit computeExitLimitFromCondImpl(ExitLimitCacheTy &Cache, const Loop *L,
                                          Value *ExitCond, bool ExitIfTrue,
-                                         bool ControlsExit,
+                                         bool ControlsOnlyExit,
                                          bool AllowPredicates);
-  Optional<ScalarEvolution::ExitLimit>
-  computeExitLimitFromCondFromBinOp(ExitLimitCacheTy &Cache, const Loop *L,
-                                    Value *ExitCond, bool ExitIfTrue,
-                                    bool ControlsExit, bool AllowPredicates);
+  std::optional<ScalarEvolution::ExitLimit> computeExitLimitFromCondFromBinOp(
+      ExitLimitCacheTy &Cache, const Loop *L, Value *ExitCond, bool ExitIfTrue,
+      bool ControlsOnlyExit, bool AllowPredicates);
 
   /// Compute the number of times the backedge of the specified loop will
   /// execute if its exit condition were a conditional branch of the ICmpInst
@@ -1785,14 +1871,14 @@ private:
   ///
   /// \p isSigned specifies whether the less-than is signed.
   ///
-  /// \p ControlsExit is true when the LHS < RHS condition directly controls
+  /// \p ControlsOnlyExit is true when the LHS < RHS condition directly controls
   /// the branch (loops exits only if condition is true). In this case, we can
   /// use NoWrapFlags to skip overflow checks.
   ///
   /// If \p AllowPredicates is set, this call will try to use a minimal set of
   /// SCEV predicates in order to return an exact answer.
   ExitLimit howManyLessThans(const SCEV *LHS, const SCEV *RHS, const Loop *L,
-                             bool isSigned, bool ControlsExit,
+                             bool isSigned, bool ControlsOnlyExit,
                              bool AllowPredicates = false);
 
   ExitLimit howManyGreaterThans(const SCEV *LHS, const SCEV *RHS, const Loop *L,
@@ -1956,6 +2042,12 @@ private:
   /// Helper for forgetMemoizedResults.
   void forgetMemoizedResultsImpl(const SCEV *S);
 
+  /// Iterate over instructions in \p Worklist and their users. Erase entries
+  /// from ValueExprMap and collect SCEV expressions in \p ToForget
+  void visitAndClearUsers(SmallVectorImpl<Instruction *> &Worklist,
+                          SmallPtrSetImpl<Instruction *> &Visited,
+                          SmallVectorImpl<const SCEV *> &ToForget);
+
   /// Return an existing SCEV for V if there is one, otherwise return nullptr.
   const SCEV *getExistingSCEV(Value *V);
 
@@ -1989,7 +2081,7 @@ private:
   /// entry and backedge.
   SCEV::NoWrapFlags proveNoUnsignedWrapViaInduction(const SCEVAddRecExpr *AR);
 
-  Optional<MonotonicPredicateType>
+  std::optional<MonotonicPredicateType>
   getMonotonicPredicateTypeImpl(const SCEVAddRecExpr *LHS,
                                 ICmpInst::Predicate Pred);
 
@@ -2053,7 +2145,7 @@ private:
   /// If the analysis is not successful, a mapping from the \p SymbolicPHI to
   /// itself (with no predicates) is recorded, and a nullptr with an empty
   /// predicates vector is returned as a pair.
-  Optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
+  std::optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
   createAddRecFromPHIWithCastsImpl(const SCEVUnknown *SymbolicPHI);
 
   /// Compute the maximum backedge count based on the range of values
@@ -2111,6 +2203,11 @@ private:
   /// reasoning about conditions.
   void getReachableBlocks(SmallPtrSetImpl<BasicBlock *> &Reachable,
                           Function &F);
+
+  /// Return the given SCEV expression with a new set of operands.
+  /// This preserves the origial nowrap flags.
+  const SCEV *getWithOperands(const SCEV *S,
+                              SmallVectorImpl<const SCEV *> &NewOps);
 
   FoldingSet<SCEV> UniqueSCEVs;
   FoldingSet<SCEVPredicate> UniquePreds;
@@ -2284,6 +2381,28 @@ private:
 
   /// The backedge taken count.
   const SCEV *BackedgeCount = nullptr;
+};
+
+template <> struct DenseMapInfo<ScalarEvolution::FoldID> {
+  static inline ScalarEvolution::FoldID getEmptyKey() {
+    ScalarEvolution::FoldID ID;
+    ID.addInteger(~0ULL);
+    return ID;
+  }
+  static inline ScalarEvolution::FoldID getTombstoneKey() {
+    ScalarEvolution::FoldID ID;
+    ID.addInteger(~0ULL - 1ULL);
+    return ID;
+  }
+
+  static unsigned getHashValue(const ScalarEvolution::FoldID &Val) {
+    return Val.computeHash();
+  }
+
+  static bool isEqual(const ScalarEvolution::FoldID &LHS,
+                      const ScalarEvolution::FoldID &RHS) {
+    return LHS == RHS;
+  }
 };
 
 } // end namespace llvm

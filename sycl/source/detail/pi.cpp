@@ -38,10 +38,6 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-#define STR(x) #x
-#define SYCL_VERSION_STR                                                       \
-  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -54,11 +50,6 @@ xpti_td *GSYCLGraphEvent = nullptr;
 xpti_td *GPICallEvent = nullptr;
 /// Event to be used by PI layer calls with arguments
 xpti_td *GPIArgCallEvent = nullptr;
-/// Constants being used as placeholder until one is able to reliably get the
-/// version of the SYCL runtime
-constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
-constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
-constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
@@ -200,6 +191,8 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_VENDOR";
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return "PI_EXT_PLATFORM_INFO_BACKEND";
   }
   die("Unknown pi_platform_info value passed to "
       "sycl::detail::pi::platformInfoToString");
@@ -358,12 +351,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
-  return loadOsLibrary(PluginPath);
+  return loadOsPluginLibrary(PluginPath);
 }
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
-int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
+int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
@@ -513,7 +506,7 @@ template <backend BE> const plugin &getPlugin() {
 
   const std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
-    if (P.getBackend() == BE) {
+    if (P.hasBackend(BE)) {
       Plugin = &P;
       return *Plugin;
     }
@@ -644,7 +637,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
+    std::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     // Check headers for direct formats.

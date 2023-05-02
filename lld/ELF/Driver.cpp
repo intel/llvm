@@ -38,6 +38,7 @@
 #include "Target.h"
 #include "Writer.h"
 #include "lld/Common/Args.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Driver.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Filesystem.h"
@@ -64,6 +65,7 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
+#include <tuple>
 #include <utility>
 
 using namespace llvm;
@@ -160,6 +162,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Cases("aarch64elf", "aarch64linux", {ELF64LEKind, EM_AARCH64})
           .Cases("aarch64elfb", "aarch64linuxb", {ELF64BEKind, EM_AARCH64})
           .Cases("armelf", "armelf_linux_eabi", {ELF32LEKind, EM_ARM})
+          .Cases("armelfb", "armelfb_linux_eabi", {ELF32BEKind, EM_ARM})
           .Case("elf32_x86_64", {ELF32LEKind, EM_X86_64})
           .Cases("elf32btsmip", "elf32btsmipn32", {ELF32BEKind, EM_MIPS})
           .Cases("elf32ltsmip", "elf32ltsmipn32", {ELF32LEKind, EM_MIPS})
@@ -176,12 +179,15 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf_iamcu", {ELF32LEKind, EM_IAMCU})
           .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
           .Case("msp430elf", {ELF32LEKind, EM_MSP430})
+          .Case("elf64_amdgpu", {ELF64LEKind, EM_AMDGPU})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
     error("unknown emulation: " + emul);
   if (ret.second == EM_MSP430)
     osabi = ELFOSABI_STANDALONE;
+  else if (ret.second == EM_AMDGPU)
+    osabi = ELFOSABI_AMDGPU_HSA;
   return std::make_tuple(ret.first, ret.second, osabi);
 }
 
@@ -224,7 +230,7 @@ static bool isBitcode(MemoryBufferRef mb) {
 void LinkerDriver::addFile(StringRef path, bool withLOption) {
   using namespace sys::fs;
 
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  std::optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
@@ -311,7 +317,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
 
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
-  if (Optional<std::string> path = searchLibrary(name))
+  if (std::optional<std::string> path = searchLibrary(name))
     addFile(saver().save(*path), /*withLOption=*/true);
   else
     error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
@@ -342,11 +348,17 @@ static void checkOptions() {
   if (config->fixCortexA8 && config->emachine != EM_ARM)
     error("--fix-cortex-a8 is only supported on ARM targets");
 
+  if (config->fixCortexA8 && !config->isLE)
+    error("--fix-cortex-a8 is not supported on big endian targets");
+  
   if (config->tocOptimize && config->emachine != EM_PPC64)
     error("--toc-optimize is only supported on PowerPC64 targets");
 
   if (config->pcRelOptimize && config->emachine != EM_PPC64)
     error("--pcrel-optimize is only supported on PowerPC64 targets");
+
+  if (config->relaxGP && config->emachine != EM_RISCV)
+    error("--relax-gp is only supported on RISC-V targets");
 
   if (config->pie && config->shared)
     error("-shared and -pie may not be used together");
@@ -732,15 +744,24 @@ static StringRef getDynamicLinker(opt::InputArgList &args) {
 
 static int getMemtagMode(opt::InputArgList &args) {
   StringRef memtagModeArg = args.getLastArgValue(OPT_android_memtag_mode);
-  if (!config->androidMemtagHeap && !config->androidMemtagStack) {
-    if (!memtagModeArg.empty())
-      error("when using --android-memtag-mode, at least one of "
-            "--android-memtag-heap or "
-            "--android-memtag-stack is required");
+  if (memtagModeArg.empty()) {
+    if (config->androidMemtagStack)
+      warn("--android-memtag-mode is unspecified, leaving "
+           "--android-memtag-stack a no-op");
+    else if (config->androidMemtagHeap)
+      warn("--android-memtag-mode is unspecified, leaving "
+           "--android-memtag-heap a no-op");
     return ELF::NT_MEMTAG_LEVEL_NONE;
   }
 
-  if (memtagModeArg == "sync" || memtagModeArg.empty())
+  if (!config->androidMemtagHeap && !config->androidMemtagStack) {
+    error("when using --android-memtag-mode, at least one of "
+          "--android-memtag-heap or "
+          "--android-memtag-stack is required");
+    return ELF::NT_MEMTAG_LEVEL_NONE;
+  }
+
+  if (memtagModeArg == "sync")
     return ELF::NT_MEMTAG_LEVEL_SYNC;
   if (memtagModeArg == "async")
     return ELF::NT_MEMTAG_LEVEL_ASYNC;
@@ -1006,6 +1027,14 @@ static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
   return ret;
 }
 
+// Parse options of the form "old;new[;extra]".
+static std::tuple<StringRef, StringRef, StringRef>
+getOldNewOptionsExtra(opt::InputArgList &args, unsigned id) {
+  auto [oldDir, second] = getOldNewOptions(args, id);
+  auto [newDir, extraDir] = second.split(';');
+  return {oldDir, newDir, extraDir};
+}
+
 // Parse the symbol ordering file and warn for any duplicate entries.
 static SmallVector<StringRef, 0> getSymbolOrderingFile(MemoryBufferRef mb) {
   SetVector<StringRef, SmallVector<StringRef, 0>> names;
@@ -1135,6 +1164,14 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_lto_whole_program_visibility,
                    OPT_no_lto_whole_program_visibility, false);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
+  if (config->ltoo > 3)
+    error("invalid optimization level for LTO: " + Twine(config->ltoo));
+  unsigned ltoCgo =
+      args::getInteger(args, OPT_lto_CGO, args::getCGOptLevel(config->ltoo));
+  if (auto level = CodeGenOpt::getLevel(ltoCgo))
+    config->ltoCgo = *level;
+  else
+    error("invalid codegen optimization level for LTO: " + Twine(ltoCgo));
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
@@ -1154,13 +1191,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->nostdlib = args.hasArg(OPT_nostdlib);
   config->oFormatBinary = isOutputFormatBinary(args);
   config->omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
-#if ENABLE_OPAQUE_POINTERS
   config->opaquePointers = args.hasFlag(
       OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, true);
-#else
-  config->opaquePointers = args.hasFlag(
-      OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, false);
-#endif
   config->optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
   config->optStatsFilename = args.getLastArgValue(OPT_plugin_opt_stats_file);
 
@@ -1190,6 +1222,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
   config->relax = args.hasFlag(OPT_relax, OPT_no_relax, true);
+  config->relaxGP = args.hasFlag(OPT_relax_gp, OPT_no_relax_gp, false);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
 
@@ -1231,8 +1264,9 @@ static void readConfigs(opt::InputArgList &args) {
   config->thinLTOIndexOnlyArg = args.getLastArgValue(OPT_thinlto_index_only_eq);
   config->thinLTOObjectSuffixReplace =
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
-  config->thinLTOPrefixReplace =
-      getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  std::tie(config->thinLTOPrefixReplaceOld, config->thinLTOPrefixReplaceNew,
+           config->thinLTOPrefixReplaceNativeObject) =
+      getOldNewOptionsExtra(args, OPT_thinlto_prefix_replace_eq);
   if (config->thinLTOEmitIndexFiles && !config->thinLTOIndexOnly) {
     if (args.hasArg(OPT_thinlto_object_suffix_replace_eq))
       error("--thinlto-object-suffix-replace is not supported with "
@@ -1240,6 +1274,11 @@ static void readConfigs(opt::InputArgList &args) {
     else if (args.hasArg(OPT_thinlto_prefix_replace_eq))
       error("--thinlto-prefix-replace is not supported with "
             "--thinlto-emit-index-files");
+  }
+  if (!config->thinLTOPrefixReplaceNativeObject.empty() &&
+      config->thinLTOIndexOnlyArg.empty()) {
+    error("--thinlto-prefix-replace=old_dir;new_dir;obj_dir must be used with "
+          "--thinlto-index-only=");
   }
   config->thinLTOModulesToCompile =
       args::getStrings(args, OPT_thinlto_single_module_eq);
@@ -1249,7 +1288,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->trace = args.hasArg(OPT_trace);
   config->undefined = args::getStrings(args, OPT_undefined);
   config->undefinedVersion =
-      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, true);
+      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, false);
   config->unique = args.hasArg(OPT_unique);
   config->useAndroidRelrTags = args.hasFlag(
       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
@@ -1383,8 +1422,12 @@ static void readConfigs(opt::InputArgList &args) {
     config->mllvmOpts.emplace_back(arg->getValue());
   }
 
+  config->threadCount = parallel::strategy.compute_thread_count();
+
   // --threads= takes a positive integer and provides the default value for
-  // --thinlto-jobs=.
+  // --thinlto-jobs=. If unspecified, cap the number of threads since
+  // overhead outweighs optimization for used parallel algorithms for the
+  // non-LTO parts.
   if (auto *arg = args.getLastArg(OPT_threads)) {
     StringRef v(arg->getValue());
     unsigned threads = 0;
@@ -1393,13 +1436,13 @@ static void readConfigs(opt::InputArgList &args) {
             arg->getValue() + "'");
     parallel::strategy = hardware_concurrency(threads);
     config->thinLTOJobs = v;
+  } else if (config->threadCount > 16) {
+    log("set maximum concurrency to 16, specify --threads= to change");
+    parallel::strategy = hardware_concurrency(16);
   }
-  if (auto *arg = args.getLastArg(OPT_thinlto_jobs))
+  if (auto *arg = args.getLastArg(OPT_thinlto_jobs_eq))
     config->thinLTOJobs = arg->getValue();
-  config->threadCount = parallel::strategy.compute_thread_count();
 
-  if (config->ltoo > 3)
-    error("invalid optimization level for LTO: " + Twine(config->ltoo));
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");
   if (!get_threadpool_strategy(config->thinLTOJobs))
@@ -1462,7 +1505,7 @@ static void readConfigs(opt::InputArgList &args) {
     if (args.hasArg(OPT_call_graph_ordering_file))
       error("--symbol-ordering-file and --call-graph-order-file "
             "may not be used together");
-    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue())){
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue())) {
       config->symbolOrderingFile = getSymbolOrderingFile(*buffer);
       // Also need to disable CallGraphProfileSort to prevent
       // LLD order symbols with CGProfile
@@ -1481,7 +1524,7 @@ static void readConfigs(opt::InputArgList &args) {
   if (auto *arg = args.getLastArg(OPT_retain_symbols_file)) {
     config->versionDefinitions[VER_NDX_LOCAL].nonLocalPatterns.push_back(
         {"*", /*isExternCpp=*/false, /*hasWildcard=*/true});
-    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
       for (StringRef s : args::getLines(*buffer))
         config->versionDefinitions[VER_NDX_GLOBAL].nonLocalPatterns.push_back(
             {s, /*isExternCpp=*/false, /*hasWildcard=*/false});
@@ -1512,12 +1555,12 @@ static void readConfigs(opt::InputArgList &args) {
       config->bsymbolic == BsymbolicKind::All || args.hasArg(OPT_dynamic_list);
   for (auto *arg :
        args.filtered(OPT_dynamic_list, OPT_export_dynamic_symbol_list))
-    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
       readDynamicList(*buffer);
 
   for (auto *arg : args.filtered(OPT_version_script))
-    if (Optional<std::string> path = searchScript(arg->getValue())) {
-      if (Optional<MemoryBufferRef> buffer = readFile(*path))
+    if (std::optional<std::string> path = searchScript(arg->getValue())) {
+      if (std::optional<MemoryBufferRef> buffer = readFile(*path))
         readVersionScript(*buffer);
     } else {
       error(Twine("cannot find version script ") + arg->getValue());
@@ -1624,8 +1667,8 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       break;
     }
     case OPT_script:
-      if (Optional<std::string> path = searchScript(arg->getValue())) {
-        if (Optional<MemoryBufferRef> mb = readFile(*path))
+      if (std::optional<std::string> path = searchScript(arg->getValue())) {
+        if (std::optional<MemoryBufferRef> mb = readFile(*path))
           readLinkerScript(*mb);
         break;
       }
@@ -1655,7 +1698,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       inWholeArchive = false;
       break;
     case OPT_just_symbols:
-      if (Optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
+      if (std::optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
         files.push_back(createObjFile(*mb));
         files.back()->justSymbols = true;
       }
@@ -1759,12 +1802,12 @@ static uint64_t getCommonPageSize(opt::InputArgList &args) {
 }
 
 // Parses --image-base option.
-static Optional<uint64_t> getImageBase(opt::InputArgList &args) {
+static std::optional<uint64_t> getImageBase(opt::InputArgList &args) {
   // Because we are using "Config->maxPageSize" here, this function has to be
   // called after the variable is initialized.
   auto *arg = args.getLastArg(OPT_image_base);
   if (!arg)
-    return None;
+    return std::nullopt;
 
   StringRef s = arg->getValue();
   uint64_t v;
@@ -2689,7 +2732,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // compileBitcodeFiles may have produced lto.tmp object files. After this, no
   // more file will be added.
-  auto newObjectFiles = makeArrayRef(ctx.objectFiles).slice(numObjsBeforeLTO);
+  auto newObjectFiles = ArrayRef(ctx.objectFiles).slice(numObjsBeforeLTO);
   parallelForEach(newObjectFiles, [](ELFFileBase *file) {
     initSectionsAndLocalSyms(file, /*ignoreComdats=*/true);
   });
@@ -2788,24 +2831,15 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   config->imageBase = getImageBase(args);
 
-  if (config->emachine == EM_ARM) {
-    // FIXME: These warnings can be removed when lld only uses these features
-    // when the input objects have been compiled with an architecture that
-    // supports them.
-    if (config->armHasBlx == false)
-      warn("lld uses blx instruction, no object with architecture supporting "
-           "feature detected");
-  }
-
   // This adds a .comment section containing a version string.
   if (!config->relocatable)
     ctx.inputSections.push_back(createCommentSection());
 
   // Split SHF_MERGE and .eh_frame sections into pieces in preparation for garbage collection.
-  invokeELFT(splitSections);
+  invokeELFT(splitSections,);
 
   // Garbage collection and removal of shared symbols from unused shared objects.
-  invokeELFT(markLive);
+  invokeELFT(markLive,);
   demoteSharedAndLazySymbols();
 
   // Make copies of any input sections that need to be copied into each
@@ -2814,13 +2848,17 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // Create synthesized sections such as .got and .plt. This is called before
   // processSectionCommands() so that they can be placed by SECTIONS commands.
-  invokeELFT(createSyntheticSections);
+  invokeELFT(createSyntheticSections,);
 
   // Some input sections that are used for exception handling need to be moved
   // into synthetic sections. Do that now so that they aren't assigned to
   // output sections in the usual way.
   if (!config->relocatable)
     combineEhSections();
+
+  // Merge .riscv.attributes sections.
+  if (config->emachine == EM_RISCV)
+    mergeRISCVAttributesSections();
 
   {
     llvm::TimeTraceScope timeScope("Assign sections");
@@ -2851,17 +2889,17 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // ICF runs after processSectionCommands() so that we know the output sections.
   if (config->icf != ICFLevel::None) {
     invokeELFT(findKeepUniqueSections, args);
-    invokeELFT(doIcf);
+    invokeELFT(doIcf,);
   }
 
   // Read the callgraph now that we know what was gced or icfed
   if (config->callGraphProfileSort) {
     if (auto *arg = args.getLastArg(OPT_call_graph_ordering_file))
-      if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+      if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
         readCallGraph(*buffer);
-    invokeELFT(readCallGraphsFromObjectFiles);
+    invokeELFT(readCallGraphsFromObjectFiles,);
   }
 
   // Write the result to the file.
-  invokeELFT(writeResult);
+  invokeELFT(writeResult,);
 }

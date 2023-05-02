@@ -430,6 +430,12 @@
 // RUN: %clang --target=riscv64-linux-gnu -fsanitize=address,leak -fno-sanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANA-SANL-NO-SANA-RISCV64
 // CHECK-SANA-SANL-NO-SANA-RISCV64: "-fsanitize=leak"
 
+// RUN: %clang --target=loongarch64-unknown-linux-gnu -fsanitize=leak %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANL-LOONGARCH64
+// CHECK-SANL-LOONGARCH64: "-fsanitize=leak"
+
+// RUN: %clang --target=loongarch64-unknown-linux-gnu -fsanitize=address,leak -fno-sanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANA-SANL-NO-SANA-LOONGARCH64
+// CHECK-SANA-SANL-NO-SANA-LOONGARCH64: "-fsanitize=leak"
+
 // RUN: %clang --target=x86_64-linux-gnu -fsanitize=memory %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-MSAN
 // CHECK-MSAN: "-fno-assume-sane-operator-new"
 // RUN: %clang --target=x86_64-linux-gnu -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN
@@ -460,8 +466,20 @@
 // RUN: %clang --target=arm64-apple-macos -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-ARM64-MACOS
 // CHECK-TSAN-ARM64-MACOS-NOT: unsupported option
 
+// RUN: %clang --target=arm64-apple-ios-simulator -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-ARM64-IOSSIMULATOR
+// CHECK-TSAN-ARM64-IOSSIMULATOR-NOT: unsupported option
+
+// RUN: %clang --target=arm64-apple-watchos-simulator -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-ARM64-WATCHOSSIMULATOR
+// CHECK-TSAN-ARM64-WATCHOSSIMULATOR-NOT: unsupported option
+
+// RUN: %clang --target=arm64-apple-tvos-simulator -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-ARM64-TVOSSIMULATOR
+// CHECK-TSAN-ARM64-TVOSSIMULATOR-NOT: unsupported option
+
 // RUN: %clang --target=x86_64-apple-ios-simulator -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-X86-64-IOSSIMULATOR
 // CHECK-TSAN-X86-64-IOSSIMULATOR-NOT: unsupported option
+
+// RUN: %clang --target=x86_64-apple-watchos-simulator -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-X86-64-WATCHOSSIMULATOR
+// CHECK-TSAN-X86-64-WATCHOSSIMULATOR-NOT: unsupported option
 
 // RUN: %clang --target=x86_64-apple-tvos-simulator -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-X86-64-TVOSSIMULATOR
 // CHECK-TSAN-X86-64-TVOSSIMULATOR-NOT: unsupported option
@@ -873,12 +891,14 @@
 // RUN: %clang --target=arm-linux-androideabi -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=x86_64-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=i386-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
+// RUN: %clang --target=loongarch64-unknown-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=mips64-unknown-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=mips64el-unknown-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=mips-unknown-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=mipsel-unknown-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=powerpc64-unknown-linux -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang --target=powerpc64le-unknown-linux -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
+// RUN: %clang --target=riscv64-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // CHECK-SCUDO: "-fsanitize=scudo"
 
 // RUN: %clang --target=x86_64-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO-PIE

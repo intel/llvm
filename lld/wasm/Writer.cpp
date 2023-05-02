@@ -17,8 +17,10 @@
 #include "SymbolTable.h"
 #include "SyntheticSections.h"
 #include "WriterUtils.h"
+#include "lld/Common/Arrays.h"
 #include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Strings.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -30,17 +32,20 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/Parallel.h"
+#include "llvm/Support/RandomNumberGenerator.h"
+#include "llvm/Support/SHA1.h"
+#include "llvm/Support/xxhash.h"
 
 #include <cstdarg>
 #include <map>
+#include <optional>
 
 #define DEBUG_TYPE "lld"
 
 using namespace llvm;
 using namespace llvm::wasm;
 
-namespace lld {
-namespace wasm {
+namespace lld::wasm {
 static constexpr int stackAlignment = 16;
 static constexpr int heapAlignment = 16;
 
@@ -62,6 +67,7 @@ private:
   void createStartFunction();
   void createApplyDataRelocationsFunction();
   void createApplyGlobalRelocationsFunction();
+  void createApplyTLSRelocationsFunction();
   void createApplyGlobalTLSRelocationsFunction();
   void createCallCtorsFunction();
   void createInitTLSFunction();
@@ -101,6 +107,7 @@ private:
 
   void writeHeader();
   void writeSections();
+  void writeBuildId();
 
   uint64_t fileSize = 0;
 
@@ -215,6 +222,91 @@ void Writer::writeSections() {
     assert(s->isNeeded());
     s->writeTo(buf);
   });
+}
+
+// Computes a hash value of Data using a given hash function.
+// In order to utilize multiple cores, we first split data into 1MB
+// chunks, compute a hash for each chunk, and then compute a hash value
+// of the hash values.
+
+static void
+computeHash(llvm::MutableArrayRef<uint8_t> hashBuf,
+            llvm::ArrayRef<uint8_t> data,
+            std::function<void(uint8_t *dest, ArrayRef<uint8_t> arr)> hashFn) {
+  std::vector<ArrayRef<uint8_t>> chunks = split(data, 1024 * 1024);
+  std::vector<uint8_t> hashes(chunks.size() * hashBuf.size());
+
+  // Compute hash values.
+  parallelFor(0, chunks.size(), [&](size_t i) {
+    hashFn(hashes.data() + i * hashBuf.size(), chunks[i]);
+  });
+
+  // Write to the final output buffer.
+  hashFn(hashBuf.data(), hashes);
+}
+
+static void makeUUID(unsigned version, llvm::ArrayRef<uint8_t> fileHash,
+                     llvm::MutableArrayRef<uint8_t> output) {
+  assert((version == 4 || version == 5) && "Unknown UUID version");
+  assert(output.size() == 16 && "Wrong size for UUID output");
+  if (version == 5) {
+    // Build a valid v5 UUID from a hardcoded (randomly-generated) namespace
+    // UUID, and the computed hash of the output.
+    std::array<uint8_t, 16> namespaceUUID{0xA1, 0xFA, 0x48, 0x2D, 0x0E, 0x22,
+                                          0x03, 0x8D, 0x33, 0x8B, 0x52, 0x1C,
+                                          0xD6, 0xD2, 0x12, 0xB2};
+    SHA1 sha;
+    sha.update(namespaceUUID);
+    sha.update(fileHash);
+    auto s = sha.final();
+    std::copy(s.data(), &s.data()[output.size()], output.data());
+  } else if (version == 4) {
+    if (auto ec = llvm::getRandomBytes(output.data(), output.size()))
+      error("entropy source failure: " + ec.message());
+  }
+  // Set the UUID version and variant fields.
+  // The version is the upper nibble of byte 6 (0b0101xxxx or 0b0100xxxx)
+  output[6] = (static_cast<uint8_t>(version) << 4) | (output[6] & 0xF);
+
+  // The variant is DCE 1.1/ISO 11578 (0b10xxxxxx)
+  output[8] &= 0xBF;
+  output[8] |= 0x80;
+}
+
+void Writer::writeBuildId() {
+  if (!out.buildIdSec->isNeeded())
+    return;
+  if (config->buildId == BuildIdKind::Hexstring) {
+    out.buildIdSec->writeBuildId(config->buildIdVector);
+    return;
+  }
+
+  // Compute a hash of all sections of the output file.
+  size_t hashSize = out.buildIdSec->hashSize;
+  std::vector<uint8_t> buildId(hashSize);
+  llvm::ArrayRef<uint8_t> buf{buffer->getBufferStart(), size_t(fileSize)};
+
+  switch (config->buildId) {
+  case BuildIdKind::Fast: {
+    std::vector<uint8_t> fileHash(8);
+    computeHash(fileHash, buf, [](uint8_t *dest, ArrayRef<uint8_t> arr) {
+      support::endian::write64le(dest, xxHash64(arr));
+    });
+    makeUUID(5, fileHash, buildId);
+    break;
+  }
+  case BuildIdKind::Sha1:
+    computeHash(buildId, buf, [&](uint8_t *dest, ArrayRef<uint8_t> arr) {
+      memcpy(dest, SHA1::hash(arr).data(), hashSize);
+    });
+    break;
+  case BuildIdKind::Uuid:
+    makeUUID(4, {}, buildId);
+    break;
+  default:
+    llvm_unreachable("unknown BuildIdKind");
+  }
+  out.buildIdSec->writeBuildId(buildId);
 }
 
 static void setGlobalPtr(DefinedGlobal *g, uint64_t memoryPtr) {
@@ -346,7 +438,12 @@ void Writer::layoutMemory() {
     WasmSym::heapBase->setVA(memoryPtr);
   }
 
-  uint64_t maxMemorySetting = 1ULL << (config->is64.value_or(false) ? 48 : 32);
+  uint64_t maxMemorySetting = 1ULL << 32;
+  if (config->is64.value_or(false)) {
+    // TODO: Update once we decide on a reasonable limit here:
+    // https://github.com/WebAssembly/memory64/issues/33
+    maxMemorySetting = 1ULL << 34;
+  }
 
   if (config->initialMemory != 0) {
     if (config->initialMemory != alignTo(config->initialMemory, WasmPageSize))
@@ -449,6 +546,7 @@ void Writer::addSections() {
   addSection(out.nameSec);
   addSection(out.producersSec);
   addSection(out.targetFeaturesSec);
+  addSection(out.buildIdSec);
 }
 
 void Writer::finalizeSections() {
@@ -469,12 +567,12 @@ void Writer::populateTargetFeatures() {
   if (config->isPic) {
     // This should not be necessary because all PIC objects should
     // contain the mutable-globals feature.
-    // TODO(https://bugs.llvm.org/show_bug.cgi?id=52339)
+    // TODO (https://github.com/llvm/llvm-project/issues/51681)
     allowed.insert("mutable-globals");
   }
 
   if (config->extraFeatures.has_value()) {
-    auto &extraFeatures = config->extraFeatures.value();
+    auto &extraFeatures = *config->extraFeatures;
     allowed.insert(extraFeatures.begin(), extraFeatures.end());
   }
 
@@ -482,7 +580,7 @@ void Writer::populateTargetFeatures() {
   bool inferFeatures = !config->features.has_value();
 
   if (!inferFeatures) {
-    auto &explicitFeatures = config->features.value();
+    auto &explicitFeatures = *config->features;
     allowed.insert(explicitFeatures.begin(), explicitFeatures.end());
     if (!config->checkFeatures)
       goto done;
@@ -646,7 +744,7 @@ static bool shouldImport(Symbol *sym) {
   if (config->allowUndefinedSymbols.count(sym->getName()) != 0)
     return true;
 
-  return sym->importName.has_value();
+  return sym->isImported();
 }
 
 void Writer::calculateImports() {
@@ -688,7 +786,7 @@ void Writer::calculateExports() {
     StringRef name = sym->getName();
     WasmExport export_;
     if (auto *f = dyn_cast<DefinedFunction>(sym)) {
-      if (Optional<StringRef> exportName = f->function->getExportName()) {
+      if (std::optional<StringRef> exportName = f->function->getExportName()) {
         name = *exportName;
       }
       export_ = {name, WASM_EXTERNAL_FUNCTION, f->getExportedFunctionIndex()};
@@ -1042,14 +1140,31 @@ void Writer::createSyntheticInitFunctions() {
     }
   }
 
-  if (config->sharedMemory && out.globalSec->needsTLSRelocations()) {
-    WasmSym::applyGlobalTLSRelocs = symtab->addSyntheticFunction(
-        "__wasm_apply_global_tls_relocs", WASM_SYMBOL_VISIBILITY_HIDDEN,
-        make<SyntheticFunction>(nullSignature,
-                                "__wasm_apply_global_tls_relocs"));
-    WasmSym::applyGlobalTLSRelocs->markLive();
-    // TLS relocations depend on  the __tls_base symbols
-    WasmSym::tlsBase->markLive();
+  if (config->sharedMemory) {
+    if (out.globalSec->needsTLSRelocations()) {
+      WasmSym::applyGlobalTLSRelocs = symtab->addSyntheticFunction(
+          "__wasm_apply_global_tls_relocs", WASM_SYMBOL_VISIBILITY_HIDDEN,
+          make<SyntheticFunction>(nullSignature,
+                                  "__wasm_apply_global_tls_relocs"));
+      WasmSym::applyGlobalTLSRelocs->markLive();
+      // TLS relocations depend on  the __tls_base symbols
+      WasmSym::tlsBase->markLive();
+    }
+
+    auto hasTLSRelocs = [](const OutputSegment *segment) {
+      if (segment->isTLS())
+        for (const auto* is: segment->inputSegments)
+          if (is->getRelocations().size())
+            return true;
+      return false;
+    };
+    if (llvm::any_of(segments, hasTLSRelocs)) {
+      WasmSym::applyTLSRelocs = symtab->addSyntheticFunction(
+          "__wasm_apply_tls_relocs", WASM_SYMBOL_VISIBILITY_HIDDEN,
+          make<SyntheticFunction>(nullSignature,
+                                  "__wasm_apply_tls_relocs"));
+      WasmSym::applyTLSRelocs->markLive();
+    }
   }
 
   if (config->isPic && out.globalSec->needsRelocations()) {
@@ -1225,7 +1340,7 @@ void Writer::createInitMemoryFunction() {
 
         if (s->isBss) {
           writeI32Const(os, 0, "fill value");
-          writeI32Const(os, s->size, "memory region size");
+          writePtrConst(os, s->size, is64, "memory region size");
           writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
           writeUleb128(os, WASM_OPCODE_MEMORY_FILL, "memory.fill");
           writeU8(os, 0, "memory index immediate");
@@ -1331,13 +1446,31 @@ void Writer::createApplyDataRelocationsFunction() {
     raw_string_ostream os(bodyContent);
     writeUleb128(os, 0, "num locals");
     for (const OutputSegment *seg : segments)
-      for (const InputChunk *inSeg : seg->inputSegments)
-        inSeg->generateRelocationCode(os);
+      if (!config->sharedMemory || !seg->isTLS())
+        for (const InputChunk *inSeg : seg->inputSegments)
+          inSeg->generateRelocationCode(os);
 
     writeU8(os, WASM_OPCODE_END, "END");
   }
 
   createFunction(WasmSym::applyDataRelocs, bodyContent);
+}
+
+void Writer::createApplyTLSRelocationsFunction() {
+  LLVM_DEBUG(dbgs() << "createApplyTLSRelocationsFunction\n");
+  std::string bodyContent;
+  {
+    raw_string_ostream os(bodyContent);
+    writeUleb128(os, 0, "num locals");
+    for (const OutputSegment *seg : segments)
+      if (seg->isTLS())
+        for (const InputChunk *inSeg : seg->inputSegments)
+          inSeg->generateRelocationCode(os);
+
+    writeU8(os, WASM_OPCODE_END, "END");
+  }
+
+  createFunction(WasmSym::applyTLSRelocs, bodyContent);
 }
 
 // Similar to createApplyDataRelocationsFunction but generates relocation code
@@ -1475,6 +1608,12 @@ void Writer::createInitTLSFunction() {
       writeU8(os, 0, "memory index immediate");
     }
 
+    if (WasmSym::applyTLSRelocs) {
+      writeU8(os, WASM_OPCODE_CALL, "CALL");
+      writeUleb128(os, WasmSym::applyTLSRelocs->getFunctionIndex(),
+                   "function index");
+    }
+
     if (WasmSym::applyGlobalTLSRelocs) {
       writeU8(os, WASM_OPCODE_CALL, "CALL");
       writeUleb128(os, WasmSym::applyGlobalTLSRelocs->getFunctionIndex(),
@@ -1529,6 +1668,7 @@ void Writer::createSyntheticSections() {
   out.elemSec = make<ElemSection>();
   out.producersSec = make<ProducersSection>();
   out.targetFeaturesSec = make<TargetFeaturesSection>();
+  out.buildIdSec = make<BuildIdSection>();
 }
 
 void Writer::createSyntheticSectionsPostLayout() {
@@ -1569,7 +1709,7 @@ void Writer::run() {
       sym->forceExport = true;
   }
 
-  // Delay reporting error about explicit exports until after
+  // Delay reporting errors about explicit exports until after
   // addStartStopSymbols which can create optional symbols.
   for (auto &name : config->requiredExports) {
     Symbol *sym = symtab->find(name);
@@ -1618,6 +1758,8 @@ void Writer::run() {
       createApplyDataRelocationsFunction();
     if (WasmSym::applyGlobalRelocs)
       createApplyGlobalRelocationsFunction();
+    if (WasmSym::applyTLSRelocs)
+      createApplyTLSRelocationsFunction();
     if (WasmSym::applyGlobalTLSRelocs)
       createApplyGlobalTLSRelocationsFunction();
     if (WasmSym::initMemory)
@@ -1688,6 +1830,7 @@ void Writer::run() {
 
   log("-- writeSections");
   writeSections();
+  writeBuildId();
   if (errorCount())
     return;
 
@@ -1721,5 +1864,4 @@ void Writer::createHeader() {
 
 void writeResult() { Writer().run(); }
 
-} // namespace wasm
-} // namespace lld
+} // namespace wasm::lld

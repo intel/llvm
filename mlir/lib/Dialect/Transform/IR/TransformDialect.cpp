@@ -7,12 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
+#include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/PDL/IR/PDL.h"
 #include "mlir/Dialect/PDLInterp/IR/PDLInterp.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformOps.h"
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "llvm/ADT/SCCIterator.h"
 
 using namespace mlir;
 
@@ -35,17 +37,25 @@ void transform::detail::checkImplementsTransformOpInterface(
          "MemoryEffectsOpInterface");
 }
 
-void transform::detail::checkImplementsTransformTypeInterface(
+void transform::detail::checkImplementsTransformHandleTypeInterface(
     TypeID typeID, MLIRContext *context) {
   const auto &abstractType = AbstractType::lookup(typeID, context);
-  assert(abstractType.hasInterface(TransformTypeInterface::getInterfaceID()));
+  assert((abstractType.hasInterface(
+              TransformHandleTypeInterface::getInterfaceID()) ||
+          abstractType.hasInterface(
+              TransformParamTypeInterface::getInterfaceID()) ||
+          abstractType.hasInterface(
+              TransformValueHandleTypeInterface::getInterfaceID())) &&
+         "expected Transform dialect type to implement one of the three "
+         "interfaces");
 }
 #endif // NDEBUG
 
 namespace {
-struct PDLOperationTypeTransformTypeInterfaceImpl
-    : public transform::TransformTypeInterface::ExternalModel<
-          PDLOperationTypeTransformTypeInterfaceImpl, pdl::OperationType> {
+struct PDLOperationTypeTransformHandleTypeInterfaceImpl
+    : public transform::TransformHandleTypeInterface::ExternalModel<
+          PDLOperationTypeTransformHandleTypeInterfaceImpl,
+          pdl::OperationType> {
   DiagnosedSilenceableFailure
   checkPayload(Type type, Location loc, ArrayRef<Operation *> payload) const {
     return DiagnosedSilenceableFailure::success();
@@ -63,12 +73,12 @@ void transform::TransformDialect::initialize() {
   initializeTypes();
 
   pdl::OperationType::attachInterface<
-      PDLOperationTypeTransformTypeInterfaceImpl>(*getContext());
+      PDLOperationTypeTransformHandleTypeInterfaceImpl>(*getContext());
 }
 
 void transform::TransformDialect::mergeInPDLMatchHooks(
     llvm::StringMap<PDLConstraintFunction> &&constraintFns) {
-  // Steal the constraint functions form the given map.
+  // Steal the constraint functions from the given map.
   for (auto &it : constraintFns)
     pdlMatchHooks.registerConstraintFunction(it.getKey(), std::move(it.second));
 }
@@ -120,4 +130,59 @@ void transform::TransformDialect::reportDuplicateOpRegistration(
   llvm::report_fatal_error(StringRef(buffer));
 }
 
-#include "mlir/Dialect/Transform/IR/TransformDialectEnums.cpp.inc"
+LogicalResult transform::TransformDialect::verifyOperationAttribute(
+    Operation *op, NamedAttribute attribute) {
+  if (attribute.getName().getValue() == kWithNamedSequenceAttrName) {
+    if (!op->hasTrait<OpTrait::SymbolTable>()) {
+      return emitError(op->getLoc()) << attribute.getName()
+                                     << " attribute can only be attached to "
+                                        "operations with symbol tables";
+    }
+
+    const mlir::CallGraph callgraph(op);
+    for (auto scc = llvm::scc_begin(&callgraph); !scc.isAtEnd(); ++scc) {
+      if (!scc.hasCycle())
+        continue;
+
+      // Need to check this here additionally because this verification may run
+      // before we check the nested operations.
+      if ((*scc->begin())->isExternal())
+        return op->emitOpError() << "contains a call to an external operation, "
+                                    "which is not allowed";
+
+      Operation *first = (*scc->begin())->getCallableRegion()->getParentOp();
+      InFlightDiagnostic diag = emitError(first->getLoc())
+                                << "recursion not allowed in named sequences";
+      for (auto it = std::next(scc->begin()); it != scc->end(); ++it) {
+        // Need to check this here additionally because this verification may
+        // run before we check the nested operations.
+        if ((*it)->isExternal()) {
+          return op->emitOpError() << "contains a call to an external "
+                                      "operation, which is not allowed";
+        }
+
+        Operation *current = (*it)->getCallableRegion()->getParentOp();
+        diag.attachNote(current->getLoc()) << "operation on recursion stack";
+      }
+      return diag;
+    }
+    return success();
+  }
+  if (attribute.getName().getValue() == kTargetTagAttrName) {
+    if (!attribute.getValue().isa<StringAttr>()) {
+      return op->emitError()
+             << attribute.getName() << " attribute must be a string";
+    }
+    return success();
+  }
+  if (attribute.getName().getValue() == kArgConsumedAttrName ||
+      attribute.getName().getValue() == kArgReadOnlyAttrName) {
+    if (!attribute.getValue().isa<UnitAttr>()) {
+      return op->emitError()
+             << attribute.getName() << " must be a unit attribute";
+    }
+    return success();
+  }
+  return emitError(op->getLoc())
+         << "unknown attribute: " << attribute.getName();
+}

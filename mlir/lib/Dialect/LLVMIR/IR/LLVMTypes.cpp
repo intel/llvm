@@ -22,6 +22,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/TypeSize.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -32,10 +33,8 @@ constexpr const static unsigned kBitsInByte = 8;
 // custom<FunctionTypes>
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseFunctionTypes(AsmParser &p,
-                                      FailureOr<SmallVector<Type>> &params,
-                                      FailureOr<bool> &isVarArg) {
-  params.emplace();
+static ParseResult parseFunctionTypes(AsmParser &p, SmallVector<Type> &params,
+                                      bool &isVarArg) {
   isVarArg = false;
   // `(` `)`
   if (succeeded(p.parseOptionalRParen()))
@@ -48,10 +47,10 @@ static ParseResult parseFunctionTypes(AsmParser &p,
   }
 
   // type (`,` type)* (`,` `...`)?
-  FailureOr<Type> type;
+  Type type;
   if (parsePrettyLLVMType(p, type))
     return failure();
-  params->push_back(*type);
+  params.push_back(type);
   while (succeeded(p.parseOptionalComma())) {
     if (succeeded(p.parseOptionalEllipsis())) {
       isVarArg = true;
@@ -59,7 +58,7 @@ static ParseResult parseFunctionTypes(AsmParser &p,
     }
     if (parsePrettyLLVMType(p, type))
       return failure();
-    params->push_back(*type);
+    params.push_back(type);
   }
   return p.parseRParen();
 }
@@ -80,11 +79,10 @@ static void printFunctionTypes(AsmPrinter &p, ArrayRef<Type> params,
 // custom<Pointer>
 //===----------------------------------------------------------------------===//
 
-static ParseResult parsePointer(AsmParser &p, FailureOr<Type> &elementType,
-                                FailureOr<unsigned> &addressSpace) {
-  addressSpace = 0;
+static ParseResult parsePointer(AsmParser &p, Type &elementType,
+                                unsigned &addressSpace) {
   // `<` addressSpace `>`
-  OptionalParseResult result = p.parseOptionalInteger(*addressSpace);
+  OptionalParseResult result = p.parseOptionalInteger(addressSpace);
   if (result.has_value()) {
     if (failed(result.value()))
       return failure();
@@ -95,7 +93,7 @@ static ParseResult parsePointer(AsmParser &p, FailureOr<Type> &elementType,
   if (parsePrettyLLVMType(p, elementType))
     return failure();
   if (succeeded(p.parseOptionalComma()))
-    return p.parseInteger(*addressSpace);
+    return p.parseInteger(addressSpace);
 
   return success();
 }
@@ -266,20 +264,20 @@ LLVMPointerType::verify(function_ref<InFlightDiagnostic()> emitError,
 constexpr const static unsigned kDefaultPointerSizeBits = 64;
 constexpr const static unsigned kDefaultPointerAlignment = 8;
 
-Optional<unsigned> mlir::LLVM::extractPointerSpecValue(Attribute attr,
-                                                       PtrDLEntryPos pos) {
+std::optional<unsigned> mlir::LLVM::extractPointerSpecValue(Attribute attr,
+                                                            PtrDLEntryPos pos) {
   auto spec = attr.cast<DenseIntElementsAttr>();
   auto idx = static_cast<unsigned>(pos);
   if (idx >= spec.size())
-    return None;
+    return std::nullopt;
   return spec.getValues<unsigned>()[idx];
 }
 
 /// Returns the part of the data layout entry that corresponds to `pos` for the
 /// given `type` by interpreting the list of entries `params`. For the pointer
 /// type in the default address space, returns the default value if the entries
-/// do not provide a custom one, for other address spaces returns None.
-static Optional<unsigned>
+/// do not provide a custom one, for other address spaces returns std::nullopt.
+static std::optional<unsigned>
 getPointerDataLayoutEntry(DataLayoutEntryListRef params, LLVMPointerType type,
                           PtrDLEntryPos pos) {
   // First, look for the entry for the pointer in the current address space.
@@ -305,13 +303,13 @@ getPointerDataLayoutEntry(DataLayoutEntryListRef params, LLVMPointerType type,
                                       : kDefaultPointerAlignment;
   }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 unsigned
 LLVMPointerType::getTypeSizeInBits(const DataLayout &dataLayout,
                                    DataLayoutEntryListRef params) const {
-  if (Optional<unsigned> size =
+  if (std::optional<unsigned> size =
           getPointerDataLayoutEntry(params, *this, PtrDLEntryPos::Size))
     return *size;
 
@@ -324,7 +322,7 @@ LLVMPointerType::getTypeSizeInBits(const DataLayout &dataLayout,
 
 unsigned LLVMPointerType::getABIAlignment(const DataLayout &dataLayout,
                                           DataLayoutEntryListRef params) const {
-  if (Optional<unsigned> alignment =
+  if (std::optional<unsigned> alignment =
           getPointerDataLayoutEntry(params, *this, PtrDLEntryPos::Abi))
     return *alignment;
 
@@ -336,7 +334,7 @@ unsigned LLVMPointerType::getABIAlignment(const DataLayout &dataLayout,
 unsigned
 LLVMPointerType::getPreferredAlignment(const DataLayout &dataLayout,
                                        DataLayoutEntryListRef params) const {
-  if (Optional<unsigned> alignment =
+  if (std::optional<unsigned> alignment =
           getPointerDataLayoutEntry(params, *this, PtrDLEntryPos::Preferred))
     return *alignment;
 
@@ -530,7 +528,7 @@ namespace {
 enum class StructDLEntryPos { Abi = 0, Preferred = 1 };
 } // namespace
 
-static Optional<unsigned>
+static std::optional<unsigned>
 getStructDataLayoutEntry(DataLayoutEntryListRef params, LLVMStructType type,
                          StructDLEntryPos pos) {
   const auto *currentEntry =
@@ -538,7 +536,7 @@ getStructDataLayoutEntry(DataLayoutEntryListRef params, LLVMStructType type,
         return entry.isTypeEntry();
       });
   if (currentEntry == params.end())
-    return llvm::None;
+    return std::nullopt;
 
   auto attr = currentEntry->getValue().cast<DenseIntElementsAttr>();
   if (pos == StructDLEntryPos::Preferred &&
@@ -567,7 +565,7 @@ static unsigned calculateStructAlignment(const DataLayout &dataLayout,
   }
 
   // Entries are only allowed to be stricter than the required alignment
-  if (Optional<unsigned> entryResult =
+  if (std::optional<unsigned> entryResult =
           getStructDataLayoutEntry(params, type, pos))
     return std::max(*entryResult / kBitsInByte, structAlignment);
 
@@ -643,23 +641,6 @@ LogicalResult LLVMStructType::verifyEntries(DataLayoutEntryListRef entries,
     }
   }
   return mlir::success();
-}
-
-void LLVMStructType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  for (Type type : getBody())
-    walkTypesFn(type);
-}
-
-Type LLVMStructType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  if (isIdentified()) {
-    // TODO: It's not clear how we support replacing sub-elements of mutable
-    // types.
-    return nullptr;
-  }
-  return getLiteral(getContext(), replTypes, isPacked());
 }
 
 //===----------------------------------------------------------------------===//
@@ -750,6 +731,8 @@ bool mlir::LLVM::isCompatibleOuterType(Type type) {
       Float64Type,
       Float80Type,
       Float128Type,
+      Float8E4M3FNType,
+      Float8E5M2Type,
       LLVMArrayType,
       LLVMFunctionType,
       LLVMLabelType,
@@ -820,6 +803,8 @@ static bool isCompatibleImpl(Type type, DenseSet<Type> &compatibleTypes) {
             Float64Type,
             Float80Type,
             Float128Type,
+            Float8E4M3FNType,
+            Float8E5M2Type,
             LLVMLabelType,
             LLVMMetadataType,
             LLVMPPCFP128Type,
@@ -973,7 +958,7 @@ llvm::TypeSize mlir::LLVM::getPrimitiveTypeSizeInBits(Type type) {
       .Case<LLVMFixedVectorType>([](LLVMFixedVectorType t) {
         llvm::TypeSize elementSize =
             getPrimitiveTypeSizeInBits(t.getElementType());
-        return llvm::TypeSize(elementSize.getFixedSize() * t.getNumElements(),
+        return llvm::TypeSize(elementSize.getFixedValue() * t.getNumElements(),
                               elementSize.isScalable());
       })
       .Case<VectorType>([](VectorType t) {
@@ -981,7 +966,7 @@ llvm::TypeSize mlir::LLVM::getPrimitiveTypeSizeInBits(Type type) {
                "unexpected incompatible with LLVM vector type");
         llvm::TypeSize elementSize =
             getPrimitiveTypeSizeInBits(t.getElementType());
-        return llvm::TypeSize(elementSize.getFixedSize() * t.getNumElements(),
+        return llvm::TypeSize(elementSize.getFixedValue() * t.getNumElements(),
                               elementSize.isScalable());
       })
       .Default([](Type ty) {

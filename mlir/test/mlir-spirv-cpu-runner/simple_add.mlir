@@ -1,6 +1,8 @@
-// RUN: mlir-spirv-cpu-runner %s -e main --entry-point-result=void --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext,%mlir_lib_dir/libmlir_test_spirv_cpu_runner_c_wrappers%shlibext
+// RUN: mlir-spirv-cpu-runner %s -e main --entry-point-result=void --shared-libs=%mlir_runner_utils,%mlir_test_spirv_cpu_runner_c_wrappers \
+// RUN: | FileCheck %s
 
-// CHECK: [[[7.7,    0,    0], [7.7,    0,    0], [7.7,    0,    0]], [[0,    7.7,    0], [0,    7.7,    0], [0,    7.7,    0]], [[0,    0,    7.7], [0,    0,    7.7], [0,    0,    7.7]]]
+// CHECK: data =
+// CHECK-RAW: [[[7.7,    0,    0], [7.7,    0,    0], [7.7,    0,    0]], [[0,    7.7,    0], [0,    7.7,    0], [0,    7.7,    0]], [[0,    0,    7.7], [0,    0,    7.7], [0,    0,    7.7]]]
 module attributes {
   gpu.container_module,
   spirv.target_env = #spirv.target_env<
@@ -11,7 +13,7 @@ module attributes {
 } {
   gpu.module @kernels {
     gpu.func @sum(%arg0 : memref<3xf32>, %arg1 : memref<3x3xf32>, %arg2 :  memref<3x3x3xf32>)
-      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<local_size = dense<[1, 1, 1]>: vector<3xi32>>} {
+      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [1, 1, 1]>} {
       %i0 = arith.constant 0 : index
       %i1 = arith.constant 1 : index
       %i2 = arith.constant 2 : index

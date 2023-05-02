@@ -177,10 +177,14 @@ public:
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
     uint64_t CorrelationIDWithArgs = 0;
     unsigned char *ArgsDataPtr = nullptr;
+    using PackCallArgumentsTy =
+        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
+    auto ArgsData =
+        xptiTraceEnabled()
+            ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
+            : PackCallArgumentsTy{};
     // TODO check if stream is observed when corresponding API is present.
     if (xptiTraceEnabled()) {
-      auto ArgsData =
-          packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
       ArgsDataPtr = ArgsData.data();
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
           static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
@@ -226,7 +230,11 @@ public:
     checkPiResult<errc>(Err);
   }
 
-  backend getBackend(void) const { return MBackend; }
+  /// Tells if this plugin can serve specified backend.
+  /// For example, Unified Runtime plugin will be able to serve
+  /// multiple backends as determined by the platforms reported by the plugin.
+  bool hasBackend(backend Backend) const { return Backend == MBackend; }
+
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }

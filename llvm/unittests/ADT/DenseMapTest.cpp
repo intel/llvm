@@ -122,6 +122,7 @@ TYPED_TEST(DenseMapTest, EmptyIntMapTest) {
 
   // Lookup tests
   EXPECT_FALSE(this->Map.count(this->getKey()));
+  EXPECT_FALSE(this->Map.contains(this->getKey()));
   EXPECT_TRUE(this->Map.find(this->getKey()) == this->Map.end());
   EXPECT_EQ(typename TypeParam::mapped_type(),
             this->Map.lookup(this->getKey()));
@@ -153,9 +154,19 @@ TYPED_TEST(DenseMapTest, SingleEntryMapTest) {
 
   // Lookup tests
   EXPECT_TRUE(this->Map.count(this->getKey()));
+  EXPECT_TRUE(this->Map.contains(this->getKey()));
   EXPECT_TRUE(this->Map.find(this->getKey()) == this->Map.begin());
   EXPECT_EQ(this->getValue(), this->Map.lookup(this->getKey()));
   EXPECT_EQ(this->getValue(), this->Map[this->getKey()]);
+}
+
+TYPED_TEST(DenseMapTest, AtTest) {
+  this->Map[this->getKey(0)] = this->getValue(0);
+  this->Map[this->getKey(1)] = this->getValue(1);
+  this->Map[this->getKey(2)] = this->getValue(2);
+  EXPECT_EQ(this->getValue(0), this->Map.at(this->getKey(0)));
+  EXPECT_EQ(this->getValue(1), this->Map.at(this->getKey(1)));
+  EXPECT_EQ(this->getValue(2), this->Map.at(this->getKey(2)));
 }
 
 // Test clear() method
@@ -446,6 +457,7 @@ TEST(DenseMapCustomTest, InitFromIterator) {
   std::vector<std::pair<int, CountCopyAndMove>> Values;
   // The size is a random value greater than 64 (hardcoded DenseMap min init)
   const int Count = 65;
+  Values.reserve(Count);
   for (int i = 0; i < Count; i++)
     Values.emplace_back(i, CountCopyAndMove());
 

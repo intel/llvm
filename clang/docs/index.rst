@@ -87,10 +87,9 @@ Using Clang Tools
    ClangFormatStyleOptions
    ClangFormattedStatus
    ClangLinkerWrapper
-   ClangNvlinkWrapper
    ClangOffloadBundler
-   ClangOffloadWrapper
    ClangOffloadPackager
+   ClangRepl
 
 Design Documents
 ================
@@ -112,6 +111,5 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
 

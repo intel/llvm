@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/LazyCallGraph.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -16,6 +15,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 #include <memory>
 
@@ -2079,7 +2079,7 @@ TEST(LazyCallGraphTest, ReplaceNodeFunction) {
   D.replaceAllUsesWith(&E);
 
   // Splice the body of the old function into the new one.
-  E.getBasicBlockList().splice(E.begin(), D.getBasicBlockList());
+  E.splice(E.begin(), &D);
   // And fix up the one argument.
   D.arg_begin()->replaceAllUsesWith(&*E.arg_begin());
   E.arg_begin()->takeName(&*D.arg_begin());

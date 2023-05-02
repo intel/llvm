@@ -413,9 +413,11 @@ public:
 
   uint32_t GetPoundLineLine() const { return m_pound_line_line; }
 
-  void SetResultIsInternal(bool b) { m_result_is_internal = b; }
+  void SetSuppressPersistentResult(bool b) { m_suppress_persistent_result = b; }
 
-  bool GetResultIsInternal() const { return m_result_is_internal; }
+  bool GetSuppressPersistentResult() const {
+    return m_suppress_persistent_result;
+  }
 
   void SetAutoApplyFixIts(bool b) { m_auto_apply_fixits = b; }
 
@@ -446,7 +448,7 @@ private:
   bool m_repl = false;
   bool m_generate_debug_info = false;
   bool m_ansi_color_errors = false;
-  bool m_result_is_internal = false;
+  bool m_suppress_persistent_result = false;
   bool m_auto_apply_fixits = true;
   uint64_t m_retries_with_fixits = 1;
   /// True if the executed code should be treated as utility code that is only
@@ -455,7 +457,7 @@ private:
 
   lldb::DynamicValueType m_use_dynamic = lldb::eNoDynamicValues;
   Timeout<std::micro> m_timeout = default_timeout;
-  Timeout<std::micro> m_one_thread_timeout = llvm::None;
+  Timeout<std::micro> m_one_thread_timeout = std::nullopt;
   lldb::ExpressionCancelCallback m_cancel_callback = nullptr;
   void *m_cancel_callback_baton = nullptr;
   // If m_pound_line_file is not empty and m_pound_line_line is non-zero, use
@@ -504,9 +506,9 @@ public:
 
     ~TargetEventData() override;
 
-    static ConstString GetFlavorString();
+    static llvm::StringRef GetFlavorString();
 
-    ConstString GetFlavor() const override {
+    llvm::StringRef GetFlavor() const override {
       return TargetEventData::GetFlavorString();
     }
 
@@ -757,8 +759,7 @@ public:
                                const BreakpointName::Permissions &permissions);
   void ApplyNameToBreakpoints(BreakpointName &bp_name);
 
-  // This takes ownership of the name obj passed in.
-  void AddBreakpointName(BreakpointName *bp_name);
+  void AddBreakpointName(std::unique_ptr<BreakpointName> bp_name);
 
   void GetBreakpointNames(std::vector<std::string> &names);
 
@@ -1242,6 +1243,10 @@ public:
   ///     if none can be found.
   llvm::Expected<lldb_private::Address> GetEntryPointAddress();
 
+  CompilerType GetRegisterType(const std::string &name,
+                               const lldb_private::RegisterFlags &flags,
+                               uint32_t byte_size);
+
   // Target Stop Hooks
   class StopHook : public UserID {
   public:
@@ -1429,6 +1434,8 @@ public:
     return *m_frame_recognizer_manager_up;
   }
 
+  void SaveScriptedLaunchInfo(lldb_private::ProcessInfo &process_info);
+
   /// Add a signal for the target.  This will get copied over to the process
   /// if the signal exists on that target.  Only the values with Yes and No are
   /// set, Calculate values will be ignored.
@@ -1512,7 +1519,8 @@ protected:
   SectionLoadHistory m_section_load_history;
   BreakpointList m_breakpoint_list;
   BreakpointList m_internal_breakpoint_list;
-  using BreakpointNameList = std::map<ConstString, BreakpointName *>;
+  using BreakpointNameList =
+      std::map<ConstString, std::unique_ptr<BreakpointName>>;
   BreakpointNameList m_breakpoint_names;
 
   lldb::BreakpointSP m_last_created_breakpoint;

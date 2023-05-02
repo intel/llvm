@@ -289,6 +289,24 @@ bool AtomicExpand::runOnFunction(Function &F) {
       if (FenceOrdering != AtomicOrdering::Monotonic) {
         MadeChange |= bracketInstWithFences(I, FenceOrdering);
       }
+    } else if (I->hasAtomicStore() &&
+               TLI->shouldInsertTrailingFenceForAtomicStore(I)) {
+      auto FenceOrdering = AtomicOrdering::Monotonic;
+      if (SI)
+        FenceOrdering = SI->getOrdering();
+      else if (RMWI)
+        FenceOrdering = RMWI->getOrdering();
+      else if (CASI && TLI->shouldExpandAtomicCmpXchgInIR(CASI) !=
+                           TargetLoweringBase::AtomicExpansionKind::LLSC)
+        // LLSC is handled in expandAtomicCmpXchg().
+        FenceOrdering = CASI->getSuccessOrdering();
+
+      IRBuilder Builder(I);
+      if (auto TrailingFence =
+              TLI->emitTrailingFence(Builder, I, FenceOrdering)) {
+        TrailingFence->moveAfter(I);
+        MadeChange = true;
+      }
     }
 
     if (LI)
@@ -815,7 +833,9 @@ static Value *performMaskedAtomicOp(AtomicRMWInst::BinOp Op,
   case AtomicRMWInst::FAdd:
   case AtomicRMWInst::FSub:
   case AtomicRMWInst::FMin:
-  case AtomicRMWInst::FMax: {
+  case AtomicRMWInst::FMax:
+  case AtomicRMWInst::UIncWrap:
+  case AtomicRMWInst::UDecWrap: {
     // Finally, other ops will operate on the full value, so truncate down to
     // the original size, and expand out again after doing the
     // operation. Bitcasts will be inserted for FP values.
@@ -1030,7 +1050,7 @@ bool AtomicExpand::expandPartwordCmpXchg(AtomicCmpXchgInst *CI) {
   Builder.SetInsertPoint(CI);
 
   Value *FinalOldVal = extractMaskedValue(Builder, OldVal, PMV);
-  Value *Res = UndefValue::get(CI->getType());
+  Value *Res = PoisonValue::get(CI->getType());
   Res = Builder.CreateInsertValue(Res, FinalOldVal, 0);
   Res = Builder.CreateInsertValue(Res, Success, 1);
 
@@ -1094,7 +1114,7 @@ void AtomicExpand::expandAtomicCmpXchgToMaskedIntrinsic(AtomicCmpXchgInst *CI) {
       Builder, CI, PMV.AlignedAddr, CmpVal_Shifted, NewVal_Shifted, PMV.Mask,
       CI->getMergedOrdering());
   Value *FinalOldVal = extractMaskedValue(Builder, OldVal, PMV);
-  Value *Res = UndefValue::get(CI->getType());
+  Value *Res = PoisonValue::get(CI->getType());
   Res = Builder.CreateInsertValue(Res, FinalOldVal, 0);
   Value *Success = Builder.CreateICmpEQ(
       CmpVal_Shifted, Builder.CreateAnd(OldVal, PMV.Mask), "Success");
@@ -1186,7 +1206,7 @@ AtomicExpand::convertCmpXchgToIntegerType(AtomicCmpXchgInst *CI) {
 
   OldVal = Builder.CreateIntToPtr(OldVal, CI->getCompareOperand()->getType());
 
-  Value *Res = UndefValue::get(CI->getType());
+  Value *Res = PoisonValue::get(CI->getType());
   Res = Builder.CreateInsertValue(Res, OldVal, 0);
   Res = Builder.CreateInsertValue(Res, Succ, 1);
 
@@ -1356,7 +1376,8 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
   // Make sure later instructions don't get reordered with a fence if
   // necessary.
   Builder.SetInsertPoint(SuccessBB);
-  if (ShouldInsertFencesForAtomic)
+  if (ShouldInsertFencesForAtomic ||
+      TLI->shouldInsertTrailingFenceForAtomicStore(CI))
     TLI->emitTrailingFence(Builder, CI, SuccessOrder);
   Builder.CreateBr(ExitBB);
 
@@ -1430,7 +1451,7 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
     // Some use of the full struct return that we don't understand has happened,
     // so we've got to reconstruct it properly.
     Value *Res;
-    Res = Builder.CreateInsertValue(UndefValue::get(CI->getType()), Loaded, 0);
+    Res = Builder.CreateInsertValue(PoisonValue::get(CI->getType()), Loaded, 0);
     Res = Builder.CreateInsertValue(Res, Success, 1);
 
     CI->replaceAllUsesWith(Res);
@@ -1664,19 +1685,19 @@ static ArrayRef<RTLIB::Libcall> GetRMWLibcall(AtomicRMWInst::BinOp Op) {
   case AtomicRMWInst::BAD_BINOP:
     llvm_unreachable("Should not have BAD_BINOP.");
   case AtomicRMWInst::Xchg:
-    return makeArrayRef(LibcallsXchg);
+    return ArrayRef(LibcallsXchg);
   case AtomicRMWInst::Add:
-    return makeArrayRef(LibcallsAdd);
+    return ArrayRef(LibcallsAdd);
   case AtomicRMWInst::Sub:
-    return makeArrayRef(LibcallsSub);
+    return ArrayRef(LibcallsSub);
   case AtomicRMWInst::And:
-    return makeArrayRef(LibcallsAnd);
+    return ArrayRef(LibcallsAnd);
   case AtomicRMWInst::Or:
-    return makeArrayRef(LibcallsOr);
+    return ArrayRef(LibcallsOr);
   case AtomicRMWInst::Xor:
-    return makeArrayRef(LibcallsXor);
+    return ArrayRef(LibcallsXor);
   case AtomicRMWInst::Nand:
-    return makeArrayRef(LibcallsNand);
+    return ArrayRef(LibcallsNand);
   case AtomicRMWInst::Max:
   case AtomicRMWInst::Min:
   case AtomicRMWInst::UMax:
@@ -1685,6 +1706,8 @@ static ArrayRef<RTLIB::Libcall> GetRMWLibcall(AtomicRMWInst::BinOp Op) {
   case AtomicRMWInst::FMin:
   case AtomicRMWInst::FAdd:
   case AtomicRMWInst::FSub:
+  case AtomicRMWInst::UIncWrap:
+  case AtomicRMWInst::UDecWrap:
     // No atomic libcalls are available for max/min/umax/umin.
     return {};
   }
@@ -1923,7 +1946,7 @@ bool AtomicExpand::expandAtomicOpToLibcall(
     // The final result from the CAS is {load of 'expected' alloca, bool result
     // from call}
     Type *FinalResultTy = I->getType();
-    Value *V = UndefValue::get(FinalResultTy);
+    Value *V = PoisonValue::get(FinalResultTy);
     Value *ExpectedOut = Builder.CreateAlignedLoad(
         CASExpected->getType(), AllocaCASExpected, AllocaAlignment);
     Builder.CreateLifetimeEnd(AllocaCASExpected_i8, SizeVal64);

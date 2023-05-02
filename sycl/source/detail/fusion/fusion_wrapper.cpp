@@ -13,9 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace codeplay {
-namespace experimental {
+namespace ext::codeplay::experimental {
 
 fusion_wrapper::fusion_wrapper(queue &Queue) {
   if (!Queue.ext_codeplay_supports_fusion()) {
@@ -43,8 +41,6 @@ event fusion_wrapper::complete_fusion(const property_list &PropList) {
   return MImpl->complete_fusion(PropList);
 }
 
-} // namespace experimental
-} // namespace codeplay
-} // namespace ext
+} // namespace ext::codeplay::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include <numeric>
+#include <optional>
 
 using namespace mlir;
 using namespace presburger;
@@ -52,14 +53,14 @@ static void dump(ArrayRef<MPInt> vec) {
 ///   for the IntegerPolyhedron poly. Also check that getIntegerLexmin finds a
 ///   non-empty lexmin.
 ///
-///   If hasSample is false, check that findIntegerSample returns None and
-///   findIntegerLexMin returns Empty.
+///   If hasSample is false, check that findIntegerSample returns std::nullopt
+///   and findIntegerLexMin returns Empty.
 ///
 /// If fn is TestFunction::Empty, check that isIntegerEmpty returns the
 /// opposite of hasSample.
 static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
                         TestFunction fn = TestFunction::Sample) {
-  Optional<SmallVector<MPInt, 8>> maybeSample;
+  std::optional<SmallVector<MPInt, 8>> maybeSample;
   MaybeOptimum<SmallVector<MPInt, 8>> maybeLexMin;
   switch (fn) {
   case TestFunction::Sample:
@@ -593,12 +594,12 @@ TEST(IntegerPolyhedronTest, removeRedundantConstraintsTest) {
 
 TEST(IntegerPolyhedronTest, addConstantUpperBound) {
   IntegerPolyhedron poly(PresburgerSpace::getSetSpace(2));
-  poly.addBound(IntegerPolyhedron::UB, 0, 1);
+  poly.addBound(BoundType::UB, 0, 1);
   EXPECT_EQ(poly.atIneq(0, 0), -1);
   EXPECT_EQ(poly.atIneq(0, 1), 0);
   EXPECT_EQ(poly.atIneq(0, 2), 1);
 
-  poly.addBound(IntegerPolyhedron::UB, {1, 2, 3}, 1);
+  poly.addBound(BoundType::UB, {1, 2, 3}, 1);
   EXPECT_EQ(poly.atIneq(1, 0), -1);
   EXPECT_EQ(poly.atIneq(1, 1), -2);
   EXPECT_EQ(poly.atIneq(1, 2), -2);
@@ -606,12 +607,12 @@ TEST(IntegerPolyhedronTest, addConstantUpperBound) {
 
 TEST(IntegerPolyhedronTest, addConstantLowerBound) {
   IntegerPolyhedron poly(PresburgerSpace::getSetSpace(2));
-  poly.addBound(IntegerPolyhedron::LB, 0, 1);
+  poly.addBound(BoundType::LB, 0, 1);
   EXPECT_EQ(poly.atIneq(0, 0), 1);
   EXPECT_EQ(poly.atIneq(0, 1), 0);
   EXPECT_EQ(poly.atIneq(0, 2), -1);
 
-  poly.addBound(IntegerPolyhedron::LB, {1, 2, 3}, 1);
+  poly.addBound(BoundType::LB, {1, 2, 3}, 1);
   EXPECT_EQ(poly.atIneq(1, 0), 1);
   EXPECT_EQ(poly.atIneq(1, 1), 2);
   EXPECT_EQ(poly.atIneq(1, 2), 2);
@@ -1403,8 +1404,8 @@ TEST(IntegerPolyhedronTest, findSymbolicIntegerLexMin) {
 
 static void
 expectComputedVolumeIsValidOverapprox(const IntegerPolyhedron &poly,
-                                      Optional<int64_t> trueVolume,
-                                      Optional<int64_t> resultBound) {
+                                      std::optional<int64_t> trueVolume,
+                                      std::optional<int64_t> resultBound) {
   expectComputedVolumeIsValidOverapprox(poly.computeVolume(), trueVolume,
                                         resultBound);
 }

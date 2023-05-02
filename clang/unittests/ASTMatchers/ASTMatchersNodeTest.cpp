@@ -11,8 +11,8 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 
 namespace clang {
@@ -2304,6 +2304,30 @@ TEST_P(ASTMatchersTest,
       "int main() { auto lambda = [xx = 1] {return xx;}; }",
       lambdaExpr(hasAnyCapture(lambdaCapture(capturesVar(varDecl(
           hasName("cc"), hasInitializer(integerLiteral(equals(1))))))))));
+}
+
+TEST_P(ASTMatchersTest, LambdaCaptureTest_BindsToCaptureOfReferenceType) {
+  if (!GetParam().isCXX20OrLater()) {
+    return;
+  }
+  auto matcher = lambdaExpr(hasAnyCapture(
+      lambdaCapture(capturesVar(varDecl(hasType(referenceType()))))));
+  EXPECT_TRUE(matches("template <class ...T> void f(T &...args) {"
+                      "  [&...args = args] () mutable {"
+                      "  }();"
+                      "}"
+                      "int main() {"
+                      "  int a;"
+                      "  f(a);"
+                      "}", matcher));
+  EXPECT_FALSE(matches("template <class ...T> void f(T &...args) {"
+                       "  [...args = args] () mutable {"
+                       "  }();"
+                       "}"
+                       "int main() {"
+                       "  int a;"
+                       "  f(a);"
+                       "}", matcher));
 }
 
 TEST(ASTMatchersTestObjC, ObjCMessageCalees) {

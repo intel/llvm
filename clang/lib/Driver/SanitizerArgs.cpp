@@ -13,12 +13,14 @@
 #include "clang/Driver/Options.h"
 #include "clang/Driver/ToolChain.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SpecialCaseList.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/AArch64TargetParser.h"
+#include "llvm/TargetParser/RISCVTargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include <memory>
 
@@ -37,8 +39,7 @@ static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
 static const SanitizerMask NotAllowedWithMinimalRuntime =
     SanitizerKind::Function | SanitizerKind::Vptr;
 static const SanitizerMask RequiresPIE =
-    SanitizerKind::DataFlow | SanitizerKind::HWAddress | SanitizerKind::Scudo |
-    SanitizerKind::KCFI;
+    SanitizerKind::DataFlow | SanitizerKind::Scudo | SanitizerKind::KCFI;
 static const SanitizerMask NeedsUnwindTables =
     SanitizerKind::Address | SanitizerKind::HWAddress | SanitizerKind::Thread |
     SanitizerKind::Memory | SanitizerKind::DataFlow;
@@ -53,7 +54,7 @@ static const SanitizerMask SupportsCoverage =
     SanitizerKind::DataFlow | SanitizerKind::Fuzzer |
     SanitizerKind::FuzzerNoLink | SanitizerKind::FloatDivideByZero |
     SanitizerKind::SafeStack | SanitizerKind::ShadowCallStack |
-    SanitizerKind::Thread | SanitizerKind::ObjCCast;
+    SanitizerKind::Thread | SanitizerKind::ObjCCast | SanitizerKind::KCFI;
 static const SanitizerMask RecoverableByDefault =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
@@ -104,6 +105,7 @@ enum CoverageFeature {
 enum BinaryMetadataFeature {
   BinaryMetadataCovered = 1 << 0,
   BinaryMetadataAtomics = 1 << 1,
+  BinaryMetadataUAR = 1 << 2,
 };
 
 /// Parse a -fsanitize= or -fno-sanitize= argument's values, diagnosing any
@@ -541,10 +543,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         << lastArgumentForMask(D, Args, Kinds & NeedsLTO) << "-flto";
   }
 
-  if ((Kinds & SanitizerKind::ShadowCallStack) &&
-      ((TC.getTriple().isAArch64() &&
-        !llvm::AArch64::isX18ReservedByDefault(TC.getTriple())) ||
-       TC.getTriple().isRISCV()) &&
+  if ((Kinds & SanitizerKind::ShadowCallStack) && TC.getTriple().isAArch64() &&
+      !llvm::AArch64::isX18ReservedByDefault(TC.getTriple()) &&
       !Args.hasArg(options::OPT_ffixed_x18) && DiagnoseErrors) {
     D.Diag(diag::err_drv_argument_only_allowed_with)
         << lastArgumentForMask(D, Args, Kinds & SanitizerKind::ShadowCallStack)
@@ -649,14 +649,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if (AllAddedKinds & SanitizerKind::Memory) {
     if (Arg *A =
             Args.getLastArg(options::OPT_fsanitize_memory_track_origins_EQ,
-                            options::OPT_fsanitize_memory_track_origins,
                             options::OPT_fno_sanitize_memory_track_origins)) {
-      if (A->getOption().matches(options::OPT_fsanitize_memory_track_origins)) {
-        MsanTrackOrigins = 2;
-      } else if (A->getOption().matches(
-                     options::OPT_fno_sanitize_memory_track_origins)) {
-        MsanTrackOrigins = 0;
-      } else {
+      if (!A->getOption().matches(
+              options::OPT_fno_sanitize_memory_track_origins)) {
         StringRef S = A->getValue();
         if (S.getAsInteger(0, MsanTrackOrigins) || MsanTrackOrigins < 0 ||
             MsanTrackOrigins > 2) {
@@ -715,6 +710,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     CfiICallGeneralizePointers =
         Args.hasArg(options::OPT_fsanitize_cfi_icall_generalize_pointers);
 
+    CfiICallNormalizeIntegers =
+        Args.hasArg(options::OPT_fsanitize_cfi_icall_normalize_integers);
+
     if (CfiCrossDso && CfiICallGeneralizePointers && DiagnoseErrors)
       D.Diag(diag::err_drv_argument_not_allowed_with)
           << "-fsanitize-cfi-cross-dso"
@@ -725,8 +723,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                      options::OPT_fno_sanitize_cfi_canonical_jump_tables, true);
   }
 
-  if (AllAddedKinds & SanitizerKind::KCFI && DiagnoseErrors) {
-    if (AllAddedKinds & SanitizerKind::CFI)
+  if (AllAddedKinds & SanitizerKind::KCFI) {
+    CfiICallNormalizeIntegers =
+        Args.hasArg(options::OPT_fsanitize_cfi_icall_normalize_integers);
+
+    if (AllAddedKinds & SanitizerKind::CFI && DiagnoseErrors)
       D.Diag(diag::err_drv_argument_not_allowed_with)
           << "-fsanitize=kcfi"
           << lastArgumentForMask(D, Args, SanitizerKind::CFI);
@@ -861,6 +862,16 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       BinaryMetadataFeatures &=
           ~parseBinaryMetadataFeatures(D, Arg, DiagnoseErrors);
     }
+  }
+
+  // Parse -fsanitize-metadata-ignorelist option if enabled.
+  if (BinaryMetadataFeatures) {
+    parseSpecialCaseListArg(
+        D, Args, BinaryMetadataIgnorelistFiles,
+        options::OPT_fexperimental_sanitize_metadata_ignorelist_EQ,
+        OptSpecifier(), // Cannot clear ignore list, only append.
+        clang::diag::err_drv_malformed_sanitizer_metadata_ignorelist,
+        DiagnoseErrors);
   }
 
   SharedRuntime =
@@ -1086,13 +1097,16 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   // NVPTX doesn't currently support sanitizers.  Bailing out here means
   // that e.g. -fsanitize=address applies only to host code, which is what we
   // want for now.
-  //
-  // AMDGPU sanitizer support is experimental and controlled by -fgpu-sanitize.
-  if (TC.getTriple().isNVPTX() ||
-      (TC.getTriple().isAMDGPU() &&
-       !Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
-                     true)))
+  if (TC.getTriple().isNVPTX())
     return;
+  // AMDGPU sanitizer support is experimental and controlled by -fgpu-sanitize.
+  bool GPUSanitize = false;
+  if (TC.getTriple().isAMDGPU()) {
+    if (!Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
+                      true))
+      return;
+    GPUSanitize = true;
+  }
 
   // Translate available CoverageFeatures to corresponding clang-cc1 flags.
   // Do it even if Sanitizers.empty() since some forms of coverage don't require
@@ -1129,15 +1143,21 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   addSpecialCaseListOpt(Args, CmdArgs, "-fsanitize-coverage-ignorelist=",
                         CoverageIgnorelistFiles);
 
-  // Translate available BinaryMetadataFeatures to corresponding clang-cc1
-  // flags. Does not depend on any other sanitizers.
-  const std::pair<int, std::string> BinaryMetadataFlags[] = {
-      std::make_pair(BinaryMetadataCovered, "covered"),
-      std::make_pair(BinaryMetadataAtomics, "atomics")};
-  for (const auto &F : BinaryMetadataFlags) {
-    if (BinaryMetadataFeatures & F.first)
-      CmdArgs.push_back(
-          Args.MakeArgString("-fexperimental-sanitize-metadata=" + F.second));
+  if (!GPUSanitize) {
+    // Translate available BinaryMetadataFeatures to corresponding clang-cc1
+    // flags. Does not depend on any other sanitizers. Unsupported on GPUs.
+    const std::pair<int, std::string> BinaryMetadataFlags[] = {
+        std::make_pair(BinaryMetadataCovered, "covered"),
+        std::make_pair(BinaryMetadataAtomics, "atomics"),
+        std::make_pair(BinaryMetadataUAR, "uar")};
+    for (const auto &F : BinaryMetadataFlags) {
+      if (BinaryMetadataFeatures & F.first)
+        CmdArgs.push_back(
+            Args.MakeArgString("-fexperimental-sanitize-metadata=" + F.second));
+    }
+    addSpecialCaseListOpt(Args, CmdArgs,
+                          "-fexperimental-sanitize-metadata-ignorelist=",
+                          BinaryMetadataIgnorelistFiles);
   }
 
   if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
@@ -1217,6 +1237,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
   if (CfiICallGeneralizePointers)
     CmdArgs.push_back("-fsanitize-cfi-icall-generalize-pointers");
+
+  if (CfiICallNormalizeIntegers)
+    CmdArgs.push_back("-fsanitize-cfi-icall-experimental-normalize-integers");
 
   if (CfiCanonicalJumpTables)
     CmdArgs.push_back("-fsanitize-cfi-canonical-jump-tables");
@@ -1399,6 +1422,7 @@ int parseBinaryMetadataFeatures(const Driver &D, const llvm::opt::Arg *A,
     int F = llvm::StringSwitch<int>(Value)
                 .Case("covered", BinaryMetadataCovered)
                 .Case("atomics", BinaryMetadataAtomics)
+                .Case("uar", BinaryMetadataUAR)
                 .Case("all", ~0)
                 .Default(0);
     if (F == 0 && DiagnoseErrors)

@@ -11,11 +11,11 @@
 #include "src/string/memory_utils/op_builtin.h"
 #include "src/string/memory_utils/op_generic.h"
 #include "src/string/memory_utils/op_x86.h"
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
 #include <assert.h>
 
-#if defined(LLVM_LIBC_ARCH_X86_64) || defined(LLVM_LIBC_ARCH_AARCH64)
+#if defined(LIBC_TARGET_ARCH_IS_X86_64) || defined(LIBC_TARGET_ARCH_IS_AARCH64)
 #define LLVM_LIBC_HAS_UINT64
 #endif
 
@@ -119,24 +119,20 @@ using MemsetImplementations = testing::TypeList<
     builtin::Memset<64>,
 #endif
 #ifdef LLVM_LIBC_HAS_UINT64
-    generic::Memset<8, 8>,  //
-    generic::Memset<16, 8>, //
-    generic::Memset<32, 8>, //
-    generic::Memset<64, 8>, //
+    generic::Memset<uint64_t>, generic::Memset<cpp::array<uint64_t, 2>>,
 #endif
 #ifdef __AVX512F__
-    generic::Memset<64, 64>, // prevents warning about avx512f
+    generic::Memset<uint8x64_t>, generic::Memset<cpp::array<uint8x64_t, 2>>,
 #endif
-    generic::Memset<1, 1>,   //
-    generic::Memset<2, 1>,   //
-    generic::Memset<2, 2>,   //
-    generic::Memset<4, 2>,   //
-    generic::Memset<4, 4>,   //
-    generic::Memset<16, 16>, //
-    generic::Memset<32, 16>, //
-    generic::Memset<64, 16>, //
-    generic::Memset<32, 32>, //
-    generic::Memset<64, 32>  //
+#ifdef __AVX__
+    generic::Memset<uint8x32_t>, generic::Memset<cpp::array<uint8x32_t, 2>>,
+#endif
+#ifdef __SSE2__
+    generic::Memset<uint8x16_t>, generic::Memset<cpp::array<uint8x16_t, 2>>,
+#endif
+    generic::Memset<uint32_t>, generic::Memset<cpp::array<uint32_t, 2>>, //
+    generic::Memset<uint16_t>, generic::Memset<cpp::array<uint16_t, 2>>, //
+    generic::Memset<uint8_t>, generic::Memset<cpp::array<uint8_t, 2>>    //
     >;
 
 // Adapt CheckMemset signature to op implementation signatures.
@@ -200,7 +196,7 @@ using BcmpImplementations = testing::TypeList<
     x86::avx512bw::Bcmp<64>,  //
     x86::avx512bw::Bcmp<128>, //
 #endif
-#ifdef LLVM_LIBC_ARCH_AARCH64
+#ifdef LIBC_TARGET_ARCH_IS_AARCH64
     aarch64::Bcmp<16>, //
     aarch64::Bcmp<32>, //
 #endif

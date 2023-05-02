@@ -39,7 +39,6 @@ add_lldb_library(lldbPluginExpressionParserClang
     lldbPluginCPlusPlusLanguage
     lldbPluginCPPRuntime
     lldbPluginObjCRuntime
-    lldbPluginRenderScriptRuntime
     lldbPluginTypeSystemClang
   CLANG_LIBS
     clangAST
@@ -59,4 +58,5 @@ add_lldb_library(lldbPluginExpressionParserClang
     ipo
     MCJIT
     Support
+    TargetParser
   )

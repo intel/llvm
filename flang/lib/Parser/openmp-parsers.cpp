@@ -105,6 +105,12 @@ TYPE_PARSER(construct<OmpDeviceClause>(
         ":"),
     scalarIntExpr))
 
+// device_type(any | host | nohost)
+TYPE_PARSER(construct<OmpDeviceTypeClause>(
+    "ANY" >> pure(OmpDeviceTypeClause::Type::Any) ||
+    "HOST" >> pure(OmpDeviceTypeClause::Type::Host) ||
+    "NOHOST" >> pure(OmpDeviceTypeClause::Type::Nohost)))
+
 // 2.12 IF (directive-name-modifier: scalar-logical-expr)
 TYPE_PARSER(construct<OmpIfClause>(
     maybe(
@@ -179,6 +185,16 @@ TYPE_CONTEXT_PARSER("Omp LINEAR clause"_en_US,
 TYPE_PARSER(construct<OmpAlignedClause>(
     nonemptyList(name), maybe(":" >> scalarIntConstantExpr)))
 
+// 2.9.5 ORDER ([order-modifier :]concurrent)
+TYPE_PARSER(construct<OmpOrderModifier>(
+    "REPRODUCIBLE" >> pure(OmpOrderModifier::Kind::Reproducible)) ||
+    construct<OmpOrderModifier>(
+    "UNCONSTRAINED" >> pure(OmpOrderModifier::Kind::Unconstrained)))
+
+TYPE_PARSER(construct<OmpOrderClause>(
+    maybe(Parser<OmpOrderModifier>{} / ":"),
+    "CONCURRENT" >> pure(OmpOrderClause::Type::Concurrent)))
+
 TYPE_PARSER(
     construct<OmpObject>(designator) || construct<OmpObject>("/" >> name / "/"))
 
@@ -208,6 +224,8 @@ TYPE_PARSER(
                     parenthesized(Parser<OmpDependClause>{}))) ||
     "DEVICE" >> construct<OmpClause>(construct<OmpClause::Device>(
                     parenthesized(Parser<OmpDeviceClause>{}))) ||
+    "DEVICE_TYPE" >> construct<OmpClause>(construct<OmpClause::DeviceType>(
+                         parenthesized(Parser<OmpDeviceTypeClause>{}))) ||
     "DIST_SCHEDULE" >>
         construct<OmpClause>(construct<OmpClause::DistSchedule>(
             parenthesized("STATIC" >> maybe("," >> scalarIntExpr)))) ||
@@ -215,6 +233,7 @@ TYPE_PARSER(
         construct<OmpClause>(construct<OmpClause::DynamicAllocators>()) ||
     "FINAL" >> construct<OmpClause>(construct<OmpClause::Final>(
                    parenthesized(scalarLogicalExpr))) ||
+    "FULL" >> construct<OmpClause>(construct<OmpClause::Full>()) ||
     "FIRSTPRIVATE" >> construct<OmpClause>(construct<OmpClause::Firstprivate>(
                           parenthesized(Parser<OmpObjectList>{}))) ||
     "FROM" >> construct<OmpClause>(construct<OmpClause::From>(
@@ -249,7 +268,11 @@ TYPE_PARSER(
                        parenthesized(scalarIntExpr))) ||
     "NUM_THREADS" >> construct<OmpClause>(construct<OmpClause::NumThreads>(
                          parenthesized(scalarIntExpr))) ||
+    "ORDER" >> construct<OmpClause>(construct<OmpClause::Order>(
+                   parenthesized(Parser<OmpOrderClause>{}))) ||
     "ORDERED" >> construct<OmpClause>(construct<OmpClause::Ordered>(
+                     maybe(parenthesized(scalarIntConstantExpr)))) ||
+    "PARTIAL" >> construct<OmpClause>(construct<OmpClause::Partial>(
                      maybe(parenthesized(scalarIntConstantExpr)))) ||
     "PRIORITY" >> construct<OmpClause>(construct<OmpClause::Priority>(
                       parenthesized(scalarIntExpr))) ||
@@ -278,6 +301,8 @@ TYPE_PARSER(
     "SIMD"_id >> construct<OmpClause>(construct<OmpClause::Simd>()) ||
     "SIMDLEN" >> construct<OmpClause>(construct<OmpClause::Simdlen>(
                      parenthesized(scalarIntConstantExpr))) ||
+    "SIZES" >> construct<OmpClause>(construct<OmpClause::Sizes>(
+                   parenthesized(nonemptyList(scalarIntExpr)))) ||
     "THREADS" >> construct<OmpClause>(construct<OmpClause::Threads>()) ||
     "THREAD_LIMIT" >> construct<OmpClause>(construct<OmpClause::ThreadLimit>(
                           parenthesized(scalarIntExpr))) ||
@@ -334,7 +359,9 @@ TYPE_PARSER(sourced(construct<OmpLoopDirective>(first(
         pure(llvm::omp::Directive::OMPD_teams_distribute_parallel_do),
     "TEAMS DISTRIBUTE SIMD" >>
         pure(llvm::omp::Directive::OMPD_teams_distribute_simd),
-    "TEAMS DISTRIBUTE" >> pure(llvm::omp::Directive::OMPD_teams_distribute)))))
+    "TEAMS DISTRIBUTE" >> pure(llvm::omp::Directive::OMPD_teams_distribute),
+    "TILE" >> pure(llvm::omp::Directive::OMPD_tile),
+    "UNROLL" >> pure(llvm::omp::Directive::OMPD_unroll)))))
 
 TYPE_PARSER(sourced(construct<OmpBeginLoopDirective>(
     sourced(Parser<OmpLoopDirective>{}), Parser<OmpClauseList>{})))

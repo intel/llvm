@@ -192,7 +192,7 @@ Expected<const char *> MachODumper::extractSections(
       if (SecName.startswith("__debug_")) {
         // If the DWARF section cannot be successfully parsed, emit raw content
         // instead of an entry in the DWARF section of the YAML.
-        if (Error Err = dumpDebugSection(SecName, *DWARFCtx.get(), Y.DWARF))
+        if (Error Err = dumpDebugSection(SecName, *DWARFCtx, Y.DWARF))
           consumeError(std::move(Err));
         else
           S->content.reset();
@@ -326,8 +326,7 @@ Error MachODumper::dumpLoadCommands(std::unique_ptr<MachOYAML::Object> &Y) {
       if (Obj.isLittleEndian() != sys::IsLittleEndianHost)
         MachO::swapStruct(LC.Data.load_command_data);
       if (Expected<const char *> ExpectedEndPtr =
-              processLoadCommandData<MachO::load_command>(LC, LoadCmd,
-                                                          *Y.get()))
+              processLoadCommandData<MachO::load_command>(LC, LoadCmd, *Y))
         EndPtr = *ExpectedEndPtr;
       else
         return ExpectedEndPtr.takeError();
@@ -580,7 +579,10 @@ const uint8_t *processExportNode(const uint8_t *CurrPtr,
 
 void MachODumper::dumpExportTrie(std::unique_ptr<MachOYAML::Object> &Y) {
   MachOYAML::LinkEditData &LEData = Y->LinkEdit;
+  // The exports trie can be in LC_DYLD_INFO or LC_DYLD_EXPORTS_TRIE
   auto ExportsTrie = Obj.getDyldInfoExportsTrie();
+  if (ExportsTrie.empty())
+    ExportsTrie = Obj.getDyldExportsTrie();
   processExportNode(ExportsTrie.begin(), ExportsTrie.end(), LEData.ExportTrie);
 }
 

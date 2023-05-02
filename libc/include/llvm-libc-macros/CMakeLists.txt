@@ -1,6 +1,18 @@
 add_subdirectory(linux)
 
 add_header(
+  generic_error_number_macros
+  HDR
+    generic-error-number-macros.h
+)
+
+add_header(
+  null_macro
+  HDR
+    null-macro.h
+)
+
+add_header(
   fcntl_macros
   HDR
     fcntl-macros.h
@@ -9,9 +21,21 @@ add_header(
 )
 
 add_header(
+  fenv_macros
+  HDR
+    fenv-macros.h
+)
+
+add_header(
   file_seek_macros
   HDR
     file-seek-macros.h
+)
+
+add_header(
+  math_macros
+  HDR
+    math-macros.h
 )
 
 add_header(
@@ -96,6 +120,14 @@ add_header(
 )
 
 add_header(
+  sys_socket_macros
+  HDR
+    sys-socket-macros.h
+  DEPENDS
+    .linux.sys_socket_macros
+)
+
+add_header(
   sys_time_macros
   HDR
     sys-time-macros.h
@@ -133,4 +165,10 @@ add_header(
     unistd-macros.h
   DEPENDS
     .linux.unistd_macros
+)
+
+add_header(
+  wchar_macros
+  HDR
+    wchar-macros.h
 )

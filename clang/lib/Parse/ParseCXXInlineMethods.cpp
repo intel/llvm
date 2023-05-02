@@ -648,6 +648,11 @@ void Parser::ParseLexedMemberInitializer(LateParsedMemberInitializer &MI) {
 
   Actions.ActOnStartCXXInClassMemberInitializer();
 
+  // The initializer isn't actually potentially evaluated unless it is
+  // used.
+  EnterExpressionEvaluationContext Eval(
+      Actions, Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed);
+
   ExprResult Init = ParseCXXMemberInitializer(MI.Field, /*IsFunction=*/false,
                                               EqualLoc);
 
@@ -743,7 +748,7 @@ void Parser::ParseLexedAttribute(LateParsedAttribute &LA,
       }
 
       ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, nullptr,
-                            nullptr, SourceLocation(), ParsedAttr::AS_GNU,
+                            nullptr, SourceLocation(), ParsedAttr::Form::GNU(),
                             nullptr);
 
       if (HasFunScope)
@@ -752,7 +757,7 @@ void Parser::ParseLexedAttribute(LateParsedAttribute &LA,
       // If there are multiple decls, then the decl cannot be within the
       // function scope.
       ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, nullptr,
-                            nullptr, SourceLocation(), ParsedAttr::AS_GNU,
+                            nullptr, SourceLocation(), ParsedAttr::Form::GNU(),
                             nullptr);
     }
   } else {

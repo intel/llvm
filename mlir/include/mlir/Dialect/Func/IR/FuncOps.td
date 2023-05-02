@@ -208,7 +208,7 @@ def ConstantOp : Func_Op<"constant",
 
 def FuncOp : Func_Op<"func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
-  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
+  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface
 ]> {
   let summary = "An operation with a name containing a single `SSACFG` region";
   let description = [{
@@ -251,7 +251,9 @@ def FuncOp : Func_Op<"func", [
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
-                       OptionalAttr<StrAttr>:$sym_visibility);
+                       OptionalAttr<StrAttr>:$sym_visibility,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region AnyRegion:$body);
 
   let builders = [OpBuilder<(ins
@@ -275,14 +277,14 @@ def FuncOp : Func_Op<"func", [
     /// included in the new function. Replaces references to cloned sub-values
     /// with the corresponding value that is copied, and adds those mappings to
     /// the mapper.
-    FuncOp clone(BlockAndValueMapping &mapper);
+    FuncOp clone(IRMapping &mapper);
     FuncOp clone();
 
     /// Clone the internal blocks and attributes from this function into dest.
     /// Any cloned blocks are appended to the back of dest. This function
     /// asserts that the attributes of the current function and dest are
     /// compatible.
-    void cloneInto(FuncOp dest, BlockAndValueMapping &mapper);
+    void cloneInto(FuncOp dest, IRMapping &mapper);
 
     //===------------------------------------------------------------------===//
     // CallableOpInterface
@@ -296,6 +298,18 @@ def FuncOp : Func_Op<"func", [
     /// Returns the results types that the callable region produces when
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods
@@ -349,7 +363,7 @@ def ReturnOp : Func_Op<"return", [Pure, HasParent<"FuncOp">,
   let arguments = (ins Variadic<AnyType>:$operands);
 
   let builders = [OpBuilder<(ins), [{
-    build($_builder, $_state, llvm::None);
+    build($_builder, $_state, std::nullopt);
   }]>];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";

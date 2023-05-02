@@ -35,12 +35,37 @@
 // 5. %reg = INSERT_SUBREG %reg(tied-def 0), %subreg, subidx
 //     ==> %reg:subidx =  SUBREG_TO_REG 0, %subreg, subidx
 //
+// 6. %intermediate:gpr32 = COPY %src:fpr128
+//    %dst:fpr128 = INSvi32gpr %dst_vec:fpr128, dst_index, %intermediate:gpr32
+//     ==> %dst:fpr128 = INSvi32lane %dst_vec:fpr128, dst_index, %src:fpr128, 0
+//
+//    In cases where a source FPR is copied to a GPR in order to be copied
+//    to a destination FPR, we can directly copy the values between the FPRs,
+//    eliminating the use of the Integer unit. When we match a pattern of
+//    INSvi[X]gpr that is preceded by a chain of COPY instructions from a FPR
+//    source, we use the INSvi[X]lane to replace the COPY & INSvi[X]gpr
+//    instructions.
+//
+// 7. If MI sets zero for high 64-bits implicitly, remove `mov 0` for high
+//    64-bits. For example,
+//
+//   %1:fpr64 = nofpexcept FCVTNv4i16 %0:fpr128, implicit $fpcr
+//   %2:fpr64 = MOVID 0
+//   %4:fpr128 = IMPLICIT_DEF
+//   %3:fpr128 = INSERT_SUBREG %4:fpr128(tied-def 0), killed %2:fpr64, %subreg.dsub
+//   %6:fpr128 = IMPLICIT_DEF
+//   %5:fpr128 = INSERT_SUBREG %6:fpr128(tied-def 0), killed %1:fpr64, %subreg.dsub
+//   %7:fpr128 = INSvi64lane %5:fpr128(tied-def 0), 1, killed %3:fpr128, 0
+//   ==>
+//   %1:fpr64 = nofpexcept FCVTNv4i16 %0:fpr128, implicit $fpcr
+//   %6:fpr128 = IMPLICIT_DEF
+//   %7:fpr128 = INSERT_SUBREG %6:fpr128(tied-def 0), killed %1:fpr64, %subreg.dsub
+//
 //===----------------------------------------------------------------------===//
 
 #include "AArch64ExpandImm.h"
 #include "AArch64InstrInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 
@@ -65,7 +90,7 @@ struct AArch64MIPeepholeOpt : public MachineFunctionPass {
   using OpcodePair = std::pair<unsigned, unsigned>;
   template <typename T>
   using SplitAndOpcFunc =
-      std::function<Optional<OpcodePair>(T, unsigned, T &, T &)>;
+      std::function<std::optional<OpcodePair>(T, unsigned, T &, T &)>;
   using BuildMIFunc =
       std::function<void(MachineInstr &, OpcodePair, unsigned, unsigned,
                          Register, Register, Register)>;
@@ -100,6 +125,8 @@ struct AArch64MIPeepholeOpt : public MachineFunctionPass {
   bool visitAND(unsigned Opc, MachineInstr &MI);
   bool visitORR(MachineInstr &MI);
   bool visitINSERT(MachineInstr &MI);
+  bool visitINSviGPR(MachineInstr &MI, unsigned Opc);
+  bool visitINSvi64lane(MachineInstr &MI);
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   StringRef getPassName() const override {
@@ -137,7 +164,7 @@ static bool splitBitmaskImm(T Imm, unsigned RegSize, T &Imm1Enc, T &Imm2Enc) {
   // consecutive ones. We can split it in to two bitmask immediate like
   // 0b00000000001111111111110000000000 and 0b11111111111000000000011111111111.
   // If we do AND with these two bitmask immediate, we can see original one.
-  unsigned LowestBitSet = countTrailingZeros(UImm);
+  unsigned LowestBitSet = llvm::countr_zero(UImm);
   unsigned HighestBitSet = Log2_64(UImm);
 
   // Create a mask which is filled with one from the position of lowest bit set
@@ -173,10 +200,11 @@ bool AArch64MIPeepholeOpt::visitAND(
 
   return splitTwoPartImm<T>(
       MI,
-      [Opc](T Imm, unsigned RegSize, T &Imm0, T &Imm1) -> Optional<OpcodePair> {
+      [Opc](T Imm, unsigned RegSize, T &Imm0,
+            T &Imm1) -> std::optional<OpcodePair> {
         if (splitBitmaskImm(Imm, RegSize, Imm0, Imm1))
           return std::make_pair(Opc, Opc);
-        return None;
+        return std::nullopt;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
                    unsigned Imm1, Register SrcReg, Register NewTmpReg,
@@ -323,26 +351,33 @@ bool AArch64MIPeepholeOpt::visitADDSUB(
     unsigned PosOpc, unsigned NegOpc, MachineInstr &MI) {
   // Try below transformation.
   //
-  // MOVi32imm + ADDWrr ==> ADDWri + ADDWri
-  // MOVi64imm + ADDXrr ==> ADDXri + ADDXri
+  // ADDWrr X, MOVi32imm ==> ADDWri + ADDWri
+  // ADDXrr X, MOVi64imm ==> ADDXri + ADDXri
   //
-  // MOVi32imm + SUBWrr ==> SUBWri + SUBWri
-  // MOVi64imm + SUBXrr ==> SUBXri + SUBXri
+  // SUBWrr X, MOVi32imm ==> SUBWri + SUBWri
+  // SUBXrr X, MOVi64imm ==> SUBXri + SUBXri
   //
   // The mov pseudo instruction could be expanded to multiple mov instructions
   // later. Let's try to split the constant operand of mov instruction into two
   // legal add/sub immediates. It makes only two ADD/SUB instructions intead of
   // multiple `mov` + `and/sub` instructions.
 
+  // We can sometimes have ADDWrr WZR, MULi32imm that have not been constant
+  // folded. Make sure that we don't generate invalid instructions that use XZR
+  // in those cases.
+  if (MI.getOperand(1).getReg() == AArch64::XZR ||
+      MI.getOperand(1).getReg() == AArch64::WZR)
+    return false;
+
   return splitTwoPartImm<T>(
       MI,
       [PosOpc, NegOpc](T Imm, unsigned RegSize, T &Imm0,
-                       T &Imm1) -> Optional<OpcodePair> {
+                       T &Imm1) -> std::optional<OpcodePair> {
         if (splitAddSubImm(Imm, RegSize, Imm0, Imm1))
           return std::make_pair(PosOpc, PosOpc);
         if (splitAddSubImm(-Imm, RegSize, Imm0, Imm1))
           return std::make_pair(NegOpc, NegOpc);
-        return None;
+        return std::nullopt;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
                    unsigned Imm1, Register SrcReg, Register NewTmpReg,
@@ -365,23 +400,29 @@ bool AArch64MIPeepholeOpt::visitADDSSUBS(
     OpcodePair PosOpcs, OpcodePair NegOpcs, MachineInstr &MI) {
   // Try the same transformation as ADDSUB but with additional requirement
   // that the condition code usages are only for Equal and Not Equal
+
+  if (MI.getOperand(1).getReg() == AArch64::XZR ||
+      MI.getOperand(1).getReg() == AArch64::WZR)
+    return false;
+
   return splitTwoPartImm<T>(
       MI,
-      [PosOpcs, NegOpcs, &MI, &TRI = TRI, &MRI = MRI](
-          T Imm, unsigned RegSize, T &Imm0, T &Imm1) -> Optional<OpcodePair> {
+      [PosOpcs, NegOpcs, &MI, &TRI = TRI,
+       &MRI = MRI](T Imm, unsigned RegSize, T &Imm0,
+                   T &Imm1) -> std::optional<OpcodePair> {
         OpcodePair OP;
         if (splitAddSubImm(Imm, RegSize, Imm0, Imm1))
           OP = PosOpcs;
         else if (splitAddSubImm(-Imm, RegSize, Imm0, Imm1))
           OP = NegOpcs;
         else
-          return None;
+          return std::nullopt;
         // Check conditional uses last since it is expensive for scanning
         // proceeding instructions
         MachineInstr &SrcMI = *MRI->getUniqueVRegDef(MI.getOperand(1).getReg());
-        Optional<UsedNZCV> NZCVUsed = examineCFlagsUse(SrcMI, MI, *TRI);
+        std::optional<UsedNZCV> NZCVUsed = examineCFlagsUse(SrcMI, MI, *TRI);
         if (!NZCVUsed || NZCVUsed->C || NZCVUsed->V)
-          return None;
+          return std::nullopt;
         return OP;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
@@ -522,6 +563,119 @@ bool AArch64MIPeepholeOpt::splitTwoPartImm(
   return true;
 }
 
+bool AArch64MIPeepholeOpt::visitINSviGPR(MachineInstr &MI, unsigned Opc) {
+  // Check if this INSvi[X]gpr comes from COPY of a source FPR128
+  //
+  // From
+  //  %intermediate1:gpr64 = COPY %src:fpr128
+  //  %intermediate2:gpr32 = COPY %intermediate1:gpr64
+  //  %dst:fpr128 = INSvi[X]gpr %dst_vec:fpr128, dst_index, %intermediate2:gpr32
+  // To
+  //  %dst:fpr128 = INSvi[X]lane %dst_vec:fpr128, dst_index, %src:fpr128,
+  //  src_index
+  // where src_index = 0, X = [8|16|32|64]
+
+  MachineInstr *SrcMI = MRI->getUniqueVRegDef(MI.getOperand(3).getReg());
+
+  // For a chain of COPY instructions, find the initial source register
+  // and check if it's an FPR128
+  while (true) {
+    if (!SrcMI || SrcMI->getOpcode() != TargetOpcode::COPY)
+      return false;
+
+    if (!SrcMI->getOperand(1).getReg().isVirtual())
+      return false;
+
+    if (MRI->getRegClass(SrcMI->getOperand(1).getReg()) ==
+        &AArch64::FPR128RegClass) {
+      break;
+    }
+    SrcMI = MRI->getUniqueVRegDef(SrcMI->getOperand(1).getReg());
+  }
+
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = SrcMI->getOperand(1).getReg();
+  MachineInstr *INSvilaneMI =
+      BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII->get(Opc), DstReg)
+          .add(MI.getOperand(1))
+          .add(MI.getOperand(2))
+          .addUse(SrcReg, getRegState(SrcMI->getOperand(1)))
+          .addImm(0);
+
+  LLVM_DEBUG(dbgs() << MI << "  replace by:\n: " << *INSvilaneMI << "\n");
+  (void)INSvilaneMI;
+  MI.eraseFromParent();
+  return true;
+}
+
+static bool is64bitDefwithZeroHigh64bit(MachineInstr *MI) {
+  // ToDo: check and add more MIs which set zero for high 64bits.
+  switch (MI->getOpcode()) {
+  default:
+    break;
+  case AArch64::FCVTNv2i32:
+  case AArch64::FCVTNv4i16:
+  case AArch64::RSHRNv2i32_shift:
+  case AArch64::RSHRNv4i16_shift:
+  case AArch64::RSHRNv8i8_shift :
+  case AArch64::SHRNv2i32_shift:
+  case AArch64::SHRNv4i16_shift:
+  case AArch64::SHRNv8i8_shift:
+    return true;
+  }
+
+  return false;
+}
+
+bool AArch64MIPeepholeOpt::visitINSvi64lane(MachineInstr &MI) {
+  // Check the MI for low 64-bits sets zero for high 64-bits implicitly.
+  // We are expecting below case.
+  //
+  //  %1:fpr64 = nofpexcept FCVTNv4i16 %0:fpr128, implicit $fpcr
+  //  %6:fpr128 = IMPLICIT_DEF
+  //  %5:fpr128 = INSERT_SUBREG %6:fpr128(tied-def 0), killed %1:fpr64, %subreg.dsub
+  //  %7:fpr128 = INSvi64lane %5:fpr128(tied-def 0), 1, killed %3:fpr128, 0
+  MachineInstr *Low64MI = MRI->getUniqueVRegDef(MI.getOperand(1).getReg());
+  if (Low64MI->getOpcode() != AArch64::INSERT_SUBREG)
+    return false;
+  Low64MI = MRI->getUniqueVRegDef(Low64MI->getOperand(2).getReg());
+  if (!is64bitDefwithZeroHigh64bit(Low64MI))
+    return false;
+
+  // Check there is `mov 0` MI for high 64-bits.
+  // We are expecting below cases.
+  //
+  //  %2:fpr64 = MOVID 0
+  //  %4:fpr128 = IMPLICIT_DEF
+  //  %3:fpr128 = INSERT_SUBREG %4:fpr128(tied-def 0), killed %2:fpr64, %subreg.dsub
+  //  %7:fpr128 = INSvi64lane %5:fpr128(tied-def 0), 1, killed %3:fpr128, 0
+  // or
+  //  %5:fpr128 = MOVIv2d_ns 0
+  //  %6:fpr64 = COPY %5.dsub:fpr128
+  //  %8:fpr128 = IMPLICIT_DEF
+  //  %7:fpr128 = INSERT_SUBREG %8:fpr128(tied-def 0), killed %6:fpr64, %subreg.dsub
+  //  %11:fpr128 = INSvi64lane %9:fpr128(tied-def 0), 1, killed %7:fpr128, 0
+  MachineInstr *High64MI = MRI->getUniqueVRegDef(MI.getOperand(3).getReg());
+  if (High64MI->getOpcode() != AArch64::INSERT_SUBREG)
+    return false;
+  High64MI = MRI->getUniqueVRegDef(High64MI->getOperand(2).getReg());
+  if (High64MI->getOpcode() == TargetOpcode::COPY)
+    High64MI = MRI->getUniqueVRegDef(High64MI->getOperand(1).getReg());
+  if (High64MI->getOpcode() != AArch64::MOVID &&
+      High64MI->getOpcode() != AArch64::MOVIv2d_ns)
+    return false;
+  if (High64MI->getOperand(1).getImm() != 0)
+    return false;
+
+  // Let's remove MIs for high 64-bits.
+  Register OldDef = MI.getOperand(0).getReg();
+  Register NewDef = MI.getOperand(1).getReg();
+  MRI->replaceRegWith(OldDef, NewDef);
+  MI.eraseFromParent();
+
+  return true;
+}
+
 bool AArch64MIPeepholeOpt::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()))
     return false;
@@ -584,6 +738,21 @@ bool AArch64MIPeepholeOpt::runOnMachineFunction(MachineFunction &MF) {
         Changed = visitADDSSUBS<uint64_t>({AArch64::SUBXri, AArch64::SUBSXri},
                                           {AArch64::ADDXri, AArch64::ADDSXri},
                                           MI);
+        break;
+      case AArch64::INSvi64gpr:
+        Changed = visitINSviGPR(MI, AArch64::INSvi64lane);
+        break;
+      case AArch64::INSvi32gpr:
+        Changed = visitINSviGPR(MI, AArch64::INSvi32lane);
+        break;
+      case AArch64::INSvi16gpr:
+        Changed = visitINSviGPR(MI, AArch64::INSvi16lane);
+        break;
+      case AArch64::INSvi8gpr:
+        Changed = visitINSviGPR(MI, AArch64::INSvi8lane);
+        break;
+      case AArch64::INSvi64lane:
+        Changed = visitINSvi64lane(MI);
         break;
       }
     }

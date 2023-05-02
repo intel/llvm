@@ -72,6 +72,7 @@ namespace {
     void VisitLabelDecl(LabelDecl *D);
     void VisitParmVarDecl(ParmVarDecl *D);
     void VisitFileScopeAsmDecl(FileScopeAsmDecl *D);
+    void VisitTopLevelStmtDecl(TopLevelStmtDecl *D);
     void VisitImportDecl(ImportDecl *D);
     void VisitStaticAssertDecl(StaticAssertDecl *D);
     void VisitNamespaceDecl(NamespaceDecl *D);
@@ -938,6 +939,11 @@ void DeclPrinter::VisitFileScopeAsmDecl(FileScopeAsmDecl *D) {
   Out << ")";
 }
 
+void DeclPrinter::VisitTopLevelStmtDecl(TopLevelStmtDecl *D) {
+  assert(D->getStmt());
+  D->getStmt()->printPretty(Out, nullptr, Policy, Indentation, "\n", &Context);
+}
+
 void DeclPrinter::VisitImportDecl(ImportDecl *D) {
   Out << "@import " << D->getImportedModule()->getFullModuleName()
       << ";\n";
@@ -1011,7 +1017,7 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     }
   }
 
-  if (D->hasDefinition()) {
+  if (D->hasDefinition() && !Policy.SuppressFinalSpecifier) {
     if (D->hasAttr<FinalAttr>()) {
       Out << " final";
     }

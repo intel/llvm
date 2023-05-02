@@ -16,6 +16,7 @@
 #include "lldb/lldb-types.h"
 #include "llvm/Support/Error.h"
 #include <memory>
+#include <optional>
 
 namespace lldb_private {
 namespace process_linux {
@@ -34,7 +35,7 @@ public:
   ///
   ///  \param[in] cgroup_fd
   ///  A file descriptor in /sys/fs associated with the cgroup of the process to
-  ///  trace. If not \a llvm::None, then the trace sesion will use cgroup
+  ///  trace. If not \a std::nullopt, then the trace sesion will use cgroup
   ///  filtering.
   ///
   /// \return
@@ -43,7 +44,7 @@ public:
   static llvm::Expected<std::unique_ptr<IntelPTMultiCoreTrace>>
   StartOnAllCores(const TraceIntelPTStartRequest &request,
                   NativeProcessProtocol &process,
-                  llvm::Optional<int> cgroup_fd = llvm::None);
+                  std::optional<int> cgroup_fd = std::nullopt);
 
   /// Execute the provided callback on each core that is being traced.
   ///
@@ -83,7 +84,7 @@ public:
 
   llvm::Error TraceStop(lldb::tid_t tid) override;
 
-  llvm::Expected<llvm::Optional<std::vector<uint8_t>>>
+  llvm::Expected<std::optional<std::vector<uint8_t>>>
   TryGetBinaryData(const TraceGetBinaryDataRequest &request) override;
 
 private:

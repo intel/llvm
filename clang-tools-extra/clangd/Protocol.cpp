@@ -161,6 +161,22 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Location &L) {
   return OS << L.range << '@' << L.uri;
 }
 
+llvm::json::Value toJSON(const ReferenceLocation &P) {
+  llvm::json::Object Result{
+      {"uri", P.uri},
+      {"range", P.range},
+  };
+  if (P.containerName)
+    Result.insert({"containerName", P.containerName});
+  return Result;
+}
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
+                              const ReferenceLocation &L) {
+  return OS << L.range << '@' << L.uri << " (container: " << L.containerName
+            << ")";
+}
+
 bool fromJSON(const llvm::json::Value &Params, TextDocumentItem &R,
               llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
@@ -322,6 +338,13 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R,
               SemanticHighlighting->getBoolean("semanticHighlighting"))
         R.TheiaSemanticHighlighting = *SemanticHighlightingSupport;
     }
+    if (auto *InactiveRegions =
+            TextDocument->getObject("inactiveRegionsCapabilities")) {
+      if (auto InactiveRegionsSupport =
+              InactiveRegions->getBoolean("inactiveRegions")) {
+        R.InactiveRegions = *InactiveRegionsSupport;
+      }
+    }
     if (TextDocument->getObject("semanticTokens"))
       R.SemanticTokens = true;
     if (auto *Diagnostics = TextDocument->getObject("publishDiagnostics")) {
@@ -332,6 +355,9 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R,
       if (auto RelatedInfo = Diagnostics->getBoolean("relatedInformation"))
         R.DiagnosticRelatedInformation = *RelatedInfo;
     }
+    if (auto *References = TextDocument->getObject("references"))
+      if (auto ContainerSupport = References->getBoolean("container"))
+        R.ReferenceContainer = *ContainerSupport;
     if (auto *Completion = TextDocument->getObject("completion")) {
       if (auto *Item = Completion->getObject("completionItem")) {
         if (auto SnippetSupport = Item->getBoolean("snippetSupport"))
@@ -1153,6 +1179,12 @@ bool fromJSON(const llvm::json::Value &Params, SemanticTokensDeltaParams &R,
   llvm::json::ObjectMapper O(Params, P);
   return O && O.map("textDocument", R.textDocument) &&
          O.map("previousResultId", R.previousResultId);
+}
+
+llvm::json::Value toJSON(const InactiveRegionsParams &InactiveRegions) {
+  return llvm::json::Object{
+      {"textDocument", InactiveRegions.TextDocument},
+      {"regions", std::move(InactiveRegions.InactiveRegions)}};
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &O,

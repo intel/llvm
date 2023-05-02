@@ -8,25 +8,32 @@ add_flang_library(FIRTransforms
   ArrayValueCopy.cpp
   ExternalNameConversion.cpp
   MemoryAllocation.cpp
+  StackArrays.cpp
   MemRefDataFlowOpt.cpp
   SimplifyRegionLite.cpp
   AlgebraicSimplification.cpp
   SimplifyIntrinsics.cpp
+  AddDebugFoundation.cpp
+  PolymorphicOpConversion.cpp
+  OpenACC/OpenACCDataOperandConversion.cpp
 
   DEPENDS
-  FIRBuilder
   FIRDialect
-  FIRSupport
   FIROptTransformsPassIncGen
 
   LINK_LIBS
   FIRBuilder
+  FIRCodeGen
   FIRDialect
+  FIRDialectSupport
+  FIRSupport
+  HLFIRDialect
   MLIRAffineUtils
   MLIRFuncDialect
   MLIRLLVMDialect
+  MLIRLLVMCommonConversion
   MLIRMathTransforms
   MLIROpenACCDialect
+  MLIROpenACCToLLVMIRTranslation
   MLIROpenMPDialect
-  FIRSupport
 )

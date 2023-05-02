@@ -14,6 +14,7 @@
 #include "clang/Driver/Util.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -86,9 +87,10 @@ public:
     SpirvToIrWrapperJobClass,
     LinkerWrapperJobClass,
     StaticLibJobClass,
+    BinaryAnalyzeJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = StaticLibJobClass
+    JobClassLast = BinaryAnalyzeJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -817,12 +819,13 @@ public:
       REPLACE,
       REPLACE_CELL,
       RENAME,
-      COPY_SINGLE_FILE
+      COPY_SINGLE_FILE,
+      MERGE
     };
 
     Tform() = default;
     Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
-      for (auto A : Args)
+      for (auto &A : Args)
         TheArgs.emplace_back(A.str());
     }
 
@@ -854,6 +857,10 @@ public:
   // should copy the file at column <ColumnName> and row <Row> into the
   // output file.
   void addCopySingleFileTform(StringRef ColumnName, int Row);
+
+  // Merges all tables from filename listed at column <ColumnName> into a
+  // single output table.
+  void addMergeTform(StringRef ColumnName);
 
   static bool classof(const Action *A) {
     return A->getKind() == FileTableTformJobClass;
@@ -936,6 +943,25 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == ForEachWrappingClass;
+  }
+
+  void addSerialAction(const Action *A) { SerialActions.insert(A); }
+  const llvm::SmallSetVector<const Action *, 2> &getSerialActions() const {
+    return SerialActions;
+  }
+
+private:
+  llvm::SmallSetVector<const Action *, 2> SerialActions;
+};
+
+class BinaryAnalyzeJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  BinaryAnalyzeJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == BinaryAnalyzeJobClass;
   }
 };
 

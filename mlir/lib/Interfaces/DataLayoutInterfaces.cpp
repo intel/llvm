@@ -213,6 +213,29 @@ unsigned mlir::detail::getDefaultPreferredAlignment(
   reportMissingDataLayout(type);
 }
 
+// Returns the memory space used for allocal operations if specified in the
+// given entry. If the entry is empty the default memory space represented by
+// an empty attribute is returned.
+Attribute
+mlir::detail::getDefaultAllocaMemorySpace(DataLayoutEntryInterface entry) {
+  if (entry == DataLayoutEntryInterface()) {
+    return Attribute();
+  }
+
+  return entry.getValue();
+}
+
+// Returns the stack alignment if specified in the given entry. If the entry is
+// empty the default alignment zero is returned.
+unsigned
+mlir::detail::getDefaultStackAlignment(DataLayoutEntryInterface entry) {
+  if (entry == DataLayoutEntryInterface())
+    return 0;
+
+  auto value = entry.getValue().cast<IntegerAttr>();
+  return value.getValue().getZExtValue();
+}
+
 DataLayoutEntryList
 mlir::detail::filterEntriesForType(DataLayoutEntryListRef entries,
                                    TypeID typeID) {
@@ -305,7 +328,7 @@ static DataLayoutSpecInterface getCombinedDataLayout(Operation *leaf) {
   if (nonNullSpecs.empty())
     return {};
   return nonNullSpecs.back().combineWith(
-      llvm::makeArrayRef(nonNullSpecs).drop_back());
+      llvm::ArrayRef(nonNullSpecs).drop_back());
 }
 
 LogicalResult mlir::detail::verifyDataLayoutOp(Operation *op) {
@@ -346,7 +369,8 @@ void checkMissingLayout(DataLayoutSpecInterface originalLayout, OpTy op) {
 mlir::DataLayout::DataLayout() : DataLayout(ModuleOp()) {}
 
 mlir::DataLayout::DataLayout(DataLayoutOpInterface op)
-    : originalLayout(getCombinedDataLayout(op)), scope(op) {
+    : originalLayout(getCombinedDataLayout(op)), scope(op),
+      allocaMemorySpace(std::nullopt), stackAlignment(std::nullopt) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
   checkMissingLayout(originalLayout, op);
   collectParentLayouts(op, layoutStack);
@@ -354,7 +378,8 @@ mlir::DataLayout::DataLayout(DataLayoutOpInterface op)
 }
 
 mlir::DataLayout::DataLayout(ModuleOp op)
-    : originalLayout(getCombinedDataLayout(op)), scope(op) {
+    : originalLayout(getCombinedDataLayout(op)), scope(op),
+      allocaMemorySpace(std::nullopt), stackAlignment(std::nullopt) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
   checkMissingLayout(originalLayout, op);
   collectParentLayouts(op, layoutStack);
@@ -454,6 +479,38 @@ unsigned mlir::DataLayout::getTypePreferredAlignment(Type t) const {
       return iface.getTypePreferredAlignment(ty, *this, list);
     return detail::getDefaultPreferredAlignment(ty, *this, list);
   });
+}
+
+mlir::Attribute mlir::DataLayout::getAllocaMemorySpace() const {
+  checkValid();
+  MLIRContext *context = scope->getContext();
+  if (allocaMemorySpace)
+    return *allocaMemorySpace;
+  DataLayoutEntryInterface entry;
+  if (originalLayout)
+    entry = originalLayout.getSpecForIdentifier(
+        originalLayout.getAllocaMemorySpaceIdentifier(context));
+  if (auto iface = dyn_cast_or_null<DataLayoutOpInterface>(scope))
+    allocaMemorySpace = iface.getAllocaMemorySpace(entry);
+  else
+    allocaMemorySpace = detail::getDefaultAllocaMemorySpace(entry);
+  return *allocaMemorySpace;
+}
+
+unsigned mlir::DataLayout::getStackAlignment() const {
+  checkValid();
+  MLIRContext *context = scope->getContext();
+  if (stackAlignment)
+    return *stackAlignment;
+  DataLayoutEntryInterface entry;
+  if (originalLayout)
+    entry = originalLayout.getSpecForIdentifier(
+        originalLayout.getStackAlignmentIdentifier(context));
+  if (auto iface = dyn_cast_or_null<DataLayoutOpInterface>(scope))
+    stackAlignment = iface.getStackAlignment(entry);
+  else
+    stackAlignment = detail::getDefaultStackAlignment(entry);
+  return *stackAlignment;
 }
 
 //===----------------------------------------------------------------------===//

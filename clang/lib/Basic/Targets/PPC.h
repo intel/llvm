@@ -16,9 +16,9 @@
 #include "OSTargets.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
@@ -50,7 +50,6 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   } ArchDefineTypes;
 
   ArchDefineTypes ArchDefs = ArchDefineNone;
-  static const Builtin::Info BuiltinInfo[];
   static const char *const GCCRegNames[];
   static const TargetInfo::GCCRegAlias GCCRegAliases[];
   std::string CPU;
@@ -88,7 +87,6 @@ public:
   PPCTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     SuitableAlign = 128;
-    SimdDefaultAlign = 128;
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble();
     HasStrictFP = true;
@@ -402,7 +400,7 @@ public:
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
-    // This is the ELF definition, and is overridden by the Darwin sub-target
+    // This is the ELF definition
     return TargetInfo::PowerABIBuiltinVaList;
   }
 };
@@ -429,7 +427,10 @@ public:
       ABI = "elfv2";
     } else {
       DataLayout = "E-m:e-i64:64-n32:64";
-      ABI = "elfv1";
+      if (Triple.isPPC64ELFv2ABI())
+        ABI = "elfv2";
+      else
+        ABI = "elfv1";
     }
 
     if (Triple.isOSFreeBSD() || Triple.isOSOpenBSD() || Triple.isMusl()) {
@@ -477,33 +478,6 @@ public:
     default:
       return CCCR_Warning;
     }
-  }
-};
-
-class LLVM_LIBRARY_VISIBILITY DarwinPPC32TargetInfo
-    : public DarwinTargetInfo<PPC32TargetInfo> {
-public:
-  DarwinPPC32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : DarwinTargetInfo<PPC32TargetInfo>(Triple, Opts) {
-    HasAlignMac68kSupport = true;
-    BoolWidth = BoolAlign = 32; // XXX support -mone-byte-bool?
-    PtrDiffType = SignedInt; // for http://llvm.org/bugs/show_bug.cgi?id=15726
-    LongLongAlign = 32;
-    resetDataLayout("E-m:o-p:32:32-f64:32:64-n32", "_");
-  }
-
-  BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::CharPtrBuiltinVaList;
-  }
-};
-
-class LLVM_LIBRARY_VISIBILITY DarwinPPC64TargetInfo
-    : public DarwinTargetInfo<PPC64TargetInfo> {
-public:
-  DarwinPPC64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : DarwinTargetInfo<PPC64TargetInfo>(Triple, Opts) {
-    HasAlignMac68kSupport = true;
-    resetDataLayout("E-m:o-i64:64-n32:64", "_");
   }
 };
 

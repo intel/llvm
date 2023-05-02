@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: no-exceptions
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
+// XFAIL: stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{9|10|11}}
 
 // Prior to http://llvm.org/D123580, there was a bug with how the max_size()
 // was calculated. That was inlined into some functions in the dylib, which leads
 // to failures when running this test against an older system dylib.
-// XFAIL: use_system_cxx_lib && target=arm64-apple-macosx{{11.0|12.0}}
+// XFAIL: stdlib=apple-libc++ && target=arm64-apple-macosx{{11.0|12.0}}
 
 // <string>
 
@@ -31,7 +31,7 @@ test(const S& s)
 {
     assert(s.max_size() >= s.size());
     S s2(s);
-    const size_t sz = s2.max_size() + 1;
+    const std::size_t sz = s2.max_size() + 1;
     try { s2.resize(sz, 'x'); }
     catch ( const std::length_error & ) { return ; }
     assert ( false );

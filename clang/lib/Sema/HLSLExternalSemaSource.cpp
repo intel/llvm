@@ -71,7 +71,6 @@ struct BuiltinTypeDeclBuilder {
 
     // Don't let anyone derive from built-in types.
     Record->addAttr(FinalAttr::CreateImplicit(AST, SourceRange(),
-                                              AttributeCommonInfo::AS_Keyword,
                                               FinalAttr::Keyword_final));
   }
 
@@ -286,8 +285,7 @@ struct BuiltinTypeDeclBuilder {
     MethodDecl->setLexicalDeclContext(Record);
     MethodDecl->setAccess(AccessSpecifier::AS_public);
     MethodDecl->addAttr(AlwaysInlineAttr::CreateImplicit(
-        AST, SourceRange(), AttributeCommonInfo::AS_Keyword,
-        AlwaysInlineAttr::CXX11_clang_always_inline));
+        AST, SourceRange(), AlwaysInlineAttr::CXX11_clang_always_inline));
     Record->addDecl(MethodDecl);
 
     return *this;
@@ -385,9 +383,9 @@ void HLSLExternalSemaSource::InitializeSema(Sema &S) {
   NamespaceDecl *PrevDecl = nullptr;
   if (S.LookupQualifiedName(Result, AST.getTranslationUnitDecl()))
     PrevDecl = Result.getAsSingle<NamespaceDecl>();
-  HLSLNamespace = NamespaceDecl::Create(AST, AST.getTranslationUnitDecl(),
-                                        false, SourceLocation(),
-                                        SourceLocation(), &HLSL, PrevDecl);
+  HLSLNamespace = NamespaceDecl::Create(
+      AST, AST.getTranslationUnitDecl(), /*Inline=*/false, SourceLocation(),
+      SourceLocation(), &HLSL, PrevDecl, /*Nested=*/false);
   HLSLNamespace->setImplicit(true);
   HLSLNamespace->setHasExternalLexicalStorage();
   AST.getTranslationUnitDecl()->addDecl(HLSLNamespace);

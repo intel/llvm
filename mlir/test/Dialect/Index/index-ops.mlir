@@ -27,12 +27,22 @@ func.func @binary_ops(%a: index, %b: index) {
   %10 = index.maxs %a, %b
   // CHECK-NEXT: index.maxu %[[A]], %[[B]]
   %11 = index.maxu %a, %b
+  // CHECK-NEXT: index.mins %[[A]], %[[B]]
+  %12 = index.mins %a, %b
+  // CHECK-NEXT: index.minu %[[A]], %[[B]]
+  %13 = index.minu %a, %b
   // CHECK-NEXT: index.shl %[[A]], %[[B]]
-  %12 = index.shl %a, %b
+  %14 = index.shl %a, %b
   // CHECK-NEXT: index.shrs %[[A]], %[[B]]
-  %13 = index.shrs %a, %b
+  %15 = index.shrs %a, %b
   // CHECK-NEXT: index.shru %[[A]], %[[B]]
-  %14 = index.shru %a, %b
+  %16 = index.shru %a, %b
+  // CHECK-NEXT: index.and %[[A]], %[[B]]
+  %17 = index.and %a, %b
+  // CHECK-NEXT: index.or %[[A]], %[[B]]
+  %18 = index.or %a, %b
+  // CHECK-NEXT: index.xor %[[A]], %[[B]]
+  %19 = index.xor %a, %b
   return
 }
 
@@ -71,20 +81,20 @@ func.func @sizeof_op() {
 
 // CHECK-LABEL: @constant_op
 func.func @constant_op() {
-  // CHECK-NEXT: index.constant 0
+  // CHECK-NEXT: %idx0 = index.constant 0
   %0 = index.constant 0
-  // CHECK-NEXT: index.constant 1
+  // CHECK-NEXT: %idx1 = index.constant 1
   %1 = index.constant 1
-  // CHECK-NEXT: index.constant 42
+  // CHECK-NEXT: %idx42 = index.constant 42
   %2 = index.constant 42
   return
 }
 
 // CHECK-LABEL: @bool_constant_op
 func.func @bool_constant_op() {
-  // CHECK-NEXT: index.bool.constant true
+  // CHECK-NEXT: %true = index.bool.constant true
   %0 = index.bool.constant true
-  // CHECK-NEXT: index.bool.constant false
+  // CHECK-NEXT: %false = index.bool.constant false
   %1 = index.bool.constant false
   return
 }

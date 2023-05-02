@@ -17,7 +17,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Config/config.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -42,6 +41,8 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SwapByteOrder.h"
+#include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -506,9 +507,9 @@ Error readPGOFuncNameStrings(StringRef NameStrings, InstrProfSymtab &Symtab) {
       if (!llvm::compression::zlib::isAvailable())
         return make_error<InstrProfError>(instrprof_error::zlib_unavailable);
 
-      if (Error E = compression::zlib::decompress(
-              makeArrayRef(P, CompressedSize), UncompressedNameStrings,
-              UncompressedSize)) {
+      if (Error E = compression::zlib::decompress(ArrayRef(P, CompressedSize),
+                                                  UncompressedNameStrings,
+                                                  UncompressedSize)) {
         consumeError(std::move(E));
         return make_error<InstrProfError>(instrprof_error::uncompress_failed);
       }
@@ -1224,7 +1225,10 @@ Error OverlapStats::accumulateCounts(const std::string &BaseFilename,
                                      bool IsCS) {
   auto getProfileSum = [IsCS](const std::string &Filename,
                               CountSumOrPercent &Sum) -> Error {
-    auto ReaderOrErr = InstrProfReader::create(Filename);
+    // This function is only used from llvm-profdata that doesn't use any kind
+    // of VFS. Just create a default RealFileSystem to read profiles.
+    auto FS = vfs::getRealFileSystem();
+    auto ReaderOrErr = InstrProfReader::create(Filename, *FS);
     if (Error E = ReaderOrErr.takeError()) {
       return E;
     }
@@ -1372,9 +1376,16 @@ Expected<Header> Header::readFromBuffer(const unsigned char *Buffer) {
     // When a new field is added in the header add a case statement here to
     // populate it.
     static_assert(
-        IndexedInstrProf::ProfVersion::CurrentVersion == Version8,
+        IndexedInstrProf::ProfVersion::CurrentVersion == Version10,
         "Please update the reading code below if a new field has been added, "
         "if not add a case statement to fall through to the latest version.");
+  case 10ull:
+    H.TemporalProfTracesOffset =
+        read(Buffer, offsetOf(&Header::TemporalProfTracesOffset));
+    LLVM_FALLTHROUGH;
+  case 9ull:
+    H.BinaryIdOffset = read(Buffer, offsetOf(&Header::BinaryIdOffset));
+    [[fallthrough]];
   case 8ull:
     H.MemProfOffset = read(Buffer, offsetOf(&Header::MemProfOffset));
     [[fallthrough]];
@@ -1391,10 +1402,15 @@ size_t Header::size() const {
     // When a new field is added to the header add a case statement here to
     // compute the size as offset of the new field + size of the new field. This
     // relies on the field being added to the end of the list.
-    static_assert(IndexedInstrProf::ProfVersion::CurrentVersion == Version8,
+    static_assert(IndexedInstrProf::ProfVersion::CurrentVersion == Version10,
                   "Please update the size computation below if a new field has "
                   "been added to the header, if not add a case statement to "
                   "fall through to the latest version.");
+  case 10ull:
+    return offsetOf(&Header::TemporalProfTracesOffset) +
+           sizeof(Header::TemporalProfTracesOffset);
+  case 9ull:
+    return offsetOf(&Header::BinaryIdOffset) + sizeof(Header::BinaryIdOffset);
   case 8ull:
     return offsetOf(&Header::MemProfOffset) + sizeof(Header::MemProfOffset);
   default: // Version7 (when the backwards compatible header was introduced).

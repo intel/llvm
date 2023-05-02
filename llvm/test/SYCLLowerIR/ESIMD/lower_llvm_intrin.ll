@@ -1,4 +1,4 @@
-; RUN: opt -LowerESIMD -S < %s | FileCheck %s
+; RUN: opt -passes=LowerESIMD -S < %s | FileCheck %s
 
 ; This test checks that LowerESIMD pass correctly lowers some llvm intrinsics
 ; which can't be handled by the VC BE.

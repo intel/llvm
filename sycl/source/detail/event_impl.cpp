@@ -80,17 +80,19 @@ void event_impl::waitInternal() {
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock<std::mutex> lock(MMutex);
+    {
+      std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
-    int Expected = HES_NotComplete;
-    int Desired = HES_Complete;
+      int Expected = HES_NotComplete;
+      int Desired = HES_Complete;
 
-    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+      bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-    assert(Succeeded && "Unexpected state of event");
+      assert(Succeeded && "Unexpected state of event");
 #else
-    MState.store(static_cast<int>(HES_Complete));
+      MState.store(static_cast<int>(HES_Complete));
 #endif
+    }
     cv.notify_all();
     return;
   }
@@ -144,8 +146,9 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled} {
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+      MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -229,7 +232,6 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
-  cleanupCommand(std::move(Self));
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -242,12 +244,6 @@ void event_impl::wait_and_throw(
 
   if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
-}
-
-void event_impl::cleanupCommand(
-    std::shared_ptr<sycl::detail::event_impl> Self) const {
-  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
-    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
 void event_impl::checkProfilingPreconditions() const {
@@ -270,16 +266,14 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_submit>(
-          this->getHandleRef(), this->getPlugin());
-    return 0;
-  }
-  if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
-  return MHostProfilingInfo->getStartTime();
+  if (MLimitedProfiling)
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Submit profiling information is temporarily unsupported on this "
+        "device. This is indicated by the lack of queue_profiling aspect, but, "
+        "as a temporary workaround, profiling can still be enabled to use "
+        "command_start and command_end profiling info.");
+  return MSubmitTime;
 }
 
 template <>
@@ -361,7 +355,7 @@ pi_native_handle event_impl::getNative() {
     auto TempContext = MContext.get()->getHandleRef();
     Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
-  if (Plugin.getBackend() == backend::opencl)
+  if (MContext->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
@@ -427,6 +421,28 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   for (auto &Event : MPreparedHostDepsEvents) {
     Event->cleanupDependencyEvents();
   }
+}
+
+void event_impl::setSubmissionTime() {
+  if (!MIsProfilingEnabled || MLimitedProfiling)
+    return;
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+    } catch (feature_not_supported &e) {
+      throw sycl::exception(
+          make_error_code(errc::profiling),
+          std::string("Unable to get command group submission time: ") +
+              e.what());
+    }
+  }
+}
+
+uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
+
+bool event_impl::isCompleted() {
+  return get_info<info::event::command_execution_status>() ==
+         info::event_command_status::complete;
 }
 
 } // namespace detail

@@ -1,12 +1,12 @@
 ;; The test serves a purpose to check if Atomic store instruction is being
 ;; annotated by SPIRITTAnnotations pass
 ;;
-;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/AtomicRef/load.cpp
+;; Compiled from https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/AtomicRef/load.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only load.cpp -o load.bc
 
-; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
-; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'store.bc'
 source_filename = "llvm-test-suite/SYCL/AtomicRef/store.cpp"

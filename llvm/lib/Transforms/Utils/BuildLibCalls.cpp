@@ -24,6 +24,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/TypeSize.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -226,7 +227,7 @@ static bool setAllocatedPointerParam(Function &F, unsigned ArgNo) {
 }
 
 static bool setAllocSize(Function &F, unsigned ElemSizeArg,
-                         Optional<unsigned> NumElemsArg) {
+                         std::optional<unsigned> NumElemsArg) {
   if (F.hasFnAttribute(Attribute::AllocSize))
     return false;
   F.addFnAttr(Attribute::getWithAllocSizeArgs(F.getContext(), ElemSizeArg,
@@ -441,7 +442,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     break;
   case LibFunc_aligned_alloc:
     Changed |= setAlignedAllocParam(F, 0);
-    Changed |= setAllocSize(F, 1, None);
+    Changed |= setAllocSize(F, 1, std::nullopt);
     Changed |= setAllocKind(F, AllocFnKind::Alloc | AllocFnKind::Uninitialized | AllocFnKind::Aligned);
     [[fallthrough]];
   case LibFunc_valloc:
@@ -450,7 +451,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     Changed |= setAllocFamily(F, TheLibFunc == LibFunc_vec_malloc ? "vec_malloc"
                                                                   : "malloc");
     Changed |= setAllocKind(F, AllocFnKind::Alloc | AllocFnKind::Uninitialized);
-    Changed |= setAllocSize(F, 0, None);
+    Changed |= setAllocSize(F, 0, std::nullopt);
     Changed |= setOnlyAccessesInaccessibleMemory(F);
     Changed |= setRetAndArgsNoUndef(F);
     Changed |= setDoesNotThrow(F);
@@ -516,7 +517,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     Changed |= setAllocFamily(F, "malloc");
     Changed |= setAllocKind(F, AllocFnKind::Alloc | AllocFnKind::Aligned |
                                    AllocFnKind::Uninitialized);
-    Changed |= setAllocSize(F, 1, None);
+    Changed |= setAllocSize(F, 1, std::nullopt);
     Changed |= setAlignedAllocParam(F, 0);
     Changed |= setOnlyAccessesInaccessibleMemory(F);
     Changed |= setRetNoUndef(F);
@@ -543,7 +544,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
         F, TheLibFunc == LibFunc_vec_realloc ? "vec_malloc" : "malloc");
     Changed |= setAllocKind(F, AllocFnKind::Realloc);
     Changed |= setAllocatedPointerParam(F, 0);
-    Changed |= setAllocSize(F, 1, None);
+    Changed |= setAllocSize(F, 1, std::nullopt);
     Changed |= setOnlyAccessesInaccessibleMemOrArgMem(F);
     Changed |= setRetNoUndef(F);
     Changed |= setDoesNotThrow(F);
@@ -1227,7 +1228,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
   }
   // We have to do this step after AllocKind has been inferred on functions so
   // we can reliably identify free-like and realloc-like functions.
-  if (!isLibFreeFunction(&F, TheLibFunc) && !isReallocLikeFn(&F, &TLI))
+  if (!isLibFreeFunction(&F, TheLibFunc) && !isReallocLikeFn(&F))
     Changed |= setDoesNotFreeMemory(F);
   return Changed;
 }
@@ -1237,6 +1238,13 @@ static void setArgExtAttr(Function &F, unsigned ArgNo,
   Attribute::AttrKind ExtAttr = TLI.getExtAttrForI32Param(Signed);
   if (ExtAttr != Attribute::None && !F.hasParamAttribute(ArgNo, ExtAttr))
     F.addParamAttr(ArgNo, ExtAttr);
+}
+
+static void setRetExtAttr(Function &F,
+                          const TargetLibraryInfo &TLI, bool Signed = true) {
+  Attribute::AttrKind ExtAttr = TLI.getExtAttrForI32Return(Signed);
+  if (ExtAttr != Attribute::None && !F.hasRetAttribute(ExtAttr))
+    F.addRetAttr(ExtAttr);
 }
 
 // Modeled after X86TargetLowering::markLibCallAttributes.
@@ -1314,6 +1322,8 @@ FunctionCallee llvm::getOrInsertLibFunc(Module *M, const TargetLibraryInfo &TLI,
     // on any target: A size_t argument (which may be an i32 on some targets)
     // should not trigger the assert below.
   case LibFunc_bcmp:
+    setRetExtAttr(*F, TLI);
+    break;
   case LibFunc_calloc:
   case LibFunc_fwrite:
   case LibFunc_malloc:

@@ -15,6 +15,7 @@ __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, uuid, detail::uuid_type, PI_DEVICE_
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, free_memory, pi_uint64, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, memory_clock_rate, pi_uint32, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, memory_bus_width, pi_uint32, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_compute_queue_indices, pi_int32, PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES)
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

@@ -53,7 +53,7 @@ public:
 
   /// Gets a InterfaceVarABIAttr.
   static InterfaceVarABIAttr get(uint32_t descriptorSet, uint32_t binding,
-                                 Optional<StorageClass> storageClass,
+                                 std::optional<StorageClass> storageClass,
                                  MLIRContext *context);
   static InterfaceVarABIAttr get(IntegerAttr descriptorSet, IntegerAttr binding,
                                  IntegerAttr storageClass);
@@ -68,7 +68,7 @@ public:
   uint32_t getBinding();
 
   /// Returns `spirv::StorageClass`.
-  Optional<StorageClass> getStorageClass();
+  std::optional<StorageClass> getStorageClass();
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               IntegerAttr descriptorSet, IntegerAttr binding,
@@ -138,9 +138,11 @@ public:
   using Base::Base;
 
   /// Gets a TargetEnvAttr instance.
-  static TargetEnvAttr get(VerCapExtAttr triple, Vendor vendorID,
-                           DeviceType deviceType, uint32_t deviceId,
-                           ResourceLimitsAttr limits);
+  static TargetEnvAttr get(VerCapExtAttr triple, ResourceLimitsAttr limits,
+                           ClientAPI clientAPI = ClientAPI::Unknown,
+                           Vendor vendorID = Vendor::Unknown,
+                           DeviceType deviceType = DeviceType::Unknown,
+                           uint32_t deviceId = kUnknownDeviceID);
 
   /// Returns the attribute kind's name (without the 'spirv.' prefix).
   static StringRef getKindName();
@@ -160,6 +162,9 @@ public:
   VerCapExtAttr::cap_range getCapabilities();
   /// Returns the target capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
+
+  /// Returns the client API.
+  ClientAPI getClientAPI() const;
 
   /// Returns the vendor ID.
   Vendor getVendorID() const;

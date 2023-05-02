@@ -13,21 +13,33 @@
 #include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
+
+struct TilingResult;
+
 namespace tensor {
 
-/// Populates `patterns` with patterns to wrap a tensor.pad op with an scf.if op
-/// to separate the cases where we don't need padding (all pad sizes are
-/// actually zeros) and where we indeed need padding.
-void populateSplitPaddingPatterns(RewritePatternSet &patterns,
-                                  PatternBenefit baseBenefit = 1);
+//===----------------------------------------------------------------------===//
+// Patterns
+//===----------------------------------------------------------------------===//
 
 /// Pattern to swap an `tensor.extract_slice` with its producer when the
 /// producer implements the `TilingInterface`. The pattern itself does not
 /// provide a mechanism to control where the application happens. With use of
 /// transform dialect that control is done within the transform dialect. Other
 /// use cases can inherit from this pattern and add necessary controls.
-FailureOr<Value> replaceExtractSliceWithTiledProducer(
+FailureOr<TilingResult> replaceExtractSliceWithTiledProducer(
     OpBuilder &builder, tensor::ExtractSliceOp sliceOp, OpResult producerOp);
+
+//===----------------------------------------------------------------------===//
+// Populate functions.
+//===----------------------------------------------------------------------===//
+
+/// Collects a set of patterns to rewrite ops within the tensor dialect.
+void populateExpandOpsPatterns(RewritePatternSet &patterns);
+
+/// Appends patterns for folding tensor aliasing ops into consumer load/store
+/// ops into `patterns`.
+void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
 
 /// Collects patterns to merge consecutive tensor.insert_slice/extract_slice
 /// into one. These patterns are in in this separate entry point because the
@@ -35,6 +47,19 @@ FailureOr<Value> replaceExtractSliceWithTiledProducer(
 /// tensor.extract_slice and tensor.insert_slice ops for creating the slices.
 void populateMergeConsecutiveInsertExtractSlicePatterns(
     RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that fold `tensor.expand_shape` and
+/// `tensor.collapse_shape` into other ops.
+void populateReassociativeReshapeFoldingPatterns(RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that fold tensor.empty with
+/// tensor.[extract_slice|cast|expand_shape|collapse_shape].
+void populateFoldTensorEmptyPatterns(RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that fold operations like `tensor.pad`
+/// and `tensor.extract_slice` into `tensor.pack` and `tensor.unpack` operations
+/// respectively.
+void populateFoldIntoPackAndUnpackPatterns(RewritePatternSet &patterns);
 
 } // namespace tensor
 } // namespace mlir

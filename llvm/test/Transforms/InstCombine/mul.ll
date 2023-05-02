@@ -137,7 +137,7 @@ define i32 @shl1_nuw_commute(i32 %A, i32 %B) {
 
 define i32 @shl1_nsw(i32 %A) {
 ; CHECK-LABEL: @shl1_nsw(
-; CHECK-NEXT:    [[SHL:%.*]] = shl i32 1, [[A:%.*]]
+; CHECK-NEXT:    [[SHL:%.*]] = shl nuw i32 1, [[A:%.*]]
 ; CHECK-NEXT:    [[C1:%.*]] = shl i32 [[SHL]], [[A]]
 ; CHECK-NEXT:    ret i32 [[C1]]
 ;
@@ -214,9 +214,9 @@ define i5 @shl1_nsw_nsw_increment_commute(i5 %x, i5 %y) {
 
 define i32 @shl1_increment_use(i32 %x, i32 %y) {
 ; CHECK-LABEL: @shl1_increment_use(
-; CHECK-NEXT:    [[POW2X:%.*]] = shl i32 1, [[X:%.*]]
+; CHECK-NEXT:    [[POW2X:%.*]] = shl nuw i32 1, [[X:%.*]]
 ; CHECK-NEXT:    call void @use32(i32 [[POW2X]])
-; CHECK-NEXT:    [[X1:%.*]] = add i32 [[POW2X]], 1
+; CHECK-NEXT:    [[X1:%.*]] = add nuw i32 [[POW2X]], 1
 ; CHECK-NEXT:    [[M:%.*]] = mul i32 [[X1]], [[Y:%.*]]
 ; CHECK-NEXT:    ret i32 [[M]]
 ;
@@ -1260,8 +1260,8 @@ define i64 @test_mul_canonicalize_neg_is_not_undone(i64 %L1) {
 define i32 @negate_if_true(i32 %x, i1 %cond) {
 ; CHECK-LABEL: @negate_if_true(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sub i32 0, [[X:%.*]]
-; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[COND:%.*]], i32 [[TMP1]], i32 [[X]]
-; CHECK-NEXT:    ret i32 [[TMP2]]
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[COND:%.*]], i32 [[TMP1]], i32 [[X]]
+; CHECK-NEXT:    ret i32 [[R]]
 ;
   %sel = select i1 %cond, i32 -1, i32 1
   %r = mul i32 %sel, %x
@@ -1271,8 +1271,8 @@ define i32 @negate_if_true(i32 %x, i1 %cond) {
 define i32 @negate_if_false(i32 %x, i1 %cond) {
 ; CHECK-LABEL: @negate_if_false(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sub i32 0, [[X:%.*]]
-; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[COND:%.*]], i32 [[X]], i32 [[TMP1]]
-; CHECK-NEXT:    ret i32 [[TMP2]]
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[COND:%.*]], i32 [[X]], i32 [[TMP1]]
+; CHECK-NEXT:    ret i32 [[R]]
 ;
   %sel = select i1 %cond, i32 1, i32 -1
   %r = mul i32 %sel, %x
@@ -1283,8 +1283,8 @@ define <2 x i8> @negate_if_true_commute(<2 x i8> %px, i1 %cond) {
 ; CHECK-LABEL: @negate_if_true_commute(
 ; CHECK-NEXT:    [[X:%.*]] = sdiv <2 x i8> <i8 42, i8 42>, [[PX:%.*]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = sub nsw <2 x i8> zeroinitializer, [[X]]
-; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[COND:%.*]], <2 x i8> [[TMP1]], <2 x i8> [[X]]
-; CHECK-NEXT:    ret <2 x i8> [[TMP2]]
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[COND:%.*]], <2 x i8> [[TMP1]], <2 x i8> [[X]]
+; CHECK-NEXT:    ret <2 x i8> [[R]]
 ;
   %x = sdiv <2 x i8> <i8 42, i8 42>, %px  ; thwart complexity-based canonicalization
   %sel = select i1 %cond, <2 x i8> <i8 -1, i8 -1>, <2 x i8> <i8 1, i8 1>
@@ -1296,8 +1296,8 @@ define <2 x i8> @negate_if_false_commute(<2 x i8> %px, <2 x i1> %cond) {
 ; CHECK-LABEL: @negate_if_false_commute(
 ; CHECK-NEXT:    [[X:%.*]] = sdiv <2 x i8> <i8 42, i8 5>, [[PX:%.*]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = sub <2 x i8> zeroinitializer, [[X]]
-; CHECK-NEXT:    [[TMP2:%.*]] = select <2 x i1> [[COND:%.*]], <2 x i8> [[X]], <2 x i8> [[TMP1]]
-; CHECK-NEXT:    ret <2 x i8> [[TMP2]]
+; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[COND:%.*]], <2 x i8> [[X]], <2 x i8> [[TMP1]]
+; CHECK-NEXT:    ret <2 x i8> [[R]]
 ;
   %x = sdiv <2 x i8> <i8 42, i8 5>, %px  ; thwart complexity-based canonicalization
   %sel = select <2 x i1> %cond, <2 x i8> <i8 1, i8 undef>, <2 x i8> <i8 -1, i8 -1>

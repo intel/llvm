@@ -17,6 +17,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -283,6 +284,13 @@ public:
     return m_resume_id == m_last_user_expression_resume;
   }
 
+  bool IsRunningExpression() const {
+    // Don't return true if we are no longer running an expression:
+    if (m_running_user_expression || m_running_utility_function)
+      return true;
+    return false;
+  }
+
   void SetRunningUserExpression(bool on) {
     if (on)
       m_running_user_expression++;
@@ -403,9 +411,9 @@ public:
 
     ~ProcessEventData() override;
 
-    static ConstString GetFlavorString();
+    static llvm::StringRef GetFlavorString();
 
-    ConstString GetFlavor() const override;
+    llvm::StringRef GetFlavor() const override;
 
     lldb::ProcessSP GetProcessSP() const { return m_process_wp.lock(); }
 
@@ -1321,6 +1329,15 @@ public:
     return StructuredData::ObjectSP();
   }
 
+  // Get information about the launch state of the process, if possible.
+  //
+  // On Darwin systems, libdyld can report on process state, most importantly
+  // the startup stages where the system library is not yet initialized.
+  virtual lldb_private::StructuredData::ObjectSP
+  GetDynamicLoaderProcessState() {
+    return {};
+  }
+
   /// Print a user-visible warning about a module being built with
   /// optimization
   ///
@@ -1808,20 +1825,35 @@ public:
   virtual Status
   GetMemoryRegions(lldb_private::MemoryRegionInfos &region_list);
 
-  virtual Status GetWatchpointSupportInfo(uint32_t &num) {
-    Status error;
-    num = 0;
-    error.SetErrorString("Process::GetWatchpointSupportInfo() not supported");
-    return error;
+  /// Get the number of watchpoints supported by this target.
+  ///
+  /// We may be able to determine the number of watchpoints available
+  /// on this target; retrieve this value if possible.
+  ///
+  /// This number may be less than the number of watchpoints a user
+  /// can specify. This is because a single user watchpoint may require
+  /// multiple watchpoint slots to implement. Due to the size
+  /// and/or alignment of objects.
+  ///
+  /// \return
+  ///     Returns the number of watchpoints, if available.
+  virtual std::optional<uint32_t> GetWatchpointSlotCount() {
+    return std::nullopt;
   }
 
-  virtual Status GetWatchpointSupportInfo(uint32_t &num, bool &after) {
-    Status error;
-    num = 0;
-    after = true;
-    error.SetErrorString("Process::GetWatchpointSupportInfo() not supported");
-    return error;
-  }
+  /// Whether lldb will be notified about watchpoints after
+  /// the instruction has completed executing, or if the
+  /// instruction is rolled back and it is notified before it
+  /// executes.
+  /// The default behavior is "exceptions received after instruction
+  /// has executed", except for certain CPU architectures.
+  /// Process subclasses may override this if they have additional
+  /// information.
+  ///
+  /// \return
+  ///     Returns true for targets where lldb is notified after
+  ///     the instruction has completed executing.
+  bool GetWatchpointReportedAfter();
 
   lldb::ModuleSP ReadModuleFromMemory(const FileSpec &file_spec,
                                       lldb::addr_t header_addr,
@@ -2107,7 +2139,7 @@ public:
 
   // Queue Queries
 
-  void UpdateQueueListIfNeeded();
+  virtual void UpdateQueueListIfNeeded();
 
   QueueList &GetQueueList() {
     UpdateQueueListIfNeeded();
@@ -2517,6 +2549,8 @@ void PruneThreadPlans();
   lldb::StructuredDataPluginSP
   GetStructuredDataPlugin(ConstString type_name) const;
 
+  virtual void *GetImplementation() { return nullptr; }
+
 protected:
   friend class Trace;
 
@@ -2652,6 +2686,24 @@ protected:
     return Status("Process::DoGetMemoryRegionInfo() not supported");
   }
 
+  /// Provide an override value in the subclass for lldb's
+  /// CPU-based logic for whether watchpoint exceptions are
+  /// received before or after an instruction executes.
+  ///
+  /// If a Process subclass needs to override this architecture-based
+  /// result, it may do so by overriding this method.
+  ///
+  /// \return
+  ///     No boolean returned means there is no override of the
+  ///     default architecture-based behavior.
+  ///     true is returned for targets where watchpoints are reported
+  ///     after the instruction has completed.
+  ///     false is returned for targets where watchpoints are reported
+  ///     before the instruction executes.
+  virtual std::optional<bool> DoGetWatchpointReportedAfter() {
+    return std::nullopt;
+  }
+
   lldb::StateType GetPrivateState();
 
   /// The "private" side of resuming a process.  This doesn't alter the state
@@ -2695,7 +2747,7 @@ protected:
   };
 
   void SetNextEventAction(Process::NextEventAction *next_event_action) {
-    if (m_next_event_action_up.get())
+    if (m_next_event_action_up)
       m_next_event_action_up->HandleBeingUnshipped();
 
     m_next_event_action_up.reset(next_event_action);

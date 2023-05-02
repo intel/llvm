@@ -17,6 +17,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <mutex>
+#include <optional>
 
 namespace clang {
 namespace tooling {
@@ -39,7 +40,7 @@ struct CachedFileContents {
   SmallVector<dependency_directives_scan::Token, 10> DepDirectiveTokens;
   /// Accessor to the directive tokens that's atomic to avoid data races.
   /// \p CachedFileContents has ownership of the pointer.
-  std::atomic<const Optional<DependencyDirectivesTy> *> DepDirectives;
+  std::atomic<const std::optional<DependencyDirectivesTy> *> DepDirectives;
 
   ~CachedFileContents() { delete DepDirectives.load(); }
 };
@@ -88,17 +89,16 @@ public:
 
   /// \returns The scanned preprocessor directive tokens of the file that are
   /// used to speed up preprocessing, if available.
-  Optional<ArrayRef<dependency_directives_scan::Directive>>
+  std::optional<ArrayRef<dependency_directives_scan::Directive>>
   getDirectiveTokens() const {
     assert(!isError() && "error");
     assert(!isDirectory() && "not a file");
     assert(Contents && "contents not initialized");
     if (auto *Directives = Contents->DepDirectives.load()) {
       if (Directives->has_value())
-        return ArrayRef<dependency_directives_scan::Directive>(
-            Directives->value());
+        return ArrayRef<dependency_directives_scan::Directive>(**Directives);
     }
-    return None;
+    return std::nullopt;
   }
 
   /// \returns The error.
@@ -263,11 +263,37 @@ public:
 
   StringRef getContents() const { return Entry.getOriginalContents(); }
 
-  Optional<ArrayRef<dependency_directives_scan::Directive>>
+  std::optional<ArrayRef<dependency_directives_scan::Directive>>
   getDirectiveTokens() const {
     return Entry.getDirectiveTokens();
   }
 };
+
+enum class ScanFile { Yes, No };
+enum class CacheStatFailure { Yes, No };
+
+struct PathPolicy {
+  /// Implies caching of all open and stat results.
+  unsigned Enable : 1;
+  /// Controls whether a file will be scanned for dependency directives.
+  unsigned ScanFile : 1;
+  /// Explicitly disables stat failure caching when false.
+  unsigned CacheStatFailure : 1;
+
+  static PathPolicy fallThrough() { return {false, false, false}; }
+
+  static PathPolicy cache(enum ScanFile SF,
+                          enum CacheStatFailure CSF = CacheStatFailure::Yes) {
+    return {true, SF == ScanFile::Yes, CSF == CacheStatFailure::Yes};
+  }
+
+private:
+  PathPolicy(bool E, bool SF, bool CSF)
+      : Enable(E), ScanFile(SF), CacheStatFailure(CSF) {}
+};
+
+/// Determine caching and scanning behavior based on file extension.
+PathPolicy getPolicy(StringRef Filename);
 
 /// A virtual file system optimized for the dependency discovery.
 ///
@@ -293,24 +319,25 @@ public:
   ///
   /// Attempts to use the local and shared caches first, then falls back to
   /// using the underlying filesystem.
-  llvm::ErrorOr<EntryRef>
-  getOrCreateFileSystemEntry(StringRef Filename,
-                             bool DisableDirectivesScanning = false);
+  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename) {
+    return getOrCreateFileSystemEntry(Filename, getPolicy(Filename));
+  }
 
 private:
-  /// Check whether the file should be scanned for preprocessor directives.
-  bool shouldScanForDirectives(StringRef Filename);
+  /// Same as the public version, but with explicit PathPolicy parameter.
+  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename,
+                                                     PathPolicy Policy);
 
   /// For a filename that's not yet associated with any entry in the caches,
   /// uses the underlying filesystem to either look up the entry based in the
   /// shared cache indexed by unique ID, or creates new entry from scratch.
   llvm::ErrorOr<const CachedFileSystemEntry &>
-  computeAndStoreResult(StringRef Filename);
+  computeAndStoreResult(StringRef Filename, PathPolicy Policy);
 
   /// Scan for preprocessor directives for the given entry if necessary and
   /// returns a wrapper object with reference semantics.
   EntryRef scanForDirectivesIfNecessary(const CachedFileSystemEntry &Entry,
-                                        StringRef Filename, bool Disable);
+                                        StringRef Filename, PathPolicy Policy);
 
   /// Represents a filesystem entry that has been stat-ed (and potentially read)
   /// and that's about to be inserted into the cache as `CachedFileSystemEntry`.
@@ -374,6 +401,13 @@ private:
                                     const CachedFileSystemEntry &Entry) {
     return SharedCache.getShardForFilename(Filename)
         .getOrInsertEntryForFilename(Filename, Entry);
+  }
+
+  void printImpl(raw_ostream &OS, PrintType Type,
+                 unsigned IndentLevel) const override {
+    printIndent(OS, IndentLevel);
+    OS << "DependencyScanningFilesystem\n";
+    getUnderlyingFS().print(OS, Type, IndentLevel + 1);
   }
 
   /// The global cache shared between worker threads.

@@ -1,4 +1,4 @@
-; RUN: opt -S -loop-simplify -loop-fusion -debug-only=loop-fusion < %s 2>&1 | FileCheck %s
+; RUN: opt -S -passes=loop-simplify,loop-fusion -debug-only=loop-fusion < %s 2>&1 | FileCheck %s
 ; REQUIRES: asserts
 ; CHECK: Safe to hoist.
 
@@ -7,7 +7,7 @@ define void @hoist_preheader(i32 %N) {
 ; CHECK-LABEL: @hoist_preheader(
 ; CHECK-NEXT:  pre1:
 ; CHECK-NEXT:    [[PTR:%.*]] = alloca i32, align 4
-; CHECK-NEXT:    store i32 3, i32* [[PTR]], align 4
+; CHECK-NEXT:    store i32 3, ptr [[PTR]], align 4
 ; CHECK-NEXT:    br label [[BODY1:%.*]]
 ; CHECK:       body1:
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[BODY1]] ], [ 0, [[PRE1:%.*]] ]
@@ -31,7 +31,7 @@ body1:  ; preds = %pre1, %body1
   br i1 %cond, label %body1, label %pre2
 
 pre2:
-  store i32 3, i32* %ptr
+  store i32 3, ptr %ptr
   br label %body2
 
 body2:  ; preds = %pre2, %body2

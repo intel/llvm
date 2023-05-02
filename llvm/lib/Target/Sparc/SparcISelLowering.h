@@ -34,6 +34,8 @@ namespace llvm {
     SELECT_ICC, // Select between two values using the current ICC flags.
     SELECT_XCC, // Select between two values using the current XCC flags.
     SELECT_FCC, // Select between two values using the current FCC flags.
+    SELECT_REG, // Select between two values using the comparison of a register
+                // with zero.
 
     Hi,
     Lo, // Hi/Lo operations, typically on a global address.
@@ -44,7 +46,7 @@ namespace llvm {
     XTOF, // Int64 to FP within a FP register.
 
     CALL,            // A call instruction.
-    RET_FLAG,        // Return with a flag operand.
+    RET_GLUE,        // Return with a glue operand.
     GLOBAL_BASE_REG, // Global base reg for PIC.
     FLUSHW,          // FLUSH register windows to stack.
 

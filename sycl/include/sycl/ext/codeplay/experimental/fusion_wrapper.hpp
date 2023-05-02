@@ -17,9 +17,7 @@ namespace detail {
 class fusion_wrapper_impl;
 }
 
-namespace ext {
-namespace codeplay {
-namespace experimental {
+namespace ext::codeplay::experimental {
 
 ///
 /// A wrapper wrapping a sycl::queue to provide access to the kernel fusion API,
@@ -91,8 +89,6 @@ public:
 private:
   std::shared_ptr<detail::fusion_wrapper_impl> MImpl;
 };
-} // namespace experimental
-} // namespace codeplay
-} // namespace ext
+} // namespace ext::codeplay::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

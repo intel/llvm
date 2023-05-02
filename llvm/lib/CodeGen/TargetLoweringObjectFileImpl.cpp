@@ -16,7 +16,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -65,11 +64,16 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <string>
 
 using namespace llvm;
 using namespace dwarf;
+
+static cl::opt<bool> JumpTableInFunctionSection(
+    "jumptable-in-function-section", cl::Hidden, cl::init(false),
+    cl::desc("Putting Jump Table in function section"));
 
 static void GetObjCImageInfo(Module &M, unsigned &Version, unsigned &Flags,
                              StringRef &Section) {
@@ -182,26 +186,14 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     // The small model guarantees static code/data size < 4GB, but not where it
     // will be in memory. Most of these could end up >2GB away so even a signed
     // pc-relative 32-bit address is insufficient, theoretically.
-    if (isPositionIndependent()) {
-      // ILP32 uses sdata4 instead of sdata8
-      if (TgtM.getTargetTriple().getEnvironment() == Triple::GNUILP32) {
-        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-                              dwarf::DW_EH_PE_sdata4;
-        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
-        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-                        dwarf::DW_EH_PE_sdata4;
-      } else {
-        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-                              dwarf::DW_EH_PE_sdata8;
-        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
-        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-                        dwarf::DW_EH_PE_sdata8;
-      }
-    } else {
-      PersonalityEncoding = dwarf::DW_EH_PE_absptr;
-      LSDAEncoding = dwarf::DW_EH_PE_absptr;
-      TTypeEncoding = dwarf::DW_EH_PE_absptr;
-    }
+    //
+    // Use DW_EH_PE_indirect even for -fno-pic to avoid copy relocations.
+    LSDAEncoding = dwarf::DW_EH_PE_pcrel |
+                   (TgtM.getTargetTriple().getEnvironment() == Triple::GNUILP32
+                        ? dwarf::DW_EH_PE_sdata4
+                        : dwarf::DW_EH_PE_sdata8);
+    PersonalityEncoding = LSDAEncoding | dwarf::DW_EH_PE_indirect;
+    TTypeEncoding = LSDAEncoding | dwarf::DW_EH_PE_indirect;
     break;
   case Triple::lanai:
     LSDAEncoding = dwarf::DW_EH_PE_absptr;
@@ -434,7 +426,7 @@ void TargetLoweringObjectFileELF::emitPersonalityValue(
                                                    ELF::SHT_PROGBITS, Flags, 0);
   unsigned Size = DL.getPointerSize();
   Streamer.switchSection(Sec);
-  Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0).value());
+  Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0));
   Streamer.emitSymbolAttribute(Label, MCSA_ELF_TypeObject);
   const MCExpr *E = MCConstantExpr::create(Size, getContext());
   Streamer.emitELFSize(Label, E);
@@ -591,14 +583,7 @@ static const MCSymbolELF *getLinkedToSymbol(const GlobalObject *GO,
   if (!MD)
     return nullptr;
 
-  const MDOperand &Op = MD->getOperand(0);
-  if (!Op.get())
-    return nullptr;
-
-  auto *VM = dyn_cast<ValueAsMetadata>(Op);
-  if (!VM)
-    report_fatal_error("MD_associated operand is not ValueAsMetadata");
-
+  auto *VM = cast<ValueAsMetadata>(MD->getOperand(0).get());
   auto *OtherGV = dyn_cast<GlobalValue>(VM->getValue());
   return OtherGV ? dyn_cast<MCSymbolELF>(TM.getSymbol(OtherGV)) : nullptr;
 }
@@ -670,7 +655,7 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
 
   bool HasPrefix = false;
   if (const auto *F = dyn_cast<Function>(GO)) {
-    if (Optional<StringRef> Prefix = F->getSectionPrefix()) {
+    if (std::optional<StringRef> Prefix = F->getSectionPrefix()) {
       raw_svector_ostream(Name) << '.' << *Prefix;
       HasPrefix = true;
     }
@@ -1217,11 +1202,7 @@ void TargetLoweringObjectFileMachO::Initialize(MCContext &Ctx,
 
 MCSection *TargetLoweringObjectFileMachO::getStaticDtorSection(
     unsigned Priority, const MCSymbol *KeySym) const {
-  // TODO(yln): Remove -lower-global-dtors-via-cxa-atexit fallback flag
-  // (LowerGlobalDtorsViaCxaAtExit) and always issue a fatal error here.
-  if (TM->Options.LowerGlobalDtorsViaCxaAtExit)
-    report_fatal_error("@llvm.global_dtors should have been lowered already");
-  return StaticDtorSection;
+  report_fatal_error("@llvm.global_dtors should have been lowered already");
 }
 
 void TargetLoweringObjectFileMachO::emitModuleMetadata(MCStreamer &Streamer,
@@ -1281,6 +1262,20 @@ MCSection *TargetLoweringObjectFileMachO::getExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
 
   StringRef SectionName = GO->getSection();
+
+  const GlobalVariable *GV = dyn_cast<GlobalVariable>(GO);
+  if (GV && GV->hasImplicitSection()) {
+    auto Attrs = GV->getAttributes();
+    if (Attrs.hasAttribute("bss-section") && Kind.isBSS()) {
+      SectionName = Attrs.getAttribute("bss-section").getValueAsString();
+    } else if (Attrs.hasAttribute("rodata-section") && Kind.isReadOnly()) {
+      SectionName = Attrs.getAttribute("rodata-section").getValueAsString();
+    } else if (Attrs.hasAttribute("relro-section") && Kind.isReadOnlyWithRel()) {
+      SectionName = Attrs.getAttribute("relro-section").getValueAsString();
+    } else if (Attrs.hasAttribute("data-section") && Kind.isData()) {
+      SectionName = Attrs.getAttribute("data-section").getValueAsString();
+    }
+  }
 
   const Function *F = dyn_cast<Function>(GO);
   if (F && F->hasFnAttribute("implicit-section-name")) {
@@ -1720,7 +1715,7 @@ MCSection *TargetLoweringObjectFileCOFF::SelectSectionForGlobal(
       StringRef COMDATSymName = Sym->getName();
 
       if (const auto *F = dyn_cast<Function>(GO))
-        if (Optional<StringRef> Prefix = F->getSectionPrefix())
+        if (std::optional<StringRef> Prefix = F->getSectionPrefix())
           raw_svector_ostream(Name) << '$' << *Prefix;
 
       // Append "$symbol" to the section name *before* IR-level mangling is
@@ -1794,6 +1789,19 @@ MCSection *TargetLoweringObjectFileCOFF::getSectionForJumpTable(
   return getContext().getCOFFSection(
       SecName, Characteristics, Kind, COMDATSymName,
       COFF::IMAGE_COMDAT_SELECT_ASSOCIATIVE, UniqueID);
+}
+
+bool TargetLoweringObjectFileCOFF::shouldPutJumpTableInFunctionSection(
+    bool UsesLabelDifference, const Function &F) const {
+  if (TM->getTargetTriple().getArch() == Triple::x86_64) {
+    if (!JumpTableInFunctionSection) {
+      // We can always create relative relocations, so use another section
+      // that can be marked non-executable.
+      return false;
+    }
+  }
+  return TargetLoweringObjectFile::shouldPutJumpTableInFunctionSection(
+    UsesLabelDifference, F);
 }
 
 void TargetLoweringObjectFileCOFF::emitModuleMetadata(MCStreamer &Streamer,
@@ -2292,15 +2300,15 @@ TargetLoweringObjectFileXCOFF::getTargetSymbol(const GlobalValue *GV,
   // function entry point. We choose to always return a function descriptor
   // here.
   if (const GlobalObject *GO = dyn_cast<GlobalObject>(GV)) {
+    if (GO->isDeclarationForLinker())
+      return cast<MCSectionXCOFF>(getSectionForExternalReference(GO, TM))
+          ->getQualNameSymbol();
+
     if (const GlobalVariable *GVar = dyn_cast<GlobalVariable>(GV))
       if (GVar->hasAttribute("toc-data"))
         return cast<MCSectionXCOFF>(
                    SectionForGlobal(GVar, SectionKind::getData(), TM))
             ->getQualNameSymbol();
-
-    if (GO->isDeclarationForLinker())
-      return cast<MCSectionXCOFF>(getSectionForExternalReference(GO, TM))
-          ->getQualNameSymbol();
 
     SectionKind GOKind = getKindForGlobal(GO, TM);
     if (GOKind.isText())
@@ -2335,8 +2343,11 @@ MCSection *TargetLoweringObjectFileXCOFF::getExplicitSectionGlobal(
   XCOFF::StorageMappingClass MappingClass;
   if (Kind.isText())
     MappingClass = XCOFF::XMC_PR;
-  else if (Kind.isData() || Kind.isReadOnlyWithRel() || Kind.isBSS())
+  else if (Kind.isData() || Kind.isBSS())
     MappingClass = XCOFF::XMC_RW;
+  else if (Kind.isReadOnlyWithRel())
+    MappingClass =
+        TM.Options.XCOFFReadOnlyPointers ? XCOFF::XMC_RO : XCOFF::XMC_RW;
   else if (Kind.isReadOnly())
     MappingClass = XCOFF::XMC_RO;
   else
@@ -2359,6 +2370,10 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForExternalReference(
       isa<Function>(GO) ? XCOFF::XMC_DS : XCOFF::XMC_UA;
   if (GO->isThreadLocal())
     SMC = XCOFF::XMC_UL;
+
+  if (const GlobalVariable *GVar = dyn_cast<GlobalVariable>(GO))
+    if (GVar->hasAttribute("toc-data"))
+      SMC = XCOFF::XMC_TD;
 
   // Externals go into a csect of type ER.
   return getContext().getXCOFFSection(
@@ -2417,9 +2432,18 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
     return TextSection;
   }
 
-  // TODO: We may put Kind.isReadOnlyWithRel() under option control, because
-  // user may want to have read-only data with relocations placed into a
-  // read-only section by the compiler.
+  if (TM.Options.XCOFFReadOnlyPointers && Kind.isReadOnlyWithRel()) {
+    if (!TM.getDataSections())
+      report_fatal_error(
+          "ReadOnlyPointers is supported only if data sections is turned on");
+
+    SmallString<128> Name;
+    getNameWithPrefix(Name, GO, TM);
+    return getContext().getXCOFFSection(
+        Name, SectionKind::getReadOnly(),
+        XCOFF::CsectProperties(XCOFF::XMC_RO, XCOFF::XTY_SD));
+  }
+
   // For BSS kind, zero initialized data must be emitted to the .data section
   // because external linkage control sections that get mapped to the .bss
   // section will be linked as tentative defintions, which is only appropriate

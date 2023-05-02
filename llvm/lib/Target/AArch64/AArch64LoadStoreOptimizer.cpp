@@ -50,6 +50,7 @@
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <optional>
 
 using namespace llvm;
 
@@ -98,7 +99,7 @@ using LdStPairFlags = struct LdStPairFlags {
   // If not none, RenameReg can be used to rename the result register of the
   // first store in a pair. Currently this only works when merging stores
   // forward.
-  Optional<MCPhysReg> RenameReg = None;
+  std::optional<MCPhysReg> RenameReg;
 
   LdStPairFlags() = default;
 
@@ -109,8 +110,8 @@ using LdStPairFlags = struct LdStPairFlags {
   int getSExtIdx() const { return SExtIdx; }
 
   void setRenameReg(MCPhysReg R) { RenameReg = R; }
-  void clearRenameReg() { RenameReg = None; }
-  Optional<MCPhysReg> getRenameReg() const { return RenameReg; }
+  void clearRenameReg() { RenameReg = std::nullopt; }
+  std::optional<MCPhysReg> getRenameReg() const { return RenameReg; }
 };
 
 struct AArch64LoadStoreOpt : public MachineFunctionPass {
@@ -236,10 +237,10 @@ static bool isTagStore(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   default:
     return false;
-  case AArch64::STGOffset:
-  case AArch64::STZGOffset:
-  case AArch64::ST2GOffset:
-  case AArch64::STZ2GOffset:
+  case AArch64::STGi:
+  case AArch64::STZGi:
+  case AArch64::ST2Gi:
+  case AArch64::STZ2Gi:
     return true;
   }
 }
@@ -464,13 +465,13 @@ static unsigned getPreIndexedOpcode(unsigned Opc) {
     return AArch64::STPWpre;
   case AArch64::STPXi:
     return AArch64::STPXpre;
-  case AArch64::STGOffset:
+  case AArch64::STGi:
     return AArch64::STGPreIndex;
-  case AArch64::STZGOffset:
+  case AArch64::STZGi:
     return AArch64::STZGPreIndex;
-  case AArch64::ST2GOffset:
+  case AArch64::ST2Gi:
     return AArch64::ST2GPreIndex;
-  case AArch64::STZ2GOffset:
+  case AArch64::STZ2Gi:
     return AArch64::STZ2GPreIndex;
   case AArch64::STGPi:
     return AArch64::STGPpre;
@@ -543,13 +544,13 @@ static unsigned getPostIndexedOpcode(unsigned Opc) {
     return AArch64::STPWpost;
   case AArch64::STPXi:
     return AArch64::STPXpost;
-  case AArch64::STGOffset:
+  case AArch64::STGi:
     return AArch64::STGPostIndex;
-  case AArch64::STZGOffset:
+  case AArch64::STZGi:
     return AArch64::STZGPostIndex;
-  case AArch64::ST2GOffset:
+  case AArch64::ST2Gi:
     return AArch64::ST2GPostIndex;
-  case AArch64::STZ2GOffset:
+  case AArch64::STZ2Gi:
     return AArch64::STZ2GPostIndex;
   case AArch64::STGPi:
     return AArch64::STGPpost;
@@ -680,10 +681,10 @@ static bool isMergeableLdStUpdate(MachineInstr &MI) {
   case AArch64::LDRWui:
   case AArch64::LDRHHui:
   case AArch64::LDRBBui:
-  case AArch64::STGOffset:
-  case AArch64::STZGOffset:
-  case AArch64::ST2GOffset:
-  case AArch64::STZ2GOffset:
+  case AArch64::STGi:
+  case AArch64::STZGi:
+  case AArch64::ST2Gi:
+  case AArch64::STZ2Gi:
   case AArch64::STGPi:
   // Unscaled instructions.
   case AArch64::STURSi:
@@ -845,7 +846,7 @@ AArch64LoadStoreOpt::mergePairedInsns(MachineBasicBlock::iterator I,
 
   bool MergeForward = Flags.getMergeForward();
 
-  Optional<MCPhysReg> RenameReg = Flags.getRenameReg();
+  std::optional<MCPhysReg> RenameReg = Flags.getRenameReg();
   if (MergeForward && RenameReg) {
     MCRegister RegToRename = getLdStRegOp(*I).getReg();
     DefinedInBB.addReg(*RenameReg);
@@ -1469,7 +1470,7 @@ canRenameUpToDef(MachineInstr &FirstMI, LiveRegUnits &UsedInBetween,
 // * not used in \p UsedInBetween; UsedInBetween must contain all accessed
 //   registers in the range the rename register will be used,
 // * is available in all used register classes (checked using RequiredClasses).
-static Optional<MCPhysReg> tryToFindRegisterToRename(
+static std::optional<MCPhysReg> tryToFindRegisterToRename(
     const MachineFunction &MF, Register Reg, LiveRegUnits &DefinedInBB,
     LiveRegUnits &UsedInBetween,
     SmallPtrSetImpl<const TargetRegisterClass *> &RequiredClasses,
@@ -1508,7 +1509,7 @@ static Optional<MCPhysReg> tryToFindRegisterToRename(
   }
   LLVM_DEBUG(dbgs() << "No rename register found from "
                     << TRI->getRegClassName(RegClass) << "\n");
-  return None;
+  return std::nullopt;
 }
 
 /// Scan the instructions looking for a load/store that can be combined with the
@@ -1531,7 +1532,7 @@ AArch64LoadStoreOpt::findMatchingInsn(MachineBasicBlock::iterator I,
   int OffsetStride = IsUnscaled ? TII->getMemScale(FirstMI) : 1;
   bool IsPromotableZeroStore = isPromotableZeroStoreInst(FirstMI);
 
-  Optional<bool> MaybeCanRename;
+  std::optional<bool> MaybeCanRename;
   if (!EnableRenaming)
     MaybeCanRename = {false};
 
@@ -1718,9 +1719,10 @@ AArch64LoadStoreOpt::findMatchingInsn(MachineBasicBlock::iterator I,
                                                  RequiredClasses, TRI)};
 
             if (*MaybeCanRename) {
-              Optional<MCPhysReg> MaybeRenameReg = tryToFindRegisterToRename(
-                  *FirstMI.getParent()->getParent(), Reg, DefinedInBB,
-                  UsedInBetween, RequiredClasses, TRI);
+              std::optional<MCPhysReg> MaybeRenameReg =
+                  tryToFindRegisterToRename(*FirstMI.getParent()->getParent(),
+                                            Reg, DefinedInBB, UsedInBetween,
+                                            RequiredClasses, TRI);
               if (MaybeRenameReg) {
                 Flags.setRenameReg(*MaybeRenameReg);
                 Flags.setMergeForward(true);

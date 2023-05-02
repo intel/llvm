@@ -1,4 +1,4 @@
-//===-- RISCVInstrFormats.td - RISCV Instruction Formats ---*- tablegen -*-===//
+//===-- RISCVInstrFormats.td - RISC-V Instruction Formats --*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -47,7 +47,12 @@ def InstFormatCS     : InstFormat<13>;
 def InstFormatCA     : InstFormat<14>;
 def InstFormatCB     : InstFormat<15>;
 def InstFormatCJ     : InstFormat<16>;
-def InstFormatOther  : InstFormat<17>;
+def InstFormatCU     : InstFormat<17>;
+def InstFormatCLB    : InstFormat<18>;
+def InstFormatCLH    : InstFormat<19>;
+def InstFormatCSB    : InstFormat<20>;
+def InstFormatCSH    : InstFormat<21>;
+def InstFormatOther  : InstFormat<22>;
 
 class RISCVVConstraint<bits<3> val> {
   bits<3> Value = val;
@@ -148,6 +153,7 @@ def OPC_BRANCH    : RISCVOpcode<"BRANCH",    0b1100011>;
 def OPC_JALR      : RISCVOpcode<"JALR",      0b1100111>;
 def OPC_JAL       : RISCVOpcode<"JAL",       0b1101111>;
 def OPC_SYSTEM    : RISCVOpcode<"SYSTEM",    0b1110011>;
+def OPC_OP_P      : RISCVOpcode<"OP_P",      0b1110111>;
 def OPC_CUSTOM_3  : RISCVOpcode<"CUSTOM_3",  0b1111011>;
 
 class RVInst<dag outs, dag ins, string opcodestr, string argstr,
@@ -204,6 +210,13 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
 
   bit UsesMaskPolicy = 0;
   let TSFlags{18} = UsesMaskPolicy;
+
+  // Indicates that the result can be considered sign extended from bit 31. Some
+  // instructions with this flag aren't W instructions, but are either sign
+  // extended from a smaller size, always outputs a small integer, or put zeros
+  // in bits 63:31. Used by the SExtWRemoval pass.
+  bit IsSignExtendingOpW = 0;
+  let TSFlags{19} = IsSignExtendingOpW;
 }
 
 // Pseudo instructions

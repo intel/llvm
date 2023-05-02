@@ -904,7 +904,10 @@ void PPCFrameLowering::emitPrologue(MachineFunction &MF,
   // If we use STUX to update the stack pointer, we need the two scratch
   // registers TempReg and ScratchReg, we have to save LR here which is stored
   // in ScratchReg.
-  if (HasSTUX && MustSaveLR && !HasFastMFLR)
+  // If the offset can not be encoded into the store instruction, we also have
+  // to save LR here.
+  if (MustSaveLR && !HasFastMFLR &&
+      (HasSTUX || !isInt<16>(FrameSize + LROffset)))
     SaveLR(LROffset);
 
   // If FrameSize <= TLI.getStackProbeSize(MF), as POWER ABI requires backchain
@@ -1095,7 +1098,7 @@ void PPCFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   // Save the LR now.
-  if (!HasSTUX && MustSaveLR && !HasFastMFLR)
+  if (!HasSTUX && MustSaveLR && !HasFastMFLR && isInt<16>(FrameSize + LROffset))
     SaveLR(LROffset + FrameSize);
 
   // Add Call Frame Information for the instructions we generated above.
@@ -2491,8 +2494,8 @@ bool PPCFrameLowering::spillCalleeSavedRegisters(
           TII.storeRegToStackSlotNoUpd(MBB, MI, Reg, !IsLiveIn,
                                        I.getFrameIdx(), RC, TRI);
         else
-          TII.storeRegToStackSlot(MBB, MI, Reg, !IsLiveIn, I.getFrameIdx(),
-                                  RC, TRI);
+          TII.storeRegToStackSlot(MBB, MI, Reg, !IsLiveIn, I.getFrameIdx(), RC,
+                                  TRI, Register());
       }
     }
   }
@@ -2664,7 +2667,8 @@ bool PPCFrameLowering::restoreCalleeSavedRegisters(
           TII.loadRegFromStackSlotNoUpd(MBB, I, Reg, CSI[i].getFrameIdx(), RC,
                                         TRI);
         else
-          TII.loadRegFromStackSlot(MBB, I, Reg, CSI[i].getFrameIdx(), RC, TRI);
+          TII.loadRegFromStackSlot(MBB, I, Reg, CSI[i].getFrameIdx(), RC, TRI,
+                                   Register());
 
         assert(I != MBB.begin() &&
                "loadRegFromStackSlot didn't insert any code!");

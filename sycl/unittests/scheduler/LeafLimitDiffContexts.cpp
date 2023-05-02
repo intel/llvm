@@ -20,21 +20,21 @@
 
 using namespace sycl;
 
-inline constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+inline constexpr auto DisableCleanupName =
+    "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
 // correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 // Checks that in case of different contexts for deleted leaf and a new one
 // ConnectCmd will be created and scheduler will build the following dependency
-// structure: NewLeaf->EmptyCmd/ConnectCmd->OldLeaf
+// structure: NewLeaf->ConnectCmd->OldLeaf
 TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
   unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+      DisableCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
   // Ensure the mock plugin has been initialized prior to selecting a device.
   unittest::PiMock::EnsureMockPluginInitialized();
@@ -120,7 +120,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
            Leaves.end());
   }
 
-  // Check NewLeaf->EmptyCmd/ConnectCmd->OldLeaf structure
+  // Check NewLeaf->ConnectCmd->OldLeaf structure
   MockCommand *OldestLeaf = AddedLeaves.front().get();
   MockCommand *NewestLeaf = AddedLeaves.back().get();
   // The only user for oldLeaf must be ConnectCmd
@@ -136,10 +136,9 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // Check NewLeaf dependencies in depth by MUsers
   auto ConnectCmdIt = OldestLeaf->MUsers.begin();
   ASSERT_EQ((*ConnectCmdIt)->MUsers.size(), 1U);
-  auto EmptyCmdIt = (*ConnectCmdIt)->MUsers.begin();
   EXPECT_TRUE(std::any_of(NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
                           [&](const detail::DepDesc &DD) {
-                            return DD.MDepCommand == (*EmptyCmdIt);
+                            return DD.MDepCommand == (*ConnectCmdIt);
                           }));
   // ConnectCmd is created internally in scheduler and not a mock object
   // This fact leads to active scheduler shutdown process that deletes a

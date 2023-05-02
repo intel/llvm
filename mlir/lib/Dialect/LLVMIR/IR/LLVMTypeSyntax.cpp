@@ -147,7 +147,7 @@ static Type parseVectorType(AsmParser &parser) {
 
   // We parsed a generic dimension list, but vectors only support two forms:
   //  - single non-dynamic entry in the list (fixed vector);
-  //  - two elements, the first dynamic (indicated by ShapedType::kDynamicSize)
+  //  - two elements, the first dynamic (indicated by ShapedType::kDynamic)
   //  and the second
   //    non-dynamic (scalable vector).
   if (dims.empty() || dims.size() > 2 ||
@@ -356,9 +356,8 @@ Type mlir::LLVM::detail::parseType(DialectAsmParser &parser) {
   return type;
 }
 
-ParseResult LLVM::parsePrettyLLVMType(AsmParser &p, FailureOr<Type> &type) {
-  type.emplace();
-  return dispatchParse(p, *type);
+ParseResult LLVM::parsePrettyLLVMType(AsmParser &p, Type &type) {
+  return dispatchParse(p, type);
 }
 
 void LLVM::printPrettyLLVMType(AsmPrinter &p, Type type) {

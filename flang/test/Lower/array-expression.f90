@@ -574,8 +574,7 @@ end subroutine test18
 ! CHECK:         %[[VAL_2:.*]] = arith.constant 3 : index
 ! CHECK:         %[[VAL_3:.*]] = fir.shape %[[VAL_1]], %[[VAL_2]] : (index, index) -> !fir.shape<2>
 ! CHECK:         %[[VAL_4:.*]] = fir.array_load %[[VAL_0]](%[[VAL_3]]) : (!fir.ref<!fir.array<2x3xf32>>, !fir.shape<2>) -> !fir.array<2x3xf32>
-! CHECK:         %[[VAL_5:.*]] = arith.constant 42 : i32
-! CHECK:         %[[VAL_6:.*]] = fir.convert %[[VAL_5]] : (i32) -> f32
+! CHECK:         %[[VAL_6:.*]] = arith.constant 4.200000e+01 : f32
 ! CHECK:         %[[VAL_7:.*]] = arith.constant 1 : index
 ! CHECK:         %[[VAL_8:.*]] = arith.constant 0 : index
 ! CHECK:         %[[VAL_9:.*]] = arith.subi %[[VAL_1]], %[[VAL_7]] : index
@@ -999,20 +998,6 @@ end subroutine test19f
 ! CHECK:         %[[VAL_30:.*]] = fir.do_loop %[[VAL_31:.*]] = %[[VAL_28]] to %[[VAL_29]] step %[[VAL_27]] unordered iter_args(%[[VAL_32:.*]] = %[[VAL_15]]) -> (!fir.array<70x!fir.char<4,?>>) {
 ! CHECK:           %[[VAL_33:.*]] = fir.array_access %[[VAL_24]], %[[VAL_31]] : (!fir.array<140x!fir.char<2,13>>, index) -> !fir.ref<!fir.char<2,13>>
 ! CHECK:           %[[VAL_34:.*]] = fir.alloca !fir.char<4,?>(%[[VAL_4]] : index)
-! CHECK:           %[[VAL_35:.*]] = arith.cmpi slt, %[[VAL_4]], %[[VAL_4]] : index
-! CHECK:           %[[VAL_36:.*]] = arith.select %[[VAL_35]], %[[VAL_4]], %[[VAL_4]] : index
-! CHECK:           fir.char_convert %[[VAL_33]] for %[[VAL_36]] to %[[VAL_34]] : !fir.ref<!fir.char<2,13>>, index, !fir.ref<!fir.char<4,?>>
-! CHECK:           %[[VAL_37:.*]] = arith.constant 1 : index
-! CHECK:           %[[VAL_38:.*]] = arith.subi %[[VAL_4]], %[[VAL_37]] : index
-! CHECK:           %[[VAL_39:.*]] = arith.constant 32 : i32
-! CHECK:           %[[VAL_40:.*]] = fir.undefined !fir.char<4>
-! CHECK:           %[[VAL_41:.*]] = fir.insert_value %[[VAL_40]], %[[VAL_39]], [0 : index] : (!fir.char<4>, i32) -> !fir.char<4>
-! CHECK:           %[[VAL_42:.*]] = arith.constant 1 : index
-! CHECK:           fir.do_loop %[[VAL_43:.*]] = %[[VAL_36]] to %[[VAL_38]] step %[[VAL_42]] {
-! CHECK:             %[[VAL_44:.*]] = fir.convert %[[VAL_34]] : (!fir.ref<!fir.char<4,?>>) -> !fir.ref<!fir.array<?x!fir.char<4>>>
-! CHECK:             %[[VAL_45:.*]] = fir.coordinate_of %[[VAL_44]], %[[VAL_43]] : (!fir.ref<!fir.array<?x!fir.char<4>>>, index) -> !fir.ref<!fir.char<4>>
-! CHECK:             fir.store %[[VAL_41]] to %[[VAL_45]] : !fir.ref<!fir.char<4>>
-! CHECK:           }
 ! CHECK:           %[[VAL_46:.*]] = fir.array_access %[[VAL_32]], %[[VAL_31]] typeparams %[[VAL_11]] : (!fir.array<70x!fir.char<4,?>>, index, i32) -> !fir.ref<!fir.char<4,?>>
 ! CHECK:           %[[VAL_47:.*]] = fir.convert %[[VAL_11]] : (i32) -> index
 ! CHECK:           %[[VAL_48:.*]] = fir.convert %[[VAL_26]] : (i64) -> index
@@ -1171,6 +1156,110 @@ end subroutine test19h
 subroutine test_elemental_character_intrinsic(c1, c2)
   character(*) :: c1(10), c2(2:11)
   print *, scan(c1, c2)
+end subroutine
+
+! Check that the expression is folded, with the first operation being an add
+! between x and y, resulting in a new temporary array.
+!
+! CHECK-LABEL: func @_QPtest20a(
+! CHECK-SAME: %[[ARG0:.*]]: !fir.ref<!fir.array<4xi32>> {{.*}}, %[[ARG1:.*]]: !fir.ref<!fir.array<4xi32>> {{.*}}, %[[ARG2:.*]]: !fir.ref<!fir.array<4xi32>>
+! CHECK: %[[Z:.*]] = fir.array_load %[[ARG2]]({{.*}}) : (!fir.ref<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: %[[X:.*]] = fir.array_load %[[ARG0]]({{.*}}) : (!fir.ref<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: %[[Y:.*]] = fir.array_load %[[ARG1]]({{.*}}) : (!fir.ref<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: %[[TEMP:.*]] = fir.allocmem !fir.array<4xi32>
+! CHECK: %[[TEMP2:.*]] = fir.array_load %[[TEMP]]({{.*}}) : (!fir.heap<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: {{.*}} = fir.do_loop %[[I:.*]] = {{.*}} iter_args(%[[TEMP3:.*]] = %[[TEMP2]]) -> (!fir.array<4xi32>) {
+! CHECK:   %[[XI:.*]] = fir.array_fetch %[[X]], %[[I]] : (!fir.array<4xi32>, index) -> i32
+! CHECK:   %[[YI:.*]] = fir.array_fetch %[[Y]], %[[I]] : (!fir.array<4xi32>, index) -> i32
+! CHECK:   %[[ADD:.*]] = arith.addi %[[XI]], %[[YI]] : i32
+! CHECK:   {{.*}} = fir.array_update %[[TEMP3]], %[[ADD]], %[[I]] : (!fir.array<4xi32>, i32, index) -> !fir.array<4xi32>
+! CHECK: }
+subroutine test20a(x, y, z)
+  integer :: x(4), y(4), z(4)
+
+  z = (/x/) + (/y/)
+end subroutine
+
+! Check that the expression is not folded, with the first operations being
+! array constructions from x and y.
+!
+! CHECK-LABEL: func @_QPtest20b(
+! CHECK-SAME: %[[ARG0:.*]]: !fir.ref<!fir.array<4xi32>> {{.*}}, %[[ARG1:.*]]: !fir.ref<!fir.array<2x2xi32>> {{.*}}, %[[ARG2:.*]]: !fir.ref<!fir.array<4xi32>>
+! CHECK: %[[Z:.*]] = fir.array_load %[[ARG2]]({{.*}}) : (!fir.ref<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: %[[X:.*]] = fir.array_load %[[ARG0]]({{.*}}) : (!fir.ref<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: %[[TEMP:.*]] = fir.allocmem !fir.array<4xi32>
+! CHECK: %[[TEMP2:.*]] = fir.array_load %[[TEMP]]({{.*}}) : (!fir.heap<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: {{.*}} = fir.do_loop %[[I:.*]] = {{.*}} iter_args(%[[TEMP3:.*]] = %[[TEMP2]]) -> (!fir.array<4xi32>) {
+! CHECK:   %[[XI:.*]] = fir.array_fetch %[[X]], %[[I]] : (!fir.array<4xi32>, index) -> i32
+! CHECK:   {{.*}} = fir.array_update %[[TEMP3]], %[[XI]], %[[I]] : (!fir.array<4xi32>, i32, index) -> !fir.array<4xi32>
+! CHECK: }
+! CHECK: %[[Y:.*]] = fir.array_load %[[ARG1]]({{.*}}) : (!fir.ref<!fir.array<2x2xi32>>, !fir.shape<2>) -> !fir.array<2x2xi32>
+! CHECK: %[[TEMP4:.*]] = fir.allocmem !fir.array<2x2xi32>
+! CHECK: %[[TEMP5:.*]] = fir.array_load %[[TEMP4]]({{.*}}) : (!fir.heap<!fir.array<2x2xi32>>, !fir.shape<2>) -> !fir.array<2x2xi32>
+! CHECK: {{.*}} = fir.do_loop %[[I:.*]] = {{.*}} iter_args(%[[TEMP6:.*]] = %[[TEMP5]]) -> (!fir.array<2x2xi32>) {
+! CHECK:   {{.*}} = fir.do_loop %[[J:.*]] = {{.*}} iter_args(%[[TEMP7:.*]] = %[[TEMP6]]) -> (!fir.array<2x2xi32>) {
+! CHECK:     %[[YJI:.*]] = fir.array_fetch %[[Y]], %[[J]], %[[I]] : (!fir.array<2x2xi32>, index, index) -> i32
+! CHECK:     {{.*}} = fir.array_update %[[TEMP7]], %[[YJI]], %[[J]], %[[I]] : (!fir.array<2x2xi32>, i32, index, index) -> !fir.array<2x2xi32>
+! CHECK:   }
+! CHECK: }
+subroutine test20b(x, y, z)
+  integer :: x(4), y(2, 2), z(4)
+
+  z = (/x/) + (/y/)
+end subroutine
+
+! CHECK-LABEL: func @_QPtest20c(
+! CHECK-SAME: %[[ARG0:.*]]: !fir.ref<!fir.array<4xi32>> {{.*}}, %[[ARG1:.*]]: !fir.ref<!fir.array<2x2xi32>> {{.*}}
+
+! (/x/)
+! CHECK: %[[X:.*]] = fir.array_load %[[ARG0]]({{.*}}) : (!fir.ref<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: %[[ACX_MEM:.*]] = fir.allocmem !fir.array<4xi32>
+! CHECK: %[[ACX:.*]] = fir.array_load %[[ACX_MEM]]({{.*}}) : (!fir.heap<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+! CHECK: {{.*}} = fir.do_loop %[[I:.*]] = {{.*}} iter_args(%[[TEMP:.*]] = %[[ACX]]) -> (!fir.array<4xi32>) {
+! CHECK:   %[[XI:.*]] = fir.array_fetch %[[X]], %[[I]] : (!fir.array<4xi32>, index) -> i32
+! CHECK:   {{.*}} = fir.array_update %[[TEMP]], %[[XI]], %[[I]] : (!fir.array<4xi32>, i32, index) -> !fir.array<4xi32>
+! CHECK: }
+! CHECK: %[[T:.*]] = fir.coordinate_of %[[ACX_MEM2:.*]], %{{.*}} : (!fir.heap<!fir.array<4xi32>>, index) -> !fir.ref<i32>
+! CHECK: %[[T1:.*]] = fir.convert %[[T]] : (!fir.ref<i32>) -> !fir.ref<i8>
+! CHECK: %[[T2:.*]] = fir.convert %[[ACX_MEM]] : (!fir.heap<!fir.array<4xi32>>) -> !fir.ref<i8>
+! CHECK: fir.call @llvm.memcpy.p0.p0.i64(%[[T1]], %[[T2]], {{.*}})
+! CHECK: %[[ACX2:.*]] = fir.array_load %[[ACX_MEM2]]({{.*}}) : (!fir.heap<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+
+! (/y/)
+! CHECK: %[[Y:.*]] = fir.array_load %[[ARG1]]({{.*}}) : (!fir.ref<!fir.array<2x2xi32>>, !fir.shape<2>) -> !fir.array<2x2xi32>
+! CHECK: %[[ACY_MEM:.*]] = fir.allocmem !fir.array<2x2xi32>
+! CHECK: %[[ACY:.*]] = fir.array_load %[[ACY_MEM]]({{.*}}) : (!fir.heap<!fir.array<2x2xi32>>, !fir.shape<2>) -> !fir.array<2x2xi32>
+! CHECK: {{.*}} = fir.do_loop %[[I:.*]] = {{.*}} iter_args(%[[TEMP:.*]] = %[[ACY]]) -> (!fir.array<2x2xi32>) {
+! CHECK:   {{.*}} = fir.do_loop %[[J:.*]] = {{.*}} iter_args(%[[TEMP2:.*]] = %[[TEMP]]) -> (!fir.array<2x2xi32>) {
+! CHECK:     %[[YJI:.*]] = fir.array_fetch %[[Y]], %[[J]], %[[I]] : (!fir.array<2x2xi32>, index, index) -> i32
+! CHECK:     {{.*}} = fir.array_update %[[TEMP2]], %[[YJI]], %[[J]], %[[I]] : (!fir.array<2x2xi32>, i32, index, index) -> !fir.array<2x2xi32>
+! CHECK:   }
+! CHECK: }
+! CHECK: %[[T:.*]] = fir.coordinate_of %[[ACY_MEM2:.*]], {{.*}} : (!fir.heap<!fir.array<4xi32>>, index) -> !fir.ref<i32>
+! CHECK: %[[T1:.*]] = fir.convert %[[T]] : (!fir.ref<i32>) -> !fir.ref<i8>
+! CHECK: %[[T2:.*]] = fir.convert %[[ACY_MEM]] : (!fir.heap<!fir.array<2x2xi32>>) -> !fir.ref<i8>
+! CHECK: fir.call @llvm.memcpy.p0.p0.i64(%[[T1]], %[[T2]], {{.*}})
+! CHECK: %[[ACY2:.*]] = fir.array_load %[[ACY_MEM2]]({{.*}}) : (!fir.heap<!fir.array<4xi32>>, !fir.shape<1>) -> !fir.array<4xi32>
+
+! (/x/) /= (/y/)
+! CHECK: %[[RES_MEM:.*]] = fir.allocmem !fir.array<4x!fir.logical<4>>
+! CHECK: %[[RES:.*]] = fir.array_load %[[RES_MEM]]({{.*}}) : (!fir.heap<!fir.array<4x!fir.logical<4>>>, !fir.shape<1>) -> !fir.array<4x!fir.logical<4>>
+! CHECK: %{{.*}} = fir.do_loop %[[I:.*]] = {{.*}} iter_args(%[[TEMP:.*]] = %[[RES]]) -> (!fir.array<4x!fir.logical<4>>) {
+! CHECK:   %[[XI:.*]] = fir.array_fetch %[[ACX2]], %[[I]] : (!fir.array<4xi32>, index) -> i32
+! CHECK:   %[[YI:.*]] = fir.array_fetch %[[ACY2]], %[[I]] : (!fir.array<4xi32>, index) -> i32
+! CHECK:   %[[T1:.*]] = arith.cmpi ne, %[[XI]], %[[YI]] : i32
+! CHECK:   %[[T2:.*]] = fir.convert %[[T1]] : (i1) -> !fir.logical<4>
+! CHECK:   {{.*}} = fir.array_update %[[TEMP]], %[[T2]], %[[I]] : (!fir.array<4x!fir.logical<4>>, !fir.logical<4>, index) -> !fir.array<4x!fir.logical<4>>
+! CHECK: }
+
+! any((/x/) /= (/y/))
+! CHECK: %[[T1:.*]] = fir.embox %[[RES_MEM]]({{.*}}) : (!fir.heap<!fir.array<4x!fir.logical<4>>>, !fir.shape<1>) -> !fir.box<!fir.array<4x!fir.logical<4>>>
+! CHECK: %[[T2:.*]] = fir.convert %[[T1]] : (!fir.box<!fir.array<4x!fir.logical<4>>>) -> !fir.box<none>
+! CHECK: fir.call @_FortranAAny(%[[T2]], {{.*}}){{.*}} : (!fir.box<none>, !fir.ref<i8>, i32, i32) -> i1
+subroutine test20c(x, y)
+  integer :: x(4), y(2, 2)
+
+  if (any((/x/) /= (/y/))) print *, "different"
 end subroutine
 
 ! CHECK: func private @_QPbar(

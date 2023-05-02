@@ -236,7 +236,7 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   return Res;
 }
 
-MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
+MDNode *generateSpecConstDefaultValueMetadata(Value *Default) {
   LLVMContext &Ctx = Default->getContext();
   return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
@@ -880,7 +880,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               ConstantAsMetadata::get(llvm::Constant::getNullValue(PadTy))));
         }
         DefaultsMetadata.push_back(
-            generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
+            generateSpecConstDefaultValueMetadata(DefaultValue));
       }
 
       if (HasSretParameter) {

@@ -19,30 +19,11 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/UUID.h"
 #include "lldb/lldb-private.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/VersionTuple.h"
+#include <optional>
 
 namespace lldb_private {
-
-class ObjectFileJITDelegate {
-public:
-  ObjectFileJITDelegate() = default;
-
-  virtual ~ObjectFileJITDelegate() = default;
-
-  virtual lldb::ByteOrder GetByteOrder() const = 0;
-
-  virtual uint32_t GetAddressByteSize() const = 0;
-
-  virtual void PopulateSymtab(lldb_private::ObjectFile *obj_file,
-                              lldb_private::Symtab &symtab) = 0;
-
-  virtual void PopulateSectionList(lldb_private::ObjectFile *obj_file,
-                                   lldb_private::SectionList &section_list) = 0;
-
-  virtual ArchSpec GetArchitecture() = 0;
-};
 
 /// \class ObjectFile ObjectFile.h "lldb/Symbol/ObjectFile.h"
 /// A plug-in interface definition class for object file parsers.
@@ -682,6 +663,10 @@ public:
     return symbol_name;
   }
 
+  /// Can we trust the address ranges accelerator associated with this object
+  /// file to be complete.
+  virtual bool CanTrustAddressRanges() { return false; }
+
   static lldb::SymbolType GetSymbolTypeFromName(
       llvm::StringRef name,
       lldb::SymbolType symbol_type_hint = lldb::eSymbolTypeUndefined);
@@ -749,7 +734,7 @@ protected:
   /// need to use a std::unique_ptr to a llvm::once_flag so if we clear the
   /// symbol table, we can have a new once flag to use when it is created again.
   std::unique_ptr<llvm::once_flag> m_symtab_once_up;
-  llvm::Optional<uint32_t> m_cache_hash;
+  std::optional<uint32_t> m_cache_hash;
 
   /// Sets the architecture for a module.  At present the architecture can
   /// only be set if it is invalid.  It is not allowed to switch from one
@@ -783,6 +768,11 @@ template <> struct format_provider<lldb_private::ObjectFile::Strata> {
   static void format(const lldb_private::ObjectFile::Strata &strata,
                      raw_ostream &OS, StringRef Style);
 };
+
+namespace json {
+bool fromJSON(const llvm::json::Value &value, lldb_private::ObjectFile::Type &,
+              llvm::json::Path path);
+} // namespace json
 } // namespace llvm
 
 #endif // LLDB_SYMBOL_OBJECTFILE_H

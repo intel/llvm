@@ -73,7 +73,7 @@
 #define HAVE_DLOPEN 1
 
 /* Define if dladdr() is available on this platform. */
-/* #undef HAVE_DLADDR */
+#define HAVE_DLADDR 1
 
 /* Define to 1 if we can register EH frames on this platform. */
 /* HAVE_REGISTER_FRAME defined in Bazel*/
@@ -143,9 +143,6 @@
 
 /* Define to 1 if you have the <link.h> header file. */
 /* HAVE_LINK_H defined in Bazel */
-
-/* Define to 1 if you have the `lseek64' function. */
-/* HAVE_LSEEK64 defined in Bazel */
 
 /* Define to 1 if you have the <mach/mach.h> header file. */
 /* HAVE_MACH_MACH_H defined in Bazel */

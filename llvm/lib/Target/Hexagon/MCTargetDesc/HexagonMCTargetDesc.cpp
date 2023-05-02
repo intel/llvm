@@ -285,8 +285,8 @@ public:
                               unsigned AccessSize) override {
     HexagonMCELFStreamer &HexagonELFStreamer =
         static_cast<HexagonMCELFStreamer &>(getStreamer());
-    HexagonELFStreamer.HexagonMCEmitCommonSymbol(Symbol, Size, ByteAlignment,
-                                                 AccessSize);
+    HexagonELFStreamer.HexagonMCEmitCommonSymbol(
+        Symbol, Size, Align(ByteAlignment), AccessSize);
   }
 
   void emitLocalCommonSymbolSorted(MCSymbol *Symbol, uint64_t Size,
@@ -295,7 +295,7 @@ public:
     HexagonMCELFStreamer &HexagonELFStreamer =
         static_cast<HexagonMCELFStreamer &>(getStreamer());
     HexagonELFStreamer.HexagonMCEmitLocalCommonSymbol(
-        Symbol, Size, ByteAlignment, AccessSize);
+        Symbol, Size, Align(ByteAlignment), AccessSize);
   }
 };
 
@@ -364,12 +364,12 @@ static MCTargetStreamer *createHexagonNullTargetStreamer(MCStreamer &S) {
 }
 
 static void LLVM_ATTRIBUTE_UNUSED clearFeature(MCSubtargetInfo* STI, uint64_t F) {
-  if (STI->getFeatureBits()[F])
+  if (STI->hasFeature(F))
     STI->ToggleFeature(F);
 }
 
 static bool LLVM_ATTRIBUTE_UNUSED checkFeature(MCSubtargetInfo* STI, uint64_t F) {
-  return STI->getFeatureBits()[F];
+  return STI->hasFeature(F);
 }
 
 namespace {
@@ -610,7 +610,7 @@ unsigned Hexagon_MC::GetELFFlags(const MCSubtargetInfo &STI) {
 }
 
 llvm::ArrayRef<MCPhysReg> Hexagon_MC::GetVectRegRev() {
-  return makeArrayRef(VectRegRev);
+  return ArrayRef(VectRegRev);
 }
 
 namespace {

@@ -31,7 +31,7 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -53,12 +53,8 @@ struct __fn {
       }
 
       if constexpr (random_access_iterator<_Iter1>) {
-        auto __ret = __search_n_random_access_impl<_RangeAlgPolicy>(__first, __last,
-                                                                    __count,
-                                                                    __value,
-                                                                    __pred,
-                                                                    __proj,
-                                                                    __size);
+        auto __ret = std::__search_n_random_access_impl<_RangeAlgPolicy>(
+            __first, __last, __count, __value, __pred, __proj, __size);
         return {std::move(__ret.first), std::move(__ret.second)};
       }
     }
@@ -116,6 +112,6 @@ inline namespace __cpo {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 #endif // _LIBCPP___ALGORITHM_RANGES_SEARCH_N_H

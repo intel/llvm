@@ -64,11 +64,9 @@ cl::opt<bool>
 namespace llvm {
 namespace bolt {
 
-namespace {
-
 // Align function to the specified byte-boundary (typically, 64) offsetting
 // the fuction by not more than the corresponding value
-void alignMaxBytes(BinaryFunction &Function) {
+static void alignMaxBytes(BinaryFunction &Function) {
   Function.setAlignment(opts::AlignFunctions);
   Function.setMaxAlignmentBytes(opts::AlignFunctionsMaxBytes);
   Function.setMaxColdAlignmentBytes(opts::AlignFunctionsMaxBytes);
@@ -78,7 +76,8 @@ void alignMaxBytes(BinaryFunction &Function) {
 // the fuction by not more than the minimum over
 // -- the size of the function
 // -- the specified number of bytes
-void alignCompact(BinaryFunction &Function, const MCCodeEmitter *Emitter) {
+static void alignCompact(BinaryFunction &Function,
+                         const MCCodeEmitter *Emitter) {
   const BinaryContext &BC = Function.getBinaryContext();
   size_t HotSize = 0;
   size_t ColdSize = 0;
@@ -100,8 +99,6 @@ void alignCompact(BinaryFunction &Function, const MCCodeEmitter *Emitter) {
     Function.setMaxColdAlignmentBytes(
       std::min(size_t(opts::AlignFunctionsMaxBytes), ColdSize));
 }
-
-} // end anonymous namespace
 
 void AlignerPass::alignBlocks(BinaryFunction &Function,
                               const MCCodeEmitter *Emitter) {
@@ -143,7 +140,7 @@ void AlignerPass::alignBlocks(BinaryFunction &Function,
 
     // Update stats.
     LLVM_DEBUG(
-      std::unique_lock<std::shared_timed_mutex> Lock(AlignHistogramMtx);
+      std::unique_lock<llvm::sys::RWMutex> Lock(AlignHistogramMtx);
       AlignHistogram[BytesToUse]++;
       AlignedBlocksCount += BB->getKnownExecutionCount();
     );

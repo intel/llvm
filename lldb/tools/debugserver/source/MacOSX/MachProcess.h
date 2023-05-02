@@ -362,6 +362,8 @@ public:
 
   DNBProfileDataScanType GetProfileScanType() { return m_profile_scan_type; }
 
+  JSONGenerator::ObjectSP GetDyldProcessState();
+
 private:
   enum {
     eMachProcessFlagsNone = 0,
@@ -380,6 +382,9 @@ private:
   void ReplyToAllExceptions();
   void PrivateResume();
   void StopProfileThread();
+
+  void RefineWatchpointStopInfo(nub_thread_t tid,
+                                struct DNBThreadStopInfo *stop_info);
 
   uint32_t Flags() const { return m_flags; }
   nub_state_t DoSIGSTOP(bool clear_bps_and_wps, bool allow_running,
@@ -468,6 +473,7 @@ private:
   void (*m_dyld_process_info_release)(void *info);
   void (*m_dyld_process_info_get_cache)(void *info, void *cacheInfo);
   uint32_t (*m_dyld_process_info_get_platform)(void *info);
+  void (*m_dyld_process_info_get_state)(void *info, void *stateInfo);
 };
 
 #endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHPROCESS_H

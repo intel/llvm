@@ -264,7 +264,7 @@ func.func @use_before_def() {
     "foo.yield"(%0) : (i32) -> ()
   }
   return
-} 
+}
 
 /// This test is checking that CSE is removing duplicated read op that follow
 /// other.
@@ -446,3 +446,50 @@ func.func @cse_single_block_with_commutative_ops(%a : tensor<?x?xf32>, %b : tens
 //       CHECK:   %[[OP:.+]] = test.cse_of_single_block_op
 //   CHECK-NOT:   test.cse_of_single_block_op
 //       CHECK:   return %[[OP]], %[[OP]]
+
+func.func @failing_issue_59135(%arg0: tensor<2x2xi1>, %arg1: f32, %arg2 : tensor<2xi1>) -> (tensor<2xi1>, tensor<2xi1>) {
+  %false_2 = arith.constant false 
+  %true_5 = arith.constant true 
+  %9 = test.cse_of_single_block_op inputs(%arg2) {
+  ^bb0(%out: i1):
+    %true_144 = arith.constant true
+    test.region_yield %true_144 : i1
+  } : tensor<2xi1> -> tensor<2xi1>
+  %15 = test.cse_of_single_block_op inputs(%arg2) {
+  ^bb0(%out: i1):
+    %true_144 = arith.constant true
+    test.region_yield %true_144 : i1
+  } : tensor<2xi1> -> tensor<2xi1>
+  %93 = arith.maxsi %false_2, %true_5 : i1
+  return %9, %15 : tensor<2xi1>, tensor<2xi1>
+}
+// CHECK-LABEL: func @failing_issue_59135
+//       CHECK:   %[[TRUE:.+]] = arith.constant true
+//       CHECK:   %[[OP:.+]] = test.cse_of_single_block_op
+//       CHECK:     test.region_yield %[[TRUE]]
+//       CHECK:   return %[[OP]], %[[OP]]
+
+func.func @cse_multiple_regions(%c: i1, %t: tensor<5xf32>) -> (tensor<5xf32>, tensor<5xf32>) {
+  %r1 = scf.if %c -> (tensor<5xf32>) {
+    %0 = tensor.empty() : tensor<5xf32>
+    scf.yield %0 : tensor<5xf32>
+  } else {
+    scf.yield %t : tensor<5xf32>
+  }
+  %r2 = scf.if %c -> (tensor<5xf32>) {
+    %0 = tensor.empty() : tensor<5xf32>
+    scf.yield %0 : tensor<5xf32>
+  } else {
+    scf.yield %t : tensor<5xf32>
+  }
+  return %r1, %r2 : tensor<5xf32>, tensor<5xf32>
+}
+// CHECK-LABEL: func @cse_multiple_regions
+//       CHECK:   %[[if:.*]] = scf.if {{.*}} {
+//       CHECK:     tensor.empty
+//       CHECK:     scf.yield
+//       CHECK:   } else {
+//       CHECK:     scf.yield
+//       CHECK:   }
+//   CHECK-NOT:   scf.if
+//       CHECK:   return %[[if]], %[[if]]

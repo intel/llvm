@@ -17,8 +17,7 @@ using namespace mlir::complex;
 // ConstantOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ConstantOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.empty() && "constant has no operands");
+OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
   return getValue();
 }
 
@@ -33,10 +32,16 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
     if (!complexTy || arrAttr.size() != 2)
       return false;
     auto complexEltTy = complexTy.getElementType();
-    auto re = arrAttr[0].dyn_cast<FloatAttr>();
-    auto im = arrAttr[1].dyn_cast<FloatAttr>();
-    return re && im && re.getType() == complexEltTy &&
-           im.getType() == complexEltTy;
+    if (auto fre = arrAttr[0].dyn_cast<FloatAttr>()) {
+      auto im = arrAttr[1].dyn_cast<FloatAttr>();
+      return im && fre.getType() == complexEltTy &&
+             im.getType() == complexEltTy;
+    }
+    if (auto ire = arrAttr[0].dyn_cast<IntegerAttr>()) {
+      auto im = arrAttr[1].dyn_cast<IntegerAttr>();
+      return im && ire.getType() == complexEltTy &&
+             im.getType() == complexEltTy;
+    }
   }
   return false;
 }
@@ -68,8 +73,7 @@ LogicalResult ConstantOp::verify() {
 // CreateOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult CreateOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary op takes two operands");
+OpFoldResult CreateOp::fold(FoldAdaptor adaptor) {
   // Fold complex.create(complex.re(op), complex.im(op)).
   if (auto reOp = getOperand(0).getDefiningOp<ReOp>()) {
     if (auto imOp = getOperand(1).getDefiningOp<ImOp>()) {
@@ -85,9 +89,8 @@ OpFoldResult CreateOp::fold(ArrayRef<Attribute> operands) {
 // ImOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ImOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 1 && "unary op takes 1 operand");
-  ArrayAttr arrayAttr = operands[0].dyn_cast_or_null<ArrayAttr>();
+OpFoldResult ImOp::fold(FoldAdaptor adaptor) {
+  ArrayAttr arrayAttr = adaptor.getComplex().dyn_cast_or_null<ArrayAttr>();
   if (arrayAttr && arrayAttr.size() == 2)
     return arrayAttr[1];
   if (auto createOp = getOperand().getDefiningOp<CreateOp>())
@@ -99,9 +102,8 @@ OpFoldResult ImOp::fold(ArrayRef<Attribute> operands) {
 // ReOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ReOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 1 && "unary op takes 1 operand");
-  ArrayAttr arrayAttr = operands[0].dyn_cast_or_null<ArrayAttr>();
+OpFoldResult ReOp::fold(FoldAdaptor adaptor) {
+  ArrayAttr arrayAttr = adaptor.getComplex().dyn_cast_or_null<ArrayAttr>();
   if (arrayAttr && arrayAttr.size() == 2)
     return arrayAttr[0];
   if (auto createOp = getOperand().getDefiningOp<CreateOp>())
@@ -113,9 +115,7 @@ OpFoldResult ReOp::fold(ArrayRef<Attribute> operands) {
 // AddOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary op takes 2 operands");
-
+OpFoldResult AddOp::fold(FoldAdaptor adaptor) {
   // complex.add(complex.sub(a, b), b) -> a
   if (auto sub = getLhs().getDefiningOp<SubOp>())
     if (getRhs() == sub.getRhs())
@@ -142,9 +142,7 @@ OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {
 // SubOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult SubOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary op takes 2 operands");
-
+OpFoldResult SubOp::fold(FoldAdaptor adaptor) {
   // complex.sub(complex.add(a, b), b) -> a
   if (auto add = getLhs().getDefiningOp<AddOp>())
     if (getRhs() == add.getRhs())
@@ -166,9 +164,7 @@ OpFoldResult SubOp::fold(ArrayRef<Attribute> operands) {
 // NegOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult NegOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 1 && "unary op takes 1 operand");
-
+OpFoldResult NegOp::fold(FoldAdaptor adaptor) {
   // complex.neg(complex.neg(a)) -> a
   if (auto negOp = getOperand().getDefiningOp<NegOp>())
     return negOp.getOperand();
@@ -180,9 +176,7 @@ OpFoldResult NegOp::fold(ArrayRef<Attribute> operands) {
 // LogOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult LogOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 1 && "unary op takes 1 operand");
-
+OpFoldResult LogOp::fold(FoldAdaptor adaptor) {
   // complex.log(complex.exp(a)) -> a
   if (auto expOp = getOperand().getDefiningOp<ExpOp>())
     return expOp.getOperand();
@@ -194,9 +188,7 @@ OpFoldResult LogOp::fold(ArrayRef<Attribute> operands) {
 // ExpOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ExpOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 1 && "unary op takes 1 operand");
-
+OpFoldResult ExpOp::fold(FoldAdaptor adaptor) {
   // complex.exp(complex.log(a)) -> a
   if (auto logOp = getOperand().getDefiningOp<LogOp>())
     return logOp.getOperand();
@@ -208,9 +200,7 @@ OpFoldResult ExpOp::fold(ArrayRef<Attribute> operands) {
 // ConjOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult ConjOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 1 && "unary op takes 1 operand");
-
+OpFoldResult ConjOp::fold(FoldAdaptor adaptor) {
   // complex.conj(complex.conj(a)) -> a
   if (auto conjOp = getOperand().getDefiningOp<ConjOp>())
     return conjOp.getOperand();

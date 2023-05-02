@@ -20,6 +20,8 @@
 namespace hlfir {
 /// Is this a type that can be used for an HLFIR variable ?
 bool isFortranVariableType(mlir::Type);
+bool isFortranScalarCharacterType(mlir::Type);
+bool isFortranScalarCharacterExprType(mlir::Type);
 } // namespace hlfir
 
 #include "flang/Optimizer/HLFIR/HLFIRDialect.h.inc"
@@ -61,6 +63,20 @@ inline bool isBoxAddressType(mlir::Type type) {
   type = fir::dyn_cast_ptrEleTy(type);
   return type && type.isa<fir::BaseBoxType>();
 }
+
+/// Is this a fir.box or fir.class address or value type?
+inline bool isBoxAddressOrValueType(mlir::Type type) {
+  return fir::unwrapRefType(type).isa<fir::BaseBoxType>();
+}
+
+bool isFortranScalarNumericalType(mlir::Type);
+bool isFortranNumericalArrayObject(mlir::Type);
+bool isFortranNumericalOrLogicalArrayObject(mlir::Type);
+bool isFortranArrayObject(mlir::Type);
+bool isPassByRefOrIntegerType(mlir::Type);
+bool isI1Type(mlir::Type);
+// scalar i1 or logical, or sequence of logical (via (boxed?) array or expr)
+bool isMaskArgument(mlir::Type);
 
 } // namespace hlfir
 

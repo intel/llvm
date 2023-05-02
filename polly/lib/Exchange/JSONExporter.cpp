@@ -288,7 +288,7 @@ static bool importSchedule(Scop &S, const json::Object &JScop,
       errs() << "Statement " << Index << " has no 'schedule' key.\n";
       return false;
     }
-    Optional<StringRef> Schedule =
+    std::optional<StringRef> Schedule =
         statements[Index].getAsObject()->getString("schedule");
     assert(Schedule.has_value() &&
            "Schedules that contain extension nodes require special handling.");
@@ -326,7 +326,7 @@ static bool importSchedule(Scop &S, const json::Object &JScop,
 
   auto ScheduleMap = isl::union_map::empty(S.getIslCtx());
   for (ScopStmt &Stmt : S) {
-    if (NewSchedule.find(&Stmt) != NewSchedule.end())
+    if (NewSchedule.contains(&Stmt))
       ScheduleMap = ScheduleMap.unite(NewSchedule[&Stmt]);
     else
       ScheduleMap = ScheduleMap.unite(Stmt.getSchedule());

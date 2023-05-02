@@ -13,7 +13,9 @@ add_tablegen(llvm-tblgen LLVM
   CodeEmitterGen.cpp
   CodeGenDAGPatterns.cpp
   CodeGenHwModes.cpp
+  CodeGenInstAlias.cpp
   CodeGenInstruction.cpp
+  CodeGenIntrinsics.cpp
   CodeGenMapTable.cpp
   CodeGenRegisters.cpp
   CodeGenSchedule.cpp
@@ -45,12 +47,14 @@ add_tablegen(llvm-tblgen LLVM
   CompressInstEmitter.cpp
   RegisterBankEmitter.cpp
   RegisterInfoEmitter.cpp
+  RISCVTargetDefEmitter.cpp
   SDNodeProperties.cpp
   SearchableTableEmitter.cpp
   SubtargetEmitter.cpp
   SubtargetFeatureInfo.cpp
   TableGen.cpp
   Types.cpp
+  VTEmitter.cpp
   VarLenCodeEmitterGen.cpp
   X86DisassemblerTables.cpp
   X86EVEX2VEXTablesEmitter.cpp

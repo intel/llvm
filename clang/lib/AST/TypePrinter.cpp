@@ -197,7 +197,7 @@ void TypePrinter::print(const Type *T, Qualifiers Quals, raw_ostream &OS,
     return;
   }
 
-  SaveAndRestore<bool> PHVal(HasEmptyPlaceHolder, PlaceHolder.empty());
+  SaveAndRestore PHVal(HasEmptyPlaceHolder, PlaceHolder.empty());
 
   printBefore(T, Quals, OS);
   OS << PlaceHolder;
@@ -329,7 +329,7 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
     return;
   }
 
-  SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder);
+  SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder);
 
   // Print qualifiers as appropriate.
 
@@ -406,7 +406,7 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   // Handle things like 'int (*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -417,7 +417,7 @@ void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   // Handle things like 'int (*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
   if (isa<ArrayType>(T->getPointeeType()))
@@ -427,14 +427,14 @@ void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
 
 void TypePrinter::printBlockPointerBefore(const BlockPointerType *T,
                                           raw_ostream &OS) {
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   OS << '^';
 }
 
 void TypePrinter::printBlockPointerAfter(const BlockPointerType *T,
                                           raw_ostream &OS) {
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printAfter(T->getPointeeType(), OS);
 }
 
@@ -449,7 +449,7 @@ static QualType skipTopLevelReferences(QualType T) {
 void TypePrinter::printLValueReferenceBefore(const LValueReferenceType *T,
                                              raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   printBefore(Inner, OS);
   // Handle things like 'int (&A)[4];' correctly.
@@ -462,7 +462,7 @@ void TypePrinter::printLValueReferenceBefore(const LValueReferenceType *T,
 void TypePrinter::printLValueReferenceAfter(const LValueReferenceType *T,
                                             raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   // Handle things like 'int (&A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -474,7 +474,7 @@ void TypePrinter::printLValueReferenceAfter(const LValueReferenceType *T,
 void TypePrinter::printRValueReferenceBefore(const RValueReferenceType *T,
                                              raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   printBefore(Inner, OS);
   // Handle things like 'int (&&A)[4];' correctly.
@@ -487,7 +487,7 @@ void TypePrinter::printRValueReferenceBefore(const RValueReferenceType *T,
 void TypePrinter::printRValueReferenceAfter(const RValueReferenceType *T,
                                             raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   // Handle things like 'int (&&A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -499,7 +499,7 @@ void TypePrinter::printRValueReferenceAfter(const RValueReferenceType *T,
 void TypePrinter::printMemberPointerBefore(const MemberPointerType *T,
                                            raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   // Handle things like 'int (Cls::*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -516,7 +516,7 @@ void TypePrinter::printMemberPointerBefore(const MemberPointerType *T,
 void TypePrinter::printMemberPointerAfter(const MemberPointerType *T,
                                           raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   // Handle things like 'int (Cls::*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
   if (isa<ArrayType>(T->getPointeeType()))
@@ -702,6 +702,7 @@ void TypePrinter::printVectorBefore(const VectorType *T, raw_ostream &OS) {
     // Multiply by 8 for the number of bits.
     OS << ") * 8))) ";
     printBefore(T->getElementType(), OS);
+    break;
   }
 }
 
@@ -767,6 +768,7 @@ void TypePrinter::printDependentVectorBefore(
     }
     OS << "))) ";
     printBefore(T->getElementType(), OS);
+    break;
   }
 }
 
@@ -858,7 +860,7 @@ void TypePrinter::printFunctionProtoBefore(const FunctionProtoType *T,
       OS << '(';
   } else {
     // If needed for precedence reasons, wrap the inner part in grouping parens.
-    SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder, false);
+    SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder, false);
     printBefore(T->getReturnType(), OS);
     if (!PrevPHIsEmpty.get())
       OS << '(';
@@ -886,7 +888,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   // If needed for precedence reasons, wrap the inner part in grouping parens.
   if (!HasEmptyPlaceHolder)
     OS << ')';
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
 
   OS << '(';
   {
@@ -1037,7 +1039,7 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T,
                                              raw_ostream &OS) {
   // If needed for precedence reasons, wrap the inner part in grouping parens.
-  SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder, false);
+  SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder, false);
   printBefore(T->getReturnType(), OS);
   if (!PrevPHIsEmpty.get())
     OS << '(';
@@ -1048,7 +1050,7 @@ void TypePrinter::printFunctionNoProtoAfter(const FunctionNoProtoType *T,
   // If needed for precedence reasons, wrap the inner part in grouping parens.
   if (!HasEmptyPlaceHolder)
     OS << ')';
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
 
   OS << "()";
   printFunctionAfter(T->getExtInfo(), OS);
@@ -1664,6 +1666,9 @@ void TypePrinter::printAttributedBefore(const AttributedType *T,
     spaceBeforePlaceHolder(OS);
   }
 
+  if (T->isWebAssemblyFuncrefSpec())
+    OS << "__funcref";
+
   // Print nullability type specifiers.
   if (T->getImmediateNullability()) {
     if (T->getAttrKind() == attr::TypeNonNull)
@@ -1691,14 +1696,14 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
 
   // If this is a calling convention attribute, don't print the implicit CC from
   // the modified type.
-  SaveAndRestore<bool> MaybeSuppressCC(InsideCCAttribute, T->isCallingConv());
+  SaveAndRestore MaybeSuppressCC(InsideCCAttribute, T->isCallingConv());
 
   printAfter(T->getModifiedType(), OS);
 
   // Some attributes are printed as qualifiers before the type, so we have
   // nothing left to do.
-  if (T->getAttrKind() == attr::ObjCKindOf ||
-      T->isMSTypeSpec() || T->getImmediateNullability())
+  if (T->getAttrKind() == attr::ObjCKindOf || T->isMSTypeSpec() ||
+      T->getImmediateNullability() || T->isWebAssemblyFuncrefSpec())
     return;
 
   // Don't print the inert __unsafe_unretained attribute at all.
@@ -1754,7 +1759,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     // AttributedType nodes for them.
     break;
 
-  case attr::SYCLFPGAPipe:
+  case attr::SYCLIntelPipe:
     OS << "pipe";
     break;
 
@@ -1774,6 +1779,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::AddressSpace:
   case attr::CmseNSCall:
   case attr::AnnotateType:
+  case attr::WebAssemblyFuncref:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -2026,6 +2032,36 @@ static bool isSubstitutedType(ASTContext &Ctx, QualType T, QualType Pattern,
   return false;
 }
 
+/// Evaluates the expression template argument 'Pattern' and returns true
+/// if 'Arg' evaluates to the same result.
+static bool templateArgumentExpressionsEqual(ASTContext const &Ctx,
+                                             TemplateArgument const &Pattern,
+                                             TemplateArgument const &Arg) {
+  if (Pattern.getKind() != TemplateArgument::Expression)
+    return false;
+
+  // Can't evaluate value-dependent expressions so bail early
+  Expr const *pattern_expr = Pattern.getAsExpr();
+  if (pattern_expr->isValueDependent() ||
+      !pattern_expr->isIntegerConstantExpr(Ctx))
+    return false;
+
+  if (Arg.getKind() == TemplateArgument::Integral)
+    return llvm::APSInt::isSameValue(pattern_expr->EvaluateKnownConstInt(Ctx),
+                                     Arg.getAsIntegral());
+
+  if (Arg.getKind() == TemplateArgument::Expression) {
+    Expr const *args_expr = Arg.getAsExpr();
+    if (args_expr->isValueDependent() || !args_expr->isIntegerConstantExpr(Ctx))
+      return false;
+
+    return llvm::APSInt::isSameValue(args_expr->EvaluateKnownConstInt(Ctx),
+                                     pattern_expr->EvaluateKnownConstInt(Ctx));
+  }
+
+  return false;
+}
+
 static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
                                           TemplateArgument Pattern,
                                           ArrayRef<TemplateArgument> Args,
@@ -2043,6 +2079,9 @@ static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
                Args[NTTP->getIndex()].structurallyEquals(Arg);
     }
   }
+
+  if (templateArgumentExpressionsEqual(Ctx, Pattern, Arg))
+    return true;
 
   if (Arg.getKind() != Pattern.getKind())
     return false;
@@ -2063,9 +2102,7 @@ static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
   return false;
 }
 
-/// Make a best-effort determination of whether the type T can be produced by
-/// substituting Args into the default argument of Param.
-static bool isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
+bool clang::isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
                                          const NamedDecl *Param,
                                          ArrayRef<TemplateArgument> Args,
                                          unsigned Depth) {
@@ -2097,14 +2134,10 @@ printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
   if (TPL && Policy.SuppressDefaultTemplateArgs &&
       !Policy.PrintCanonicalTypes && !Args.empty() && !IsPack &&
       Args.size() <= TPL->size()) {
-    ASTContext &Ctx = TPL->getParam(0)->getASTContext();
     llvm::SmallVector<TemplateArgument, 8> OrigArgs;
     for (const TA &A : Args)
       OrigArgs.push_back(getArgument(A));
-    while (!Args.empty() &&
-           isSubstitutedDefaultArgument(Ctx, getArgument(Args.back()),
-                                        TPL->getParam(Args.size() - 1),
-                                        OrigArgs, TPL->getDepth()))
+    while (!Args.empty() && getArgument(Args.back()).getIsDefaulted())
       Args = Args.drop_back();
   }
 
@@ -2249,6 +2282,8 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "__uptr __ptr32";
   case LangAS::ptr64:
     return "__ptr64";
+  case LangAS::wasm_funcref:
+    return "__funcref";
   case LangAS::hlsl_groupshared:
     return "groupshared";
   default:

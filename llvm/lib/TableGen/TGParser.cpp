@@ -12,7 +12,6 @@
 
 #include "TGParser.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -385,10 +384,35 @@ bool TGParser::addEntry(RecordsEntry E) {
 bool TGParser::resolve(const ForeachLoop &Loop, SubstStack &Substs,
                        bool Final, std::vector<RecordsEntry> *Dest,
                        SMLoc *Loc) {
+
   MapResolver R;
   for (const auto &S : Substs)
     R.set(S.first, S.second);
   Init *List = Loop.ListValue->resolveReferences(R);
+
+  // For if-then-else blocks, we lower to a foreach loop whose list is a
+  // ternary selection between lists of different length.  Since we don't
+  // have a means to track variable length record lists, we *must* resolve
+  // the condition here.  We want to defer final resolution of the arms
+  // until the resulting records are finalized.
+  // e.g. !if(!exists<SchedWrite>("__does_not_exist__"), [1], [])
+  if (auto *TI = dyn_cast<TernOpInit>(List);
+      TI && TI->getOpcode() == TernOpInit::IF && Final) {
+    Init *OldLHS = TI->getLHS();
+    R.setFinal(true);
+    Init *LHS = OldLHS->resolveReferences(R);
+    if (LHS == OldLHS) {
+      PrintError(Loop.Loc,
+                 Twine("unable to resolve if condition '") +
+                 LHS->getAsString() + "' at end of containing scope");
+      return true;
+    }
+    Init *MHS = TI->getMHS();
+    Init *RHS = TI->getRHS();
+    List = TernOpInit::get(TernOpInit::IF, LHS, MHS, RHS, TI->getType())
+      ->Fold(nullptr);
+  }
+
   auto LI = dyn_cast<ListInit>(List);
   if (!LI) {
     if (!Final) {
@@ -945,6 +969,8 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     TokError("unknown bang operator");
     return nullptr;
   case tgtok::XNOT:
+  case tgtok::XToLower:
+  case tgtok::XToUpper:
   case tgtok::XLOG2:
   case tgtok::XHead:
   case tgtok::XTail:
@@ -968,6 +994,16 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
         return nullptr;
       }
 
+      break;
+    case tgtok::XToLower:
+      Lex.Lex(); // eat the operation
+      Code = UnOpInit::TOLOWER;
+      Type = StringRecTy::get(Records);
+      break;
+    case tgtok::XToUpper:
+      Lex.Lex(); // eat the operation
+      Code = UnOpInit::TOUPPER;
+      Type = StringRecTy::get(Records);
       break;
     case tgtok::XNOT:
       Lex.Lex();  // eat the operation
@@ -1180,6 +1216,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
   case tgtok::XGt:
   case tgtok::XListConcat:
   case tgtok::XListSplat:
+  case tgtok::XListRemove:
   case tgtok::XStrConcat:
   case tgtok::XInterleave:
   case tgtok::XSetDagOp: { // Value ::= !binop '(' Value ',' Value ')'
@@ -1209,6 +1246,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     case tgtok::XGt:     Code = BinOpInit::GT; break;
     case tgtok::XListConcat: Code = BinOpInit::LISTCONCAT; break;
     case tgtok::XListSplat:  Code = BinOpInit::LISTSPLAT; break;
+    case tgtok::XListRemove: Code = BinOpInit::LISTREMOVE; break;
     case tgtok::XStrConcat:  Code = BinOpInit::STRCONCAT; break;
     case tgtok::XInterleave: Code = BinOpInit::INTERLEAVE; break;
     case tgtok::XSetDagOp:   Code = BinOpInit::SETDAGOP; break;
@@ -1247,11 +1285,15 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
       // ArgType for the comparison operators is not yet known.
       break;
     case tgtok::XListConcat:
-      // We don't know the list type until we parse the first argument
+      // We don't know the list type until we parse the first argument.
       ArgType = ItemType;
       break;
     case tgtok::XListSplat:
       // Can't do any typechecking until we parse the first argument.
+      break;
+    case tgtok::XListRemove:
+      // We don't know the list type until we parse the first argument.
+      ArgType = ItemType;
       break;
     case tgtok::XStrConcat:
       Type = StringRecTy::get(Records);
@@ -1329,6 +1371,13 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
             return nullptr;
           }
           ArgType = nullptr; // Broken invariant: types not identical.
+          break;
+        case BinOpInit::LISTREMOVE:
+          if (!isa<ListRecTy>(ArgType)) {
+            Error(InitLoc, Twine("expected a list, got value of type '") +
+                               ArgType->getAsString() + "'");
+            return nullptr;
+          }
           break;
         case BinOpInit::EQ:
         case BinOpInit::NE:
@@ -1424,6 +1473,9 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     // listsplat returns a list of type of the *first* argument.
     if (Code == BinOpInit::LISTSPLAT)
       Type = cast<TypedInit>(InitList.front())->getType()->getListTy();
+    // listremove returns a list with type of the argument.
+    if (Code == BinOpInit::LISTREMOVE)
+      Type = ArgType;
 
     // We allow multiple operands to associative operators like !strconcat as
     // shorthand for nesting them.
@@ -2155,6 +2207,7 @@ Init *TGParser::ParseOperationCond(Record *CurRec, RecTy *ItemType) {
 ///   SimpleValue ::= SRLTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= LISTCONCATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= LISTSPLATTOK '(' Value ',' Value ')'
+///   SimpleValue ::= LISTREMOVETOK '(' Value ',' Value ')'
 ///   SimpleValue ::= STRCONCATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= COND '(' [Value ':' Value,]+ ')'
 ///
@@ -2429,6 +2482,8 @@ Init *TGParser::ParseSimpleValue(Record *CurRec, RecTy *ItemType,
   case tgtok::XSize:
   case tgtok::XEmpty:
   case tgtok::XCast:
+  case tgtok::XToLower:
+  case tgtok::XToUpper:
   case tgtok::XGetDagOp: // Value ::= !unop '(' Value ')'
   case tgtok::XExists:
   case tgtok::XIsA:
@@ -2454,6 +2509,7 @@ Init *TGParser::ParseSimpleValue(Record *CurRec, RecTy *ItemType,
   case tgtok::XGt:
   case tgtok::XListConcat:
   case tgtok::XListSplat:
+  case tgtok::XListRemove:
   case tgtok::XStrConcat:
   case tgtok::XInterleave:
   case tgtok::XSetDagOp: // Value ::= !binop '(' Value ',' Value ')'
@@ -2823,7 +2879,7 @@ Init *TGParser::ParseDeclaration(Record *CurRec,
     SMLoc ValLoc = Lex.getLoc();
     Init *Val = ParseValue(CurRec, Type);
     if (!Val ||
-        SetValue(CurRec, ValLoc, DeclName, None, Val,
+        SetValue(CurRec, ValLoc, DeclName, std::nullopt, Val,
                  /*AllowSelfAssignment=*/false, /*OverrideDefLoc=*/false)) {
       // Return the name, even if an error is thrown.  This is so that we can
       // continue to make some progress, even without the value having been
@@ -2967,7 +3023,7 @@ bool TGParser::ParseBodyItem(Record *CurRec) {
     return ParseAssert(nullptr, CurRec);
 
   if (Lex.getCode() == tgtok::Defvar)
-    return ParseDefvar();
+    return ParseDefvar(CurRec);
 
   if (Lex.getCode() != tgtok::Let) {
     if (!ParseDeclaration(CurRec, false))
@@ -3198,7 +3254,7 @@ bool TGParser::ParseDefset() {
 ///
 ///   Defvar ::= DEFVAR Id '=' Value ';'
 ///
-bool TGParser::ParseDefvar() {
+bool TGParser::ParseDefvar(Record *CurRec) {
   assert(Lex.getCode() == tgtok::Defvar);
   Lex.Lex(); // Eat the 'defvar' token
 
@@ -3217,7 +3273,7 @@ bool TGParser::ParseDefvar() {
   if (!consume(tgtok::equal))
     return TokError("expected '='");
 
-  Init *Value = ParseValue(nullptr);
+  Init *Value = ParseValue(CurRec);
   if (!Value)
     return true;
 

@@ -104,6 +104,7 @@ def : GINodeEquiv<G_FPOW, fpow>;
 def : GINodeEquiv<G_FEXP2, fexp2>;
 def : GINodeEquiv<G_FLOG2, flog2>;
 def : GINodeEquiv<G_FCANONICALIZE, fcanonicalize>;
+def : GINodeEquiv<G_IS_FPCLASS, is_fpclass>;
 def : GINodeEquiv<G_INTRINSIC, intrinsic_wo_chain>;
 // ISD::INTRINSIC_VOID can also be handled with G_INTRINSIC_W_SIDE_EFFECTS.
 def : GINodeEquiv<G_INTRINSIC_W_SIDE_EFFECTS, intrinsic_void>;
@@ -213,6 +214,8 @@ def : GINodeEquiv<G_ATOMICRMW_FADD, atomic_load_fadd>;
 def : GINodeEquiv<G_ATOMICRMW_FSUB, atomic_load_fsub>;
 def : GINodeEquiv<G_ATOMICRMW_FMAX, atomic_load_fmax>;
 def : GINodeEquiv<G_ATOMICRMW_FMIN, atomic_load_fmin>;
+def : GINodeEquiv<G_ATOMICRMW_UINC_WRAP, atomic_load_uinc_wrap>;
+def : GINodeEquiv<G_ATOMICRMW_UDEC_WRAP, atomic_load_udec_wrap>;
 def : GINodeEquiv<G_FENCE, atomic_fence>;
 
 // Specifies the GlobalISel equivalents for SelectionDAG's ComplexPattern.

@@ -28,6 +28,9 @@
 namespace mlir {
 
 class OpBuilder;
+class TypeRange;
+class ValueRange;
+class RewriterBase;
 
 /// Tests whether the given maps describe a row major matmul. The test is
 /// permutation-invariant. Note that this only checks the affine maps from an
@@ -79,8 +82,8 @@ public:
     Red() : IteratorType(IteratorTypeT::reduction) {}
   };
 
-  StructuredGenerator(OpBuilder &builder, StructuredOpInterface op)
-      : builder(builder), ctx(op.getContext()), loc(op.getLoc()),
+  StructuredGenerator(RewriterBase &rewriter, StructuredOpInterface op)
+      : rewriter(rewriter), ctx(op.getContext()), loc(op.getLoc()),
         iterators(op.getIteratorTypesArray()), maps(op.getIndexingMapsArray()),
         op(op) {}
 
@@ -100,13 +103,30 @@ public:
   }
 
 protected:
-  OpBuilder &builder;
+  RewriterBase &rewriter;
   MLIRContext *ctx;
   Location loc;
   SmallVector<IteratorTypeT> iterators;
   SmallVector<AffineMap, 4> maps;
   Operation *op;
 };
+
+// Clone the current operation with the operands. This is used to abstract away
+// the optional underlying region creation.
+// Note: this is a true builder that notifies the OpBuilder listener.
+Operation *clone(OpBuilder &b, Operation *op, TypeRange newResultTypes,
+                 ValueRange newOperands);
+
+// Clone the current operation with the operands but leave the regions empty.
+// Note: this is a true builder that notifies the OpBuilder listener.
+Operation *cloneWithoutRegions(OpBuilder &b, Operation *op,
+                               TypeRange newResultTypes,
+                               ValueRange newOperands);
+
+// Get the list of attributes associated with the op, ignoring
+// those with the provided name.
+SmallVector<NamedAttribute>
+getPrunedAttributeList(Operation *op, ArrayRef<StringRef> elidedAttrs);
 
 } // namespace mlir
 

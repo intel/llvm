@@ -27,7 +27,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -55,6 +54,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include <algorithm>
 #include <cassert>
@@ -255,8 +255,8 @@ void AArch64AsmPrinter::emitStartOfAsmFile(Module &M) {
 
 void AArch64AsmPrinter::emitFunctionHeaderComment() {
   const AArch64FunctionInfo *FI = MF->getInfo<AArch64FunctionInfo>();
-  Optional<std::string> OutlinerString = FI->getOutliningStyle();
-  if (OutlinerString != None)
+  std::optional<std::string> OutlinerString = FI->getOutliningStyle();
+  if (OutlinerString != std::nullopt)
     OutStreamer->getCommentOS() << ' ' << OutlinerString;
 }
 
@@ -306,7 +306,7 @@ void AArch64AsmPrinter::emitSled(const MachineInstr &MI, SledKind Kind) {
   //   ;DATA: higher 32 bits of the address of the trampoline
   //   LDP X0, X30, [SP], #16 ; pop X0 and the link register from the stack
   //
-  OutStreamer->emitCodeAlignment(4, &getSubtargetInfo());
+  OutStreamer->emitCodeAlignment(Align(4), &getSubtargetInfo());
   auto CurSled = OutContext.createTempSymbol("xray_sled_", true);
   OutStreamer->emitLabel(CurSled);
   auto Target = OutContext.createTempSymbol();
@@ -733,7 +733,7 @@ void AArch64AsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNum,
     llvm_unreachable("<unknown operand type>");
   case MachineOperand::MO_Register: {
     Register Reg = MO.getReg();
-    assert(Register::isPhysicalRegister(Reg));
+    assert(Reg.isPhysical());
     assert(!MO.getSubReg() && "Subregs should be eliminated!");
     O << AArch64InstPrinter::getRegisterName(Reg);
     break;
@@ -1254,7 +1254,9 @@ void AArch64AsmPrinter::emitFMov0(const MachineInstr &MI) {
     switch (MI.getOpcode()) {
     default: llvm_unreachable("Unexpected opcode");
     case AArch64::FMOVH0:
-      FMov.setOpcode(AArch64::FMOVWHr);
+      FMov.setOpcode(STI->hasFullFP16() ? AArch64::FMOVWHr : AArch64::FMOVWSr);
+      if (!STI->hasFullFP16())
+        DestReg = (AArch64::S0 + (DestReg - AArch64::H0));
       FMov.addOperand(MCOperand::createReg(DestReg));
       FMov.addOperand(MCOperand::createReg(AArch64::WZR));
       break;

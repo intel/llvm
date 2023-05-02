@@ -9,9 +9,6 @@
 // Test that headers are not tripped up by the surrounding code defining various
 // alphabetic macros.
 
-// The system-provided <uchar.h> seems to be broken on AIX
-// XFAIL: LIBCXX-AIX-FIXME
-
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
 #    undef __DEPRECATED
@@ -57,6 +54,11 @@
 //
 #ifdef __FreeBSD__
 # undef _M
+#endif
+
+// Test that libc++ doesn't use names that collide with FreeBSD system macros.
+#ifndef __FreeBSD__
+#  define __null_sentinel NASTY_MACRO
 #endif
 
 // tchar.h defines these macros on Windows
@@ -188,7 +190,9 @@ END-SCRIPT
 #include <complex.h>
 #include <concepts>
 #include <condition_variable>
-#include <coroutine>
+#if (defined(__cpp_impl_coroutine) && __cpp_impl_coroutine >= 201902L) || (defined(__cpp_coroutines) && __cpp_coroutines >= 201703L)
+#   include <coroutine>
+#endif
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
@@ -212,6 +216,7 @@ END-SCRIPT
 #include <errno.h>
 #include <exception>
 #include <execution>
+#include <expected>
 #include <fenv.h>
 #if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #   include <filesystem>
@@ -284,6 +289,7 @@ END-SCRIPT
 #if !defined(_LIBCPP_HAS_NO_THREADS)
 #   include <shared_mutex>
 #endif
+#include <source_location>
 #include <span>
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
 #   include <sstream>
@@ -331,19 +337,10 @@ END-SCRIPT
 #   include <wctype.h>
 #endif
 #if __cplusplus >= 201103L
-#   include <experimental/algorithm>
-#endif
-#if __cplusplus >= 201103L && !defined(_LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES)
-#   include <experimental/coroutine>
-#endif
-#if __cplusplus >= 201103L
 #   include <experimental/deque>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/forward_list>
-#endif
-#if __cplusplus >= 201103L
-#   include <experimental/functional>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/iterator>

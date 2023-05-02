@@ -22,6 +22,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/STLExtras.h"
+#include <optional>
 
 using namespace clang;
 
@@ -1099,7 +1100,7 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
       ++LookAhead;
     }
     // Then look to see if the next two tokens close the statement expression;
-    // if so, this expression statement is the last statement in a statment
+    // if so, this expression statement is the last statement in a statement
     // expression.
     IsStmtExprResult = GetLookAheadToken(LookAhead).is(tok::r_brace) &&
                        GetLookAheadToken(LookAhead + 1).is(tok::r_paren);
@@ -1488,7 +1489,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   Sema::ConditionResult Cond;
   SourceLocation LParen;
   SourceLocation RParen;
-  llvm::Optional<bool> ConstexprCondition;
+  std::optional<bool> ConstexprCondition;
   if (!IsConsteval) {
 
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
@@ -2410,7 +2411,7 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
                             ArgsUnion(Hint.ValueExpr)};
     TempAttrs.addNew(Hint.PragmaNameLoc->Ident, Hint.Range, nullptr,
                      Hint.PragmaNameLoc->Loc, ArgHints, 4,
-                     ParsedAttr::AS_Pragma);
+                     ParsedAttr::Form::Pragma());
   }
 
   // Get the next statement.
@@ -2451,7 +2452,8 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
+    FnBody =
+        Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, std::nullopt, false);
   }
 
   BodyScope.Exit();
@@ -2488,7 +2490,8 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
   // compound statement as the body.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
+    FnBody =
+        Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, std::nullopt, false);
   }
 
   BodyScope.Exit();

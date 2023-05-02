@@ -1018,3 +1018,88 @@ void g() {
   (void)[](int i) consteval { return i; }(0);
 }
 }  // namespace GH50455
+
+namespace GH58302 {
+struct A {
+   consteval A(){}
+   consteval operator int() { return 1;}
+};
+
+int f() {
+   int x = A{};
+}
+}
+
+namespace GH57682 {
+void test() {
+  constexpr auto l1 = []() consteval { // expected-error {{cannot take address of consteval call operator of '(lambda at}} \
+                                       // expected-note  2{{declared here}}
+        return 3;
+  };
+  constexpr int (*f1)(void) = l1; // expected-error {{constexpr variable 'f1' must be initialized by a constant expression}} \
+                                  // expected-note  {{pointer to a consteval declaration is not a constant expression}}
+
+
+  constexpr auto lstatic = []() static consteval { // expected-error {{cannot take address of consteval call operator of '(lambda at}} \
+                                       // expected-note  2{{declared here}} \
+                                       // expected-warning {{extension}}
+        return 3;
+  };
+  constexpr int (*f2)(void) = lstatic; // expected-error {{constexpr variable 'f2' must be initialized by a constant expression}} \
+                                       // expected-note  {{pointer to a consteval declaration is not a constant expression}}
+
+}
+}
+
+namespace GH60286 {
+
+struct A {
+  int i = 0;
+
+  consteval A() {}
+  A(const A&) { i = 1; }
+  consteval int f() { return i; }
+};
+
+constexpr auto B = A{A{}}.f();
+static_assert(B == 0);
+
+}
+
+namespace GH58207 {
+struct tester {
+    consteval tester(const char* name) noexcept { }
+};
+consteval const char* make_name(const char* name) { return name;}
+consteval const char* pad(int P) { return "thestring"; }
+
+int bad = 10; // expected-note 6{{declared here}}
+
+tester glob1(make_name("glob1"));
+tester glob2(make_name("glob2"));
+constexpr tester cglob(make_name("cglob"));
+tester paddedglob(make_name(pad(bad))); // expected-error {{call to consteval function 'GH58207::make_name' is not a constant expression}} \
+                                        // expected-note {{read of non-const variable 'bad' is not allowed in a constant expression}}
+
+constexpr tester glob3 = { make_name("glob3") };
+constexpr tester glob4 = { make_name(pad(bad)) }; // expected-error {{call to consteval function 'GH58207::make_name' is not a constant expression}} \
+                                                  // expected-error {{constexpr variable 'glob4' must be initialized by a constant expression}} \
+                                                  // expected-note 2{{read of non-const variable 'bad' is not allowed in a constant expression}}
+
+auto V = make_name(pad(3));
+auto V1 = make_name(pad(bad)); // expected-error {{call to consteval function 'GH58207::make_name' is not a constant expression}} \
+                               // expected-note {{read of non-const variable 'bad' is not allowed in a constant expression}}
+
+
+void foo() {
+  static tester loc1(make_name("loc1"));
+  static constexpr tester loc2(make_name("loc2"));
+  static tester paddedloc(make_name(pad(bad))); // expected-error {{call to consteval function 'GH58207::make_name' is not a constant expression}} \
+                                                // expected-note {{read of non-const variable 'bad' is not allowed in a constant expression}}
+}
+
+void bar() {
+  static tester paddedloc(make_name(pad(bad))); // expected-error {{call to consteval function 'GH58207::make_name' is not a constant expression}} \
+                                                // expected-note {{read of non-const variable 'bad' is not allowed in a constant expression}}
+}
+}

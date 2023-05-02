@@ -2470,6 +2470,99 @@ operations must have fast, predictable performance. However, it's not a good
 choice for representing sets which have lots of very short ranges. E.g. the set
 `{2*x : x \in [0, n)}` would be a pathological input.
 
+.. _utility_functions:
+
+Useful Utility Functions
+========================
+
+LLVM implements a number of general utility functions used acrossed the
+codebase. You can find the most common ones in ``STLExtras.h``
+(`doxygen <https://llvm.org/doxygen/STLExtras_8h.html>`__). Some of these wrap
+well-known C++ standard library functions, while others are unique to LLVM.
+
+.. _uf_iteration:
+
+Iterating over ranges
+---------------------
+
+Sometimes you may want to iterate over more than range at a time or know the
+index of the index. LLVM provides custom utility functions to make that easier,
+without having to manually manage all iterators and/or indices:
+
+.. _uf_zip:
+
+The ``zip``\ * functions
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+``zip``\ * functions allow for iterating over elements from two or more ranges
+at the same time. For example:
+
+.. code-block:: c++
+
+    SmallVector<size_t> Counts = ...;
+    char Letters[26] = ...;
+    for (auto [Letter, Count] : zip_equal(Letters, Counts))
+      errs() << Letter << ": " << Count << "\n";
+
+Note that the elements are provided through a 'reference wrapper' proxy type
+(tuple of references), which combined with the structured bindings declaration
+makes ``Letter`` and ``Count`` references to range elements. Any modification
+to these references will affect the elements of ``Letters`` or ``Counts``.
+
+The ``zip``\ * functions support temporary ranges, for example:
+
+.. code-block:: c++
+
+    for (auto [Letter, Count] : zip(SmallVector<char>{'a', 'b', 'c'}, Counts))
+      errs() << Letter << ": " << Count << "\n";
+
+The difference between the functions in the ``zip`` family is how they behave
+when the supplied ranges have different lengths:
+
+* ``zip_equal`` -- requires all input ranges have the same length.
+* ``zip`` -- iteration stops when the end of the shortest range is reached.
+* ``zip_first`` -- requires the first range is the shortest one.
+* ``zip_longest`` -- iteration continues until the end of the longest range is
+  reached. The non-existent elements of shorter ranges are replaced with
+  ``std::nullopt``.
+
+The length requirements are checked with ``assert``\ s.
+
+As a rule of thumb, prefer to use ``zip_equal`` when you expect all
+ranges to have the same lengths, and consider alternative ``zip`` functions only
+when this is not the case. This is because ``zip_equal`` clearly communicates
+this same-length assumption and has the best (release-mode) runtime performance.
+
+.. _uf_enumerate:
+
+``enumerate``
+^^^^^^^^^^^^^
+
+The ``enumerate`` functions allows to iterate over one or more ranges while
+keeping track of the index of the current loop iteration. For example:
+
+.. code-block:: c++
+
+    for (auto [Idx, BB, Value] : enumerate(Phi->blocks(),
+                                           Phi->incoming_values()))
+      errs() << "#" << Idx << " " << BB->getName() << ": " << *Value << "\n";
+
+The current element index is provided as the first structured bindings element.
+Alternatively, the index and the element value can be obtained with the
+``index()`` and ``value()`` member functions:
+
+.. code-block:: c++
+
+    char Letters[26] = ...;
+    for (auto En : enumerate(Letters))
+      errs() << "#" << En.index() << " " << En.value() << "\n";
+
+Note that ``enumerate`` has ``zip_equal`` semantics and provides elements
+through a 'reference wrapper' proxy, which makes them modifiable when accessed
+through structured bindings or the ``value()`` member function. When two or more
+ranges are passed, ``enumerate`` requires them to have equal lengths (checked
+with an ``assert``).
+
 .. _debugging:
 
 Debugging
@@ -2837,7 +2930,7 @@ which is a pointer to an integer on the run time stack.
 There are essentially three ways to insert an ``Instruction`` into an existing
 sequence of instructions that form a ``BasicBlock``:
 
-* Insertion into an explicit instruction list
+* Insertion into the instruction list of the ``BasicBlock``
 
   Given a ``BasicBlock* pb``, an ``Instruction* pi`` within that ``BasicBlock``,
   and a newly-created instruction we wish to insert before ``*pi``, we do the
@@ -2849,7 +2942,7 @@ sequence of instructions that form a ``BasicBlock``:
       Instruction *pi = ...;
       auto *newInst = new Instruction(...);
 
-      pb->getInstList().insert(pi, newInst); // Inserts newInst before pi in pb
+      newInst->insertBefore(pi); // Inserts newInst before pi
 
   Appending to the end of a ``BasicBlock`` is so common that the ``Instruction``
   class and ``Instruction``-derived classes provide constructors which take a
@@ -2861,7 +2954,7 @@ sequence of instructions that form a ``BasicBlock``:
     BasicBlock *pb = ...;
     auto *newInst = new Instruction(...);
 
-    pb->getInstList().push_back(newInst); // Appends newInst to pb
+    newInst->insertInto(pb, pb->end()); // Appends newInst to pb
 
   becomes:
 
@@ -2872,37 +2965,6 @@ sequence of instructions that form a ``BasicBlock``:
 
   which is much cleaner, especially if you are creating long instruction
   streams.
-
-* Insertion into an implicit instruction list
-
-  ``Instruction`` instances that are already in ``BasicBlock``\ s are implicitly
-  associated with an existing instruction list: the instruction list of the
-  enclosing basic block.  Thus, we could have accomplished the same thing as the
-  above code without being given a ``BasicBlock`` by doing:
-
-  .. code-block:: c++
-
-    Instruction *pi = ...;
-    auto *newInst = new Instruction(...);
-
-    pi->getParent()->getInstList().insert(pi, newInst);
-
-  In fact, this sequence of steps occurs so frequently that the ``Instruction``
-  class and ``Instruction``-derived classes provide constructors which take (as
-  a default parameter) a pointer to an ``Instruction`` which the newly-created
-  ``Instruction`` should precede.  That is, ``Instruction`` constructors are
-  capable of inserting the newly-created instance into the ``BasicBlock`` of a
-  provided instruction, immediately before that instruction.  Using an
-  ``Instruction`` constructor with a ``insertBefore`` (default) parameter, the
-  above code becomes:
-
-  .. code-block:: c++
-
-    Instruction* pi = ...;
-    auto *newInst = new Instruction(..., pi);
-
-  which is much cleaner, especially if you're creating a lot of instructions and
-  adding them to ``BasicBlock``\ s.
 
 * Insertion using an instance of ``IRBuilder``
 
@@ -2987,8 +3049,7 @@ Deleting Instructions
     AllocaInst* instToReplace = ...;
     BasicBlock::iterator ii(instToReplace);
 
-    ReplaceInstWithValue(instToReplace->getParent()->getInstList(), ii,
-                         Constant::getNullValue(PointerType::getUnqual(Type::Int32Ty)));
+    ReplaceInstWithValue(ii, Constant::getNullValue(PointerType::getUnqual(Type::Int32Ty)));
 
 * ``ReplaceInstWithInst``
 
@@ -3003,7 +3064,7 @@ Deleting Instructions
     AllocaInst* instToReplace = ...;
     BasicBlock::iterator ii(instToReplace);
 
-    ReplaceInstWithInst(instToReplace->getParent()->getInstList(), ii,
+    ReplaceInstWithInst(instToReplace->getParent(), ii,
                         new AllocaInst(Type::Int32Ty, 0, "ptrToReplacedInt"));
 
 
@@ -3461,16 +3522,13 @@ Important Public Members of the ``Module`` class
 
 * | ``Module::global_iterator`` - Typedef for global variable list iterator
   | ``Module::const_global_iterator`` - Typedef for const_iterator.
+  | ``Module::insertGlobalVariable()`` - Inserts a global variable to the list.
+  | ``Module::removeGlobalVariable()`` - Removes a global variable frome the list.
+  | ``Module::eraseGlobalVariable()`` - Removes a global variable frome the list and deletes it.
   | ``global_begin()``, ``global_end()``, ``global_size()``, ``global_empty()``
 
   These are forwarding methods that make it easy to access the contents of a
   ``Module`` object's GlobalVariable_ list.
-
-* ``Module::GlobalListType &getGlobalList()``
-
-  Returns the list of GlobalVariable_\ s.  This is necessary to use when you
-  need to update the list or perform a complex action that doesn't have a
-  forwarding method.
 
 ----------------
 
@@ -3913,16 +3971,11 @@ Important Public Members of the ``Function``
 
 * | ``Function::iterator`` - Typedef for basic block list iterator
   | ``Function::const_iterator`` - Typedef for const_iterator.
-  | ``begin()``, ``end()``, ``size()``, ``empty()``
+  | ``begin()``, ``end()``, ``size()``, ``empty()``, ``insert()``,
+    ``splice()``, ``erase()``
 
   These are forwarding methods that make it easy to access the contents of a
   ``Function`` object's BasicBlock_ list.
-
-* ``Function::BasicBlockListType &getBasicBlockList()``
-
-  Returns the list of BasicBlock_\ s.  This is necessary to use when you need to
-  update the list or perform a complex action that doesn't have a forwarding
-  method.
 
 * | ``Function::arg_iterator`` - Typedef for the argument list iterator
   | ``Function::const_arg_iterator`` - Typedef for const_iterator.
@@ -4058,23 +4111,13 @@ Important Public Members of the ``BasicBlock`` class
 * | ``BasicBlock::iterator`` - Typedef for instruction list iterator
   | ``BasicBlock::const_iterator`` - Typedef for const_iterator.
   | ``begin()``, ``end()``, ``front()``, ``back()``,
-    ``size()``, ``empty()``
+    ``size()``, ``empty()``, ``splice()``
     STL-style functions for accessing the instruction list.
 
   These methods and typedefs are forwarding functions that have the same
   semantics as the standard library methods of the same names.  These methods
   expose the underlying instruction list of a basic block in a way that is easy
-  to manipulate.  To get the full complement of container operations (including
-  operations to update the list), you must use the ``getInstList()`` method.
-
-* ``BasicBlock::InstListType &getInstList()``
-
-  This method is used to get access to the underlying container that actually
-  holds the Instructions.  This method must be used when there isn't a
-  forwarding function in the ``BasicBlock`` class for the operation that you
-  would like to perform.  Because there are no forwarding functions for
-  "updating" operations, you need to use this if you want to update the contents
-  of a ``BasicBlock``.
+  to manipulate.
 
 * ``Function *getParent()``
 

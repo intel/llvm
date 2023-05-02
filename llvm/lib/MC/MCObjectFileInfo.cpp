@@ -8,7 +8,6 @@
 
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/Wasm.h"
@@ -24,6 +23,7 @@
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCSectionXCOFF.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -79,10 +79,6 @@ void MCObjectFileInfo::initMachOMCObjectFileInfo(const Triple &T) {
   }
 
   FDECFIEncoding = dwarf::DW_EH_PE_pcrel;
-
-  // .comm doesn't support alignment before Leopard.
-  if (T.isMacOSX() && T.isMacOSXVersionLT(10, 5))
-    CommDirectiveSupportsAlignment = false;
 
   TextSection // .text
     = Ctx->getMachOSection("__TEXT", "__text",
@@ -361,6 +357,9 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
     FDECFIEncoding =
         PositionIndependent ? dwarf::DW_EH_PE_pcrel : dwarf::DW_EH_PE_absptr;
     break;
+  case Triple::xtensa:
+    FDECFIEncoding = dwarf::DW_EH_PE_sdata4;
+    break;
   default:
     FDECFIEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
     break;
@@ -555,8 +554,6 @@ void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
   // used to indicate to the linker that the text segment contains thumb instructions
   // and to set the ISA selection bit for calls accordingly.
   const bool IsThumb = T.getArch() == Triple::thumb;
-
-  CommDirectiveSupportsAlignment = true;
 
   // COFF
   BSSSection = Ctx->getCOFFSection(
@@ -978,47 +975,53 @@ void MCObjectFileInfo::initXCOFFMCObjectFileInfo(const Triple &T) {
   // sections, and the individual DWARF sections are distinguished by their
   // section subtype.
   DwarfAbbrevSection = Ctx->getXCOFFSection(
-      ".dwabrev", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwabrev", SectionKind::getMetadata(),
+      /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwabrev", XCOFF::SSUBTYP_DWABREV);
 
   DwarfInfoSection = Ctx->getXCOFFSection(
-      ".dwinfo", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwinfo", SectionKind::getMetadata(), /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwinfo", XCOFF::SSUBTYP_DWINFO);
 
   DwarfLineSection = Ctx->getXCOFFSection(
-      ".dwline", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwline", SectionKind::getMetadata(), /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwline", XCOFF::SSUBTYP_DWLINE);
 
   DwarfFrameSection = Ctx->getXCOFFSection(
-      ".dwframe", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwframe", SectionKind::getMetadata(),
+      /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwframe", XCOFF::SSUBTYP_DWFRAME);
 
   DwarfPubNamesSection = Ctx->getXCOFFSection(
-      ".dwpbnms", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwpbnms", SectionKind::getMetadata(),
+      /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwpbnms", XCOFF::SSUBTYP_DWPBNMS);
 
   DwarfPubTypesSection = Ctx->getXCOFFSection(
-      ".dwpbtyp", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwpbtyp", SectionKind::getMetadata(),
+      /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwpbtyp", XCOFF::SSUBTYP_DWPBTYP);
 
   DwarfStrSection = Ctx->getXCOFFSection(
-      ".dwstr", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwstr", SectionKind::getMetadata(), /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwstr", XCOFF::SSUBTYP_DWSTR);
 
   DwarfLocSection = Ctx->getXCOFFSection(
-      ".dwloc", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwloc", SectionKind::getMetadata(), /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwloc", XCOFF::SSUBTYP_DWLOC);
 
   DwarfARangesSection = Ctx->getXCOFFSection(
-      ".dwarnge", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwarnge", SectionKind::getMetadata(),
+      /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwarnge", XCOFF::SSUBTYP_DWARNGE);
 
   DwarfRangesSection = Ctx->getXCOFFSection(
-      ".dwrnges", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwrnges", SectionKind::getMetadata(),
+      /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwrnges", XCOFF::SSUBTYP_DWRNGES);
 
   DwarfMacinfoSection = Ctx->getXCOFFSection(
-      ".dwmac", SectionKind::getMetadata(), /* CsectProperties */ None,
+      ".dwmac", SectionKind::getMetadata(), /* CsectProperties */ std::nullopt,
       /* MultiSymbolsAllowed */ true, ".dwmac", XCOFF::SSUBTYP_DWMAC);
 }
 
@@ -1035,7 +1038,6 @@ void MCObjectFileInfo::initMCObjectFileInfo(MCContext &MCCtx, bool PIC,
   Ctx = &MCCtx;
 
   // Common.
-  CommDirectiveSupportsAlignment = true;
   SupportsWeakOmittedEHFrame = true;
   SupportsCompactUnwindWithoutEHFrame = false;
   OmitDwarfIfHaveCompactUnwind = false;

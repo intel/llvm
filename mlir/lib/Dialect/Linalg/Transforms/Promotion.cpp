@@ -13,6 +13,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -21,6 +23,7 @@
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "llvm/ADT/MapVector.h"
@@ -44,7 +47,7 @@ using llvm::MapVector;
 static Value allocBuffer(ImplicitLocOpBuilder &b,
                          const LinalgPromotionOptions &options,
                          Type elementType, Value allocSize, DataLayout &layout,
-                         Optional<unsigned> alignment = None) {
+                         std::optional<unsigned> alignment = std::nullopt) {
   auto width = layout.getTypeSize(elementType);
 
   IntegerAttr alignmentAttr;
@@ -65,7 +68,7 @@ static Value allocBuffer(ImplicitLocOpBuilder &b,
 
   // Fallback dynamic buffer.
   auto dynamicBufferType =
-      MemRefType::get(ShapedType::kDynamicSize, b.getIntegerType(8));
+      MemRefType::get(ShapedType::kDynamic, b.getIntegerType(8));
   Value mul = b.createOrFold<arith::MulIOp>(
       b.create<arith::ConstantIndexOp>(width), allocSize);
   if (options.useAlloca)
@@ -77,11 +80,10 @@ static Value allocBuffer(ImplicitLocOpBuilder &b,
 /// no call back to do so is provided. The default is to allocate a
 /// memref<..xi8> and return a view to get a memref type of shape
 /// boundingSubViewSize.
-static Optional<Value>
-defaultAllocBufferCallBack(const LinalgPromotionOptions &options,
-                           OpBuilder &builder, memref::SubViewOp subView,
-                           ArrayRef<Value> boundingSubViewSize,
-                           Optional<unsigned> alignment, DataLayout &layout) {
+static std::optional<Value> defaultAllocBufferCallBack(
+    const LinalgPromotionOptions &options, OpBuilder &builder,
+    memref::SubViewOp subView, ArrayRef<Value> boundingSubViewSize,
+    std::optional<unsigned> alignment, DataLayout &layout) {
   ShapedType viewType = subView.getType();
   ImplicitLocOpBuilder b(subView.getLoc(), builder);
   auto zero = b.createOrFold<arith::ConstantIndexOp>(0);
@@ -93,7 +95,7 @@ defaultAllocBufferCallBack(const LinalgPromotionOptions &options,
   Value buffer = allocBuffer(b, options, viewType.getElementType(), allocSize,
                              layout, alignment);
   SmallVector<int64_t, 4> dynSizes(boundingSubViewSize.size(),
-                                   ShapedType::kDynamicSize);
+                                   ShapedType::kDynamic);
   Value view = b.createOrFold<memref::ViewOp>(
       MemRefType::get(dynSizes, viewType.getElementType()), buffer, zero,
       boundingSubViewSize);
@@ -136,7 +138,7 @@ struct LinalgOpInstancePromotionOptions {
   CopyCallbackFn copyOutFn;
 
   /// Alignment of promoted buffer.
-  Optional<unsigned> alignment;
+  std::optional<unsigned> alignment;
 };
 } // namespace
 
@@ -166,7 +168,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
   } else {
     allocationFn = [&](OpBuilder &b, memref::SubViewOp subViewOp,
                        ArrayRef<Value> boundingSubViewSize,
-                       DataLayout &layout) -> Optional<Value> {
+                       DataLayout &layout) -> std::optional<Value> {
       return defaultAllocBufferCallBack(options, b, subViewOp,
                                         boundingSubViewSize, alignment, layout);
     };
@@ -233,20 +235,23 @@ FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
       Value materializedSize =
           getValueOrCreateConstantIndexOp(b, loc, rangeValue.size);
       FailureOr<int64_t> upperBound =
-          getConstantUpperBoundForIndex(materializedSize);
+          ValueBoundsConstraintSet::computeConstantBound(
+              presburger::BoundType::UB, materializedSize, /*dim=*/std::nullopt,
+              /*stopCondition=*/nullptr, /*closedUB=*/true);
       size = failed(upperBound)
                  ? materializedSize
-                 : b.create<arith::ConstantIndexOp>(loc, upperBound.value());
+                 : b.create<arith::ConstantIndexOp>(loc, *upperBound);
     }
     LLVM_DEBUG(llvm::dbgs() << "Extracted tightest: " << size << "\n");
     fullSizes.push_back(size);
     partialSizes.push_back(
         b.createOrFold<memref::DimOp>(loc, subView, resultDimIdx++));
   }
-  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), ShapedType::kDynamicSize);
+  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), ShapedType::kDynamic);
   // If a callback is not specified, then use the default implementation for
   // allocating the promoted buffer.
-  Optional<Value> fullLocalView = allocationFn(b, subView, fullSizes, layout);
+  std::optional<Value> fullLocalView =
+      allocationFn(b, subView, fullSizes, layout);
   if (!fullLocalView)
     return failure();
   SmallVector<OpFoldResult, 4> zeros(fullSizes.size(), b.getIndexAttr(0));
@@ -396,4 +401,88 @@ mlir::linalg::promoteSubViews(OpBuilder &builder, LinalgOp linalgOp,
   if (failed(res))
     return failure();
   return res;
+}
+
+/// Allocate the given subview to a memory address space in GPU by creating a
+/// allocation operation and setting the memref type address space to desired
+/// address space.
+static std::optional<Value> allocateSubviewGPUMemoryInAddressSpace(
+    OpBuilder &builder, memref::SubViewOp subview, ArrayRef<Value> sizeBounds,
+    gpu::AddressSpace addressSpace) {
+  OpBuilder::InsertionGuard guard(builder);
+
+  func::FuncOp funcOp = subview->getParentOfType<func::FuncOp>();
+  if (!funcOp)
+    return std::nullopt;
+
+  // The subview size bounds are expected to be constant; they specify the shape
+  // of the allocation.
+  SmallVector<int64_t> shape;
+  for (Value bound : sizeBounds) {
+    APInt value;
+    if (!matchPattern(bound, m_ConstantInt(&value)))
+      return std::nullopt;
+    shape.push_back(value.getSExtValue());
+  }
+
+  builder.setInsertionPoint(&funcOp.front(), funcOp.front().begin());
+  auto type = MemRefType::get(
+      shape, subview.getType().getElementType(), MemRefLayoutAttrInterface{},
+      gpu::AddressSpaceAttr::get(builder.getContext(), addressSpace));
+  Value buffer;
+  if (addressSpace == gpu::GPUDialect::getWorkgroupAddressSpace()) {
+    buffer = builder.create<memref::AllocOp>(funcOp.getLoc(), type);
+  } else if (addressSpace == gpu::GPUDialect::getPrivateAddressSpace()) {
+    buffer = builder.create<memref::AllocaOp>(funcOp.getLoc(), type);
+  } else {
+    return std::nullopt;
+  }
+  return buffer;
+}
+
+/// Allocate the subview in the GPU workgroup memory.
+std::optional<Value> mlir::linalg::allocateWorkgroupMemory(
+    OpBuilder &builder, memref::SubViewOp subview, ArrayRef<Value> sizeBounds,
+    DataLayout &) {
+  return allocateSubviewGPUMemoryInAddressSpace(
+      builder, subview, sizeBounds,
+      gpu::GPUDialect::getWorkgroupAddressSpace());
+}
+
+/// In case of GPU group memory there is no need to deallocate.
+LogicalResult mlir::linalg::deallocateWorkgroupMemory(OpBuilder &,
+                                                      Value /*buffer*/) {
+  return success();
+}
+
+/// Create Memref copy operations and add gpu barrier guards before and after
+/// the copy operation to ensure data integrity.
+LogicalResult mlir::linalg::copyToWorkgroupMemory(OpBuilder &b, Value src,
+                                                  Value dst) {
+  b.create<gpu::BarrierOp>(src.getLoc());
+  Operation *copyOp = b.create<memref::CopyOp>(src.getLoc(), src, dst);
+  b.create<gpu::BarrierOp>(copyOp->getLoc());
+  return success();
+}
+
+/// Allocate the subview in the GPU private memory.
+std::optional<Value> mlir::linalg::allocateGPUPrivateMemory(
+    OpBuilder &builder, memref::SubViewOp subview, ArrayRef<Value> sizeBounds,
+    DataLayout &) {
+  return allocateSubviewGPUMemoryInAddressSpace(
+      builder, subview, sizeBounds, gpu::GPUDialect::getPrivateAddressSpace());
+}
+
+/// Normal copy to between src and dst.
+LogicalResult mlir::linalg::copyToGPUPrivateMemory(OpBuilder &b, Value src,
+                                                   Value dst) {
+  b.create<memref::CopyOp>(src.getLoc(), src, dst);
+  return success();
+}
+
+/// In case of GPU private memory there is no need to deallocate since the
+/// memory is freed when going outside of the scope.
+LogicalResult mlir::linalg::deallocateGPUPrivateMemory(OpBuilder &,
+                                                       Value /*buffer*/) {
+  return success();
 }

@@ -75,6 +75,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 
 #define DEBUG_TYPE "spirv"
@@ -153,7 +154,7 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
-#if ENABLE_OPAQUE_POINTERS
+#if SPIRV_ENABLE_OPAQUE_POINTERS
 constexpr static bool SPIRVOpaquePointersDefault = true;
 #else
 constexpr static bool SPIRVOpaquePointersDefault = false;
@@ -190,12 +191,18 @@ static cl::opt<std::string> SpecConst(
              "SPIR-V module.\n"
              "The list of valid ids is available via -spec-const-info option.\n"
              "For duplicate ids the later one takes precedence.\n"
+             "Float values may be represented in decimal or hexadecimal, hex "
+             "values must be preceded by 0x.\n"
              "Supported types are: i1, i8, i16, i32, i64, f16, f32, f64.\n"),
     cl::value_desc("id1:type1:value1 id2:type2:value2 ..."));
 
 static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
+
+static cl::opt<bool> SPIRVPreserveAuxData(
+    "spirv-preserve-auxdata", cl::init(false),
+    cl::desc("Preserve all auxiliary data, such as function attributes and metadata"));
 
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
@@ -232,7 +239,21 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
         clEnumValN(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100, "ocl-100",
                    "Emit debug info compliant with the OpenCL.DebugInfo.100 "
                    "extended instruction set. This version of SPIR-V debug "
-                   "info format is compatible with the SPIRV-Tools")));
+                   "info format is compatible with the SPIRV-Tools"),
+        clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100,
+            "nonsemantic-shader-100",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.100 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets."),
+        clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200,
+            "nonsemantic-shader-200",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.200 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets.")));
 
 static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
     "spirv-replace-fmuladd-with-ocl-mad",
@@ -489,8 +510,11 @@ static int parseSPVExtOption(
   //  - during SPIR-V generation, assume that any known extension is disallowed.
   //  - during conversion to/from SPIR-V text representation, assume that any
   //    known extension is allowed.
+  std::optional<bool> DefaultVal;
+  if (IsReverse)
+    DefaultVal = true;
   for (const auto &It : ExtensionNamesMap)
-    ExtensionsStatus[It.second] = IsReverse;
+    ExtensionsStatus[It.second] = DefaultVal;
 
   if (SPVExt.empty())
     return 0; // Nothing to do
@@ -559,9 +583,9 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
              << "\" must be a 32-bit unsigned integer\n";
       return true;
     }
-    auto It = std::find_if(
-        SpecConstInfo.begin(), SpecConstInfo.end(),
-        [=](SpecConstInfoTy Info) { return Info.first == SpecId; });
+    auto It =
+        std::find_if(SpecConstInfo.begin(), SpecConstInfo.end(),
+                     [=](SpecConstInfoTy Info) { return Info.ID == SpecId; });
     if (It == SpecConstInfo.end()) {
       errs() << "Error: CL_INVALID_SPEC_ID. \"" << Option << "\": There is no "
              << "specialization constant with id = " << SpecId
@@ -579,11 +603,11 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
         return true;
       }
       size_t Size = Width < 8 ? 1 : Width / 8;
-      if (Size != It->second) {
+      if (Size != It->Size) {
         errs() << "Error: CL_INVALID_VALUE. In \"" << Option << "\": Size of "
                << "type i" << Width << " (" << Size << " bytes) "
                << "does not match the size of the specialization constant "
-               << "in the module (" << It->second << " bytes)\n";
+               << "in the module (" << It->Size << " bytes)\n";
         return true;
       }
       APInt Value;
@@ -618,21 +642,29 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
         return true;
       }
       APFloat Value(*FS);
-      Expected<APFloat::opStatus> StatusOrErr =
-          Value.convertFromString(Params[2], APFloat::rmNearestTiesToEven);
-      if (!StatusOrErr) {
-        return true;
+      if (Params[2].find("0x") != StringRef::npos) {
+        std::stringstream paramStream;
+        paramStream << std::hex << Params[2].data();
+        uint64_t specVal = 0;
+        paramStream >> specVal;
+        Opts.setSpecConst(SpecId, specVal);
+      } else {
+        Expected<APFloat::opStatus> StatusOrErr =
+            Value.convertFromString(Params[2], APFloat::rmNearestTiesToEven);
+        if (!StatusOrErr) {
+          return true;
+        }
+        // It's ok to have inexact conversion from decimal representation.
+        APFloat::opStatus Status = *StatusOrErr;
+        if (Status & ~APFloat::opInexact) {
+          errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
+                 << "' option! In \"" << Option << "\": can't convert \""
+                 << Params[2] << "\" to " << Width
+                 << "-bit floating point number\n";
+          return true;
+        }
+        Opts.setSpecConst(SpecId, Value.bitcastToAPInt().getZExtValue());
       }
-      // It's ok to have inexact conversion from decimal representation.
-      APFloat::opStatus Status = *StatusOrErr;
-      if (Status & ~APFloat::opInexact) {
-        errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
-               << "' option! In \"" << Option << "\": can't convert \""
-               << Params[2] << "\" to " << Width
-               << "-bit floating point number\n";
-        return true;
-      }
-      Opts.setSpecConst(SpecId, Value.bitcastToAPInt().getZExtValue());
     } else {
       errs() << "Error: Invalid type for '-" << SpecConst.ArgStr
              << "' option! In \"" << Option << "\": \"" << Params[1]
@@ -692,6 +724,14 @@ int main(int Ac, char **Av) {
       return -1;
   }
 
+  if (SPIRVPreserveAuxData) {
+    Opts.setPreserveAuxData(
+        SPIRVPreserveAuxData);
+    if (!IsReverse)
+      Opts.setAllowedToUseExtension(
+          SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+  }
+
   if (SPIRVAllowUnknownIntrinsics.getNumOccurrences() != 0) {
     if (IsReverse) {
       errs()
@@ -722,6 +762,15 @@ int main(int Ac, char **Av) {
                 "affects translation from LLVM IR to SPIR-V";
     } else {
       Opts.setDebugInfoEIS(DebugEIS);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowExtraDIExpressionsEnabled(true);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100 ||
+          DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowedToUseExtension(
+            SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
     }
   }
 
@@ -766,8 +815,9 @@ int main(int Ac, char **Av) {
     std::cout << "Number of scalar specialization constants in the module = "
               << SpecConstInfo.size() << "\n";
     for (auto &SpecConst : SpecConstInfo)
-      std::cout << "Spec const id = " << SpecConst.first
-                << ", size in bytes = " << SpecConst.second << "\n";
+      std::cout << "Spec const id = " << SpecConst.ID
+                << ", size in bytes = " << SpecConst.Size
+                << ", type = " << SpecConst.Type << "\n";
   }
   return 0;
 }

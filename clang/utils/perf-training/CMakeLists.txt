@@ -11,7 +11,7 @@ if(LLVM_BUILD_INSTRUMENTED)
   add_lit_testsuite(generate-profraw "Generating clang PGO data"
     ${CMAKE_CURRENT_BINARY_DIR}/pgo-data/
     EXCLUDE_FROM_CHECK_ALL
-    DEPENDS clang clear-profraw
+    DEPENDS clang clear-profraw ${CLANG_PERF_TRAINING_DEPS}
     )
 
   add_custom_target(clear-profraw
@@ -33,7 +33,9 @@ if(LLVM_BUILD_INSTRUMENTED)
 endif()
 
 find_program(DTRACE dtrace)
-if(APPLE AND DTRACE)
+# TODO: Look into supporting this for the driver build. It will require changing
+# the perf-helper.py file to understand to call `llvm` as `llvm clang`.
+if(APPLE AND DTRACE AND NOT LLVM_TOOL_LLVM_DRIVER_BUILD)
   configure_lit_site_cfg(
     ${CMAKE_CURRENT_SOURCE_DIR}/order-files.lit.site.cfg.in
     ${CMAKE_CURRENT_BINARY_DIR}/order-files/lit.site.cfg

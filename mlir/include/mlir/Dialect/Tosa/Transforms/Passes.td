@@ -57,7 +57,7 @@ def TosaOptionalDecompositions
   : Pass<"tosa-optional-decompositions", "func::FuncOp"> {
   let summary = "Applies Tosa operations optional decompositions";
   let description = [{
-    Pass to apply the Tosa operations decompositions 
+    Pass to apply the Tosa operations decompositions
     exposed as populate functions in include/mlir/Dialect/Tosa/Transforms/Passes.h
   }];
 
@@ -84,8 +84,12 @@ def TosaValidation : Pass<"tosa-validate", "func::FuncOp"> {
 
   let options = [
       Option<"profileName", "profile", "std::string",
-      /*default=*/"\"undefined\"",
-      "Validation if ops match for given profile">];
+             /*default=*/"\"undefined\"",
+             "Validate if operations match for the given profile">,
+      Option<"StrictOperationSpecAlignment", "strict-op-spec-alignment", "bool",
+             /*default=*/"false",
+             "Verify if the properties of certain operations align the spec requirement">,
+   ];
 }
 
 #endif // MLIR_DIALECT_TOSA_TRANSFORMS_PASSES

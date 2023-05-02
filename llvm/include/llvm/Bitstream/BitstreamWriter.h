@@ -15,7 +15,6 @@
 #define LLVM_BITSTREAM_BITSTREAMWRITER_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Bitstream/BitCodes.h"
@@ -23,6 +22,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -370,7 +370,7 @@ private:
   /// the code.
   template <typename uintty>
   void EmitRecordWithAbbrevImpl(unsigned Abbrev, ArrayRef<uintty> Vals,
-                                StringRef Blob, Optional<unsigned> Code) {
+                                StringRef Blob, std::optional<unsigned> Code) {
     const char *BlobData = Blob.data();
     unsigned BlobLen = (unsigned) Blob.size();
     unsigned AbbrevNo = Abbrev-bitc::FIRST_APPLICATION_ABBREV;
@@ -385,12 +385,12 @@ private:
       const BitCodeAbbrevOp &Op = Abbv->getOperandInfo(i++);
 
       if (Op.isLiteral())
-        EmitAbbreviatedLiteral(Op, Code.value());
+        EmitAbbreviatedLiteral(Op, *Code);
       else {
         assert(Op.getEncoding() != BitCodeAbbrevOp::Array &&
                Op.getEncoding() != BitCodeAbbrevOp::Blob &&
                "Expected literal or scalar");
-        EmitAbbreviatedField(Op, Code.value());
+        EmitAbbreviatedField(Op, *Code);
       }
     }
 
@@ -474,7 +474,7 @@ public:
       Out.push_back(0);
   }
   void emitBlob(StringRef Bytes, bool ShouldEmitSize = true) {
-    emitBlob(makeArrayRef((const uint8_t *)Bytes.data(), Bytes.size()),
+    emitBlob(ArrayRef((const uint8_t *)Bytes.data(), Bytes.size()),
              ShouldEmitSize);
   }
 
@@ -485,7 +485,7 @@ public:
     if (!Abbrev) {
       // If we don't have an abbrev to use, emit this in its fully unabbreviated
       // form.
-      auto Count = static_cast<uint32_t>(makeArrayRef(Vals).size());
+      auto Count = static_cast<uint32_t>(std::size(Vals));
       EmitCode(bitc::UNABBREV_RECORD);
       EmitVBR(Code, 6);
       EmitVBR(Count, 6);
@@ -494,7 +494,7 @@ public:
       return;
     }
 
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), StringRef(), Code);
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), Code);
   }
 
   /// EmitRecordWithAbbrev - Emit a record with the specified abbreviation.
@@ -502,7 +502,7 @@ public:
   /// the first entry.
   template <typename Container>
   void EmitRecordWithAbbrev(unsigned Abbrev, const Container &Vals) {
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), StringRef(), None);
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), std::nullopt);
   }
 
   /// EmitRecordWithBlob - Emit the specified record to the stream, using an
@@ -513,13 +513,13 @@ public:
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           StringRef Blob) {
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), Blob, None);
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Blob, std::nullopt);
   }
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           const char *BlobData, unsigned BlobLen) {
-    return EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals),
-                                    StringRef(BlobData, BlobLen), None);
+    return EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals),
+                                    StringRef(BlobData, BlobLen), std::nullopt);
   }
 
   /// EmitRecordWithArray - Just like EmitRecordWithBlob, works with records
@@ -527,13 +527,13 @@ public:
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            StringRef Array) {
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), Array, None);
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Array, std::nullopt);
   }
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            const char *ArrayData, unsigned ArrayLen) {
-    return EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals),
-                                    StringRef(ArrayData, ArrayLen), None);
+    return EmitRecordWithAbbrevImpl(
+        Abbrev, ArrayRef(Vals), StringRef(ArrayData, ArrayLen), std::nullopt);
   }
 
   //===--------------------------------------------------------------------===//

@@ -18,6 +18,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -64,7 +65,6 @@ static bool foldGuardedFunnelShift(Instruction &I, const DominatorTree &DT) {
   // shift amount.
   auto matchFunnelShift = [](Value *V, Value *&ShVal0, Value *&ShVal1,
                              Value *&ShAmt) {
-    Value *SubAmt;
     unsigned Width = V->getType()->getScalarSizeInBits();
 
     // fshl(ShVal0, ShVal1, ShAmt)
@@ -72,8 +72,7 @@ static bool foldGuardedFunnelShift(Instruction &I, const DominatorTree &DT) {
     if (match(V, m_OneUse(m_c_Or(
                      m_Shl(m_Value(ShVal0), m_Value(ShAmt)),
                      m_LShr(m_Value(ShVal1),
-                            m_Sub(m_SpecificInt(Width), m_Value(SubAmt))))))) {
-      if (ShAmt == SubAmt) // TODO: Use m_Specific
+                            m_Sub(m_SpecificInt(Width), m_Deferred(ShAmt))))))) {
         return Intrinsic::fshl;
     }
 
@@ -81,9 +80,8 @@ static bool foldGuardedFunnelShift(Instruction &I, const DominatorTree &DT) {
     //  == (ShVal0 >> ShAmt) | (ShVal1 << (Width - ShAmt))
     if (match(V,
               m_OneUse(m_c_Or(m_Shl(m_Value(ShVal0), m_Sub(m_SpecificInt(Width),
-                                                           m_Value(SubAmt))),
-                              m_LShr(m_Value(ShVal1), m_Value(ShAmt)))))) {
-      if (ShAmt == SubAmt) // TODO: Use m_Specific
+                                                           m_Value(ShAmt))),
+                              m_LShr(m_Value(ShVal1), m_Deferred(ShAmt)))))) {
         return Intrinsic::fshr;
     }
 
@@ -305,7 +303,7 @@ static bool tryToRecognizePopCount(Instruction &I) {
   Value *MulOp0;
   // Matching "(i * 0x01010101...) >> 24".
   if ((match(Op0, m_Mul(m_Value(MulOp0), m_SpecificInt(Mask01)))) &&
-       match(Op1, m_SpecificInt(MaskShift))) {
+      match(Op1, m_SpecificInt(MaskShift))) {
     Value *ShiftOp0;
     // Matching "((i + (i >> 4)) & 0x0F0F0F0F...)".
     if (match(MulOp0, m_And(m_c_Add(m_LShr(m_Value(ShiftOp0), m_SpecificInt(4)),
@@ -401,8 +399,8 @@ static bool tryToFPToSat(Instruction &I, TargetTransformInfo &TTI) {
 /// Try to replace a mathlib call to sqrt with the LLVM intrinsic. This avoids
 /// pessimistic codegen that has to account for setting errno and can enable
 /// vectorization.
-static bool
-foldSqrt(Instruction &I, TargetTransformInfo &TTI, TargetLibraryInfo &TLI) {
+static bool foldSqrt(Instruction &I, TargetTransformInfo &TTI,
+                     TargetLibraryInfo &TLI) {
   // Match a call to sqrt mathlib function.
   auto *Call = dyn_cast<CallInst>(&I);
   if (!Call)
@@ -610,6 +608,7 @@ static bool tryToRecognizeTableBasedCttz(Instruction &I) {
 /// shift amount, zero extend type and loadSize.
 struct LoadOps {
   LoadInst *Root = nullptr;
+  LoadInst *RootInsert = nullptr;
   bool FoundRoot = false;
   uint64_t LoadSize = 0;
   Value *Shift = nullptr;
@@ -675,16 +674,6 @@ static bool foldLoadsRecursive(Value *V, LoadOps &LOps, const DataLayout &DL,
       Load2Ptr->stripAndAccumulateConstantOffsets(DL, Offset2,
                                                   /* AllowNonInbounds */ true);
 
-  // Make sure Load with lower Offset is at LI1
-  bool Reverse = false;
-  if (Offset2.slt(Offset1)) {
-    std::swap(LI1, LI2);
-    std::swap(ShAmt1, ShAmt2);
-    std::swap(Offset1, Offset2);
-    std::swap(Load1Ptr, Load2Ptr);
-    Reverse = true;
-  }
-
   // Verify if both loads have same base pointers and load sizes are same.
   uint64_t LoadSize1 = LI1->getType()->getPrimitiveSizeInBits();
   uint64_t LoadSize2 = LI2->getType()->getPrimitiveSizeInBits();
@@ -695,18 +684,34 @@ static bool foldLoadsRecursive(Value *V, LoadOps &LOps, const DataLayout &DL,
   if (LoadSize1 < 8 || !isPowerOf2_64(LoadSize1))
     return false;
 
-  // TODO: Alias Analysis to check for stores b/w the loads.
-  // Currently bail out if there are stores b/w the loads.
-  LoadInst *Start = LI1, *End = LI2;
-  if (!LI1->comesBefore(LI2))
+  // Alias Analysis to check for stores b/w the loads.
+  LoadInst *Start = LOps.FoundRoot ? LOps.RootInsert : LI1, *End = LI2;
+  MemoryLocation Loc;
+  if (!Start->comesBefore(End)) {
     std::swap(Start, End);
+    Loc = MemoryLocation::get(End);
+    if (LOps.FoundRoot)
+      Loc = Loc.getWithNewSize(LOps.LoadSize);
+  } else
+    Loc = MemoryLocation::get(End);
   unsigned NumScanned = 0;
   for (Instruction &Inst :
        make_range(Start->getIterator(), End->getIterator())) {
-    if (Inst.mayWriteToMemory())
+    if (Inst.mayWriteToMemory() && isModSet(AA.getModRefInfo(&Inst, Loc)))
       return false;
     if (++NumScanned > MaxInstrsToScan)
       return false;
+  }
+
+  // Make sure Load with lower Offset is at LI1
+  bool Reverse = false;
+  if (Offset2.slt(Offset1)) {
+    std::swap(LI1, LI2);
+    std::swap(ShAmt1, ShAmt2);
+    std::swap(Offset1, Offset2);
+    std::swap(Load1Ptr, Load2Ptr);
+    std::swap(LoadSize1, LoadSize2);
+    Reverse = true;
   }
 
   // Big endian swap the shifts
@@ -746,6 +751,7 @@ static bool foldLoadsRecursive(Value *V, LoadOps &LOps, const DataLayout &DL,
     AATags1 = LI1->getAAMetadata();
   }
   LOps.LoadSize = LoadSize1 + LoadSize2;
+  LOps.RootInsert = Start;
 
   // Concatenate the AATags of the Merged Loads.
   LOps.AATags = AATags1.concat(AATags2);
@@ -761,6 +767,10 @@ static bool foldLoadsRecursive(Value *V, LoadOps &LOps, const DataLayout &DL,
 // of the loads is to form a wider load.
 static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
                                  TargetTransformInfo &TTI, AliasAnalysis &AA) {
+  // Only consider load chains of scalar values.
+  if (isa<VectorType>(I.getType()))
+    return false;
+
   LoadOps LOps;
   if (!foldLoadsRecursive(&I, LOps, DL, AA) || !LOps.FoundRoot)
     return false;
@@ -781,9 +791,15 @@ static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
   if (!Allowed || !Fast)
     return false;
 
+  // Make sure the Load pointer of type GEP/non-GEP is above insert point
+  Instruction *Inst = dyn_cast<Instruction>(LI1->getPointerOperand());
+  if (Inst && Inst->getParent() == LI1->getParent() &&
+      !Inst->comesBefore(LOps.RootInsert))
+    Inst->moveBefore(LOps.RootInsert);
+
   // New load can be generated
   Value *Load1Ptr = LI1->getPointerOperand();
-  Builder.SetInsertPoint(LI1);
+  Builder.SetInsertPoint(LOps.RootInsert);
   Value *NewPtr = Builder.CreateBitCast(Load1Ptr, WiderType->getPointerTo(AS));
   NewLoad = Builder.CreateAlignedLoad(WiderType, NewPtr, LI1->getAlign(),
                                       LI1->isVolatile(), "");
@@ -802,6 +818,58 @@ static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
   if (LOps.Shift)
     NewOp = Builder.CreateShl(NewOp, LOps.Shift);
   I.replaceAllUsesWith(NewOp);
+
+  return true;
+}
+
+/// If C is a constant patterned array and all valid loaded results for given
+/// alignment are same to a constant, return that constant.
+static bool foldPatternedLoads(Instruction &I, const DataLayout &DL) {
+  auto *LI = dyn_cast<LoadInst>(&I);
+  if (!LI || LI->isVolatile())
+    return false;
+
+  // We can only fold the load if it is from a constant global with definitive
+  // initializer. Skip expensive logic if this is not the case.
+  auto *PtrOp = LI->getPointerOperand();
+  auto *GV = dyn_cast<GlobalVariable>(getUnderlyingObject(PtrOp));
+  if (!GV || !GV->isConstant() || !GV->hasDefinitiveInitializer())
+    return false;
+
+  Type *LoadTy = LI->getType();
+  Constant *C = GV->getInitializer();
+
+  // Bail for large initializers in excess of 4K to avoid too many scans.
+  uint64_t GVSize = DL.getTypeAllocSize(C->getType());
+  if (!GVSize || 4096 < GVSize)
+    return false;
+
+  // Check whether pointer arrives back at Global Variable.
+  // If PtrOp is neither GlobalVariable nor GEP, it might not arrive back at
+  // GlobalVariable.
+  // TODO: implement GEP handling
+  unsigned BW = DL.getIndexTypeSizeInBits(PtrOp->getType());
+  // TODO: Determine stride based on GEPs.
+  APInt Stride(BW, 1);
+  APInt ConstOffset(BW, 0);
+
+  // Any possible offset could be multiple of GEP stride. And any valid
+  // offset is multiple of load alignment, so checking only multiples of bigger
+  // one is sufficient to say results' equality.
+  if (auto LA = LI->getAlign();
+      LA <= GV->getAlign().valueOrOne() && Stride.getZExtValue() < LA.value())
+    Stride = APInt(BW, LA.value());
+
+  Constant *Ca = ConstantFoldLoadFromConst(C, LoadTy, ConstOffset, DL);
+  if (!Ca)
+    return false;
+
+  unsigned E = GVSize - DL.getTypeStoreSize(LoadTy);
+  for (; ConstOffset.getZExtValue() <= E; ConstOffset += Stride)
+    if (Ca != ConstantFoldLoadFromConst(C, LoadTy, ConstOffset, DL))
+      return false;
+
+  I.replaceAllUsesWith(Ca);
 
   return true;
 }
@@ -832,6 +900,7 @@ static bool foldUnusualPatterns(Function &F, DominatorTree &DT,
       MadeChange |= tryToFPToSat(I, TTI);
       MadeChange |= tryToRecognizeTableBasedCttz(I);
       MadeChange |= foldConsecutiveLoads(I, DL, TTI, AA);
+      MadeChange |= foldPatternedLoads(I, DL);
       // NOTE: This function introduces erasing of the instruction `I`, so it
       // needs to be called at the end of this sequence, otherwise we may make
       // bugs.

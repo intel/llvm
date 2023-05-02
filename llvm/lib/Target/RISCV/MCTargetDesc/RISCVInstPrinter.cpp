@@ -1,4 +1,4 @@
-//===-- RISCVInstPrinter.cpp - Convert RISCV MCInst to asm syntax ---------===//
+//===-- RISCVInstPrinter.cpp - Convert RISC-V MCInst to asm syntax --------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This class prints an RISCV MCInst to a .s file.
+// This class prints an RISC-V MCInst to a .s file.
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,10 +29,6 @@ using namespace llvm;
 // Include the auto-generated portion of the assembly writer.
 #define PRINT_ALIAS_INSTR
 #include "RISCVGenAsmWriter.inc"
-
-// Include the auto-generated portion of the compress emitter.
-#define GEN_UNCOMPRESS_INSTR
-#include "RISCVGenCompressInstEmitter.inc"
 
 static cl::opt<bool>
     NoAliases("riscv-no-aliases",
@@ -70,7 +66,7 @@ void RISCVInstPrinter::printInst(const MCInst *MI, uint64_t Address,
   const MCInst *NewMI = MI;
   MCInst UncompressedMI;
   if (PrintAliases && !NoAliases)
-    Res = uncompressInst(UncompressedMI, *MI, MRI, STI);
+    Res = RISCVRVC::uncompress(UncompressedMI, *MI, STI);
   if (Res)
     NewMI = const_cast<MCInst *>(&UncompressedMI);
   if (!PrintAliases || NoAliases || !printAliasInstr(NewMI, Address, STI, O))
@@ -78,8 +74,8 @@ void RISCVInstPrinter::printInst(const MCInst *MI, uint64_t Address,
   printAnnotation(O, Annot);
 }
 
-void RISCVInstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
-  O << getRegisterName(RegNo);
+void RISCVInstPrinter::printRegName(raw_ostream &O, MCRegister Reg) const {
+  O << getRegisterName(Reg);
 }
 
 void RISCVInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
@@ -153,7 +149,32 @@ void RISCVInstPrinter::printFRMArg(const MCInst *MI, unsigned OpNo,
                                    const MCSubtargetInfo &STI, raw_ostream &O) {
   auto FRMArg =
       static_cast<RISCVFPRndMode::RoundingMode>(MI->getOperand(OpNo).getImm());
-  O << RISCVFPRndMode::roundingModeToString(FRMArg);
+  if (PrintAliases && !NoAliases && FRMArg == RISCVFPRndMode::RoundingMode::DYN)
+    return;
+  O << ", " << RISCVFPRndMode::roundingModeToString(FRMArg);
+}
+
+void RISCVInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNo,
+                                         const MCSubtargetInfo &STI,
+                                         raw_ostream &O) {
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  if (Imm == 1) {
+    O << "min";
+  } else if (Imm == 30) {
+    O << "inf";
+  } else if (Imm == 31) {
+    O << "nan";
+  } else {
+    float FPVal = RISCVLoadFPImm::getFPImm(Imm);
+    // If the value is an integer, print a .0 fraction. Otherwise, use %g to
+    // which will not print trailing zeros and will use scientific notation
+    // if it is shorter than printing as a decimal. The smallest value requires
+    // 12 digits of precision including the decimal.
+    if (FPVal == (int)(FPVal))
+      O << format("%.1f", FPVal);
+    else
+      O << format("%.12g", FPVal);
+  }
 }
 
 void RISCVInstPrinter::printZeroOffsetMemOp(const MCInst *MI, unsigned OpNo,
@@ -194,7 +215,7 @@ void RISCVInstPrinter::printVMaskReg(const MCInst *MI, unsigned OpNo,
   O << ".t";
 }
 
-const char *RISCVInstPrinter::getRegisterName(unsigned RegNo) {
-  return getRegisterName(RegNo, ArchRegNames ? RISCV::NoRegAltName
-                                             : RISCV::ABIRegAltName);
+const char *RISCVInstPrinter::getRegisterName(MCRegister Reg) {
+  return getRegisterName(Reg, ArchRegNames ? RISCV::NoRegAltName
+                                           : RISCV::ABIRegAltName);
 }

@@ -42,6 +42,7 @@
 
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEnum.h"
+#include "SPIRVFunction.h"
 #include "SPIRVIsValidEnum.h"
 #include "SPIRVOpCode.h"
 #include "SPIRVStream.h"
@@ -890,7 +891,7 @@ public:
     return getVec(CapabilityFPGARegINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_fpga_reg;
   }
 
@@ -1050,7 +1051,7 @@ public:
 
   SPIRVLoopMerge()
       : SPIRVInstruction(OC), MergeBlock(SPIRVID_MAX),
-        LoopControl(SPIRVWORD_MAX) {
+        ContinueTarget(SPIRVID_MAX), LoopControl(SPIRVWORD_MAX) {
     setHasNoId();
     setHasNoType();
   }
@@ -1619,7 +1620,7 @@ public:
     return getVec(CapabilityUnstructuredLoopControlsINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_unstructured_loop_controls;
   }
 
@@ -1711,7 +1712,7 @@ public:
   _SPIRV_DEF_ENCDEC4(Type, Id, CalledValueId, Args)
   void validate() const override;
   bool isOperandLiteral(unsigned Index) const override { return false; }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_function_pointers;
   }
   SPIRVCapVec getRequiredCapability() const override {
@@ -1761,7 +1762,10 @@ public:
     assert(Module && "Invalid module");
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
     assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug ||
-            ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100) &&
+            ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_AuxData) &&
            "not supported");
   }
   void encode(spv_ostream &O) const override {
@@ -1772,7 +1776,12 @@ public:
       break;
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getEncoder(O) << ExtOpDebug;
+      break;
+    case SPIRVEIS_NonSemantic_AuxData:
+      getEncoder(O) << ExtOpNonSemanticAuxData;
       break;
     default:
       assert(0 && "not supported");
@@ -1789,7 +1798,12 @@ public:
       break;
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getDecoder(I) >> ExtOpDebug;
+      break;
+    case SPIRVEIS_NonSemantic_AuxData:
+      getDecoder(I) >> ExtOpNonSemanticAuxData;
       break;
     default:
       assert(0 && "not supported");
@@ -1836,6 +1850,12 @@ public:
     return ArgTypes;
   }
 
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0)
+      return ExtensionID::SPV_KHR_non_semantic_info;
+    return {};
+  }
+
 protected:
   SPIRVExtInstSetKind ExtSetKind;
   SPIRVId ExtSetId;
@@ -1843,6 +1863,7 @@ protected:
     SPIRVWord ExtOp;
     OCLExtOpKind ExtOpOCL;
     SPIRVDebugExtOpKind ExtOpDebug;
+    NonSemanticAuxDataOpKind ExtOpNonSemanticAuxData;
   };
 };
 
@@ -1884,6 +1905,7 @@ protected:
     case OpTypeArray:
     case OpTypeStruct:
     case internal::OpTypeJointMatrixINTEL:
+    case internal::OpTypeJointMatrixINTELv2:
       break;
     default:
       assert(false && "Invalid type");
@@ -2214,8 +2236,8 @@ protected:
     SPIRVInstruction::validate();
   }
   SPIRVId ExecScope;
-  SPIRVId MemScope;
-  SPIRVId MemSema;
+  SPIRVId MemScope = SPIRVID_INVALID;
+  SPIRVId MemSema = SPIRVID_INVALID;
 };
 
 template <Op OC> class SPIRVLifetime : public SPIRVInstruction {
@@ -2539,7 +2561,7 @@ public:
     return getVec(CapabilityGroupNonUniformRotateKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_subgroup_rotate;
   }
 };
@@ -2557,7 +2579,7 @@ protected:
     return getVec(CapabilityBlockingPipesINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_blocking_pipes;
   }
 };
@@ -2575,7 +2597,7 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFixedPointINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point;
   }
 };
@@ -2602,7 +2624,7 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFloatingPointINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_arbitrary_precision_floating_point;
   }
 };
@@ -2694,7 +2716,7 @@ public:
 
 class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
 public:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_EXT_shader_atomic_float_add;
   }
 
@@ -2710,7 +2732,7 @@ public:
 
 class SPIRVAtomicFMinMaxEXTBase : public SPIRVAtomicInstBase {
 public:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_EXT_shader_atomic_float_min_max;
   }
 
@@ -2836,7 +2858,7 @@ public:
     return getVec(CapabilityExpectAssumeKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_expect_assume;
   }
 
@@ -2857,7 +2879,7 @@ protected:
     return getVec(CapabilityExpectAssumeKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_expect_assume;
   }
 };
@@ -2877,7 +2899,7 @@ protected:
     return getVec(ArgCap, CapabilityDotProductKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_integer_dot_product;
   }
 
@@ -2900,7 +2922,7 @@ private:
             OpCode == OpSUDotAccSatKHR);
   }
 
-  Optional<PackedVectorFormat> getPackedVectorFormat() const {
+  std::optional<PackedVectorFormat> getPackedVectorFormat() const {
     size_t PackFmtIdx = 2;
     if (isAccSat()) {
       // AccSat instructions have an additional Accumulator operand.
@@ -2910,7 +2932,7 @@ private:
     if (PackFmtIdx == Ops.size() - 1)
       return static_cast<PackedVectorFormat>(Ops[PackFmtIdx]);
 
-    return None;
+    return std::nullopt;
   }
 
   SPIRVCapabilityKind getRequiredCapabilityForOperand(SPIRVId ArgId) const {
@@ -2959,12 +2981,12 @@ public:
     return getVec(CapabilityShader);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     for (auto Cap : getRequiredCapability()) {
       if (Cap == CapabilityBitInstructions)
         return ExtensionID::SPV_KHR_bit_instructions;
     }
-    return None;
+    return std::nullopt;
   }
 };
 
@@ -2982,7 +3004,7 @@ protected:
     return getVec(CapabilitySubgroupShuffleINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroups;
   }
 };
@@ -3004,7 +3026,7 @@ protected:
     return getVec(CapabilitySubgroupBufferBlockIOINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroups;
   }
 };
@@ -3024,7 +3046,7 @@ protected:
     return getVec(CapabilitySubgroupImageBlockIOINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroups;
   }
 };
@@ -3044,7 +3066,7 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilitySubgroupImageMediaBlockIOINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_media_block_io;
   }
 };
@@ -3064,7 +3086,7 @@ protected:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 };
@@ -3220,7 +3242,7 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityVariableLengthArrayINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_variable_length_array;
   }
 };
@@ -3240,7 +3262,7 @@ protected:
     return getVec(internal::CapabilityBfloat16ConversionINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_bfloat16_conversion;
   }
 
@@ -3306,7 +3328,7 @@ _SPIRV_OP(ConvertBF16ToFINTEL)
 
 class SPIRVJointMatrixINTELInstBase : public SPIRVInstTemplateBase {
 protected:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_joint_matrix;
   }
 };
@@ -3323,8 +3345,26 @@ class SPIRVJointMatrixINTELInst : public SPIRVJointMatrixINTELInstBase {
       SPIRV##x##INTEL;
 _SPIRV_OP(JointMatrixLoad, true, 6, true)
 _SPIRV_OP(JointMatrixStore, false, 5, true)
-_SPIRV_OP(JointMatrixMad, true, 7)
+_SPIRV_OP(JointMatrixMad, true, 6, true)
+_SPIRV_OP(JointMatrixSUMad, true, 6, true)
+_SPIRV_OP(JointMatrixUSMad, true, 6, true)
+_SPIRV_OP(JointMatrixUUMad, true, 6, true)
+// TODO: move to SPIRVJointMatrixINTELWorkItemInst
 _SPIRV_OP(JointMatrixWorkItemLength, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVJointMatrixINTELWorkItemInst : public SPIRVJointMatrixINTELInstBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityJointMatrixWIInstructionsINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVJointMatrixINTELWorkItemInst,                 \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(JointMatrixGetElementCoord, true, 5)
 #undef _SPIRV_OP
 
 class SPIRVSplitBarrierINTELBase : public SPIRVInstTemplateBase {
@@ -3333,7 +3373,7 @@ protected:
     return getVec(CapabilitySplitBarrierINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_split_barrier;
   }
 };
@@ -3351,7 +3391,7 @@ public:
     return getVec(CapabilityGroupUniformArithmeticKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_uniform_group_instructions;
   }
 };
@@ -3400,7 +3440,7 @@ public:
     return getVec(internal::CapabilityComplexFloatMulDivINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_complex_float_mul_div;
   }
 };
@@ -3419,7 +3459,7 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(internal::CapabilityMaskedGatherScatterINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_masked_gather_scatter;
   }
 };
@@ -3563,13 +3603,13 @@ _SPIRV_OP(MaskedScatter, false, 5)
 #undef _SPIRV_OP
 
 template <Op OC>
-class SPIRVTensorFloat32ConversionINTELInstBase : public SPIRVUnaryInst<OC> {
+class SPIRVTensorFloat32RoundingINTELInstBase : public SPIRVUnaryInst<OC> {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityTensorFloat32ConversionINTEL);
+    return getVec(internal::CapabilityTensorFloat32RoundingINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_tensor_float32_conversion;
   }
 
@@ -3587,8 +3627,8 @@ protected:
     // because it may call a method of class Module that may modify LiteralMap
     // of Module field. That modification is not impacting validate method for
     // these instructions, so const_cast is safe here.
-    using SPVTF32ConvTy = SPIRVTensorFloat32ConversionINTELInstBase<OC>;
-    SPIRVValue *Input = const_cast<SPVTF32ConvTy *>(this)->getOperand(0);
+    using SPVTF32RoundTy = SPIRVTensorFloat32RoundingINTELInstBase<OC>;
+    SPIRVValue *Input = const_cast<SPVTF32RoundTy *>(this)->getOperand(0);
 
     SPIRVType *InCompTy = Input->getType();
     SPIRVWord InCompCount = 1;
@@ -3616,8 +3656,8 @@ protected:
 };
 
 #define _SPIRV_OP(x)                                                           \
-  typedef SPIRVTensorFloat32ConversionINTELInstBase<internal::Op##x> SPIRV##x;
-_SPIRV_OP(ConvertFToTF32INTEL)
+  typedef SPIRVTensorFloat32RoundingINTELInstBase<internal::Op##x> SPIRV##x;
+_SPIRV_OP(RoundFToTF32INTEL)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

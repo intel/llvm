@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <optional>
 #include <utility>
 
 #include "mlir/Pass/Pass.h"
@@ -40,8 +41,8 @@ buildDefaultRegistryFn(const PassAllocatorFunction &allocator) {
     std::unique_ptr<Pass> pass = allocator();
     LogicalResult result = pass->initializeOptions(options);
 
-    Optional<StringRef> pmOpName = pm.getOpName();
-    Optional<StringRef> passOpName = pass->getOpName();
+    std::optional<StringRef> pmOpName = pm.getOpName();
+    std::optional<StringRef> passOpName = pass->getOpName();
     if ((pm.getNesting() == OpPassManager::Nesting::Explicit) && pmOpName &&
         passOpName && *pmOpName != *passOpName) {
       return errorHandler(llvm::Twine("Can't add pass '") + pass->getName() +
@@ -587,6 +588,9 @@ LogicalResult TextualPipeline::parsePipelineText(StringRef text,
       pipeline.back().options = text.substr(0, close);
       text = text.substr(close + 1);
 
+      // Consume space characters that an user might add for readability.
+      text = text.ltrim();
+
       // Skip checking for '(' because nested pipelines cannot have options.
     } else if (sep == '(') {
       text = text.substr(1);
@@ -606,6 +610,8 @@ LogicalResult TextualPipeline::parsePipelineText(StringRef text,
                             "parentheses while parsing pipeline");
 
       pipelineStack.pop_back();
+      // Consume space characters that an user might add for readability.
+      text = text.ltrim();
     }
 
     // Check if we've finished parsing.
@@ -702,6 +708,7 @@ LogicalResult mlir::parsePassPipeline(StringRef pipeline, OpPassManager &pm,
 
 FailureOr<OpPassManager> mlir::parsePassPipeline(StringRef pipeline,
                                                  raw_ostream &errorStream) {
+  pipeline = pipeline.trim();
   // Pipelines are expected to be of the form `<op-name>(<pipeline>)`.
   size_t pipelineStart = pipeline.find_first_of('(');
   if (pipelineStart == 0 || pipelineStart == StringRef::npos ||
@@ -711,7 +718,7 @@ FailureOr<OpPassManager> mlir::parsePassPipeline(StringRef pipeline,
     return failure();
   }
 
-  StringRef opName = pipeline.take_front(pipelineStart);
+  StringRef opName = pipeline.take_front(pipelineStart).rtrim();
   OpPassManager pm(opName);
   if (failed(parsePassPipeline(pipeline.drop_front(1 + pipelineStart), pm,
                                errorStream)))

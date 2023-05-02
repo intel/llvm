@@ -179,15 +179,43 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
   add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(DecorationNoAliasINTEL, "NoAliasINTEL");
+  add(DecorationConduitKernelArgumentINTEL, "ConduitKernelArgumentINTEL");
+  add(DecorationRegisterMapKernelArgumentINTEL,
+      "RegisterMapKernelArgumentINTEL");
+  add(DecorationMMHostInterfaceAddressWidthINTEL,
+      "MMHostInterfaceAddressWidthINTEL");
+  add(DecorationMMHostInterfaceDataWidthINTEL, "MMHostInterfaceDataWidthINTEL");
+  add(DecorationMMHostInterfaceLatencyINTEL, "MMHostInterfaceLatencyINTEL");
+  add(DecorationMMHostInterfaceReadWriteModeINTEL,
+      "MMHostInterfaceReadWriteModeINTEL");
+  add(DecorationMMHostInterfaceMaxBurstINTEL, "MMHostInterfaceMaxBurstINTEL");
+  add(DecorationMMHostInterfaceWaitRequestINTEL,
+      "MMHostInterfaceWaitRequestINTEL");
+  add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
+  add(DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
+  add(DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
+  add(DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
+  add(DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
+  add(DecorationConduitKernelArgumentINTEL, "ConduitKernelArgumentINTEL");
+  add(DecorationRegisterMapKernelArgumentINTEL,
+      "RegisterMapKernelArgumentINTEL");
+  add(DecorationMMHostInterfaceAddressWidthINTEL,
+      "MMHostInterfaceAddressWidthINTEL");
+  add(DecorationMMHostInterfaceDataWidthINTEL, "MMHostInterfaceDataWidthINTEL");
+  add(DecorationMMHostInterfaceLatencyINTEL, "MMHostInterfaceLatencyINTEL");
+  add(DecorationMMHostInterfaceReadWriteModeINTEL,
+      "MMHostInterfaceReadWriteModeINTEL");
+  add(DecorationMMHostInterfaceMaxBurstINTEL, "MMHostInterfaceMaxBurstINTEL");
+  add(DecorationMMHostInterfaceWaitRequestINTEL,
+      "MMHostInterfaceWaitRequestINTEL");
+  add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
+  add(DecorationLatencyControlLabelINTEL, "LatencyControlLabelINTEL");
+  add(DecorationLatencyControlConstraintINTEL, "LatencyControlConstraintINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
   add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
-  add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
-  add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
-  add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
-  add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
   add(internal::DecorationHostAccessINTEL, "HostAccessINTEL");
   add(internal::DecorationInitModeINTEL, "InitModeINTEL");
@@ -568,6 +596,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGALoopControlsINTEL, "FPGALoopControlsINTEL");
   add(CapabilityKernelAttributesINTEL, "KernelAttributesINTEL");
   add(CapabilityFPGAKernelAttributesINTEL, "FPGAKernelAttributesINTEL");
+  add(CapabilityFPGAKernelAttributesv2INTEL, "FPGAKernelAttributesv2INTEL");
   add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
   add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
@@ -599,29 +628,38 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
   add(CapabilitySplitBarrierINTEL, "SplitBarrierINTEL");
   add(CapabilityGroupUniformArithmeticKHR, "GroupUniformArithmeticKHR");
-
+  add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
+  add(CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
+  add(CapabilityFPGAInvocationPipeliningAttributesINTEL,
+      "FPGAInvocationPipeliningAttributesINTEL");
+  add(CapabilityRuntimeAlignedAttributeINTEL, "RuntimeAlignedAttributeINTEL");
+  add(CapabilityMax, "Max");
+  add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
+  add(CapabilityFPGALatencyControlINTEL, "FPGALatencyControlINTEL");
   // From spirv_internal.hpp
-  add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
-  add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
-      "FPGAInvocationPipeliningAttributesINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
-  add(internal::CapabilityRuntimeAlignedAttributeINTEL,
-      "RuntimeAlignedAttributeINTEL");
-  add(CapabilityMax, "Max");
   add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
   add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
   add(internal::CapabilityGlobalVariableDecorationsINTEL,
       "GlobalVariableDecorationsINTEL");
-  add(internal::CapabilityNonConstantAddrspacePrintfINTEL,
-      "NonConstantAddrspacePrintfINTEL");
   add(internal::CapabilityComplexFloatMulDivINTEL, "ComplexFloatMulDivINTEL");
   add(internal::CapabilityMaskedGatherScatterINTEL, "MaskedGatherScatterINTEL");
-  add(internal::CapabilityTensorFloat32ConversionINTEL,
-      "TensorFloat32ConversionINTEL");
+  add(internal::CapabilityTensorFloat32RoundingINTEL,
+      "TensorFloat32RoundingINTEL");
+  add(internal::CapabilityJointMatrixWIInstructionsINTEL,
+      "JointMatrixWIInstructionsINTEL");
+  add(internal::CapabilityJointMatrixTF32ComponentTypeINTEL,
+      "JointMatrixTF32ComponentTypeINTEL");
+  add(internal::CapabilityJointMatrixBF16ComponentTypeINTEL,
+      "JointMatrixBF16ComponentTypeINTEL");
+  add(internal::CapabilityJointMatrixPackedInt2ComponentTypeINTEL,
+      "JointMatrixPackedInt2ComponentTypeINTEL");
+  add(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
+      "JointMatrixPackedInt4ComponentTypeINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

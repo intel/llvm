@@ -245,10 +245,10 @@ struct payload_t {
     source_file = sf;
     line_no = line;
     column_no = col;
-    if (kname) {
+    if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
-    if (sf) {
+    if (sf && sf[0] != '\0') {
       flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;
@@ -376,7 +376,7 @@ enum class trace_point_type_t : uint16_t {
   /// Used to trace function call begin and its arguments.
   function_with_args_begin = XPTI_TRACE_POINT_BEGIN(14),
   /// Used to trace function call end.
-  function_with_args_end = XPTI_TRACE_POINT_END(15),
+  function_with_args_end = XPTI_TRACE_POINT_END(14),
   /// Used to notify that a new memory allocation is about to start.
   mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
   /// Used to notify that a memory allocation took place.
@@ -396,6 +396,12 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
   /// Used to notify about creation accessor for offload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
+  /// User to notify when a queue has been created
+  queue_create = XPTI_TRACE_POINT_BEGIN(25),
+  /// User to notify when a queue has been destroyed
+  queue_destroy = XPTI_TRACE_POINT_END(25),
+  /// Used to notify error/informational messages and no action to take
+  diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -720,6 +726,9 @@ constexpr uint16_t trace_offload_buffer_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_buffer);
 constexpr uint16_t trace_offload_accessor_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
+
+constexpr uint16_t trace_diagnostics =
+    static_cast<uint16_t>(xpti::trace_point_type_t::diagnostics);
 } // namespace xpti
 
 using xpti_tp = xpti::trace_point_type_t;

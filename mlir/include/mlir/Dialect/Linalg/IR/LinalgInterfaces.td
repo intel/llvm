@@ -591,6 +591,61 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         return result;
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Given a dimension of the iteration space of a Linalg operation, finds an
+        operand in the operation that is defined on such dimension. Returns
+        whether such operand was found or not. If found, also returns the
+        operand value and the dimension position within the operand.
+      }],
+      /*retTy=*/"LogicalResult",
+      /*methodName=*/"mapIterationSpaceDimToOperandDim",
+      /*args=*/(ins "unsigned":$dimPos,
+                    "::mlir::Value &":$operand,
+                    "unsigned &":$operandDimPos),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        // Retrieve the operand and its dimension position from the first
+        // operand with a permutation map that is defined on such dimension.
+        for (auto [i, idxMap] : llvm::enumerate($_op.getIndexingMapsArray())) {
+          if (idxMap.isProjectedPermutation()) {
+            if (auto mayOperandDim = idxMap.getResultPosition(
+                getAffineDimExpr(dimPos, idxMap.getContext()))) {
+              operand = $_op->getOperand(i);
+              operandDimPos = *mayOperandDim;
+              return success();
+            }
+          }
+        }
+
+        return failure();
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Given a dimension of the iteration space of a Linalg operation, finds
+        all the operands in the operation that are defined on such dimension.
+        Returns all the operand values found and their dimension positions in
+        `operandDimPairs`.
+      }],
+      /*retTy=*/"void",
+      /*methodName=*/"mapIterationSpaceDimToAllOperandDims",
+      /*args=*/(ins "unsigned":$dimPos,
+                    "mlir::SmallVectorImpl<std::pair<Value, unsigned>>&":$operandDimPairs),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        for (auto [i, idxMap] : llvm::enumerate($_op.getIndexingMapsArray())) {
+          if (idxMap.isProjectedPermutation()) {
+            if (auto mayOperandDim = idxMap.getResultPosition(
+                getAffineDimExpr(dimPos, idxMap.getContext()))) {
+              operandDimPairs.push_back({$_op->getOperand(i), *mayOperandDim});
+            }
+          }
+        }
+
+        return;
+      }]
+    >,
     //===------------------------------------------------------------------===//
     // Linalg generalization hooks.
     //===------------------------------------------------------------------===//
@@ -658,7 +713,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*desc=*/[{
         Like `getShape`, but only returns statically-known information, without
         generating any new IR. For each shape dimension, returns >=0 if that
-        dimension is statically known, or ShapeType::kDynamicSize otherwise.
+        dimension is statically known, or ShapeType::kDynamic otherwise.
       }],
       /*retTy=*/"SmallVector<int64_t>",
       /*methodName=*/"getStaticShape",
@@ -675,7 +730,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*desc=*/[{
         Returns the statically-known loop ranges. Composes
         `getShapesToLoopsMap()` with the result of `getStaticShape`.
-        Returns ShapeType::kDynamicSize for non-statically-known loop ranges.
+        Returns ShapeType::kDynamic for non-statically-known loop ranges.
         This is expected to be called by a valid Linalg op
       }],
       /*retTy=*/"SmallVector<int64_t, 4>",
@@ -742,6 +797,9 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     /// shape of the input operands where possible
     LogicalResult reifyResultShapes(OpBuilder &b,
         ReifiedRankedShapedTypeDims &reifiedReturnShapes);
+
+    /// Return the index in the indexingMaps vector that corresponds to this `opOperand`
+    int64_t getIndexingMapIndex(OpOperand *opOperand);
 
     //========================================================================//
     // Forwarding functions to access interface methods from the
@@ -815,18 +873,6 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     bool hasTensorSemantics() {
       return cast<DestinationStyleOpInterface>(*this->getOperation())
           .hasTensorSemantics();
-    }
-
-    Operation *clone(OpBuilder & b, Location loc, TypeRange resultTypes,
-                     ValueRange operands) {
-      return cast<DestinationStyleOpInterface>(*this->getOperation())
-          .clone(b, loc, resultTypes, operands);
-    }
-
-    Operation *cloneWithoutRegions(OpBuilder & b, Location loc,
-                                   TypeRange resultTypes, ValueRange operands) {
-      return cast<DestinationStyleOpInterface>(*this->getOperation())
-          .cloneWithoutRegions(b, loc, resultTypes, operands);
     }
 
     //========================================================================//

@@ -21,6 +21,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Endian.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -92,10 +93,10 @@ static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
 }
 
 /// Returns an entry with a duplicate name from the given sorted array of named
-/// attributes. Returns llvm::None if all elements have unique names.
-static Optional<NamedAttribute>
+/// attributes. Returns std::nullopt if all elements have unique names.
+static std::optional<NamedAttribute>
 findDuplicateElement(ArrayRef<NamedAttribute> value) {
-  const Optional<NamedAttribute> none{llvm::None};
+  const std::optional<NamedAttribute> none{std::nullopt};
   if (value.size() < 2)
     return none;
 
@@ -124,7 +125,7 @@ bool DictionaryAttr::sortInPlace(SmallVectorImpl<NamedAttribute> &array) {
   return isSorted;
 }
 
-Optional<NamedAttribute>
+std::optional<NamedAttribute>
 DictionaryAttr::findDuplicate(SmallVectorImpl<NamedAttribute> &array,
                               bool isSorted) {
   if (!isSorted)
@@ -170,14 +171,14 @@ Attribute DictionaryAttr::get(StringAttr name) const {
   return it.second ? it.first->getValue() : Attribute();
 }
 
-/// Return the specified named attribute if present, None otherwise.
-Optional<NamedAttribute> DictionaryAttr::getNamed(StringRef name) const {
+/// Return the specified named attribute if present, std::nullopt otherwise.
+std::optional<NamedAttribute> DictionaryAttr::getNamed(StringRef name) const {
   auto it = impl::findAttrSorted(begin(), end(), name);
-  return it.second ? *it.first : Optional<NamedAttribute>();
+  return it.second ? *it.first : std::optional<NamedAttribute>();
 }
-Optional<NamedAttribute> DictionaryAttr::getNamed(StringAttr name) const {
+std::optional<NamedAttribute> DictionaryAttr::getNamed(StringAttr name) const {
   auto it = impl::findAttrSorted(begin(), end(), name);
-  return it.second ? *it.first : Optional<NamedAttribute>();
+  return it.second ? *it.first : std::optional<NamedAttribute>();
 }
 
 /// Return whether the specified attribute is present.
@@ -207,7 +208,7 @@ DictionaryAttr DictionaryAttr::getEmptyUnchecked(MLIRContext *context) {
 /// Prints a strided layout attribute.
 void StridedLayoutAttr::print(llvm::raw_ostream &os) const {
   auto printIntOrQuestion = [&](int64_t value) {
-    if (value == ShapedType::kDynamicStrideOrOffset)
+    if (ShapedType::isDynamic(value))
       os << "?";
     else
       os << value;
@@ -529,7 +530,7 @@ static void writeBits(char *rawData, size_t bitPos, APInt value) {
 
   // If the bitwidth is 1 we just toggle the specific bit.
   if (bitWidth == 1)
-    return setBit(rawData, bitPos, value.isOneValue());
+    return setBit(rawData, bitPos, value.isOne());
 
   // Otherwise, the bit position is guaranteed to be byte aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
@@ -690,67 +691,19 @@ DenseElementsAttr::ComplexIntElementIterator::operator*() const {
 
 LogicalResult
 DenseArrayAttr::verify(function_ref<InFlightDiagnostic()> emitError,
-                       RankedTensorType type, ArrayRef<char> rawData) {
-  if (type.getRank() != 1)
-    return emitError() << "expected rank 1 tensor type";
-  if (!type.getElementType().isIntOrIndexOrFloat())
+                       Type elementType, int64_t size, ArrayRef<char> rawData) {
+  if (!elementType.isIntOrIndexOrFloat())
     return emitError() << "expected integer or floating point element type";
   int64_t dataSize = rawData.size();
-  int64_t size = type.getShape().front();
-  if (type.getElementType().isInteger(1)) {
-    if (size != dataSize)
-      return emitError() << "expected " << size
-                         << " bytes for i1 array but got " << dataSize;
-  } else if (size * type.getElementTypeBitWidth() != dataSize * 8) {
+  int64_t elementSize =
+      llvm::divideCeil(elementType.getIntOrFloatBitWidth(), CHAR_BIT);
+  if (size * elementSize != dataSize) {
     return emitError() << "expected data size (" << size << " elements, "
-                       << type.getElementTypeBitWidth()
-                       << " bits each) does not match: " << dataSize
+                       << elementSize
+                       << " bytes each) does not match: " << dataSize
                        << " bytes";
   }
   return success();
-}
-
-FailureOr<const bool *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<bool>) const {
-  if (auto attr = dyn_cast<DenseBoolArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
-}
-FailureOr<const int8_t *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<int8_t>) const {
-  if (auto attr = dyn_cast<DenseI8ArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
-}
-FailureOr<const int16_t *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<int16_t>) const {
-  if (auto attr = dyn_cast<DenseI16ArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
-}
-FailureOr<const int32_t *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<int32_t>) const {
-  if (auto attr = dyn_cast<DenseI32ArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
-}
-FailureOr<const int64_t *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<int64_t>) const {
-  if (auto attr = dyn_cast<DenseI64ArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
-}
-FailureOr<const float *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<float>) const {
-  if (auto attr = dyn_cast<DenseF32ArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
-}
-FailureOr<const double *>
-DenseArrayAttr::try_value_begin_impl(OverloadToken<double>) const {
-  if (auto attr = dyn_cast<DenseF64ArrayAttr>())
-    return attr.asArrayRef().begin();
-  return failure();
 }
 
 namespace {
@@ -898,12 +851,11 @@ DenseArrayAttrImpl<T>::operator ArrayRef<T>() const {
 template <typename T>
 DenseArrayAttrImpl<T> DenseArrayAttrImpl<T>::get(MLIRContext *context,
                                                  ArrayRef<T> content) {
-  auto shapedType = RankedTensorType::get(
-      content.size(), DenseArrayAttrUtil<T>::getElementType(context));
+  Type elementType = DenseArrayAttrUtil<T>::getElementType(context);
   auto rawArray = ArrayRef<char>(reinterpret_cast<const char *>(content.data()),
                                  content.size() * sizeof(T));
-  return Base::get(context, shapedType, rawArray)
-      .template cast<DenseArrayAttrImpl<T>>();
+  return llvm::cast<DenseArrayAttrImpl<T>>(
+      Base::get(context, elementType, content.size(), rawArray));
 }
 
 template <typename T>
@@ -939,9 +891,44 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
                                          ArrayRef<Attribute> values) {
   assert(hasSameElementsOrSplat(type, values));
 
+  Type eltType = type.getElementType();
+
+  // Take care complex type case first.
+  if (auto complexType = eltType.dyn_cast<ComplexType>()) {
+    if (complexType.getElementType().isIntOrIndex()) {
+      SmallVector<std::complex<APInt>> complexValues;
+      complexValues.reserve(values.size());
+      for (Attribute attr : values) {
+        assert(attr.isa<ArrayAttr>() &&
+               "expected ArrayAttr for complex");
+        auto arrayAttr = attr.cast<ArrayAttr>();
+        assert(arrayAttr.size() == 2 && "expected 2 element for complex");
+        auto attr0 = arrayAttr[0];
+        auto attr1 = arrayAttr[1];
+        complexValues.push_back(
+            std::complex<APInt>(attr0.cast<IntegerAttr>().getValue(),
+                                attr1.cast<IntegerAttr>().getValue()));
+      }
+      return DenseElementsAttr::get(type, complexValues);
+    }
+    // Must be float.
+    SmallVector<std::complex<APFloat>> complexValues;
+    complexValues.reserve(values.size());
+    for (Attribute attr : values) {
+      assert(attr.isa<ArrayAttr>() && "expected ArrayAttr for complex");
+      auto arrayAttr = attr.cast<ArrayAttr>();
+      assert(arrayAttr.size() == 2 && "expected 2 element for complex");
+      auto attr0 = arrayAttr[0];
+      auto attr1 = arrayAttr[1];
+      complexValues.push_back(
+          std::complex<APFloat>(attr0.cast<FloatAttr>().getValue(),
+                                attr1.cast<FloatAttr>().getValue()));
+    }
+    return DenseElementsAttr::get(type, complexValues);
+  }
+
   // If the element type is not based on int/float/index, assume it is a string
   // type.
-  Type eltType = type.getElementType();
   if (!eltType.isIntOrIndexOrFloat()) {
     SmallVector<StringRef, 8> stringValues;
     stringValues.reserve(values.size());
@@ -1600,11 +1587,11 @@ DenseResourceElementsAttrBase<T>::get(ShapedType type, StringRef blobName,
 }
 
 template <typename T>
-Optional<ArrayRef<T>>
+std::optional<ArrayRef<T>>
 DenseResourceElementsAttrBase<T>::tryGetAsArrayRef() const {
   if (AsmResourceBlob *blob = this->getRawHandle().getBlob())
     return blob->template getDataAs<T>();
-  return llvm::None;
+  return std::nullopt;
 }
 
 template <typename T>
@@ -1770,7 +1757,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
 
   // AffineExpr for offset.
   // Static case.
-  if (offset != MemRefType::getDynamicStrideOrOffset()) {
+  if (!ShapedType::isDynamic(offset)) {
     auto cst = getAffineConstantExpr(offset, context);
     expr = cst;
   } else {
@@ -1787,7 +1774,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
     auto d = getAffineDimExpr(dim, context);
     AffineExpr mult;
     // Static case.
-    if (stride != MemRefType::getDynamicStrideOrOffset())
+    if (!ShapedType::isDynamic(stride))
       mult = getAffineConstantExpr(stride, context);
     else
       // Dynamic case, new symbol for each new stride.

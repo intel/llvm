@@ -11,22 +11,22 @@
 #include "AMDGPUPerfHintAnalysis.h"
 #include "AMDGPUSubtarget.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
-AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF)
-    : IsEntryFunction(AMDGPU::isEntryFunctionCC(
-                                  MF.getFunction().getCallingConv())),
+AMDGPUMachineFunction::AMDGPUMachineFunction(const Function &F,
+                                             const AMDGPUSubtarget &ST)
+    : IsEntryFunction(AMDGPU::isEntryFunctionCC(F.getCallingConv())),
       IsModuleEntryFunction(
-          AMDGPU::isModuleEntryFunctionCC(MF.getFunction().getCallingConv())),
-      NoSignedZerosFPMath(MF.getTarget().Options.NoSignedZerosFPMath) {
-  const AMDGPUSubtarget &ST = AMDGPUSubtarget::get(MF);
+          AMDGPU::isModuleEntryFunctionCC(F.getCallingConv())),
+      NoSignedZerosFPMath(false) {
 
   // FIXME: Should initialize KernArgSize based on ExplicitKernelArgOffset,
   // except reserved size is not correctly aligned.
-  const Function &F = MF.getFunction();
 
   Attribute MemBoundAttr = F.getFnAttribute("amdgpu-memory-bound");
   MemoryBound = MemBoundAttr.getValueAsBool();
@@ -46,12 +46,17 @@ AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF)
   CallingConv::ID CC = F.getCallingConv();
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL)
     ExplicitKernArgSize = ST.getExplicitKernArgSize(F, MaxKernArgAlign);
+
+  // FIXME: Shouldn't be target specific
+  Attribute NSZAttr = F.getFnAttribute("no-signed-zeros-fp-math");
+  NoSignedZerosFPMath =
+      NSZAttr.isStringAttribute() && NSZAttr.getValueAsString() == "true";
 }
 
 unsigned AMDGPUMachineFunction::allocateLDSGlobal(const DataLayout &DL,
                                                   const GlobalVariable &GV,
                                                   Align Trailing) {
-  auto Entry = LocalMemoryObjects.insert(std::make_pair(&GV, 0));
+  auto Entry = LocalMemoryObjects.insert(std::pair(&GV, 0));
   if (!Entry.second)
     return Entry.first->second;
 
@@ -84,13 +89,23 @@ unsigned AMDGPUMachineFunction::allocateLDSGlobal(const DataLayout &DL,
   return Offset;
 }
 
-const GlobalVariable *
-AMDGPUMachineFunction::getKernelLDSGlobalFromFunction(const Function &F) {
+static constexpr StringLiteral ModuleLDSName = "llvm.amdgcn.module.lds";
+
+static const GlobalVariable *getKernelLDSGlobalFromFunction(const Function &F) {
   const Module *M = F.getParent();
   std::string KernelLDSName = "llvm.amdgcn.kernel.";
   KernelLDSName += F.getName();
   KernelLDSName += ".lds";
   return M->getNamedGlobal(KernelLDSName);
+}
+
+static const GlobalVariable *
+getKernelDynLDSGlobalFromFunction(const Function &F) {
+  const Module *M = F.getParent();
+  std::string KernelDynLDSName = "llvm.amdgcn.";
+  KernelDynLDSName += F.getName();
+  KernelDynLDSName += ".dynlds";
+  return M->getNamedGlobal(KernelDynLDSName);
 }
 
 // This kernel calls no functions that require the module lds struct
@@ -100,7 +115,6 @@ static bool canElideModuleLDS(const Function &F) {
 
 void AMDGPUMachineFunction::allocateKnownAddressLDSGlobal(const Function &F) {
   const Module *M = F.getParent();
-
   // This function is called before allocating any other LDS so that it can
   // reliably put values at known addresses. Consequently, dynamic LDS, if
   // present, will not yet have been allocated
@@ -124,42 +138,82 @@ void AMDGPUMachineFunction::allocateKnownAddressLDSGlobal(const Function &F) {
     // }
     // other variables, e.g. dynamic lds, allocated after this call
 
-    const GlobalVariable *GV = M->getNamedGlobal("llvm.amdgcn.module.lds");
+    const GlobalVariable *GV = M->getNamedGlobal(ModuleLDSName);
     const GlobalVariable *KV = getKernelLDSGlobalFromFunction(F);
+    const GlobalVariable *Dyn = getKernelDynLDSGlobalFromFunction(F);
 
     if (GV && !canElideModuleLDS(F)) {
       unsigned Offset = allocateLDSGlobal(M->getDataLayout(), *GV, Align());
-      (void)Offset;
-      assert(Offset == 0 &&
-             "Module LDS expected to be allocated before other LDS");
+      std::optional<uint32_t> Expect = getLDSAbsoluteAddress(*GV);
+      if (!Expect || (Offset != *Expect)) {
+        report_fatal_error("Inconsistent metadata on module LDS variable");
+      }
     }
 
     if (KV) {
       // The per-kernel offset is deterministic because it is allocated
       // before any other non-module LDS variables.
       unsigned Offset = allocateLDSGlobal(M->getDataLayout(), *KV, Align());
-      (void)Offset;
+      std::optional<uint32_t> Expect = getLDSAbsoluteAddress(*KV);
+      if (!Expect || (Offset != *Expect)) {
+        report_fatal_error("Inconsistent metadata on kernel LDS variable");
+      }
+    }
+
+    if (Dyn) {
+      // The dynamic LDS is deterministic because the per-kernel one has the
+      // maximum alignment of any reachable and all remaining LDS variables,
+      // if this is present, are themselves dynamic LDS and will be allocated
+      // at the same address.
+      setDynLDSAlign(F, *Dyn);
+      unsigned Offset = LDSSize;
+      std::optional<uint32_t> Expect = getLDSAbsoluteAddress(*Dyn);
+      if (!Expect || (Offset != *Expect)) {
+        report_fatal_error("Inconsistent metadata on dynamic LDS variable");
+      }
     }
   }
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 AMDGPUMachineFunction::getLDSKernelIdMetadata(const Function &F) {
-  auto MD = F.getMetadata("llvm.amdgcn.lds.kernel.id");
+  // TODO: Would be more consistent with the abs symbols to use a range
+  MDNode *MD = F.getMetadata("llvm.amdgcn.lds.kernel.id");
   if (MD && MD->getNumOperands() == 1) {
-    ConstantInt *KnownSize = mdconst::extract<ConstantInt>(MD->getOperand(0));
-    if (KnownSize) {
-      uint64_t V = KnownSize->getZExtValue();
-      if (V <= UINT32_MAX) {
-        return V;
+    if (ConstantInt *KnownSize =
+            mdconst::extract<ConstantInt>(MD->getOperand(0))) {
+      uint64_t ZExt = KnownSize->getZExtValue();
+      if (ZExt <= UINT32_MAX) {
+        return ZExt;
       }
     }
   }
   return {};
 }
 
-void AMDGPUMachineFunction::setDynLDSAlign(const DataLayout &DL,
+std::optional<uint32_t>
+AMDGPUMachineFunction::getLDSAbsoluteAddress(const GlobalValue &GV) {
+  if (GV.getAddressSpace() != AMDGPUAS::LOCAL_ADDRESS)
+    return {};
+
+  std::optional<ConstantRange> AbsSymRange = GV.getAbsoluteSymbolRange();
+  if (!AbsSymRange)
+    return {};
+
+  if (const APInt *V = AbsSymRange->getSingleElement()) {
+    std::optional<uint64_t> ZExt = V->tryZExtValue();
+    if (ZExt && (*ZExt <= UINT32_MAX)) {
+      return *ZExt;
+    }
+  }
+
+  return {};
+}
+
+void AMDGPUMachineFunction::setDynLDSAlign(const Function &F,
                                            const GlobalVariable &GV) {
+  const Module *M = F.getParent();
+  const DataLayout &DL = M->getDataLayout();
   assert(DL.getTypeAllocSize(GV.getValueType()).isZero());
 
   Align Alignment =
@@ -169,4 +223,17 @@ void AMDGPUMachineFunction::setDynLDSAlign(const DataLayout &DL,
 
   LDSSize = alignTo(StaticLDSSize, Alignment);
   DynLDSAlign = Alignment;
+
+  // If there is a dynamic LDS variable associated with this function F, every
+  // further dynamic LDS instance (allocated by calling setDynLDSAlign) must
+  // map to the same address. This holds because no LDS is allocated after the
+  // lowering pass if there are dynamic LDS variables present.
+  const GlobalVariable *Dyn = getKernelDynLDSGlobalFromFunction(F);
+  if (Dyn) {
+    unsigned Offset = LDSSize; // return this?
+    std::optional<uint32_t> Expect = getLDSAbsoluteAddress(*Dyn);
+    if (!Expect || (Offset != *Expect)) {
+      report_fatal_error("Inconsistent metadata on dynamic LDS variable");
+    }
+  }
 }

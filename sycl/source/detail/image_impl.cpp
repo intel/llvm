@@ -288,13 +288,31 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   switch (MDimensions) {
   case 3:
     getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2], Mem);
-    __SYCL_FALLTHROUGH;
+    [[fallthrough]];
   case 2:
     getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1], Mem);
-    __SYCL_FALLTHROUGH;
+    [[fallthrough]];
   case 1:
     getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0], Mem);
   }
+}
+
+image_impl::image_impl(pi_native_handle MemObject, const context &SyclContext,
+                       event AvailableEvent,
+                       std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                       uint8_t Dimensions, image_channel_order Order,
+                       image_channel_type Type, bool OwnNativeHandle,
+                       range<3> Range3WithOnes)
+    : BaseT(MemObject, SyclContext, OwnNativeHandle, std::move(AvailableEvent),
+            std::move(Allocator), detail::convertChannelOrder(Order),
+            detail::convertChannelType(Type), Range3WithOnes, Dimensions,
+            getImageElementSize(getImageNumberChannels(Order), Type)),
+      MDimensions(Dimensions), MRange(Range3WithOnes) {
+  MOrder = Order;
+  MType = Type;
+  MNumChannels = getImageNumberChannels(MOrder);
+  MElementSize = getImageElementSize(MNumChannels, Type);
+  setPitches(); // sets MRowPitch, MSlice and BaseT::MSizeInBytes
 }
 
 void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,

@@ -54,14 +54,14 @@
 ;   A ca(213);
 ;   A cb = __builtin_intel_fpga_reg(ca);
 
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; FIXME: add more negative test cases
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_reg -o %t.spv
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_fpga_reg -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability FPGARegINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_reg"
@@ -172,20 +172,20 @@ entry:
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %2) #4
   %3 = load i32, i32* %a, align 4, !tbaa !9
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR]]
   %4 = call i32 @llvm.annotation.i32(i32 %3, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 35)
   store i32 %4, i32* %b, align 4, !tbaa !9
   %5 = bitcast i32* %myB to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #4
   %6 = load i32, i32* %myA, align 4, !tbaa !9
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR1]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR1]]
   %7 = call i32 @llvm.annotation.i32(i32 %6, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 39)
   store i32 %7, i32* %myB, align 4, !tbaa !9
   %8 = bitcast i32* %c to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #4
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR2]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR2]]
   %9 = call i32 @llvm.annotation.i32(i32 1073741824, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 43)
   %10 = bitcast i32 %9 to float
   %conv = fptosi float %10 to i32
@@ -195,10 +195,10 @@ entry:
   %12 = load i32, i32* %b, align 4, !tbaa !9
   %add = add nsw i32 %12, 12
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR3]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR3]]
   %13 = call i32 @llvm.annotation.i32(i32 %add, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 48)
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR4]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR4]]
   %14 = call i32 @llvm.annotation.i32(i32 %13, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 48)
   store i32 %14, i32* %d, align 4, !tbaa !9
   %15 = bitcast i32* %e to i8*
@@ -207,17 +207,17 @@ entry:
   %17 = load i32, i32* %b, align 4, !tbaa !9
   %add1 = add nsw i32 %16, %17
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR5]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR5]]
   %18 = call i32 @llvm.annotation.i32(i32 %add1, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 54)
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR6]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR6]]
   %19 = call i32 @llvm.annotation.i32(i32 %18, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 54)
   store i32 %19, i32* %e, align 4, !tbaa !9
   %20 = bitcast i32* %f to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #4
   %21 = load i32, i32* %a, align 4, !tbaa !9
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR7]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0i8(i32 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR7]]
   %22 = call i32 @llvm.annotation.i32(i32 %21, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 62)
   store i32 %22, i32* %f, align 4, !tbaa !9
   %23 = bitcast %struct._ZTS2st.st* %i to i8*
@@ -236,7 +236,7 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %29, i8* align 4 %30, i64 8, i1 false), !tbaa.struct !11
   %31 = bitcast %struct._ZTS2st.st* %agg-temp to i8*
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST1:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR8]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %[[CAST1:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR8]]
   ; CHECK-LLVM-DAG: %[[CAST1]] = bitcast %struct._ZTS2st.st* %agg-temp to i8*
   %32 = call i8* @llvm.ptr.annotation.p0i8(i8* %31, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 69, i8* null)
   %33 = bitcast i8* %32 to %struct._ZTS2st.st*
@@ -252,7 +252,7 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %38, i8* align 4 %39, i64 8, i1 false), !tbaa.struct !11
   %40 = bitcast %struct._ZTS2st.st* %agg-temp2 to i8*
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST2:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR9]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %[[CAST2:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR9]]
   ; CHECK-LLVM-DAG: %[[CAST2]] = bitcast %struct._ZTS2st.st* %agg-temp2 to i8*
   %41 = call i8* @llvm.ptr.annotation.p0i8(i8* %40, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 80, i8* null)
   %42 = bitcast i8* %41 to %struct._ZTS2st.st*
@@ -268,7 +268,7 @@ entry:
   call void @llvm.lifetime.start.p0i8(i64 8, i8* %48) #4
   %49 = ptrtoint %struct._ZTS2st.st* %iii to i64
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT64]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64(i64 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR10]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64.p0i8(i64 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR10]]
   %50 = call i64 @llvm.annotation.i64(i64 %49, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 94)
   %51 = inttoptr i64 %50 to %struct._ZTS2st.st*
   %52 = addrspacecast %struct._ZTS2st.st* %51 to %struct._ZTS2st.st addrspace(4)*
@@ -288,7 +288,7 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %58, i8* align 4 %59, i64 4, i1 false), !tbaa.struct !14
   %60 = bitcast %union._ZTS2un.un* %agg-temp4 to i8*
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST4:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR11]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %[[CAST4:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR11]]
   ; CHECK-LLVM-DAG: %[[CAST4]] = bitcast %union._ZTS2un.un* %agg-temp4 to i8*
   %61 = call i8* @llvm.ptr.annotation.p0i8(i8* %60, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 103, i8* null)
   %62 = bitcast i8* %61 to %union._ZTS2un.un*
@@ -302,7 +302,7 @@ entry:
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %67) #4
   %68 = ptrtoint %union._ZTS2un.un* %u2 to i64
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT64]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64(i64 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR12]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64.p0i8(i64 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR12]]
   %69 = call i64 @llvm.annotation.i64(i64 %68, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 117)
   %70 = inttoptr i64 %69 to %union._ZTS2un.un*
   %71 = addrspacecast %union._ZTS2un.un* %70 to %union._ZTS2un.un addrspace(4)*
@@ -318,7 +318,7 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %75, i8* align 4 %76, i64 4, i1 false), !tbaa.struct !16
   %77 = bitcast %class._ZTS1A.A* %agg-temp5 to i8*
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST5:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR13]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %[[CAST5:[a-z0-9]+]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR13]]
   ; CHECK-LLVM-DAG: %[[CAST5]] = bitcast %class._ZTS1A.A* %agg-temp5 to i8*
   %78 = call i8* @llvm.ptr.annotation.p0i8(i8* %77, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 125, i8* null)
   %79 = bitcast i8* %78 to %class._ZTS1A.A*
@@ -334,7 +334,7 @@ entry:
   %85 = load i32 addrspace(4)*, i32 addrspace(4)** %ap, align 8, !tbaa !5
   %86 = ptrtoint i32 addrspace(4)* %85 to i64
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT64]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
-  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64(i64 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR14]]
+  ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64.p0i8(i64 {{[%a-z0-9]+}}, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @[[STR14]]
   %87 = call i64 @llvm.annotation.i64(i64 %86, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0), i32 137)
   %88 = inttoptr i64 %87 to i32 addrspace(4)*
   store i32 addrspace(4)* %88, i32 addrspace(4)** %bp, align 8, !tbaa !5

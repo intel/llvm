@@ -24,6 +24,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include <numeric>
+#include <optional>
 #include <type_traits>
 
 using namespace mlir;
@@ -78,28 +79,29 @@ void mlir::getTripCountMapAndOperands(
                             tripCountValueMap.getOperands().end());
 }
 
-/// Returns the trip count of the loop if it's a constant, None otherwise. This
-/// method uses affine expression analysis (in turn using getTripCount) and is
-/// able to determine constant trip count in non-trivial cases.
-Optional<uint64_t> mlir::getConstantTripCount(AffineForOp forOp) {
+/// Returns the trip count of the loop if it's a constant, std::nullopt
+/// otherwise. This method uses affine expression analysis (in turn using
+/// getTripCount) and is able to determine constant trip count in non-trivial
+/// cases.
+std::optional<uint64_t> mlir::getConstantTripCount(AffineForOp forOp) {
   SmallVector<Value, 4> operands;
   AffineMap map;
   getTripCountMapAndOperands(forOp, &map, &operands);
 
   if (!map)
-    return None;
+    return std::nullopt;
 
   // Take the min if all trip counts are constant.
-  Optional<uint64_t> tripCount;
+  std::optional<uint64_t> tripCount;
   for (auto resultExpr : map.getResults()) {
     if (auto constExpr = resultExpr.dyn_cast<AffineConstantExpr>()) {
       if (tripCount.has_value())
-        tripCount = std::min(tripCount.value(),
-                             static_cast<uint64_t>(constExpr.getValue()));
+        tripCount =
+            std::min(*tripCount, static_cast<uint64_t>(constExpr.getValue()));
       else
         tripCount = constExpr.getValue();
     } else
-      return None;
+      return std::nullopt;
   }
   return tripCount;
 }
@@ -118,7 +120,7 @@ uint64_t mlir::getLargestDivisorOfTripCount(AffineForOp forOp) {
   // The largest divisor of the trip count is the GCD of the individual largest
   // divisors.
   assert(map.getNumResults() >= 1 && "expected one or more results");
-  Optional<uint64_t> gcd;
+  std::optional<uint64_t> gcd;
   for (auto resultExpr : map.getResults()) {
     uint64_t thisGcd;
     if (auto constExpr = resultExpr.dyn_cast<AffineConstantExpr>()) {
@@ -134,12 +136,12 @@ uint64_t mlir::getLargestDivisorOfTripCount(AffineForOp forOp) {
       thisGcd = resultExpr.getLargestKnownDivisor();
     }
     if (gcd.has_value())
-      gcd = std::gcd(gcd.value(), thisGcd);
+      gcd = std::gcd(*gcd, thisGcd);
     else
       gcd = thisGcd;
   }
   assert(gcd.has_value() && "value expected per above logic");
-  return gcd.value();
+  return *gcd;
 }
 
 /// Given an induction variable `iv` of type AffineForOp and an access `index`
@@ -158,7 +160,7 @@ uint64_t mlir::getLargestDivisorOfTripCount(AffineForOp forOp) {
 /// Returns false in cases with more than one AffineApplyOp, this is
 /// conservative.
 static bool isAccessIndexInvariant(Value iv, Value index) {
-  assert(isForInductionVar(iv) && "iv must be a AffineForOp");
+  assert(isAffineForInductionVar(iv) && "iv must be a AffineForOp");
   assert(index.getType().isa<IndexType>() && "index must be of IndexType");
   SmallVector<Operation *, 4> affineApplyOps;
   getReachableAffineApplyOps({index}, affineApplyOps);
@@ -274,6 +276,25 @@ isVectorizableLoopBodyWithOpCond(AffineForOp loop,
   SmallVector<NestedMatch, 8> conditionalsMatched;
   conditionals.match(forOp, &conditionalsMatched);
   if (!conditionalsMatched.empty()) {
+    return false;
+  }
+
+  // No vectorization for ops with operand or result types that are not
+  // vectorizable.
+  auto types = matcher::Op([](Operation &op) -> bool {
+    if (llvm::any_of(op.getOperandTypes(), [](Type type) {
+          if (MemRefType t = dyn_cast<MemRefType>(type))
+            return !VectorType::isValidElementType(t.getElementType());
+          return !VectorType::isValidElementType(type);
+        }))
+      return true;
+    return llvm::any_of(op.getResultTypes(), [](Type type) {
+      return !VectorType::isValidElementType(type);
+    });
+  });
+  SmallVector<NestedMatch, 8> opsMatched;
+  types.match(forOp, &opsMatched);
+  if (!opsMatched.empty()) {
     return false;
   }
 

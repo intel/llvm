@@ -117,6 +117,12 @@ def ArrayValueCopy : Pass<"array-value-copy", "::mlir::func::FuncOp"> {
   }];
   let constructor = "::fir::createArrayValueCopyPass()";
   let dependentDialects = [ "fir::FIROpsDialect" ];
+  let options = [
+    Option<"optimizeConflicts", "optimize-conflicts", "bool",
+           /*default=*/"false",
+           "do more detailed conflict analysis to reduce the number "
+           "of temporaries">
+  ];
 }
 
 def CharacterConversion : Pass<"character-conversion"> {
@@ -140,9 +146,9 @@ def CharacterConversion : Pass<"character-conversion"> {
 def CFGConversion : Pass<"cfg-conversion", "::mlir::func::FuncOp"> {
   let summary = "Convert FIR structured control flow ops to CFG ops.";
   let description = [{
-    Transform the `fir.do_loop`, `fir.if`, and `fir.iterate_while` ops into
-    plain old test and branch operations. Removing the high-level control
-    structures can enable other optimizations.
+    Transform the `fir.do_loop`, `fir.if`, `fir.iterate_while` and
+    `fir.select_type` ops into plain old test and branch operations. Removing
+    the high-level control structures can enable other optimizations.
 
     This pass is required before code gen to the LLVM IR dialect.
   }];
@@ -163,6 +169,11 @@ def ExternalNameConversion : Pass<"external-name-interop", "mlir::ModuleOp"> {
     Demangle FIR internal name and mangle them for external interoperability.
   }];
   let constructor = "::fir::createExternalNameConversionPass()";
+  let options = [
+    Option<"appendUnderscore", "append-underscore",
+           "bool", /*default=*/"true",
+           "Append trailing underscore to external names.">
+  ];
 }
 
 def MemRefDataFlowOpt : Pass<"fir-memref-dataflow-opt", "::mlir::func::FuncOp"> {
@@ -175,6 +186,19 @@ def MemRefDataFlowOpt : Pass<"fir-memref-dataflow-opt", "::mlir::func::FuncOp"> 
   let constructor = "::fir::createMemDataFlowOptPass()";
   let dependentDialects = [
     "fir::FIROpsDialect", "mlir::func::FuncDialect"
+  ];
+}
+
+// This needs to be a "mlir::ModuleOp" pass, because we are creating debug for
+// the module in this pass.
+def AddDebugFoundation : Pass<"add-debug-foundation", "mlir::ModuleOp"> {
+  let summary = "Add the foundation for debug info";
+  let description = [{
+    Add the foundation for emitting debug info that can be understood by llvm.
+  }];
+  let constructor = "::fir::createAddDebugFoundationPass()";
+  let dependentDialects = [
+    "fir::FIROpsDialect", "mlir::func::FuncDialect", "mlir::LLVM::LLVMDialect"
   ];
 }
 
@@ -216,6 +240,16 @@ def MemoryAllocationOpt : Pass<"memory-allocation-opt", "mlir::func::FuncOp"> {
   let constructor = "::fir::createMemoryAllocationPass()";
 }
 
+def StackArrays : Pass<"stack-arrays", "mlir::ModuleOp"> {
+  let summary = "Move local array allocations from heap memory into stack memory";
+  let description = [{
+    Convert heap allocations for arrays, even those of unknown size, into stack
+    allocations.
+  }];
+  let dependentDialects = [ "fir::FIROpsDialect" ];
+  let constructor = "::fir::createStackArraysPass()";
+}
+
 def SimplifyRegionLite : Pass<"simplify-region-lite", "mlir::ModuleOp"> {
   let summary = "Region simplification";
   let description = [{
@@ -235,6 +269,29 @@ def AlgebraicSimplification : Pass<"flang-algebraic-simplification"> {
   }];
   let dependentDialects = [ "mlir::math::MathDialect" ];
   let constructor = "::fir::createAlgebraicSimplificationPass()";
+}
+
+def PolymorphicOpConversion : Pass<"fir-polymorphic-op", "::mlir::func::FuncOp"> {
+  let summary =
+    "Simplify operations on polymorphic types";
+  let description = [{
+    This pass breaks up the lowering of operations on polymorphic types by 
+    introducing an intermediate FIR level that simplifies code geneation. 
+  }];
+  let constructor = "::fir::createPolymorphicOpConversionPass()";
+  let dependentDialects = [
+    "fir::FIROpsDialect", "mlir::func::FuncDialect"
+  ];
+}
+
+def OpenACCDataOperandConversion : Pass<"fir-openacc-data-operand-conversion", "::mlir::func::FuncOp"> {
+  let summary = "Convert the FIR operands in OpenACC ops to LLVM dialect";
+  let dependentDialects = ["mlir::LLVM::LLVMDialect"];
+  let options = [
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+           /*default=*/"true", "Generate LLVM IR using opaque pointers "
+           "instead of typed pointers">,
+  ];
 }
 
 #endif // FLANG_OPTIMIZER_TRANSFORMS_PASSES

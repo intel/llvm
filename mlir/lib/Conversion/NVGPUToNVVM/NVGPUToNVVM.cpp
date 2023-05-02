@@ -18,7 +18,7 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTNVGPUTONVVM
+#define GEN_PASS_DEF_CONVERTNVGPUTONVVMPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -298,14 +298,15 @@ struct MmaSyncOptoNVVM : public ConvertOpToLLVMPattern<nvgpu::MmaSyncOp> {
     FailureOr<NVVM::MMATypes> ptxTypeB = getNvvmMmaType(bType);
     if (failed(ptxTypeB))
       return op->emitOpError("failed to deduce operand PTX types");
-    Optional<NVVM::MMATypes> ptxTypeC = NVVM::MmaOp::inferOperandMMAType(
-        cType.getElementType(), /*isAccumulator=*/true);
+    std::optional<NVVM::MMATypes> ptxTypeC =
+        NVVM::MmaOp::inferOperandMMAType(cType.getElementType(),
+                                         /*isAccumulator=*/true);
     if (!ptxTypeC)
       return op->emitError(
           "could not infer the PTX type for the accumulator/result");
 
     // TODO: add an attribute to the op to customize this behavior.
-    Optional<NVVM::MMAIntOverflow> overflow(llvm::None);
+    std::optional<NVVM::MMAIntOverflow> overflow(std::nullopt);
     if (aType.getElementType().isa<IntegerType>())
       overflow = NVVM::MMAIntOverflow::satfinite;
 
@@ -322,7 +323,7 @@ struct MmaSyncOptoNVVM : public ConvertOpToLLVMPattern<nvgpu::MmaSyncOp> {
     Value intrinsicResult = rewriter.create<NVVM::MmaOp>(
         op.getLoc(), intrinsicResTy, matA, matB, matC,
         /*shape=*/gemmShape,
-        /*b1Op=*/llvm::None,
+        /*b1Op=*/std::nullopt,
         /*intOverflow=*/overflow,
         /*multiplicandPtxTypes=*/
         std::array<NVVM::MMATypes, 2>{*ptxTypeA, *ptxTypeB},
@@ -337,12 +338,14 @@ struct MmaSyncOptoNVVM : public ConvertOpToLLVMPattern<nvgpu::MmaSyncOp> {
 };
 
 struct ConvertNVGPUToNVVMPass
-    : public impl::ConvertNVGPUToNVVMBase<ConvertNVGPUToNVVMPass> {
-  ConvertNVGPUToNVVMPass() = default;
+    : public impl::ConvertNVGPUToNVVMPassBase<ConvertNVGPUToNVVMPass> {
+  using Base::Base;
 
   void runOnOperation() override {
+    LowerToLLVMOptions options(&getContext());
+    options.useOpaquePointers = useOpaquePointers;
     RewritePatternSet patterns(&getContext());
-    LLVMTypeConverter converter(&getContext());
+    LLVMTypeConverter converter(&getContext(), options);
     /// device-side async tokens cannot be materialized in nvvm. We just convert
     /// them to a dummy i32 type in order to easily drop them during conversion.
     converter.addConversion([&](nvgpu::DeviceAsyncTokenType type) -> Type {
@@ -398,22 +401,22 @@ static std::string buildMmaSparseAsmConstraintString(unsigned matASize,
     ss << "=r,";
   for (unsigned i = 0; i < matASize + matBSize + matCSize; i++)
     ss << "r,";
-  // The final two operands are for the sparsity metadata and sparsity selector.
-  ss << "r,r";
+  // The final operand is for the sparsity metadata.
+  // The sparsity selector appears as direct literal.
+  ss << "r";
   ss.flush();
   return str;
 }
 
 /// Returns the string for the `mma.sp.sync` instruction that corresponds to
-/// the give parameters. Note that this function doesn't do any validation,
+/// the given parameters. Note that this function doesn't do any validation,
 /// it's expected that the provided parameters correspond to a valid
 /// instruction.
-static std::string
-buildMmaSparseAsmString(const std::array<int64_t, 3> &shape, unsigned matASize,
-                        unsigned matBSize, unsigned matCSize,
-                        NVVM::MMATypes ptxTypeA, NVVM::MMATypes ptxTypeB,
-                        NVVM::MMATypes ptxTypeC, NVVM::MMATypes ptxTypeD,
-                        Optional<NVVM::MMAIntOverflow> overflow) {
+static std::string buildMmaSparseAsmString(
+    const std::array<int64_t, 3> &shape, unsigned matASize, unsigned matBSize,
+    unsigned matCSize, NVVM::MMATypes ptxTypeA, NVVM::MMATypes ptxTypeB,
+    NVVM::MMATypes ptxTypeC, NVVM::MMATypes ptxTypeD,
+    std::optional<NVVM::MMAIntOverflow> overflow, unsigned metaDataSelector) {
   auto ptxTypeStr = [](NVVM::MMATypes ptxType) {
     return NVVM::stringifyMMATypes(ptxType);
   };
@@ -439,7 +442,8 @@ buildMmaSparseAsmString(const std::array<int64_t, 3> &shape, unsigned matASize,
     ss << "},";
   }
   ss << "$" << asmArgIdx++ << ",";
-  ss << "$" << asmArgIdx++ << ";";
+  assert(metaDataSelector <= 1);
+  ss << "0x" << metaDataSelector << ";";
   ss.flush();
   return asmStr;
 }
@@ -449,29 +453,28 @@ buildMmaSparseAsmString(const std::array<int64_t, 3> &shape, unsigned matASize,
 static FailureOr<LLVM::InlineAsmOp> emitMmaSparseSyncOpAsm(
     Location loc, NVVM::MMATypes ptxTypeA, NVVM::MMATypes ptxTypeB,
     NVVM::MMATypes ptxTypeC, NVVM::MMATypes ptxTypeD,
-    Optional<NVVM::MMAIntOverflow> overflow, ArrayRef<Value> unpackedAData,
+    std::optional<NVVM::MMAIntOverflow> overflow, ArrayRef<Value> unpackedAData,
     ArrayRef<Value> unpackedB, ArrayRef<Value> unpackedC, Value indexData,
     int64_t metadataSelector, const std::array<int64_t, 3> &shape,
     Type intrinsicResultType, ConversionPatternRewriter &rewriter) {
   auto asmDialectAttr = LLVM::AsmDialectAttr::get(rewriter.getContext(),
                                                   LLVM::AsmDialect::AD_ATT);
 
-  std::string asmStr = buildMmaSparseAsmString(
-      shape, unpackedAData.size(), unpackedB.size(), unpackedC.size(), ptxTypeA,
-      ptxTypeB, ptxTypeC, ptxTypeD, overflow);
-  std::string constraintStr = buildMmaSparseAsmConstraintString(
-      unpackedAData.size(), unpackedB.size(), unpackedC.size());
+  const unsigned matASize = unpackedAData.size();
+  const unsigned matBSize = unpackedB.size();
+  const unsigned matCSize = unpackedC.size();
 
-  Value selectorVal = rewriter.create<LLVM::ConstantOp>(
-      loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(metadataSelector));
+  std::string asmStr = buildMmaSparseAsmString(
+      shape, matASize, matBSize, matCSize, ptxTypeA, ptxTypeB, ptxTypeC,
+      ptxTypeD, overflow, metadataSelector);
+  std::string constraintStr =
+      buildMmaSparseAsmConstraintString(matASize, matBSize, matCSize);
 
   SmallVector<Value> asmVals;
-  asmVals.reserve(unpackedAData.size() + unpackedB.size() + unpackedC.size() +
-                  2);
+  asmVals.reserve(matASize + matBSize + matCSize + 1);
   for (ArrayRef<Value> args : {unpackedAData, unpackedB, unpackedC})
     llvm::append_range(asmVals, args);
   asmVals.push_back(indexData);
-  asmVals.push_back(selectorVal);
 
   return rewriter.create<LLVM::InlineAsmOp>(loc,
                                             /*resultTypes=*/intrinsicResultType,
@@ -505,8 +508,9 @@ struct NVGPUMmaSparseSyncLowering
     FailureOr<NVVM::MMATypes> ptxTypeB = getNvvmMmaType(bType);
     if (failed(ptxTypeB))
       return op->emitOpError("failed to deduce operand PTX types");
-    Optional<NVVM::MMATypes> ptxTypeC = NVVM::MmaOp::inferOperandMMAType(
-        cType.getElementType(), /*isAccumulator=*/true);
+    std::optional<NVVM::MMATypes> ptxTypeC =
+        NVVM::MmaOp::inferOperandMMAType(cType.getElementType(),
+                                         /*isAccumulator=*/true);
     if (!ptxTypeC)
       return op->emitError(
           "could not infer the PTX type for the accumulator/result");
@@ -517,7 +521,7 @@ struct NVGPUMmaSparseSyncLowering
       return failure();
 
     // TODO: add an attribute to the op to customize this behavior.
-    Optional<NVVM::MMAIntOverflow> overflow(llvm::None);
+    std::optional<NVVM::MMAIntOverflow> overflow(std::nullopt);
     if (aType.getElementType().isa<IntegerType>())
       overflow = NVVM::MMAIntOverflow::satfinite;
 
@@ -570,19 +574,31 @@ struct NVGPUAsyncCopyLowering
     Value dstPtr = getStridedElementPtr(loc, dstMemrefType, adaptor.getDst(),
                                         adaptor.getDstIndices(), rewriter);
     auto i8Ty = IntegerType::get(op.getContext(), 8);
+    FailureOr<unsigned> dstAddressSpace =
+        getTypeConverter()->getMemRefAddressSpace(dstMemrefType);
+    if (failed(dstAddressSpace))
+      return rewriter.notifyMatchFailure(
+          loc, "destination memref address space not convertible to integer");
     auto dstPointerType =
-        LLVM::LLVMPointerType::get(i8Ty, dstMemrefType.getMemorySpaceAsInt());
-    dstPtr = rewriter.create<LLVM::BitcastOp>(loc, dstPointerType, dstPtr);
+        getTypeConverter()->getPointerType(i8Ty, *dstAddressSpace);
+    if (!getTypeConverter()->useOpaquePointers())
+      dstPtr = rewriter.create<LLVM::BitcastOp>(loc, dstPointerType, dstPtr);
 
     auto srcMemrefType = op.getSrc().getType().cast<MemRefType>();
+    FailureOr<unsigned> srcAddressSpace =
+        getTypeConverter()->getMemRefAddressSpace(srcMemrefType);
+    if (failed(srcAddressSpace))
+      return rewriter.notifyMatchFailure(
+          loc, "source memref address space not convertible to integer");
 
     Value scrPtr = getStridedElementPtr(loc, srcMemrefType, adaptor.getSrc(),
                                         adaptor.getSrcIndices(), rewriter);
     auto srcPointerType =
-        LLVM::LLVMPointerType::get(i8Ty, srcMemrefType.getMemorySpaceAsInt());
-    scrPtr = rewriter.create<LLVM::BitcastOp>(loc, srcPointerType, scrPtr);
+        getTypeConverter()->getPointerType(i8Ty, *srcAddressSpace);
+    if (!getTypeConverter()->useOpaquePointers())
+      scrPtr = rewriter.create<LLVM::BitcastOp>(loc, srcPointerType, scrPtr);
     // Intrinsics takes a global pointer so we need an address space cast.
-    auto srcPointerGlobalType = LLVM::LLVMPointerType::get(
+    auto srcPointerGlobalType = getTypeConverter()->getPointerType(
         i8Ty, NVVM::NVVMMemorySpace::kGlobalMemorySpace);
     scrPtr = rewriter.create<LLVM::AddrSpaceCastOp>(loc, srcPointerGlobalType,
                                                     scrPtr);
@@ -664,8 +680,4 @@ void mlir::populateNVGPUToNVVMConversionPatterns(LLVMTypeConverter &converter,
   patterns.add<MmaSyncOptoNVVM, MmaLdMatrixOpToNVVM, NVGPUAsyncCopyLowering,
                NVGPUAsyncCreateGroupLowering, NVGPUAsyncWaitLowering,
                NVGPUMmaSparseSyncLowering>(converter);
-}
-
-std::unique_ptr<Pass> mlir::createConvertNVGPUToNVVMPass() {
-  return std::make_unique<ConvertNVGPUToNVVMPass>();
 }

@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_ALL_H
 #define _LIBCPP___RANGES_ALL_H
 
@@ -17,10 +18,10 @@
 #include <__ranges/owning_view.h>
 #include <__ranges/range_adaptor.h>
 #include <__ranges/ref_view.h>
+#include <__type_traits/decay.h>
 #include <__utility/auto_cast.h>
 #include <__utility/declval.h>
 #include <__utility/forward.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -28,7 +29,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges::views {
 
@@ -72,11 +73,11 @@ inline namespace __cpo {
 } // namespace __cpo
 
 template<ranges::viewable_range _Range>
-using all_t = decltype(views::all(declval<_Range>()));
+using all_t = decltype(views::all(std::declval<_Range>()));
 
 } // namespace ranges::views
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

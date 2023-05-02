@@ -14,6 +14,7 @@ include "TestInterfaces.td"
 include "mlir/Dialect/DLTI/DLTIBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgInterfaces.td"
 include "mlir/IR/EnumAttr.td"
+include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/PatternBase.td"
@@ -186,9 +187,11 @@ def PositiveIntAttrOp : TEST_Op<"positive_int_attr"> {
 def TypeArrayAttrOp : TEST_Op<"type_array_attr"> {
   let arguments = (ins TypeArrayAttr:$attr);
 }
+
 def TypeArrayAttrWithDefaultOp : TEST_Op<"type_array_attr_with_default"> {
   let arguments = (ins DefaultValuedAttr<TypeArrayAttr, "{}">:$attr);
 }
+
 def TypeStringAttrWithTypeOp : TEST_Op<"string_attr_with_type"> {
   let arguments = (ins TypedStrAttr<AnyType>:$attr);
   let assemblyFormat = "$attr attr-dict";
@@ -274,6 +277,13 @@ def TypedAttrOp : TEST_Op<"typed_attr"> {
   }];
 }
 
+def TypeAttrOfOp : TEST_Op<"type_attr_of"> {
+  let arguments = (ins TypeAttrOf<I64>:$type);
+  let assemblyFormat = [{
+    attr-dict $type
+  }];
+}
+
 def DenseArrayAttrOp : TEST_Op<"dense_array_attr"> {
   let arguments = (ins
     DenseBoolArrayAttr:$i1attr,
@@ -292,6 +302,10 @@ def DenseArrayAttrOp : TEST_Op<"dense_array_attr"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// Test Attributes Constraints
+//===----------------------------------------------------------------------===//
+
 def ConfinedDenseArrayAttrOp : TEST_Op<"confined_dense_array_attr"> {
   let arguments = (ins
       ConfinedAttr<DenseI16ArrayAttr,
@@ -300,6 +314,47 @@ def ConfinedDenseArrayAttrOp : TEST_Op<"confined_dense_array_attr"> {
                    [DenseArraySorted<DenseI32ArrayAttr>]>:$i32attr,
       ConfinedAttr<DenseI64ArrayAttr,
                    [DenseArrayStrictlySorted<DenseI64ArrayAttr>]>:$i64attr
+  );
+}
+
+// It does not make sense to have this constraint on a DenseBoolArrayAttr.
+def DenseArrayStrictlyPositiveAttrOp : TEST_Op<"confined_strictly_positive_attr"> {
+  let arguments = (ins
+      ConfinedAttr<DenseI8ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI8ArrayAttr>]>:$i8attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI16ArrayAttr>]>:$i16attr,
+      ConfinedAttr<DenseI32ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI32ArrayAttr>]>:$i32attr,
+      ConfinedAttr<DenseI64ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI64ArrayAttr>]>:$i64attr,
+      ConfinedAttr<DenseF32ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseF32ArrayAttr>]>:$f32attr,
+      ConfinedAttr<DenseF64ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseF64ArrayAttr>]>:$f64attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI16ArrayAttr>]>:$emptyattr
+  );
+}
+
+// It does not make sense to have this constraint on a DenseBoolArrayAttr.
+// It is always true.
+def DenseArrayNonNegativeOp : TEST_Op<"confined_non_negative_attr"> {
+  let arguments = (ins
+      ConfinedAttr<DenseI8ArrayAttr,
+                   [DenseArrayNonNegative<DenseI8ArrayAttr>]>:$i8attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayNonNegative<DenseI16ArrayAttr>]>:$i16attr,
+      ConfinedAttr<DenseI32ArrayAttr,
+                   [DenseArrayNonNegative<DenseI32ArrayAttr>]>:$i32attr,
+      ConfinedAttr<DenseI64ArrayAttr,
+                   [DenseArrayNonNegative<DenseI64ArrayAttr>]>:$i64attr,
+      ConfinedAttr<DenseF32ArrayAttr,
+                   [DenseArrayNonNegative<DenseF32ArrayAttr>]>:$f32attr,
+      ConfinedAttr<DenseF64ArrayAttr,
+                   [DenseArrayNonNegative<DenseF64ArrayAttr>]>:$f64attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayNonNegative<DenseI16ArrayAttr>]>:$emptyattr
   );
 }
 
@@ -374,7 +429,7 @@ def VariadicRegionInferredTypesOp : TEST_Op<"variadic_region_inferred",
 
   let extraClassDeclaration = [{
     static mlir::LogicalResult inferReturnTypes(mlir::MLIRContext *context,
-          llvm::Optional<::mlir::Location> location, mlir::ValueRange operands,
+          std::optional<::mlir::Location> location, mlir::ValueRange operands,
           mlir::DictionaryAttr attributes, mlir::RegionRange regions,
           llvm::SmallVectorImpl<mlir::Type> &inferredReturnTypes) {
       inferredReturnTypes.assign({mlir::IntegerType::get(context, 16)});
@@ -435,6 +490,66 @@ def ConversionCallOp : TEST_Op<"conversion_call_op",
   }];
 }
 
+def ConversionFuncOp : TEST_Op<"conversion_func_op", [CallableOpInterface,
+                                                      FunctionOpInterface]> {
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       TypeAttrOf<FunctionType>:$function_type,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs,
+                       OptionalAttr<StrAttr>:$sym_visibility);
+  let regions = (region AnyRegion:$body);
+
+  let extraClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // CallableOpInterface
+    //===------------------------------------------------------------------===//
+
+    /// Returns the region on the current operation that is callable. This may
+    /// return null in the case of an external callable object, e.g. an external
+    /// function.
+    ::mlir::Region *getCallableRegion() {
+      return isExternal() ? nullptr : &getBody();
+    }
+
+    /// Returns the results types that the callable region produces when
+    /// executed.
+    ::mlir::ArrayRef<::mlir::Type> getCallableResults() {
+      return getFunctionType().getResults();
+    }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
+
+    //===------------------------------------------------------------------===//
+    // FunctionOpInterface Methods
+    //===------------------------------------------------------------------===//
+
+    /// Returns the argument types of this async function.
+    ::mlir::ArrayRef<::mlir::Type> getArgumentTypes() {
+      return getFunctionType().getInputs();
+    }
+
+    /// Returns the result types of this async function.
+    ::mlir::ArrayRef<::mlir::Type> getResultTypes() {
+      return getFunctionType().getResults();
+    }
+
+    /// Returns the number of results of this async function
+    unsigned getNumResults() {return getResultTypes().size();}
+  }];
+
+  let hasCustomAssemblyFormat = 1;
+}
+
 def FunctionalRegionOp : TEST_Op<"functional_region_op",
     [CallableOpInterface]> {
   let regions = (region AnyRegion:$body);
@@ -444,6 +559,12 @@ def FunctionalRegionOp : TEST_Op<"functional_region_op",
     ::mlir::Region *getCallableRegion() { return &getBody(); }
     ::llvm::ArrayRef<::mlir::Type> getCallableResults() {
       return getType().cast<::mlir::FunctionType>().getResults();
+    }
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return nullptr;
+    }
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return nullptr;
     }
   }];
 }
@@ -1233,7 +1354,7 @@ def TestOpInPlaceFoldAnchor : TEST_Op<"op_in_place_fold_anchor"> {
 }
 
 def TestOpInPlaceFold : TEST_Op<"op_in_place_fold"> {
-  let arguments = (ins I32:$op, I32Attr:$attr);
+  let arguments = (ins I32:$op, OptionalAttr<I32Attr>:$attr);
   let results = (outs I32);
   let hasFolder = 1;
 }
@@ -1243,11 +1364,32 @@ def TestOpInPlaceFoldSuccess : TEST_Op<"op_in_place_fold_success"> {
   let results = (outs Variadic<I1>);
   let hasFolder = 1;
   let extraClassDefinition = [{
-    ::mlir::LogicalResult $cppClass::fold(ArrayRef<Attribute> operands,
+    ::mlir::LogicalResult $cppClass::fold(FoldAdaptor adaptor,
         SmallVectorImpl<OpFoldResult> &results) {
       return success();
     }
   }];
+}
+
+def TestOpFoldWithFoldAdaptor
+  : TEST_Op<"fold_with_fold_adaptor",
+      [AttrSizedOperandSegments, NoTerminator]> {
+  let arguments = (ins
+    I32:$op,
+    DenseI32ArrayAttr:$attr,
+    Variadic<I32>:$variadic,
+    VariadicOfVariadic<I32, "attr">:$var_of_var
+  );
+
+  let results = (outs I32:$res);
+
+  let regions = (region AnyRegion:$body);
+
+  let assemblyFormat = [{
+    $op `,` `[` $variadic `]` `,` `{` $var_of_var `}` $body attr-dict-with-keyword
+  }];
+
+  let hasFolder = 1;
 }
 
 // An op that always fold itself.
@@ -1920,6 +2062,12 @@ def FormatOptSymbolNameAttrOp : TEST_Op<"format_opt_symbol_name_attr_op"> {
   let assemblyFormat = "($opt_attr^)? attr-dict";
 }
 
+// Test that we format optional symbol reference attributes properly.
+def FormatOptSymbolRefAttrOp : TEST_Op<"format_opt_symbol_ref_attr_op"> {
+  let arguments = (ins OptionalAttr<SymbolRefAttr>:$opt_attr);
+  let assemblyFormat = "($opt_attr^)? attr-dict";
+}
+
 // Test that we elide attributes that are within the syntax.
 def FormatAttrDictWithKeywordOp : TEST_Op<"format_attr_dict_w_keyword"> {
   let arguments = (ins I64Attr:$attr, OptionalAttr<I64Attr>:$opt_attr);
@@ -2153,6 +2301,11 @@ def FormatNestedCompoundAttr : TEST_Op<"format_cpmd_nested_attr"> {
   let assemblyFormat = "`nested` $nested attr-dict-with-keyword";
 }
 
+def FormatMaybeEmptyType : TEST_Op<"format_maybe_empty_type"> {
+  let arguments = (ins TestTypeOptionalValueType:$in);
+  let assemblyFormat = "$in `:` type($in) attr-dict";
+}
+
 def FormatQualifiedCompoundAttr : TEST_Op<"format_qual_cpmd_nested_attr"> {
   let arguments = (ins CompoundNestedOuter:$nested);
   let assemblyFormat = "`nested` qualified($nested) attr-dict-with-keyword";
@@ -2268,6 +2421,16 @@ def FormatCustomDirectiveAttributes
   }];
 }
 
+def FormatCustomDirectiveSpacing
+    : TEST_Op<"format_custom_directive_spacing"> {
+  let arguments = (ins StrAttr:$attr1, StrAttr:$attr2);
+  let assemblyFormat = [{
+    custom<CustomDirectiveSpacing>($attr1)
+    custom<CustomDirectiveSpacing>($attr2)
+    attr-dict
+  }];
+}
+
 def FormatCustomDirectiveAttrDict
     : TEST_Op<"format_custom_directive_attrdict"> {
   let arguments = (ins I64Attr:$attr, OptionalAttr<I64Attr>:$optAttr);
@@ -2347,7 +2510,7 @@ def FormatInferTypeOp : TEST_Op<"format_infer_type", [InferTypeOpInterface]> {
 
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
-          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::std::optional<::mlir::Location> location, ::mlir::ValueRange operands,
           ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
           ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
       inferredReturnTypes.assign({::mlir::IntegerType::get(context, 16)});
@@ -2370,7 +2533,7 @@ class FormatInferAllTypesBaseOp<string mnemonic, list<Trait> traits = []>
   let results = (outs Variadic<AnyType>:$outs);
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
-          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::std::optional<::mlir::Location> location, ::mlir::ValueRange operands,
           ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
           ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
       ::mlir::TypeRange operandTypes = operands.getTypes();
@@ -2417,7 +2580,7 @@ def FormatInferTypeRegionsOp
   let assemblyFormat = "$region attr-dict";
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
-          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::std::optional<::mlir::Location> location, ::mlir::ValueRange operands,
           ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
           ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
       if (regions.empty())
@@ -2438,7 +2601,7 @@ def FormatInferTypeVariadicOperandsOp
   let assemblyFormat = "`(` $a `:` type($a) `)` `(` $b `:` type($b) `)` attr-dict";
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
-          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::std::optional<::mlir::Location> location, ::mlir::ValueRange operands,
           ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
           ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
       FormatInferTypeVariadicOperandsOpAdaptor adaptor(operands, attributes);
@@ -2583,7 +2746,7 @@ def RegionIfOp : TEST_Op<"region_if",
       return getBody(2)->getArguments();
     }
     ::mlir::OperandRange getSuccessorEntryOperands(
-        ::llvm::Optional<unsigned> index);
+        ::std::optional<unsigned> index);
   }];
   let hasCustomAssemblyFormat = 1;
 }
@@ -2646,7 +2809,7 @@ class TableGenBuildInferReturnTypeBaseOp<string mnemonic,
 
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *,
-          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::std::optional<::mlir::Location> location, ::mlir::ValueRange operands,
           ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
           ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
       inferredReturnTypes.assign({operands[0].getType()});
@@ -3063,6 +3226,45 @@ def TestCSEOfSingleBlockOp : TEST_Op<"cse_of_single_block_op",
     attr-dict `inputs` `(` $inputs `)`
     $region `:` type($inputs)  `->` type($outputs)
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// Test Ops to upgrade base on the dialect versions
+//===----------------------------------------------------------------------===//
+
+def TestVersionedOpA : TEST_Op<"versionedA"> {
+  // A previous version of the dialect (let's say 1.*) supported an attribute
+  // named "dimensions":
+  // let arguments = (ins
+  //   AnyI64Attr:$dimensions
+  // );
+
+  // In the current version (2.0) "dimensions" was renamed to "dims", and a new
+  // boolean attribute "modifier" was added. The previous version of the op
+  // corresponds to "modifier=false". We support loading old IR through
+  // upgrading, see `upgradeFromVersion()` in `TestBytecodeDialectInterface`.
+  let arguments = (ins
+   AnyI64Attr:$dims,
+   BoolAttr:$modifier
+  );
+}
+
+def TestVersionedOpB : TEST_Op<"versionedB"> {
+  // A previous version of the dialect (let's say 1.*) we encoded TestAttrParams
+  // with a custom encoding:
+  //
+  //    #test.attr_params<X, Y> -> { varInt: Y, varInt: X }
+  //
+  // In the current version (2.0) the encoding changed and the two parameters of
+  // the attribute are swapped:
+  //
+  //    #test.attr_params<X, Y> -> { varInt: X, varInt: Y }
+  //
+  // We support loading old IR through a custom readAttribute method, see
+  // `readAttribute()` in `TestBytecodeDialectInterface`
+  let arguments = (ins
+    TestAttrParams:$attribute
+  );
 }
 
 #endif // TEST_OPS

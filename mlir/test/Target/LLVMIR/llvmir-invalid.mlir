@@ -7,96 +7,6 @@ func.func @foo() {
 
 // -----
 
-// expected-error @below{{llvm.noalias attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_noalias(%arg0 : f32 {llvm.noalias}) -> f32 {
-  llvm.return %arg0 : f32
-}
-
-// -----
-
-// expected-error @below{{llvm.sret attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_sret(%arg0 : f32 {llvm.sret = f32}) -> f32 {
-  llvm.return %arg0 : f32
-}
-
-// -----
-
-// expected-error @below{{llvm.sret attribute attached to LLVM pointer argument of a different type}}
-llvm.func @invalid_sret(%arg0 : !llvm.ptr<f32> {llvm.sret = i32}) -> !llvm.ptr<f32> {
-  llvm.return %arg0 : !llvm.ptr<f32>
-}
-
-// -----
-
-// expected-error @below{{llvm.nest attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_nest(%arg0 : f32 {llvm.nest}) -> f32 {
-  llvm.return %arg0 : f32
-}
-// -----
-
-// expected-error @below{{llvm.byval attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_byval(%arg0 : f32 {llvm.byval = f32}) -> f32 {
-  llvm.return %arg0 : f32
-}
-
-// -----
-
-// expected-error @below{{llvm.byval attribute attached to LLVM pointer argument of a different type}}
-llvm.func @invalid_sret(%arg0 : !llvm.ptr<f32> {llvm.byval = i32}) -> !llvm.ptr<f32> {
-  llvm.return %arg0 : !llvm.ptr<f32>
-}
-
-// -----
-
-// expected-error @below{{llvm.byref attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_byval(%arg0 : f32 {llvm.byref = f32}) -> f32 {
-  llvm.return %arg0 : f32
-}
-
-// -----
-
-// expected-error @below{{llvm.byref attribute attached to LLVM pointer argument of a different type}}
-llvm.func @invalid_sret(%arg0 : !llvm.ptr<f32> {llvm.byref = i32}) -> !llvm.ptr<f32> {
-  llvm.return %arg0 : !llvm.ptr<f32>
-}
-
-// -----
-
-// expected-error @below{{llvm.inalloca attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_byval(%arg0 : f32 {llvm.inalloca = f32}) -> f32 {
-  llvm.return %arg0 : f32
-}
-
-// -----
-
-// expected-error @below{{llvm.inalloca attribute attached to LLVM pointer argument of a different type}}
-llvm.func @invalid_sret(%arg0 : !llvm.ptr<f32> {llvm.inalloca = i32}) -> !llvm.ptr<f32> {
-  llvm.return %arg0 : !llvm.ptr<f32>
-}
-
-// -----
-
-// expected-error @below{{llvm.align attribute attached to LLVM non-pointer argument}}
-llvm.func @invalid_align(%arg0 : f32 {llvm.align = 4}) -> f32 {
-  llvm.return %arg0 : f32
-}
-
-// -----
-
-// expected-error @below{{llvm.signext attribute attached to LLVM non-integer argument}}
-llvm.func @invalid_signext(%arg0: f32 {llvm.signext}) {
-  "llvm.return"() : () -> ()
-}
-
-// -----
-
-// expected-error @below{{llvm.zeroext attribute attached to LLVM non-integer argument}}
-llvm.func @invalid_zeroext(%arg0: f32 {llvm.zeroext}) {
-  "llvm.return"() : () -> ()
-}
-
-// -----
-
 llvm.func @no_non_complex_struct() -> !llvm.array<2 x array<2 x array<2 x struct<(i32)>>>> {
   // expected-error @below{{expected struct type to be a complex number}}
   %0 = llvm.mlir.constant(dense<[[[1, 2], [3, 4]], [[42, 43], [44, 45]]]> : tensor<2x2x2xi32>) : !llvm.array<2 x array<2 x array<2 x struct<(i32)>>>>
@@ -181,7 +91,7 @@ llvm.func @binary_int_intr_wrong_type(%arg0 : i32, %arg1 : f32) -> f32 {
 // -----
 
 llvm.func @ternary_float_intr_wrong_type(%arg0 : f32, %arg1 : f32, %arg2 : i32) -> f32 {
-  // expected-error @below{{op operand #2 must be floating-point or LLVM dialect-compatible vector of floating-point}}
+  // expected-error @below{{op operand #2 must be floating point LLVM type or LLVM dialect-compatible vector of floating point LLVM type}}
   %0 = "llvm.intr.fma"(%arg0, %arg1, %arg2) : (f32, f32, i32) -> f32
   llvm.return %0 : f32
 }
@@ -262,7 +172,7 @@ llvm.func @vec_reduce_add_intr_wrong_type(%arg0 : vector<4xi32>) -> f32 {
 
 llvm.func @vec_reduce_fmax_intr_wrong_type(%arg0 : vector<4xi32>) -> i32 {
   // expected-error @below{{op operand #0 must be LLVM dialect-compatible vector of floating-point}}
-  %0 = "llvm.intr.vector.reduce.fmax"(%arg0) : (vector<4xi32>) -> i32
+  %0 = llvm.intr.vector.reduce.fmax(%arg0) : (vector<4xi32>) -> i32
   llvm.return %0 : i32
 }
 

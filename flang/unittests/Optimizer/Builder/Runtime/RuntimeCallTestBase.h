@@ -11,8 +11,8 @@
 
 #include "gtest/gtest.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Optimizer/Support/InitFIR.h"
-#include "flang/Optimizer/Support/KindMapping.h"
 
 struct RuntimeCallTest : public testing::Test {
 public:
@@ -27,7 +27,7 @@ public:
     mlir::ModuleOp mod = builder.create<mlir::ModuleOp>(loc);
     mlir::func::FuncOp func =
         mlir::func::FuncOp::create(loc, "runtime_unit_tests_func",
-            builder.getFunctionType(llvm::None, llvm::None));
+            builder.getFunctionType(std::nullopt, std::nullopt));
     auto *entryBlock = func.addEntryBlock();
     mod.push_back(mod);
     builder.setInsertionPointToStart(entryBlock);

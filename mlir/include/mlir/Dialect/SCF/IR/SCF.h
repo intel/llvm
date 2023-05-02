@@ -13,11 +13,13 @@
 #ifndef MLIR_DIALECT_SCF_SCF_H
 #define MLIR_DIALECT_SCF_SCF_H
 
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/SCF/IR/DeviceMappingInterface.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/ParallelCombiningOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -51,21 +53,29 @@ ForOp getForInductionVarOwner(Value val);
 /// value is not an induction variable, then return nullptr.
 ParallelOp getParallelForInductionVarOwner(Value val);
 
-/// Returns the ForeachThreadOp parent of an thread index variable.
+/// Returns the ForallOp parent of an thread index variable.
 /// If the provided value is not a thread index variable, then return nullptr.
-ForeachThreadOp getForeachThreadOpThreadIndexOwner(Value val);
+ForallOp getForallOpThreadIndexOwner(Value val);
 
 /// Return true if ops a and b (or their ancestors) are in mutually exclusive
 /// regions/blocks of an IfOp.
 // TODO: Consider moving this functionality to RegionBranchOpInterface.
 bool insideMutuallyExclusiveBranches(Operation *a, Operation *b);
 
+/// Promotes the loop body of a scf::ForallOp to its containing block if the
+/// loop was known to have a single iteration.
+LogicalResult promoteIfSingleIteration(PatternRewriter &rewriter,
+                                       scf::ForallOp forallOp);
+
+/// Promotes the loop body of a scf::ForallOp to its containing block.
+void promote(PatternRewriter &rewriter, scf::ForallOp forallOp);
+
 /// An owning vector of values, handy to return from functions.
-using ValueVector = std::vector<Value>;
-using LoopVector = std::vector<scf::ForOp>;
+using ValueVector = SmallVector<Value>;
+using LoopVector = SmallVector<scf::ForOp>;
 struct LoopNest {
-  ResultRange getResults() { return loops.front().getResults(); }
   LoopVector loops;
+  ValueVector results;
 };
 
 /// Creates a perfect nest of "for" loops, i.e. all loops but the innermost

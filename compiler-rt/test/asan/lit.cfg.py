@@ -99,11 +99,13 @@ if config.target_arch == 's390x':
   clang_asan_static_cflags.append("-mbackchain")
 clang_asan_static_cxxflags = config.cxx_mode_flags + clang_asan_static_cflags
 
+target_is_msvc = bool(re.match(r'.*-windows-msvc$', config.target_triple))
+
 asan_dynamic_flags = []
 if config.asan_dynamic:
   asan_dynamic_flags = ["-shared-libasan"]
-  if platform.system() == 'Windows':
-    # On Windows, we need to simulate "clang-cl /MD" on the clang driver side.
+  if platform.system() == 'Windows' and target_is_msvc:
+    # On MSVC target, we need to simulate "clang-cl /MD" on the clang driver side.
     asan_dynamic_flags += ["-D_MT", "-D_DLL", "-Wl,-nodefaultlib:libcmt,-defaultlib:msvcrt,-defaultlib:oldnames"]
   elif platform.system() == 'FreeBSD':
     # On FreeBSD, we need to add -pthread to ensure pthread functions are available.
@@ -144,8 +146,8 @@ if config.asan_dynamic:
   config.substitutions.append( ("%clang_asan_static ", build_invocation(clang_asan_static_cflags)) )
   config.substitutions.append( ("%clangxx_asan_static ", build_invocation(clang_asan_static_cxxflags)) )
 
-# Windows-specific tests might also use the clang-cl.exe driver.
-if platform.system() == 'Windows':
+# MSVC-specific tests might also use the clang-cl.exe driver.
+if platform.system() == 'Windows' and target_is_msvc:
   clang_cl_cxxflags = ["-Wno-deprecated-declarations",
                        "-WX",
                        "-D_HAS_EXCEPTIONS=0",
@@ -202,7 +204,7 @@ if not config.arm_thumb:
 
 # Turn on leak detection on 64-bit Linux.
 leak_detection_android = config.android and 'android-thread-properties-api' in config.available_features and (config.target_arch in ['x86_64', 'i386', 'i686', 'aarch64'])
-leak_detection_linux = (config.host_os == 'Linux') and (not config.android) and (config.target_arch in ['x86_64', 'i386', 'riscv64'])
+leak_detection_linux = (config.host_os == 'Linux') and (not config.android) and (config.target_arch in ['x86_64', 'i386', 'riscv64', 'loongarch64'])
 leak_detection_mac = (config.host_os == 'Darwin') and (config.apple_platform == 'osx')
 leak_detection_netbsd = (config.host_os == 'NetBSD') and (config.target_arch in ['x86_64', 'i386'])
 if leak_detection_android or leak_detection_linux or leak_detection_mac or leak_detection_netbsd:

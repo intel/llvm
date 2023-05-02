@@ -8,7 +8,6 @@
 
 #include "Coroutines.h"
 
-#include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/VariableList.h"
@@ -42,72 +41,23 @@ static lldb::addr_t GetCoroFramePtrFromHandle(ValueObjectSP valobj_sp) {
   return frame_ptr_addr;
 }
 
-static Function *ExtractFunction(lldb::TargetSP target_sp,
-                                 lldb::addr_t frame_ptr_addr, int offset) {
+static Function *ExtractDestroyFunction(lldb::TargetSP target_sp,
+                                        lldb::addr_t frame_ptr_addr) {
   lldb::ProcessSP process_sp = target_sp->GetProcessSP();
   auto ptr_size = process_sp->GetAddressByteSize();
 
   Status error;
-  auto func_ptr_addr = frame_ptr_addr + offset * ptr_size;
-  lldb::addr_t func_addr =
-      process_sp->ReadPointerFromMemory(func_ptr_addr, error);
+  auto destroy_func_ptr_addr = frame_ptr_addr + ptr_size;
+  lldb::addr_t destroy_func_addr =
+      process_sp->ReadPointerFromMemory(destroy_func_ptr_addr, error);
   if (error.Fail())
     return nullptr;
 
-  Address func_address;
-  if (!target_sp->ResolveLoadAddress(func_addr, func_address))
+  Address destroy_func_address;
+  if (!target_sp->ResolveLoadAddress(destroy_func_addr, destroy_func_address))
     return nullptr;
 
-  return func_address.CalculateSymbolContextFunction();
-}
-
-static Function *ExtractResumeFunction(lldb::TargetSP target_sp,
-                                       lldb::addr_t frame_ptr_addr) {
-  return ExtractFunction(target_sp, frame_ptr_addr, 0);
-}
-
-static Function *ExtractDestroyFunction(lldb::TargetSP target_sp,
-                                        lldb::addr_t frame_ptr_addr) {
-  return ExtractFunction(target_sp, frame_ptr_addr, 1);
-}
-
-static bool IsNoopCoroFunction(Function *f) {
-  if (!f)
-    return false;
-
-  // clang's `__builtin_coro_noop` gets lowered to
-  // `_NoopCoro_ResumeDestroy`. This is used by libc++
-  // on clang.
-  auto mangledName = f->GetMangled().GetMangledName();
-  if (mangledName == "__NoopCoro_ResumeDestroy")
-    return true;
-
-  // libc++ uses the following name as a fallback on
-  // compilers without `__builtin_coro_noop`.
-  auto name = f->GetNameNoArguments();
-  static RegularExpression libcxxRegex(
-      "^std::coroutine_handle<std::noop_coroutine_promise>::"
-      "__noop_coroutine_frame_ty_::__dummy_resume_destroy_func$");
-  lldbassert(libcxxRegex.IsValid());
-  if (libcxxRegex.Execute(name.GetStringRef()))
-    return true;
-  static RegularExpression libcxxRegexAbiNS(
-      "^std::__[[:alnum:]]+::coroutine_handle<std::__[[:alnum:]]+::"
-      "noop_coroutine_promise>::__noop_coroutine_frame_ty_::"
-      "__dummy_resume_destroy_func$");
-  lldbassert(libcxxRegexAbiNS.IsValid());
-  if (libcxxRegexAbiNS.Execute(name.GetStringRef()))
-    return true;
-
-  // libstdc++ uses the following name on both gcc and clang.
-  static RegularExpression libstdcppRegex(
-      "^std::__[[:alnum:]]+::coroutine_handle<std::__[[:alnum:]]+::"
-      "noop_coroutine_promise>::__frame::__dummy_resume_destroy$");
-  lldbassert(libstdcppRegex.IsValid());
-  if (libstdcppRegex.Execute(name.GetStringRef()))
-    return true;
-
-  return false;
+  return destroy_func_address.CalculateSymbolContextFunction();
 }
 
 static CompilerType InferPromiseType(Function &destroy_func) {
@@ -137,24 +87,16 @@ bool lldb_private::formatters::StdlibCoroutineHandleSummaryProvider(
 
   if (frame_ptr_addr == 0) {
     stream << "nullptr";
-    return true;
+  } else {
+    stream.Printf("coro frame = 0x%" PRIx64, frame_ptr_addr);
   }
 
-  lldb::TargetSP target_sp = valobj.GetTargetSP();
-  if (IsNoopCoroFunction(ExtractResumeFunction(target_sp, frame_ptr_addr)) &&
-      IsNoopCoroFunction(ExtractDestroyFunction(target_sp, frame_ptr_addr))) {
-    stream << "noop_coroutine";
-    return true;
-  }
-
-  stream.Printf("coro frame = 0x%" PRIx64, frame_ptr_addr);
   return true;
 }
 
 lldb_private::formatters::StdlibCoroutineHandleSyntheticFrontEnd::
     StdlibCoroutineHandleSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp),
-      m_ast_importer(std::make_unique<ClangASTImporter>()) {
+    : SyntheticChildrenFrontEnd(*valobj_sp) {
   if (valobj_sp)
     Update();
 }
@@ -197,20 +139,13 @@ bool lldb_private::formatters::StdlibCoroutineHandleSyntheticFrontEnd::
   if (frame_ptr_addr == 0 || frame_ptr_addr == LLDB_INVALID_ADDRESS)
     return false;
 
-  lldb::TargetSP target_sp = m_backend.GetTargetSP();
-  Function *resume_func = ExtractResumeFunction(target_sp, frame_ptr_addr);
-  Function *destroy_func = ExtractDestroyFunction(target_sp, frame_ptr_addr);
-
-  // For `std::noop_coroutine()`, we don't want to display any child nodes.
-  if (IsNoopCoroFunction(resume_func) && IsNoopCoroFunction(destroy_func))
-    return false;
-
   auto ts = valobj_sp->GetCompilerType().GetTypeSystem();
   auto ast_ctx = ts.dyn_cast_or_null<TypeSystemClang>();
   if (!ast_ctx)
-    return {};
+    return false;
 
-  // Create the `resume` and `destroy` children
+  // Create the `resume` and `destroy` children.
+  lldb::TargetSP target_sp = m_backend.GetTargetSP();
   auto &exe_ctx = m_backend.GetExecutionContextRef();
   lldb::ProcessSP process_sp = target_sp->GetProcessSP();
   auto ptr_size = process_sp->GetAddressByteSize();
@@ -233,16 +168,24 @@ bool lldb_private::formatters::StdlibCoroutineHandleSyntheticFrontEnd::
     return false;
 
   // Try to infer the promise_type if it was type-erased
-  if (promise_type.IsVoidType() && destroy_func) {
-    if (CompilerType inferred_type = InferPromiseType(*destroy_func)) {
-      // Copy the type over to the correct `TypeSystemClang` instance
-      promise_type = m_ast_importer->CopyType(*ast_ctx, inferred_type);
+  if (promise_type.IsVoidType()) {
+    if (Function *destroy_func =
+            ExtractDestroyFunction(target_sp, frame_ptr_addr)) {
+      if (CompilerType inferred_type = InferPromiseType(*destroy_func)) {
+        promise_type = inferred_type;
+      }
     }
+  }
+
+  // If we don't know the promise type, we don't display the `promise` member.
+  // `CreateValueObjectFromAddress` below would fail for `void` types.
+  if (promise_type.IsVoidType()) {
+    return false;
   }
 
   // Add the `promise` member. We intentionally add `promise` as a pointer type
   // instead of a value type, and don't automatically dereference this pointer.
-  // We do so to avoid potential very deep recursion in case there is a cycle in
+  // We do so to avoid potential very deep recursion in case there is a cycle
   // formed between `std::coroutine_handle`s and their promises.
   lldb::ValueObjectSP promise = CreateValueObjectFromAddress(
       "promise", frame_ptr_addr + 2 * ptr_size, exe_ctx, promise_type);

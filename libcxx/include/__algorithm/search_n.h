@@ -14,14 +14,15 @@
 #include <__algorithm/iterator_operations.h>
 #include <__config>
 #include <__functional/identity.h>
+#include <__functional/invoke.h>
 #include <__iterator/advance.h>
 #include <__iterator/concepts.h>
 #include <__iterator/distance.h>
 #include <__iterator/iterator_traits.h>
 #include <__ranges/concepts.h>
+#include <__type_traits/is_callable.h>
 #include <__utility/convert_to_integral.h>
 #include <__utility/pair.h>
-#include <type_traits>  // __convert_to_integral
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -173,8 +174,7 @@ _ForwardIterator search_n(_ForwardIterator __first, _ForwardIterator __last,
 template <class _ForwardIterator, class _Size, class _Tp>
 _LIBCPP_NODISCARD_EXT inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
 _ForwardIterator search_n(_ForwardIterator __first, _ForwardIterator __last, _Size __count, const _Tp& __value) {
-  typedef typename iterator_traits<_ForwardIterator>::value_type __v;
-  return std::search_n(__first, __last, std::__convert_to_integral(__count), __value, __equal_to<__v, _Tp>());
+  return std::search_n(__first, __last, std::__convert_to_integral(__count), __value, __equal_to());
 }
 
 _LIBCPP_END_NAMESPACE_STD

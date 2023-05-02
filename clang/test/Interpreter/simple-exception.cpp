@@ -1,6 +1,7 @@
 // clang-format off
 // UNSUPPORTED: system-aix
-// XFAIL: arm, arm64-apple, system-windows
+// XFAIL for arm, arm64, riscv, or running on Windows.
+// XFAIL: target={{(arm|riscv).*}}, system-windows
 // RUN: cat %s | clang-repl | FileCheck %s
 extern "C" int printf(const char *, ...);
 

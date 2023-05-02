@@ -171,7 +171,6 @@ BENIGN_LANGOPT(EmitAllDecls      , 1, 0, "emitting all declarations")
 LANGOPT(MathErrno         , 1, 1, "errno in math functions")
 BENIGN_LANGOPT(HeinousExtensions , 1, 0, "extensions that we really don't like and may be ripped out at any time")
 LANGOPT(Modules           , 1, 0, "modules semantics")
-COMPATIBLE_LANGOPT(ModulesTS  , 1, 0, "C++ Modules TS syntax")
 COMPATIBLE_LANGOPT(CPlusPlusModules, 1, 0, "C++ modules syntax")
 BENIGN_ENUM_LANGOPT(CompilingModule, CompilingModuleKind, 3, CMK_None,
                     "compiling a module interface")
@@ -336,6 +335,7 @@ COMPATIBLE_LANGOPT(ExpStrictFP, 1, false, "Enable experimental strict floating p
 BENIGN_LANGOPT(RoundingMath, 1, false, "Do not assume default floating-point rounding behavior")
 BENIGN_ENUM_LANGOPT(FPExceptionMode, FPExceptionModeKind, 2, FPE_Default, "FP Exception Behavior Mode type")
 BENIGN_ENUM_LANGOPT(FPEvalMethod, FPEvalMethodKind, 2, FEM_UnsetOnCommandLine, "FP type used for floating point arithmetic")
+ENUM_LANGOPT(Float16ExcessPrecision, ExcessPrecisionKind, 2, FPP_Standard, "Intermediate truncation behavior for floating point arithmetic")
 LANGOPT(NoBitFieldTypeAlign , 1, 0, "bit-field type alignment")
 LANGOPT(HexagonQdsp6Compat , 1, 0, "hexagon-qdsp6 backward compatibility")
 LANGOPT(ObjCAutoRefCount , 1, 0, "Objective-C automated reference counting")
@@ -349,6 +349,7 @@ LANGOPT(ObjCDisableDirectMethodsForTesting, 1, 0,
         "Disable recognition of objc_direct methods")
 LANGOPT(CFProtectionBranch , 1, 0, "Control-Flow Branch Protection enabled")
 LANGOPT(FakeAddressSpaceMap , 1, 0, "OpenCL fake address space map")
+LANGOPT(OpenCLForceVectorABI, 1, 0, "OpenCL vector to scalar coercion disabling")
 ENUM_LANGOPT(AddressSpaceMapMangling , AddrSpaceMapMangling, 2, ASMM_Target, "OpenCL address space map mangling mode")
 LANGOPT(IncludeDefaultHeader, 1, 0, "Include default header file for OpenCL")
 LANGOPT(DeclareOpenCLBuiltins, 1, 0, "Declare OpenCL builtin functions")
@@ -485,6 +486,11 @@ VALUE_LANGOPT(FuchsiaAPILevel, 32, 0, "Fuchsia API level")
 // supports all operations (like division or float-to-integer conversion)
 // on large _BitInts.
 BENIGN_VALUE_LANGOPT(MaxBitIntWidth, 32, 128, "Maximum width of a _BitInt")
+
+LANGOPT(IncrementalExtensions, 1, 0, " True if we want to process statements"
+        "on the global scope, ignore EOF token and continue later on (thus "
+        "avoid tearing the Lexer and etc. down). Controlled by "
+        "-fincremental-extensions.")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT
