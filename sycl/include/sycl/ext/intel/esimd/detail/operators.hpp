@@ -498,9 +498,7 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
                 __ESIMD_DNS::is_simd_mask_type_v<SimdT2> &&                    \
                 (SimdT1::length == SimdT2::length) && COND>>                   \
   inline SimdT1 operator BINOP(const SimdT1 &LHS, const SimdT2 &RHS) {         \
-    SimdT1 res(0);                                                             \
-    res.merge(LHS, RHS);                                                       \
-    return res;                                                                \
+    return LHS BINOP SimdT1(RHS);                                              \
   }                                                                            \
                                                                                \
   /* simd_mask<...> BINOP simd* */                                             \
@@ -512,9 +510,7 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
                 __ESIMD_DNS::is_simd_mask_type_v<SimdT1> &&                    \
                 (SimdT2::length == SimdT1::length) && COND>>                   \
   inline SimdT2 operator BINOP(const SimdT1 &LHS, const SimdT2 &RHS) {         \
-    SimdT2 res(0);                                                             \
-    res.merge(RHS, LHS);                                                       \
-    return res;                                                                \
+    return SimdT2(LHS) BINOP RHS;                                              \
   }                                                                            \
                                                                                \
   /* SCALAR BINOP simd_mask  */                                                \
@@ -523,9 +519,7 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
             class = std::enable_if_t<                                          \
                 __ESIMD_DNS::is_simd_mask_type_v<SimdT2> && COND>>             \
   inline SimdT1 operator BINOP(T1 LHS, const SimdT2 &RHS) {                    \
-    SimdT1 res(0);                                                             \
-    res.merge(LHS, RHS);                                                       \
-    return res;                                                                \
+    return LHS BINOP SimdT1(RHS);                                              \
   }                                                                            \
                                                                                \
   /* simd_mask BINOP SCALAR */                                                 \
@@ -534,15 +528,15 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
             class = std::enable_if_t<                                          \
                 __ESIMD_DNS::is_simd_mask_type_v<SimdT1> && COND>>             \
   inline SimdT2 operator BINOP(const SimdT1 &LHS, T2 RHS) {                    \
-    SimdT2 res(0);                                                             \
-    res.merge(RHS, LHS);                                                       \
-    return res;                                                                \
+    return SimdT2(LHS) BINOP RHS;                                              \
   }
 
 #define __ESIMD_ARITH_OP_FILTER                                                \
   __ESIMD_DNS::is_valid_simd_elem_type_v<T1>                                   \
       &&__ESIMD_DNS::is_valid_simd_elem_type_v<T2>
 
+__ESIMD_DEF_SIMD_MASK_BIN_OP(+, __ESIMD_ARITH_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_OP(-, __ESIMD_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(*, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
 
