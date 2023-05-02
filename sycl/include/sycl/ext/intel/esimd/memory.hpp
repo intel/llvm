@@ -899,8 +899,7 @@ constexpr void check_atomic() {
                 Op == __ESIMD_NS::atomic_op::cmpxchg ||
                 Op == __ESIMD_NS::atomic_op::predec ||
                 Op == __ESIMD_NS::atomic_op::inc ||
-                Op == __ESIMD_NS::atomic_op::dec ||
-                Op == __ESIMD_NS::atomic_op::load) {
+                Op == __ESIMD_NS::atomic_op::dec) {
 
     static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
   }
@@ -973,7 +972,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
                                                                 mask);
   } else if constexpr (Op == atomic_op::store) {
-    if constexpr (std::is_integral_v<Toffset>) {
+    if constexpr (std::is_integral_v<Tx>) {
       return atomic_update<atomic_op::xchg, Tx, N>(p, offset, src0, mask);
     } else {
       using Tint = detail::uint_type_t<sizeof(Tx)>;
@@ -1071,7 +1070,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   if constexpr (Op == atomic_op::load) {
-    if constexpr (std::is_integral_v<Toffset>) {
+    if constexpr (std::is_integral_v<Tx>) {
       return atomic_update<atomic_op::bit_or, Tx, N>(p, offset, simd<Tx, N>(0),
                                                      mask);
     } else {
@@ -1080,14 +1079,15 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
           reinterpret_cast<Tint *>(p), offset, simd<Tint, N>(0), mask);
       return Res.template bit_cast_view<Tx>();
     }
-  }
-  detail::check_atomic<Op, Tx, N, 0>();
+  } else {
+    detail::check_atomic<Op, Tx, N, 0>();
 
-  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
-  vAddr += offset_i1;
-  using T = typename detail::__raw_t<Tx>;
-  return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
+    vAddr += offset_i1;
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
+  }
 }
 
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -1106,9 +1106,8 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<Tx, N> atomic_update(Tx *p,
-                                      simd_view<Toffset, RegionTy> offsets,
-                                      simd_mask<N> mask = 1) {
+__ESIMD_API simd<Tx, N>
+atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, offsets.read(), mask);
 }
 
@@ -1128,7 +1127,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
-atomic_update(Tx *p, Toffset offset, simd_mask<N> mask = 1) {
+atomic_update(Tx *p, Toffset offset, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), mask);
 }
 
@@ -1264,7 +1263,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(acc, offset,
                                                                 src0, mask);
   } else if constexpr (Op == atomic_op::store) {
-    if constexpr (std::is_integral_v<Toffset>) {
+    if constexpr (std::is_integral_v<Tx>) {
       return atomic_update<atomic_op::xchg, Tx, N>(acc, offset, src0, mask);
     } else {
       using Tint = detail::uint_type_t<sizeof(Tx)>;
@@ -1381,7 +1380,7 @@ __ESIMD_API
 #else
 
   if constexpr (Op == atomic_op::load) {
-    if constexpr (std::is_integral_v<Toffset>) {
+    if constexpr (std::is_integral_v<Tx>) {
       return atomic_update<atomic_op::bit_or, Tx, N>(acc, offset,
                                                      simd<Tx, N>(0), mask);
     } else {
@@ -1390,16 +1389,15 @@ __ESIMD_API
           acc, offset, simd<Tint, N>(0), mask);
       return Res.template bit_cast_view<Tx>();
     }
+  } else {
+    detail::check_atomic<Op, Tx, N, 0>();
+    static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
+
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
+    const auto si = __ESIMD_NS::get_surface_index(acc);
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data());
   }
-
-  detail::check_atomic<Op, Tx, N, 0>();
-  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
-
-  static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
-  const auto si = __ESIMD_NS::get_surface_index(acc);
-  using T = typename detail::__raw_t<Tx>;
-  return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data());
-
 #endif
 }
 
@@ -1426,7 +1424,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd_mask<N> mask = 1) {
+              simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), mask);
 }
 
@@ -1484,7 +1482,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask = 1) {
+              simd<Tx, N> src1, simd_mask<N> mask) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, src0, src1, mask);
@@ -1559,7 +1557,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask = 1) {
+              simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
                                   mask);
 }
