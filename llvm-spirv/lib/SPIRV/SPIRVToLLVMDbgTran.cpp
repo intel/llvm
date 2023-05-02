@@ -1149,12 +1149,20 @@ MDNode *SPIRVToLLVMDbgTran::transTypeTemplate(const SPIRVExtInst *DebugInst) {
 DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::ImportedEntity;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() >= OperandCount && "Invalid number of operands");
-  DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
-  SPIRVWord Line =
-      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
-  DIFile *File = getFile(Ops[SourceIdx]);
-  auto *Entity = transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx]));
+  // FIXME: 'OpenCL/bugged' version is kept because it's hard to remove it
+  // It's W/A for missing 2nd index in OpenCL's implementation
+  const SPIRVWord OffsetIdx = isNonSemanticDebugInfo(DebugInst->getExtSetKind())
+                                  ? OperandCount - NonSemantic::OperandCount
+                                  : 0;
+
+  assert(Ops.size() == (OperandCount - OffsetIdx) &&
+         "Invalid number of operands");
+  DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx - OffsetIdx]));
+  SPIRVWord Line = getConstantValueOrLiteral(Ops, LineIdx - OffsetIdx,
+                                             DebugInst->getExtSetKind());
+  DIFile *File = getFile(Ops[SourceIdx - OffsetIdx]);
+  auto *Entity =
+      transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx - OffsetIdx]));
   SPIRVWord Tag =
       getConstantValueOrLiteral(Ops, TagIdx, DebugInst->getExtSetKind());
   if (Tag == SPIRVDebug::ImportedModule) {
@@ -1180,11 +1188,7 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
     return getDIBuilder(DebugInst).createImportedDeclaration(Scope, Entity,
                                                              File, Line, Name);
   }
-  // FIXME: uncomment and fix following line, with existing bugs it's reachable.
-  // llvm_unreachable("Unexpected kind of imported entity!");
-  // Imported entity translation is broken. For example ImportedEntity is
-  // missing 2nd parameter.
-  return nullptr;
+  llvm_unreachable("Unexpected kind of imported entity!");
 }
 
 DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {

@@ -843,6 +843,9 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
 }
 
 namespace ImportedEntity {
+inline namespace OpenCL {
+// it's bugged version, note 2nd index is missing
+// FIXME: need to remove it after some graceful period
 enum {
   NameIdx      = 0,
   TagIdx       = 1,
@@ -853,7 +856,20 @@ enum {
   ParentIdx    = 7,
   OperandCount = 8
 };
-}
+} // namespace OpenCL
+namespace NonSemantic {
+enum {
+  NameIdx      = 0,
+  TagIdx       = 1,
+  SourceIdx    = 2,
+  EntityIdx    = 3,
+  LineIdx      = 4,
+  ColumnIdx    = 5,
+  ParentIdx    = 6,
+  OperandCount = 7
+};
+} // namespace NonSemantic
+} // namespace ImportedEntity
 
 namespace ModuleINTEL {
 enum {
