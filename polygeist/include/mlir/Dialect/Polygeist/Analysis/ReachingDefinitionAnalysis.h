@@ -58,7 +58,7 @@ public:
   /// Set operation \p op as a definite modifier of value \p val.
   ChangeResult setModifier(Value val, Operation *op);
 
-  /// Remove all potential modifiers of value \p val.
+  /// Remove all definite modifiers of value \p val.
   ChangeResult removeModifiers(Value val);
 
   /// Add operation \p op as a possible modifier of value \p val.

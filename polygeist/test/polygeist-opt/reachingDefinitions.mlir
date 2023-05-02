@@ -169,3 +169,27 @@ func.func @test10(%val: i32) {
   %3 = memref.load %alloca[] {tag = "test10_load2"} : memref<i32>
   return
 }
+
+// COM: Test effects of a deallocation in the presence of control flow.
+// CHECK-LABEL: test_tag: test11_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods: test11_store2 test11_store1
+// CHECK-NEXT: - pMods:
+// CHECK-LABEL: test_tag: test11_load2
+// CHECK: operand #0
+// CHECK-NEXT: - mods:
+// CHECK-NEXT: - pMods:
+func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) {
+  memref.store %val, %arg1[] {tag_name = "test11_store1"} : memref<i32>
+  scf.if %cond {
+    %c0 = arith.constant 0 : i32    
+    memref.store %c0, %arg1[] {tag_name = "test11_store2"} : memref<i32>
+  } else {
+    %c1 = arith.constant 1 : i32      
+    memref.store %c1, %arg2[] {tag_name = "test11_store3"} : memref<i32>
+  }  
+  memref.dealloc %arg2 {tag_name = "test11_dealloc1"} : memref<i32>
+  %1 = memref.load %arg1[] {tag = "test11_load1"} : memref<i32>  
+  %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>      
+  return
+}

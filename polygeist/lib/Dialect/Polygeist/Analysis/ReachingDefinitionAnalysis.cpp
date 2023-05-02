@@ -162,7 +162,7 @@ void ReachingDefinitionAnalysis::visitOperation(
   auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
   if (!memoryEffectOp) {
     LLVM_DEBUG(llvm::dbgs() << "Operation has unknown side effects\n");
-    return;
+    return setToEntryState(after);
   }
 
   // Transfer the input state.
