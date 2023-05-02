@@ -25,6 +25,7 @@
 #include "MSP430.h"
 #include "PS4CPU.h"
 #include "SYCL.h"
+#include "sycl/device_config_file.h"
 #include "clang/Basic/CLWarnings.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
@@ -62,6 +63,7 @@
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
+#include <iostream>
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -5303,6 +5305,41 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         D.addSYCLTargetMacroArg(Args, Macro);
       }
     };
+    for (const auto &entry : DeviceConfigFile::TargetTable) {
+      auto info = entry.second;
+      std::cout << "Target info for target named " << entry.first << std::endl;
+      std::cout << "Supported aspects: {";
+      bool first = true;
+      for (const auto &aspect : info.aspects) {
+        if (first)
+          first = false;
+        else
+          std::cout << ", ";
+        std::cout << aspect;
+      }
+      std::cout << "}\n";
+      std::cout << "May support other aspects: " << info.maySupportOtherAspects
+                << std::endl;
+      std::cout << "Sub group sizes: {";
+      first = true;
+      for (const auto &sz : info.subGroupSizes) {
+        if (first)
+          first = false;
+        else
+          std::cout << ", ";
+        std::cout << sz;
+      }
+      std::cout << "}\n";
+      std::cout << "AOT Toolchain: " << info.aotToolchain << std::endl;
+      std::cout << "AOT Toolchain options: " << info.aotToolchainOptions
+                << std::endl;
+    }
+    // auto res = lookupDeviceTableByValues(1);
+    // if (res->maySupportOtherAspects) {
+    //   D.addSYCLTargetMacroArg(Args, "-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS");
+    //   CmdArgs.push_back(
+    //       Args.MakeArgString("-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS"));
+    // }
     if (IsSYCLOffloadDevice)
       addTargetMacros(RawTriple);
     else {
