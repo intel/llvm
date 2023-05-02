@@ -287,14 +287,16 @@ public:
       std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs,
       OpBuilder builder, Location loc);
 
-  std::unique_ptr<VersionCondition> createCondition() const {
-    SCFCondition scfCond = createSCFCondition(builder, loc);
+  std::unique_ptr<VersionCondition>
+  createCondition(bool useOpaquePointers) const {
+    SCFCondition scfCond = createSCFCondition(builder, loc, useOpaquePointers);
     return std::make_unique<VersionCondition>(scfCond);
   }
 
 private:
   /// Create a versioning condition suitable for scf::IfOp.
-  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc,
+                                  bool useOpaquePointers) const;
 
   std::set<sycl::AccessorPtrPair> accessorPairs;
   mutable OpBuilder builder;

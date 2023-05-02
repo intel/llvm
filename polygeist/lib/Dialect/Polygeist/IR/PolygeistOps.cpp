@@ -1468,14 +1468,15 @@ public:
         return failure();
 
     Value val = src.getSource();
-    if (cast<LLVM::LLVMPointerType>(val.getType()).getElementType() !=
-        mt.getElementType())
-      val = rewriter.create<LLVM::BitcastOp>(
-          op.getLoc(),
-          LLVM::LLVMPointerType::get(
-              mt.getElementType(),
-              cast<LLVM::LLVMPointerType>(val.getType()).getAddressSpace()),
-          val);
+    if (auto PtrTy = dyn_cast<LLVM::LLVMPointerType>(val.getType())) {
+      if (!PtrTy.isOpaque() && PtrTy.getElementType() != mt.getElementType()) {
+        val = rewriter.create<LLVM::BitcastOp>(
+            op.getLoc(),
+            LLVM::LLVMPointerType::get(mt.getElementType(),
+                                       PtrTy.getAddressSpace()),
+            val);
+      }
+    }
 
     Value idx = nullptr;
     auto shape = mt.getShape();
@@ -1497,7 +1498,9 @@ public:
 
     if (idx) {
       Value idxs[] = {idx};
-      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
+      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(),
+                                         src.getType().getElementType(), val,
+                                         idxs);
     }
 
     replaceOpWithNewOp(op, val, rewriter);

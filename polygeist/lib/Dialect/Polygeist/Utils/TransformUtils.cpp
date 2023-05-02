@@ -627,15 +627,16 @@ VersionConditionBuilder::VersionConditionBuilder(
 }
 
 VersionConditionBuilder::SCFCondition
-VersionConditionBuilder::createSCFCondition(OpBuilder builder,
-                                            Location loc) const {
+VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
+                                            bool useOpaquePointers) const {
   auto GetMemref2PointerOp = [&](Value op) {
     auto MT = cast<MemRefType>(op.getType());
-    return builder.create<polygeist::Memref2PointerOp>(
-        loc,
-        LLVM::LLVMPointerType::get(MT.getElementType(),
-                                   MT.getMemorySpaceAsInt()),
-        op);
+    auto PtrTy = (useOpaquePointers)
+                     ? LLVM::LLVMPointerType::get(MT.getContext(),
+                                                  MT.getMemorySpaceAsInt())
+                     : LLVM::LLVMPointerType::get(MT.getElementType(),
+                                                  MT.getMemorySpaceAsInt());
+    return builder.create<polygeist::Memref2PointerOp>(loc, PtrTy, op);
   };
 
   Value condition;

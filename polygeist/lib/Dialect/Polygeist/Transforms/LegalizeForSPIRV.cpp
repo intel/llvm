@@ -60,6 +60,12 @@ public:
         allocaOp.getLoc(), IntegerType::get(rewriter.getContext(), 32),
         rewriter.getIntegerAttr(rewriter.getI32Type(), constIndices.front()));
 
+    if (allocaOp.getElemType()) {
+      rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
+          allocaOp, allocaOp.getRes().getType(), allocaOp.getElemType().value(),
+          size);
+      return success();
+    }
     rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
         allocaOp, allocaOp.getRes().getType(), size);
 

@@ -870,8 +870,13 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                                       rewriter.create<arith::IndexCastOp>(
                                           ao.getLoc(), sz.getType(), idx));
         SmallVector<Value> vec = {idx};
-        u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
-                                           idx));
+        if (ao.getElemType()) {
+          u.set(rewriter.create<LLVM::GEPOp>(
+              ao.getLoc(), ao.getType(), ao.getElemType().value(), alloc, idx));
+        } else {
+          u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
+                                             idx));
+        }
       }
     } else {
       assert(false && "Wrong operation type in preserveAllocas");
@@ -1998,8 +2003,6 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
       return failure();
     }
 
-    // Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
-    //     op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
     SmallVector<Value> beforeAllocated, afterAllocated;
     allocaValues(op.getLoc(), op.getOperands(), rewriter, beforeAllocated);
     storeValues(op.getLoc(), op.getOperands(), beforeAllocated, rewriter);

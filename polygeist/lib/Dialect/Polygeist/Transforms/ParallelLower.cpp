@@ -154,7 +154,8 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 };
 
 // TODO
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
+mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module,
+                                                 bool useOpaquePointers) {
   static std::mutex _mutex;
   std::unique_lock<std::mutex> lock(_mutex);
 
@@ -165,15 +166,19 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
     return fn;
   auto *ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-  auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
+  auto VoidPtrTy =
+      (useOpaquePointers)
+          ? LLVM::LLVMPointerType::get(ctx)
+          : LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8));
+  auto llvmFnType = LLVM::LLVMFunctionType::get(VoidPtrTy, types, false);
 
   LLVM::Linkage lnk = LLVM::Linkage::External;
   builder.setInsertionPointToStart(module.getBody());
   return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
                                           lnk);
 }
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module,
+                                               bool useOpaquePointers) {
   static std::mutex _mutex;
   std::unique_lock<std::mutex> lock(_mutex);
 
@@ -183,10 +188,12 @@ mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
           symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
     return fn;
   auto *ctx = module->getContext();
+  auto VoidPtrTy =
+      (useOpaquePointers)
+          ? LLVM::LLVMPointerType::get(ctx)
+          : LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8));
   auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMVoidType::get(ctx),
-      ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getI8Type())),
-      false);
+      LLVM::LLVMVoidType::get(ctx), ArrayRef<mlir::Type>(VoidPtrTy), false);
 
   LLVM::Linkage lnk = LLVM::Linkage::External;
   builder.setInsertionPointToStart(module.getBody());
@@ -364,9 +371,14 @@ void ParallelLower::runOnOperation() {
       auto PT = cast<LLVM::LLVMPointerType>(alop.getType());
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
+        auto newPtrTy =
+            (useOpaquePointers)
+                ? LLVM::LLVMPointerType::get(alop->getContext(), 0)
+                : LLVM::LLVMPointerType::get(PT.getElementType(), 0);
+        auto elemTy = (alop.getElemType()) ? alop.getElemType().value()
+                                           : PT.getElementType();
         auto newAlloca = builder.create<LLVM::AllocaOp>(
-            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
-            alop.getArraySize());
+            alop.getLoc(), newPtrTy, elemTy, alop.getArraySize());
         builder.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(alop, PT, newAlloca);
       }
     });
@@ -463,6 +475,7 @@ void ParallelLower::runOnOperation() {
       bz.create<LLVM::MemcpyOp>(
           call.getLoc(),
           bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
+                                 IntegerType::get(call->getContext(), 8),
                                  call.getOperand(0),
                                  std::vector<Value>({call.getOperand(3)})),
           call.getOperand(1), call.getOperand(2),
@@ -484,7 +497,7 @@ void ParallelLower::runOnOperation() {
       call.erase();
     } else if (call.getCallee().value() == "cudaMalloc" ||
                call.getCallee().value() == "cudaMallocHost") {
-      auto mf = GetOrCreateMallocFunction(getOperation());
+      auto mf = GetOrCreateMallocFunction(getOperation(), useOpaquePointers);
       OpBuilder bz(call);
       Value args[] = {call.getOperand(1)};
       if (cast<IntegerType>(args[0].getType()).getWidth() < 64)
@@ -503,7 +516,7 @@ void ParallelLower::runOnOperation() {
       }
     } else if (call.getCallee().value() == "cudaFree" ||
                call.getCallee().value() == "cudaFreeHost") {
-      auto mf = GetOrCreateFreeFunction(getOperation());
+      auto mf = GetOrCreateFreeFunction(getOperation(), useOpaquePointers);
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
       bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args);
@@ -548,6 +561,7 @@ void ParallelLower::runOnOperation() {
       bz.create<LLVM::MemcpyOp>(
           call.getLoc(),
           bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
+                                 IntegerType::get(call->getContext(), 8),
                                  call.getOperand(0),
                                  std::vector<Value>({call.getOperand(3)})),
           call.getOperand(1), call.getOperand(2),
