@@ -344,7 +344,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT < propName) {
+        if (UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
@@ -4674,6 +4674,142 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueReadHostPipe
+__urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
+    ur_queue_handle_t
+        hQueue, ///< [in] a valid host command-queue in which the read command
+    ///< will be queued. hQueue and hProgram must be created with the same
+    ///< UR context.
+    ur_program_handle_t
+        hProgram, ///< [in] a program object with a successfully built executable.
+    const char *
+        pipe_symbol, ///< [in] the name of the program scope pipe global variable.
+    bool
+        blocking, ///< [in] indicate if the read operation is blocking or non-blocking.
+    void *
+        pDst, ///< [in] a pointer to buffer in host memory that will hold resulting data
+              ///< from pipe.
+    size_t size, ///< [in] size of the memory region to read, in bytes.
+    uint32_t numEventsInWaitList, ///< [in] number of events in the wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the host pipe read.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] returns an event object that identifies this read
+                ///< command
+    ///< and can be used to query or queue a wait for this command to complete.
+) {
+    auto pfnReadHostPipe = context.urDdiTable.Enqueue.pfnReadHostPipe;
+
+    if (nullptr == pfnReadHostPipe) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pipe_symbol) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pDst) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+    }
+
+    ur_result_t result =
+        pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
+                        numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueWriteHostPipe
+__urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
+    ur_queue_handle_t
+        hQueue, ///< [in] a valid host command-queue in which the write command
+    ///< will be queued. hQueue and hProgram must be created with the same
+    ///< UR context.
+    ur_program_handle_t
+        hProgram, ///< [in] a program object with a successfully built executable.
+    const char *
+        pipe_symbol, ///< [in] the name of the program scope pipe global variable.
+    bool
+        blocking, ///< [in] indicate if the read and write operations are blocking or
+                  ///< non-blocking.
+    void *
+        pSrc, ///< [in] a pointer to buffer in host memory that holds data to be written
+              ///< to the host pipe.
+    size_t size, ///< [in] size of the memory region to read or write, in bytes.
+    uint32_t numEventsInWaitList, ///< [in] number of events in the wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the host pipe write.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out] returns an event object that identifies this write command
+    ///< and can be used to query or queue a wait for this command to complete.
+) {
+    auto pfnWriteHostPipe = context.urDdiTable.Enqueue.pfnWriteHostPipe;
+
+    if (nullptr == pfnWriteHostPipe) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pipe_symbol) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pSrc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phEvent) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+    }
+
+    ur_result_t result =
+        pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
+                         numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -4872,6 +5008,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
         pDdiTable->pfnDeviceGlobalVariableRead;
     pDdiTable->pfnDeviceGlobalVariableRead =
         ur_validation_layer::urEnqueueDeviceGlobalVariableRead;
+
+    dditable.pfnReadHostPipe = pDdiTable->pfnReadHostPipe;
+    pDdiTable->pfnReadHostPipe = ur_validation_layer::urEnqueueReadHostPipe;
+
+    dditable.pfnWriteHostPipe = pDdiTable->pfnWriteHostPipe;
+    pDdiTable->pfnWriteHostPipe = ur_validation_layer::urEnqueueWriteHostPipe;
 
     return result;
 }

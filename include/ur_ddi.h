@@ -1045,6 +1045,32 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueDeviceGlobalVariableRead_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueReadHostPipe
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueReadHostPipe_t)(
+    ur_queue_handle_t,
+    ur_program_handle_t,
+    const char *,
+    bool,
+    void *,
+    size_t,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueWriteHostPipe
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueWriteHostPipe_t)(
+    ur_queue_handle_t,
+    ur_program_handle_t,
+    const char *,
+    bool,
+    void *,
+    size_t,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue functions pointers
 typedef struct ur_enqueue_dditable_t {
     ur_pfnEnqueueKernelLaunch_t pfnKernelLaunch;
@@ -1070,6 +1096,8 @@ typedef struct ur_enqueue_dditable_t {
     ur_pfnEnqueueUSMMemcpy2D_t pfnUSMMemcpy2D;
     ur_pfnEnqueueDeviceGlobalVariableWrite_t pfnDeviceGlobalVariableWrite;
     ur_pfnEnqueueDeviceGlobalVariableRead_t pfnDeviceGlobalVariableRead;
+    ur_pfnEnqueueReadHostPipe_t pfnReadHostPipe;
+    ur_pfnEnqueueWriteHostPipe_t pfnWriteHostPipe;
 } ur_enqueue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

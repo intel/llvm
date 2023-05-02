@@ -25,4 +25,6 @@ add_conformance_test_with_devices_environment(enqueue
     urEnqueueUSMMemcpy.cpp
     urEnqueueUSMMemcpy2D.cpp
     urEnqueueUSMPrefetch.cpp
+    urEnqueueReadHostPipe.cpp
+    urEnqueueWriteHostPipe.cpp
     )
