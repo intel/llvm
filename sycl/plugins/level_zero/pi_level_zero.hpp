@@ -1340,4 +1340,42 @@ struct _pi_sampler : _ur_object {
   ze_sampler_handle_t ZeSampler;
 };
 
+struct _pi_ext_command_buffer : _ur_object {
+  _pi_ext_command_buffer(pi_context Context, pi_device Device,
+                         ze_command_list_handle_t CommandList,
+                         ZeStruct<ze_command_list_desc_t> ZeDesc,
+                         const pi_ext_command_buffer_desc *Desc);
+
+  ~_pi_ext_command_buffer();
+
+  void RegisterSyncPoint(pi_ext_sync_point SyncPoint, pi_event Event) {
+    SyncPoints[SyncPoint] = Event;
+    NextSyncPoint++;
+  }
+
+  pi_ext_sync_point GetNextSyncPoint() const { return NextSyncPoint; }
+
+  // PI context associated with this command-buffer
+  pi_context Context;
+  // Device associated with this command buffer
+  pi_device Device;
+  // Level Zero command list handle
+  ze_command_list_handle_t ZeCommandList;
+  // Level Zero command list descriptor
+  ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
+  // Queue properties from command-buffer descriptor
+  // TODO: Do we need these?
+  pi_queue_properties QueueProperties;
+  // Map of sync_points to pi_events
+  std::unordered_map<pi_ext_sync_point, pi_event> SyncPoints;
+  // Next sync_point value (may need to consider ways to reuse values if 32-bits
+  // is not enough)
+  pi_ext_sync_point NextSyncPoint;
+  // Command list map so we can use queue::executeCommandList, TODO: Remove in
+  // future if possible
+  pi_command_list_map_t CommandListMap;
+  // Event which will signal the execution of the command-buffer has finished
+  pi_event ExecutionEvent;
+};
+
 #endif // PI_LEVEL_ZERO_HPP

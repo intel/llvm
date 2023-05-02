@@ -94,7 +94,7 @@ static std::string deviceToString(device Device) {
     return "UNKNOWN";
 }
 
-static void applyFuncOnFilteredArgs(
+void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
   if (!EliminatedArgMask) {
@@ -2079,7 +2079,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
 // Initially we keep the order of NDRDescT as it provided by the user, this
 // simplifies overall handling and do the reverse only when
 // the kernel is enqueued.
-static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
+void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   if (NDR.Dims > 1) {
     std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
     std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
@@ -2087,17 +2087,13 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
-static pi_result SetKernelParamsAndLaunch(
-    const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
+void SetArgBasedOnType(
+    const detail::plugin &Plugin, RT::PiKernel Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-    RT::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
-  const detail::plugin &Plugin = Queue->getPlugin();
-
-  auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                  &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    switch (Arg.MType) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
+    size_t NextTrueIndex) {
+      switch (Arg.MType) {
     case kernel_param_kind_t::kind_stream:
       break;
     case kernel_param_kind_t::kind_accessor: {
@@ -2108,7 +2104,7 @@ static pi_result SetKernelParamsAndLaunch(
              "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
-      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
+      if (Context.get_backend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                sizeof(RT::PiMem), &MemArg);
       } else {
@@ -2124,8 +2120,8 @@ static pi_result SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_sampler: {
       sampler *SamplerPtr = (sampler *)Arg.MPtr;
-      RT::PiSampler Sampler = detail::getSyclObjImpl(*SamplerPtr)
-                                  ->getOrCreateSampler(Queue->get_context());
+      RT::PiSampler Sampler =
+          detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
       Plugin.call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
                                                        &Sampler);
       break;
@@ -2136,7 +2132,7 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
-      if (Queue->is_host()) {
+      if (IsHost) {
         throw sycl::feature_not_supported(
             "SYCL2020 specialization constants are not yet supported on host "
             "device",
@@ -2155,6 +2151,21 @@ static pi_result SetKernelParamsAndLaunch(
       throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
       break;
     }
+}
+
+static pi_result SetKernelParamsAndLaunch(
+    const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
+    RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
+    RT::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  const detail::plugin &Plugin = Queue->getPlugin();
+
+  auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
+                  &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+    SetArgBasedOnType(Plugin, Kernel, DeviceImageImpl, getMemAllocationFunc,
+                      Queue->get_context(), Queue->is_host(), Arg,
+                      NextTrueIndex);
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);

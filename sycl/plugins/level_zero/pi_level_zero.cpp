@@ -4596,46 +4596,11 @@ pi_result piKernelRelease(pi_kernel Kernel) {
 }
 
 pi_result
-piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
-                      const size_t *GlobalWorkOffset,
-                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                      pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventWaitList, pi_event *OutEvent) {
-  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
-
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
-      Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
-  if (GlobalWorkOffset != NULL) {
-    if (!Queue->Device->Platform->ZeDriverGlobalOffsetExtensionFound) {
-      urPrint("No global offset extension found on this driver\n");
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    ZE_CALL(zeKernelSetGlobalOffsetExp,
-            (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
-             GlobalWorkOffset[2]));
-  }
-
-  // If there are any pending arguments set them now.
-  for (auto &Arg : Kernel->PendingArguments) {
-    // The ArgValue may be a NULL pointer in which case a NULL value is used for
-    // the kernel argument declared as a pointer to global or constant memory.
-    char **ZeHandlePtr = nullptr;
-    if (Arg.Value) {
-      PI_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        Queue->Device));
-    }
-    ZE_CALL(zeKernelSetArgumentValue,
-            (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
-  }
-  Kernel->PendingArguments.clear();
-
-  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
-  uint32_t WG[3];
-
+calculateKernelWorkDimensions(pi_kernel Kernel, pi_device Device,
+                              ze_group_count_t &ZeThreadGroupDimensions,
+                              uint32_t (&WG)[3], pi_uint32 WorkDim,
+                              const size_t *GlobalWorkSize,
+                              const size_t *LocalWorkSize) {
   // global_work_size of unused dimensions must be set to 1
   PI_ASSERT(WorkDim == 3 || GlobalWorkSize[2] == 1, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(WorkDim >= 2 || GlobalWorkSize[1] == 1, PI_ERROR_INVALID_VALUE);
@@ -4663,9 +4628,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
         // fully divisable with. Start with the max possible size in
         // each dimension.
         uint32_t GroupSize[] = {
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
+            Device->ZeDeviceComputeProperties->maxGroupSizeX,
+            Device->ZeDeviceComputeProperties->maxGroupSizeY,
+            Device->ZeDeviceComputeProperties->maxGroupSizeZ};
         GroupSize[I] = std::min(size_t(GroupSize[I]), GlobalWorkSize[I]);
         while (GlobalWorkSize[I] % GroupSize[I]) {
           --GroupSize[I];
@@ -4728,6 +4693,57 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     urPrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 3rd dimension\n");
     return PI_ERROR_INVALID_WORK_GROUP_SIZE;
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result
+piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+                      const size_t *GlobalWorkOffset,
+                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+                      pi_uint32 NumEventsInWaitList,
+                      const pi_event *EventWaitList, pi_event *OutEvent) {
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
+      Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
+  if (GlobalWorkOffset != NULL) {
+    if (!Queue->Device->Platform->ZeDriverGlobalOffsetExtensionFound) {
+      urPrint("No global offset extension found on this driver\n");
+      return PI_ERROR_INVALID_VALUE;
+    }
+
+    ZE_CALL(zeKernelSetGlobalOffsetExp,
+            (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
+             GlobalWorkOffset[2]));
+  }
+
+  // If there are any pending arguments set them now.
+  for (auto &Arg : Kernel->PendingArguments) {
+    // The ArgValue may be a NULL pointer in which case a NULL value is used for
+    // the kernel argument declared as a pointer to global or constant memory.
+    char **ZeHandlePtr = nullptr;
+    if (Arg.Value) {
+      PI_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
+                                        Queue->Device));
+    }
+    ZE_CALL(zeKernelSetArgumentValue,
+            (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
+  }
+  Kernel->PendingArguments.clear();
+
+  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
+  uint32_t WG[3];
+
+  auto result = calculateKernelWorkDimensions(
+      Kernel, Queue->Device, ZeThreadGroupDimensions, WG, WorkDim,
+      GlobalWorkSize, LocalWorkSize);
+  if (result != PI_SUCCESS) {
+    return result;
   }
 
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
@@ -8768,6 +8784,222 @@ pi_result _pi_buffer::free() {
     ZeHandle = nullptr; // don't leave hanging pointers
   }
   return PI_SUCCESS;
+}
+
+/// command-buffer Extension
+
+pi_result piextCommandBufferCreate(pi_context Context, pi_device Device,
+                                   const pi_ext_command_buffer_desc *Desc,
+                                   pi_ext_command_buffer *RetCommandBuffer) {
+
+  // Force compute queue type for now. Copy engine types may be better suited
+  // for host to device copies.
+  uint32_t QueueGroupOrdinal =
+      Device->QueueGroup[_pi_device::queue_group_info_t::type::Compute]
+          .ZeOrdinal;
+
+  ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
+  ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
+
+  ze_command_list_handle_t ZeCommandList;
+  ZE_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
+                                &ZeCommandListDesc, &ZeCommandList));
+  try {
+    *RetCommandBuffer = new _pi_ext_command_buffer(
+        Context, Device, ZeCommandList, ZeCommandListDesc, Desc);
+  } catch (const std::bad_alloc &) {
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return PI_SUCCESS;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer CommandBuffer) {
+  PI_ASSERT(CommandBuffer, PI_ERROR_INVALID_COMMAND_BUFFER_KHR);
+  CommandBuffer->RefCount.increment();
+  return PI_SUCCESS;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer CommandBuffer) {
+  PI_ASSERT(CommandBuffer, PI_ERROR_INVALID_COMMAND_BUFFER_KHR);
+  if (!CommandBuffer->RefCount.decrementAndTest())
+    return PI_SUCCESS;
+
+  delete CommandBuffer;
+  return PI_SUCCESS;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer CommandBuffer) {
+  // We need to append some signal that will indicate that command-buffer has
+  // finished executing.
+  EventCreate(CommandBuffer->Context, nullptr, true,
+              &CommandBuffer->ExecutionEvent);
+  ZE_CALL(
+      zeCommandListAppendSignalEvent,
+      (CommandBuffer->ZeCommandList, CommandBuffer->ExecutionEvent->ZeEvent));
+  // Close the command list and have it ready for dispatch.
+  ZE_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
+  return PI_SUCCESS;
+}
+
+pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(
+      Kernel->Mutex, Kernel->Program->Mutex);
+  if (GlobalWorkOffset != NULL) {
+    if (!CommandBuffer->Context->getPlatform()->ZeDriverGlobalOffsetExtensionFound) {
+      urPrint("No global offset extension found on this driver\n");
+      return PI_ERROR_INVALID_VALUE;
+    }
+
+    ZE_CALL(zeKernelSetGlobalOffsetExp,
+            (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
+             GlobalWorkOffset[2]));
+  }
+
+  // If there are any pending arguments set them now.
+  for (auto &Arg : Kernel->PendingArguments) {
+    // The ArgValue may be a NULL pointer in which case a NULL value is used for
+    // the kernel argument declared as a pointer to global or constant memory.
+    char **ZeHandlePtr = nullptr;
+    if (Arg.Value) {
+      // TODO: Not sure of the implication of not passing a device pointer here
+      PI_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode));
+    }
+    ZE_CALL(zeKernelSetArgumentValue,
+            (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
+  }
+  Kernel->PendingArguments.clear();
+
+  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
+  uint32_t WG[3];
+
+  auto result = calculateKernelWorkDimensions(
+      Kernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG, WorkDim,
+      GlobalWorkSize, LocalWorkSize);
+  if (result != PI_SUCCESS) {
+    return result;
+  }
+
+  ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
+
+  std::vector<ze_event_handle_t> ZeEventList(NumSyncPointsInWaitList);
+  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
+    if (auto EventHandle = CommandBuffer->SyncPoints.find(SyncPointWaitList[i]);
+        EventHandle != CommandBuffer->SyncPoints.end()) {
+      ZeEventList[i] = CommandBuffer->SyncPoints[SyncPointWaitList[i]]->ZeEvent;
+    } else {
+      return PI_ERROR_INVALID_VALUE;
+    }
+  }
+
+  pi_event LaunchEvent;
+  auto res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
+  if (res)
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+
+  LaunchEvent->CommandData = (void *)Kernel;
+  // Increment the reference count of the Kernel and indicate that the Kernel is
+  // in use. Once the event has been signalled, the code in
+  // CleanupCompletedEvent(Event) will do a piReleaseKernel to update the
+  // reference count on the kernel, using the kernel saved in CommandData.
+  PI_CALL(piKernelRetain(Kernel));
+
+  ZE_CALL(zeCommandListAppendLaunchKernel,
+          (CommandBuffer->ZeCommandList, Kernel->ZeKernel,
+           &ZeThreadGroupDimensions, LaunchEvent->ZeEvent, ZeEventList.size(),
+           ZeEventList.data()));
+
+  urPrint("calling zeCommandListAppendLaunchKernel() with"
+          "  ZeEvent %#lx\n",
+          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+  return PI_SUCCESS;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
+                                    pi_queue Queue,
+                                    pi_uint32 NumEventsInWaitList,
+                                    const pi_event *EventWaitList,
+                                    pi_event *Event) {
+
+  // Execute command list asynchronously, as the event will be used
+  // to track down its completion.
+
+  uint32_t QueueGroupOrdinal;
+  // TODO: Revisit forcing compute engine
+  auto UseCopyEngine = false;
+  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
+  auto &ZeCommandQueue =
+      // ForcedCmdQueue ? *ForcedCmdQueue :
+      QGroup.getZeQueue(&QueueGroupOrdinal);
+
+  ze_fence_handle_t ZeFence;
+  ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+  pi_command_list_ptr_t CommandListPtr;
+
+  ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+  // TODO: Refactor so requiring a map iterator is not required here, currently
+  // required for executeCommandList though.
+  std::tie(CommandListPtr, std::ignore) = CommandBuffer->CommandListMap.insert(
+      std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
+          CommandBuffer->ZeCommandList,
+          {ZeFence, false, false, ZeCommandQueue, QueueGroupOrdinal}));
+
+  Queue->insertActiveBarriers(CommandListPtr, UseCopyEngine);
+
+  CommandListPtr->second.ZeFenceInUse = true;
+
+  // Return the command-buffer's execution event as the user visible pi_event
+  *Event = CommandBuffer->ExecutionEvent;
+  (*Event)->Queue = Queue;
+  (*Event)->RefCount.increment();
+  Queue->RefCount.increment();
+
+  PI_CALL(piEventRetain(*Event));
+
+  // Previous execution will have closed the command list so we need to reopen
+  // it.
+  CommandListPtr->second.IsClosed = false;
+
+  if (auto Res = Queue->executeCommandList(CommandListPtr, false, false))
+    return Res;
+
+  return PI_SUCCESS;
+}
+
+_pi_ext_command_buffer::_pi_ext_command_buffer(
+    pi_context Context, pi_device Device, ze_command_list_handle_t CommandList,
+    ZeStruct<ze_command_list_desc_t> ZeDesc,
+    const pi_ext_command_buffer_desc *Desc)
+    : Context(Context), Device(Device), ZeCommandList(CommandList),
+      ZeCommandListDesc(ZeDesc), QueueProperties() {
+  Context->RefCount.increment();
+  if (Desc->properties) {
+    QueueProperties = *(Desc->properties);
+  }
+}
+
+_pi_ext_command_buffer::~_pi_ext_command_buffer() {
+  if (ZeCommandList) {
+    ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
+  }
+  if (ExecutionEvent) {
+    ExecutionEvent->RefCount.decrementAndTest();
+  }
+  Context->RefCount.decrementAndTest();
 }
 
 pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,

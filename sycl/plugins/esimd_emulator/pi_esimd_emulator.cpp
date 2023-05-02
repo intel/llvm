@@ -2109,6 +2109,41 @@ pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextCommandBufferCreate(pi_context context, pi_device device,
+                                   const pi_ext_command_buffer_desc *desc,
+                                   pi_ext_command_buffer *ret_command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
+                                    pi_queue queue,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
   *OpaqueDataReturn = reinterpret_cast<void *>(PiESimdDeviceAccess);
   return PI_SUCCESS;

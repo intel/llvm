@@ -999,6 +999,8 @@ struct _pi_sampler {
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 };
 
+struct _pi_ext_command_buffer {};
+
 // -------------------------------------------------------------
 // Helper types and functions
 //
