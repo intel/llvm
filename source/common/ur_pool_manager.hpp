@@ -135,7 +135,7 @@ inline bool pool_descriptor::equal(const pool_descriptor &lhs,
            (isSharedAllocationReadOnlyOnDevice(lhs) ==
             isSharedAllocationReadOnlyOnDevice(rhs)) &&
            lhs.poolHandle == rhs.poolHandle;
-};
+}
 
 inline std::size_t pool_descriptor::hash(const pool_descriptor &desc) {
     ur_native_handle_t native;
@@ -147,7 +147,7 @@ inline std::size_t pool_descriptor::hash(const pool_descriptor &desc) {
     return combine_hashes(0, desc.type, native,
                           isSharedAllocationReadOnlyOnDevice(desc),
                           desc.poolHandle);
-};
+}
 
 inline std::pair<ur_result_t, std::vector<pool_descriptor>>
 pool_descriptor::create(ur_usm_pool_handle_t poolHandle,
