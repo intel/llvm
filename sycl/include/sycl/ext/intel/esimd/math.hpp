@@ -73,17 +73,17 @@ saturate(simd<T1, SZ> src) {
   if constexpr (detail::is_generic_floating_point_v<T0>)
     return __esimd_sat<T0, T1, SZ>(src.data());
   else if constexpr (detail::is_generic_floating_point_v<T1>) {
-    if constexpr (std::is_unsigned<T0>::value)
+    if constexpr (std::is_unsigned_v<T0>)
       return __esimd_fptoui_sat<T0, T1, SZ>(src.data());
     else
       return __esimd_fptosi_sat<T0, T1, SZ>(src.data());
-  } else if constexpr (std::is_unsigned<T0>::value) {
-    if constexpr (std::is_unsigned<T1>::value)
+  } else if constexpr (std::is_unsigned_v<T0>) {
+    if constexpr (std::is_unsigned_v<T1>)
       return __esimd_uutrunc_sat<T0, T1, SZ>(src.data());
     else
       return __esimd_ustrunc_sat<T0, T1, SZ>(src.data());
   } else {
-    if constexpr (std::is_signed<T1>::value)
+    if constexpr (std::is_signed_v<T1>)
       return __esimd_sstrunc_sat<T0, T1, SZ>(src.data());
     else
       return __esimd_sutrunc_sat<T0, T1, SZ>(src.data());

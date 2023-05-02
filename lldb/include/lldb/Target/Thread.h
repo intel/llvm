@@ -89,9 +89,9 @@ public:
 
     ~ThreadEventData() override;
 
-    static ConstString GetFlavorString();
+    static llvm::StringRef GetFlavorString();
 
-    ConstString GetFlavor() const override {
+    llvm::StringRef GetFlavor() const override {
       return ThreadEventData::GetFlavorString();
     }
 
@@ -216,8 +216,6 @@ public:
   virtual void DidStop();
 
   virtual void RefreshStateAfterStop() = 0;
-
-  void SelectMostRelevantFrame();
 
   std::string GetStopDescription();
 

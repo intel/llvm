@@ -191,6 +191,8 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_VENDOR";
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return "PI_EXT_PLATFORM_INFO_BACKEND";
   }
   die("Unknown pi_platform_info value passed to "
       "sycl::detail::pi::platformInfoToString");
@@ -504,7 +506,7 @@ template <backend BE> const plugin &getPlugin() {
 
   const std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
-    if (P.getBackend() == BE) {
+    if (P.hasBackend(BE)) {
       Plugin = &P;
       return *Plugin;
     }
@@ -635,7 +637,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
+    std::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     // Check headers for direct formats.

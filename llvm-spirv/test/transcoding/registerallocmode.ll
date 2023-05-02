@@ -4,16 +4,23 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: 8 Decorate 4 UserSemantic "num-thread-per-eu 4"
-; CHECK-SPIRV: 8 Decorate 6 UserSemantic "num-thread-per-eu 8"
-; CHECK-SPIRV-NOT: 8 Decorate 8
-; CHECK-SPIRV-NOT: 8 Decorate 10
-; CHECK-SPIRV-NOT: 8 Decorate 12
+; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC0:]] "main_l3"
+; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC1:]] "main_l6"
+; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC2:]] "main_l9"
+; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC3:]] "main_l13"
+; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC4:]] "main_l19"
+
+; CHECK-SPIRV: Decorate [[#FUNC0]] UserSemantic "num-thread-per-eu 4"
+; CHECK-SPIRV: Decorate [[#FUNC1]] UserSemantic "num-thread-per-eu 8"
+; CHECK-SPIRV:  Decorate [[#FUNC2]] UserSemantic "num-thread-per-eu 0"
+; CHECK-SPIRV-NOT: Decorate [[#FUNC3]] UserSemantic
+; CHECK-SPIRV-NOT: Decorate [[#FUNC4]] UserSemantic
 
 ; CHECK-LLVM: @[[FLAG0:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 4\00", section "llvm.metadata"
 ; CHECK-LLVM: @[[FLAG1:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 8\00", section "llvm.metadata"
+; CHECK-LLVM: @[[FLAG2:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 0\00", section "llvm.metadata"
 
-; CHECK-LLVM: @llvm.global.annotations = appending global [2 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG0]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG1]], ptr undef, i32 undef, ptr undef }], section "llvm.metadata"
+; CHECK-LLVM: @llvm.global.annotations = appending global [3 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG0]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG1]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l9, ptr @[[FLAG2]], ptr undef, i32 undef, ptr undef }], section "llvm.metadata"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"

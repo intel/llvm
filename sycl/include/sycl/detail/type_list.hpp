@@ -26,8 +26,8 @@ using empty_type_list = type_list<>;
 
 template <typename T>
 struct is_empty_type_list
-    : conditional_t<std::is_same<T, empty_type_list>::value, std::true_type,
-                    std::false_type> {};
+    : std::conditional_t<std::is_same_v<T, empty_type_list>, std::true_type,
+                         std::false_type> {};
 
 template <> struct type_list<> {};
 
@@ -46,14 +46,15 @@ private:
 
 public:
   using head = head_t<type_list<Head>>;
-  using tail = conditional_t<has_remainder, with_remainder, without_remainder>;
+  using tail =
+      std::conditional_t<has_remainder, with_remainder, without_remainder>;
 };
 
 // is_contained
 template <typename T, typename TypeList>
 struct is_contained
-    : conditional_t<std::is_same<remove_cv_t<T>, head_t<TypeList>>::value,
-                    std::true_type, is_contained<T, tail_t<TypeList>>> {};
+    : std::conditional_t<std::is_same_v<std::remove_cv_t<T>, head_t<TypeList>>,
+                         std::true_type, is_contained<T, tail_t<TypeList>>> {};
 
 template <typename T>
 struct is_contained<T, empty_type_list> : std::false_type {};
@@ -71,8 +72,8 @@ template <typename T> struct value_list<T> {};
 // is_contained_value
 template <typename T, T Value, typename ValueList>
 struct is_contained_value
-    : conditional_t<Value == ValueList::head, std::true_type,
-                    is_contained_value<T, Value, tail_t<ValueList>>> {};
+    : std::conditional_t<Value == ValueList::head, std::true_type,
+                         is_contained_value<T, Value, tail_t<ValueList>>> {};
 
 template <typename T, T Value>
 struct is_contained_value<T, Value, value_list<T>> : std::false_type {};
@@ -87,21 +88,21 @@ using is_one_of_spaces =
 
 // size type predicates
 template <typename T1, typename T2>
-struct is_type_size_equal : bool_constant<(sizeof(T1) == sizeof(T2))> {};
+struct is_type_size_equal : std::bool_constant<(sizeof(T1) == sizeof(T2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_greater : bool_constant<(sizeof(T1) > sizeof(T2))> {};
+struct is_type_size_greater : std::bool_constant<(sizeof(T1) > sizeof(T2))> {};
 
 template <typename T1, typename T2>
 struct is_type_size_double_of
-    : bool_constant<(sizeof(T1) == (sizeof(T2) * 2))> {};
+    : std::bool_constant<(sizeof(T1) == (sizeof(T2) * 2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_less : bool_constant<(sizeof(T1) < sizeof(T2))> {};
+struct is_type_size_less : std::bool_constant<(sizeof(T1) < sizeof(T2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_half_of : bool_constant<(sizeof(T1) == (sizeof(T2) / 2))> {
-};
+struct is_type_size_half_of
+    : std::bool_constant<(sizeof(T1) == (sizeof(T2) / 2))> {};
 
 // find required type
 template <typename TypeList, template <typename, typename> class Comp,
@@ -109,7 +110,7 @@ template <typename TypeList, template <typename, typename> class Comp,
 struct find_type {
   using head = head_t<TypeList>;
   using tail = typename find_type<tail_t<TypeList>, Comp, T>::type;
-  using type = conditional_t<Comp<head, T>::value, head, tail>;
+  using type = std::conditional_t<Comp<head, T>::value, head, tail>;
 };
 
 template <template <typename, typename> class Comp, typename T>

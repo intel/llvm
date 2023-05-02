@@ -10,9 +10,7 @@
 // REQUIRES: gpu
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
-// TODO: Re-enable this test on Windows after the following issue gets fixed:
-// https://github.com/intel/llvm/issues/8934
-// UNSUPPORTED: windows
+
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 

@@ -57,7 +57,66 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "Input context must be the same as the context of cl_mem",
         PI_ERROR_INVALID_CONTEXT);
 
-  if (Plugin.getBackend() == backend::opencl)
+  if (MInteropContext->getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
+}
+
+RT::PiMemObjectType getImageType(int Dimensions) {
+  if (Dimensions == 1)
+    return PI_MEM_TYPE_IMAGE1D;
+  if (Dimensions == 2)
+    return PI_MEM_TYPE_IMAGE2D;
+  return PI_MEM_TYPE_IMAGE3D;
+}
+
+SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+                         bool OwnNativeHandle, event AvailableEvent,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         RT::PiMemImageChannelOrder Order,
+                         RT::PiMemImageChannelType Type,
+                         range<3> Range3WithOnes, unsigned Dimensions,
+                         size_t ElementSize)
+    : MAllocator(std::move(Allocator)), MProps(),
+      MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
+      MInteropContext(detail::getSyclObjImpl(SyclContext)),
+      MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
+      MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
+  if (MInteropContext->is_host())
+    throw sycl::invalid_parameter_error(
+        "Creation of interoperability memory object using host context is "
+        "not allowed",
+        PI_ERROR_INVALID_CONTEXT);
+
+  RT::PiContext Context = nullptr;
+  const plugin &Plugin = getPlugin();
+
+  RT::PiMemImageFormat Format{Order, Type};
+  RT::PiMemImageDesc Desc;
+  Desc.image_type = getImageType(Dimensions);
+  Desc.image_width = Range3WithOnes[0];
+  Desc.image_height = Range3WithOnes[1];
+  Desc.image_depth = Range3WithOnes[2];
+  Desc.image_array_size = 0;
+  Desc.image_row_pitch = ElementSize * Desc.image_width;
+  Desc.image_slice_pitch = Desc.image_row_pitch * Desc.image_height;
+  Desc.num_mip_levels = 0;
+  Desc.num_samples = 0;
+  Desc.buffer = nullptr;
+
+  Plugin.call<detail::PiApiKind::piextMemImageCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), OwnNativeHandle, &Format,
+      &Desc, &MInteropMemObject);
+
+  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
+                                       sizeof(Context), &Context, nullptr);
+
+  if (MInteropContext->getHandleRef() != Context)
+    throw sycl::invalid_parameter_error(
+        "Input context must be the same as the context of cl_mem",
+        PI_ERROR_INVALID_CONTEXT);
+
+  if (MInteropContext->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 

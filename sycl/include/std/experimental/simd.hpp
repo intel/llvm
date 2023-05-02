@@ -860,7 +860,7 @@ public:
 
 template <class _Vp, class _Tp, class _Abi>
 class __simd_reference {
-  static_assert(std::is_same<_Vp, _Tp>::value, "");
+  static_assert(std::is_same_v<_Vp, _Tp>, "");
 
   template <class, class>
   friend struct simd;
@@ -960,17 +960,17 @@ constexpr bool __is_non_narrowing_convertible_impl(...) {
 }
 
 template <class _From, class _To>
-constexpr typename std::enable_if<std::is_arithmetic<_To>::value &&
-                                      std::is_arithmetic<_From>::value,
-                                  bool>::type
+constexpr std::enable_if_t<std::is_arithmetic_v<_To> &&
+                                      std::is_arithmetic_v<_From>,
+                                  bool>
 __is_non_narrowing_arithmetic_convertible() {
   return __is_non_narrowing_convertible_impl<_To>(_From{});
 }
 
 template <class _From, class _To>
-constexpr typename std::enable_if<!(std::is_arithmetic<_To>::value &&
-                                    std::is_arithmetic<_From>::value),
-                                  bool>::type
+constexpr std::enable_if_t<!(std::is_arithmetic_v<_To> &&
+                                    std::is_arithmetic_v<_From>),
+                                  bool>
 __is_non_narrowing_arithmetic_convertible() {
   return false;
 }
@@ -992,8 +992,8 @@ struct __nodeduce {
 
 template <class _Tp>
 constexpr bool __vectorizable() {
-  return std::is_arithmetic<_Tp>::value && !std::is_const<_Tp>::value &&
-         !std::is_volatile<_Tp>::value && !std::is_same<_Tp, bool>::value;
+  return std::is_arithmetic_v<_Tp> && !std::is_const_v<_Tp> &&
+         !std::is_volatile_v<_Tp> && !std::is_same_v<_Tp, bool>;
 }
 
 _LIBCPP_END_NAMESPACE_EXPERIMENTAL_SIMD
@@ -1095,8 +1095,8 @@ template <class _Tp, _StorageKind __kind, int _Np>
 struct simd_size<_Tp, __simd_abi<__kind, _Np>>
     : std::integral_constant<size_t, _Np> {
   static_assert(
-      std::is_arithmetic<_Tp>::value &&
-          !std::is_same<typename std::remove_const<_Tp>::type, bool>::value,
+      std::is_arithmetic_v<_Tp> &&
+          !std::is_same_v<std::remove_const_t<_Tp>, bool>,
       "Element type should be vectorizable");
 };
 
@@ -1133,28 +1133,28 @@ struct __static_simd_cast_traits {
 template <class _Tp, class _NewAbi>
 struct __static_simd_cast_traits<simd<_Tp, _NewAbi>> {
   template <class _Up, class _Abi>
-  static typename std::enable_if<simd<_Up, _Abi>::size() ==
+  static std::enable_if_t<simd<_Up, _Abi>::size() ==
                                      simd<_Tp, _NewAbi>::size(),
-                                 simd<_Tp, _NewAbi>>::type
+                                 simd<_Tp, _NewAbi>>
   __apply(const simd<_Up, _Abi>& __v);
 };
 
 template <class _Tp>
 struct __simd_cast_traits {
   template <class _Up, class _Abi>
-  static typename std::enable_if<
+  static std::enable_if_t<
       __is_non_narrowing_arithmetic_convertible<_Up, _Tp>(),
-      simd<_Tp, _Abi>>::type
+      simd<_Tp, _Abi>>
   __apply(const simd<_Up, _Abi>& __v);
 };
 
 template <class _Tp, class _NewAbi>
 struct __simd_cast_traits<simd<_Tp, _NewAbi>> {
   template <class _Up, class _Abi>
-  static typename std::enable_if<
+  static std::enable_if_t<
       __is_non_narrowing_arithmetic_convertible<_Up, _Tp>() &&
           simd<_Up, _Abi>::size() == simd<_Tp, _NewAbi>::size(),
-      simd<_Tp, _NewAbi>>::type
+      simd<_Tp, _NewAbi>>
   __apply(const simd<_Up, _Abi>& __v);
 };
 
@@ -1338,7 +1338,7 @@ class const_where_expression {
 public:
   const_where_expression(const const_where_expression&) = delete;
   const_where_expression& operator=(const const_where_expression&) = delete;
-  typename remove_const<_Tp>::type operator-() const&&;
+  remove_const_t<_Tp>operator-() const&&;
   template <class _Up, class _Flags>
   void copy_to(_Up*, _Flags) const&&;
 };
@@ -1421,14 +1421,14 @@ public:
 private:
   template <class _Up>
   static constexpr bool __can_broadcast() {
-    return (std::is_arithmetic<_Up>::value &&
+    return (std::is_arithmetic_v<_Up> &&
             __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()) ||
-           (!std::is_arithmetic<_Up>::value &&
-            std::is_convertible<_Up, _Tp>::value) ||
-           std::is_same<typename std::remove_const<_Up>::type, int>::value ||
-           (std::is_same<typename std::remove_const<_Up>::type,
-                         unsigned int>::value &&
-            std::is_unsigned<_Tp>::value);
+           (!std::is_arithmetic_v<_Up> &&
+            std::is_convertible_v<_Up, _Tp>) ||
+           std::is_same_v<std::remove_const_t<_Up>, int> ||
+           (std::is_same_v<std::remove_const_t<_Up>,
+                         unsigned int> &&
+            std::is_unsigned_v<_Tp>);
   }
 
   template <class _Generator, size_t... __indicies>
@@ -1459,17 +1459,17 @@ public:
   // implicit type conversion constructor
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
   template <class _Up,
-    class = typename std::enable_if<
-      std::is_same<_Abi, __simd_abi<_StorageKind::_VecExt, size()>>::value &&
-    __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>::type>
+    class = std::enable_if_t<
+      std::is_same_v<_Abi, __simd_abi<_StorageKind::_VecExt, size()>> &&
+    __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>>
     simd(const simd<_Up, _Abi>& __v) {
     __s_.__storage_ = __builtin_convertvector(__v.__s_.__storage_, raw_storage_type);
   }
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
   template <class _Up,
-            class = typename std::enable_if<
-                std::is_same<_Abi, simd_abi::fixed_size<size()>>::value &&
-                __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>::type>
+            class = std::enable_if_t<
+                std::is_same_v<_Abi, simd_abi::fixed_size<size()>> &&
+                __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>>
   simd(const simd<_Up, simd_abi::fixed_size<size()>>& __v) {
     for (size_t __i = 0; __i < size(); __i++) {
       (*this)[__i] = static_cast<_Tp>(__v[__i]);
@@ -1478,7 +1478,7 @@ public:
 
   // implicit broadcast constructor
   template <class _Up,
-            class = typename std::enable_if<__can_broadcast<_Up>()>::type>
+            class = std::enable_if_t<__can_broadcast<_Up>()>>
   simd(_Up&& __rv) {
     auto __v = static_cast<_Tp>(__rv);
     for (size_t __i = 0; __i < size(); __i++) {
@@ -1488,9 +1488,9 @@ public:
 
   // generator constructor
   template <class _Generator,
-            int = typename std::enable_if<
+            int = std::enable_if_t<
                 __can_generate<_Generator>(std::make_index_sequence<size()>()),
-                int>::type()>
+                int>()>
   explicit simd(_Generator&& __g) {
     __generator_init(std::forward<_Generator>(__g),
                      std::make_index_sequence<size()>());
@@ -1499,8 +1499,8 @@ public:
   // load constructor
   template <
       class _Up, class _Flags,
-      class = typename std::enable_if<__vectorizable<_Up>()>::type,
-      class = typename std::enable_if<is_simd_flag_type<_Flags>::value>::type>
+      class = std::enable_if_t<__vectorizable<_Up>()>,
+      class = std::enable_if_t<is_simd_flag_type<_Flags>::value>>
   simd(const _Up* __buffer, _Flags) {
     // TODO: optimize for overaligned flags
     for (size_t __i = 0; __i < size(); __i++) {
@@ -1510,16 +1510,16 @@ public:
 
   // loads [simd.load]
   template <class _Up, class _Flags>
-  typename std::enable_if<__vectorizable<_Up>() &&
-                          is_simd_flag_type<_Flags>::value>::type
+  std::enable_if_t<__vectorizable<_Up>() &&
+                          is_simd_flag_type<_Flags>::value>
   copy_from(const _Up* __buffer, _Flags) {
     *this = simd(__buffer, _Flags());
   }
 
   // stores [simd.store]
   template <class _Up, class _Flags>
-  typename std::enable_if<__vectorizable<_Up>() &&
-                          is_simd_flag_type<_Flags>::value>::type
+  std::enable_if_t<__vectorizable<_Up>() &&
+                          is_simd_flag_type<_Flags>::value>
   copy_to(_Up* __buffer, _Flags) const {
     // TODO: optimize for overaligned flags
     for (size_t __i = 0; __i < size(); __i++) {

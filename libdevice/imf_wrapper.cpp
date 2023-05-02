@@ -544,6 +544,12 @@ DEVICE_EXTERN_C_INLINE
 float __imf_invf(float x) { return __devicelib_imf_invf(x); }
 
 DEVICE_EXTERN_C_INLINE
+int32_t __devicelib_imf_abs(int32_t);
+
+DEVICE_EXTERN_C_INLINE
+int32_t __imf_abs(int32_t x) { return __devicelib_imf_abs(x); }
+
+DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fabsf(float);
 
 DEVICE_EXTERN_C_INLINE

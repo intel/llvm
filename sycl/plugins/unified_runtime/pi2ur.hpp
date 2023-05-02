@@ -164,10 +164,59 @@ public:
   }
 };
 
-// Translate UR info values to PI info values
-inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
-                                size_t ParamValueSizePI,
-                                size_t *ParamValueSizeUR, void *ParamValue) {
+// Translate UR platform info values to PI info values
+inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
+                                        size_t ParamValueSizePI,
+                                        size_t *ParamValueSizeUR,
+                                        void *ParamValue) {
+
+  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+
+  switch (ParamName) {
+  case UR_PLATFORM_INFO_EXTENSIONS:
+  case UR_PLATFORM_INFO_NAME:
+  case UR_PLATFORM_INFO_PROFILE:
+  case UR_PLATFORM_INFO_VENDOR_NAME:
+  case UR_PLATFORM_INFO_VERSION:
+    // These ones do not need ur2pi translations
+    break;
+  case UR_PLATFORM_INFO_BACKEND: {
+    auto ConvertFunc = [](ur_platform_backend_t UrValue) {
+      switch (UrValue) {
+      case UR_PLATFORM_BACKEND_UNKNOWN:
+        return PI_EXT_PLATFORM_BACKEND_UNKNOWN;
+      case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+        return PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO;
+      case UR_PLATFORM_BACKEND_OPENCL:
+        return PI_EXT_PLATFORM_BACKEND_OPENCL;
+      case UR_PLATFORM_BACKEND_CUDA:
+        return PI_EXT_PLATFORM_BACKEND_CUDA;
+      case UR_PLATFORM_BACKEND_HIP:
+        return PI_EXT_PLATFORM_BACKEND_CUDA;
+      default:
+        die("UR_PLATFORM_INFO_BACKEND: unhandled value");
+      }
+    };
+    return Value.convert<ur_platform_backend_t, pi_platform_backend>(
+        ConvertFunc);
+  }
+  default:
+    return PI_ERROR_UNKNOWN;
+  }
+
+  if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
+    fprintf(stderr, "UR PlatformInfoType=%d PI=%d but UR=%d\n", ParamName,
+            (int)ParamValueSizePI, (int)*ParamValueSizeUR);
+    die("ur2piPlatformInfoValue: size mismatch");
+  }
+  return PI_SUCCESS;
+}
+
+// Translate UR device info values to PI info values
+inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
+                                      size_t ParamValueSizePI,
+                                      size_t *ParamValueSizeUR,
+                                      void *ParamValue) {
 
   ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
 
@@ -319,9 +368,9 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
   }
 
   if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
-    fprintf(stderr, "UR InfoType=%d PI=%d but UR=%d\n", ParamName,
+    fprintf(stderr, "UR DeviceInfoType=%d PI=%d but UR=%d\n", ParamName,
             (int)ParamValueSizePI, (int)*ParamValueSizeUR);
-    die("ur2piInfoValue: size mismatch");
+    die("ur2piDeviceInfoValue: size mismatch");
   }
   return PI_SUCCESS;
 }
@@ -358,6 +407,9 @@ inline pi_result piPlatformGetInfo(pi_platform platform,
   case PI_PLATFORM_INFO_VERSION:
     InfoType = UR_PLATFORM_INFO_VERSION;
     break;
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    InfoType = UR_PLATFORM_INFO_BACKEND;
+    break;
   default:
     return PI_ERROR_UNKNOWN;
   }
@@ -366,6 +418,8 @@ inline pi_result piPlatformGetInfo(pi_platform platform,
   auto hPlatform = reinterpret_cast<ur_platform_handle_t>(platform);
   HANDLE_ERRORS(urPlatformGetInfo(hPlatform, InfoType, SizeInOut, ParamValue,
                                   ParamValueSizeRet));
+
+  ur2piPlatformInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
   return PI_SUCCESS;
 }
 
@@ -731,6 +785,17 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
     break;
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT;
+    break;
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    InfoType = (ur_device_info_t)UR_DEVICE_INFO_IMAGE_SRGB;
+    break;
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+    return ReturnValue("");
+  }
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -740,7 +805,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   HANDLE_ERRORS(urDeviceGetInfo(hDevice, InfoType, SizeInOut, ParamValue,
                                 ParamValueSizeRet));
 
-  ur2piInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
+  ur2piDeviceInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
 
   return PI_SUCCESS;
 }
