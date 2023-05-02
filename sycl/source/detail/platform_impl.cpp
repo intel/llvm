@@ -37,7 +37,7 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
 }
 
 PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
-                                                     const plugin &Plugin) {
+                                                     const PluginPtr &Plugin) {
   PlatformImplPtr Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -60,12 +60,13 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
   return Result;
 }
 
-PlatformImplPtr platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
-                                                       const plugin &Plugin) {
+PlatformImplPtr
+platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
+                                       const PluginPtr &Plugin) {
   RT::PiPlatform Plt = nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Plugin.call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
-                                          sizeof(Plt), &Plt, nullptr);
+  Plugin->call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
+                                           sizeof(Plt), &Plt, nullptr);
   return getOrMakePlatformImpl(Plt, Plugin);
 }
 
@@ -105,16 +106,16 @@ static bool IsBannedPlatform(platform Platform) {
 std::vector<platform> platform_impl::get_platforms() {
 
   // Get the vector of platforms supported by a given PI plugin
-  auto getPluginPlatforms = [](const plugin &Plugin) {
+  auto getPluginPlatforms = [](PluginPtr &Plugin) {
     std::vector<platform> Platforms;
     pi_uint32 NumPlatforms = 0;
-    if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
+    if (Plugin->call_nocheck<PiApiKind::piPlatformsGet>(
             0, nullptr, &NumPlatforms) != PI_SUCCESS)
       return Platforms;
 
     if (NumPlatforms) {
       std::vector<RT::PiPlatform> PiPlatforms(NumPlatforms);
-      if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
+      if (Plugin->call_nocheck<PiApiKind::piPlatformsGet>(
               NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
         return Platforms;
 
@@ -124,6 +125,13 @@ std::vector<platform> platform_impl::get_platforms() {
         if (IsBannedPlatform(Platform)) {
           continue; // bail as early as possible, otherwise banned platforms may
                     // mess up device counting
+        }
+
+        { // Early register the platform with the plugin as device counting
+          // and filtering is dependant on this.
+          // TODO: re-design so there is no such subtle dependency.
+          std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
+          Plugin->getPlatformId(PiPlatform);
         }
 
         // The SYCL spec says that a platform has one or more devices. ( SYCL
@@ -144,16 +152,16 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which plugin.
   // There should be just one plugin serving each backend.
-  std::vector<plugin> &Plugins = RT::initialize();
-  std::vector<std::pair<platform, plugin>> PlatformsWithPlugin;
+  std::vector<PluginPtr> &Plugins = RT::initialize();
+  std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
 
   // First check Unified Runtime
   // Keep track of backends covered by UR
   std::unordered_set<backend> BackendsUR;
   if (PreferUR) {
-    const plugin *PluginUR = nullptr;
-    for (const plugin &Plugin : Plugins) {
-      if (Plugin.hasBackend(backend::all)) { // this denotes UR
+    PluginPtr *PluginUR = nullptr;
+    for (PluginPtr &Plugin : Plugins) {
+      if (Plugin->hasBackend(backend::all)) { // this denotes UR
         PluginUR = &Plugin;
         break;
       }
@@ -167,8 +175,8 @@ std::vector<platform> platform_impl::get_platforms() {
   }
 
   // Then check backend-specific plugins
-  for (plugin &Plugin : Plugins) {
-    if (Plugin.hasBackend(backend::all)) {
+  for (auto &Plugin : Plugins) {
+    if (Plugin->hasBackend(backend::all)) {
       continue; // skip UR on this pass
     }
     const auto &PluginPlatforms = getPluginPlatforms(Plugin);
@@ -185,8 +193,8 @@ std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   for (auto &Platform : PlatformsWithPlugin) {
     auto &Plugin = Platform.second;
-    std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
-    Plugin.getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
+    std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
+    Plugin->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
     Platforms.push_back(Platform.first);
   }
 
@@ -214,9 +222,9 @@ std::vector<platform> platform_impl::get_platforms() {
 // The return value is a vector that represents the indices of the chosen
 // devices.
 template <typename ListT, typename FilterT>
-static std::vector<int>
-filterDeviceFilter(plugin &Plugin, std::vector<RT::PiDevice> &PiDevices,
-                   RT::PiPlatform Platform, ListT *FilterList) {
+std::vector<int>
+platform_impl::filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
+                                  ListT *FilterList) const {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
@@ -248,21 +256,21 @@ filterDeviceFilter(plugin &Plugin, std::vector<RT::PiDevice> &PiDevices,
 
   // Find out backend of the platform
   RT::PiPlatformBackend PiBackend;
-  Plugin.call<PiApiKind::piPlatformGetInfo>(
-      Platform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(RT::PiPlatformBackend),
+  MPlugin->call<PiApiKind::piPlatformGetInfo>(
+      MPlatform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(RT::PiPlatformBackend),
       &PiBackend, nullptr);
   backend Backend = convertBackend(PiBackend);
 
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
-  std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
-  int DeviceNum = Plugin.getStartingDeviceId(Platform);
+  std::lock_guard<std::mutex> Guard(*MPlugin->getPluginMutex());
+  int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                            sizeof(RT::PiDeviceType),
-                                            &PiDevType, nullptr);
+    MPlugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                              sizeof(RT::PiDeviceType),
+                                              &PiDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
@@ -323,7 +331,7 @@ filterDeviceFilter(plugin &Plugin, std::vector<RT::PiDevice> &PiDevices,
   // remember the last backend that has gone through this filter function
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  Plugin.setLastDeviceId(Platform, DeviceNum);
+  MPlugin->setLastDeviceId(MPlatform, DeviceNum);
   return original_indices;
 }
 
@@ -521,8 +529,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     return Res;
 
   pi_uint32 NumDevices = 0;
-  detail::plugin &Plugin = *MPlugin;
-  Plugin.call<PiApiKind::piDevicesGet>(
+  MPlugin->call<PiApiKind::piDevicesGet>(
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
       0, // CP info::device_type::all
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
@@ -534,21 +541,22 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const plugin reference.
-    std::vector<plugin> &Plugins = RT::initialize();
+    std::vector<PluginPtr> &Plugins = RT::initialize();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
-                           [&Platform = MPlatform](plugin &Plugin) {
-                             return Plugin.containsPiPlatform(Platform);
+                           [&Platform = MPlatform](PluginPtr &Plugin) {
+                             return Plugin->containsPiPlatform(Platform);
                            });
     if (It != Plugins.end()) {
-      std::lock_guard<std::mutex> Guard(*(It->getPluginMutex()));
-      (*It).adjustLastDeviceId(MPlatform);
+      PluginPtr &Plugin = *It;
+      std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
+      Plugin->adjustLastDeviceId(MPlatform);
     }
     return Res;
   }
 
   std::vector<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDevicesGet>(
+  MPlugin->call<PiApiKind::piDevicesGet>(
       MPlatform,
       pi::cast<RT::PiDeviceType>(DeviceType), // CP info::device_type::all
       NumDevices, PiDevices.data(), nullptr);
@@ -559,7 +567,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(PiDevices, MPlatform, Plugin);
+    applyAllowList(PiDevices, MPlatform, MPlugin);
 
   // The first step is to filter out devices that are not compatible with
   // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR. This is also the mechanism by
@@ -572,16 +580,16 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                             "conjunction with SYCL_DEVICE_FILTER");
     }
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
-        Plugin, PiDevices, MPlatform, OdsTargetList);
+        PiDevices, OdsTargetList);
   } else if (FilterList) {
     PlatformDeviceIndices =
-        filterDeviceFilter<device_filter_list, device_filter>(
-            Plugin, PiDevices, MPlatform, FilterList);
+        filterDeviceFilter<device_filter_list, device_filter>(PiDevices,
+                                                              FilterList);
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
   // objects.
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, Plugin);
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
       [PlatformImpl](const RT::PiDevice &PiDevice) -> device {
@@ -592,7 +600,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
   for (RT::PiDevice &PiDev : PiDevicesToCleanUp)
-    Plugin.call<PiApiKind::piDeviceRelease>(PiDev);
+    MPlugin->call<PiApiKind::piDeviceRelease>(PiDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them
@@ -619,7 +627,8 @@ bool platform_impl::has_extension(const std::string &ExtensionName) const {
 pi_native_handle platform_impl::getNative() const {
   const auto &Plugin = getPlugin();
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  Plugin->call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(),
+                                                        &Handle);
   return Handle;
 }
 

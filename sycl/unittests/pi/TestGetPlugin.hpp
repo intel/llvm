@@ -35,8 +35,8 @@ inline std::vector<sycl::detail::plugin> initializeAndRemoveInvalid() {
       plugins.begin(), plugins.end(),
       [](const sycl::detail::plugin &plugin) -> bool {
         pi_uint32 num = 0;
-        plugin.call_nocheck<sycl::detail::PiApiKind::piPlatformsGet>(0, nullptr,
-                                                                     &num);
+        Plugin->call_nocheck<sycl::detail::PiApiKind::piPlatformsGet>(
+            0, nullptr, &num);
 
         bool removePlugin = num <= 0;
 

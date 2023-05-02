@@ -125,7 +125,7 @@ if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
-  # When UR is moved to its seprate repo perhaps we should introduce new component,
+  # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
   install(TARGETS loader
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev

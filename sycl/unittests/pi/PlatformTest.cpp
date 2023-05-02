@@ -39,7 +39,7 @@ protected:
 
     // TODO: Change the test to check this for all plugins present.
     // Currently, it is only checking for the first plugin attached.
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((Plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &platform_count)),
               PI_SUCCESS);
 
@@ -56,7 +56,7 @@ protected:
 
     _platforms.resize(platform_count, nullptr);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((Plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   _platforms.size(), _platforms.data(), nullptr)),
               PI_SUCCESS);
   }
@@ -80,14 +80,14 @@ TEST_P(PlatformTest, piPlatformGetInfo) {
 
   auto get_info_test = [&](pi_platform platform, _pi_platform_info info) {
     size_t reported_string_length = 0;
-    EXPECT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+    EXPECT_EQ((Plugin->call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
                   platform, info, 0u, nullptr, &reported_string_length)),
               PI_SUCCESS);
 
     // Create a larger result string to catch overwrites.
     std::vector<char> param_value(reported_string_length * 2u, '\0');
     EXPECT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+        (Plugin->call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
             platform, info, param_value.size(), param_value.data(), nullptr)),
         PI_SUCCESS)
         << "piPlatformGetInfo for " << detail::pi::platformInfoToString(info)

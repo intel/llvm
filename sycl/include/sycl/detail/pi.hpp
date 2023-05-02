@@ -44,6 +44,7 @@ enum class PiApiKind {
 #include <sycl/detail/pi.def>
 };
 class plugin;
+using PluginPtr = std::shared_ptr<plugin>;
 
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
@@ -180,10 +181,10 @@ template <class To, class From> To cast(From value);
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-std::vector<plugin> &initialize();
+std::vector<PluginPtr> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
+template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
