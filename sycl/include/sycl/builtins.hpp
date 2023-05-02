@@ -2066,8 +2066,9 @@ std::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                (SizeT == 4 || SizeT == 8)),
               long, // long and ulong are 32-bit on
                     // Windows and 64-bit on Linux
-              std::conditional_t<SizeT == 4, int,
-                                 std::conditional_t<SizeT == 8, long, void>>>>>;
+              std::conditional_t<
+                  SizeT == 4, int,
+                  std::conditional_t<SizeT == 8, long long, void>>>>>;
 
   return __sycl_std::__invoke_select<T>(
       a, b, static_cast<get_select_opencl_builtin_c_arg_type>(c));
