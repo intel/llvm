@@ -72,6 +72,7 @@ void test(queue q, InputContainer input, InitT init,
 }
 
 int main() {
+  using namespace std::complex_literals;
   queue q;
   auto repeat = [](auto val, int n) {
     return std::vector<decltype(val)>(n, val);
@@ -92,8 +93,16 @@ int main() {
   test<int32_t>(q, iota(1.5f, N), 0, sycl::plus<int32_t>());
   test<float>(q, iota(1, N), 1.f, sycl::plus<float>());
   test<uint64_t>(q, iota(1, 15), uint64_t(0), sycl::multiplies<uint64_t>());
+  test<std::complex<float>>(q, iota(1, 5), 1if,
+                            sycl::plus<std::complex<float>>());
+  test<std::complex<float>>(q, iota(1, 5), 1if,
+                            sycl::multiplies<std::complex<float>>());
   if (q.get_device().has(aspect::fp64)) {
     test<double>(q, repeat(fmax, N), 0.0, sycl::plus<double>());
+    test<std::complex<double>>(q, iota(1, 5), 1i,
+                               sycl::plus<std::complex<double>>());
+    test<std::complex<double>>(q, iota(1, 5), 1i,
+                               sycl::multiplies<std::complex<double>>());
   }
   std::cout << "passed.\n";
   return 0;
