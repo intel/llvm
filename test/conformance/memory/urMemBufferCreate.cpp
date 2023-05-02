@@ -56,16 +56,3 @@ TEST_P(urMemBufferCreateTest, InvalidBufferSizeZero) {
                      urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 0,
                                        nullptr, &buffer));
 }
-
-// This test is problematic and not generally applicable across all adapters
-// For example: the CUDA adapter cannot query the maximum alloc size reliably
-// ahead of time.
-TEST_P(urMemBufferCreateTest, DISABLED_InvalidBufferSizeMax) {
-    ur_mem_handle_t buffer = nullptr;
-    uint64_t max_size = 0;
-    ASSERT_SUCCESS(uur::GetDeviceMaxMemAllocSize(device, max_size));
-    ASSERT_NE(max_size, 0);
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_BUFFER_SIZE,
-                     urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
-                                       max_size + 1, nullptr, &buffer));
-}
