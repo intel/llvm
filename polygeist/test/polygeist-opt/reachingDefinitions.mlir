@@ -90,10 +90,51 @@ func.func @test5(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test6_store2
 // CHECK-NEXT: - pMods:
-func.func @test6(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
+func.func @test6(%arg1: memref<i32>, %arg2: memref<i32>) {
   %c0 = arith.constant 0 : i32
   memref.store %c0, %arg2[] {tag_name = "test6_store1"}: memref<i32>
   memref.store %c0, %arg1[] {tag_name = "test6_store2"}: memref<i32> 
   %1 = memref.load %arg1[] {tag = "test6_load1"} : memref<i32>
+  return
+}
+
+// COM: Test that a deallocation kills a previous potential definition.
+// CHECK-LABEL: test_tag: test7_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods:
+// CHECK-NEXT: - pMods: test7_store1
+// CHECK: operand #0
+// CHECK-NEXT: - mods:
+// CHECK-NEXT: - pMods:
+func.func @test7(%arg1: memref<i32>, %arg2: memref<i32>) {
+  %c0 = arith.constant 0 : i32
+  memref.store %c0, %arg2[] {tag_name = "test7_store1"} : memref<i32>
+  %1 = memref.load %arg1[] {tag = "test7_load1"} : memref<i32>  
+  memref.dealloc %arg2 : memref<i32>
+  %2 = memref.load %arg1[] {tag = "test7_load2"} : memref<i32>
+  return
+}
+
+// COM: Test that a deallocation kills a (must) aliased definition.
+// CHECK-LABEL: test_tag: test8_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods: test8_store1
+// CHECK-NEXT: - pMods:
+// CHECK-LABEL: test_tag: test8_load2
+// CHECK: operand #0
+// CHECK-NEXT: - mods:
+// CHECK-NEXT: - pMods:
+// CHECK-LABEL: test_tag: test8_load3
+// CHECK: operand #0
+// CHECK-NEXT: - mods:
+// CHECK-NEXT: - pMods:
+func.func @test8(%val: i32, %idx : index) {
+  %alloc = memref.alloc() : memref<1xi32>
+  %cast = memref.cast %alloc : memref<1xi32> to memref<?xi32>
+  memref.store %val, %cast[%idx] {tag_name = "test8_store1"} : memref<?xi32>
+  %1 = memref.load %alloc[%idx] {tag = "test8_load1"} : memref<1xi32>  
+  memref.dealloc %alloc {tag_name = "test8_dealloc1"} : memref<1xi32>
+  %2 = memref.load %alloc[%idx] {tag = "test8_load2"} : memref<1xi32>
+  %3 = memref.load %cast[%idx] {tag = "test8_load3"} : memref<?xi32>  
   return
 }

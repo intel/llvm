@@ -95,10 +95,26 @@ ChangeResult ReachingDefinition::setModifier(Value val, Operation *op) {
   return ChangeResult::Change;
 }
 
+ChangeResult ReachingDefinition::removeModifiers(Value val) {
+  if (!valueToModifiers[val].empty()) {
+    valueToModifiers[val].clear();
+    return ChangeResult::Change;
+  }
+  return ChangeResult::NoChange;
+}
+
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
                                                       Operation *op) {
   return (valueToPotentialModifiers[val].insert(op)) ? ChangeResult::Change
                                                      : ChangeResult::NoChange;
+}
+
+ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
+  if (!valueToPotentialModifiers[val].empty()) {
+    valueToPotentialModifiers[val].clear();
+    return ChangeResult::Change;
+  }
+  return ChangeResult::NoChange;
 }
 
 std::optional<ArrayRef<Operation *>>
@@ -169,16 +185,30 @@ void ReachingDefinitionAnalysis::visitOperation(
     if (isa<MemoryEffects::Read>(effect.getEffect()))
       continue;
 
-    // Update the reaching definition for the current value.
-    result |= after->setModifier(val, op);
+    // An allocate operation create a definition for the current value.
+    if (isa<MemoryEffects::Allocate>(effect.getEffect()))
+      result |= after->setModifier(val, op);
 
-    // Write operations might also update the reaching definitions of values
-    // that are aliased to the current one.
+    // A write operation updates the definition of the current value and the
+    // definition of its definitely aliased values. It also updates the
+    // potential definitions of values that may alias the current value.
     if (isa<MemoryEffects::Write>(effect.getEffect())) {
+      result |= after->setModifier(val, op);
       for (Value aliasedVal : aliasQueries.getMustAlias(val))
         result |= after->setModifier(aliasedVal, op);
       for (Value aliasedVal : aliasQueries.getMayAlias(val))
         result |= after->addPotentialModifier(aliasedVal, op);
+    }
+
+    // A deallocate operation kills reaching definitions of the current value
+    // and of its definitely aliased values. It also kills the potential
+    // definitions of values that may alias the current value.
+    if (isa<MemoryEffects::Free>(effect.getEffect())) {
+      result |= after->removeModifiers(val);
+      for (Value aliasedVal : aliasQueries.getMustAlias(val))
+        result |= after->removeModifiers(aliasedVal);
+      for (Value aliasedVal : aliasQueries.getMayAlias(val))
+        result |= after->removePotentialModifiers(aliasedVal);
     }
   }
 

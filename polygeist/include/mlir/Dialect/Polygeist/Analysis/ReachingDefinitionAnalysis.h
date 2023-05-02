@@ -58,8 +58,14 @@ public:
   /// Set operation \p op as a definite modifier of value \p val.
   ChangeResult setModifier(Value val, Operation *op);
 
+  /// Remove all potential modifiers of value \p val.
+  ChangeResult removeModifiers(Value val);
+
   /// Add operation \p op as a possible modifier of value \p val.
   ChangeResult addPotentialModifier(Value val, Operation *op);
+
+  /// Remove all potential modifiers of value \p val.
+  ChangeResult removePotentialModifiers(Value val);
 
   /// Get the operations that have modified \p val.
   std::optional<ArrayRef<Operation *>> getModifiers(Value val) const;
