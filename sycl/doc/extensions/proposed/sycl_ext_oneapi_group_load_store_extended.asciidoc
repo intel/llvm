@@ -242,6 +242,7 @@ and the scope parameter: use sycl::memory_scope::work_group to get memory size
 required for each work-group; use sycl::memory_scope::sub_group to get memory
 size required for each sub-group. If other scope values are passed, behavior is
 unspecified.
+`block_size` represents the a range size for load/store, e.g. work group size.
 
 == Data placement
 
@@ -297,10 +298,11 @@ Consider 2 layouts:
 |{2, 5, 8, 11}
 |===
 
-There is a property that satisfies
+This extention adds a property that satisfies
 link:sycl_ext_oneapi_properties.asciidoc[SYCL Properties Extension]
-requirements:
-
+requirements to identify data_placement similar to
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extention`]
+`input_data_placement` and `output_data_placement`:
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental::property
@@ -354,7 +356,7 @@ q.submit([&](sycl::handler& cgh) {
         sycl::memory_scope::work_group, block_size);
     sycl::local_accessor<std::byte> buf(temp_memory_size, cgh);
     cgh.parallel_for(
-        sycl::nd_range<1>(global_size, local_size),
+        sycl::nd_range<1>(block_count * block_size, block_size),
         [=](sycl::nd_item<1> item) {
             T data[items_per_thread];
             std::byte* buf_ptr = buf.get_pointer().get();
