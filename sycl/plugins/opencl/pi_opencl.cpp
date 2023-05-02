@@ -312,7 +312,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
     return PI_ERROR_INVALID_VALUE;
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // This query is missing beore OpenCL 3.0
+    // This query is missing before OpenCL 3.0
     // Check version and handle appropriately
     OCLV::OpenCLVersion devVer;
     cl_device_id deviceID = cast<cl_device_id>(device);
@@ -643,6 +643,16 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     }
 
     return static_cast<pi_result>(CL_SUCCESS);
+  }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    const char *value = "";
+    size_t valueSize = (strlen(value) + 1) * sizeof(char);
+    if (paramValue)
+      std::memcpy(paramValue, value, valueSize);
+    if (paramValueSizeRet != nullptr)
+      *paramValueSizeRet = valueSize;
+    return PI_SUCCESS;
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
     cl_int ret_err = CL_SUCCESS;
