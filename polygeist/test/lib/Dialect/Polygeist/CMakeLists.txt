@@ -1,10 +1,10 @@
-add_mlir_library(SYCLMLIRTestAnalysis
+add_mlir_library(MLIRPolygeistTestAnalysis
   TestReachingDefinitionsAnalysis.cpp
 
   EXCLUDE_FROM_LIBMLIR
 
   ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SYCL
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Polygeist
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/IR
 
   LINK_COMPONENTS
@@ -12,9 +12,10 @@ add_mlir_library(SYCLMLIRTestAnalysis
 
   LINK_LIBS PUBLIC
   MLIRAnalysis
-  MLIRIR  
+  MLIRIR
   MLIRPass
-  MLIRSupport  
-  MLIRSYCLAnalysis  
+  MLIRPolygeistAnalysis
+  MLIRSupport
+  MLIRSYCLAnalysis
   )
   

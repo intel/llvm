@@ -1,0 +1,10 @@
+add_mlir_dialect_library(MLIRPolygeistAnalysis
+  ReachingDefinitionAnalysis.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Polygeist/Analysis
+
+  LINK_LIBS PUBLIC
+  MLIRAnalysis
+  MLIRPolygeistUtils
+  )

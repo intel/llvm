@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -test-reaching-definition %s 2>&1 | FileCheck %s
+// RUN: polygeist-opt -split-input-file -test-reaching-definition %s 2>&1 | FileCheck %s
 
 // COM: Test that the correct reaching definition reaches 2 loads.
 // CHECK-LABEL: test_tag: test1_load1

@@ -36,7 +36,10 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/InitLLVM.h"
 
+using namespace llvm;
 using namespace mlir;
 
 class MemRefInsider
@@ -47,11 +50,22 @@ struct PtrElementModel
     : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
           PtrElementModel<T>, T> {};
 
+namespace mlir {
+namespace test {
+void registerTestReachingDefinitionAnalysisPass();
+} // namespace test
+} // namespace mlir
+
+void registerTestPasses() {
+  mlir::test::registerTestReachingDefinitionAnalysisPass();
+}
+
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
   registerTransformsPasses();
   registerConversionPasses();
+  registerTestPasses();
   registerAffinePasses();
   registerAsyncPasses();
   arith::registerArithPasses();

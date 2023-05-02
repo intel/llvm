@@ -29,16 +29,6 @@
 using namespace llvm;
 using namespace mlir;
 
-namespace mlir {
-namespace test {
-void registerTestReachingDefinitionAnalysisPass();
-} // namespace test
-} // namespace mlir
-
-void registerTestPasses() {
-  mlir::test::registerTestReachingDefinitionAnalysisPass();
-}
-
 int main(int argc, char **argv) {
   InitLLVM y(argc, argv);
 
@@ -48,7 +38,6 @@ int main(int argc, char **argv) {
 
   // Register passes.
   registerAllPasses();
-  registerTestPasses();
   sycl::registerSYCLPasses();
   sycl::registerConversionPasses();
 

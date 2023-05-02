@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
@@ -16,80 +16,7 @@
 #define DEBUG_TYPE "reaching-definition-analysis"
 
 namespace mlir {
-namespace sycl {
-
-//===----------------------------------------------------------------------===//
-// AliasUtilities
-//===----------------------------------------------------------------------===//
-
-raw_ostream &operator<<(raw_ostream &os, const AliasUtilities &aliasUtilities) {
-  auto printMap = [&os](const DenseMap<Value, SetVector<Value>> &map,
-                        StringRef title) {
-    for (const auto &entry : map) {
-      Value val = entry.first;
-      const SetVector<Value> &mustAlias = entry.second;
-      os.indent(4) << val << "\n";
-      os.indent(4) << title << ":\n";
-      if (mustAlias.empty())
-        os.indent(6) << "<none>\n";
-      else {
-        for (Value aliasedVal : mustAlias)
-          os.indent(6) << aliasedVal << "\n";
-      }
-      os << "\n";
-    }
-  };
-
-  os.indent(4) << aliasUtilities.funcOp.getName() << ":\n";
-  printMap(aliasUtilities.valueToMustAliasValues, "mustAliases");
-  printMap(aliasUtilities.valueToMayAliasValues, "mayAliases");
-  return os;
-}
-
-AliasUtilities::AliasUtilities(FunctionOpInterface &funcOp,
-                               mlir::AliasAnalysis &aliasAnalysis)
-    : funcOp(funcOp), aliasAnalysis(aliasAnalysis) {
-  /// Collect all operations that reference a memory resource in the given
-  /// function and initialize the maps.
-  SetVector<Value> memoryResources = collectMemoryResourcesIn(funcOp);
-  for (Value val1 : memoryResources) {
-    for (Value val2 : memoryResources) {
-      if (val1 == val2)
-        continue;
-
-      AliasResult aliasResult = aliasAnalysis.alias(val1, val2);
-      if (aliasResult.isMust())
-        valueToMustAliasValues[val1].insert(val2);
-      else if (aliasResult.isMay())
-        valueToMayAliasValues[val1].insert(val2);
-    }
-  }
-}
-
-SetVector<Value>
-AliasUtilities::collectMemoryResourcesIn(FunctionOpInterface funcOp) {
-  SetVector<Value> memoryResources;
-  for (BlockArgument arg : funcOp.getArguments()) {
-    if (isa<MemRefType>(arg.getType()))
-      memoryResources.insert(arg);
-  }
-
-  for (Block &block : funcOp) {
-    for (Operation &op : block.without_terminator()) {
-      auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
-      if (!memoryEffectOp)
-        continue;
-
-      SmallVector<MemoryEffects::EffectInstance> effects;
-      memoryEffectOp.getEffects(effects);
-      for (const auto &effect : effects) {
-        if (Value val = effect.getValue())
-          memoryResources.insert(val);
-      }
-    }
-  }
-  return memoryResources;
-}
+namespace polygeist {
 
 //===----------------------------------------------------------------------===//
 // ReachingDefinition
@@ -203,14 +130,11 @@ void ReachingDefinitionAnalysis::visitOperation(
   LLVM_DEBUG(llvm::dbgs() << "ReachingDefinitionAnalysis - Visit: " << *op
                           << "\n");
 
-  // Initialize the analysis for the current function.
+  // Initialize the alias queries for the current function.
   if (isa<FunctionOpInterface>(op)) {
     auto funcOp = cast<FunctionOpInterface>(*op);
-    aliasUtilities[funcOp] =
-        std::make_unique<AliasUtilities>(funcOp, aliasAnalysis);
-    LLVM_DEBUG(llvm::dbgs() << "Initialized aliasUtilities for "
-                            << funcOp.getName() << ":\n");
-    return setToEntryState(after);
+    aliasQueriesMap[funcOp] =
+        std::make_unique<AliasQueries>(funcOp, aliasAnalysis);
   }
 
   // If an operation has unknown memory effects assume we can't deduce
@@ -227,7 +151,7 @@ void ReachingDefinitionAnalysis::visitOperation(
 
   // Retrieve the alias utilities for the function this operation belongs to.
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
-  AliasUtilities &aliasUtils = *aliasUtilities[funcOp];
+  AliasQueries &aliasQueries = *aliasQueriesMap[funcOp];
 
   // Analyze the operation's memory effects.
   SmallVector<MemoryEffects::EffectInstance> effects;
@@ -251,9 +175,9 @@ void ReachingDefinitionAnalysis::visitOperation(
     // Write operations might also update the reaching definitions of values
     // that are aliased to the current one.
     if (isa<MemoryEffects::Write>(effect.getEffect())) {
-      for (Value aliasedVal : aliasUtils.getMustAlias(val))
+      for (Value aliasedVal : aliasQueries.getMustAlias(val))
         result |= after->setModifier(aliasedVal, op);
-      for (Value aliasedVal : aliasUtils.getMayAlias(val))
+      for (Value aliasedVal : aliasQueries.getMayAlias(val))
         result |= after->addPotentialModifier(aliasedVal, op);
     }
   }
@@ -268,5 +192,5 @@ void ReachingDefinitionAnalysis::visitOperation(
   });
 }
 
-} // namespace sycl
+} // namespace polygeist
 } // namespace mlir

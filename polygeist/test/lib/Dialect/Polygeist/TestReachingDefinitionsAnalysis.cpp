@@ -9,8 +9,8 @@
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
-#include "mlir/Dialect/SYCL/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/STLExtras.h"
 
@@ -34,7 +34,7 @@ struct TestReachingDefinitionAnalysisPass
     DataFlowSolver solver;
     solver.load<DeadCodeAnalysis>();
     solver.load<SparseConstantPropagation>();
-    solver.load<sycl::ReachingDefinitionAnalysis>(aliasAnalysis);
+    solver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
 
     Operation *op = getOperation();
     if (failed(solver.initializeAndRun(op)))
@@ -67,8 +67,8 @@ struct TestReachingDefinitionAnalysisPass
         return;
 
       llvm::errs() << "test_tag: " << tag.getValue() << ":\n";
-      const sycl::ReachingDefinition *reachingDef =
-          solver.lookupState<sycl::ReachingDefinition>(op);
+      const polygeist::ReachingDefinition *reachingDef =
+          solver.lookupState<polygeist::ReachingDefinition>(op);
       assert(reachingDef && "expected a reaching definition");
 
       // Print the reaching definitions for each operand.
