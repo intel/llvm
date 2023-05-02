@@ -1,9 +1,10 @@
 add_mlir_dialect_library(MLIRPolygeistDialect
-Dialect.cpp
-Ops.cpp
+PolygeistDialect.cpp
+PolygeistOps.cpp
+PolygeistTypes.cpp
 
 ADDITIONAL_HEADER_DIRS
-${PROJECT_SOURCE_DIR}/include/polygeist
+${POLYGEIST_SOURCE_DIR}/include/mlir/Dialect/Polygeist
 
 DEPENDS
 MLIRPolygeistOpsIncGen
