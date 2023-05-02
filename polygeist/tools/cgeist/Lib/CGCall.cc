@@ -415,7 +415,7 @@ ValueCategory MLIRScanner::callHelper(
     if (RetReference)
       Expr->dump();
     assert(!RetReference);
-    assert(ElementType);
+    assert(ElementType && "Expecting element type");
     return ValueCategory(Alloc, /*isReference*/ true, ElementType);
   }
 

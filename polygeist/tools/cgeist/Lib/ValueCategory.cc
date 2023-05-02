@@ -41,8 +41,7 @@ ValueCategory::ValueCategory(mlir::Value val, bool isReference,
       isa<LLVM::LLVMPointerType>(val.getType())) {
     assert(ElementType && "Must provide an element type for LLVM pointers");
   }
-  if (!ElementType && val.getDefiningOp() &&
-      val.getDefiningOp()->getNumResults() && isa<MemRefType>(val.getType())) {
+  if (!ElementType && val.getDefiningOp() && isa<MemRefType>(val.getType())) {
     ElementType = cast<MemRefType>(val.getType()).getElementType();
   }
 }

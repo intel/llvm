@@ -140,7 +140,7 @@ ValueCategory MLIRScanner::VisitStringLiteral(clang::StringLiteral *Expr) {
       Glob.getOrCreateGlobalLLVMString(Loc, Builder, Expr->getString(),
                                        mlirclang::getFuncContext(Function)),
       /*isReference*/ true,
-      LLVM::LLVMArrayType::get(IntegerType::get(Builder.getContext(), 8),
+      LLVM::LLVMArrayType::get(Builder.getI8Type(),
                                Expr->getString().size() + 1));
 }
 
