@@ -1395,11 +1395,17 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   if (auto *VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
       FieldDecl *Field = Captures[VD];
+      bool LValue = isa<clang::ReferenceType>(
+          Field->getType()->getUnqualifiedDesugaredType());
+      mlir::Type BaseTy =
+          (LValue) ? Glob.getTypes().getMLIRTypeForMem(
+                         cast<clang::ReferenceType>(
+                             Field->getType()->getUnqualifiedDesugaredType())
+                             ->getPointeeType())
+                   : nullptr;
       ValueCategory Res = CommonFieldLookup(
           cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), Field,
-          ThisVal.val, ThisVal.getElemTy(),
-          isa<clang::ReferenceType>(
-              Field->getType()->getUnqualifiedDesugaredType()));
+          ThisVal.val, ThisVal.getElemTy(), LValue, BaseTy);
       assert(CaptureKinds.find(VD) != CaptureKinds.end());
       return Res;
     }
@@ -1546,10 +1552,15 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
   assert(Base.isReference);
   auto ElementType = Glob.getTypes().getMLIRType(OT);
   const FieldDecl *Field = cast<clang::FieldDecl>(ME->getMemberDecl());
-  return CommonFieldLookup(
-      OT, Field, Base.val, ElementType,
-      isa<clang::ReferenceType>(
-          Field->getType()->getUnqualifiedDesugaredType()));
+  bool LValue = isa<clang::ReferenceType>(
+      Field->getType()->getUnqualifiedDesugaredType());
+  mlir::Type BaseTy =
+      (LValue) ? Glob.getTypes().getMLIRTypeForMem(
+                     cast<clang::ReferenceType>(
+                         Field->getType()->getUnqualifiedDesugaredType())
+                         ->getPointeeType())
+               : nullptr;
+  return CommonFieldLookup(OT, Field, Base.val, ElementType, LValue, BaseTy);
 }
 
 ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {

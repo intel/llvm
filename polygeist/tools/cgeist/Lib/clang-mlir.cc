@@ -1192,7 +1192,7 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                              const clang::FieldDecl *FD,
                                              Value Val, Type ElementType,
-                                             bool IsLValue) {
+                                             bool IsLValue, Type BaseType) {
   assert(FD && "Attempting to lookup field of nullptr");
 
   const clang::RecordDecl *RD = FD->getParent();
@@ -1249,15 +1249,10 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
 
     if (IsLValue) {
+      assert(BaseType && "Expecting base type to be specified");
       CommonGep = ValueCategory(CommonGep, /*isReference*/ true, ElemTy)
                       .getValue(Builder);
-      if (auto MT = dyn_cast<MemRefType>(*ElemTy)) {
-        ElemTy = MT.getElementType();
-      } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(*ElemTy)) {
-        if (!PT.isOpaque()) {
-          ElemTy = PT.getElementType();
-        }
-      }
+      ElemTy = BaseType;
     }
 
     return ValueCategory(CommonGep, /*isReference*/ true, ElemTy);
