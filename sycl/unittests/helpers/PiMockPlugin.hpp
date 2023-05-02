@@ -104,6 +104,16 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
       *param_value_size_ret = sizeof(MockSupportedExtensions);
     return PI_SUCCESS;
   }
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    constexpr auto MockPlatformBackend = PI_EXT_PLATFORM_BACKEND_OPENCL;
+    if (param_value) {
+      std::memcpy(param_value, &MockPlatformBackend,
+                  sizeof(MockPlatformBackend));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockPlatformBackend);
+    return PI_SUCCESS;
+  }
   default: {
     constexpr const char FallbackValue[] = "str";
     constexpr size_t FallbackValueSize = sizeof(FallbackValue);

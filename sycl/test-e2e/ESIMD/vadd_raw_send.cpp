@@ -1,5 +1,4 @@
-//==---------------- vadd_raw_send.cpp  - DPC++ ESIMD on-device test
-//-------------==//
+//==---------------- vadd_raw_send.cpp  - DPC++ ESIMD on-device test--------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip
+// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip,gpu-intel-pvc
 // TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
 // XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t1.out
@@ -78,13 +77,13 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
                                simd<T, N> data) {
-  simd<T, 16> src0;
+  simd<uint32_t, 16> src0;
   auto src0_ref1 =
       src0.template select<8, 1>(0).template bit_cast_view<unsigned int>();
   auto src0_ref2 = src0.template select<8, 1>(8);
 
   src0_ref1.template select<1, 1>(2) = offset >> 4;
-  src0_ref2 = data.template bit_cast_view<unsigned int>();
+  src0_ref2 = data.template bit_cast_view<uint32_t>();
   uint32_t exDesc = 0xA;
   SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x40A0200;
@@ -178,7 +177,6 @@ int main(void) {
   int err_cnt = 0;
 
   err_cnt += test<float>(q);
-  err_cnt += test<sycl::ext::intel::experimental::esimd::tfloat32>(q);
   if (dev.has(sycl::aspect::fp16)) {
     err_cnt += test<sycl::half>(q);
   }

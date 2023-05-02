@@ -4,7 +4,7 @@
 // UNSUPPORTED: windows && opencl
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t.out
-// RUN: %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/sycl.hpp>
