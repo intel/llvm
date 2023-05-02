@@ -964,7 +964,7 @@ constexpr void check_atomic() {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
-                                      simd<Tx, N> src0, simd_mask<N> mask = 1) {
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_atomic<Op, Tx, N, 1>();
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
@@ -1016,7 +1016,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
                                       simd_view<Toffset, RegionTy> offsets,
-                                      simd<Tx, N> src0, simd_mask<N> mask = 1) {
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, offsets.template read(), src0, mask);
 }
 
@@ -1043,7 +1043,7 @@ __ESIMD_API std::enable_if_t<
     std::is_integral_v<Toffset> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
-atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask = 1) {
+atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, mask);
 }
 
@@ -1068,7 +1068,7 @@ atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask = 1) {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
-                                      simd_mask<N> mask = 1) {
+                                      simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   if constexpr (Op == atomic_op::load) {
     if constexpr (std::is_integral_v<Toffset>) {
@@ -1154,7 +1154,7 @@ atomic_update(Tx *p, Toffset offset, simd_mask<N> mask = 1) {
 template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd<Tx, N> src1,
-                                      simd_mask<N> mask = 1) {
+                                      simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_atomic<Op, Tx, N, 2>();
   if constexpr (Op == atomic_op::fcmpwr) {
@@ -1191,7 +1191,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API simd<Tx, N>
 atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask = 1) {
+              simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, offsets.template read(), src0, src1, mask);
 }
 
@@ -1214,7 +1214,7 @@ atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
 template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
 atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd<Tx, N> src1,
-              simd_mask<N> mask = 1) {
+              simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, src1,
                                   mask);
 }
@@ -1251,7 +1251,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask = 1) {
+              simd_mask<N> mask) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, src0, mask);
@@ -1310,7 +1310,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd<Tx, N> src0, simd_mask<N> mask = 1) {
+              simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.template read(), src0, mask);
 }
 
@@ -1342,7 +1342,7 @@ __ESIMD_API std::enable_if_t<
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
-              simd_mask<N> mask = 1) {
+              simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
 }
 
@@ -1370,10 +1370,11 @@ atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer<AccessorTy>::value,
-    simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask = 1) {
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     !std::is_pointer<AccessorTy>::value,
+                                 simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, mask);
@@ -1451,7 +1452,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
-atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask = 1) {
+atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
 }
 
@@ -1529,7 +1530,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask = 1) {
+              simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.template read(), src0, src1,
                                   mask);
 }
@@ -1770,7 +1771,7 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, N> vals) {
 /// usm_atomic_update0 "atomic update" operation docs.
 template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
-                                          simd_mask<N> mask = 1) {
+                                          simd_mask<N> mask) {
   detail::check_atomic<Op, T, N, 0>();
   const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offsets.data());
@@ -1781,8 +1782,7 @@ __ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
 /// usm_atomic_update1 "atomic update" operation docs.
 template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
-                                          simd<Tx, N> src0,
-                                          simd_mask<N> mask = 1) {
+                                          simd<Tx, N> src0, simd_mask<N> mask) {
   detail::check_atomic<Op, T, N, 1>();
   const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offsets.data(),
@@ -1795,7 +1795,7 @@ __ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
 template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
                                           simd<Tx, N> src0, simd<Tx, N> src1,
-                                          simd_mask<N> mask = 1) {
+                                          simd_mask<N> mask) {
   detail::check_atomic<Op, T, N, 2>();
   const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_dword_atomic2<Op, T, N>(mask.data(), si, offsets.data(),
