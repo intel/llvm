@@ -170,7 +170,7 @@ template <typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N> gather(const Tx *p,
                                simd_view<Toffset, RegionTy> offsets,
                                simd_mask<N> mask = 1) {
-  return gather<Tx, N>(p, offsets.template read(), mask);
+  return gather<Tx, N>(p, offsets.read(), mask);
 }
 
 /// A variation of \c gather API with \c offsets represented as scalar.
@@ -247,7 +247,7 @@ template <typename Tx, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
                          simd<Tx, N> vals, simd_mask<N> mask = 1) {
-  scatter<Tx, N>(p, offsets.template read(), vals, mask);
+  scatter<Tx, N>(p, offsets.read(), vals, mask);
 }
 
 /// A variation of \c scatter API with \c offsets represented as scalar.
@@ -660,7 +660,7 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
 __ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
 gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
             simd_mask<N> mask = 1) {
-  return gather_rgba<RGBAMask, T, N>(p, offsets.template read(), mask);
+  return gather_rgba<RGBAMask, T, N>(p, offsets.read(), mask);
 }
 
 /// A variation of \c gather_rgba API with \c offsets represented as
@@ -766,7 +766,7 @@ __ESIMD_API void
 scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
-  scatter_rgba<RGBAMask, T, N>(p, offsets.template read(), vals, mask);
+  scatter_rgba<RGBAMask, T, N>(p, offsets.read(), vals, mask);
 }
 
 /// A variation of \c scatter_rgba API with \c offsets represented as
@@ -1017,7 +1017,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
                                       simd_view<Toffset, RegionTy> offsets,
                                       simd<Tx, N> src0, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(p, offsets.template read(), src0, mask);
+  return atomic_update<Op, Tx, N>(p, offsets.read(), src0, mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -1109,7 +1109,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
                                       simd_view<Toffset, RegionTy> offsets,
                                       simd_mask<N> mask = 1) {
-  return atomic_update<Op, Tx, N>(p, offsets.template read(), mask);
+  return atomic_update<Op, Tx, N>(p, offsets.read(), mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -1192,7 +1192,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N>
 atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(p, offsets.template read(), src0, src1, mask);
+  return atomic_update<Op, Tx, N>(p, offsets.read(), src0, src1, mask);
 }
 
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -1311,7 +1311,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<Tx, N> src0, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, offsets.template read(), src0, mask);
+  return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -1427,7 +1427,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd_mask<N> mask = 1) {
-  return atomic_update<Op, Tx, N>(acc, offsets.template read(), mask);
+  return atomic_update<Op, Tx, N>(acc, offsets.read(), mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -1531,8 +1531,7 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                              simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, offsets.template read(), src0, src1,
-                                  mask);
+  return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, src1, mask);
 }
 
 /// A variation of \c atomic_update API with \c offsets represented as
