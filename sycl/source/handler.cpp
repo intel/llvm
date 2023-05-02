@@ -30,6 +30,17 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
+namespace detail {
+
+bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
+  DeviceGlobalMapEntry *DGEntry =
+      detail::ProgramManager::getInstance().getDeviceGlobalEntry(
+          DeviceGlobalPtr);
+  return DGEntry && !DGEntry->MImageIdentifiers.empty();
+}
+
+} // namespace detail
+
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, Queue, nullptr, IsHost) {}
 
@@ -905,6 +916,47 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
   MLength = NumBytes;
   MImpl->MOffset = Offset;
   setType(detail::CG::CopyFromDeviceGlobal);
+}
+
+void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                           const void *Src,
+                                           size_t DeviceGlobalTSize,
+                                           bool IsDeviceImageScoped,
+                                           size_t NumBytes, size_t Offset) {
+  std::weak_ptr<detail::context_impl> WeakContextImpl =
+      MQueue->getContextImplPtr();
+  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Capture context and device as weak to avoid keeping them alive for too
+    // long. If they are dead by the time this executes, the operation would not
+    // have been visible anyway.
+    std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
+    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
+    if (ContextImpl && DeviceImpl)
+      ContextImpl->memcpyToHostOnlyDeviceGlobal(
+          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
+          IsDeviceImageScoped, NumBytes, Offset);
+  });
+}
+
+void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
+                                             const void *DeviceGlobalPtr,
+                                             size_t DeviceGlobalTSize,
+                                             bool IsDeviceImageScoped,
+                                             size_t NumBytes, size_t Offset) {
+  const std::shared_ptr<detail::context_impl> &ContextImpl =
+      MQueue->getContextImplPtr();
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Unlike memcpy to device_global, we need to keep the context and device
+    // alive in the capture of this operation as we must be able to correctly
+    // copy the value to the user-specified pointer.
+    ContextImpl->memcpyFromHostOnlyDeviceGlobal(
+        DeviceImpl, Dest, DeviceGlobalPtr, DeviceGlobalTSize,
+        IsDeviceImageScoped, NumBytes, Offset);
+  });
 }
 
 const std::shared_ptr<detail::context_impl> &
