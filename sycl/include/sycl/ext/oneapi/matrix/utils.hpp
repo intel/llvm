@@ -14,10 +14,10 @@
 namespace sycl {
 namespace detail {
 
-// Helper to return decoreated pointer for different values
+// Helper to return decorated pointer for different values
 // of access::decorated parameter.
 // If access::decorated::legacy is removed in the future
-// this helper usage can be replaced with ptr.get_decorated.
+// this helper usage can be replaced with ptr.get_decorated().
 template <typename DecorT, typename T, access::address_space Space,
           access::decorated IsDecorated>
 DecorT *getDecorated(multi_ptr<T, Space, IsDecorated> ptr) {
