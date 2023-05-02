@@ -982,6 +982,20 @@ TEST_F(ValueTrackingTest, programUndefinedIfPoison) {
   EXPECT_EQ(programUndefinedIfPoison(A), true);
 }
 
+TEST_F(ValueTrackingTest, programUndefinedIfPoisonSelect) {
+  parseAssembly("declare i32 @any_num()"
+                "define void @test(i1 %Cond) {\n"
+                "  %A = call i32 @any_num()\n"
+                "  %B = add i32 %A, 1\n"
+                "  %C = select i1 %Cond, i32 %A, i32 %B\n"
+                "  udiv i32 1, %C"
+                "  ret void\n"
+                "}\n");
+  // If A is poison, B is also poison, and therefore C is poison regardless of
+  // the value of %Cond.
+  EXPECT_EQ(programUndefinedIfPoison(A), true);
+}
+
 TEST_F(ValueTrackingTest, programUndefinedIfUndefOrPoison) {
   parseAssembly("declare i32 @any_num()"
                 "define void @test(i32 %mask) {\n"
@@ -1493,7 +1507,7 @@ TEST_F(ComputeKnownFPClassTest, CopySignNNanSrc0) {
       "  %A = call float @llvm.copysign.f32(float %fabs, float %arg1)"
       "  ret float %A\n"
       "}\n");
-  expectKnownFPClass(fcPositive, std::nullopt);
+  expectKnownFPClass(~fcNan, std::nullopt);
 }
 
 TEST_F(ComputeKnownFPClassTest, CopySignNInfSrc0_NegSign) {
@@ -1505,7 +1519,7 @@ TEST_F(ComputeKnownFPClassTest, CopySignNInfSrc0_NegSign) {
       "  %A = call float @llvm.copysign.f32(float %ninf, float -1.0)"
       "  ret float %A\n"
       "}\n");
-  expectKnownFPClass(fcNegFinite, true);
+  expectKnownFPClass(fcNegFinite | fcNan, true);
 }
 
 TEST_F(ComputeKnownFPClassTest, CopySignNInfSrc0_PosSign) {
@@ -1517,7 +1531,7 @@ TEST_F(ComputeKnownFPClassTest, CopySignNInfSrc0_PosSign) {
       "  %A = call float @llvm.copysign.f32(float %ninf, float 1.0)"
       "  ret float %A\n"
       "}\n");
-  expectKnownFPClass(fcPosFinite, false);
+  expectKnownFPClass(fcPosFinite | fcNan, false);
 }
 
 TEST_F(ComputeKnownFPClassTest, UIToFP) {

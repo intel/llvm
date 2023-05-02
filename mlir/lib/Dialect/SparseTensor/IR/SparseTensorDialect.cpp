@@ -449,8 +449,6 @@ mlir::sparse_tensor::getSparseTensorEncoding(Type type) {
   return nullptr;
 }
 
-/// Returns true iff the given sparse tensor encoding attribute has a trailing
-/// COO region starting at the given level.
 bool mlir::sparse_tensor::isCOOType(SparseTensorEncodingAttr enc,
                                     Level startLvl, bool isUnique) {
   if (!enc ||
@@ -719,7 +717,11 @@ LogicalResult UnpackOp::verify() {
   const auto coordinatesTp = getRankedTensorType(getCoordinates());
   const auto srcTp = getSparseTensorType(getTensor());
   return verifyPackUnPack(*this, false, srcTp, valuesTp, coordinatesTp,
-                          nullptr);
+                          getBatchedLvlsAttr());
+}
+
+unsigned UnpackOp::getNumBatchedLvls() {
+  return getBatchedLvls().has_value() ? getBatchedLvls()->getZExtValue() : 0;
 }
 
 LogicalResult ConvertOp::verify() {

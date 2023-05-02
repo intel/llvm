@@ -303,10 +303,17 @@ bool Thread::SetSelectedFrameByIndexNoisily(uint32_t frame_idx,
       bool already_shown = false;
       SymbolContext frame_sc(
           frame_sp->GetSymbolContext(eSymbolContextLineEntry));
-      if (GetProcess()->GetTarget().GetDebugger().GetUseExternalEditor() &&
-          frame_sc.line_entry.file && frame_sc.line_entry.line != 0) {
-        already_shown = Host::OpenFileInExternalEditor(
-            frame_sc.line_entry.file, frame_sc.line_entry.line);
+      const Debugger &debugger = GetProcess()->GetTarget().GetDebugger();
+      if (debugger.GetUseExternalEditor() && frame_sc.line_entry.file &&
+          frame_sc.line_entry.line != 0) {
+        if (llvm::Error e = Host::OpenFileInExternalEditor(
+                debugger.GetExternalEditor(), frame_sc.line_entry.file,
+                frame_sc.line_entry.line)) {
+          LLDB_LOG_ERROR(GetLog(LLDBLog::Host), std::move(e),
+                         "OpenFileInExternalEditor failed: {0}");
+        } else {
+          already_shown = true;
+        }
       }
 
       bool show_frame_info = true;
@@ -1725,8 +1732,12 @@ size_t Thread::GetStatus(Stream &strm, uint32_t start_frame,
         SymbolContext frame_sc(
             frame_sp->GetSymbolContext(eSymbolContextLineEntry));
         if (frame_sc.line_entry.line != 0 && frame_sc.line_entry.file) {
-          Host::OpenFileInExternalEditor(frame_sc.line_entry.file,
-                                         frame_sc.line_entry.line);
+          if (llvm::Error e = Host::OpenFileInExternalEditor(
+                  target->GetDebugger().GetExternalEditor(),
+                  frame_sc.line_entry.file, frame_sc.line_entry.line)) {
+            LLDB_LOG_ERROR(GetLog(LLDBLog::Host), std::move(e),
+                           "OpenFileInExternalEditor failed: {0}");
+          }
         }
       }
     }

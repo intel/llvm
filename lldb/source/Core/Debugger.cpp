@@ -372,6 +372,16 @@ bool Debugger::SetUseExternalEditor(bool b) {
   return m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
 }
 
+llvm::StringRef Debugger::GetExternalEditor() const {
+  const uint32_t idx = ePropertyExternalEditor;
+  return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
+}
+
+bool Debugger::SetExternalEditor(llvm::StringRef editor) {
+  const uint32_t idx = ePropertyExternalEditor;
+  return m_collection_sp->SetPropertyAtIndexAsString(nullptr, idx, editor);
+}
+
 bool Debugger::GetUseColor() const {
   const uint32_t idx = ePropertyUseColor;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -607,8 +617,8 @@ LoadPluginCallback(void *baton, llvm::sys::fs::file_type ft,
                    llvm::StringRef path) {
   Status error;
 
-  static ConstString g_dylibext(".dylib");
-  static ConstString g_solibext(".so");
+  static constexpr llvm::StringLiteral g_dylibext(".dylib");
+  static constexpr llvm::StringLiteral g_solibext(".so");
 
   if (!baton)
     return FileSystem::eEnumerateDirectoryResultQuit;

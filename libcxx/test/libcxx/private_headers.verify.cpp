@@ -427,11 +427,17 @@ END-SCRIPT
 #include <__functional/unwrap_ref.h> // expected-error@*:* {{use of private header from outside its module: '__functional/unwrap_ref.h'}}
 #include <__functional/weak_result_type.h> // expected-error@*:* {{use of private header from outside its module: '__functional/weak_result_type.h'}}
 #include <__fwd/array.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/array.h'}}
+#include <__fwd/fstream.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/fstream.h'}}
 #include <__fwd/get.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/get.h'}}
 #include <__fwd/hash.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/hash.h'}}
+#include <__fwd/ios.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/ios.h'}}
+#include <__fwd/istream.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/istream.h'}}
 #include <__fwd/memory_resource.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/memory_resource.h'}}
+#include <__fwd/ostream.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/ostream.h'}}
 #include <__fwd/pair.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/pair.h'}}
 #include <__fwd/span.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/span.h'}}
+#include <__fwd/sstream.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/sstream.h'}}
+#include <__fwd/streambuf.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/streambuf.h'}}
 #include <__fwd/string.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/string.h'}}
 #include <__fwd/string_view.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/string_view.h'}}
 #include <__fwd/subrange.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/subrange.h'}}
@@ -608,6 +614,7 @@ END-SCRIPT
 #include <__ranges/views.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/views.h'}}
 #include <__ranges/zip_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/zip_view.h'}}
 #include <__split_buffer> // expected-error@*:* {{use of private header from outside its module: '__split_buffer'}}
+#include <__std_mbstate_t.h> // expected-error@*:* {{use of private header from outside its module: '__std_mbstate_t.h'}}
 #include <__string/char_traits.h> // expected-error@*:* {{use of private header from outside its module: '__string/char_traits.h'}}
 #include <__string/constexpr_c_functions.h> // expected-error@*:* {{use of private header from outside its module: '__string/constexpr_c_functions.h'}}
 #include <__string/extern_template_lists.h> // expected-error@*:* {{use of private header from outside its module: '__string/extern_template_lists.h'}}
@@ -677,6 +684,7 @@ END-SCRIPT
 #include <__type_traits/is_empty.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_empty.h'}}
 #include <__type_traits/is_enum.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_enum.h'}}
 #include <__type_traits/is_equality_comparable.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_equality_comparable.h'}}
+#include <__type_traits/is_execution_policy.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_execution_policy.h'}}
 #include <__type_traits/is_final.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_final.h'}}
 #include <__type_traits/is_floating_point.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_floating_point.h'}}
 #include <__type_traits/is_function.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_function.h'}}
@@ -776,6 +784,7 @@ END-SCRIPT
 #include <__utility/priority_tag.h> // expected-error@*:* {{use of private header from outside its module: '__utility/priority_tag.h'}}
 #include <__utility/rel_ops.h> // expected-error@*:* {{use of private header from outside its module: '__utility/rel_ops.h'}}
 #include <__utility/swap.h> // expected-error@*:* {{use of private header from outside its module: '__utility/swap.h'}}
+#include <__utility/terminate_on_exception.h> // expected-error@*:* {{use of private header from outside its module: '__utility/terminate_on_exception.h'}}
 #include <__utility/to_underlying.h> // expected-error@*:* {{use of private header from outside its module: '__utility/to_underlying.h'}}
 #include <__utility/unreachable.h> // expected-error@*:* {{use of private header from outside its module: '__utility/unreachable.h'}}
 #include <__variant/monostate.h> // expected-error@*:* {{use of private header from outside its module: '__variant/monostate.h'}}

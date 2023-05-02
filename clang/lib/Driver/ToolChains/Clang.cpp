@@ -774,6 +774,12 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     PGOGenerateArg = nullptr;
   }
 
+  if (TC.getTriple().isOSAIX()) {
+    if (Arg *ProfileSampleUseArg = getLastProfileSampleUseArg(Args))
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << ProfileSampleUseArg->getSpelling() << TC.getTriple().str();
+  }
+
   if (ProfileGenerateArg) {
     if (ProfileGenerateArg->getOption().matches(
             options::OPT_fprofile_instr_generate_EQ))
@@ -1208,6 +1214,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if (ArgM->getOption().matches(options::OPT_M) ||
         ArgM->getOption().matches(options::OPT_MD))
       CmdArgs.push_back("-sys-header-deps");
+    if (Args.hasFlag(options::OPT_canonical_prefixes,
+                     options::OPT_no_canonical_prefixes, true))
+      CmdArgs.push_back("-canonical-system-headers");
     if ((isa<PrecompileJobAction>(JA) &&
          !Args.hasArg(options::OPT_fno_module_file_deps)) ||
         Args.hasArg(options::OPT_fmodule_file_deps))
@@ -4145,6 +4154,13 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
           Args.getLastArg(options::OPT_fdiagnostics_hotness_threshold_EQ)) {
     std::string Opt =
         std::string("-fdiagnostics-hotness-threshold=") + A->getValue();
+    CmdArgs.push_back(Args.MakeArgString(Opt));
+  }
+
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fdiagnostics_misexpect_tolerance_EQ)) {
+    std::string Opt =
+        std::string("-fdiagnostics-misexpect-tolerance=") + A->getValue();
     CmdArgs.push_back(Args.MakeArgString(Opt));
   }
 

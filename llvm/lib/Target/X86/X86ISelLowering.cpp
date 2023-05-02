@@ -1679,7 +1679,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
   }
 
-  // This block controls legalization for 512-bit operations with 32/64 bit
+  // This block controls legalization for 512-bit operations with 8/16/32/64 bit
   // elements. 512-bits can be disabled based on prefer-vector-width and
   // required-vector-width function attributes.
   if (!Subtarget.useSoftFloat() && Subtarget.useAVX512Regs()) {
@@ -2026,8 +2026,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   }
 
   // This block control legalization of v32i1/v64i1 which are available with
-  // AVX512BW. 512-bit v32i16 and v64i8 vector legalization is controlled with
-  // useBWIRegs.
+  // AVX512BW..
   if (!Subtarget.useSoftFloat() && Subtarget.hasBWI()) {
     addRegisterClass(MVT::v32i1,  &X86::VK32RegClass);
     addRegisterClass(MVT::v64i1,  &X86::VK64RegClass);
@@ -2331,8 +2330,8 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::UMULO, VT, Custom);
 
     // Support carry in as value rather than glue.
-    setOperationAction(ISD::ADDCARRY, VT, Custom);
-    setOperationAction(ISD::SUBCARRY, VT, Custom);
+    setOperationAction(ISD::UADDO_CARRY, VT, Custom);
+    setOperationAction(ISD::USUBO_CARRY, VT, Custom);
     setOperationAction(ISD::SETCCCARRY, VT, Custom);
     setOperationAction(ISD::SADDO_CARRY, VT, Custom);
     setOperationAction(ISD::SSUBO_CARRY, VT, Custom);
@@ -11231,6 +11230,7 @@ X86TargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const {
   APInt ZeroMask = APInt::getZero(NumElems);
   APInt NonZeroMask = APInt::getZero(NumElems);
   bool IsAllConstants = true;
+  bool OneUseFrozenUndefs = true;
   SmallSet<SDValue, 8> Values;
   unsigned NumConstants = NumElems;
   for (unsigned i = 0; i < NumElems; ++i) {
@@ -11239,7 +11239,8 @@ X86TargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const {
       UndefMask.setBit(i);
       continue;
     }
-    if (Elt.getOpcode() == ISD::FREEZE && Elt.getOperand(0).isUndef()) {
+    if (ISD::isFreezeUndef(Elt.getNode())) {
+      OneUseFrozenUndefs = OneUseFrozenUndefs && Elt->hasOneUse();
       FrozenUndefMask.setBit(i);
       continue;
     }
@@ -11259,9 +11260,13 @@ X86TargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const {
   if (UndefMask.isAllOnes())
     return DAG.getUNDEF(VT);
 
-  // All undef/freeze(undef) vector. Return an FREEZE UNDEF.
-  if ((UndefMask | FrozenUndefMask).isAllOnes())
+  // All undef/freeze(undef) vector. Return a FREEZE UNDEF.
+  if (OneUseFrozenUndefs && (UndefMask | FrozenUndefMask).isAllOnes())
     return DAG.getFreeze(DAG.getUNDEF(VT));
+
+  // All undef/freeze(undef)/zero vector. Return a zero vector.
+  if ((UndefMask | FrozenUndefMask | ZeroMask).isAllOnes())
+    return getZeroVector(VT, Subtarget, DAG, dl);
 
   // If we have multiple FREEZE-UNDEF operands, we are likely going to end up
   // lowering into a suboptimal insertion sequence. Instead, thaw the UNDEF in
@@ -11657,8 +11662,13 @@ static SDValue LowerAVXCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG,
     SDValue SubVec = Op.getOperand(i);
     if (SubVec.isUndef())
       continue;
-    if (ISD::isFreezeUndef(SubVec.getNode()) && SubVec.hasOneUse())
-      ++NumFreezeUndef;
+    if (ISD::isFreezeUndef(SubVec.getNode())) {
+        // If the freeze(undef) has multiple uses then we must fold to zero.
+        if (SubVec.hasOneUse())
+          ++NumFreezeUndef;
+        else
+          ++NumZero;
+    }
     else if (ISD::isBuildVectorAllZeros(SubVec.getNode()))
       ++NumZero;
     else {
@@ -33347,7 +33357,7 @@ static SDValue LowerATOMIC_STORE(SDValue Op, SelectionDAG &DAG,
   return Swap.getValue(1);
 }
 
-static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
+static SDValue LowerADDSUBO_CARRY(SDValue Op, SelectionDAG &DAG) {
   SDNode *N = Op.getNode();
   MVT VT = N->getSimpleValueType(0);
   unsigned Opc = Op.getOpcode();
@@ -33365,7 +33375,7 @@ static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
   Carry = DAG.getNode(X86ISD::ADD, DL, DAG.getVTList(CarryVT, MVT::i32),
                       Carry, DAG.getAllOnesConstant(DL, CarryVT));
 
-  bool IsAdd = Opc == ISD::ADDCARRY || Opc == ISD::SADDO_CARRY;
+  bool IsAdd = Opc == ISD::UADDO_CARRY || Opc == ISD::SADDO_CARRY;
   SDValue Sum = DAG.getNode(IsAdd ? X86ISD::ADC : X86ISD::SBB, DL, VTs,
                             Op.getOperand(0), Op.getOperand(1),
                             Carry.getValue(1));
@@ -33940,8 +33950,8 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::BITCAST:            return LowerBITCAST(Op, Subtarget, DAG);
   case ISD::SADDO_CARRY:
   case ISD::SSUBO_CARRY:
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY:           return LowerADDSUBCARRY(Op, DAG);
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY:        return LowerADDSUBO_CARRY(Op, DAG);
   case ISD::ADD:
   case ISD::SUB:                return lowerAddSub(Op, DAG, Subtarget);
   case ISD::UADDSAT:
@@ -38582,6 +38592,23 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
 
     // PSADBW - fills low 16 bits and zeros upper 48 bits of each i64 result.
     Known.Zero.setBitsFrom(16);
+    break;
+  }
+  case X86ISD::PCMPGT:
+  case X86ISD::PCMPEQ: {
+    KnownBits KnownLhs =
+        DAG.computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    KnownBits KnownRhs =
+        DAG.computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    std::optional<bool> Res = Opc == X86ISD::PCMPEQ
+                                  ? KnownBits::eq(KnownLhs, KnownRhs)
+                                  : KnownBits::sgt(KnownLhs, KnownRhs);
+    if (Res) {
+      if (*Res)
+        Known.setAllOnes();
+      else
+        Known.setAllZero();
+    }
     break;
   }
   case X86ISD::PMULUDQ: {

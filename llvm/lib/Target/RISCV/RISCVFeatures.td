@@ -86,6 +86,16 @@ def HasStdExtZifencei : Predicate<"Subtarget->hasStdExtZifencei()">,
                                    AssemblerPredicate<(all_of FeatureStdExtZifencei),
                                    "'Zifencei' (fence.i)">;
 
+def FeatureStdExtZicntr
+    : SubtargetFeature<"zicntr", "HasStdExtZicntr", "true",
+                       "'zicntr' (Base Counters and Timers)",
+                       [FeatureStdExtZicsr]>;
+
+def FeatureStdExtZihpm
+    : SubtargetFeature<"zihpm", "HasStdExtZihpm", "true",
+                       "'zihpm' (Hardware Performance Counters)",
+                       [FeatureStdExtZicsr]>;
+
 def FeatureStdExtZfhmin
     : SubtargetFeature<"zfhmin", "HasStdExtZfhmin", "true",
                        "'Zfhmin' (Half-Precision Floating-Point Minimal)",
@@ -705,6 +715,11 @@ def FeatureSaveRestore : SubtargetFeature<"save-restore", "EnableSaveRestore",
 def FeatureUnalignedScalarMem
    : SubtargetFeature<"unaligned-scalar-mem", "EnableUnalignedScalarMem",
                       "true", "Has reasonably performant unaligned scalar "
+                      "loads and stores">;
+
+def FeatureUnalignedVectorMem
+   : SubtargetFeature<"unaligned-vector-mem", "EnableUnalignedVectorMem",
+                      "true", "Has reasonably performant unaligned vector "
                       "loads and stores">;
 
 def TuneNoOptimizedZeroStrideLoad

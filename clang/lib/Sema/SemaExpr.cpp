@@ -6010,7 +6010,9 @@ bool Sema::CheckCXXDefaultArgExpr(SourceLocation CallLoc, FunctionDecl *FD,
       Param);
   ExprEvalContexts.back().IsCurrentlyCheckingDefaultArgumentOrInitializer =
       SkipImmediateInvocations;
-  MarkDeclarationsReferencedInExpr(Init, /*SkipLocalVariables*/ true);
+  runWithSufficientStackSpace(CallLoc, [&] {
+    MarkDeclarationsReferencedInExpr(Init, /*SkipLocalVariables=*/true);
+  });
   return false;
 }
 
@@ -6120,8 +6122,11 @@ ExprResult Sema::BuildCXXDefaultArgExpr(SourceLocation CallLoc,
       ExprEvalContexts.back().DelayedDefaultInitializationContext = {
           CallLoc, Param, CurContext};
       EnsureImmediateInvocationInDefaultArgs Immediate(*this);
-      ExprResult Res = Immediate.TransformInitializer(Param->getInit(),
-                                                      /*NotCopy=*/false);
+      ExprResult Res;
+      runWithSufficientStackSpace(CallLoc, [&] {
+        Res = Immediate.TransformInitializer(Param->getInit(),
+                                             /*NotCopy=*/false);
+      });
       if (Res.isInvalid())
         return ExprError();
       Res = ConvertParamDefaultArgument(Param, Res.get(),
@@ -6201,10 +6206,11 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
         NestedDefaultChecking;
 
     EnsureImmediateInvocationInDefaultArgs Immediate(*this);
-
-    ExprResult Res =
-        Immediate.TransformInitializer(Field->getInClassInitializer(),
-                                       /*CXXDirectInit=*/false);
+    ExprResult Res;
+    runWithSufficientStackSpace(Loc, [&] {
+      Res = Immediate.TransformInitializer(Field->getInClassInitializer(),
+                                           /*CXXDirectInit=*/false);
+    });
     if (!Res.isInvalid())
       Res = ConvertMemberDefaultInitExpression(Field, Res.get(), Loc);
     if (Res.isInvalid()) {
@@ -6217,7 +6223,9 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
   if (Field->getInClassInitializer()) {
     Expr *E = Init ? Init : Field->getInClassInitializer();
     if (!NestedDefaultChecking)
-      MarkDeclarationsReferencedInExpr(E, /*SkipLocalVariables=*/false);
+      runWithSufficientStackSpace(Loc, [&] {
+        MarkDeclarationsReferencedInExpr(E, /*SkipLocalVariables=*/false);
+      });
     // C++11 [class.base.init]p7:
     //   The initialization of each base and member constitutes a
     //   full-expression.
@@ -8058,6 +8066,28 @@ bool Sema::isValidSveBitcast(QualType srcTy, QualType destTy) {
     const auto *VecTy = SecondType->getAs<VectorType>();
     return VecTy &&
            VecTy->getVectorKind() == VectorType::SveFixedLengthDataVector;
+  };
+
+  return ValidScalableConversion(srcTy, destTy) ||
+         ValidScalableConversion(destTy, srcTy);
+}
+
+/// Are the two types RVV-bitcast-compatible types? I.e. is bitcasting from the
+/// first RVV type (e.g. an RVV scalable type) to the second type (e.g. an RVV
+/// VLS type) allowed?
+///
+/// This will also return false if the two given types do not make sense from
+/// the perspective of RVV bitcasts.
+bool Sema::isValidRVVBitcast(QualType srcTy, QualType destTy) {
+  assert(srcTy->isVectorType() || destTy->isVectorType());
+
+  auto ValidScalableConversion = [](QualType FirstType, QualType SecondType) {
+    if (!FirstType->isRVVSizelessBuiltinType())
+      return false;
+
+    const auto *VecTy = SecondType->getAs<VectorType>();
+    return VecTy &&
+           VecTy->getVectorKind() == VectorType::RVVFixedLengthDataVector;
   };
 
   return ValidScalableConversion(srcTy, destTy) ||
@@ -9996,6 +10026,16 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
         return Compatible;
       }
 
+    // Allow assignments between fixed-length and sizeless RVV vectors.
+    if ((LHSType->isRVVSizelessBuiltinType() && RHSType->isVectorType()) ||
+        (LHSType->isVectorType() && RHSType->isRVVSizelessBuiltinType())) {
+      if (Context.areCompatibleRVVTypes(LHSType, RHSType) ||
+          Context.areLaxCompatibleRVVTypes(LHSType, RHSType)) {
+        Kind = CK_BitCast;
+        return Compatible;
+      }
+    }
+
     return Incompatible;
   }
 
@@ -10857,18 +10897,30 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
     }
   }
 
-  // Expressions containing fixed-length and sizeless SVE vectors are invalid
-  // since the ambiguity can affect the ABI.
-  auto IsSveConversion = [](QualType FirstType, QualType SecondType) {
+  // Expressions containing fixed-length and sizeless SVE/RVV vectors are
+  // invalid since the ambiguity can affect the ABI.
+  auto IsSveRVVConversion = [](QualType FirstType, QualType SecondType,
+                               unsigned &SVEorRVV) {
     const VectorType *VecType = SecondType->getAs<VectorType>();
-    return FirstType->isSizelessBuiltinType() && VecType &&
-           (VecType->getVectorKind() == VectorType::SveFixedLengthDataVector ||
-            VecType->getVectorKind() ==
-                VectorType::SveFixedLengthPredicateVector);
+    SVEorRVV = 0;
+    if (FirstType->isSizelessBuiltinType() && VecType) {
+      if (VecType->getVectorKind() == VectorType::SveFixedLengthDataVector ||
+          VecType->getVectorKind() == VectorType::SveFixedLengthPredicateVector)
+        return true;
+      if (VecType->getVectorKind() == VectorType::RVVFixedLengthDataVector) {
+        SVEorRVV = 1;
+        return true;
+      }
+    }
+
+    return false;
   };
 
-  if (IsSveConversion(LHSType, RHSType) || IsSveConversion(RHSType, LHSType)) {
-    Diag(Loc, diag::err_typecheck_sve_ambiguous) << LHSType << RHSType;
+  unsigned SVEorRVV;
+  if (IsSveRVVConversion(LHSType, RHSType, SVEorRVV) ||
+      IsSveRVVConversion(RHSType, LHSType, SVEorRVV)) {
+    Diag(Loc, diag::err_typecheck_sve_rvv_ambiguous)
+        << SVEorRVV << LHSType << RHSType;
     return QualType();
   }
 
@@ -10880,12 +10932,21 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
     const VectorType *SecondVecType = SecondType->getAs<VectorType>();
 
     SVEorRVV = 0;
-    if (FirstVecType && SecondVecType)
-      return FirstVecType->getVectorKind() == VectorType::GenericVector &&
-             (SecondVecType->getVectorKind() ==
-                  VectorType::SveFixedLengthDataVector ||
-              SecondVecType->getVectorKind() ==
-                  VectorType::SveFixedLengthPredicateVector);
+    if (FirstVecType && SecondVecType) {
+      if (FirstVecType->getVectorKind() == VectorType::GenericVector) {
+        if (SecondVecType->getVectorKind() ==
+                VectorType::SveFixedLengthDataVector ||
+            SecondVecType->getVectorKind() ==
+                VectorType::SveFixedLengthPredicateVector)
+          return true;
+        if (SecondVecType->getVectorKind() ==
+            VectorType::RVVFixedLengthDataVector) {
+          SVEorRVV = 1;
+          return true;
+        }
+      }
+      return false;
+    }
 
     if (SecondVecType &&
         SecondVecType->getVectorKind() == VectorType::GenericVector) {
@@ -10900,7 +10961,6 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
     return false;
   };
 
-  unsigned SVEorRVV;
   if (IsSveRVVGnuConversion(LHSType, RHSType, SVEorRVV) ||
       IsSveRVVGnuConversion(RHSType, LHSType, SVEorRVV)) {
     Diag(Loc, diag::err_typecheck_sve_rvv_gnu_ambiguous)
@@ -18584,7 +18644,9 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
   if (CXXConstructorDecl *Constructor = dyn_cast<CXXConstructorDecl>(Func)) {
     for (CXXCtorInitializer *Init : Constructor->inits()) {
       if (Init->isInClassMemberInitializer())
-        MarkDeclarationsReferencedInExpr(Init->getInit());
+        runWithSufficientStackSpace(Init->getSourceLocation(), [&]() {
+          MarkDeclarationsReferencedInExpr(Init->getInit());
+        });
     }
   }
 
