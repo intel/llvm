@@ -24,6 +24,10 @@
 int main() {
   queue Queue;
   check<half>(Queue);
+  check<half, 2>(Queue);
+  check<half, 4>(Queue);
+  check<half, 8>(Queue);
+  check<half, 16>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }
