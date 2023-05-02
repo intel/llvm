@@ -109,6 +109,10 @@ jobs:
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+    - name: mlir-doc
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target mlir-doc
     # TODO allow to optionally disable in-tree checks
     - name: check-mlir-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
