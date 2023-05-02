@@ -8,6 +8,7 @@
 
 #pragma once
 #include "matrix-intel.hpp"
+#include "utils.hpp"
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -207,7 +208,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
                                                    Layout);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-  DecorT *Ptr = src.get();
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");
@@ -270,7 +271,7 @@ joint_matrix_load(Group sg,
       res.cuda_impl, src, stride);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-  DecorT *Ptr = src.get();
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   res.spvm =
       __spirv_JointMatrixLoadINTEL<DecorT, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
@@ -306,7 +307,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                             stride, Layout);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-  DecorT *Ptr = dst.get();
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
   switch (Layout) {
   default:
     assert(false && "Invalid Memory Layout!");

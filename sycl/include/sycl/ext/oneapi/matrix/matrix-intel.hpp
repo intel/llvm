@@ -9,6 +9,7 @@
 #pragma once
 
 #include "matrix-unified-utils.hpp"
+#include "utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/feature_test.hpp>
@@ -495,7 +496,7 @@ joint_matrix_store(Group sg,
 #else
   // intel's impl
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-  DecorT *Ptr = dst.get();
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
   __spirv_JointMatrixStoreINTEL<DecorT, Tp, NumRows, NumCols,
                                 sycl::ext::oneapi::experimental::matrix::
                                     spv_matrix_use_traits<Use>::value,

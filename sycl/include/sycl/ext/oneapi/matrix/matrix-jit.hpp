@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -80,7 +81,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-  DecorT *Ptr = src.get();
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
@@ -134,7 +135,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
-  DecorT *Ptr = res.get();
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(res);
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
