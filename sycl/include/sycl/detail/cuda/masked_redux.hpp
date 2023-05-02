@@ -113,7 +113,7 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 // Cluster group reduction using shfls, T = double
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_cluster_group<Group>::value &&
+    ext::oneapi::experimental::is_fixed_size_group<Group>::value &&
         std::is_same_v<T, double>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
@@ -137,7 +137,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 // Cluster group reduction using shfls, T = float
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_cluster_group<Group>::value &&
+    ext::oneapi::experimental::is_fixed_size_group<Group>::value &&
         std::is_same_v<T, float>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
@@ -154,7 +154,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 // Cluster group reduction using shfls, std::is_integral_v<T>
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_cluster_group<Group>::value &&
+    ext::oneapi::experimental::is_fixed_size_group<Group>::value &&
         std::is_integral_v<T>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
@@ -173,7 +173,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !ext::oneapi::experimental::is_cluster_group<Group>::value,
+        !ext::oneapi::experimental::is_fixed_size_group<Group>::value,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
@@ -299,6 +299,39 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
   return masked_reduction_cuda_shfls(g, x, binary_op, MemberMask);
 }
 ////
+
+// Cluster group exscan using shfls, std::is_integral_v<T>
+template <typename Group, typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<
+    ext::oneapi::experimental::is_fixed_size_group<Group>::value,// && //todo decide on final is_instegral cases?
+       // std::is_integral_v<T>,
+    T>
+masked_exscan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                            const uint32_t MemberMask) {//todo membermask naming?
+
+T tmp;
+
+for (int d=1; d < g.get_local_range()[0]; d*=2) {
+
+  if constexpr (std::is_same_v<T, double>) {
+
+    int x_a, x_b;
+    asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
+
+    auto tmp_a = __nvvm_shfl_sync_up_i32(MemberMask, x_a, d, 0);
+    auto tmp_b = __nvvm_shfl_sync_up_i32(MemberMask, x_b, d, 0);
+    asm volatile("mov.b64 %0,{%1,%2}; \n\t"
+                 : "=l"(tmp)
+                 : "r"(tmp_a), "r"(tmp_b));
+
+  } 
+//auto temp = __nvvm_shfl_sync_up_i32(MemberMask, x, d, 0); 
+if (g.get_local_id()[0] >= d) x += tmp;
+
+}
+return x;
+}
+                            
 
 #endif
 #endif

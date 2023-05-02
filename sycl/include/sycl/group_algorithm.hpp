@@ -192,7 +192,7 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 //        scalar arithmetic, complex (plus only), and vector arithmetic
 
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> || ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
                      (detail::is_scalar_arithmetic<T>::value ||
                       (detail::is_complex<T>::value &&
                        detail::is_multiplies<T, BinaryOperation>::value)) &&
@@ -642,7 +642,7 @@ group_broadcast(Group g, T x) {
 //   the three argument version is specialized thrice: scalar, complex, and
 //   vector
 template <typename Group, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> || ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
                      (detail::is_scalar_arithmetic<T>::value ||
                       (detail::is_complex<T>::value &&
                        detail::is_multiplies<T, BinaryOperation>::value)) &&
@@ -654,9 +654,21 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
                     (std::is_same<T, half>::value &&
                      std::is_same<decltype(binary_op(x, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
+
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  sycl::vec<unsigned, 4> MemberMask =
+      sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_exscan_cuda_shfls(g, x, binary_op, MemberMask[0]);
+  } else {
+    return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
+        g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  }
+#else
   return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#endif
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host.",

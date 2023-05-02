@@ -46,7 +46,7 @@ struct is_fixed_topology_group<sycl::ext::oneapi::sub_group> : std::true_type {
 
 template <class T> struct is_user_constructed_group : std::false_type {};
 
-template <class T> struct is_cluster_group : std::false_type {};
+template <class T> struct is_fixed_size_group : std::false_type {};
 
 template <class T>
 inline constexpr bool is_user_constructed_group_v =
