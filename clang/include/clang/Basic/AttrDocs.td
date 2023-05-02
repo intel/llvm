@@ -3513,7 +3513,7 @@ used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
   }
 
   void count () {
-    int a1[10], int i = 0;
+    int a1[10], i = 0;
     [[intel::enable_loop_pipelining]] while (i < 10) {
       a1[i++] = 3;
     }
