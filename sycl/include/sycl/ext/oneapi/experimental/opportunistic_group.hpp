@@ -111,10 +111,9 @@ public:
 #endif
   }
 
-private:
+protected:
   sub_group_mask Mask;
 
-protected:
   opportunistic_group(sub_group_mask m) : Mask(m) {}
 
   friend opportunistic_group this_kernel::get_opportunistic_group();
@@ -150,5 +149,10 @@ template <>
 struct is_user_constructed_group<opportunistic_group> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
+
+template <>
+struct is_group<ext::oneapi::experimental::opportunistic_group>
+    : std::true_type {};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

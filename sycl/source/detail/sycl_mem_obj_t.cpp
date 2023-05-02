@@ -57,7 +57,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "Input context must be the same as the context of cl_mem",
         PI_ERROR_INVALID_CONTEXT);
 
-  if (Plugin.getBackend() == backend::opencl)
+  if (MInteropContext->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 
@@ -116,7 +116,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "Input context must be the same as the context of cl_mem",
         PI_ERROR_INVALID_CONTEXT);
 
-  if (Plugin.getBackend() == backend::opencl)
+  if (MInteropContext->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 

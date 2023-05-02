@@ -61,11 +61,12 @@ public:
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
 /// \ingroup sycl_api
-class __SYCL_EXPORT exception : public std::exception {
+class __SYCL_EXPORT exception : public virtual std::exception {
 public:
   __SYCL2020_DEPRECATED("The version of an exception constructor which takes "
                         "no arguments is deprecated.")
   exception() = default;
+  virtual ~exception();
 
   exception(std::error_code, const char *Msg);
 
@@ -105,16 +106,6 @@ private:
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
 protected:
-  // these two constructors are no longer used. Kept for ABI compatability.
-  exception(const char *Msg, const pi_int32 PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : exception(std::string(Msg), PIErr, Context) {}
-  exception(const std::string &Msg, const pi_int32 PIErr,
-            std::shared_ptr<context> Context = nullptr)
-      : MMsg(std::make_shared<std::string>(Msg + " " +
-                                           detail::codeToString(PIErr))),
-        MPIErr(PIErr), MContext(Context) {}
-
   // base constructors used by SYCL 1.2.1 exception subclasses
   exception(std::error_code ec, const char *Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)

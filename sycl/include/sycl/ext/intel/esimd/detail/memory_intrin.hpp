@@ -70,7 +70,7 @@ constexpr unsigned int ElemsPerAddrEncoding() {
   else if constexpr (ElemsPerAddr == 4)
     return 2;
 
-  // other cases not needed since enable_if disallows other values
+  // other cases not needed since std::enable_if disallows other values
 }
 
 constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
@@ -379,7 +379,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 {
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2 && Scale == 0);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
   __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -421,7 +421,7 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 {
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
 
   // determine the original element's type size (as __esimd_scatter_scaled
   // requires vals to be a vector of 4-byte integers)
