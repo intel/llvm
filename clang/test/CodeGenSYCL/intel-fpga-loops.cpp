@@ -185,7 +185,7 @@ void fpga_enable_loop_pipelining() {
   // CHECK: ![[MD_FP_1]] = distinct !{![[MD_FP_1]], ![[MP]], ![[MD_fpga_pipeline]]}
   int j = 0;
   [[intel::enable_loop_pipelining]] while (j < 10) {
-    a[j] += 3;
+    a[j++] = 3;
   }
 
   // CHECK: ![[MD_FP_2]] = distinct !{![[MD_FP_2]], ![[MP]], ![[MD_fpga_pipeline]]}
