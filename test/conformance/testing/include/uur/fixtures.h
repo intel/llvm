@@ -192,6 +192,47 @@ struct urQueueTest : urContextTest {
     ur_queue_handle_t queue = nullptr;
 };
 
+struct urHostPipeTest : urQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        ASSERT_SUCCESS(urProgramCreateWithIL(
+            context, il_binary->data(), il_binary->size(), nullptr, &program));
+
+        size_t size = 0;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED, 0, nullptr, &size));
+        ASSERT_NE(size, 0);
+        ASSERT_EQ(sizeof(ur_bool_t), size);
+        void *info_data = alloca(size);
+        ASSERT_SUCCESS(urDeviceGetInfo(device,
+                                       UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED,
+                                       size, info_data, nullptr));
+        ASSERT_NE(info_data, nullptr);
+    }
+
+    void TearDown() override {
+        if (program) {
+            EXPECT_SUCCESS(urProgramRelease(program));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    }
+
+    std::shared_ptr<std::vector<char>> il_binary;
+    std::string program_name = "foo";
+    ur_program_handle_t program = nullptr;
+
+    const char *pipe_symbol = "pipe_symbol";
+    bool blocking = true;
+
+    static const size_t size = 1024;
+    char buffer[size];
+
+    uint32_t numEventsInWaitList = 0;
+    ur_event_handle_t phEventWaitList;
+    ur_event_handle_t *phEvent = nullptr;
+};
+
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
 
     void SetUp() override {

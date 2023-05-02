@@ -4684,6 +4684,150 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueReadHostPipe
+__urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
+    ur_queue_handle_t
+        hQueue, ///< [in] a valid host command-queue in which the read command
+    ///< will be queued. hQueue and hProgram must be created with the same
+    ///< UR context.
+    ur_program_handle_t
+        hProgram, ///< [in] a program object with a successfully built executable.
+    const char *
+        pipe_symbol, ///< [in] the name of the program scope pipe global variable.
+    bool
+        blocking, ///< [in] indicate if the read operation is blocking or non-blocking.
+    void *
+        pDst, ///< [in] a pointer to buffer in host memory that will hold resulting data
+              ///< from pipe.
+    size_t size, ///< [in] size of the memory region to read, in bytes.
+    uint32_t numEventsInWaitList, ///< [in] number of events in the wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the host pipe read.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] returns an event object that identifies this read
+                ///< command
+    ///< and can be used to query or queue a wait for this command to complete.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+    auto pfnReadHostPipe = dditable->ur.Enqueue.pfnReadHostPipe;
+    if (nullptr == pfnReadHostPipe) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+    // convert loader handle to platform handle
+    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    for (size_t i = 0;
+         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
+    // forward to device-platform
+    result =
+        pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
+                        numEventsInWaitList, phEventWaitList, phEvent);
+    delete[] phEventWaitListLocal;
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                ur_event_factory.getInstance(*phEvent, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueWriteHostPipe
+__urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
+    ur_queue_handle_t
+        hQueue, ///< [in] a valid host command-queue in which the write command
+    ///< will be queued. hQueue and hProgram must be created with the same
+    ///< UR context.
+    ur_program_handle_t
+        hProgram, ///< [in] a program object with a successfully built executable.
+    const char *
+        pipe_symbol, ///< [in] the name of the program scope pipe global variable.
+    bool
+        blocking, ///< [in] indicate if the read and write operations are blocking or
+                  ///< non-blocking.
+    void *
+        pSrc, ///< [in] a pointer to buffer in host memory that holds data to be written
+              ///< to the host pipe.
+    size_t size, ///< [in] size of the memory region to read or write, in bytes.
+    uint32_t numEventsInWaitList, ///< [in] number of events in the wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the host pipe write.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out] returns an event object that identifies this write command
+    ///< and can be used to query or queue a wait for this command to complete.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+    auto pfnWriteHostPipe = dditable->ur.Enqueue.pfnWriteHostPipe;
+    if (nullptr == pfnWriteHostPipe) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+    // convert loader handle to platform handle
+    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    for (size_t i = 0;
+         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
+    // forward to device-platform
+    result =
+        pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
+                         numEventsInWaitList, phEventWaitList, phEvent);
+    delete[] phEventWaitListLocal;
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        *phEvent = reinterpret_cast<ur_event_handle_t>(
+            ur_event_factory.getInstance(*phEvent, dditable));
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
 } // namespace ur_loader
 
 #if defined(__cplusplus)
@@ -4925,6 +5069,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
                 ur_loader::urEnqueueDeviceGlobalVariableWrite;
             pDdiTable->pfnDeviceGlobalVariableRead =
                 ur_loader::urEnqueueDeviceGlobalVariableRead;
+            pDdiTable->pfnReadHostPipe = ur_loader::urEnqueueReadHostPipe;
+            pDdiTable->pfnWriteHostPipe = ur_loader::urEnqueueWriteHostPipe;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =

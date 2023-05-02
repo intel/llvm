@@ -1577,6 +1577,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
         os << "UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT";
         break;
+
+    case UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED:
+        os << "UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -3084,6 +3088,20 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
@@ -6950,6 +6968,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
     case UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ:
         os << "UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ";
         break;
+
+    case UR_COMMAND_READ_HOST_PIPE:
+        os << "UR_COMMAND_READ_HOST_PIPE";
+        break;
+
+    case UR_COMMAND_WRITE_HOST_PIPE:
+        os << "UR_COMMAND_WRITE_HOST_PIPE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -7515,6 +7541,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_MEM_GET_NATIVE_HANDLE";
         break;
 
+    case UR_FUNCTION_ENQUEUE_READ_HOST_PIPE:
+        os << "UR_FUNCTION_ENQUEUE_READ_HOST_PIPE";
+        break;
+
     case UR_FUNCTION_MEM_GET_INFO:
         os << "UR_FUNCTION_MEM_GET_INFO";
         break;
@@ -7701,6 +7731,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE:
         os << "UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE:
+        os << "UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE";
         break;
     default:
         os << "unknown enumerator";
@@ -9348,6 +9382,124 @@ inline std::ostream &operator<<(
     os << ".pDst = ";
 
     ur_params::serializePtr(os, *(params->ppDst));
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = [";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
+                       i < *params->pnumEventsInWaitList;
+         ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "]";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur_params::serializePtr(os, *(params->pphEvent));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_enqueue_read_host_pipe_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
+
+    os << ", ";
+    os << ".hProgram = ";
+
+    ur_params::serializePtr(os, *(params->phProgram));
+
+    os << ", ";
+    os << ".pipe_symbol = ";
+
+    ur_params::serializePtr(os, *(params->ppipe_symbol));
+
+    os << ", ";
+    os << ".blocking = ";
+
+    os << *(params->pblocking);
+
+    os << ", ";
+    os << ".pDst = ";
+
+    ur_params::serializePtr(os, *(params->ppDst));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = [";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
+                       i < *params->pnumEventsInWaitList;
+         ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "]";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur_params::serializePtr(os, *(params->pphEvent));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_enqueue_write_host_pipe_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
+
+    os << ", ";
+    os << ".hProgram = ";
+
+    ur_params::serializePtr(os, *(params->phProgram));
+
+    os << ", ";
+    os << ".pipe_symbol = ";
+
+    ur_params::serializePtr(os, *(params->ppipe_symbol));
+
+    os << ", ";
+    os << ".blocking = ";
+
+    os << *(params->pblocking);
+
+    os << ", ";
+    os << ".pSrc = ";
+
+    ur_params::serializePtr(os, *(params->ppSrc));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11377,6 +11529,12 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ: {
         os << (const struct ur_enqueue_device_global_variable_read_params_t *)
                 params;
+    } break;
+    case UR_FUNCTION_ENQUEUE_READ_HOST_PIPE: {
+        os << (const struct ur_enqueue_read_host_pipe_params_t *)params;
+    } break;
+    case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE: {
+        os << (const struct ur_enqueue_write_host_pipe_params_t *)params;
     } break;
     case UR_FUNCTION_EVENT_GET_INFO: {
         os << (const struct ur_event_get_info_params_t *)params;
