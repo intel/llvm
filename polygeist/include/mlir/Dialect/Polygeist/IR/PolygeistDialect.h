@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_IR_POLYGEISTDIALECT_H_
-#define MLIR_DIALECT_POLYGEIST_IR_POLYGEISTDIALECT_H_
+#ifndef MLIR_DIALECT_POLYGEIST_IR_POLYGEISTDIALECT_H
+#define MLIR_DIALECT_POLYGEIST_IR_POLYGEISTDIALECT_H
 
 #include "mlir/IR/Dialect.h"
 
 #include "mlir/Dialect/Polygeist/IR/PolygeistOpsDialect.h.inc"
 
-#endif // MLIR_DIALECT_POLYGEIST_IR_POLYGEISTDIALECT_H_
+#endif // MLIR_DIALECT_POLYGEIST_IR_POLYGEISTDIALECT_H

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H_
-#define MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H_
+#ifndef MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H
+#define MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -154,4 +154,4 @@ inline LLVM::LLVMFuncOp getAllocFn(LLVMTypeConverter &typeConverter,
 
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H_
+#endif // MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H
