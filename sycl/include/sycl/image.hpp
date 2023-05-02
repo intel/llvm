@@ -29,8 +29,7 @@ template <int D, typename A> class image;
 
 // 'friend'
 template <backend Backend, int D, typename A>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        image<D, A>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero, image<D, A>>
 make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
            const context &TargetContext, event AvailableEvent = {});
 
@@ -86,7 +85,7 @@ using is_validImageDataT = typename detail::is_contained<
 
 template <typename DataT>
 using EnableIfImgAccDataT =
-    typename detail::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
 
 // The non-template base for the sycl::image class
 class __SYCL_EXPORT image_plain {
@@ -219,7 +218,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(Order, Type, detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
@@ -231,7 +230,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -279,7 +278,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
@@ -292,7 +291,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -323,7 +322,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
@@ -336,7 +335,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -385,7 +384,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  typename detail::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
+  typename std::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
     return detail::convertToArrayOfN<Dimensions - 1, 0>(
         image_plain::get_pitch());
   }
@@ -435,8 +434,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  detail::enable_if_t<
-      std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -512,18 +510,18 @@ private:
 
   // Declare make_image as a friend function
   template <backend Backend, int D, typename A>
-  friend typename std::enable_if<
+  friend std::enable_if_t<
       detail::InteropFeatureSupportMap<Backend>::MakeImage == true &&
           Backend != backend::ext_oneapi_level_zero,
-      image<D, A>>::type
+      image<D, A>>
   make_image(
       const typename backend_traits<Backend>::template input_type<image<D, A>>
           &BackendObject,
       const context &TargetContext, event AvailableEvent);
 
   template <backend Backend, int D, typename A>
-  friend typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                                 image<D, A>>::type
+  friend std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                          image<D, A>>
   make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
              const context &TargetContext, event AvailableEvent);
 
