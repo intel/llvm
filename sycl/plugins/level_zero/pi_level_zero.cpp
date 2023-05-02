@@ -6029,32 +6029,30 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  // Do nothing if the queue is empty
-  if (!LastCommandEvent)
-    return PI_SUCCESS;
-
-  // For in-order queue just wait for the last command.
-  // If event is discarded then it can be in reset state or underlying level
-  // zero handle can have device scope, so we can't synchronize the last event.
-  if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
-    ZE_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
-  } else {
-    // Otherwise sync all L0 queues/immediate command-lists.
-    for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
-      for (auto &QueueGroup : QueueMap) {
-        if (UsingImmCmdLists) {
-          for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
-            syncImmCmdList(this, ImmCmdList);
-        } else {
-          for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-            if (ZeQueue)
-              ZE_CALL(zeHostSynchronize, (ZeQueue));
+  if (LastCommandEvent) {
+    // For in-order queue just wait for the last command.
+    // If event is discarded then it can be in reset state or underlying level
+    // zero handle can have device scope, so we can't synchronize the last
+    // event.
+    if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
+      ZE_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+    } else {
+      // Otherwise sync all L0 queues/immediate command-lists.
+      for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+        for (auto &QueueGroup : QueueMap) {
+          if (UsingImmCmdLists) {
+            for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+              syncImmCmdList(this, ImmCmdList);
+          } else {
+            for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+              if (ZeQueue)
+                ZE_CALL(zeHostSynchronize, (ZeQueue));
+          }
         }
       }
     }
+    LastCommandEvent = nullptr;
   }
-  LastCommandEvent = nullptr;
-
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
   if (auto Res = ActiveBarriers.clear())

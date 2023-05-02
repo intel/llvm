@@ -388,7 +388,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     const uint32_t imask = ~mask;
     ret = (src[i] & imask) | ((val[i] << offset[i] & mask));
     // Sign extend if signed type
-    if constexpr (std::is_signed<T>::value) {
+    if constexpr (std::is_signed_v<T>) {
       int m = 1U << (width[i] - 1);
       ret = (ret ^ m) - m;
     }
@@ -545,10 +545,10 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
   static_assert(src1CountChk, "dpas: invalid size for src1.");
   static_assert(src2CountChk, "dpas: invalid size for src2.");
 
-  using TmpAccEl = typename std::conditional<
+  using TmpAccEl = std::conditional_t<
       pvcBfOrHfDest, float,
       typename __ESIMD_EMU_DNS::restype_ex<
-          RT, typename __ESIMD_EMU_DNS::restype_ex<T1, T2>::type>::type>::type;
+          RT, typename __ESIMD_EMU_DNS::restype_ex<T1, T2>::type>::type>;
 
   __ESIMD_DNS::vector_type_t<TmpAccEl, SIMDSize> simdAcc;
 

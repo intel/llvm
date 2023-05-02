@@ -2,9 +2,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 
-// XFAIL: level_zero
-// UNSUPPORTED: cuda
-// UNSUPPORTED: hip
+// Only opencl plugin has implemented the supoort.
+// REQUIRES: opencl
 
 #include <iostream>
 #include <sycl/sycl.hpp>

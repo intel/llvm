@@ -50,8 +50,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  const auto Backend = getPlugin().getBackend();
-  if (Backend == backend::ext_oneapi_cuda) {
+  if (getBackend() == backend::ext_oneapi_cuda) {
     const bool UseCUDAPrimaryContext = MPropList.has_property<
         ext::oneapi::cuda::property::context::use_primary_context>();
     const pi_context_properties Props[] = {
@@ -102,7 +101,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == sycl::backend::opencl) {
+  if (getBackend() == sycl::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -257,7 +256,7 @@ context_impl::findMatchingDeviceImpl(RT::PiDevice &DevicePI) const {
 
 pi_native_handle context_impl::getNative() const {
   auto Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
+  if (getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
@@ -394,26 +393,75 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   MDeviceGlobalInitEvents.clear();
 }
 
-std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
-    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+void context_impl::memcpyToHostOnlyDeviceGlobal(
+    const std::shared_ptr<device_impl> &DeviceImpl, const void *DeviceGlobalPtr,
+    const void *Src, size_t DeviceGlobalTSize, bool IsDeviceImageScoped,
+    size_t NumBytes, size_t Offset) {
+  std::optional<RT::PiDevice> KeyDevice = std::nullopt;
+  if (IsDeviceImageScoped)
+    KeyDevice = DeviceImpl->getHandleRef();
+  auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
+
+  std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
+
+  auto UnregisteredDataIt = MDeviceGlobalUnregisteredData.find(Key);
+  if (UnregisteredDataIt == MDeviceGlobalUnregisteredData.end()) {
+    std::unique_ptr<std::byte[]> NewData =
+        std::make_unique<std::byte[]>(DeviceGlobalTSize);
+    UnregisteredDataIt =
+        MDeviceGlobalUnregisteredData.insert({Key, std::move(NewData)}).first;
+  }
+  std::byte *ValuePtr = UnregisteredDataIt->second.get();
+  std::memcpy(ValuePtr + Offset, Src, NumBytes);
+}
+
+void context_impl::memcpyFromHostOnlyDeviceGlobal(
+    const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
+    const void *DeviceGlobalPtr, size_t, bool IsDeviceImageScoped,
+    size_t NumBytes, size_t Offset) {
+
+  std::optional<RT::PiDevice> KeyDevice = std::nullopt;
+  if (IsDeviceImageScoped)
+    KeyDevice = DeviceImpl->getHandleRef();
+  auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
+
+  std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
+
+  auto UnregisteredDataIt = MDeviceGlobalUnregisteredData.find(Key);
+  if (UnregisteredDataIt == MDeviceGlobalUnregisteredData.end()) {
+    // If there is no entry we do not need to add it as it would just be
+    // zero-initialized.
+    char *FillableDest = reinterpret_cast<char *>(Dest);
+    std::fill(FillableDest, FillableDest + NumBytes, 0);
+    return;
+  }
+  std::byte *ValuePtr = UnregisteredDataIt->second.get();
+  std::memcpy(Dest, ValuePtr + Offset, NumBytes);
+}
+
+std::optional<RT::PiProgram> context_impl::getProgramForDevImgs(
+    const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
+    const std::string &ObjectTypeName) {
+
   KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
     RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
-    for (std::uintptr_t ImageIDs : DeviceGlobalEntry->MImageIdentifiers) {
+    for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey = std::make_pair(ImageIDs, DevHandle);
       size_t NProgs = KeyMap.count(OuterKey);
       if (NProgs == 0)
         continue;
       // If the cache has multiple programs for the identifiers or if we have
-      // already found a program in the cache with the device_global, we cannot
-      // proceed.
+      // already found a program in the cache with the device_global or host
+      // pipe we cannot proceed.
       if (NProgs > 1 || (BuildRes && NProgs == 1))
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "More than one image exists with the device_global.");
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "More than one image exists with the " +
+                                  ObjectTypeName + ".");
+
       auto KeyMappingsIt = KeyMap.find(OuterKey);
       assert(KeyMappingsIt != KeyMap.end());
       auto CachedProgIt = Cache.find(KeyMappingsIt->second);
@@ -424,6 +472,21 @@ std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
   if (!BuildRes)
     return std::nullopt;
   return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+}
+
+std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
+    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+  return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers,
+                              "device_global");
+}
+/// Gets a program associated with a HostPipe Entry from the cache.
+std::optional<RT::PiProgram>
+context_impl::getProgramForHostPipe(const device &Device,
+                                    HostPipeMapEntry *HostPipeEntry) {
+  // One HostPipe entry belongs to one Img
+  std::set<std::uintptr_t> ImgIdentifiers;
+  ImgIdentifiers.insert(HostPipeEntry->getDevBinImage()->getImageID());
+  return getProgramForDevImgs(Device, ImgIdentifiers, "host_pipe");
 }
 
 } // namespace detail
