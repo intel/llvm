@@ -85,8 +85,8 @@ ChangeResult ReachingDefinition::reset() {
 
 ChangeResult ReachingDefinition::setModifier(Value val, Operation *op) {
   ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
-  if (mods.size() == 1 && mods.front() == op)
-    return ChangeResult::NoChange;
+  assert((mods.size() != 1 || mods.front() != op) &&
+         "seen this modifier already");
 
   // Set the new modifier and clear out all previous definitions.
   mods.clear();
@@ -97,8 +97,8 @@ ChangeResult ReachingDefinition::setModifier(Value val, Operation *op) {
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
                                                       Operation *op) {
-  valueToPotentialModifiers[val].insert(op);
-  return ChangeResult::Change;
+  return (valueToPotentialModifiers[val].insert(op)) ? ChangeResult::Change
+                                                     : ChangeResult::NoChange;
 }
 
 std::optional<ArrayRef<Operation *>>

@@ -23,13 +23,13 @@ raw_ostream &operator<<(raw_ostream &os, const AliasQueries &aliasQueries) {
                         StringRef title) {
     for (const auto &entry : map) {
       Value val = entry.first;
-      const SetVector<Value> &mustAlias = entry.second;
+      const SetVector<Value> &aliasSet = entry.second;
       os.indent(4) << val << "\n";
       os.indent(4) << title << ":\n";
-      if (mustAlias.empty())
+      if (aliasSet.empty())
         os.indent(6) << "<none>\n";
       else {
-        for (Value aliasedVal : mustAlias)
+        for (Value aliasedVal : aliasSet)
           os.indent(6) << aliasedVal << "\n";
       }
       os << "\n";
@@ -65,25 +65,19 @@ AliasQueries::AliasQueries(FunctionOpInterface &funcOp,
 SetVector<Value>
 AliasQueries::collectMemoryResourcesIn(FunctionOpInterface funcOp) {
   SetVector<Value> memoryResources;
-  for (BlockArgument arg : funcOp.getArguments()) {
-    if (isa<MemRefType>(arg.getType()))
-      memoryResources.insert(arg);
-  }
+  funcOp->walk([&](Operation *op) {
+    auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
+    if (!memoryEffectOp)
+      return WalkResult::advance();
 
-  for (Block &block : funcOp) {
-    for (Operation &op : block.without_terminator()) {
-      auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
-      if (!memoryEffectOp)
-        continue;
-
-      SmallVector<MemoryEffects::EffectInstance> effects;
-      memoryEffectOp.getEffects(effects);
-      for (const auto &effect : effects) {
-        if (Value val = effect.getValue())
-          memoryResources.insert(val);
-      }
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    memoryEffectOp.getEffects(effects);
+    for (const auto &effect : effects) {
+      if (Value val = effect.getValue())
+        memoryResources.insert(val);
     }
-  }
+    return WalkResult::advance();
+  });
   return memoryResources;
 }
 

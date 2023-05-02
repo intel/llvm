@@ -20,7 +20,7 @@ namespace mlir {
 namespace polygeist {
 
 /// This lattice represents the set of operations that might have modified a
-/// memory resource last.
+/// memory resource last (in at least one control flow path).
 /// Note: Two sets of definitions are tracked:
 ///   - the set of operations that have modified a memory resource, and
 ///   - the set of (may) aliased operations that might have modified a memory

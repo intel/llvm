@@ -1,5 +1,4 @@
 set(LIBS
-  ${test_libs}
   MLIRMlirOptMain
   MLIRSYCLDialect
   MLIRSYCLToGPU

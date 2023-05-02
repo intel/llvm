@@ -54,7 +54,7 @@ struct TestReachingDefinitionAnalysisPass
             if (auto tagName = op->getAttrOfType<StringAttr>("tag_name"))
               llvm::errs() << tagName.getValue();
             else
-              llvm::errs() << op->getName();
+              llvm::errs() << "'" << *op << "'";
           },
           " ");
       llvm::errs() << "\n";

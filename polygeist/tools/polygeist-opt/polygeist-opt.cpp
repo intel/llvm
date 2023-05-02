@@ -36,10 +36,7 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/InitLLVM.h"
 
-using namespace llvm;
 using namespace mlir;
 
 class MemRefInsider
