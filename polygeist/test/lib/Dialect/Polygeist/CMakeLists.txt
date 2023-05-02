@@ -17,5 +17,4 @@ add_mlir_library(MLIRPolygeistTestAnalysis
   MLIRPolygeistAnalysis
   MLIRSupport
   MLIRSYCLAnalysis
-  )
-  
+)
