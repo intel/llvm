@@ -14,6 +14,7 @@
 #define POLYGEIST_TYPES
 
 include "mlir/Dialect/LLVMIR/LLVMInterfaces.td"
+include "mlir/Dialect/Polygeist/IR/PolygeistBase.td"
 include "mlir/IR/BuiltinTypes.td"
 
 class Polygeist_Type<string name, string typeMnemonic, list<Trait> traits = []>
