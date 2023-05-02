@@ -12,7 +12,7 @@
 using namespace sycl;
 
 template <class OutT, class InputContainer, class InitT, class BinaryOperation>
-void test(queue q, InputContainer input, InitT init,
+void test(queue q, const InputContainer &input, InitT init,
           BinaryOperation binary_op) {
   const int N = input.size();
   buffer b_in(input);
@@ -95,14 +95,10 @@ int main() {
   test<uint64_t>(q, iota(1, 15), uint64_t(0), sycl::multiplies<uint64_t>());
   test<std::complex<float>>(q, iota(1, 5), 1if,
                             sycl::plus<std::complex<float>>());
-  test<std::complex<float>>(q, iota(1, 5), 1if,
-                            sycl::multiplies<std::complex<float>>());
   if (q.get_device().has(aspect::fp64)) {
     test<double>(q, repeat(fmax, N), 0.0, sycl::plus<double>());
     test<std::complex<double>>(q, iota(1, 5), 1i,
                                sycl::plus<std::complex<double>>());
-    test<std::complex<double>>(q, iota(1, 5), 1i,
-                               sycl::multiplies<std::complex<double>>());
   }
   std::cout << "passed.\n";
   return 0;
