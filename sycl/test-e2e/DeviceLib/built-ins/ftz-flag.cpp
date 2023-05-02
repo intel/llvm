@@ -1,4 +1,4 @@
-// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xclang -fdenormal-fp-math-f32="preserve-sign,preserve-sign" %s -o %t.out %{mathflags}
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

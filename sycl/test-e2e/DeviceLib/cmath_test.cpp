@@ -1,4 +1,4 @@
-// DEFINE: %{mathflags} = %if windows %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // UNSUPPORTED: hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-builtin %{mathflags} %s -o %t.out
