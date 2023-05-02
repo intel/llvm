@@ -20,9 +20,8 @@
           });                                                                  \
         });                                                                    \
       }                                                                        \
-      for (int i = 0; i < DIM; i++) {                                            \
+      for (int i = 0; i < DIM; i++)                                            \
         assert(abs(result[i] - EXPECTED[i]) <= DELTA);                         \
-        } \
     }                                                                          \
   }
 
@@ -72,7 +71,6 @@
           });                                                                  \
         });                                                                    \
       }                                                                        \
-      std::cout << "Here" << std::endl; \
     }                                                                          \
   }
 
