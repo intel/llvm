@@ -31,10 +31,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   // Need input memory object
   UR_ASSERT(phBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
-  uint64_t maxAlloc = 0;
-  urDeviceGetInfo(hContext->get_device(), UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
-                  sizeof(maxAlloc), &maxAlloc, nullptr);
-  UR_ASSERT(size <= maxAlloc, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
