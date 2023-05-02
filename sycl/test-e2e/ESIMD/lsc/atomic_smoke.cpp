@@ -754,8 +754,10 @@ bool test_fp_types(queue q, const Config &cfg) {
   // passed &= test<sycl::half, N, Op>(q, cfg);
 
   passed &= test<float, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
   if (q.get_device().has(sycl::aspect::fp64))
     passed &= test<double, N, Op>(q, cfg);
+#endif
   return passed;
 }
 

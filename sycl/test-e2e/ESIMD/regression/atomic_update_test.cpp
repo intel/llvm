@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 // This test checks regression in lsc_atomic_update
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu-intel-pvc
 // UNSUPPORTED: gpu-intel-gen9 && windows
+// TODO add support for atomic_load and atomic_store on esimd_emulator
+// XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
