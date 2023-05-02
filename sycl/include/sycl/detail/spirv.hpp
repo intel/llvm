@@ -13,6 +13,7 @@
 #include <cstring>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
+#include <sycl/detail/type_list.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #include <sycl/id.hpp>
@@ -696,14 +697,19 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 // - The Intel SPIR-V extension natively supports all arithmetic types.
 //   However, OpenCL extension natively supports float vectors,
 //   integer vectors, half scalar and double scalar.
-//   For double vectors we perform emulation with scalar version.
+//   For double, long, long long, unsigned long, unsigned long long
+//   and half vectors we perform emulation with scalar version.
 // - The CUDA shfl intrinsics do not support vectors, and we use the _i32
 //   variants for all scalar types
 #ifndef __NVPTX__
 
+using ProhibitedTypesForShuffleEmulation =
+    type_list<double, long, long long, unsigned long, unsigned long long, half>;
+
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<std::is_same_v<vector_element_t<T>, double>> {};
+    : std::bool_constant<is_contained<
+          vector_element_t<T>, ProhibitedTypesForShuffleEmulation>::value> {};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation
@@ -789,6 +795,12 @@ EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id);
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta);
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
 
 template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id);
