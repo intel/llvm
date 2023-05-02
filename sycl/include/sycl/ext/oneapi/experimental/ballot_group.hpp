@@ -121,8 +121,8 @@ protected:
   friend ballot_group<ParentGroup>
   get_ballot_group<ParentGroup>(ParentGroup g, bool predicate);
 
-  friend uint32_t sycl::detail::IdToMaskPosition<ballot_group<ParentGroup>>(
-      ballot_group<ParentGroup> Group, uint32_t Id);
+  friend sub_group_mask sycl::detail::GetMask<ballot_group<ParentGroup>>(
+      ballot_group<ParentGroup> Group);
 };
 
 template <typename Group>
