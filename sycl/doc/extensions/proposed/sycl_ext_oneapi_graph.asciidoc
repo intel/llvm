@@ -1119,7 +1119,7 @@ in a synchronous error being thrown with error code `invalid`.
 
 The copy-back mechanism can be disabled explicitly for buffers with attached host
 storage using either `buffer::set_final_data(nullptr)` or
-`buffer::set_copy_back(false)`.
+`buffer::set_write_back(false)`.
 
 It is also an error to create a host accessor to a buffer which is used in
 commands which are currently being recorded to a command graph. Attempting to
