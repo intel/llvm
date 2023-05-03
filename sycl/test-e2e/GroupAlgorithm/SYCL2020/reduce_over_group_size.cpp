@@ -20,6 +20,8 @@
     (ie, byte size versus vector size)
 */
 
+#error FIXME: Test times-out
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -68,10 +70,6 @@ int main() {
 
   queue q{default_selector_v};
   auto dev = q.get_device();
-  if (dev.has(aspect::cpu)) {
-    printf("FIXME: Test times-out\n");
-    return -1;
-  }
   std::cout << "Device: " << dev.get_info<info::device::name>() << std::endl;
 
   auto ctx = q.get_context();
