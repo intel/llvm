@@ -125,7 +125,7 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
             except:
                 pass
 
-        print("Failed to call '%s.operator[](%s)" % (obj.type, arg.type))
+        print("Failed to call '%s.operator[](%s)'" % (obj.type, arg.type))
 
         return None
 
