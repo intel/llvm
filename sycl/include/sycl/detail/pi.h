@@ -90,9 +90,10 @@
 // native handles.
 // 12.29 Support PI_EXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
+// 12.31 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 30
+#define _PI_H_VERSION_MINOR 31
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1975,6 +1976,20 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     const void *src_ptr, size_t src_pitch, size_t width, size_t height,
     pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
     pi_event *event);
+
+/// Import host system memory into USM.
+///
+/// \param ptr start address of memory range to import
+/// \param size is the number of bytes to import
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMImport(void *ptr, size_t size,
+                                       pi_context context);
+
+/// Release host system memory from USM.
+///
+/// \param ptr start address of imported memory range
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMRelease(void *ptr, pi_context context);
 
 ///
 /// Device global variable

@@ -8156,6 +8156,35 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
+pi_result piextUSMImport(void *HostPtr, size_t Size, pi_context Context) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  // Promote the host ptr to USM host memory.
+  if (ZeUSMImport.Supported && HostPtr != nullptr) {
+    // Query memory type of the host pointer
+    ze_device_handle_t ZeDeviceHandle;
+    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
+    ZE_CALL(zeMemGetAllocProperties,
+            (Context->ZeContext, HostPtr, &ZeMemoryAllocationProperties,
+             &ZeDeviceHandle));
+
+    // If not shared of any type, we can import the ptr
+    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      // Promote the host ptr to USM host memory
+      ze_driver_handle_t driverHandle = Context->getPlatform()->ZeDriver;
+      ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size);
+    }
+  }
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMRelease(void *HostPtr, pi_context Context) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  // Release the imported memory.
+  if (ZeUSMImport.Supported && HostPtr != nullptr)
+    ZeUSMImport.doZeUSMRelease(Context->getPlatform()->ZeDriver, HostPtr);
+  return PI_SUCCESS;
+}
+
 /// API for writing data from host to a device global variable.
 ///
 /// \param Queue is the queue

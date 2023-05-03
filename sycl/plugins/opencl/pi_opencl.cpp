@@ -2030,6 +2030,12 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return RetVal;
 }
 
+pi_result piextUSMImport(void *ptr, size_t size, pi_context context) {
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMRelease(void *ptr, pi_context context) { return PI_SUCCESS; }
+
 /// API for writing data from host to a device global variable.
 ///
 /// \param queue is the queue
@@ -2458,6 +2464,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMImport, piextUSMImport)
+  _PI_CL(piextUSMRelease, piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          piextEnqueueDeviceGlobalVariableWrite)

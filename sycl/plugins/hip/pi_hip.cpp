@@ -5464,6 +5464,14 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+pi_result hip_piextUSMImport(void *ptr, size_t size, pi_context context) {
+  return PI_SUCCESS;
+}
+
+pi_result hip_piextUSMRelease(void *ptr, pi_context context) {
+  return PI_SUCCESS;
+}
+
 pi_result hip_piextEnqueueDeviceGlobalVariableWrite(
     pi_queue queue, pi_program program, const char *name,
     pi_bool blocking_write, size_t count, size_t offset, const void *src,
@@ -5727,6 +5735,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueFill2D, hip_piextUSMEnqueueFill2D)
   _PI_CL(piextUSMEnqueueMemset2D, hip_piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMGetMemAllocInfo, hip_piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMImport, hip_piextUSMImport)
+  _PI_CL(piextUSMRelease, hip_piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          hip_piextEnqueueDeviceGlobalVariableWrite)

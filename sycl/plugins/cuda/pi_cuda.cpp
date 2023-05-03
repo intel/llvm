@@ -5651,6 +5651,13 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+pi_result piextUSMImport(void *ptr, size_t size, pi_context context) {
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMRelease(void *ptr, pi_context context) { return PI_SUCCESS; }
+
+
 pi_result cuda_piextEnqueueDeviceGlobalVariableWrite(
     pi_queue queue, pi_program program, const char *name,
     pi_bool blocking_write, size_t count, size_t offset, const void *src,
