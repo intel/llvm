@@ -132,7 +132,7 @@ class ur_result_v(IntEnum):
     ERROR_PROFILING_INFO_NOT_AVAILABLE = 17         ## Profiling info not available
     ERROR_DEVICE_NOT_FOUND = 18                     ## Device not found
     ERROR_INVALID_DEVICE = 19                       ## Invalid device
-    ERROR_DEVICE_LOST = 20                          ## Device hung, reset, was removed, or driver update occurred
+    ERROR_DEVICE_LOST = 20                          ## Device hung, reset, was removed, or adapter update occurred
     ERROR_DEVICE_REQUIRES_RESET = 21                ## Device requires a reset
     ERROR_DEVICE_IN_LOW_POWER_STATE = 22            ## Device currently in low power state
     ERROR_DEVICE_PARTITION_FAILED = 23              ## Device paritioning failed
@@ -151,7 +151,7 @@ class ur_result_v(IntEnum):
     ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35           ## Image format not supported
     ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36        ## Memory object allocation failure
     ERROR_INVALID_PROGRAM_EXECUTABLE = 37           ## Program object parameter is invalid.
-    ERROR_UNINITIALIZED = 38                        ## [Validation] driver is not initialized
+    ERROR_UNINITIALIZED = 38                        ## [Validation] adapter is not initialized
     ERROR_OUT_OF_HOST_MEMORY = 39                   ## Insufficient host memory to satisfy call
     ERROR_OUT_OF_DEVICE_MEMORY = 40                 ## Insufficient device memory to satisfy call
     ERROR_OUT_OF_RESOURCES = 41                     ## Out of resources
@@ -263,11 +263,11 @@ class ur_rect_region_t(Structure):
 ###############################################################################
 ## @brief Supported device initialization flags
 class ur_device_init_flags_v(IntEnum):
-    GPU = UR_BIT(0)                                 ## initialize GPU device drivers.
-    CPU = UR_BIT(1)                                 ## initialize CPU device drivers.
-    FPGA = UR_BIT(2)                                ## initialize FPGA device drivers.
-    MCA = UR_BIT(3)                                 ## initialize MCA device drivers.
-    VPU = UR_BIT(4)                                 ## initialize VPU device drivers.
+    GPU = UR_BIT(0)                                 ## initialize GPU device adapters.
+    CPU = UR_BIT(1)                                 ## initialize CPU device adapters.
+    FPGA = UR_BIT(2)                                ## initialize FPGA device adapters.
+    MCA = UR_BIT(3)                                 ## initialize MCA device adapters.
+    VPU = UR_BIT(4)                                 ## initialize VPU device adapters.
 
 class ur_device_init_flags_t(c_int):
     def __str__(self):

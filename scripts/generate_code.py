@@ -308,7 +308,7 @@ def generate_lib(path, section, namespace, tags, version, specs, meta):
 
 """
 Entry-point:
-    generates loader for unified_runtime driver
+    generates loader for unified_runtime adapter
 """
 def generate_loader(path, section, namespace, tags, version, specs, meta):
     dstpath = os.path.join(path, "loader")
@@ -332,7 +332,7 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
 
 """
 Entry-point:
-    generates layers for unified_runtime driver
+    generates layers for unified_runtime adapter
 """
 def generate_layers(path, section, namespace, tags, version, specs, meta):
     print("GL section %s\n"%section)

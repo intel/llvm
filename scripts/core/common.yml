@@ -158,7 +158,7 @@ etors:
     - name: ERROR_INVALID_DEVICE
       desc: "Invalid device"
     - name: ERROR_DEVICE_LOST
-      desc: "Device hung, reset, was removed, or driver update occurred"
+      desc: "Device hung, reset, was removed, or adapter update occurred"
     - name: ERROR_DEVICE_REQUIRES_RESET
       desc: "Device requires a reset"
     - name: ERROR_DEVICE_IN_LOW_POWER_STATE
@@ -194,7 +194,7 @@ etors:
     - name: ERROR_INVALID_PROGRAM_EXECUTABLE
       desc: "Program object parameter is invalid."
     - name: ERROR_UNINITIALIZED
-      desc: "[Validation] driver is not initialized"  
+      desc: "[Validation] adapter is not initialized"
     - name: ERROR_OUT_OF_HOST_MEMORY
       desc: "Insufficient host memory to satisfy call"
     - name: ERROR_OUT_OF_DEVICE_MEMORY

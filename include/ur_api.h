@@ -156,7 +156,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 17,    ///< Profiling info not available
     UR_RESULT_ERROR_DEVICE_NOT_FOUND = 18,                ///< Device not found
     UR_RESULT_ERROR_INVALID_DEVICE = 19,                  ///< Invalid device
-    UR_RESULT_ERROR_DEVICE_LOST = 20,                     ///< Device hung, reset, was removed, or driver update occurred
+    UR_RESULT_ERROR_DEVICE_LOST = 20,                     ///< Device hung, reset, was removed, or adapter update occurred
     UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,           ///< Device requires a reset
     UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,       ///< Device currently in low power state
     UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,         ///< Device paritioning failed
@@ -175,7 +175,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,      ///< Image format not supported
     UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,   ///< Memory object allocation failure
     UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,      ///< Program object parameter is invalid.
-    UR_RESULT_ERROR_UNINITIALIZED = 38,                   ///< [Validation] driver is not initialized
+    UR_RESULT_ERROR_UNINITIALIZED = 38,                   ///< [Validation] adapter is not initialized
     UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,              ///< Insufficient host memory to satisfy call
     UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,            ///< Insufficient device memory to satisfy call
     UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                ///< Out of resources
@@ -295,11 +295,11 @@ typedef struct ur_rect_region_t {
 /// @brief Supported device initialization flags
 typedef uint32_t ur_device_init_flags_t;
 typedef enum ur_device_init_flag_t {
-    UR_DEVICE_INIT_FLAG_GPU = UR_BIT(0),  ///< initialize GPU device drivers.
-    UR_DEVICE_INIT_FLAG_CPU = UR_BIT(1),  ///< initialize CPU device drivers.
-    UR_DEVICE_INIT_FLAG_FPGA = UR_BIT(2), ///< initialize FPGA device drivers.
-    UR_DEVICE_INIT_FLAG_MCA = UR_BIT(3),  ///< initialize MCA device drivers.
-    UR_DEVICE_INIT_FLAG_VPU = UR_BIT(4),  ///< initialize VPU device drivers.
+    UR_DEVICE_INIT_FLAG_GPU = UR_BIT(0),  ///< initialize GPU device adapters.
+    UR_DEVICE_INIT_FLAG_CPU = UR_BIT(1),  ///< initialize CPU device adapters.
+    UR_DEVICE_INIT_FLAG_FPGA = UR_BIT(2), ///< initialize FPGA device adapters.
+    UR_DEVICE_INIT_FLAG_MCA = UR_BIT(3),  ///< initialize MCA device adapters.
+    UR_DEVICE_INIT_FLAG_VPU = UR_BIT(4),  ///< initialize VPU device adapters.
     /// @cond
     UR_DEVICE_INIT_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -309,21 +309,21 @@ typedef enum ur_device_init_flag_t {
 #define UR_DEVICE_INIT_FLAGS_MASK 0xffffffe0
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Initialize the 'oneAPI' driver(s)
+/// @brief Initialize the 'oneAPI' adapter(s)
 ///
 /// @details
 ///     - The application must call this function before calling any other
 ///       function.
 ///     - If this function is not called then all other functions will return
 ///       ::UR_RESULT_ERROR_UNINITIALIZED.
-///     - Only one instance of each driver will be initialized per process.
+///     - Only one instance of each adapter will be initialized per process.
 ///     - The application may call this function multiple times with different
 ///       flags or environment variables enabled.
 ///     - The application must call this function after forking new processes.
 ///       Each forked process must call this function.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function must be thread-safe for scenarios
-///       where multiple libraries may initialize the driver(s) simultaneously.
+///       where multiple libraries may initialize the adapter(s) simultaneously.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
