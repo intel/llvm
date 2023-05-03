@@ -56,13 +56,6 @@ template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           int X, int Y) {
-  static_assert(BlockWidth > 0, "Block width must be positive");
-  static_assert(BlockHeight > 0, "Block height must be positive");
-  static_assert((sizeof(T) * BlockWidth) % 4 == 0,
-                "Block width must be aligned by DW");
-  static_assert(sizeof(T) * BlockWidth <= 64,
-                "Block width must be 64B or less");
-  static_assert(BlockHeight <= 8, "Block height must be 8 or less");
 
   T old_val = get_rand<T>();
   T new_val = get_rand<T>();
