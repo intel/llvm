@@ -760,6 +760,27 @@ int main() {
     }
   }
 
+  // empty accessor exception calling require() // SYCL2020 4.9.4.1
+  {
+    sycl::queue q;
+    // host device executes kernels via a different method and there
+    try {
+      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+      AccT acc;
+
+      q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
+      q.wait_and_throw();
+      assert(false && "we should not be here, missing exception");
+    } catch (sycl::exception &e) {
+      std::cout << "exception received: " << e.what() << std::endl;
+      assert(e.code() == sycl::errc::invalid && "error code should be invalid");
+    } catch (...) {
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
+      return 1;
+    }
+  }
+
   {
     try {
       int data = -1;
