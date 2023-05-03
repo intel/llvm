@@ -3271,12 +3271,10 @@ public:
                 std::is_same_v<std::remove_const_t<DataT_>,
                                std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode> &other)
-#ifdef __SYCL_DEVICE_ONLY__
-      {}
-#else
-      : host_accessor(other.impl) {
-  }
+#ifndef __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl)
 #endif // __SYCL_DEVICE_ONLY__
+       { }
 
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
