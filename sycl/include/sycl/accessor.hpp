@@ -2815,16 +2815,6 @@ public:
     local_acc::impl = other.impl;
   }
 
-  template <typename DataT_>
-  bool operator==(const local_accessor<DataT_, Dimensions> &Rhs) const {
-    return local_acc::impl == Rhs.impl;
-  }
-
-  template <typename DataT_>
-  bool operator!=(const local_accessor<DataT_, Dimensions> &Rhs) const {
-    return !(*this == Rhs);
-  }
-
 public:
   using value_type = DataT;
   using iterator = value_type *;
@@ -2837,6 +2827,16 @@ public:
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
+
+  template <typename DataT_>
+  bool operator==(const local_accessor<DataT_, Dimensions> &Rhs) const {
+    return local_acc::impl == Rhs.impl;
+  }
+
+  template <typename DataT_>
+  bool operator!=(const local_accessor<DataT_, Dimensions> &Rhs) const {
+    return !(*this == Rhs);
+  }
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
