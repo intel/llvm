@@ -1,9 +1,11 @@
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-set(test_libs
-  MLIRPolygeistTestAnalysis
-)
+if(MLIR_INCLUDE_TESTS)
+  set(test_libs
+    MLIRPolygeistTestAnalysis
+  )
+endif()
 
 set(LIBS
   ${dialect_libs}

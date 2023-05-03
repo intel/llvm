@@ -65,11 +65,7 @@ AliasQueries::AliasQueries(FunctionOpInterface &funcOp,
 SetVector<Value>
 AliasQueries::collectMemoryResourcesIn(FunctionOpInterface funcOp) {
   SetVector<Value> memoryResources;
-  funcOp->walk([&](Operation *op) {
-    auto memoryEffectOp = dyn_cast<MemoryEffectOpInterface>(op);
-    if (!memoryEffectOp)
-      return WalkResult::advance();
-
+  funcOp->walk([&](MemoryEffectOpInterface memoryEffectOp) {
     SmallVector<MemoryEffects::EffectInstance> effects;
     memoryEffectOp.getEffects(effects);
     for (const auto &effect : effects) {

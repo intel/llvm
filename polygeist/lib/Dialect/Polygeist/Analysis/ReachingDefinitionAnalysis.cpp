@@ -10,6 +10,7 @@
 #include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -62,10 +63,10 @@ ChangeResult ReachingDefinition::join(const AbstractDenseLattice &lattice) {
       const ModifiersTy &newModifiers = entry.second;
 
       ModifiersTy &currentModifiers = currentMap[val];
-      if (currentModifiers != newModifiers) {
-        currentModifiers.insert(newModifiers.begin(), newModifiers.end());
+      const std::size_t size = currentModifiers.size();
+      currentModifiers.insert(newModifiers.begin(), newModifiers.end());
+      if (currentModifiers.size() != size)
         result |= ChangeResult::Change;
-      }
     }
   };
 
@@ -151,10 +152,10 @@ void ReachingDefinitionAnalysis::visitOperation(
                           << "\n");
 
   // Initialize the alias queries for the current function.
-  if (isa<FunctionOpInterface>(op)) {
-    auto funcOp = cast<FunctionOpInterface>(*op);
+  if (auto funcOp = dyn_cast<FunctionOpInterface>(op)) {
     aliasQueriesMap[funcOp] =
         std::make_unique<AliasQueries>(funcOp, aliasAnalysis);
+    return;
   }
 
   // If an operation has unknown memory effects assume we can't deduce
@@ -189,31 +190,33 @@ void ReachingDefinitionAnalysis::visitOperation(
     if (isa<MemoryEffects::Read>(effect.getEffect()))
       continue;
 
-    // An allocate operation create a definition for the current value.
-    if (isa<MemoryEffects::Allocate>(effect.getEffect()))
-      result |= after->setModifier(val, op);
-
-    // A write operation updates the definition of the current value and the
-    // definition of its definitely aliased values. It also updates the
-    // potential definitions of values that may alias the current value.
-    if (isa<MemoryEffects::Write>(effect.getEffect())) {
-      result |= after->setModifier(val, op);
-      for (Value aliasedVal : aliasQueries.getMustAlias(val))
-        result |= after->setModifier(aliasedVal, op);
-      for (Value aliasedVal : aliasQueries.getMayAlias(val))
-        result |= after->addPotentialModifier(aliasedVal, op);
-    }
-
-    // A deallocate operation kills reaching definitions of the current value
-    // and of its definitely aliased values. It also kills the potential
-    // definitions of values that may alias the current value.
-    if (isa<MemoryEffects::Free>(effect.getEffect())) {
-      result |= after->removeModifiers(val);
-      for (Value aliasedVal : aliasQueries.getMustAlias(val))
-        result |= after->removeModifiers(aliasedVal);
-      for (Value aliasedVal : aliasQueries.getMayAlias(val))
-        result |= after->removePotentialModifiers(aliasedVal);
-    }
+    TypeSwitch<MemoryEffects::Effect *>(effect.getEffect())
+        .Case<MemoryEffects::Allocate>([&](auto) {
+          // An allocate operation creates a definition for the current value.
+          result |= after->setModifier(val, op);
+        })
+        .Case<MemoryEffects::Write>([&](auto) {
+          // A write operation updates the definition of the current value
+          // and the definition of its definitely aliased values. It also
+          // updates the potential definitions of values that may alias the
+          // current value.
+          result |= after->setModifier(val, op);
+          for (Value aliasedVal : aliasQueries.getMustAlias(val))
+            result |= after->setModifier(aliasedVal, op);
+          for (Value aliasedVal : aliasQueries.getMayAlias(val))
+            result |= after->addPotentialModifier(aliasedVal, op);
+        })
+        .Case<MemoryEffects::Free>([&](auto) {
+          // A deallocate operation kills reaching definitions of the
+          // current value and of its definitely aliased values. It also
+          // kills the potential definitions of values that may alias the
+          // current value.
+          result |= after->removeModifiers(val);
+          for (Value aliasedVal : aliasQueries.getMustAlias(val))
+            result |= after->removeModifiers(aliasedVal);
+          for (Value aliasedVal : aliasQueries.getMayAlias(val))
+            result |= after->removePotentialModifiers(aliasedVal);
+        });
   }
 
   propagateIfChanged(after, result);

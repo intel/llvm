@@ -53,16 +53,20 @@ void registerTestReachingDefinitionAnalysisPass();
 } // namespace test
 } // namespace mlir
 
+#ifdef MLIR_INCLUDE_TESTS
 void registerTestPasses() {
   mlir::test::registerTestReachingDefinitionAnalysisPass();
 }
+#endif
 
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
   registerTransformsPasses();
   registerConversionPasses();
+#ifdef MLIR_INCLUDE_TESTS
   registerTestPasses();
+#endif
   registerAffinePasses();
   registerAsyncPasses();
   arith::registerArithPasses();
