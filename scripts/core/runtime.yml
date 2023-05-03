@@ -16,18 +16,18 @@ class: $x
 name: $x_device_init_flags_t
 etors:
     - name: GPU
-      desc: "initialize GPU device drivers."
+      desc: "initialize GPU device adapters."
     - name: CPU
-      desc: "initialize CPU device drivers."
+      desc: "initialize CPU device adapters."
     - name: FPGA
-      desc: "initialize FPGA device drivers."
+      desc: "initialize FPGA device adapters."
     - name: MCA
-      desc: "initialize MCA device drivers."
+      desc: "initialize MCA device adapters."
     - name: VPU
-      desc: "initialize VPU device drivers."
+      desc: "initialize VPU device adapters."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Initialize the $OneApi driver(s)"
+desc: "Initialize the $OneApi adapter(s)"
 class: $x
 name: Init
 decl: static
@@ -35,11 +35,11 @@ ordinal: "0"
 details: 
     - "The application must call this function before calling any other function."
     - "If this function is not called then all other functions will return $X_RESULT_ERROR_UNINITIALIZED."
-    - "Only one instance of each driver will be initialized per process."
+    - "Only one instance of each adapter will be initialized per process."
     - "The application may call this function multiple times with different flags or environment variables enabled."
     - "The application must call this function after forking new processes. Each forked process must call this function."
     - "The application may call this function from simultaneous threads."
-    - "The implementation of this function must be thread-safe for scenarios where multiple libraries may initialize the driver(s) simultaneously."
+    - "The implementation of this function must be thread-safe for scenarios where multiple libraries may initialize the adapter(s) simultaneously."
 params:
     - type: $x_device_init_flags_t
       name: device_flags

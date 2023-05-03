@@ -14,21 +14,21 @@
 extern "C" {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Initialize the 'oneAPI' driver(s)
+/// @brief Initialize the 'oneAPI' adapter(s)
 ///
 /// @details
 ///     - The application must call this function before calling any other
 ///       function.
 ///     - If this function is not called then all other functions will return
 ///       ::UR_RESULT_ERROR_UNINITIALIZED.
-///     - Only one instance of each driver will be initialized per process.
+///     - Only one instance of each adapter will be initialized per process.
 ///     - The application may call this function multiple times with different
 ///       flags or environment variables enabled.
 ///     - The application must call this function after forking new processes.
 ///       Each forked process must call this function.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function must be thread-safe for scenarios
-///       where multiple libraries may initialize the driver(s) simultaneously.
+///       where multiple libraries may initialize the adapter(s) simultaneously.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
