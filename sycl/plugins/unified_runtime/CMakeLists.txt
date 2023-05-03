@@ -116,7 +116,6 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     LevelZeroLoader-Headers
     LevelZeroLoader
     Threads::Threads
-    cudadrv
 )
 
 set_target_properties("ur_adapter_level_zero" PROPERTIES
