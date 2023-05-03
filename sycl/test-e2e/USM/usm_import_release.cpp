@@ -32,12 +32,9 @@ void check_on_host(int *arr) {
   }
 }
 
-#define MALLOC(ARR)                                                            \
-  ARR = (int *)malloc(SIZE)
+#define MALLOC(ARR) ARR = (int *)malloc(SIZE)
 
-#define USM_MALLOC(ARR, ALLOC_TYPE)                                            \
-  ARR = (int *)malloc_##ALLOC_TYPE(SIZE, q)
-  
+#define USM_MALLOC(ARR, ALLOC_TYPE) ARR = (int *)malloc_##ALLOC_TYPE(SIZE, q)
 
 void test_memcpy(queue &q, int *from, void from_init(int *), int *temp, int *to,
                  void check(int *)) {
@@ -55,10 +52,10 @@ void test_memcpy(queue &q, int *from, void from_init(int *), int *temp, int *to,
 
   auto ctxt = q.get_context();
   prepare_for_device_copy(from, SIZE, ctxt);
-  q.submit([&](handler& h) { h.memcpy(temp, from, SIZE); });
+  q.submit([&](handler &h) { h.memcpy(temp, from, SIZE); });
   q.wait();
   prepare_for_device_copy(to, SIZE, ctxt);
-  q.submit([&](handler& h) { h.memcpy(to, temp, SIZE); });
+  q.submit([&](handler &h) { h.memcpy(to, temp, SIZE); });
   q.wait();
   release_from_device_copy(from, ctxt);
   release_from_device_copy(to, ctxt);
