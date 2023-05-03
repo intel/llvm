@@ -131,6 +131,18 @@ auto get_native(const SyclObjectT &Obj)
       Obj.getNative());
 }
 
+template <backend BackendName>
+auto get_native(const queue &Obj)->backend_return_t<BackendName, queue> {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != BackendName) {
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_ERROR_INVALID_OPERATION);
+  }
+  int32_t NativeHandleDesc;
+  return reinterpret_cast<backend_return_t<BackendName, queue>>(
+      Obj.getNative(NativeHandleDesc));
+}
+
 template <backend BackendName, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<BackendName, kernel_bundle<State>> {
@@ -284,9 +296,10 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
     return sycl::detail::make_queue(Handle, IsImmCmdList, TargetContext,
                                     nullptr, false, BackendObject.Properties,
                                     Handler, Backend);
+  } else {
+    return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                              TargetContext, nullptr, false, Handler, Backend);
   }
-  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, false, Handler, Backend);
 }
 
 template <backend Backend>
