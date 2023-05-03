@@ -158,8 +158,7 @@ public:
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, DecorateAddress> from accessor<ElementType, ...>.
@@ -182,8 +181,8 @@ public:
           (Space == access::address_space::generic_space ||
            Space == access::address_space::global_space ||
            Space == access::address_space::ext_intel_global_device_space) &&
-          std::is_const<RelayElementType>::value &&
-          std::is_same<RelayElementType, ElementType>::value>>
+          std::is_const_v<RelayElementType> &&
+          std::is_same_v<RelayElementType, ElementType>>>
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
@@ -213,13 +212,12 @@ public:
                 RelaySpace == Space &&
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space) &&
-                std::is_const<RelayElementType>::value &&
-                std::is_same<RelayElementType, ElementType>::value>>
+                std::is_const_v<RelayElementType> &&
+                std::is_same_v<RelayElementType, ElementType>>>
   multi_ptr(
       local_accessor<typename std::remove_const_t<RelayElementType>, Dimensions>
           Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Assignment and access operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -452,8 +450,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Only if Space == local_space
   template <
@@ -474,8 +471,7 @@ public:
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -579,8 +575,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Only if Space == local_space
   template <
@@ -601,8 +596,7 @@ public:
       typename = typename std::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
