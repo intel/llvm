@@ -138,7 +138,7 @@ public:
   ///
   /// \param PluginPtr is a pointer to a plugin instance
   /// \param Backend is the backend that we want this platform to use
-  void setPlugin(std::shared_ptr<plugin> PluginPtr, backend Backend) {
+  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
     assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = std::move(PluginPtr);
     // Make sure that the given plugin supports wanted backend

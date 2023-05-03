@@ -127,13 +127,6 @@ std::vector<platform> platform_impl::get_platforms() {
                     // mess up device counting
         }
 
-        { // Early register the platform with the plugin as device counting
-          // and filtering is dependant on this.
-          // TODO: re-design so there is no such subtle dependency.
-          std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
-          Plugin->getPlatformId(PiPlatform);
-        }
-
         // The SYCL spec says that a platform has one or more devices. ( SYCL
         // 2020 4.6.2 ) If we have an empty platform, we don't report it back
         // from platform::get_platforms().
