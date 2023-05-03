@@ -45,7 +45,7 @@ class Accessor:
         return result
 
     def value(self, arg):
-        return self.data().cast(self.result_type.pointer())[self.index(arg)]
+        return self.data()[self.index(arg)]
 
 
 class HostAccessor(Accessor):
