@@ -46,7 +46,30 @@ void CheckFill(queue &Q, range<Dims> Range, T Init, T Expected) {
 }
 
 template <typename T>
+void CheckFillZeroDimAccessor(queue &Q, T Init, T Expected) {
+  constexpr int Dims = 1;
+  range<1> Range(1);
+  std::vector<T> Data(Range.size(), Init);
+  {
+    buffer<T, Dims> Buffer(Data.data(), Range);
+    Q.submit([&](handler &CGH) {
+       accessor<T, 0, sycl::access::mode::write> Accessor(Buffer, CGH);
+       CGH.fill(Accessor, Expected);
+     }).wait_and_throw();
+  }
+  for (size_t I = 0; I < Range.size(); ++I) {
+    if (Data[I] != Expected) {
+      std::cout << "Unexpected value " << Data[I] << " at index " << I
+                << " after fill. Expected " << Expected << "." << std::endl;
+      ++NumErrors;
+      return;
+    }
+  }
+}
+
+template <typename T>
 void CheckFillDifferentDims(queue &Q, size_t N, T Init, T Expected) {
+  CheckFillZeroDimAccessor<T>(Q, Init, Expected);
   CheckFill<T>(Q, range<1>{N}, Init, Expected);
   CheckFill<T>(Q, range<2>{N, N}, Init, Expected);
   CheckFill<T>(Q, range<3>{N, N, N}, Init, Expected);

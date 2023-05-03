@@ -2443,10 +2443,16 @@ public:
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
     } else {
-      range<Dims> Range = Dst.get_range();
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-          Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+      if constexpr (Dims == 0) {
+        parallel_for<
+            class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+            range<1>(1), [=](id<1> Index) { Dst = Pattern; });
+      } else {
+        range<Dims> Range = Dst.get_range();
+        parallel_for<
+            class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+            Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+      }
     }
   }
 
