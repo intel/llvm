@@ -763,7 +763,6 @@ int main() {
   // empty accessor exception calling require() // SYCL2020 4.9.4.1
   {
     sycl::queue q;
-    // host device executes kernels via a different method and there
     try {
       using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
       AccT acc;
