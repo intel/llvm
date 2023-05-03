@@ -213,6 +213,23 @@ template <typename T, std::size_t NumElements> struct test_pow_types {
   }
 };
 
+template <typename T> void check_constructors() {
+  using Complex = typename sycl::ext::oneapi::experimental::complex<T>;
+
+  {
+    sycl::marray<Complex, 1> a;
+    sycl::marray<Complex, 1> b{};
+    sycl::marray<Complex, 1> c{Complex{1, 0}};
+    sycl::marray<Complex, 2> d{Complex{1, 0}, Complex{2, 0}};
+  }
+  {
+    constexpr sycl::marray<Complex, 1> a;
+    constexpr sycl::marray<Complex, 1> b{};
+    constexpr sycl::marray<Complex, 1> c{Complex{1, 0}};
+    constexpr sycl::marray<Complex, 2> d{Complex{1, 0}, Complex{2, 0}};
+  }
+}
+
 int main() {
   // Check math function types
   test_valid_types<test_abs_types>();
@@ -248,6 +265,11 @@ int main() {
   // Check special function types
   test_valid_types<test_polar_types>();
   test_valid_types<test_pow_types>();
+
+  // Check constructors
+  check_constructors<sycl::half>();
+  check_constructors<float>();
+  check_constructors<double>();
 
   return 0;
 }
