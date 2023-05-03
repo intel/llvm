@@ -112,13 +112,15 @@ public:
 #endif
   }
 
-private:
+protected:
   sub_group_mask Mask;
 
-protected:
   tangle_group(sub_group_mask m) : Mask(m) {}
 
   friend tangle_group<ParentGroup> get_tangle_group<ParentGroup>(ParentGroup);
+
+  friend uint32_t sycl::detail::IdToMaskPosition<tangle_group<ParentGroup>>(
+      tangle_group<ParentGroup> Group, uint32_t Id);
 };
 
 template <typename Group>
@@ -149,5 +151,10 @@ template <typename ParentGroup>
 struct is_user_constructed_group<tangle_group<ParentGroup>> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
+
+template <typename ParentGroup>
+struct is_group<ext::oneapi::experimental::tangle_group<ParentGroup>>
+    : std::true_type {};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
