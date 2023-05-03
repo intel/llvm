@@ -300,19 +300,77 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 ////
 
-// Cluster group exscan using shfls, std::is_integral_v<T>
-template <typename Group, typename T, class BinaryOperation>
+template <typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<sycl::detail::IsPlus<T, BinaryOperation>::value ||
+                         sycl::detail::IsBitOR<T, BinaryOperation>::value ||
+                         sycl::detail::IsBitXOR<T, BinaryOperation>::value,
+                     T>
+    get_identity() {
+  return 0;
+}
+
+template <typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<sycl::detail::IsMultiplies<T, BinaryOperation>::value, T>
+    get_identity() {
+  return 1;
+}
+
+template <typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<sycl::detail::IsBitAND<T, BinaryOperation>::value, T>
+    get_identity() {
+  return ~0;
+}
+
+#define GET_ID(OP_CHECK, OP)                                                   \
+  template <typename T, class BinaryOperation>                                 \
+  inline __SYCL_ALWAYS_INLINE                                                  \
+      std::enable_if_t<sycl::detail::OP_CHECK<T, BinaryOperation>::value, T>   \
+      get_identity() {                                                         \
+    if constexpr (std::is_same_v<T, char>) {                                   \
+      return std::numeric_limits<char>::OP();                                  \
+    } else if constexpr (std::is_same_v<T, unsigned char>) {                   \
+      return std::numeric_limits<unsigned char>::OP();                         \
+    } else if constexpr (std::is_same_v<T, short>) {                           \
+      return std::numeric_limits<short>::OP();                                 \
+    } else if constexpr (std::is_same_v<T, unsigned short>) {                  \
+      return std::numeric_limits<unsigned short>::OP();                        \
+    } else if constexpr (std::is_same_v<T, int>) {                             \
+      return std::numeric_limits<int>::OP();                                   \
+    } else if constexpr (std::is_same_v<T, unsigned int>) {                    \
+      return std::numeric_limits<unsigned int>::OP();                          \
+    } else if constexpr (std::is_same_v<T, long>) {                            \
+      return std::numeric_limits<int>::OP();                                   \
+    } else if constexpr (std::is_same_v<T, unsigned long>) {                   \
+      return std::numeric_limits<unsigned int>::OP();                          \
+    } else if constexpr (std::is_same_v<T, float>) {                           \
+      return std::numeric_limits<float>::OP();                                 \
+    } else if constexpr (std::is_same_v<T, double>) {                          \
+      return std::numeric_limits<double>::OP();                                \
+    }                                                                          \
+    return 0;                                                                  \
+  }
+
+GET_ID(IsMinimum, max)
+GET_ID(IsMaximum, min)
+
+#undef GET_ID
+
+// Cluster group scan using shfls, std::is_integral_v<T>
+template <__spv::GroupOperation Op, typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_fixed_size_group<Group>::value,// && //todo decide on final is_instegral cases?
        // std::is_integral_v<T>,
     T>
-masked_exscan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {//todo membermask naming?
 
 T tmp;
-
+//todo diff version if 32?
 for (int d=1; d < g.get_local_range()[0]; d*=2) {
-
+/*
   if constexpr (std::is_same_v<T, double>) {
 
     int x_a, x_b;
@@ -324,13 +382,32 @@ for (int d=1; d < g.get_local_range()[0]; d*=2) {
                  : "=l"(tmp)
                  : "r"(tmp_a), "r"(tmp_b));
 
-  } 
-//auto temp = __nvvm_shfl_sync_up_i32(MemberMask, x, d, 0); 
-if (g.get_local_id()[0] >= d) x += tmp;
+  }*/ 
+tmp = __nvvm_shfl_sync_up_i32(MemberMask, x, d, 0);
+if (g.get_local_id()[0] >= d) x = binary_op(x, tmp);
 
+}
+//return x;
+if constexpr (Op == __spv::GroupOperation::ExclusiveScan)
+{
+auto res = __nvvm_shfl_sync_up_i32(MemberMask, x, 1, 0);
+x = g.get_local_id()[0] == 0 ? get_identity<T, BinaryOperation>() : res; 
 }
 return x;
 }
+
+template <__spv::GroupOperation Op, typename Group, typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<
+    ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
+        !ext::oneapi::experimental::is_fixed_size_group<Group>::value,// && //todo decide on final is_instegral cases?
+       // std::is_integral_v<T>,
+    T>
+masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                            const uint32_t MemberMask) {
+                            
+return 5;
+                            }
+
                             
 
 #endif

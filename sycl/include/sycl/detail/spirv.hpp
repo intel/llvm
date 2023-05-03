@@ -144,13 +144,18 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAll(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
     bool pred) {
+  #if defined (__SPIR__)
   // GroupNonUniformAll doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseAnd(
       group_scope<ParentGroup>::value,
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
       static_cast<uint32_t>(pred), PartitionSize);
+  #elif defined (__NVPTX__)
+  sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
+  return __nvvm_vote_all_sync(MemberMask[0], pred);
+#endif
 }
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
