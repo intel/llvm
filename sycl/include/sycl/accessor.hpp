@@ -3274,7 +3274,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
       : host_accessor(other.impl)
 #endif // __SYCL_DEVICE_ONLY__
-       { }
+  {
+  }
 
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
