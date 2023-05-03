@@ -1989,7 +1989,6 @@ constexpr void check_lsc_block_2d_restrictions() {
     static_assert(
         __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
         "Unsupported number of blocks");
-    static_assert(BlockHeight >= 1, "Unsupported block height");
     if constexpr (IsStore)
       static_assert(BlockHeight <= 8, "Unsupported block height for store");
     else
