@@ -2568,6 +2568,8 @@ protected:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
+  template <typename DataT_, int Dimensions_> friend class local_accessor;
+
 public:
   using value_type = DataT;
   using reference = DataT &;
@@ -2709,9 +2711,6 @@ public:
   bool operator!=(const local_accessor_base &Rhs) const {
     return !(*this == Rhs);
   }
-
-private:
-  template <typename DataT_, int Dimensions_> friend class local_accessor;
 };
 
 // TODO: Remove deprecated specialization once no longer needed
