@@ -34,5 +34,5 @@
 // There is no LIT substitution, which would point to a directory, where
 // temporary files are located. There is %T, but it is marked as "deprecated,
 // do not use"
-// RUN: %GPU_RUN_PLACEHOLDER LD_PRELOAD=%t-lib-a.so %t-a.run
-// RUN: %GPU_RUN_PLACEHOLDER LD_PRELOAD=%t-lib-o.so %t-o.run
+// RUN: env LD_PRELOAD=%t-lib-a.so %GPU_RUN_PLACEHOLDER %t-a.run
+// RUN: env LD_PRELOAD=%t-lib-o.so %GPU_RUN_PLACEHOLDER %t-o.run

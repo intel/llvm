@@ -8,7 +8,7 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl.hpp>
 #include <type_traits>
 
 using namespace sycl;
@@ -62,8 +62,8 @@ template <typename T> void testMultPtr() {
           accessorData_2(bufferData_2, cgh);
       local_accessor<T, 1> localAccessor(numOfItems, cgh);
 
-      cgh.parallel_for<class testMultPtrKernel<T>>(range<1>{10}, [=](id<1>
-                                                                         wiID) {
+      cgh.parallel_for<class testMultPtrKernel<
+          T>>(nd_range<1>{10, 10}, [=](nd_item<1> wiID) {
         auto ptr_1 = make_ptr<const T, access::address_space::global_space,
                               access::decorated::legacy>(
             accessorData_1
@@ -107,7 +107,7 @@ template <typename T> void testMultPtr() {
         // LLVM IR device_ptr<T> ptr_11(accessorData_1); global_ptr<T>
         // ptr_12 = global_ptr<T>(ptr_11);
 
-        innerFunc<T>(wiID.get(0), ptr_1, ptr_2, local_ptr);
+        innerFunc<T>(wiID.get_local_id().get(0), ptr_1, ptr_2, local_ptr);
       });
     });
   }
@@ -144,37 +144,37 @@ template <typename T> void testMultPtrArrowOperator() {
                access::placeholder::false_t>
           accessorData_4(bufferData_4, cgh);
 
-      cgh.single_task<class testMultPtrArrowOperatorKernel<T>>([=]() {
+      cgh.parallel_for<class testMultPtrArrowOperatorKernel<T>>(
         auto ptr_1 =
             make_ptr<const point<T>, access::address_space::global_space,
                      access::decorated::legacy>(
                 accessorData_1
                     .template get_multi_ptr<sycl::access::decorated::legacy>());
-        auto ptr_2 =
-            make_ptr<point<T>, access::address_space::constant_space,
-                     access::decorated::legacy>(accessorData_2.get_pointer());
-        auto ptr_3 =
-            make_ptr<point<T>, access::address_space::local_space,
-                     access::decorated::legacy>(accessorData_3.get_pointer());
-        auto ptr_4 =
-            make_ptr<const point<T>,
-                     access::address_space::ext_intel_global_device_space,
-                     access::decorated::legacy>(accessorData_4.get_pointer());
+      auto ptr_2 =
+          make_ptr<point<T>, access::address_space::constant_space,
+                   access::decorated::legacy>(accessorData_2.get_pointer());
+      auto ptr_3 =
+          make_ptr<point<T>, access::address_space::local_space,
+                   access::decorated::legacy>(accessorData_3.get_pointer());
+      auto ptr_4 =
+          make_ptr<const point<T>,
+                   access::address_space::ext_intel_global_device_space,
+                   access::decorated::legacy>(accessorData_4.get_pointer());
 
-        auto x1 = ptr_1->x;
-        auto x2 = ptr_2->x;
-        auto x3 = ptr_3->x;
-        auto x4 = ptr_4->x;
+      auto x1 = ptr_1->x;
+      auto x2 = ptr_2->x;
+      auto x3 = ptr_3->x;
+      auto x4 = ptr_4->x;
 
-        static_assert(std::is_same<decltype(x1), T>::value,
-                      "Expected decltype(ptr_1->x) == T");
-        static_assert(std::is_same<decltype(x2), T>::value,
-                      "Expected decltype(ptr_2->x) == T");
-        static_assert(std::is_same<decltype(x3), T>::value,
-                      "Expected decltype(ptr_3->x) == T");
-        static_assert(std::is_same<decltype(x4), T>::value,
-                      "Expected decltype(ptr_4->x) == T");
-      });
+      static_assert(std::is_same<decltype(x1), T>::value,
+                    "Expected decltype(ptr_1->x) == T");
+      static_assert(std::is_same<decltype(x2), T>::value,
+                    "Expected decltype(ptr_2->x) == T");
+      static_assert(std::is_same<decltype(x3), T>::value,
+                    "Expected decltype(ptr_3->x) == T");
+      static_assert(std::is_same<decltype(x4), T>::value,
+                    "Expected decltype(ptr_4->x) == T");
+    });
     });
   }
 }
