@@ -626,14 +626,7 @@ public:
         rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, idType));
     rewriter.create<memref::StoreOp>(loc, idVal, id);
     const auto offset = adaptor.getOperands()[1];
-    const auto argTypes =
-        rewriter.getTypeArrayAttr({id.getType(), offset.getType()});
-    const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
-    const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>(
-        std::is_same_v<SYCLIDGetOp, Getter> ? "id" : "range");
-    Value res =
-        rewriter.create<Getter>(op.getLoc(), indexType, id, offset, argTypes,
-                                funcName, FlatSymbolRefAttr{}, typeName);
+    Value res = rewriter.create<Getter>(op.getLoc(), indexType, id, offset);
     rewriter.replaceOpWithNewOp<arith::IndexCastUIOp>(op, op.getType(), res);
   }
 };
@@ -1907,13 +1900,8 @@ public:
     const auto syclGroup =
         rewriter.create<UnrealizedConversionCastOp>(loc, thisTy, group)
             .getResult(0);
-    const auto argTys = rewriter.getTypeArrayAttr({thisTy});
-    const auto funcName =
-        rewriter.getAttr<FlatSymbolRefAttr>("get_group_linear_id");
-    const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>("group");
     rewriter.replaceOpWithNewOp<SYCLGroupGetGroupLinearIDOp>(
-        op, rewriter.getI64Type(), syclGroup, argTys, funcName,
-        FlatSymbolRefAttr{}, typeName);
+        op, rewriter.getI64Type(), syclGroup);
     return success();
   }
 };
@@ -2232,10 +2220,6 @@ public:
     const auto convGroupTy =
         typeConverter->convertType(op.getGroup().getType());
     const auto useOpaquePointers = getTypeConverter()->useOpaquePointers();
-    const auto argTys =
-        rewriter.getTypeArrayAttr({localID.getType(), rewriter.getI32Type()});
-    const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
-    const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>("id");
     // The local linear ID is calculated from the local ID and the group's local
     // range.
     getLinearIDRewriter(
@@ -2244,8 +2228,7 @@ public:
           return builder.create<SYCLIDGetOp>(
               loc, indexType, localID,
               builder.create<arith::ConstantIntOp>(loc, index,
-                                                   /*bitwidth=*/32),
-              argTys, funcName, FlatSymbolRefAttr{}, typeName);
+                                                   /*bitwidth=*/32));
         },
         [&](OpBuilder &builder, Location loc, int32_t index) -> Value {
           return GetMemberPattern<GroupGetLocalRange, RangeGetDim>::loadValue(

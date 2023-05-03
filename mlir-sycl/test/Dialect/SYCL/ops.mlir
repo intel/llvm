@@ -179,13 +179,13 @@ func.func @test_sub_group_local_id() -> i32 {
 
 // CHECK-LABEL: test_accessor_get_pointer
 func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.get_pointer(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb>], FunctionName = @"get_pointer", MangledFunctionName = @"get_pointer", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1>
+  %0 = sycl.accessor.get_pointer(%acc) : (memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
 // CHECK-LABEL: test_accessor_get_range
 func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_ {
-  %0 = sycl.accessor.get_range(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb>], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_
+  %0 = sycl.accessor.get_range(%acc) : (memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -193,10 +193,8 @@ func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) ->
 func.func @test_accessor_subscript_atomic(
   %acc: memref<?x!sycl_accessor_1_i32_ato_gb>, 
   %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_glo {
-  %0 = sycl.accessor.subscript %acc[%idx] { 
-        ArgumentTypes = [memref<?x!sycl_accessor_1_i32_ato_gb>, 
-                          memref<?x!sycl_id_1_>], 
-        FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_ato_gb>, 
-                                memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_glo
+  %0 = sycl.accessor.subscript %acc[%idx]
+      : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>)
+      -> !sycl_atomic_i32_glo
   return %0 : !sycl_atomic_i32_glo
 }

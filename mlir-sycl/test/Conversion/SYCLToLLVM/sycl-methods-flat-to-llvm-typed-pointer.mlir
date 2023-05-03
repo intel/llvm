@@ -14,7 +14,7 @@
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr<i64, 4>
 // CHECK-NEXT:    }
 func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64, 4> {
-  %0 = sycl.range.get %range[%idx] { ArgumentTypes = [memref<?x!sycl_range_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"range" }  : (memref<?x!sycl_range_3_>, i32) -> memref<?xi64, 4>
+  %0 = sycl.range.get %range[%idx] : (memref<?x!sycl_range_3_>, i32) -> memref<?xi64, 4>
   return %0 : memref<?xi64, 4>
 }
 
@@ -34,7 +34,7 @@ func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64, 4>
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr<i64, 4>
 // CHECK-NEXT:    }
 func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> memref<?xi64, 4> {
-  %0 = sycl.id.get %id[%idx] { ArgumentTypes = [memref<?x!sycl_id_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_id_3_>, i32) -> memref<?xi64, 4>
+  %0 = sycl.id.get %id[%idx] : (memref<?x!sycl_id_3_>, i32) -> memref<?xi64, 4>
   return %0 : memref<?xi64, 4>
 }
 
@@ -59,7 +59,7 @@ func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> memref<?xi64, 4> {
 // CHECK-NEXT:      llvm.return %[[VAL_5]] : !llvm.ptr<i32, 4>
 // CHECK-NEXT:    }
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: i64) -> memref<?xi32, 4> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>, i64], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>, i64) -> memref<?xi32, 4>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_1_i32_rw_gb>, i64) -> memref<?xi32, 4>
   return %0 : memref<?xi32, 4>
 }
 
@@ -99,7 +99,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: i64) -> memref
 // CHECK-NEXT:      llvm.return %[[VAL_12]] : !llvm.ptr<i32, 4>
 // CHECK-NEXT:    }
 func.func @test_1(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: memref<?x!sycl_id_1_>) -> memref<?xi32, 4> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
   return %0 : memref<?xi32, 4>
 }
 
@@ -126,7 +126,7 @@ func.func @test_1(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-NEXT:      llvm.return %[[VAL_18]] : !llvm.ptr<i32, 4>
 // CHECK-NEXT:    }
 func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: memref<?x!sycl_id_2_>) -> memref<?xi32, 4> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
   return %0 : memref<?xi32, 4>
 }
 
@@ -159,6 +159,6 @@ func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-NEXT:      llvm.return %[[VAL_24]] : !llvm.ptr<i32, 4>
 // CHECK-NEXT:    }
 func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: memref<?x!sycl_id_3_>) -> memref<?xi32, 4> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>) -> memref<?xi32, 4>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>) -> memref<?xi32, 4>
   return %0 : memref<?xi32, 4>
 }

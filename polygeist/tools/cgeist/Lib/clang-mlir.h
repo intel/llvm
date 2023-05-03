@@ -336,18 +336,15 @@ private:
                            mlir::Value LB, mlir::Value UB,
                            const mlirclang::AffineLoopDescriptor &Descr);
 
-  /// Creates an instance of SYCLMethodOpInterface if the SYCLCallOp with base
-  /// type name \param typeName, function name \param functionName, mangled
-  /// function name \param mangledFunctionName, parameters \param operands and
+  /// Creates an instance of SYCLMethodOpInterface if the SYCLCallOp with
+  /// function name \param functionName, parameters \param operands and
   /// (optional) return type \param returnType can be represented as such.
   ///
   /// E.g., the SYCLCallOp to the accessor member function
   /// accessor::operator[] can be represented using a SYCLAccessorSubscriptOp.
   llvm::Optional<mlir::sycl::SYCLMethodOpInterface>
-  createSYCLMethodOp(llvm::StringRef TypeName, llvm::StringRef FunctionName,
-                     mlir::ValueRange Operands,
-                     llvm::Optional<mlir::Type> ReturnType,
-                     llvm::StringRef MangledFunctionName);
+  createSYCLMethodOp(llvm::StringRef FunctionName, mlir::ValueRange Operands,
+                     llvm::Optional<mlir::Type> ReturnType);
 
   /// Creates an instance of a SYCL grid operation replacing a call to \param
   /// Callee.

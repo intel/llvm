@@ -67,7 +67,7 @@ gpu.module @device_func {
       sycl.constructor @id(%memspacecast, %8) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_, 4>, i64)
       %9 = affine.load %alloca_8[0] : memref<1x!sycl_id_1_>
       affine.store %9, %alloca_6[0] : memref<1x!sycl_id_1_>
-      %10 = sycl.accessor.subscript %5[%cast_7] {ArgumentTypes = [memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
+      %10 = sycl.accessor.subscript %5[%cast_7] : (memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
       %11 = affine.load %10[0] : memref<?xf32, 4>
       %12 = "polygeist.subindex"(%arg0, %c2) : (memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_read_1_, 4>
       %13 = arith.muli %4, %c2048_i32 : i32
@@ -77,7 +77,7 @@ gpu.module @device_func {
       sycl.constructor @id(%memspacecast_10, %15) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_, 4>, i64)
       %16 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
       affine.store %16, %alloca_2[0] : memref<1x!sycl_id_1_>
-      %17 = sycl.accessor.subscript %12[%cast_3] {ArgumentTypes = [memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
+      %17 = sycl.accessor.subscript %12[%cast_3] : (memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
       %18 = affine.load %17[0] : memref<?xf32, 4>
       %19 = arith.mulf %11, %18 : f32
       %20 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_write_1_, 4>
@@ -87,7 +87,7 @@ gpu.module @device_func {
       sycl.constructor @id(%memspacecast_11, %22) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_, 4>, i64)
       %23 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
       affine.store %23, %alloca[0] : memref<1x!sycl_id_1_>
-      %24 = sycl.accessor.subscript %20[%cast] {ArgumentTypes = [memref<?x!sycl_accessor_write_1_, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_write_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
+      %24 = sycl.accessor.subscript %20[%cast] : (memref<?x!sycl_accessor_write_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
       %25 = affine.load %24[0] : memref<?xf32, 4>
       %26 = arith.addf %25, %19 : f32
       affine.store %26, %24[0] : memref<?xf32, 4>
