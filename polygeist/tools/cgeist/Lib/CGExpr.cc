@@ -240,7 +240,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                        dyn_cast<LLVM::LLVMPointerType>(ToInit.getType())) {
           if (auto AT = dyn_cast<LLVM::LLVMArrayType>(ElementTy))
             Num = AT.getNumElements();
-          else if (auto AT = dyn_cast<LLVM::LLVMStructType>(ElementTy))
+          else if (auto AT = dyn_cast<polygeist::StructType>(ElementTy))
             Num = AT.getBody().size();
           else {
             ToInit.getType().dump();
@@ -266,7 +266,9 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
 
           mlir::Type MRET = MT.getElementType();
           mlir::Type ET;
-          if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(MRET)) {
+          assert(!isa<LLVM::LLVMStructType>(MRET) &&
+                 "Expecting not LLVMStrucType");
+          if (auto ST = dyn_cast<polygeist::StructType>(MRET)) {
             StoreTy = ST.getBody()[I];
             ET = mlir::MemRefType::get(Shape, StoreTy,
                                        MemRefLayoutAttrInterface(),
@@ -305,17 +307,18 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
           std::pair<mlir::Value, mlir::Type> PtrAndType =
               TypeSwitch<mlir::Type, std::pair<mlir::Value, mlir::Type>>(
                   ElementTy)
-                  .Case<LLVM::LLVMStructType>([=](auto ST) {
-                    return std::pair<mlir::Value, mlir::Type>{
-                        Builder.create<LLVM::GEPOp>(
-                            Loc,
-                            Glob.getTypes().getPointerType(
-                                ST.getBody()[I], PT.getAddressSpace()),
-                            ST, ToInit,
-                            llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
-                            /* inbounds */ true),
-                        ST.getBody()[I]};
-                  })
+                  .Case<LLVM::LLVMStructType, polygeist::StructType>(
+                      [=](auto ST) {
+                        return std::pair<mlir::Value, mlir::Type>{
+                            Builder.create<LLVM::GEPOp>(
+                                Loc,
+                                Glob.getTypes().getPointerType(
+                                    ST.getBody()[I], PT.getAddressSpace()),
+                                ST, ToInit,
+                                llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
+                                /* inbounds */ true),
+                            ST.getBody()[I]};
+                      })
                   .Case<LLVM::LLVMArrayType>([=](auto AT) {
                     return std::pair<mlir::Value, mlir::Type>{
                         Builder.create<LLVM::GEPOp>(
@@ -498,8 +501,8 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   RecordDecl *Record = Expr->getType()->castAs<RecordType>()->getDecl();
   auto Field = Record->field_begin();
 
-  LLVM::LLVMStructType SubType =
-      cast<LLVM::LLVMStructType>(Glob.getTypes().getMLIRType(Expr->getType()));
+  auto SubType =
+      cast<polygeist::StructType>(Glob.getTypes().getMLIRType(Expr->getType()));
   assert(SubType.getBody().size() == 2 && "Expecting two fields");
 
   mlir::Value Alloca = createAllocOp(SubType, nullptr, /*memtype*/ 0,

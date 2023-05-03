@@ -13,6 +13,7 @@ unsigned long long size() {
 }
 
 // CHECK:   func @size() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c24_i64 = arith.constant 24 : i64
-// CHECK-NEXT:     return %c24_i64 : i64
+// CHECK-NEXT:     %0 = "polygeist.typeSize"() {source = !polygeist.struct<(i32, !polygeist.struct<(i32, i64)>)>} : () -> index
+// CHECK-NEXT:     %1 = arith.index_cast %0 : index to i64
+// CHECK-NEXT:     return %1 : i64
 // CHECK-NEXT:   }

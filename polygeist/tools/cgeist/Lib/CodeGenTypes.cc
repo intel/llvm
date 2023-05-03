@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
@@ -1345,8 +1346,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return mlir::MemRefType::get(2, SubType);
     }
     mlir::Type Types[2] = {SubType, SubType};
-    return mlir::LLVM::LLVMStructType::getLiteral(TheModule->getContext(),
-                                                  Types);
+    return polygeist::StructType::get(TheModule->getContext(), Types);
   }
 
   mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
@@ -1413,7 +1413,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (CXRD && CXRD->isUnion()) {
       assert(isSingleFieldUnion(CXRD) &&
              "Only handling single-field enumerations");
-      return LLVM::LLVMStructType::getLiteral(
+      return polygeist::StructType::get(
           TheModule->getContext(), getMLIRType(CXRD->field_begin()->getType()));
     }
 
@@ -1449,7 +1449,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return TypeCache[RT];
     }
 
-    return LLVM::LLVMStructType::getLiteral(TheModule->getContext(), Types);
+    return polygeist::StructType::get(TheModule->getContext(), Types);
   }
 
   const clang::Type *T = QT->getUnqualifiedDesugaredType();
@@ -1479,7 +1479,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
     if (!MemRefABI || !AllowMerge ||
         isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType, LLVM::LLVMFunctionType,
-            LLVM::LLVMStructType>(ET))
+            LLVM::LLVMStructType, polygeist::StructType>(ET))
       return LLVM::LLVMArrayType::get(
           ET, (Size == ShapedType::kDynamic) ? 0 : Size);
 
@@ -1540,7 +1540,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
     if (!MemRefABI ||
         isa<LLVM::LLVMArrayType, LLVM::LLVMStructType, LLVM::LLVMPointerType,
-            LLVM::LLVMFunctionType>(SubType)) {
+            LLVM::LLVMFunctionType, polygeist::StructType>(SubType)) {
       // JLE_QUEL::THOUGHTS
       // When generating the sycl_halide_kernel, If a struct type contains
       // SYCL types, that means that this is the functor, and we can't create
@@ -1548,6 +1548,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
       if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(SubType))
+        InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
+      else if (auto ST = dyn_cast<polygeist::StructType>(SubType))
         InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
       if (!InnerSYCL)
@@ -1800,12 +1802,16 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 unsigned AddressSpace,
                                                 bool IsAlloc) const {
   auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(Ty);
+  auto PolygeistST = dyn_cast<polygeist::StructType>(Ty);
 
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
   if (ST)
     IsSYCLType |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
+  if (PolygeistST)
+    IsSYCLType |= any_of(PolygeistST.getBody(), mlir::sycl::isSYCLType);
 
-  if (!ST || IsSYCLType)
+  // TODO: Use MemRefType for polygeist::StructType.
+  if (!(ST || PolygeistST) || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},
                                  AddressSpace);
   return getPointerType(Ty, AddressSpace);

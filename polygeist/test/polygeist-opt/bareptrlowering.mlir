@@ -482,9 +482,9 @@ func.func private @subindexop_memref_same_dim(%arg0: memref<4x4xf32>, %arg1: ind
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT:    }
 
-func.func private @subindexop_memref_struct(%arg0: memref<4x!llvm.struct<(f32)>>) -> memref<?xf32> {
+func.func private @subindexop_memref_struct(%arg0: memref<4x!polygeist.struct<(f32)>>) -> memref<?xf32> {
   %c_0 = arith.constant 0 : index
-  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!llvm.struct<(f32)>>, index) -> memref<?xf32>
+  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!polygeist.struct<(f32)>>, index) -> memref<?xf32>
   return %res : memref<?xf32>
 }
 

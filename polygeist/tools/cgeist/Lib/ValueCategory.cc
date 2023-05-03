@@ -280,7 +280,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
           }
           assert(smt.getShape().back() == at.getNumElements());
         } else {
-          auto st = dyn_cast<LLVM::LLVMStructType>(getElemTy());
+          auto st = cast<polygeist::StructType>(getElemTy());
           elty = st.getBody()[0];
           assert(smt.getShape().back() == (ssize_t)st.getBody().size());
         }
@@ -322,7 +322,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         elty = at.getElementType();
         assert(smt.getShape().back() == at.getNumElements());
       } else {
-        auto st = dyn_cast<LLVM::LLVMStructType>(toStore.getElemTy());
+        auto st = cast<polygeist::StructType>(toStore.getElemTy());
         elty = st.getBody()[0];
         assert(smt.getShape().back() == (ssize_t)st.getBody().size());
       }

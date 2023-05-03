@@ -33,7 +33,7 @@ void Q(A& a) {
 
 // CHECK-LABEL:   func.func @_ZN1A3addEv(
 // CHECK-SAME:                           %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xi32>)>
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<(memref<?xi32>)>
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> memref<?xi32>
 // CHECK-NEXT:      call @_Z4oaddRi(%[[VAL_2]]) : (memref<?xi32>) -> ()
 // CHECK-NEXT:      return

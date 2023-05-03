@@ -8,8 +8,8 @@ struct foo {
 };
 
 // CHECK-MLIR-LABEL:   func.func @id(
-// CHECK-MLIR-SAME:                  %[[VAL_0:.*]]: !llvm.struct<(!llvm.struct<(memref<?xi32>)>)>) -> !llvm.struct<(!llvm.struct<(memref<?xi32>)>)>
-// CHECK-MLIR-NEXT:      return %[[VAL_0]] : !llvm.struct<(!llvm.struct<(memref<?xi32>)>)>
+// CHECK-MLIR-SAME:                  %[[VAL_0:.*]]: !polygeist.struct<(!polygeist.struct<(memref<?xi32>)>)>) -> !polygeist.struct<(!polygeist.struct<(memref<?xi32>)>)>
+// CHECK-MLIR-NEXT:      return %[[VAL_0]] : !polygeist.struct<(!polygeist.struct<(memref<?xi32>)>)>
 // CHECK-MLIR-NEXT:    }
 
 // CHECK-LLVM-LABEL:   define { { ptr } } @id(

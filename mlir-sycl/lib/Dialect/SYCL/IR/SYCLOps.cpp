@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
+#include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -180,7 +181,7 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
             return success();
           }
           const Type ElemType = Ty.getElementType();
-          return (!isa<LLVM::LLVMStructType>(ElemType))
+          return (!isa<LLVM::LLVMStructType, polygeist::StructType>(ElemType))
                      ? emitOpError(
                            "Expecting pointer to struct return type. Got ")
                            << ResultType

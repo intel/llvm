@@ -17,12 +17,12 @@ static constexpr unsigned N = 8;
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 
-// CHECK-LABEL: func.func private @_ZZZ9testImagevENKUlRN4sycl3_V17handlerEE_clES2_ENKUlNS0_4itemILi1ELb1EEEE_clES5_(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %arg1: memref<?x!sycl_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_, llvm.noundef})
+// CHECK-LABEL: func.func private @_ZZZ9testImagevENKUlRN4sycl3_V17handlerEE_clES2_ENKUlNS0_4itemILi1ELb1EEEE_clES5_(%arg0: memref<?x!polygeist.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %arg1: memref<?x!sycl_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_, llvm.noundef})
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %alloca = memref.alloca() : memref<1xi32>
 // CHECK-DAG:     %0 = llvm.mlir.undef : i32
 // CHECK-NEXT:    affine.store %0, %alloca[0] : memref<1xi32>
-// CHECK-NEXT:    %1 = "polygeist.memref2pointer"(%arg0) : (memref<?x!llvm.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:    %1 = "polygeist.memref2pointer"(%arg0) : (memref<?x!polygeist.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4>) -> !llvm.ptr<4>
 // CHECK-NEXT:    %2 = sycl.item.get_id(%arg1, %c0_i32) : (memref<?x!sycl_item_1_>, i32) -> i64
 // CHECK-NEXT:    %3 = arith.trunci %2 : i64 to i32
 // CHECK-NEXT:    %memspacecast = memref.memory_space_cast %cast : memref<?xi32> to memref<?xi32, 4>

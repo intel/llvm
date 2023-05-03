@@ -365,7 +365,7 @@ ValueCategory MLIRScanner::callHelper(
                 ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
-        auto ET = cast<LLVM::LLVMStructType>(L0.getElemTy()).getBody()[I];
+        auto ET = cast<polygeist::StructType>(L0.getElemTy()).getBody()[I];
         Blocks[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<LLVM::LoadOp>(
@@ -394,7 +394,7 @@ ValueCategory MLIRScanner::callHelper(
                 ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
-        auto ET = cast<LLVM::LLVMStructType>(T0.getElemTy()).getBody()[I];
+        auto ET = cast<polygeist::StructType>(T0.getElemTy()).getBody()[I];
         Threads[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<LLVM::LoadOp>(
@@ -664,10 +664,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       Sub = ValueCategory(Alloc, /*isRef*/ true, ElementType);
     }
     auto Val = Sub.getValue(Builder);
+    Type LLVMTy = TypeTranslator.translateType(mlirclang::anonymize(
+        mlirclang::getLLVMType(E->getType(), Glob.getCGM())));
     if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
-      auto Nt = cast<LLVM::LLVMPointerType>(
-          TypeTranslator.translateType(mlirclang::anonymize(
-              mlirclang::getLLVMType(E->getType(), Glob.getCGM()))));
+      auto Nt = cast<LLVM::LLVMPointerType>(LLVMTy);
       if (UseOpaquePointers) {
         // Temporary workaround, until the move to opaque pointers is completed
         // and we can put the LLVMContext into opaque pointer mode.
@@ -676,6 +676,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       assert(Nt.getAddressSpace() == MT.getMemorySpaceAsInt() &&
              "val does not have the same memory space as nt");
       Val = Builder.create<polygeist::Memref2PointerOp>(Loc, Nt, Val);
+    } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
+      if (!UseOpaquePointers)
+        if (auto ST = dyn_cast<polygeist::StructType>(PT.getElementType()))
+          Val = Builder.create<LLVM::BitcastOp>(Loc, LLVMTy, Val);
     }
     return Val;
   };

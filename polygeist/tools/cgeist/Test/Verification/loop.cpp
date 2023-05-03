@@ -25,13 +25,13 @@ void div_(int* sizes, short k) {
 // CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
 // CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 0 : i32
 // CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_4]] x !llvm.array<25 x struct<(i32, f64)>> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_4]] x !llvm.array<25 x !polygeist.struct<(i32, f64)>> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_6:.*]] = memref.get_global @_ZL1S : memref<i16>
 // CHECK-NEXT:      %[[VAL_7:.*]] = memref.alloca() : memref<1xindex>
 // CHECK-NEXT:      %[[VAL_8:.*]] = memref.reshape %[[VAL_6]](%[[VAL_7]]) : (memref<i16>, memref<1xindex>) -> memref<1xi16>
 // CHECK-NEXT:      affine.store %[[VAL_1]], %[[VAL_8]][0] : memref<1xi16>
 // CHECK-NEXT:      %[[VAL_9:.*]] = memref.get_global @MAX_DIMS : memref<i32>
-// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_5]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<25 x struct<(i32, f64)>>
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_5]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<25 x !polygeist.struct<(i32, f64)>>
 // CHECK-NEXT:      %[[VAL_11:.*]] = scf.while (%[[VAL_12:.*]] = %[[VAL_3]]) : (i32) -> i32 {
 // CHECK-NEXT:        %[[VAL_13:.*]] = memref.alloca() : memref<1xindex>
 // CHECK-NEXT:        %[[VAL_14:.*]] = memref.reshape %[[VAL_9]](%[[VAL_13]]) : (memref<i32>, memref<1xindex>) -> memref<1xi32>
@@ -48,8 +48,8 @@ void div_(int* sizes, short k) {
 // CHECK-NEXT:        %[[VAL_23:.*]] = arith.extsi %[[VAL_22]] : i16 to i32
 // CHECK-NEXT:        %[[VAL_24:.*]] = arith.addi %[[VAL_19]], %[[VAL_23]] : i32
 // CHECK-NEXT:        %[[VAL_25:.*]] = arith.index_cast %[[VAL_18]] : index to i64
-// CHECK-NEXT:        %[[VAL_26:.*]] = llvm.getelementptr %[[VAL_10]]{{\[}}%[[VAL_25]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(i32, f64)>
-// CHECK-NEXT:        %[[VAL_27:.*]] = llvm.getelementptr inbounds %[[VAL_26]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, f64)>
+// CHECK-NEXT:        %[[VAL_26:.*]] = llvm.getelementptr %[[VAL_10]]{{\[}}%[[VAL_25]]] : (!llvm.ptr, i64) -> !llvm.ptr, !polygeist.struct<(i32, f64)>
+// CHECK-NEXT:        %[[VAL_27:.*]] = llvm.getelementptr inbounds %[[VAL_26]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<(i32, f64)>
 // CHECK-NEXT:        llvm.store %[[VAL_24]], %[[VAL_27]] : i32, !llvm.ptr
 // CHECK-NEXT:        %[[VAL_28:.*]] = arith.addi %[[VAL_17]], %[[VAL_2]] : i32
 // CHECK-NEXT:        scf.yield %[[VAL_28]] : i32

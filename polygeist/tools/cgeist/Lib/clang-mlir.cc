@@ -1154,7 +1154,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   }
 
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
-    if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(ElementType)) {
+    if (!isa<LLVM::LLVMStructType, polygeist::StructType, LLVM::LLVMArrayType>(
+            ElementType)) {
       llvm::errs() << "Function: " << Function << "\n";
       FD->dump();
       FD->getType()->dump();
@@ -1163,9 +1164,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
 
     Type ET = TypeSwitch<Type, Type>(ElementType)
-                  .Case<LLVM::LLVMStructType>([FNum](LLVM::LLVMStructType ST) {
-                    return ST.getBody()[FNum];
-                  })
+                  .Case<LLVM::LLVMStructType, polygeist::StructType>(
+                      [FNum](auto ST) { return ST.getBody()[FNum]; })
                   .Case<LLVM::LLVMArrayType, MemRefType>(
                       [](auto Ty) { return Ty.getElementType(); });
     Value CommonGep = Builder.create<LLVM::GEPOp>(
@@ -1209,7 +1209,9 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   // clean the redundancy
   Value Result;
   std::optional<mlir::Type> InnerTy = std::nullopt;
-  if (auto ST = dyn_cast<LLVM::LLVMStructType>(MT.getElementType())) {
+  assert(!isa<LLVM::LLVMStructType>(MT.getElementType()) &&
+         "Expecting not LLVMStrucType");
+  if (auto ST = dyn_cast<polygeist::StructType>(MT.getElementType())) {
     assert(FNum < ST.getBody().size() && "ERROR");
 
     const auto ElementType = ST.getBody()[FNum];
@@ -1446,7 +1448,7 @@ Value MLIRScanner::GetAddressOfBaseClass(
         auto RecTy = Glob.getTypes().getMLIRType(
             Glob.getCGM().getContext().getRecordType(RD));
         Type ET = TypeSwitch<Type, Type>(RecTy)
-                      .Case<sycl::AccessorType, LLVM::LLVMStructType>(
+                      .Case<sycl::AccessorType, polygeist::StructType>(
                           [FNum](auto Ty) { return Ty.getBody()[FNum]; })
                       .Case<LLVM::LLVMArrayType>([](LLVM::LLVMArrayType AT) {
                         return AT.getElementType();

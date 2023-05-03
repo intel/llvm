@@ -3,10 +3,10 @@
 
 #include <sycl/sycl.hpp>
 
-// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !llvm.struct<(memref<?xf32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_1_21sycl2Evec3C5Bi322C_45D2C_28vector3C4xi323E293E_rw_gb = !sycl.accessor<[1, !sycl_vec_i32_4_, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?x!sycl_vec_i32_4_, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !polygeist.struct<(memref<?xi32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !polygeist.struct<(memref<?xi32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !polygeist.struct<(memref<?xf32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_21sycl2Evec3C5Bi322C_45D2C_28vector3C4xi323E293E_rw_gb = !sycl.accessor<[1, !sycl_vec_i32_4_, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !polygeist.struct<(memref<?x!sycl_vec_i32_4_, 1>)>)>
 // CHECK-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 // CHECK-DAG: !sycl_atomic_f32_loc = !sycl.atomic<[f32, local], (memref<?xf32, 3>)>

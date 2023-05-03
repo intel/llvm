@@ -10,6 +10,7 @@
 #define MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "clang/AST/Type.h"
@@ -75,13 +76,14 @@ inline bool isPointerOrMemRefTy(mlir::Type Ty) {
 inline bool isFirstClassType(mlir::Type Ty) {
   return llvm::isa<mlir::IntegerType, mlir::IndexType, mlir::FloatType,
                    mlir::VectorType, mlir::MemRefType,
-                   mlir::LLVM::LLVMPointerType, mlir::LLVM::LLVMStructType>(
-             Ty) ||
+                   mlir::LLVM::LLVMPointerType, mlir::LLVM::LLVMStructType,
+                   mlir::polygeist::StructType>(Ty) ||
          mlir::sycl::isSYCLType(Ty);
 }
 
 inline bool isAggregateType(mlir::Type Ty) {
-  return llvm::isa<mlir::LLVM::LLVMStructType>(Ty) ||
+  return llvm::isa<mlir::LLVM::LLVMStructType, mlir::polygeist::StructType>(
+             Ty) ||
          mlir::sycl::isSYCLType(Ty);
 }
 

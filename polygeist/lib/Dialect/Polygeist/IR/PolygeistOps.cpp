@@ -1132,7 +1132,7 @@ public:
     auto MET = cast<MemRefType>(src.getSource().getType()).getElementType();
     // SYCL types are lowered to LLVM struct type.
     bool isSYCLTy = MET.getDialect().getNamespace().contains("sycl");
-    if (isa<LLVM::LLVMStructType>(MET) || isSYCLTy)
+    if (isa<LLVM::LLVMStructType, polygeist::StructType>(MET) || isSYCLTy)
       return failure();
 
     Value idx[] = {src.getIndex()};

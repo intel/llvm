@@ -79,11 +79,11 @@ struct foo {
 };
 
 // CHECK-LABEL:   func.func @struct_get(
-// CHECK-SAME:                          %[[VAL_0:.*]]: !llvm.struct<(i32, i8)>) -> i1
+// CHECK-SAME:                          %[[VAL_0:.*]]: !polygeist.struct<(i32, i8)>) -> i1
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %c1_i64 x !llvm.struct<(i32, i8)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_2]] : !llvm.struct<(i32, i8)>, !llvm.ptr
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i8)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %c1_i64 x !polygeist.struct<(i32, i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_2]] : !polygeist.struct<(i32, i8)>, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<(i32, i8)>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i8
 // CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_5]] : i1
@@ -94,7 +94,7 @@ bool struct_get(struct foo s) {
 
 // CHECK-LABEL:   func.func @struct_ptr_get(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i8)>
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<(i32, i8)>
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> i8
 // CHECK-NEXT:      %[[VAL_3:.*]] = arith.trunci %[[VAL_2]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_3]] : i1
