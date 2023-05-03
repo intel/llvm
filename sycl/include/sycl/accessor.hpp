@@ -2709,6 +2709,9 @@ public:
   bool operator!=(const local_accessor_base &Rhs) const {
     return !(*this == Rhs);
   }
+
+private:
+  template <typename DataT_, int Dimensions_> friend class local_accessor;
 };
 
 // TODO: Remove deprecated specialization once no longer needed
@@ -2800,6 +2803,27 @@ public:
 #else
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
+
+  // implicit conversion between const / non-const types for read only accessors
+public:
+  template <typename DataT_,
+            typename = std::enable_if_t<
+                !std::is_same_v<DataT_, DataT> && std::is_const_v<DataT> &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  local_accessor(const local_accessor<DataT_, Dimensions> &other) {
+    local_acc::impl = other.impl;
+  }
+
+  template <typename DataT_>
+  bool operator==(const local_accessor<DataT_, Dimensions> &Rhs) const {
+    return local_acc::impl == Rhs.impl;
+  }
+
+  template <typename DataT_>
+  bool operator!=(const local_accessor<DataT_, Dimensions> &Rhs) const {
+    return !(*this == Rhs);
+  }
 
 public:
   using value_type = DataT;
@@ -3239,6 +3263,35 @@ public:
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
   }
+
+  // implicit conversion between const / non-const types for read only accessors
+  template <typename DataT_,
+            typename = std::enable_if_t<
+                IsAccessReadOnly && !std::is_same_v<DataT_, DataT> &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  host_accessor(const host_accessor<DataT_, Dimensions, AccessMode> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      {}
+#else
+      : host_accessor(other.impl) {
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
+  // implicit conversion from read_write T accessor to read only T (const)
+  // accessor
+  template <typename DataT_, access::mode AccessMode_,
+            typename = std::enable_if_t<
+                (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  host_accessor(const host_accessor<DataT_, Dimensions, AccessMode_> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      {}
+#else
+      : host_accessor(other.impl) {
+  }
+#endif // __SYCL_DEVICE_ONLY__
 
   // host_accessor needs to explicitly define the owner_before member functions
   // as inheriting from OwnerLessBase causes base class conflicts.
