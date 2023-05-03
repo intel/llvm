@@ -15,7 +15,9 @@
 // UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
 
 // https://github.com/intel/llvm/issues/7585 to fix the time out failure:
-// UNSUPPORTED: cpu,gpu
+// XFAIL: cpu,gpu
+
+#error FIXME: Test times-out
 
 #include <sycl/sycl.hpp>
 
