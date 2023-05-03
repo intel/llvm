@@ -124,44 +124,46 @@ set_target_properties("ur_adapter_level_zero" PROPERTIES
     SOVERSION "0"
 )
 
-# Build CUDA adapter
-add_sycl_library("ur_adapter_cuda" SHARED 
-  SOURCES
-    "ur/ur.hpp"
-    "ur/ur.cpp"
-    "ur/usm_allocator.cpp"
-    "ur/usm_allocator.hpp"
-    "ur/adapters/cuda/common.cpp"
-    "ur/adapters/cuda/common.hpp"
-    "ur/adapters/cuda/context.cpp"
-    "ur/adapters/cuda/context.hpp"
-    "ur/adapters/cuda/device.cpp"
-    "ur/adapters/cuda/device.hpp"
-    "ur/adapters/cuda/enqueue.cpp"
-    "ur/adapters/cuda/event.cpp"
-    "ur/adapters/cuda/event.hpp"
-    "ur/adapters/cuda/platform.cpp"
-    "ur/adapters/cuda/platform.hpp"
-    "ur/adapters/cuda/program.cpp"
-    "ur/adapters/cuda/program.hpp"
-    "ur/adapters/cuda/kernel.cpp"
-    "ur/adapters/cuda/kernel.hpp"
-    "ur/adapters/cuda/queue.cpp"
-    "ur/adapters/cuda/queue.hpp"
-    "ur/adapters/cuda/sampler.cpp"
-    "ur/adapters/cuda/sampler.hpp"
-    "ur/adapters/cuda/memory.cpp"
-    "ur/adapters/cuda/memory.hpp"
-    "ur/adapters/cuda/usm.cpp"
-    "ur/adapters/cuda/ur_interface_loader.cpp"
-    "ur/adapters/cuda/tracing.cpp"
-  INCLUDE_DIRS
-    ${sycl_inc_dir}
-  LIBRARIES
-    UnifiedRuntime-Headers
-    Threads::Threads
-    cudadrv
-)
+if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Build CUDA adapter
+  add_sycl_library("ur_adapter_cuda" SHARED
+    SOURCES
+      "ur/ur.hpp"
+      "ur/ur.cpp"
+      "ur/usm_allocator.cpp"
+      "ur/usm_allocator.hpp"
+      "ur/adapters/cuda/common.cpp"
+      "ur/adapters/cuda/common.hpp"
+      "ur/adapters/cuda/context.cpp"
+      "ur/adapters/cuda/context.hpp"
+      "ur/adapters/cuda/device.cpp"
+      "ur/adapters/cuda/device.hpp"
+      "ur/adapters/cuda/enqueue.cpp"
+      "ur/adapters/cuda/event.cpp"
+      "ur/adapters/cuda/event.hpp"
+      "ur/adapters/cuda/platform.cpp"
+      "ur/adapters/cuda/platform.hpp"
+      "ur/adapters/cuda/program.cpp"
+      "ur/adapters/cuda/program.hpp"
+      "ur/adapters/cuda/kernel.cpp"
+      "ur/adapters/cuda/kernel.hpp"
+      "ur/adapters/cuda/queue.cpp"
+      "ur/adapters/cuda/queue.hpp"
+      "ur/adapters/cuda/sampler.cpp"
+      "ur/adapters/cuda/sampler.hpp"
+      "ur/adapters/cuda/memory.cpp"
+      "ur/adapters/cuda/memory.hpp"
+      "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/ur_interface_loader.cpp"
+      "ur/adapters/cuda/tracing.cpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      Threads::Threads
+      cudadrv
+  )
+endif()
 
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
