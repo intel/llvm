@@ -12,7 +12,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t_O0.out
 
 // https://github.com/intel/llvm/issues/7585 to fix the time out failure:
-// UNSUPPORTED: cpu
+// XFAIL: cpu
 
 /*
     test performs a lattice reduction.
@@ -68,6 +68,10 @@ int main() {
 
   queue q{default_selector_v};
   auto dev = q.get_device();
+  if (dev.has(aspect::cpu)) {
+    printf("FIXME: Test times-out\n");
+    return -1;
+  }
   std::cout << "Device: " << dev.get_info<info::device::name>() << std::endl;
 
   auto ctx = q.get_context();
