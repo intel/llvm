@@ -1106,8 +1106,9 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<Tx, N>
-atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask) {
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p,
+                                      simd_view<Toffset, RegionTy> offsets,
+                                      simd_mask<N> mask = 1) {
   return atomic_update<Op, Tx, N>(p, offsets.read(), mask);
 }
 
@@ -1127,7 +1128,7 @@ atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask) {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
-atomic_update(Tx *p, Toffset offset, simd_mask<N> mask) {
+atomic_update(Tx *p, Toffset offset, simd_mask<N> mask = 1) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), mask);
 }
 
