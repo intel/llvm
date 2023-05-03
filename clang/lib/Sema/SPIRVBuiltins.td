@@ -952,3 +952,7 @@ foreach name = ["GroupUMin", "GroupUMax"] in {
 foreach name = ["GroupSMin", "GroupSMax"] in {
   def : SPVBuiltin<name, [ASIGenTypeN, UInt, UInt, ASIGenTypeN], Attr.Convergent>;
 }
+
+foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
+  def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
+}

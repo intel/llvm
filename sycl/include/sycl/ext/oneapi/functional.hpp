@@ -34,6 +34,7 @@ struct GroupOpISigned {};
 struct GroupOpIUnsigned {};
 struct GroupOpFP {};
 struct GroupOpC {};
+struct GroupOpBool {};
 
 template <typename T, typename = void> struct GroupOpTag;
 
@@ -58,6 +59,11 @@ struct GroupOpTag<
                         std::is_same<T, std::complex<float>>::value ||
                         std::is_same<T, std::complex<double>>::value>> {
   using type = GroupOpC;
+};
+
+template <typename T>
+struct GroupOpTag<T, std::enable_if_t<detail::is_genbool<T>::value>> {
+  using type = GroupOpBool;
 };
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
@@ -90,6 +96,16 @@ __SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXorKHR, sycl::bit_xor<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorKHR, sycl::bit_xor<T>)
 __SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndKHR, sycl::bit_and<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
+
+__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalAndKHR, sycl::logical_and<T>)
+
+__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalOrKHR, sycl::logical_or<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 
