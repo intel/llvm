@@ -1940,6 +1940,13 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     }
   }
 
+  if (Arg *A = Args.getLastArg(OPT_fsycl_instrument_device_code)) {
+    if (!T.isSPIR())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << T.str();
+    Opts.SPIRITTAnnotations = true;
+  }
+
   if (Arg *A = Args.getLastArg(OPT_mabi_EQ_quadword_atomics)) {
     if (!T.isOSAIX() || T.isPPC32())
       Diags.Report(diag::err_drv_unsupported_opt_for_target)
