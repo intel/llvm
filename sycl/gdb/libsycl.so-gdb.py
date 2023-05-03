@@ -52,7 +52,9 @@ class HostAccessor(Accessor):
     """For Host device memory layout"""
 
     def memory_range(self, dim):
-        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getMemoryRange()"
+        eval_string = (
+            "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getMemoryRange()"
+        )
         return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def offset(self, dim):
@@ -62,6 +64,7 @@ class HostAccessor(Accessor):
     def data(self):
         eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getPtr()"
         return gdb.parse_and_eval(eval_string)
+
 
 class HostAccessorLocal(HostAccessor):
     """For Host device memory layout"""
@@ -75,10 +78,9 @@ class HostAccessorLocal(HostAccessor):
             return int(arg)
         result = 0
         for dim in range(self.depth):
-            result = (
-                result * self.memory_range(dim) + arg["common_array"][dim]
-            )
+            result = result * self.memory_range(dim) + arg["common_array"][dim]
         return result
+
 
 class DeviceAccessor(Accessor):
     """For CPU/GPU memory layout"""
@@ -197,7 +199,9 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             self,
             obj,
         ):
-            result = re.match("^sycl::_V1::detail::ItemBase<(.+), (.+)>$", str(obj.type))
+            result = re.match(
+                "^sycl::_V1::detail::ItemBase<(.+), (.+)>$", str(obj.type)
+            )
             self.dim = int(result[1])
             self.with_offset = result[2] == "true"
             self.obj = obj
@@ -253,6 +257,7 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             eval_string = "((" + str(obj.type) + ")" + str(obj) + ")->Val.get()"
             return gdb.parse_and_eval(eval_string)[index]
 
+
 class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
     """Entry point for sycl::_V1::private_memory"""
 
@@ -264,7 +269,8 @@ class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
             return None
 
         result = re.match(
-            "^sycl::_V1::private_memory<((cl::)?(sycl::_V1::)?id<.+>), (.+)>$", class_type.tag
+            "^sycl::_V1::private_memory<((cl::)?(sycl::_V1::)?id<.+>), (.+)>$",
+            class_type.tag,
         )
         if result is None:
             return None
@@ -357,5 +363,7 @@ class SyclBufferPrinter:
 sycl_printer = gdb.printing.RegexpCollectionPrettyPrinter("SYCL")
 sycl_printer.add_printer("sycl::_V1::id", "^sycl::_V1::id<.*$", SyclArrayPrinter)
 sycl_printer.add_printer("sycl::_V1::range", "^sycl::_V1::range<.*$", SyclArrayPrinter)
-sycl_printer.add_printer("sycl::_V1::buffer", "^sycl::_V1::buffer<.*$", SyclBufferPrinter)
+sycl_printer.add_printer(
+    "sycl::_V1::buffer", "^sycl::_V1::buffer<.*$", SyclBufferPrinter
+)
 gdb.printing.register_pretty_printer(None, sycl_printer, True)
