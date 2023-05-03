@@ -1,4 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xclang -fdenormal-fp-math-f32="preserve-sign,preserve-sign" %s -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xclang -fdenormal-fp-math-f32="preserve-sign,preserve-sign" %s -o %t.out %{mathflags}
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
