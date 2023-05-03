@@ -2,7 +2,8 @@
 // The program is being compiled with optimization and without.
 // Then the execution time of both are being relatively compared.
 //
-// The source code is taken from https://github.com/oneapi-src/oneAPI-samples/blob/master/DirectProgramming/C%2B%2BSYCL/GraphAlgorithms/all-pairs-shortest-paths/src/apsp.cpp
+// The source code is taken from
+// https://github.com/oneapi-src/oneAPI-samples/blob/master/DirectProgramming/C%2B%2BSYCL/GraphAlgorithms/all-pairs-shortest-paths/src/apsp.cpp
 // and adjusted for testing purposes (parts of code has been deleted and
 // refactored).
 
@@ -12,7 +13,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.unoptimized.out && \
 // RUN: %CPU_RUN_PLACEHOLDER %t.optimized.out && \
 // RUN: python %S%{fs-sep}compare.py --files=%t.unoptimized.output,%t.optimized.output --diff=0.5
-
 
 // RUN: %GPU_RUN_PLACEHOLDER %t.unoptimized.out && \
 // RUN: %GPU_RUN_PLACEHOLDER %t.optimized.out && \
