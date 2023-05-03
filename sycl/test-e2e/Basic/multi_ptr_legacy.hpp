@@ -62,53 +62,53 @@ template <typename T> void testMultPtr() {
           accessorData_2(bufferData_2, cgh);
       local_accessor<T, 1> localAccessor(numOfItems, cgh);
 
-      cgh.parallel_for<class testMultPtrKernel<
-          T>>(nd_range<1>{10, 10}, [=](nd_item<1> wiID) {
-        auto ptr_1 = make_ptr<const T, access::address_space::global_space,
-                              access::decorated::legacy>(
-            accessorData_1
-                .template get_multi_ptr<sycl::access::decorated::legacy>());
-        auto ptr_2 = make_ptr<T, access::address_space::global_space,
-                              access::decorated::legacy>(
-            accessorData_2
-                .template get_multi_ptr<sycl::access::decorated::legacy>());
-        auto local_ptr =
-            make_ptr<T, access::address_space::local_space,
-                     access::decorated::legacy>(localAccessor.get_pointer());
+      cgh.parallel_for<class testMultPtrKernel<T>>(
+          nd_range<1>{10, 10}, [=](nd_item<1> wiID) {
+            auto ptr_1 = make_ptr<const T, access::address_space::global_space,
+                                  access::decorated::legacy>(
+                accessorData_1
+                    .template get_multi_ptr<sycl::access::decorated::legacy>());
+            auto ptr_2 = make_ptr<T, access::address_space::global_space,
+                                  access::decorated::legacy>(
+                accessorData_2
+                    .template get_multi_ptr<sycl::access::decorated::legacy>());
+            auto local_ptr = make_ptr<T, access::address_space::local_space,
+                                      access::decorated::legacy>(
+                localAccessor.get_pointer());
 
-        // Construct extension pointer from accessors.
-        auto dev_ptr =
-            multi_ptr<const T,
-                      access::address_space::ext_intel_global_device_space>(
-                accessorData_1);
-        static_assert(
-            std::is_same_v<ext::intel::device_ptr<const T>, decltype(dev_ptr)>,
-            "Incorrect type for dev_ptr.");
+            // Construct extension pointer from accessors.
+            auto dev_ptr =
+                multi_ptr<const T,
+                          access::address_space::ext_intel_global_device_space>(
+                    accessorData_1);
+            static_assert(std::is_same_v<ext::intel::device_ptr<const T>,
+                                         decltype(dev_ptr)>,
+                          "Incorrect type for dev_ptr.");
 
-        // General conversions in multi_ptr class
-        T *RawPtr = nullptr;
-        global_ptr<T> ptr_4(RawPtr);
-        ptr_4 = RawPtr;
+            // General conversions in multi_ptr class
+            T *RawPtr = nullptr;
+            global_ptr<T> ptr_4(RawPtr);
+            ptr_4 = RawPtr;
 
-        global_ptr<const T> ptr_5(accessorData_1);
+            global_ptr<const T> ptr_5(accessorData_1);
 
-        global_ptr<void> ptr_6((void *)RawPtr);
+            global_ptr<void> ptr_6((void *)RawPtr);
 
-        ptr_6 = (void *)RawPtr;
+            ptr_6 = (void *)RawPtr;
 
-        // Explicit conversions for device_ptr/host_ptr to global_ptr
-        ext::intel::device_ptr<void> ptr_7((void *)RawPtr);
-        global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
-        ext::intel::host_ptr<void> ptr_9((void *)RawPtr);
-        global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
-        // TODO: need propagation of a7b763b26 patch to acl tool before
-        // testing these conversions - otherwise the test would fail on
-        // accelerator device during reversed translation from SPIR-V to
-        // LLVM IR device_ptr<T> ptr_11(accessorData_1); global_ptr<T>
-        // ptr_12 = global_ptr<T>(ptr_11);
+            // Explicit conversions for device_ptr/host_ptr to global_ptr
+            ext::intel::device_ptr<void> ptr_7((void *)RawPtr);
+            global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
+            ext::intel::host_ptr<void> ptr_9((void *)RawPtr);
+            global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
+            // TODO: need propagation of a7b763b26 patch to acl tool before
+            // testing these conversions - otherwise the test would fail on
+            // accelerator device during reversed translation from SPIR-V to
+            // LLVM IR device_ptr<T> ptr_11(accessorData_1); global_ptr<T>
+            // ptr_12 = global_ptr<T>(ptr_11);
 
-        innerFunc<T>(wiID.get_local_id().get(0), ptr_1, ptr_2, local_ptr);
-      });
+            innerFunc<T>(wiID.get_local_id().get(0), ptr_1, ptr_2, local_ptr);
+          });
     });
   }
   for (size_t i = 0; i < 10; ++i) {
@@ -175,8 +175,8 @@ template <typename T> void testMultPtrArrowOperator() {
       static_assert(std::is_same<decltype(x4), T>::value,
                     "Expected decltype(ptr_4->x) == T");
     });
-    });
-  }
+  });
+}
 }
 
 int main() {
