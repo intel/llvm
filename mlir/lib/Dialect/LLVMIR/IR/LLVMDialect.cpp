@@ -936,11 +936,11 @@ CallInterfaceCallable CallOp::getCallableForCallee() {
 void CallOp::setCalleeFromCallable(CallInterfaceCallable callee) {
   // Direct call.
   if (FlatSymbolRefAttr calleeAttr = getCalleeAttr()) {
-    auto symRef = dyn_cast<SymbolRefAttr>(callee);
+    auto symRef = callee.get<SymbolRefAttr>();
     return setCalleeAttr(cast<FlatSymbolRefAttr>(symRef));
   }
   // Indirect call, callee Value is the first operand.
-  return setOperand(0, dyn_cast<Value>(callee));
+  return setOperand(0, callee.get<Value>());
 }
 
 Operation::operand_range CallOp::getArgOperands() {
@@ -1170,11 +1170,11 @@ CallInterfaceCallable InvokeOp::getCallableForCallee() {
 void InvokeOp::setCalleeFromCallable(CallInterfaceCallable callee) {
   // Direct call.
   if (FlatSymbolRefAttr calleeAttr = getCalleeAttr()) {
-    auto symRef = dyn_cast<SymbolRefAttr>(callee);
+    auto symRef = callee.get<SymbolRefAttr>();
     return setCalleeAttr(cast<FlatSymbolRefAttr>(symRef));
   }
   // Indirect call, callee Value is the first operand.
-  return setOperand(0, dyn_cast<Value>(callee));
+  return setOperand(0, callee.get<Value>());
 }
 
 Operation::operand_range InvokeOp::getArgOperands() {

@@ -2362,8 +2362,8 @@ def fir_CallOp : fir_Op<"call",
     void setCalleeFromCallable(CallInterfaceCallable callee) {
       if (auto calling =
           (*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
-        (*this)->setAttr("callee", dyn_cast<SymbolRefAttr>(getCalleeAttrName()));
-      setOperand(0, dyn_cast<Value>(callee));
+        (*this)->setAttr(getCalleeAttrName(), callee.get<SymbolRefAttr>());
+      setOperand(0, callee.get<Value>());
     }
   }];
 }
