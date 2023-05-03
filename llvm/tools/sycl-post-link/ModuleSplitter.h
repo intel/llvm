@@ -55,10 +55,6 @@ struct EntryPointGroup {
   struct Properties {
     // Whether all EPs are ESIMD, SYCL or there are both kinds.
     SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
-    // Whether any of the EPs use large GRF mode.
-    bool UsesLargeGRF = false;
-    // front-end opt level for kernel compilation
-    int OptLevel = -1;
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
@@ -67,10 +63,7 @@ struct EntryPointGroup {
       Res.HasESIMD = HasESIMD == Other.HasESIMD
                          ? HasESIMD
                          : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
-      Res.UsesLargeGRF = UsesLargeGRF || Other.UsesLargeGRF;
       // Scope remains global
-      // OptLevel is expected to be the same for both merging EPGs
-      assert(OptLevel == Other.OptLevel && "OptLevels are not same");
       return Res;
     }
   };
@@ -94,11 +87,6 @@ struct EntryPointGroup {
   bool isSycl() const {
     return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY;
   }
-  // Tells if some entry points use large GRF mode.
-  bool isLargeGRF() const { return Props.UsesLargeGRF; }
-
-  // Returns opt level
-  int getOptLevel() const { return Props.OptLevel; }
 
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
@@ -153,8 +141,6 @@ public:
 
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }
-  bool isLargeGRF() const { return EntryPoints.isLargeGRF(); }
-  int getOptLevel() const { return EntryPoints.getOptLevel(); }
 
   const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
@@ -253,16 +239,11 @@ public:
 };
 
 std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
+                      bool EmitOnlyKernelsAsEntryPoints);
+
+std::unique_ptr<ModuleSplitterBase>
 getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
-                  bool AutoSplitIsGlobalScope,
-                  bool EmitOnlyKernelsAsEntryPoints);
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByOptionalFeatures(ModuleDesc &&MD,
-                              bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);

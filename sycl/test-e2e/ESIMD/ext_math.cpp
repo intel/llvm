@@ -8,7 +8,7 @@
 // REQUIRES: gpu
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fno-fast-math %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // This test checks extended math operations. Combinations of
@@ -361,20 +361,25 @@ bool test(queue &Q, const std::string &Name,
   int ErrCnt = 0;
 
   for (unsigned I = 0; I < Size; ++I) {
-    T Gold;
+    // functions like std::isinf/isfinite/isnan do not work correctly with
+    // sycl::half, thus we'll use 'float' instead.
+    using CheckT = std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
+
+    CheckT Gold;
 
     if constexpr (IsBinOp) {
       Gold = HostFunc<T, Op>{}((T)A[I], (T)B[I]);
     } else {
       Gold = HostFunc<T, Op>{}((T)A[I]);
     }
-    T Test = C[I];
+    CheckT Test = C[I];
 
     if (delta == 0.0f) {
       delta = sizeof(T) > 2 ? 0.0001 : 0.01;
     }
 
-    if (abs(Test - Gold) > delta) {
+    bool BothFinite = std::isfinite(Test) && std::isfinite(Gold);
+    if (BothFinite && abs(Test - Gold) > delta) {
       if (++ErrCnt < 10) {
         std::cout << "    failed at index " << I << ", " << Test
                   << " != " << Gold << " (gold)\n";
@@ -478,9 +483,12 @@ int main(void) {
   Pass &= testESIMD<float, 16>(Q);
   Pass &= testESIMD<float, 32>(Q);
   if (Q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    // ESIMD_EMULATOR supports only ESIMD kernels
+    // ESIMD_EMULATOR supports only ESIMD API
+#ifndef TEST_FAST_MATH
+    // TODO: GPU Driver does not yet support ffast-math versions of tested APIs.
     Pass &= testSYCL<float, 8>(Q);
     Pass &= testSYCL<float, 32>(Q);
+#endif
   }
   Pass &= testESIMDPow<float, 8>(Q);
   Pass &= testESIMDPow<half, 32>(Q);
