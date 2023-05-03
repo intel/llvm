@@ -1640,15 +1640,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   return UR_RESULT_SUCCESS;
 }
 
-#if 0
 UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
     ur_context_handle_t Context,  ///< [in] handle of the context object.
-    const ur_mem_native_properties_t *
-        Properties, ///< [in][optional] pointer to native memory creation properties.
-    ur_mem_handle_t
-        *Mem ///< [out] pointer to handle of memory object created.
-) {
+    const ur_image_format_t
+        *ImageFormat, ///< [in] pointer to image format specification.
+    const ur_image_desc_t *ImageDesc, ///< [in] pointer to image description.
+    const ur_mem_native_properties_t
+        *Properties, ///< [in][optional] pointer to native memory creation
+                     ///< properties.
+    ur_mem_handle_t *Mem) {
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
@@ -1660,19 +1661,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 
 #ifndef NDEBUG
     ZeStruct<ze_image_desc_t> ZeImageDesc;
-    if (Properties->pNext != nullptr) {
-      ur_base_desc_t *BaseDesc = reinterpret_cast<ur_base_desc_t *>(Properties->pNext);
-      if (BaseDesc->stype == UR_STRUCTURE_TYPE_MEM_IMAGE_NATIVE_PROPERTIES) {
-        ur_mem_image_native_properties_t *ImageProperties = reinterpret_cast<ur_mem_image_native_properties_t *>(Properties->pNext);
-        ur_result_t Res = ur2zeImageDesc(ImageProperties->pImageFormat,
-                                        ImageProperties->pImageDesc,
-                                        ZeImageDesc);
-        if (Res != UR_RESULT_SUCCESS) {
-          delete Image;
-          *Mem = nullptr;
-          return Res;
-        }
-      }
+    ur_result_t Res = ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
+    if (Res != UR_RESULT_SUCCESS) {
+      delete Image;
+      *Mem = nullptr;
+      return Res;
     }
     Image->ZeImageDesc = ZeImageDesc;
 #endif // !NDEBUG
@@ -1682,10 +1675,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  
+
   return UR_RESULT_SUCCESS;
 }
-#endif
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
@@ -1861,57 +1853,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
-    ur_native_handle_t NativeMem, ///< [in] the native handle of the mem.
-    ur_context_handle_t Context,  ///< [in] handle of the context object
-    const ur_mem_native_properties_t *Properties,
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+    ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
+    ur_context_handle_t Context,  ///< [in] handle of the context object.
+    const ur_mem_native_properties_t
+        *Properties, ///< [in][optional] pointer to native memory creation
+                     ///< properties.
     ur_mem_handle_t
-        *Mem ///< [out] pointer to the handle of the mem object created.
+        *Mem ///< [out] pointer to handle of buffer memory object created.
 ) {
   bool OwnNativeHandle = Properties->isNativeHandleOwned;
 
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
-
-  // Check if this is an image
-  {
-    if (Properties->pNext != nullptr) {
-      ur_base_desc_t *BaseDesc =
-          reinterpret_cast<ur_base_desc_t *>(Properties->pNext);
-      if (BaseDesc->stype == UR_STRUCTURE_TYPE_MEM_IMAGE_NATIVE_PROPERTIES) {
-        ur_mem_image_native_properties_t *ImageProperties =
-            reinterpret_cast<ur_mem_image_native_properties_t *>(
-                Properties->pNext);
-
-        ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
-
-        _ur_image *Image = nullptr;
-        try {
-          Image =
-              new _ur_image(Context, ZeHImage, Properties->isNativeHandleOwned);
-          *Mem = reinterpret_cast<ur_mem_handle_t>(Image);
-
-#ifndef NDEBUG
-          ZeStruct<ze_image_desc_t> ZeImageDesc;
-          ur_result_t Res =
-              ur2zeImageDesc(ImageProperties->pImageFormat,
-                             ImageProperties->pImageDesc, ZeImageDesc);
-          if (Res != UR_RESULT_SUCCESS) {
-            delete Image;
-            *Mem = nullptr;
-            return Res;
-          }
-          Image->ZeImageDesc = ZeImageDesc;
-#endif // !NDEBUG
-
-        } catch (const std::bad_alloc &) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        } catch (...) {
-          return UR_RESULT_ERROR_UNKNOWN;
-        }
-        return UR_RESULT_SUCCESS;
-      }
-    }
-  }
 
   // Get base of the allocation
   void *Base = nullptr;
@@ -2075,8 +2028,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   if (Align > 65536)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  const ur_usm_flags_t *USMFlag = &USMDesc->flags;
-  std::ignore = USMFlag;
+  const ur_usm_advice_flags_t *USMHintFlags = &USMDesc->hints;
+  std::ignore = USMHintFlags;
 
   ur_platform_handle_t Plt = Context->getPlatform();
   // If indirect access tracking is enabled then lock the mutex which is
@@ -2105,9 +2058,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Align & (Align - 1)) != 0)) {
-    ur_usm_flags_t Properties{};
-    ur_result_t Res =
-        USMHostAllocImpl(RetMem, Context, &Properties, Size, Align);
+    ur_usm_host_mem_flags_t Flags{};
+    ur_result_t Res = USMHostAllocImpl(RetMem, Context, &Flags, Size, Align);
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -2158,8 +2110,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   if (Alignment > 65536)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  const ur_usm_flags_t *USMProp = &USMDesc->flags;
-  std::ignore = USMProp;
+  const ur_usm_advice_flags_t *USMHintFlags = &USMDesc->hints;
+  std::ignore = USMHintFlags;
 
   ur_platform_handle_t Plt = Device->Platform;
 
@@ -2236,11 +2188,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 ) {
   std::ignore = Pool;
 
-  const ur_usm_flags_t *Properties = &USMDesc->flags;
   uint32_t Alignment = USMDesc->align;
 
+  ur_usm_host_mem_flags_t UsmHostFlags{};
+
   // See if the memory is going to be read-only on the device.
-  bool DeviceReadOnly = *Properties & UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
+  bool DeviceReadOnly = false;
+  ur_usm_device_mem_flags_t UsmDeviceFlags{};
+
+  void *pNext = const_cast<void *>(USMDesc->pNext);
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc =
+        reinterpret_cast<const ur_base_desc_t *>(pNext);
+    if (BaseDesc->stype == UR_STRUCTURE_TYPE_USM_DEVICE_DESC) {
+      const ur_usm_device_desc_t *UsmDeviceDesc =
+          reinterpret_cast<const ur_usm_device_desc_t *>(pNext);
+      UsmDeviceFlags = UsmDeviceDesc->flags;
+    }
+    if (BaseDesc->stype == UR_STRUCTURE_TYPE_USM_HOST_DESC) {
+      const ur_usm_host_desc_t *UsmHostDesc =
+          reinterpret_cast<const ur_usm_host_desc_t *>(pNext);
+      UsmHostFlags = UsmHostDesc->flags;
+    }
+    pNext = const_cast<void *>(BaseDesc->pNext);
+  }
+  DeviceReadOnly = UsmDeviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
@@ -2271,9 +2243,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    ur_result_t Res = USMSharedAllocImpl(
-        RetMem, Context, Device, const_cast<ur_usm_flags_t *>(Properties), Size,
-        Alignment);
+    ur_result_t Res = USMSharedAllocImpl(RetMem, Context, Device, &UsmHostFlags,
+                                         &UsmDeviceFlags, Size, Alignment);
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -2423,16 +2394,18 @@ void USMMemoryAllocBase::deallocate(void *Ptr) {
 
 ur_result_t USMSharedMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
                                                uint32_t Alignment) {
-  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, nullptr, Size,
                             Alignment);
 }
 
 ur_result_t USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
                                                        size_t Size,
                                                        uint32_t Alignment) {
-  ur_usm_flags_t Props = UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
-  return USMSharedAllocImpl(ResultPtr, Context, Device, &Props, Size,
-                            Alignment);
+  ur_usm_device_desc_t UsmDeviceDesc{};
+  UsmDeviceDesc.flags = UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
+  ur_usm_host_desc_t UsmHostDesc{};
+  return USMSharedAllocImpl(ResultPtr, Context, Device, &UsmDeviceDesc.flags,
+                            &UsmHostDesc.flags, Size, Alignment);
 }
 
 ur_result_t USMDeviceMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
@@ -2536,7 +2509,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroy(
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
-                               ur_usm_flags_t *Properties, size_t Size,
+                               ur_usm_device_mem_flags_t *Flags, size_t Size,
                                uint32_t Alignment) {
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
@@ -2562,8 +2535,10 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t Device, ur_usm_flags_t *,
-                               size_t Size, uint32_t Alignment) {
+                               ur_device_handle_t Device,
+                               ur_usm_host_mem_flags_t *,
+                               ur_usm_device_mem_flags_t *, size_t Size,
+                               uint32_t Alignment) {
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
@@ -2593,7 +2568,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                             ur_usm_flags_t *Properties, size_t Size,
+                             ur_usm_host_mem_flags_t *Flags, size_t Size,
                              uint32_t Alignment) {
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;

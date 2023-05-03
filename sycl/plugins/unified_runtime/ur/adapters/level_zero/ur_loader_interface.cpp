@@ -159,7 +159,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
   pDdiTable->pfnRelease = urMemRelease;
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
   pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
-  pDdiTable->pfnCreateWithNativeHandle = urMemCreateWithNativeHandle;
+  pDdiTable->pfnBufferCreateWithNativeHandle =
+      urMemBufferCreateWithNativeHandle;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urMemGetInfo;
   pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
 

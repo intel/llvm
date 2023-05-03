@@ -2509,14 +2509,8 @@ inline pi_result piextMemImageCreateWithNativeHandle(
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_mem_image_native_properties_t ImageProperties{};
-  ImageProperties.stype = UR_STRUCTURE_TYPE_MEM_IMAGE_NATIVE_PROPERTIES;
-  ImageProperties.pImageFormat = &UrFormat;
-  ImageProperties.pImageDesc = &UrDesc;
-  Properties.pNext = &ImageProperties;
-
-  HANDLE_ERRORS(
-      urMemCreateWithNativeHandle(UrNativeMem, UrContext, &Properties, UrMem));
+  HANDLE_ERRORS(urMemImageCreateWithNativeHandle(
+      UrNativeMem, UrContext, &UrFormat, &UrDesc, &Properties, UrMem));
 
   return PI_SUCCESS;
 }
@@ -2630,8 +2624,8 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   // while we get it in interface
   ur_mem_native_properties_t Properties{};
   Properties.isNativeHandleOwned = OwnNativeHandle;
-  HANDLE_ERRORS(
-      urMemCreateWithNativeHandle(UrNativeMem, UrContext, &Properties, UrMem));
+  HANDLE_ERRORS(urMemBufferCreateWithNativeHandle(UrNativeMem, UrContext,
+                                                  &Properties, UrMem));
 
   return PI_SUCCESS;
 }
@@ -2669,22 +2663,28 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_usm_desc_t USMDesc{};
+  ur_usm_device_desc_t UsmDeviceDesc{};
+  UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
+  ur_usm_host_desc_t UsmHostDesc{};
+  UsmHostDesc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
   if (Properties) {
     if (Properties[0] == PI_MEM_ALLOC_FLAGS) {
       if (Properties[1] == PI_MEM_ALLOC_WRTITE_COMBINED) {
-        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_WRITE_COMBINED;
+        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
       }
       if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
-        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE;
+        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT;
       }
       if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST) {
-        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST;
+        UsmHostDesc.flags |= UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT;
       }
       if (Properties[1] == PI_MEM_ALLOC_DEVICE_READ_ONLY) {
-        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
+        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
       }
     }
   }
+  UsmDeviceDesc.pNext = &UsmHostDesc;
+  USMDesc.pNext = &UsmDeviceDesc;
 
   USMDesc.align = Alignment;
 
