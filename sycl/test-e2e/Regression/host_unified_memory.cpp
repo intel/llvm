@@ -1,6 +1,6 @@
 // REQUIRES: gpu && linux
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_HOST_UNIFIED_MEMORY=1 %t.out
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 %GPU_RUN_PLACEHOLDER %t.out
 
 #include <stdio.h>
 #include <stdlib.h>

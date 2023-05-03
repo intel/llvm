@@ -46,7 +46,7 @@ int main() {
 
   // Test negate (operator ~)
   {
-    init_arr(expected, false);
+    init_arr(expected, true);
 
     sycl::buffer<sycl::vec<bool, size>> bufVecTrue(&vec_true, 1);
     sycl::buffer<sycl::vec<bool, size>> bufResVec(&resVec, 1);

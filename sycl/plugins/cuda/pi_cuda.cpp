@@ -390,6 +390,41 @@ void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
   }
 }
 
+bool getMaxRegistersJitOptionValue(const std::string &build_options,
+                                   unsigned int &value) {
+  using namespace std::string_view_literals;
+  const std::size_t optionPos = build_options.find_first_of("maxrregcount"sv);
+  if (optionPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t delimPos = build_options.find('=', optionPos + 1u);
+  if (delimPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t length = build_options.length();
+  const std::size_t startPos = delimPos + 1u;
+  if (delimPos == std::string::npos || startPos >= length) {
+    return false;
+  }
+
+  std::size_t pos = startPos;
+  while (pos < length &&
+         std::isdigit(static_cast<unsigned char>(build_options[pos]))) {
+    pos++;
+  }
+
+  const std::string valueString =
+      build_options.substr(startPos, pos - startPos);
+  if (valueString.empty()) {
+    return false;
+  }
+
+  value = static_cast<unsigned int>(std::stoi(valueString));
+  return true;
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -777,8 +812,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 
   constexpr const unsigned int numberOfOptions = 4u;
 
-  CUjit_option options[numberOfOptions];
-  void *optionVals[numberOfOptions];
+  std::vector<CUjit_option> options(numberOfOptions);
+  std::vector<void *> optionVals(numberOfOptions);
 
   // Pass a buffer for info messages
   options[0] = CU_JIT_INFO_LOG_BUFFER;
@@ -793,9 +828,18 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
+  if (!buildOptions_.empty()) {
+    unsigned int maxRegs;
+    bool valid = getMaxRegistersJitOptionValue(buildOptions_, maxRegs);
+    if (valid) {
+      options.push_back(CU_JIT_MAX_REGISTERS);
+      optionVals.push_back(reinterpret_cast<void *>(maxRegs));
+    }
+  }
+
   auto result = PI_CHECK_ERROR(
       cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
+                         options.size(), options.data(), optionVals.data()));
 
   const auto success = (result == PI_SUCCESS);
 
@@ -2056,6 +2100,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    memory_bandwidth);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on CUDA devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    // The sRGB images are not supported on CUDA.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -2065,7 +2119,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case PI_DEVICE_INFO_IMAGE_SRGB:
     return PI_ERROR_INVALID_VALUE;
 
   default:
