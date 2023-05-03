@@ -365,7 +365,7 @@ bool test(queue q, const Config &cfg) {
             for (int cnt = 0; cnt < repeat; ++cnt) {
               if constexpr (n_args == 0) {
                 simd<T, N> res = atomic_update<op, T, N>(accessor, offsets, m);
-                res.copy_to(accessor,0);
+                res.copy_to(accessor, 0);
               } else if constexpr (n_args == 1) {
                 simd<T, N> v0 = ImplF<T, N>::arg0(i);
                 atomic_update<op, T, N>(accessor, offsets, v0, m);
@@ -379,7 +379,8 @@ bool test(queue q, const Config &cfg) {
                          accessor, offsets, new_val, exp_val, m);
                      any(old_val < exp_val, !m);
                      old_val = atomic_update<op, T, N>(accessor, offsets,
-                                                       new_val, exp_val, m));
+                                                       new_val, exp_val, m))
+                  ;
               }
             }
           });
@@ -398,7 +399,6 @@ bool test(queue q, const Config &cfg) {
   for (int i = 0; i < size; ++i) {
     T gold = ImplF<T, N>::gold(i, cfg);
     T test = arr[i];
-    //std::cerr << test << " ";
     if ((gold != test) && (++err_cnt < 10)) {
       if (err_cnt == 1) {
         std::cout << "\n";
