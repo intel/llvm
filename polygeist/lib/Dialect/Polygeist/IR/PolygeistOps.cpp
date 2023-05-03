@@ -1131,9 +1131,9 @@ public:
                                                  rewriter.getI64Type(), idx[0]);
 
     auto PtrTy = cast<LLVM::LLVMPointerType>(op.getType());
-    if (!PtrTy.isOpaque()) {
+    if (!PtrTy.isOpaque())
       PtrTy = LLVM::LLVMPointerType::get(MET, PtrTy.getAddressSpace());
-    }
+
     Value GEP = rewriter.create<LLVM::GEPOp>(
         op->getLoc(), PtrTy, MET,
         rewriter.create<Memref2PointerOp>(op.getLoc(), PtrTy, src.getSource()),

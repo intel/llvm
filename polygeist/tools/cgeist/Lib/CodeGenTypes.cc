@@ -1714,11 +1714,11 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::OCLQueue:
   case BuiltinType::OCLReserveID: {
     auto *OCLTy = CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT);
-    if (UseOpaquePointers && isa<llvm::PointerType>(OCLTy)) {
+    if (UseOpaquePointers && isa<llvm::PointerType>(OCLTy))
       return LLVM::LLVMPointerType::get(
           TheModule->getContext(),
           cast<llvm::PointerType>(OCLTy)->getAddressSpace());
-    }
+
     return TypeTranslator.translateType(OCLTy);
   }
 

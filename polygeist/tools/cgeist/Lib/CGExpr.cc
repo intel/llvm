@@ -273,7 +273,6 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
           } else if (sycl::isSYCLType(ElemTy)) {
-
             std::pair<mlir::MemRefType, mlir::Type> Types =
                 TypeSwitch<mlir::Type, std::pair<mlir::MemRefType, mlir::Type>>(
                     MRET)
@@ -1890,12 +1889,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto ElemTy = Prev.ElementType;
     if (ElemTy && isa<LLVM::LLVMPointerType, MemRefType>(*ElemTy)) {
       if (const auto *PtrTy = dyn_cast<clang::PointerType>(
-              E->getType()->getUnqualifiedDesugaredType())) {
+              E->getType()->getUnqualifiedDesugaredType()))
         ElemTy = Glob.getTypes().getMLIRType(PtrTy->getPointeeType());
-      } else if (isa<clang::BuiltinType>(
-                     E->getType()->getUnqualifiedDesugaredType())) {
+      else if (isa<clang::BuiltinType>(
+                   E->getType()->getUnqualifiedDesugaredType()))
         ElemTy = Glob.getTypes().getMLIRType(E->getType());
-      }
     }
     return ValueCategory(Lres, /*isReference*/ false, ElemTy);
   }
@@ -2543,9 +2541,9 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   });
 
   auto ET = LHSLV.ElementType;
-  if (ET && isa<MemRefType>(*ET)) {
+  if (ET && isa<MemRefType>(*ET))
     ET = cast<MemRefType>(*ET).getElementType();
-  }
+
   ValueCategory LHS{LHSLV.getValue(Builder), false, ET};
   if (!PromotionTypeLHS.isNull())
     LHS = EmitScalarConversion(LHS, LHSTy, PromotionTypeLHS, E->getExprLoc());

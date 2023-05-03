@@ -420,12 +420,12 @@ ValueCategory MLIRScanner::callHelper(
   }
 
   if (Op->getNumResults()) {
-    if (RetReference) {
+    if (RetReference)
       ElementType = Glob.getTypes().getMLIRType(RetType);
-    } else if (const auto *PtTy = dyn_cast<clang::PointerType>(
-                   RetType->getUnqualifiedDesugaredType())) {
+    else if (const auto *PtTy = dyn_cast<clang::PointerType>(
+                 RetType->getUnqualifiedDesugaredType()))
       ElementType = Glob.getTypes().getMLIRType(PtTy->getPointeeType());
-    }
+
     return ValueCategory(Op->getResult(0),
                          /*isReference*/ RetReference, ElementType);
   }
@@ -1094,13 +1094,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
         bool IsReference = Expr->isLValue() || Expr->isXValue();
         std::optional<mlir::Type> ElementType = std::nullopt;
-        if (IsReference) {
+        if (IsReference)
           ElementType = Glob.getTypes().getMLIRType(
               cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
-        } else if (const auto *PtTy =
-                       dyn_cast<clang::PointerType>(Expr->getType())) {
+        else if (const auto *PtTy =
+                     dyn_cast<clang::PointerType>(Expr->getType()))
           ElementType = Glob.getTypes().getMLIRType(PtTy->getPointeeType());
-        }
+
         return ValueCategory(Called, IsReference, ElementType);
       }
     }
@@ -1610,11 +1610,10 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
   } break;
   }
 
-  if (V.has_value()) {
+  if (V.has_value())
     return std::make_pair(ValueCategory(V.value(),
                                         /*isReference*/ false, ElemTy),
                           true);
-  }
 
   return std::make_pair(ValueCategory(), false);
 }

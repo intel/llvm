@@ -29,11 +29,11 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   mlir::Type SubType = Glob.getTypes().getMLIRTypeForMem(Decl->getType());
   std::optional<mlir::Type> ElementTy = std::nullopt;
   if (const auto *CArrTy = dyn_cast<clang::ArrayType>(
-          Decl->getType()->getUnqualifiedDesugaredType())) {
+          Decl->getType()->getUnqualifiedDesugaredType()))
     ElementTy = Glob.getTypes().getMLIRTypeForMem(CArrTy->getElementType());
-  } else {
+  else
     ElementTy = SubType;
-  }
+
   const unsigned MemType = Decl->hasAttr<clang::CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false, IsArray = false;
 
@@ -165,9 +165,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
           VarLoc, Builder.create<arith::ConstantIntOp>(VarLoc, false, 1), V,
           std::vector<Value>({getConstantIndex(0)}));
     }
-  } else {
+  } else
     Op = createAllocOp(SubType, Decl, MemType, IsArray, LLVMABI);
-  }
 
   if (InitExpr.val)
     ValueCategory(Op, /*isReference*/ true, ElementTy)
