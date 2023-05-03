@@ -1965,6 +1965,8 @@ constexpr void check_lsc_block_2d_restrictions() {
                 "2D load supports 2048 bytes max");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
+  static_assert((sizeof(T) * BlockWidth) % 4 == 0,
+                "Block width must be aligned by DW");
   if constexpr (Transposed) {
     static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
     static_assert(sizeof(T) == 4 || sizeof(T) == 8,
