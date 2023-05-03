@@ -12,7 +12,7 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 
 #define DEBUG_TYPE "trivial-use"
 

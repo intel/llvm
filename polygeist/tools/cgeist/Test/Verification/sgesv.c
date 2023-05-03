@@ -1,4 +1,4 @@
-// RUN: cgeist %s -O2 --function=kernel_correlation -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=kernel_correlation -S -enable-attributes | FileCheck %s
 // RUN: cgeist %s -O2 --function=kernel_correlation -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define DATA_TYPE double
@@ -8,11 +8,11 @@
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
 void kernel_correlation(int n, double alpha, double beta,
-                    double A[28][28],
-                    double B[28][28],
-                    double tmp[28],
-                    double x[28],
-                    double y[28])
+                    double A[restrict 28][28],
+                    double B[restrict 28][28],
+                    double tmp[restrict 28],
+                    double x[restrict 28],
+                    double y[restrict 28])
 {
   int i, j;
 
@@ -30,7 +30,7 @@ void kernel_correlation(int n, double alpha, double beta,
 
 }
 
-// CHECK:   func @kernel_correlation(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<?x28xf64>, %arg4: memref<?x28xf64>, %arg5: memref<?xf64>, %arg6: memref<?xf64>, %arg7: memref<?xf64>)
+// CHECK:   func @{{.*}}kernel_correlation{{.*}}(%arg0: i32{{.*}}, %arg1: f64{{.*}}, %arg2: f64{{.*}}, %arg3: memref<?x28xf64>{{.*}}llvm.noalias{{.*}}, %arg4: memref<?x28xf64>{{.*}}llvm.noalias{{.*}}, %arg5: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg6: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg7: memref<?xf64>{{.*}}llvm.noalias{{.*}})
 // CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:     %0 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg8 = 0 to %0 {

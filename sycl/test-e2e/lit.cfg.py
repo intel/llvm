@@ -197,7 +197,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl6.lib /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl7.lib /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -206,7 +206,7 @@ if cl_options:
     config.substitutions.append( ('%shared_lib', '/LD') )
 else:
     config.substitutions.append( ('%sycl_options',
-                                  (' -lsycl6' if platform.system() == "Windows" else " -lsycl") + ' -I' +
+                                  (' -lsycl7' if platform.system() == "Windows" else " -lsycl") + ' -I' +
                                   config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl') +
                                   ' -L' + config.sycl_libs_dir) )
     config.substitutions.append( ('%include_option',  '-include' ) )
@@ -243,10 +243,12 @@ if config.sycl_be in deprecated_names_mapping.keys():
 
 lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 
-config.substitutions.append( ('%sycl_be', config.sycl_be) )
 # Use short names for LIT rules
 config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
-config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)) )
+be_run_substitute = "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)
+if config.run_launcher:
+    be_run_substitute += " {}".format(config.run_launcher)
+config.substitutions.append( ('%BE_RUN_PLACEHOLDER', be_run_substitute) )
 
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')

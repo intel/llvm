@@ -24,7 +24,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Polygeist/Utils/BarrierUtils.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include <mlir/Dialect/Arith/IR/Arith.h>

@@ -14,6 +14,10 @@
 !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
 !sycl_accessor_2_f32_w_gb = !sycl.accessor<[2, f32, write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xf32, 1>)>)>
 !sycl_accessor_2_f32_r_gb = !sycl.accessor<[2, f32, read, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xf32, 1>)>)>
+
+!sycl_accessor_0_f32_w_gb = !sycl.accessor<[0, f32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_accessor_0_f32_r_gb = !sycl.accessor<[0, f32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 1>)>)>
+
 gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
   // CHECK-LABEL: func.func private @callee1.specialized(
@@ -179,6 +183,42 @@ gpu.module @device_func {
   }
   gpu.func @wrapper4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
     sycl.call @caller4(%arg0) {MangledFunctionName = @caller4, TypeName = @RoundedRangeKernel}: (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) -> ()
+    gpu.return
+  }
+
+  // COM: Check accessors with dimension 0.
+  // CHECK-LABEL: func.func private @callee5.specialized(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_0_f32_r_gb> {sycl.inner.disjoint},
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_0_f32_w_gb> {sycl.inner.disjoint})
+  // CHECK-LABEL: func.func private @callee5(
+  // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_0_f32_r_gb>,
+  // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_0_f32_w_gb>)
+  // CHECK-LABEL: gpu.func @caller5(%arg0: memref<?x!sycl_accessor_0_f32_r_gb>, %arg1: memref<?x!sycl_accessor_0_f32_w_gb>) kernel {
+  // CHECK-NEXT:    [[ARG0_BEGIN:%.*]] = sycl.accessor.get_pointer(%arg0) {ArgumentTypes = [memref<?x!sycl_accessor_0_f32_r_gb>], FunctionName = @get_pointer, TypeName = @accessor} : (memref<?x!sycl_accessor_0_f32_r_gb>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %1 = sycl.accessor.get_pointer(%arg0) {ArgumentTypes = [memref<?x!sycl_accessor_0_f32_r_gb>], FunctionName = @get_pointer, TypeName = @accessor} : (memref<?x!sycl_accessor_0_f32_r_gb>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %c1 = arith.constant 1 : index
+  // CHECK-NEXT:    [[ARG0_END:%.*]] = "polygeist.subindex"(%1, %c1) : (memref<?xf32, 1>, index) -> memref<?xf32, 1>
+  // CHECK-NEXT:    [[ARG1_BEGIN:%.*]] = sycl.accessor.get_pointer(%arg1) {ArgumentTypes = [memref<?x!sycl_accessor_0_f32_w_gb>], FunctionName = @get_pointer, TypeName = @accessor} : (memref<?x!sycl_accessor_0_f32_w_gb>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %4 = sycl.accessor.get_pointer(%arg1) {ArgumentTypes = [memref<?x!sycl_accessor_0_f32_w_gb>], FunctionName = @get_pointer, TypeName = @accessor} : (memref<?x!sycl_accessor_0_f32_w_gb>) -> memref<?xf32, 1>
+  // CHECK-NEXT:    %c1_0 = arith.constant 1 : index
+  // CHECK-NEXT:    [[ARG1_END:%.*]] = "polygeist.subindex"(%4, %c1_0) : (memref<?xf32, 1>, index) -> memref<?xf32, 1>
+  // CHECK-DAG:     [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
+  // CHECK-DAG:     [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
+  // CHECK-NEXT:    %8 = llvm.icmp "ule" [[ARG0_END_PTR]], [[ARG1_BEGIN_PTR]] : !llvm.ptr<f32, 1>
+  // CHECK-DAG:     [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
+  // CHECK-DAG:     [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
+  // CHECK-NEXT:    %11 = llvm.icmp "uge" [[ARG0_BEGIN_PTR]], [[ARG1_END_PTR]] : !llvm.ptr<f32, 1>
+  // CHECK-NEXT:    %12 = arith.ori %8, %11 : i1
+  // CHECK-NEXT:    scf.if %12 {
+  // CHECK-NEXT:      func.call @callee5.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_0_f32_r_gb>, memref<?x!sycl_accessor_0_f32_w_gb>) -> ()
+  // CHECK-NEXT:    } else {
+  // CHECK-NEXT:      func.call @callee5(%arg0, %arg1) : (memref<?x!sycl_accessor_0_f32_r_gb>, memref<?x!sycl_accessor_0_f32_w_gb>) -> ()
+  // CHECK-NEXT:    }
+  func.func private @callee5(%arg0: memref<?x!sycl_accessor_0_f32_r_gb>, %arg1: memref<?x!sycl_accessor_0_f32_w_gb>) {
+    return
+  }
+  gpu.func @caller5(%arg0: memref<?x!sycl_accessor_0_f32_r_gb>, %arg1: memref<?x!sycl_accessor_0_f32_w_gb>) kernel {
+    func.call @callee5(%arg0, %arg1) : (memref<?x!sycl_accessor_0_f32_r_gb>, memref<?x!sycl_accessor_0_f32_w_gb>) -> ()
     gpu.return
   }
 }

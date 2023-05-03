@@ -1,6 +1,6 @@
-// RUN: cgeist -O2 %s --function=* -S | FileCheck %s
+// RUN: cgeist -O2 %s --function=* -S -enable-attributes | FileCheck %s
 
-void sum(double *result, double* array) {
+void sum(double * __restrict__ result, double * __restrict__ array) {
     result[0] = 0;
     #pragma scop
     for (int i=0; i<10; i++) {
@@ -9,7 +9,7 @@ void sum(double *result, double* array) {
     #pragma endscop
 }
 
-// CHECK:  func @sum(%arg0: memref<?xf64>, %arg1: memref<?xf64>)
+// CHECK:  func @sum(%arg0: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg1: memref<?xf64>{{.*}}llvm.noalias{{.*}})
 // CHECK-NEXT:    %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:    affine.store %cst, %arg0[0] : memref<?xf64>
 // CHECK-NEXT:    %[[i1:.+]] = affine.load %arg0[0] : memref<?xf64>

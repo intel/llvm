@@ -485,9 +485,9 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     return ReturnValue("");
 
   case PI_EXT_PLATFORM_INFO_BACKEND:
-    return getInfo<pi_platform_backend>(
-        ParamValueSize, ParamValue, ParamValueSizeRet,
-        PI_EXT_PLATFORM_BACKEND_UNKNOWN); // TODO: add ESIMD to UR?
+    return getInfo<pi_platform_backend>(ParamValueSize, ParamValue,
+                                        ParamValueSizeRet,
+                                        PI_EXT_PLATFORM_BACKEND_ESIMD);
 
   default:
     // TODO: implement other parameters
@@ -813,6 +813,12 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_int32{1});
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
     return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    // The mem-channel buffer property is not supported on the ESIMD emulator.
+    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    // The sRGB images are not supported on the ESIMD emulator.
+    return ReturnValue(pi_bool{false});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
@@ -826,7 +832,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
     CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
     CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)

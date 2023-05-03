@@ -57,6 +57,10 @@ llvm::cl::opt<std::string>
     PrefixABI("prefix-abi", llvm::cl::init(""),
               llvm::cl::desc("Prefix for emitted symbols"));
 
+static llvm::cl::opt<bool>
+    EnableAttributes("enable-attributes", llvm::cl::init(false),
+                     llvm::cl::desc("Enable setting of attributes"));
+
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 
 /******************************************************************************/
@@ -82,35 +86,6 @@ static void checkFunctionParent(const FunctionOpInterface F,
           F->getParentOfType<gpu::GPUModuleOp>() ==
               mlirclang::getDeviceModule(*Module)) &&
          "New device function must be inserted into device module");
-}
-
-/// If \p FD corresponds to a function implementing a SYCL method, registers
-/// \p Func as the function implementing the corrsponding operation.
-static void tryToRegisterSYCLMethod(const clang::FunctionDecl &FD,
-                                    FunctionOpInterface Func) {
-  if (mlirclang::getNamespaceKind(FD.getEnclosingNamespaceContext()) ==
-          mlirclang::NamespaceKind::Other ||
-      !mlirclang::areSYCLMemberFunctionOrConstructorArgs(
-          Func.getArgumentTypes()) ||
-      !isa<clang::CXXMethodDecl>(FD) ||
-      isa<clang::CXXConstructorDecl, clang::CXXDestructorDecl>(FD) ||
-      !cast<clang::CXXMethodDecl>(FD).isInstance()) {
-    // Only member functions in the sycl namespace need to be registered.
-    return;
-  }
-  const auto FunctionTy = cast<FunctionType>(Func.getFunctionType());
-  const auto ThisArg = dyn_cast<MemRefType>(FunctionTy.getInput(0));
-  assert(ThisArg &&
-         "The first argument is expected to be a reference to `this`");
-  auto *SYCLDialect = Func.getContext()->getLoadedDialect<sycl::SYCLDialect>();
-  assert(SYCLDialect && "SYCL dialect not loaded");
-  const std::string MethodName = FD.getAsFunction()->getNameAsString();
-  if (!SYCLDialect->findMethodFromBaseClass(
-          ThisArg.getElementType().getTypeID(), MethodName)) {
-    // Only add a definition for functions registered as SYCL methods.
-    return;
-  }
-  SYCLDialect->registerMethodDefinition(MethodName, cast<func::FuncOp>(Func));
 }
 
 void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
@@ -371,8 +346,6 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
     Builder.create<gpu::ReturnOp>(Loc);
   else
     Builder.create<func::ReturnOp>(Loc);
-
-  tryToRegisterSYCLMethod(*FD, Function);
 
   checkFunctionParent(Function, FTE.getContext(), Module);
 }
@@ -1911,8 +1884,6 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE,
     EmitIfFound.insert(MangledName);
   }
 
-  tryToRegisterSYCLMethod(FD, Function);
-
   return Function;
 }
 
@@ -2462,7 +2433,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
   MLIRContext *Ctx = Module->getContext();
 
   bool IsDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
-  if (!IsDeviceContext) {
+  if (!EnableAttributes && !IsDeviceContext) {
     LLVM_DEBUG(llvm::dbgs()
                << "Not in a device context - skipping setting attributes for "
                << FD.getNameAsString() << "\n");

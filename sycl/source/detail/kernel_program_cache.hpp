@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/locked.hpp>

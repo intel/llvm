@@ -34,7 +34,7 @@
 #include <iostream>
 #include <set>
 
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 
 #define DEBUG_TYPE "mem2reg"

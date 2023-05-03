@@ -38,6 +38,8 @@ std::unique_ptr<Pass> createCPUifyPass();
 std::unique_ptr<Pass> createCPUifyPass(const SCFCPUifyOptions &options);
 std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createDetectReductionPass();
+std::unique_ptr<Pass>
+createDetectReductionPass(const DetectReductionOptions &options);
 std::unique_ptr<Pass> createInnerSerializationPass();
 std::unique_ptr<Pass> createKernelDisjointSpecializationPass();
 std::unique_ptr<Pass> createKernelDisjointSpecializationPass(

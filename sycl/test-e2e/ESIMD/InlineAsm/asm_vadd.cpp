@@ -63,8 +63,8 @@ int main(void) {
             simd<float, VL> vc;
 #ifdef __SYCL_DEVICE_ONLY__
             __asm__("add (M1, 16) %0 %1 %2"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()));
+                    : "=r"(vc.data_ref())
+                    : "r"(va.data()), "r"(vb.data()));
 #else
                     vc = va+vb;
 #endif

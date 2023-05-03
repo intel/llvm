@@ -28,7 +28,7 @@ namespace detail {
 template <typename T>
 struct HasSubscriptOperator
     : std::bool_constant<
-          !std::is_void<decltype(std::declval<T>().operator[](0))>::value>{};
+          !std::is_void_v<decltype(std::declval<T>().operator[](0))>> {};
 
 // Deduce a `properties<>` type from given variadic properties
 template <typename... Args> struct DeducedProperties {

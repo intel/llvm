@@ -10,7 +10,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
@@ -25,21 +25,21 @@ using namespace mlir::polygeist;
 //===----------------------------------------------------------------------===//
 
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool mlir::polygeist::isLinkonceODR(FunctionOpInterface func) {
+bool polygeist::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void mlir::polygeist::privatize(FunctionOpInterface func) {
+void polygeist::privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool mlir::polygeist::isTailCall(CallOpInterface call) {
+bool polygeist::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -93,13 +93,13 @@ static void getMaxDepthFromAnyGPUKernel(
 }
 
 Optional<unsigned>
-mlir::polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
   DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
   ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
-bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+bool polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   // The function must be defined, and private or with linkonce_odr linkage.
   if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
     return false;
@@ -122,6 +122,19 @@ bool mlir::polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   // The function should be called directly by a GPU kernel, or called by a
   // function that directly called by a GPU kernel.
   return (maxDepth.value() == 1 || maxDepth.value() == 2);
+}
+
+Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
+  auto getMemrefOp = [](const Operation &op) {
+    return TypeSwitch<const Operation &, Operation *>(op)
+        .Case<AffineLoadOp, AffineStoreOp>(
+            [](auto &affineOp) { return affineOp.getMemref().getDefiningOp(); })
+        .Default([](auto &) { return nullptr; });
+  };
+
+  auto accSub =
+      dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
+  return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
 }
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
@@ -568,9 +581,23 @@ createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
       builder, loc, MT, {accessor, id}, "operator[]", "accessor");
 }
 
+static sycl::SYCLAccessorGetPointerOp
+createSYCLAccessorGetPointerOp(sycl::AccessorPtrValue accessor,
+                               OpBuilder builder, Location loc) {
+  const sycl::AccessorType accTy = accessor.getAccessorType();
+  const auto MT = MemRefType::get(
+      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
+      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
+  return createMethodOp<sycl::SYCLAccessorGetPointerOp>(
+      builder, loc, MT, accessor, "get_pointer", "accessor");
+}
+
 static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
                                   OpBuilder builder, Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
+  if (accTy.getDimension() == 0)
+    return createSYCLAccessorGetPointerOp(accessor, builder, loc);
+
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
@@ -585,6 +612,13 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
 static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
                                 OpBuilder builder, Location loc) {
   const sycl::AccessorType accTy = accessor.getAccessorType();
+  if (accTy.getDimension() == 0) {
+    Value getPointer = createSYCLAccessorGetPointerOp(accessor, builder, loc);
+    const Value oneIndex = builder.create<arith::ConstantIndexOp>(loc, 1);
+    return builder.create<polygeist::SubIndexOp>(loc, getPointer.getType(),
+                                                 getPointer, oneIndex);
+  }
+
   Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
   auto range = builder.create<memref::AllocaOp>(
       loc, MemRefType::get(1, getRangeOp.getType()));

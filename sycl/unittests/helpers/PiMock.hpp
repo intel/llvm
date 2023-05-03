@@ -209,7 +209,7 @@ public:
       // Save a copy of the platform resource
       OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
     }
-    MPlatformImpl->setPlugin(NewPluginPtr);
+    MPlatformImpl->setPlugin(NewPluginPtr, Backend);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
     MPiPluginMockPtr = &NewPluginPtr->getPiPlugin();

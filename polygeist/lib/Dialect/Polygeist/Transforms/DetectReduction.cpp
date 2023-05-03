@@ -8,14 +8,20 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include <set>
 
 #define DEBUG_TYPE "detect-reduction"
 #define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
@@ -29,9 +35,25 @@ namespace polygeist {
 
 using namespace mlir;
 
+static llvm::cl::opt<bool> DetectReductionEnableSYCLAccessorVersioning(
+    DEBUG_TYPE "-enable-sycl-accessor-versioning", llvm::cl::init(true),
+    llvm::cl::desc(
+        "Enable loop versioning for SYCL accessors in DetectReduction"));
+
+static llvm::cl::opt<unsigned> DetectReductionSYCLAccessorPairsLimit(
+    DEBUG_TYPE "-sycl-accessor-pairs-limit", llvm::cl::init(1),
+    llvm::cl::desc("Maximum number of versioning accessor pairs per operation "
+                   "in DetectReduction"));
+
+static llvm::cl::opt<unsigned> DetectReductionVersionLimit(
+    DEBUG_TYPE "-version-limit", llvm::cl::init(1),
+    llvm::cl::desc("Maximum number of versioning allowed in DetectReduction"));
+
 namespace {
 class DetectReductionPass
     : public polygeist::impl::DetectReductionBase<DetectReductionPass> {
+  using DetectReductionBase<DetectReductionPass>::DetectReductionBase;
+
 public:
   void runOnOperation() override;
 };
@@ -51,7 +73,19 @@ public:
   AffineStoreOp getStore() const { return Store; }
   ArrayRef<AffineLoadOp> getOtherLoads() const { return OtherLoads; }
 
+  const std::set<sycl::AccessorPtrPair> &
+  getRequireNoOverlapAccessorPairs() const {
+    return requireNoOverlapAccessorPairs;
+  }
+  void addRequireNoOverlapAccessorPairs(sycl::AccessorPtrValue acc1,
+                                        sycl::AccessorPtrValue acc2) {
+    requireNoOverlapAccessorPairs.insert({acc1, acc2});
+  }
+
 private:
+  /// Pairs of accessors that are required to not overlap for this operation to
+  /// be invariant.
+  std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs;
   /// The reduction load in the loop nest.
   AffineLoadOp Load;
   /// The reduction store in the same loop nest.
@@ -75,6 +109,23 @@ private:
   return OS;
 }
 
+/// Version \p Loop, if candidate in \p Candidates require versioning.
+static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
+                                ArrayRef<ReductionOp> Candidates) {
+  for (const ReductionOp &Candidate : Candidates) {
+    const std::set<sycl::AccessorPtrPair> &accessorPairs =
+        Candidate.getRequireNoOverlapAccessorPairs();
+    if (accessorPairs.empty())
+      continue;
+    OpBuilder builder(Loop);
+    std::unique_ptr<polygeist::VersionCondition> condition =
+        polygeist::VersionConditionBuilder(accessorPairs, builder,
+                                           Loop->getLoc())
+            .createCondition();
+    polygeist::VersionBuilder(Loop).version(*condition);
+  }
+}
+
 class LoopReductionIter {
 public:
   LoopReductionIter(const LoopReductionIter &) = delete;
@@ -85,8 +136,10 @@ public:
 protected:
   Pass::Statistic &numReductionsDetected;
 
-  LoopReductionIter(Pass::Statistic &numReductionsDetected)
-      : numReductionsDetected(numReductionsDetected) {}
+  LoopReductionIter(Pass::Statistic &numReductionsDetected,
+                    AliasAnalysis &aliasAnalysis)
+      : numReductionsDetected(numReductionsDetected),
+        aliasAnalysis(aliasAnalysis) {}
   virtual ~LoopReductionIter() = default;
 
   Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
@@ -127,6 +180,8 @@ protected:
         llvm::dbgs() << Op << "\n";
       llvm::dbgs() << "\n";
     });
+
+    versionLoopIfNeeded(Loop, ReductionOps);
 
     // Move the load outside the loop (recall that the load is loop invariant).
     // The load result is passed to the new loop as an iter argument.
@@ -312,6 +367,7 @@ private:
       llvm::dbgs() << "\n";
     });
 
+    unsigned NumVersion = 0;
     WalkResult Result = Loop.getLoopBody().walk([&](AffineLoadOp Load) {
       LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
 
@@ -368,33 +424,112 @@ private:
         return WalkResult::interrupt();
       }
 
+      ReductionOp Candidate(Load, CandidateStores[0], OtherLoads);
+      Operation *MayAliasOp = nullptr;
+      if (Loop.getLoopBody()
+              .walk([&](Operation *Op) {
+                if (Op == Load || Op == CandidateStores[0] ||
+                    llvm::find(OtherLoads, Op) != OtherLoads.end())
+                  return WalkResult::advance();
+                if (hasMayAliasEffects(Load, *Op, aliasAnalysis)) {
+                  if (DetectReductionEnableSYCLAccessorVersioning &&
+                      NumVersion < DetectReductionVersionLimit)
+                    if (canVersion(Load, *Op, Loop, Candidate))
+                      return WalkResult::advance();
+                  MayAliasOp = Op;
+                  return WalkResult::interrupt();
+                }
+                return WalkResult::advance();
+              })
+              .wasInterrupted()) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Interrupting - loop contains may alias operation: "
+                   << *MayAliasOp << "\n");
+        return WalkResult::interrupt();
+      }
+
       // The load must dominate the single store.
       if (!properlyDominates(Load, CandidateStores[0])) {
         LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Interrupting - store doesn't dominate load: "
+                   << "Interrupting - load doesn't dominate store: "
                    << CandidateStores[0] << "\n");
         return WalkResult::interrupt();
       }
 
+      unsigned NumSYCLAccessorPairs =
+          Candidate.getRequireNoOverlapAccessorPairs().size();
+      if (NumSYCLAccessorPairs > DetectReductionSYCLAccessorPairsLimit) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Interrupting - exceed SYCL accessor pairs limit: "
+                   << NumSYCLAccessorPairs << "\n");
+        return WalkResult::interrupt();
+      }
+      if (NumSYCLAccessorPairs != 0)
+        ++NumVersion;
+
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "Found compatible store: " << CandidateStores[0] << "\n");
 
-      CandidateOps.push_back(ReductionOp(Load, CandidateStores[0], OtherLoads));
+      CandidateOps.push_back(Candidate);
 
       return WalkResult::advance();
     });
 
     return Result;
   }
+
+  /// Return true if \p Op has memory effects that may alias with the memory
+  /// loaded from \p Load, return false otherwise.
+  static bool hasMayAliasEffects(AffineLoadOp &Load, Operation &Op,
+                                 AliasAnalysis &aliasAnalysis) {
+    if (isMemoryEffectFree(&Op))
+      return false;
+
+    auto MEI = dyn_cast<MemoryEffectOpInterface>(Op);
+    if (!MEI || Op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return true;
+
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    MEI.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value EffectVal = effect.getValue();
+      if (!aliasAnalysis.alias(Load.getMemRef(), EffectVal).isNo())
+        return true;
+    }
+    return false;
+  }
+
+  /// Return true if versioning can be done for \p Loop to resolve may alias
+  /// memory effects between \p Load and \p Op. Update \p Candidate with the
+  /// required accessors for loop versioning.
+  static bool canVersion(AffineLoadOp &Load, Operation &Op,
+                         LoopLikeOpInterface Loop, ReductionOp &Candidate) {
+    Optional<sycl::AccessorPtrValue> opAccessor =
+        polygeist::getAccessorUsedByOperation(*Load);
+    Optional<sycl::AccessorPtrValue> otherAccessor =
+        polygeist::getAccessorUsedByOperation(Op);
+    if (opAccessor.has_value() && otherAccessor.has_value())
+      if (*opAccessor != *otherAccessor &&
+          Loop.isDefinedOutsideOfLoop(*opAccessor) &&
+          Loop.isDefinedOutsideOfLoop(*otherAccessor)) {
+        Candidate.addRequireNoOverlapAccessorPairs(*opAccessor, *otherAccessor);
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "require loop versioning\n");
+        return true;
+      }
+    return false;
+  }
+
+  AliasAnalysis &aliasAnalysis;
 };
 
 class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
                             public LoopReductionIter {
 public:
   SCFForReductionIter(MLIRContext *context,
-                      Pass::Statistic &numReductionsDetected)
+                      Pass::Statistic &numReductionsDetected,
+                      AliasAnalysis &aliasAnalysis)
       : OpRewritePattern<scf::ForOp>(context),
-        LoopReductionIter(numReductionsDetected) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
 
   LogicalResult matchAndRewrite(scf::ForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -427,9 +562,10 @@ class AffineForReductionIter : public OpRewritePattern<AffineForOp>,
                                public LoopReductionIter {
 public:
   AffineForReductionIter(MLIRContext *context,
-                         Pass::Statistic &numReductionsDetected)
+                         Pass::Statistic &numReductionsDetected,
+                         AliasAnalysis &aliasAnalysis)
       : OpRewritePattern<AffineForOp>(context),
-        LoopReductionIter(numReductionsDetected) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
 
   LogicalResult matchAndRewrite(AffineForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -463,16 +599,31 @@ public:
 
 void DetectReductionPass::runOnOperation() {
   MLIRContext *ctx = getOperation()->getContext();
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
   RewritePatternSet RPS(ctx);
-  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions);
+  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions,
+                                                       aliasAnalysis);
   GreedyRewriteConfig Config;
-  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(RPS), Config);
+  // Only apply patterns on the original list of LoopLikeOpInterface, to avoid
+  // reevaluating loops created within the patterns (e.g., from loop
+  // versioning).
+  SmallVector<Operation *> LoopOps;
+  getOperation()->walk([&](Operation *Op) {
+    if (isa<LoopLikeOpInterface>(Op))
+      LoopOps.push_back(Op);
+  });
+  (void)applyOpPatternsAndFold(LoopOps, std::move(RPS), Config);
 }
 
 namespace mlir {
 namespace polygeist {
 std::unique_ptr<Pass> createDetectReductionPass() {
   return std::make_unique<DetectReductionPass>();
+}
+std::unique_ptr<Pass>
+createDetectReductionPass(const DetectReductionOptions &options) {
+  return std::make_unique<DetectReductionPass>(options);
 }
 } // namespace polygeist
 } // namespace mlir

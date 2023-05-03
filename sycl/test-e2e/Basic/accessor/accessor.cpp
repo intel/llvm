@@ -1096,6 +1096,24 @@ int main() {
     assert(Data == 64);
   }
 
+  // local_accessor::operator& and local_accessor::operator[] with const DataT
+  {
+    using AccT_zero = sycl::local_accessor<const int, 0>;
+    using AccT_non_zero = sycl::local_accessor<const int, 1>;
+
+    sycl::queue queue;
+    {
+      queue.submit([&](sycl::handler &cgh) {
+        AccT_zero acc_zero(cgh);
+        AccT_non_zero acc_non_zero(sycl::range<1>(5), cgh);
+        cgh.single_task([=] {
+          const int &ref_zero = acc_zero;
+          const int &ref_non_zero = acc_non_zero[0];
+        });
+      });
+    }
+  }
+
   // host_accessor hash
   {
     sycl::buffer<int> buffer1{sycl::range<1>{1}};

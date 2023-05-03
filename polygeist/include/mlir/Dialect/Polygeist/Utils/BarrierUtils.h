@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H_
-#define MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H_
+#ifndef MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H
+#define MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Block.h"
 #include "llvm/ADT/SetVector.h"
@@ -75,4 +75,4 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
 }
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H_
+#endif // MLIR_DIALECT_POLYGEIST_UTILS_BARRIERUTILS_H

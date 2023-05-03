@@ -644,6 +644,21 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     return static_cast<pi_result>(CL_SUCCESS);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    cl_int ret_err = CL_SUCCESS;
+    cl_bool result = CL_FALSE;
+    bool supported = false;
+
+    ret_err =
+        checkDeviceExtensions(cast<cl_device_id>(device),
+                              {"cl_intel_mem_channel_property"}, supported);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    result = supported;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),

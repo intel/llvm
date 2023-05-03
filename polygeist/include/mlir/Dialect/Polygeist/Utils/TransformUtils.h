@@ -80,6 +80,9 @@ Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface);
 /// SemaSYCL in clang, to identify SYCL kernel body function accurately.
 bool isPotentialKernelBodyFunc(FunctionOpInterface);
 
+/// Return the accessor used by \p op if found, and std::nullopt otherwise.
+Optional<Value> getAccessorUsedByOperation(const Operation &op);
+
 //===----------------------------------------------------------------------===//
 // Versioning Utilities
 //===----------------------------------------------------------------------===//
