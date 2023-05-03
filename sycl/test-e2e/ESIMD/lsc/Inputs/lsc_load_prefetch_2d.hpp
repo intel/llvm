@@ -26,56 +26,6 @@ template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           bool use_prefetch = false>
 bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           int X, int Y) {
-  // Some restrictions based on documentation
-  static_assert(!(Transposed && Transformed),
-                "Transposed and transformed is not supported");
-  static_assert(BlockWidth > 0, "Block width must be positive");
-  static_assert(BlockHeight > 0, "Block height must be positive");
-
-  if constexpr (Transposed) {
-    static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
-    static_assert(sizeof(T) >= 4, "Transposed can only use D32 and D64");
-    if constexpr (sizeof(T) == 4) {
-      static_assert(BlockWidth <= 8,
-                    "D32 transposed allow only block width 8 and less");
-      static_assert(BlockHeight <= 32,
-                    "D32 transposed allow only block height 32 and less");
-    }
-    if constexpr (sizeof(T) == 8) {
-      static_assert(BlockWidth == 1 || BlockWidth == 2 || BlockWidth == 4,
-                    "D64 transposed allow only block width 1/2/4");
-      static_assert(BlockHeight == 8,
-                    "D64 transposed allow only block height 8");
-    }
-  } else if constexpr (Transformed) {
-    static_assert(sizeof(T) <= 2, "Transformed can only use D8 and D16");
-    if constexpr (sizeof(T) == 2 && NBlocks == 4) {
-      static_assert(BlockWidth <= 8,
-                    "Transformed D16x4 allow only block width 8 and less");
-    }
-    static_assert((sizeof(T) * BlockWidth) % 4 == 0,
-                  "Transformed block width must be aligned by DW");
-    static_assert(BlockWidth <= 16,
-                  "Transformed block width must be 16 and less");
-    static_assert(BlockWidth >= (4 / sizeof(T)),
-                  "Minimal transformed block width depends on data size");
-    static_assert(BlockHeight <= 32,
-                  "Transformed block height must be 32 and less");
-    static_assert(BlockHeight >= (4 / sizeof(T)),
-                  "Minimal transformed block height depends on data size");
-  } else {
-    static_assert((sizeof(T) * BlockWidth) % 4 == 0,
-                  "Block width must be aligned by DW");
-    static_assert(sizeof(T) * BlockWidth * NBlocks <= 64,
-                  "Total block width must be 64B or less");
-    static_assert(BlockHeight <= 32, "Block height must be 32 or less");
-    if constexpr (sizeof(T) == 4) {
-      static_assert(NBlocks < 4, "D32 restricted to use 1 or 2 blocks only");
-    }
-    if constexpr (sizeof(T) == 8) {
-      static_assert(NBlocks < 2, "D64 restricted to use 1 block only");
-    }
-  }
 
   constexpr int N =
       get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth,
