@@ -12,6 +12,10 @@ end program
 ! ALL: Pass statistics report
 
 ! ALL: Fortran::lower::VerifierPass
+! O2-NEXT: Canonicalizer
+! ALL-NEXT: LowerHLFIRIntrinsics
+! ALL-NEXT: BufferizeHLFIR
+! ALL-NEXT: ConvertHLFIRtoFIR
 ! ALL-NEXT: CSE
 ! Ideally, we need an output with only the pass names, but
 ! there is currently no way to get that, so in order to
@@ -42,6 +46,7 @@ end program
 ! ALL-NEXT:   (S) 0 num-dce'd - Number of operations DCE'd
 
 ! ALL-NEXT: 'func.func' Pipeline
+! ALL-NEXT:   PolymorphicOpConversion
 ! ALL-NEXT:   CFGConversion
 
 ! ALL-NEXT: SCFToControlFlow

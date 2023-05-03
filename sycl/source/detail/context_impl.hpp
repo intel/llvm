@@ -173,7 +173,7 @@ public:
     // OpenCL does not support using descendants of context members within that
     // context yet.
     // TODO remove once this limitation is lifted
-    if (!is_host() && getPlugin().getBackend() == backend::opencl)
+    if (!is_host() && Device->getBackend() == backend::opencl)
       return hasDevice(Device);
 
     while (!hasDevice(Device)) {
@@ -185,6 +185,9 @@ public:
 
     return true;
   }
+
+  // Returns the backend of this context
+  backend getBackend() const { return MPlatform->getBackend(); }
 
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
@@ -211,10 +214,29 @@ public:
   initializeDeviceGlobals(pi::PiProgram NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
 
+  void memcpyToHostOnlyDeviceGlobal(
+      const std::shared_ptr<device_impl> &DeviceImpl,
+      const void *DeviceGlobalPtr, const void *Src, size_t DeviceGlobalTSize,
+      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+
+  void memcpyFromHostOnlyDeviceGlobal(
+      const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
+      const void *DeviceGlobalPtr, size_t DeviceGlobalTSize,
+      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+
   /// Gets a program associated with a device global from the cache.
   std::optional<RT::PiProgram>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
+  /// Gets a program associated with a HostPipe Entry from the cache.
+  std::optional<RT::PiProgram>
+  getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
+
+  /// Gets a program associated with Dev / Images pairs.
+  std::optional<RT::PiProgram>
+  getProgramForDevImgs(const device &Device,
+                       const std::set<std::uintptr_t> &ImgIdentifiers,
+                       const std::string &ObjectTypeName);
 
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
@@ -268,7 +290,32 @@ private:
   std::map<std::pair<RT::PiProgram, RT::PiDevice>, DeviceGlobalInitializer>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
+
+  // For device_global variables that are not used in any kernel code we still
+  // allow copy operations on them. MDeviceGlobalUnregisteredData stores the
+  // associated writes.
+  // The key to this map is a combination of a the pointer to the device_global
+  // and optionally a device if the device_global has device image scope.
+  std::map<std::pair<const void *, std::optional<RT::PiDevice>>,
+           std::unique_ptr<std::byte[]>>
+      MDeviceGlobalUnregisteredData;
+  std::mutex MDeviceGlobalUnregisteredDataMutex;
 };
+
+template <typename T, typename Capabilities>
+void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+                                    std::vector<T> &CapabilityList) {
+  for (const sycl::device &Device : Devices) {
+    std::vector<T> NewCapabilityList;
+    std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

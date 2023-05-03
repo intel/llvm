@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements a target parser to recognise hardware features
-// FOR RISC-V CPUS.
+// for RISC-V CPUs.
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,9 +39,6 @@ CPUKind parseTuneCPUKind(StringRef CPU, bool IsRV64);
 StringRef getMArchFromMcpu(StringRef CPU);
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
 void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
-bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
-
-bool isX18ReservedByDefault(const Triple &TT);
 
 } // namespace RISCV
 } // namespace llvm

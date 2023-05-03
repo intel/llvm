@@ -11,6 +11,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/pi_utils.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
@@ -345,19 +346,36 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
 
-  if (PropsList.has_property<property::buffer::detail::buffer_location>())
-    if (TargetContext->isBufferLocationSupported()) {
-      auto location =
-          PropsList.get_property<property::buffer::detail::buffer_location>()
-              .get_buffer_location();
-      pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
-                                    location, 0};
-      memBufferCreateHelper(Plugin, TargetContext->getHandleRef(),
-                            CreationFlags, Size, UserPtr, &NewMem, props);
-      return NewMem;
-    }
+  std::vector<pi_mem_properties> AllocProps;
+
+  if (PropsList.has_property<property::buffer::detail::buffer_location>() &&
+      TargetContext->isBufferLocationSupported()) {
+    auto Location =
+        PropsList.get_property<property::buffer::detail::buffer_location>()
+            .get_buffer_location();
+    AllocProps.reserve(AllocProps.size() + 2);
+    AllocProps.push_back(PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION);
+    AllocProps.push_back(Location);
+  }
+
+  if (PropsList.has_property<property::buffer::mem_channel>()) {
+    auto Channel =
+        PropsList.get_property<property::buffer::mem_channel>().get_channel();
+    AllocProps.reserve(AllocProps.size() + 2);
+    AllocProps.push_back(PI_MEM_PROPERTIES_CHANNEL);
+    AllocProps.push_back(Channel);
+  }
+
+  pi_mem_properties *AllocPropsPtr = nullptr;
+  if (!AllocProps.empty()) {
+    // If there are allocation properties, push an end to the list and update
+    // the properties pointer.
+    AllocProps.push_back(0);
+    AllocPropsPtr = AllocProps.data();
+  }
+
   memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
-                        Size, UserPtr, &NewMem, nullptr);
+                        Size, UserPtr, &NewMem, AllocPropsPtr);
   return NewMem;
 }
 
@@ -963,6 +981,9 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 #endif // NDEBUG
 
   // The fallback in this case is to insert a copy per row.
+  std::vector<OwnedPiEvent> CopyEventsManaged;
+  CopyEventsManaged.reserve(Height);
+  // We'll need continuous range of events for a wait later as well.
   std::vector<RT::PiEvent> CopyEvents(Height);
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
@@ -970,6 +991,8 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(
         Queue->getHandleRef(), /* blocking */ PI_FALSE, DstItBegin, SrcItBegin,
         Width, DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
+    CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
+                                   /*TakeOwnership=*/true);
   }
 
   // Then insert a wait to coalesce the copy events.

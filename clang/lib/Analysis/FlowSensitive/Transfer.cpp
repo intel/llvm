@@ -36,6 +36,16 @@
 namespace clang {
 namespace dataflow {
 
+const Environment *StmtToEnvMap::getEnvironment(const Stmt &S) const {
+  auto BlockIt = CFCtx.getStmtToBlock().find(&ignoreCFGOmittedNodes(S));
+  assert(BlockIt != CFCtx.getStmtToBlock().end());
+  if (!CFCtx.isBlockReachable(*BlockIt->getSecond()))
+    return nullptr;
+  const auto &State = BlockToState[BlockIt->getSecond()->getBlockID()];
+  assert(State);
+  return &State->Env;
+}
+
 static BoolValue &evaluateBooleanEquality(const Expr &LHS, const Expr &RHS,
                                           Environment &Env) {
   if (auto *LHSValue =
@@ -129,6 +139,8 @@ static Value *maybeUnpackLValueExpr(const Expr &E, Environment &Env) {
   return &UnpackedVal;
 }
 
+namespace {
+
 class TransferVisitor : public ConstStmtVisitor<TransferVisitor> {
 public:
   TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env)
@@ -162,15 +174,27 @@ public:
     }
     case BO_LAnd:
     case BO_LOr: {
-      BoolValue &LHSVal = getLogicOperatorSubExprValue(*LHS);
-      BoolValue &RHSVal = getLogicOperatorSubExprValue(*RHS);
-
       auto &Loc = Env.createStorageLocation(*S);
       Env.setStorageLocation(*S, Loc);
+
+      BoolValue *LHSVal = getLogicOperatorSubExprValue(*LHS);
+      // If the LHS was not reachable, this BinaryOperator would also not be
+      // reachable, and we would never get here.
+      assert(LHSVal != nullptr);
+      BoolValue *RHSVal = getLogicOperatorSubExprValue(*RHS);
+      if (RHSVal == nullptr) {
+        // If the RHS isn't reachable and we evaluate this BinaryOperator,
+        // then the value of the LHS must have triggered the short-circuit
+        // logic. This implies that the value of the entire expression must be
+        // equal to the value of the LHS.
+        Env.setValue(Loc, *LHSVal);
+        break;
+      }
+
       if (S->getOpcode() == BO_LAnd)
-        Env.setValue(Loc, Env.makeAnd(LHSVal, RHSVal));
+        Env.setValue(Loc, Env.makeAnd(*LHSVal, *RHSVal));
       else
-        Env.setValue(Loc, Env.makeOr(LHSVal, RHSVal));
+        Env.setValue(Loc, Env.makeOr(*LHSVal, *RHSVal));
       break;
     }
     case BO_NE:
@@ -213,7 +237,7 @@ public:
       Env.setStorageLocation(*S, *DeclLoc);
     } else {
       auto &Loc = Env.createStorageLocation(*S);
-      auto &Val = Env.takeOwnership(std::make_unique<ReferenceValue>(*DeclLoc));
+      auto &Val = Env.create<ReferenceValue>(*DeclLoc);
       Env.setStorageLocation(*S, Loc);
       Env.setValue(Loc, Val);
     }
@@ -252,8 +276,7 @@ public:
       // FIXME: reuse the ReferenceValue instead of creating a new one.
       if (auto *InitExprLoc =
               Env.getStorageLocation(*InitExpr, SkipPast::Reference)) {
-        auto &Val =
-            Env.takeOwnership(std::make_unique<ReferenceValue>(*InitExprLoc));
+        auto &Val = Env.create<ReferenceValue>(*InitExprLoc);
         Env.setValue(Loc, Val);
       }
     } else if (auto *InitExprVal = Env.getValue(*InitExpr, SkipPast::None)) {
@@ -399,8 +422,8 @@ public:
 
       auto &Loc = Env.createStorageLocation(*S);
       Env.setStorageLocation(*S, Loc);
-      Env.setValue(Loc, Env.takeOwnership(std::make_unique<ReferenceValue>(
-                            SubExprVal->getPointeeLoc())));
+      Env.setValue(Loc,
+                   Env.create<ReferenceValue>(SubExprVal->getPointeeLoc()));
       break;
     }
     case UO_AddrOf: {
@@ -413,8 +436,7 @@ public:
         break;
 
       auto &PointerLoc = Env.createStorageLocation(*S);
-      auto &PointerVal =
-          Env.takeOwnership(std::make_unique<PointerValue>(*PointeeLoc));
+      auto &PointerVal = Env.create<PointerValue>(*PointeeLoc);
       Env.setStorageLocation(*S, PointerLoc);
       Env.setValue(PointerLoc, PointerVal);
       break;
@@ -444,8 +466,7 @@ public:
 
     auto &Loc = Env.createStorageLocation(*S);
     Env.setStorageLocation(*S, Loc);
-    Env.setValue(Loc, Env.takeOwnership(
-                          std::make_unique<PointerValue>(*ThisPointeeLoc)));
+    Env.setValue(Loc, Env.create<PointerValue>(*ThisPointeeLoc));
   }
 
   void VisitReturnStmt(const ReturnStmt *S) {
@@ -499,8 +520,7 @@ public:
         } else {
           auto &Loc = Env.createStorageLocation(*S);
           Env.setStorageLocation(*S, Loc);
-          Env.setValue(Loc, Env.takeOwnership(
-                                std::make_unique<ReferenceValue>(*VarDeclLoc)));
+          Env.setValue(Loc, Env.create<ReferenceValue>(*VarDeclLoc));
         }
         return;
       }
@@ -534,8 +554,7 @@ public:
     } else {
       auto &Loc = Env.createStorageLocation(*S);
       Env.setStorageLocation(*S, Loc);
-      Env.setValue(
-          Loc, Env.takeOwnership(std::make_unique<ReferenceValue>(MemberLoc)));
+      Env.setValue(Loc, Env.create<ReferenceValue>(MemberLoc));
     }
   }
 
@@ -561,7 +580,9 @@ public:
     assert(ConstructorDecl != nullptr);
 
     if (ConstructorDecl->isCopyOrMoveConstructor()) {
-      assert(S->getNumArgs() == 1);
+      // It is permissible for a copy/move constructor to have additional
+      // parameters as long as they have default arguments defined for them.
+      assert(S->getNumArgs() != 0);
 
       const Expr *Arg = S->getArg(0);
       assert(Arg != nullptr);
@@ -730,7 +751,15 @@ public:
     Env.setValue(Loc, *Val);
 
     if (Type->isStructureOrClassType()) {
-      for (auto It : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
+      // Unnamed bitfields are only used for padding and are not appearing in
+      // `InitListExpr`'s inits. However, those fields do appear in RecordDecl's
+      // field list, and we thus need to remove them before mapping inits to
+      // fields to avoid mapping inits to the wrongs fields.
+      std::vector<FieldDecl *> Fields;
+      llvm::copy_if(
+          Type->getAsRecordDecl()->fields(), std::back_inserter(Fields),
+          [](const FieldDecl *Field) { return !Field->isUnnamedBitfield(); });
+      for (auto It : llvm::zip(Fields, S->inits())) {
         const FieldDecl *Field = std::get<0>(It);
         assert(Field != nullptr);
 
@@ -769,15 +798,19 @@ public:
   }
 
 private:
-  BoolValue &getLogicOperatorSubExprValue(const Expr &SubExpr) {
+  /// If `SubExpr` is reachable, returns a non-null pointer to the value for
+  /// `SubExpr`. If `SubExpr` is not reachable, returns nullptr.
+  BoolValue *getLogicOperatorSubExprValue(const Expr &SubExpr) {
     // `SubExpr` and its parent logic operator might be part of different basic
     // blocks. We try to access the value that is assigned to `SubExpr` in the
     // corresponding environment.
-    if (const Environment *SubExprEnv = StmtToEnv.getEnvironment(SubExpr)) {
-      if (auto *Val = dyn_cast_or_null<BoolValue>(
-              SubExprEnv->getValue(SubExpr, SkipPast::Reference)))
-        return *Val;
-    }
+    const Environment *SubExprEnv = StmtToEnv.getEnvironment(SubExpr);
+    if (!SubExprEnv)
+      return nullptr;
+
+    if (auto *Val = dyn_cast_or_null<BoolValue>(
+            SubExprEnv->getValue(SubExpr, SkipPast::Reference)))
+      return Val;
 
     if (Env.getStorageLocation(SubExpr, SkipPast::None) == nullptr) {
       // Sub-expressions that are logic operators are not added in basic blocks
@@ -790,11 +823,11 @@ private:
 
     if (auto *Val = dyn_cast_or_null<BoolValue>(
             Env.getValue(SubExpr, SkipPast::Reference)))
-      return *Val;
+      return Val;
 
     // If the value of `SubExpr` is still unknown, we create a fresh symbolic
     // boolean value for it.
-    return Env.makeAtomicBoolValue();
+    return &Env.makeAtomicBoolValue();
   }
 
   // If context sensitivity is enabled, try to analyze the body of the callee
@@ -847,6 +880,8 @@ private:
   const StmtToEnvMap &StmtToEnv;
   Environment &Env;
 };
+
+} // namespace
 
 void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env) {
   TransferVisitor(StmtToEnv, Env).Visit(&S);

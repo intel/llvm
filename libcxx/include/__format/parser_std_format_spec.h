@@ -30,10 +30,11 @@
 #include <__format/unicode.h>
 #include <__iterator/concepts.h>
 #include <__iterator/readable_traits.h> // iter_value_t
+#include <__type_traits/common_type.h>
+#include <__type_traits/is_trivially_copyable.h>
 #include <__variant/monostate.h>
 #include <cstdint>
 #include <string_view>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -80,22 +81,33 @@ __substitute_arg_id(basic_format_arg<_Context> __format_arg) {
   return _VSTD::__visit_format_arg(
       [](auto __arg) -> uint32_t {
         using _Type = decltype(__arg);
-        if constexpr (integral<_Type>) {
+        if constexpr (same_as<_Type, monostate>)
+          std::__throw_format_error("Argument index out of bounds");
+
+        // [format.string.std]/8
+        // If { arg-idopt } is used in a width or precision, the value of the
+        // corresponding formatting argument is used in its place. If the
+        // corresponding formatting argument is not of standard signed or unsigned
+        // integer type, or its value is negative for precision or non-positive for
+        // width, an exception of type format_error is thrown.
+        //
+        // When an integral is used in a format function, it is stored as one of
+        // the types checked below. Other integral types are promoted. For example,
+        // a signed char is stored as an int.
+        if constexpr (same_as<_Type, int> || same_as<_Type, unsigned int> || //
+                      same_as<_Type, long long> || same_as<_Type, unsigned long long>) {
           if constexpr (signed_integral<_Type>) {
             if (__arg < 0)
               std::__throw_format_error("A format-spec arg-id replacement shouldn't have a negative value");
           }
 
           using _CT = common_type_t<_Type, decltype(__format::__number_max)>;
-          if (static_cast<_CT>(__arg) >
-              static_cast<_CT>(__format::__number_max))
+          if (static_cast<_CT>(__arg) > static_cast<_CT>(__format::__number_max))
             std::__throw_format_error("A format-spec arg-id replacement exceeds the maximum supported value");
 
           return __arg;
-        } else if constexpr (same_as<_Type, monostate>)
-          std::__throw_format_error("Argument index out of bounds");
-        else
-          std::__throw_format_error("A format-spec arg-id replacement argument isn't an integral type");
+        } else
+          std::__throw_format_error("Replacement argument isn't a standard signed or unsigned integer type");
       },
       __format_arg);
 }
@@ -118,7 +130,7 @@ struct __fields {
   // formatters use the colon to mark the beginning of the
   // underlying-format-spec. To avoid parsing ambiguities these formatter
   // specializations prohibit the use of the colon as a fill character.
-  uint8_t __allow_colon_in_fill_ : 1 {false};
+  uint8_t __use_range_fill_ : 1 {false};
 };
 
 // By not placing this constant in the formatter class it's not duplicated for
@@ -140,8 +152,9 @@ inline constexpr __fields __fields_string{.__precision_ = true, .__type_ = true}
 inline constexpr __fields __fields_pointer{.__type_ = true};
 
 #  if _LIBCPP_STD_VER >= 23
-inline constexpr __fields __fields_tuple{.__type_ = false, .__allow_colon_in_fill_ = true};
-inline constexpr __fields __fields_range{.__type_ = false, .__allow_colon_in_fill_ = true};
+inline constexpr __fields __fields_tuple{.__use_range_fill_ = true};
+inline constexpr __fields __fields_range{.__use_range_fill_ = true};
+inline constexpr __fields __fields_fill_align_width{};
 #  endif
 
 enum class _LIBCPP_ENUM_VIS __alignment : uint8_t {
@@ -276,7 +289,7 @@ public:
     if (__begin == __end)
       return __begin;
 
-    if (__parse_fill_align(__begin, __end, __fields.__allow_colon_in_fill_) && __begin == __end)
+    if (__parse_fill_align(__begin, __end, __fields.__use_range_fill_) && __begin == __end)
       return __begin;
 
     if (__fields.__sign_ && __parse_sign(__begin) && __begin == __end)

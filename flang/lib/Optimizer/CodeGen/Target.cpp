@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Target.h"
+#include "flang/Optimizer/CodeGen/Target.h"
 #include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Optimizer/Support/FatalError.h"
-#include "flang/Optimizer/Support/KindMapping.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeRange.h"
 

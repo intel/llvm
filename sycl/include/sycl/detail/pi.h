@@ -77,9 +77,22 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property to the
+// _pi_kernel_exec_info. Defined _pi_kernel_cache_config enum with values of
+// the new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property.
+// 12.25 Added PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES and
+// PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES for piDeviceGetInfo.
+// 12.26 Added piextEnqueueReadHostPipe and piextEnqueueWriteHostPipe functions.
+// 12.27 Added new queue create and get APIs for immediate commandlists
+// piextQueueCreate2, piextQueueCreateWithNativeHandle2,
+// piextQueueGetNativeHandle2
+// 12.28 Added piextMemImageCreateWithNativeHandle for creating images from
+// native handles.
+// 12.29 Support PI_EXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
+// 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 30
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -115,6 +128,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,7 +166,8 @@ typedef enum {
   PI_PLATFORM_INFO_NAME = 0x0902,
   PI_PLATFORM_INFO_PROFILE = 0x0900,
   PI_PLATFORM_INFO_VENDOR = 0x0903,
-  PI_PLATFORM_INFO_VERSION = 0x0901
+  PI_PLATFORM_INFO_VERSION = 0x0901,
+  PI_EXT_PLATFORM_INFO_BACKEND = 0x21000 // returns pi_platform_backend
 } _pi_platform_info;
 
 typedef enum {
@@ -189,6 +204,15 @@ typedef enum : pi_uint64 {
                                    ///< dedicated accelerator.
   PI_DEVICE_TYPE_CUSTOM = (1 << 4) ///< A PI device that is a custom device.
 } _pi_device_type;
+
+typedef enum {
+  PI_EXT_PLATFORM_BACKEND_UNKNOWN = 0, ///< The backend is not a recognized one
+  PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO = 1, ///< The backend is Level Zero
+  PI_EXT_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
+  PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
+  PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
+  PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+} _pi_platform_backend;
 
 typedef enum {
   PI_DEVICE_MEM_CACHE_TYPE_NONE = 0x0,
@@ -311,8 +335,8 @@ typedef enum {
   // return the number of queue indices that are available for this device.
   PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 0x10032,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
-  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
-  PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
+  PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
+  PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
   // Return whether bfloat16 math functions are supported by device
@@ -323,6 +347,9 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
   PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
   PI_EXT_CODEPLAY_DEVICE_INFO_SUPPORTS_FUSION = 0x20005,
+  PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 0x20006,
+  PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 0x20007,
+  PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 0x20008,
 } _pi_device_info;
 
 typedef enum {
@@ -344,8 +371,10 @@ typedef enum {
   PI_CONTEXT_INFO_PROPERTIES = 0x1082,
   PI_CONTEXT_INFO_REFERENCE_COUNT = 0x1080,
   // Atomics capabilities extensions
-  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010,
-  PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x10011,
+  PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010,
+  PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x10011,
+  PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 0x10012,
+  PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 0x10013,
   // Native 2D USM memory operation support
   PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT = 0x30000,
   PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT = 0x30001,
@@ -621,8 +650,18 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
+typedef enum {
+  // No preference for SLM or data cache.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
+  // Large SLM size.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
+  // Large General Data size.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
+} _pi_kernel_cache_config;
+
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
+using pi_platform_backend = _pi_platform_backend;
 using pi_device_type = _pi_device_type;
 using pi_device_mem_cache_type = _pi_device_mem_cache_type;
 using pi_device_local_mem_type = _pi_device_local_mem_type;
@@ -650,6 +689,7 @@ using pi_program_build_status = _pi_program_build_status;
 using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
+using pi_kernel_cache_config = _pi_kernel_cache_config;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -808,6 +848,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
   "SYCL/device requirements"
+/// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1164,6 +1206,12 @@ __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
 __SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
                                          pi_queue_properties *properties,
                                          pi_queue *queue);
+/// \param properties points to a zero-terminated array of extra data describing
+/// desired queue properties. Format is
+///  {[PROPERTY[, property-specific elements of data]*,]* 0}
+__SYCL_EXPORT pi_result piextQueueCreate2(pi_context context, pi_device device,
+                                          pi_queue_properties *properties,
+                                          pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,
@@ -1186,6 +1234,14 @@ __SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
 __SYCL_EXPORT pi_result
 piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 
+/// Gets the native handle of a PI queue object.
+///
+/// \param queue is the PI queue to get the native handle of.
+/// \param nativeHandle is the native handle of queue or commandlist.
+/// \param nativeHandleDesc provides additional properties of the native handle.
+__SYCL_EXPORT pi_result piextQueueGetNativeHandle2(
+    pi_queue queue, pi_native_handle *nativeHandle, int32_t *nativeHandleDesc);
+
 /// Creates PI queue object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
@@ -1200,6 +1256,24 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
     bool pluginOwnsNativeHandle, pi_queue *queue);
+
+/// Creates PI queue object from a native handle.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param nativeHandle is the native handle to create PI queue from.
+/// \param nativeHandleDesc provides additional properties of the native handle.
+/// \param context is the PI context of the queue.
+/// \param device is the PI device associated with the native device used when
+///   creating the native queue. This parameter is optional but some backends
+///   may fail to create the right PI queue if omitted.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
+/// \param Properties holds queue properties.
+/// \param queue is the PI queue created from the native handle.
+__SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
+    pi_device device, bool pluginOwnsNativeHandle,
+    pi_queue_properties *Properties, pi_queue *queue);
 
 //
 // Memory
@@ -1249,6 +1323,24 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 __SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
     pi_mem *mem);
+
+/// Creates PI image object from a native handle.
+///
+/// \param nativeHandle is the native handle to create PI image from.
+/// \param context The PI context of the memory allocation.
+/// \param ownNativeHandle Indicates if we own the native memory handle or it
+/// came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param ImageFormat is the pi_image_format struct that
+/// specifies the image channnel order and channel data type that
+/// match what the nativeHandle uses
+/// \param ImageDesc is the pi_image_desc struct that specifies
+/// the image dimension, pitch, slice and other information about
+/// the nativeHandle
+/// \param img is the PI img created from the native handle.
+__SYCL_EXPORT pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *img);
 
 //
 // Program
@@ -1357,7 +1449,9 @@ typedef enum {
   /// indicates that the kernel might access data through USM ptrs
   PI_USM_INDIRECT_ACCESS,
   /// provides an explicit list of pointers that the kernel will access
-  PI_USM_PTRS = 0x4203
+  PI_USM_PTRS = 0x4203,
+  /// provides the preferred cache configuration (large slm or large data)
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG = 0x4204
 } _pi_kernel_exec_info;
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;
@@ -1926,6 +2020,55 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 ///
 /// Plugin
 ///
+///
+// Host Pipes
+///
+
+/// Read from pipe of a given name
+///
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory that will hold resulting data
+/// from pipe
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+__SYCL_EXPORT pi_result piextEnqueueReadHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
+
+/// Write to pipe of a given name
+///
+/// @param queue a valid host command-queue in which the read / write command
+/// will be queued. command_queue and program must be created with the same
+/// OpenCL context.
+/// @param program a program object with a successfully built executable.
+/// @param pipe_symbol the name of the program scope pipe global variable.
+/// @param blocking indicate if the read and write operations are blocking or
+/// non-blocking
+/// @param ptr a pointer to buffer in host memory that holds data to be written
+/// to host pipe.
+/// @param size size of the memory region to read or write, in bytes.
+/// @param num_events_in_waitlist number of events in the wait list.
+/// @param events_waitlist specify events that need to complete before this
+/// particular command can be executed.
+/// @param event returns an event object that identifies this read / write
+/// command and can be used to query or queue a wait for this command to
+/// complete.
+__SYCL_EXPORT pi_result piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it
@@ -1953,6 +2096,17 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// Returns the global timestamp from \param device , and syncronized host
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
+/// API to get backend specific option.
+/// \param frontend_option is a string that contains frontend option.
+/// \param backend_option is used to return the backend option corresponding to
+/// frontend option.
+///
+/// \return PI_SUCCESS is returned for valid frontend_option. If a valid backend
+/// option is not available, an empty string is returned.
+__SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
+                                                 const char *frontend_option,
+                                                 const char **backend_option);
 
 /// Queries  device for it's global timestamp in nanoseconds, and updates
 /// HostTime  with the value of the host timer at the closest possible point in

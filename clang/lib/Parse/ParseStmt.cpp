@@ -1100,7 +1100,7 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
       ++LookAhead;
     }
     // Then look to see if the next two tokens close the statement expression;
-    // if so, this expression statement is the last statement in a statment
+    // if so, this expression statement is the last statement in a statement
     // expression.
     IsStmtExprResult = GetLookAheadToken(LookAhead).is(tok::r_brace) &&
                        GetLookAheadToken(LookAhead + 1).is(tok::r_paren);
@@ -2411,7 +2411,7 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
                             ArgsUnion(Hint.ValueExpr)};
     TempAttrs.addNew(Hint.PragmaNameLoc->Ident, Hint.Range, nullptr,
                      Hint.PragmaNameLoc->Loc, ArgHints, 4,
-                     ParsedAttr::AS_Pragma);
+                     ParsedAttr::Form::Pragma());
   }
 
   // Get the next statement.

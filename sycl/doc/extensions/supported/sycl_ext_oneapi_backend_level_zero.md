@@ -9,15 +9,19 @@ The currently supported targets are all Intel GPUs starting with Gen9.
 
 This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
 
+NOTE: By necessity, this specification exposes some details about the way SYCL is layered on top of the Level Zero backend.  Although the DPC++/SYCL implementers make every effort to retain backward compatibility for changes to this specification, it is occasionally necessary to change an API in this specification in a way that is not compatible with previous versions. For example, this sometimes happens when DPC++ changes the way it layers SYCL on top of Level Zero.  When an API breaking change like this occurs, we update the version of the SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO feature-test macro and describe the API breakage as part of the description for that API version.
 
 |Value|Description|
 |---|:---|
 |1|Initial extension version.
 |2|Added support for the make_buffer() API.
 |3|Added device member to backend_input_t<backend::ext_oneapi_level_zero, queue>.
+|4|Change the definition of backend_input_t and backend_return_t for the queue object, which changes the API for make_queue and get_native (when applied to queue).
+|5|Added support for make_image() API.
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
+
 
 ## 2. Prerequisites
 
@@ -40,15 +44,15 @@ There are multiple ways in which the Level-Zero backend can be selected by the u
         
 ### 3.1 Through an environment variable
         
-The SYCL_DEVICE_FILTER environment variable limits the SYCL runtime to use only a subset of the system's devices.
-By using ```level_zero``` for backend in SYCL_DEVICE_FILTER you can select the use of Level-Zero as a SYCL backend.
+The ONEAPI_DEVICE_SELECTOR environment variable limits the SYCL runtime to use only a subset of the system's devices.
+By using ```level_zero``` for backend in ONEAPI_DEVICE_SELECTOR you can select the use of Level-Zero as a SYCL backend.
 For further details see here: <https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md>.
         
 ### 3.2 Through a programming API
         
 There is an extension that introduces a filtering device selection to SYCL described in
 [sycl\_ext\_oneapi\_filter\_selector](../supported/sycl_ext_oneapi_filter_selector.asciidoc).
-Similar to how SYCL_DEVICE_FILTER applies filtering to the entire process this device selector can be used to
+Similar to how SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR applies filtering to the entire process this device selector can be used to
 programmatically select the Level-Zero backend.
                 
 When neither the environment variable nor the filtering device selector are used, the implementation chooses
@@ -108,9 +112,18 @@ struct {
 }
 ```
 </td>
-</tr><tr>
-<td rowspan="2">queue</td>
-<td rowspan="2"><pre>ze_command_queue_handle_t</pre></td>
+</tr>
+<tr>
+<td rowspan="3">queue</td>
+<td rowspan="2">
+
+``` C++
+ze_command_queue_handle_t
+```
+
+Prior to version 4 of this specification.
+</td>
+
 <td>
 
 ``` C++
@@ -121,9 +134,10 @@ struct {
 }
 ```
 
-Deprecated as of version 3 of this specification.[^1]
+Prior to version 3 of this specification.
 </td>
-</tr><tr>
+</tr>
+<tr>
 <td>
 
 ``` C++
@@ -135,9 +149,37 @@ struct {
 }
 ```
 
-Supported since version 3 of this specification.[^1]
+Starting in version 3 of this specification.
 </td>
-</tr><tr>
+</tr>
+<td rowspan="1">
+
+``` C++
+std::variant<ze_command_queue_handle_t,
+             ze_command_list_handle_t>
+```
+
+Starting in version 4 of this specification.
+</td>
+<td>
+
+``` C++
+struct {
+  std::variant<ze_command_queue_handle_t,
+               ze_command_list_handle_t>
+    NativeHandle;
+  device Device;
+  ext::oneapi::level_zero::ownership Ownership{
+      ext::oneapi::level_zero::ownership::transfer};
+  property_list Properties{};
+}
+```
+
+Starting in version 4 of this specification.
+</td>
+</tr>
+
+<tr>
 <td>event</td>
 <td><pre>ze_event_handle_t</pre></td>
 <td>
@@ -206,9 +248,29 @@ struct {
 ```
 </td>
 </tr>
-</table>
+<tr>
+<td>image</td>
+<td>
 
-[^1]: The SYCL implementation is responsible for distinguishing between the variants of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code>.
+``` C++
+ze_image_handle_t
+```
+</td>
+<td>
+
+``` C++
+struct {
+    ze_image_handle_t ZeImageHandle;
+    sycl::image_channel_order ChanOrder;
+    sycl::image_channel_type ChanType;
+    sycl::range<Dimensions> Range;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  }
+```
+</td>
+</tr>
+</table>
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
@@ -222,8 +284,10 @@ auto get_native(const SyclObjectT &Obj)
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
 ```kernel_bundle```, and ```kernel``` classes. 
 
+The ```get_native(queue)``` function returns either ```ze_command_queue_handle_t``` or ```ze_command_list_handle_t``` depending on the manner in which the input argument ```queue``` had been created. Queues created with the SYCL ```queue``` constructors have a default setting for whether they use command queues or command lists. The default and how it may be changed is documented in the description for the environment variable ```SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS```. Queues created using ```make_queue()``` use either a command list or command queue depending on the input argument to ```make_queue``` and are not affected by the default for SYCL queues or the environment variable.
+
 The ```sycl::get_native<backend::ext_oneapi_level_zero>```
-free-function is not supported for SYCL ```buffer``` class. The native backend object associated with the
+free-function is not supported for SYCL ```buffer``` or ```image``` class. The native backend object associated with the
 buffer can be obtained using interop_hande class as described in the core SYCL specification section
 4.10.2, "Class interop_handle". 
 The pointer returned by ```get_native_mem<backend::ext_oneapi_level_zero>``` method of the ```interop_handle```
@@ -258,9 +322,9 @@ an application to create a SYCL object that encapsulates a corresponding Level-Z
 <td>
 
 ``` C++
-make_platform<backend::ext_oneapi_level_zero>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, platform> &)
+template <backend Backend>
+platform make_platform(
+    const backend_input_t<Backend, platform> &)
 ```
 </td>
 <td>Constructs a SYCL platform instance from a Level-Zero <code>ze_driver_handle_t</code>. The SYCL execution environment contains a fixed number of platforms that are enumerated via <code>sycl::platform::get_platforms()</code>. Calling this function does not create a new platform. Rather it merely creates a <code>sycl::platform</code> object that is a copy of one of the platforms from that enumeration.</td>
@@ -268,9 +332,9 @@ make_platform<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_device<backend::ext_oneapi_level_zero>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, device> &)
+template <backend Backend>
+device make_device(
+    const backend_input_t<Backend, device> &)
 ```
 </td>
 <td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment for the Level Zero backend contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and a fixed number of sub-devices that are enumerated via <code>sycl::device::create_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
@@ -278,9 +342,9 @@ make_device<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_context<backend::ext_oneapi_level_zero>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, context> &)
+template <backend Backend>
+context make_context(
+    const backend_input_t<Backend, context> &)
 ```
 </td>
 <td>Constructs a SYCL context instance from a Level-Zero <code>ze_context_handle_t</code>. The context is created against the devices passed in <code>DeviceList</code> structure member. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
@@ -288,23 +352,26 @@ make_context<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_queue<backend::ext_oneapi_level_zero>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, queue> &,
+template <backend Backend>
+queue make_queue(
+    const backend_input_t<Backend, queue> &,
     const context &Context)
 ```
 </td>
 <td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The <code>Device</code> input structure member specifies the device to create the <code>queue</code> against and must be in <code>Context</code>. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.
 
 If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code> is passed to <code>make_queue</code> the queue is attached to the first device in <code>Context</code>.
+
+Starting in version 4 of this specification, ```make_queue()``` can be called by passing either a Level Zero ```ze_command_queue_handle_t``` or a Level Zero ```ze_command_list_handle_t```. Queues created from a Level Zero immediate command list (```ze_command_list_handle_t```) generally perform better than queues created from a standard Level Zero ```ze_command_queue_handle_t```. See the Level Zero documentation of these native handles for more details. Also starting in version 4 the ```make_queue()``` function accepts a ```Properties``` member variable. This can contain any of the SYCL properties that are accepted by the SYCL queue constructor, except
+the ```compute_index``` property which is built into the command queue or command list.
 </td>
 </tr><tr>
 <td>
 
 ``` C++
-make_event<backend::ext_oneapi_level_zero>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, event> &,
+template <backend Backend>
+event make_event(
+    const backend_input_t<Backend, event> &,
     const context &Context)
 ```
 </td>
@@ -313,11 +380,11 @@ make_event<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_kernel_bundle<backend::ext_oneapi_level_zero,
-                   bundle_state::executable>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero,
-        kernel_bundle<bundle_state::executable>> &,
+// State must be bundle_state::executable
+template <backend Backend, bundle_state State>
+kernel_bundle<State> make_kernel_bundle(
+    const backend_input_t<Backend,
+        kernel_bundle<State>> &,
     const context &Context)
 ```
 </td>
@@ -339,9 +406,9 @@ interoperability <code>kernel_bundle</code> destructor is called.</td>
 <td>
 
 ``` C++
-make_kernel<backend::ext_oneapi_level_zero>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, kernel> &,
+template <backend Backend>
+kernel make_kernel(
+    const backend_input_t<Backend, kernel> &,
     const context &Context)
 ```
 </td>
@@ -361,9 +428,15 @@ Level-Zero kernel</td>
 <td>
 
 ``` C++
-make_buffer(
-    const backend_input_t<backend::ext_oneapi_level_zero,
-                          buffer<T, Dimensions, AllocatorT>> &,
+template <backend Backend, 
+          typename T, int Dimensions = 1,
+          typename AllocatorT = 
+            buffer_allocator<std::remove_const_t<T>>>
+buffer<T, Dimensions, AllocatorT> make_buffer(
+    const backend_input_t<Backend,
+                          buffer<T, 
+                                 Dimensions, 
+                                 AllocatorT>> &,
     const context &Context)
 ```
 </td>
@@ -377,9 +450,15 @@ Synchronization rules for a buffer that is created with this API are described i
 <td>
 
 ``` C++
-make_buffer(
-    const backend_input_t<backend::ext_oneapi_level_zero,
-                          buffer<T, Dimensions, AllocatorT>> &,
+template <backend Backend, 
+          typename T, int Dimensions = 1,
+          typename AllocatorT = 
+            buffer_allocator<std::remove_const_t<T>>>
+buffer<T, Dimensions, AllocatorT> make_buffer(
+    const backend_input_t<Backend,
+                          buffer<T, 
+                                 Dimensions, 
+                                 AllocatorT>> &,
     const context &Context, event AvailableEvent)
 ```
 </td>
@@ -388,6 +467,94 @@ make_buffer(
 Construct a SYCL buffer instance from a pointer to a Level Zero memory allocation. Please refer to <code>make_buffer</code>
 description above for semantics and restrictions.
 The additional <code>AvailableEvent</code> argument must be a valid SYCL event. The instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter to signal that the memory native handle is ready to be used.
+</tr>
+
+<tr>
+<td>
+
+``` C++
+template<backend Backend, int Dimensions = 1, 
+         typename AllocrT = sycl::image_allocator>
+image<Dimensions, AllocrT> make_image(
+    const backend_input_t<Backend, 
+                          image<Dimensions, 
+                            AllocrT>> &backendObject,
+    const context &targetContext);
+```
+</td>
+<td>This API is available starting with revision 5 of this specification.
+
+Construct a SYCL image instance from a ze_image_handle_t. 
+
+Because LevelZero has no way of getting image information from an image, it must be provided.  The  <code>backend_input_t</code> is a struct type like so:
+``` C++
+struct type {
+    ze_image_handle_t ZeImageHandle;
+    sycl::image_channel_order ChanOrder;
+    sycl::image_channel_type ChanType;
+    sycl::range<Dimensions> Range;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
+```
+where the Range should be ordered (width), (width, height), or (width, height, depth) for 1D, 2D and 3D images respectively, 
+with those values matching the dimensions used in the `ze_image_desc` that was used to create the `ze_image_handle_t` initially. 
+Note that the range term ordering (width first, depth last) is true for SYCL 1.2.1 images that are supported here. But future classes like
+sampled_image and unsampled_image might have a different ordering.
+
+Example Usage
+``` C++
+ze_image_handle_t ZeHImage; 
+// ... user provided LevelZero ZeHImage image 
+// handle gotten somehow (possibly zeImageCreate)
+
+// the informational data that matches ZeHImage
+sycl::image_channel_order ChanOrder 
+     = sycl::image_channel_order::rgba;
+sycl::image_channel_type ChanType 
+     = sycl::image_channel_type::unsigned_int8;
+size_t width  = 4;
+size_t height = 2;
+sycl::range<2> ImgRange_2D(width, height);
+
+constexpr sycl::backend BE 
+       = sycl::backend::ext_oneapi_level_zero;
+sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ 
+    ZeHImage, 
+    ChanOrder,
+    ChanType, 
+    ImgRange_2D, 
+    sycl::ext::oneapi::level_zero::ownership::transfer };      
+    
+sycl::image<2> Image_2D  
+  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
+```
+
+The image can only be used on the single device where it was created. This limitation may be relaxed in the future.
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context. The created SYCL image can only be accessed from kernels that are submitted to a queue using this same context.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the SYCL runtime is going to free the input Level-Zero memory allocation, meaning the memory will be freed when the ~image destructor fires. When using "transfer" the ~image destructor may not need to block.  If the behavior is "keep", then the memory will not be freed by the ~image destructor, and the ~image destructor blocks until all work in the queues on the image have been completed. When using "keep" it is the responsibility of the caller to free the memory appropriately. 
+</td>
+</tr>
+
+<tr>
+<td>
+
+``` C++
+template<backend Backend, int Dimensions = 1, 
+         typename AllocrT = sycl::image_allocator>
+image<Dimensions, AllocrT> make_image(
+    const backend_input_t<Backend, 
+                          image<Dimensions, 
+                            AllocrT>> &backendObject,
+    const context &targetContext, event availableEvent);
+```
+</td>
+<td>This API is available starting with revision 5 of this specification.
+
+Construct a SYCL image instance from a pointer to a Level Zero memory allocation. Please refer to <code>make_image</code>
+description above for semantics and restrictions.
+The additional <code>AvailableEvent</code> argument must be a valid SYCL event. The instance of the SYCL image class template being constructed must wait for the SYCL event parameter to signal that the memory native handle is ready to be used.
+</td>
 </tr>
 </table>
 
@@ -452,6 +619,12 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 * If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents is not copied back to the Level Zero memory allocation.
 * If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
+## 5. Device information descriptors
+
+|Device descriptors|Value|
+|-------------|:------------|
+|`info::device::backend_version`|The Level Zero backend does not define the value of this information descriptor. Applications should not use it, and implementations are encouraged to return the empty string.
+
 ## Revision History
 |Rev|Date|Author|Changes|
 |-------------|:------------|:------------|:------------|
@@ -465,3 +638,5 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 |8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
 |9|2022-05-12|Steffen Larsen|Added device member to queue input type
 |10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension
+|11|2023-03-14|Rajiv Deodhar|Added support for Level Zero immediate command lists
+|12|2023-04-06|Chris Perkins|Introduced make_image() API

@@ -111,10 +111,16 @@ __SYCL_PARAM_TRAITS_SPEC(device, host_unified_memory, bool,
                          PI_DEVICE_INFO_HOST_UNIFIED_MEMORY)
 __SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_order_capabilities,
                          std::vector<sycl::memory_order>,
-                         PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+                         PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+__SYCL_PARAM_TRAITS_SPEC(device, atomic_fence_order_capabilities,
+                         std::vector<sycl::memory_order>,
+                         PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
 __SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_scope_capabilities,
                          std::vector<sycl::memory_scope>,
-                         PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+                         PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+__SYCL_PARAM_TRAITS_SPEC(device, atomic_fence_scope_capabilities,
+                         std::vector<sycl::memory_scope>,
+                         PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
 __SYCL_PARAM_TRAITS_SPEC(device, profiling_timer_resolution, size_t,
                          PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION)
 __SYCL_PARAM_TRAITS_SPEC(device, is_endian_little, bool,
@@ -196,7 +202,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          PI_DEVICE_INFO_IMAGE_SRGB)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
-                         PI_MEM_PROPERTIES_CHANNEL)
+                         PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
                          PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 

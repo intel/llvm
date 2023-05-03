@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.cpp - RISCV Instruction Information ------*- C++ -*-===//
+//===-- RISCVInstrInfo.cpp - RISC-V Instruction Information -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of the TargetInstrInfo class.
+// This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -79,19 +79,33 @@ MCInst RISCVInstrInfo::getNop() const {
 
 unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
+  unsigned Dummy;
+  return isLoadFromStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+                                             int &FrameIndex,
+                                             unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::LB:
   case RISCV::LBU:
+    MemBytes = 1;
+    break;
   case RISCV::LH:
   case RISCV::LHU:
   case RISCV::FLH:
+    MemBytes = 2;
+    break;
   case RISCV::LW:
   case RISCV::FLW:
   case RISCV::LWU:
+    MemBytes = 4;
+    break;
   case RISCV::LD:
   case RISCV::FLD:
+    MemBytes = 8;
     break;
   }
 
@@ -106,16 +120,30 @@ unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 
 unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                             int &FrameIndex) const {
+  unsigned Dummy;
+  return isStoreToStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+                                            int &FrameIndex,
+                                            unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::SB:
+    MemBytes = 1;
+    break;
   case RISCV::SH:
-  case RISCV::SW:
   case RISCV::FSH:
+    MemBytes = 2;
+    break;
+  case RISCV::SW:
   case RISCV::FSW:
+    MemBytes = 4;
+    break;
   case RISCV::SD:
   case RISCV::FSD:
+    MemBytes = 8;
     break;
   }
 
@@ -923,7 +951,7 @@ unsigned RISCVInstrInfo::insertBranch(
   // Shouldn't be a fall through.
   assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
-         "RISCV branch conditions have two components!");
+         "RISC-V branch conditions have two components!");
 
   // Unconditional branch.
   if (Cond.empty()) {
@@ -1213,6 +1241,20 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     const auto &TM = static_cast<const RISCVTargetMachine &>(MF.getTarget());
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(),
                               *TM.getMCAsmInfo());
+  }
+
+  if (!MI.memoperands_empty()) {
+    MachineMemOperand *MMO = *(MI.memoperands_begin());
+    const MachineFunction &MF = *MI.getParent()->getParent();
+    const auto &ST = MF.getSubtarget<RISCVSubtarget>();
+    if (ST.hasStdExtZihintntl() && MMO->isNonTemporal()) {
+      if (ST.hasStdExtCOrZca() && ST.enableRVCHintInstrs()) {
+        if (isCompressibleInst(MI, STI))
+          return 4; // c.ntl.all + c.load/c.store
+        return 6;   // c.ntl.all + load/store
+      }
+      return 8; // ntl.all + load/store
+    }
   }
 
   if (MI.getParent() && MI.getParent()->getParent()) {
@@ -1623,11 +1665,11 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
                                        StringRef &ErrInfo) const {
   MCInstrDesc const &Desc = MI.getDesc();
 
-  for (auto &OI : enumerate(Desc.operands())) {
-    unsigned OpType = OI.value().OperandType;
+  for (const auto &[Index, Operand] : enumerate(Desc.operands())) {
+    unsigned OpType = Operand.OperandType;
     if (OpType >= RISCVOp::OPERAND_FIRST_RISCV_IMM &&
         OpType <= RISCVOp::OPERAND_LAST_RISCV_IMM) {
-      const MachineOperand &MO = MI.getOperand(OI.index());
+      const MachineOperand &MO = MI.getOperand(Index);
       if (MO.isImm()) {
         int64_t Imm = MO.getImm();
         bool Ok;
@@ -1640,11 +1682,14 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
   case RISCVOp::OPERAND_UIMM##NUM:                                             \
     Ok = isUInt<NUM>(Imm);                                                     \
     break;
+        CASE_OPERAND_UIMM(1)
         CASE_OPERAND_UIMM(2)
         CASE_OPERAND_UIMM(3)
         CASE_OPERAND_UIMM(4)
         CASE_OPERAND_UIMM(5)
+        CASE_OPERAND_UIMM(6)
         CASE_OPERAND_UIMM(7)
+        CASE_OPERAND_UIMM(8)
         CASE_OPERAND_UIMM(12)
         CASE_OPERAND_UIMM(20)
           // clang-format on
@@ -1709,6 +1754,15 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           break;
         case RISCVOp::OPERAND_RVKRNUM:
           Ok = Imm >= 0 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_0_7:
+          Ok = Imm >= 0 && Imm <= 7;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_1_10:
+          Ok = Imm >= 1 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_2_14:
+          Ok = Imm >= 2 && Imm <= 14;
           break;
         }
         if (!Ok) {
@@ -1897,7 +1951,8 @@ bool RISCVInstrInfo::shouldOutlineFromFunctionByDefault(
   return MF.getFunction().hasMinSize();
 }
 
-outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+RISCVInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
 
   // First we need to filter out candidates where the X5 register (IE t0) can't
@@ -1911,7 +1966,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 
   // If the sequence doesn't have enough candidates left, then we're done.
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   unsigned SequenceSize = 0;
 
@@ -2102,6 +2157,15 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
     return false;
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ:
+    // We can't commute operands if operand 2 (i.e., rs1 in
+    // mveqz/mvnez rd,rs1,rs2) is the zero-register (as it is
+    // not valid as the in/out-operand 1).
+    if (MI.getOperand(2).getReg() == RISCV::X0)
+      return false;
+    // Operands 1 and 2 are commutable, if we switch the opcode.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 1, 2);
   case RISCV::TH_MULA:
   case RISCV::TH_MULAW:
   case RISCV::TH_MULAH:
@@ -2258,6 +2322,14 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   };
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ: {
+    auto &WorkingMI = cloneIfNew(MI);
+    WorkingMI.setDesc(get(MI.getOpcode() == RISCV::TH_MVEQZ ? RISCV::TH_MVNEZ
+                                                            : RISCV::TH_MVEQZ));
+    return TargetInstrInfo::commuteInstructionImpl(WorkingMI, false, OpIdx1,
+                                                   OpIdx2);
+  }
   case RISCV::PseudoCCMOVGPR: {
     // CCMOV can be commuted by inverting the condition.
     auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());
@@ -2555,226 +2627,6 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(N, RegState::Kill)
         .setMIFlag(Flag);
   }
-}
-
-// Checks if all users only demand the lower \p OrigBits of the original
-// instruction's result.
-// TODO: handle multiple interdependent transformations
-bool RISCVInstrInfo::hasAllNBitUsers(const MachineInstr &OrigMI,
-                                     const MachineRegisterInfo &MRI,
-                                     unsigned OrigBits) const {
-
-  SmallSet<std::pair<const MachineInstr *, unsigned>, 4> Visited;
-  SmallVector<std::pair<const MachineInstr *, unsigned>, 4> Worklist;
-
-  Worklist.push_back(std::make_pair(&OrigMI, OrigBits));
-
-  while (!Worklist.empty()) {
-    auto P = Worklist.pop_back_val();
-    const MachineInstr *MI = P.first;
-    unsigned Bits = P.second;
-
-    if (!Visited.insert(P).second)
-      continue;
-
-    // Only handle instructions with one def.
-    if (MI->getNumExplicitDefs() != 1)
-      return false;
-
-    for (auto &UserOp : MRI.use_operands(MI->getOperand(0).getReg())) {
-      const MachineInstr *UserMI = UserOp.getParent();
-      unsigned OpIdx = UserOp.getOperandNo();
-
-      switch (UserMI->getOpcode()) {
-      default:
-        return false;
-
-      case RISCV::ADDIW:
-      case RISCV::ADDW:
-      case RISCV::DIVUW:
-      case RISCV::DIVW:
-      case RISCV::MULW:
-      case RISCV::REMUW:
-      case RISCV::REMW:
-      case RISCV::SLLIW:
-      case RISCV::SLLW:
-      case RISCV::SRAIW:
-      case RISCV::SRAW:
-      case RISCV::SRLIW:
-      case RISCV::SRLW:
-      case RISCV::SUBW:
-      case RISCV::ROLW:
-      case RISCV::RORW:
-      case RISCV::RORIW:
-      case RISCV::CLZW:
-      case RISCV::CTZW:
-      case RISCV::CPOPW:
-      case RISCV::SLLI_UW:
-      case RISCV::FMV_W_X:
-      case RISCV::FCVT_H_W:
-      case RISCV::FCVT_H_WU:
-      case RISCV::FCVT_S_W:
-      case RISCV::FCVT_S_WU:
-      case RISCV::FCVT_D_W:
-      case RISCV::FCVT_D_WU:
-        if (Bits >= 32)
-          break;
-        return false;
-      case RISCV::SEXT_B:
-      case RISCV::PACKH:
-        if (Bits >= 8)
-          break;
-        return false;
-      case RISCV::SEXT_H:
-      case RISCV::FMV_H_X:
-      case RISCV::ZEXT_H_RV32:
-      case RISCV::ZEXT_H_RV64:
-      case RISCV::PACKW:
-        if (Bits >= 16)
-          break;
-        return false;
-
-      case RISCV::PACK:
-        if (Bits >= (STI.getXLen() / 2))
-          break;
-        return false;
-
-      case RISCV::SRLI: {
-        // If we are shifting right by less than Bits, and users don't demand
-        // any bits that were shifted into [Bits-1:0], then we can consider this
-        // as an N-Bit user.
-        unsigned ShAmt = UserMI->getOperand(2).getImm();
-        if (Bits > ShAmt) {
-          Worklist.push_back(std::make_pair(UserMI, Bits - ShAmt));
-          break;
-        }
-        return false;
-      }
-
-      // these overwrite higher input bits, otherwise the lower word of output
-      // depends only on the lower word of input. So check their uses read W.
-      case RISCV::SLLI:
-        if (Bits >= (STI.getXLen() - UserMI->getOperand(2).getImm()))
-          break;
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-      case RISCV::ANDI: {
-        uint64_t Imm = UserMI->getOperand(2).getImm();
-        if (Bits >= (unsigned)llvm::bit_width(Imm))
-          break;
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-      }
-      case RISCV::ORI: {
-        uint64_t Imm = UserMI->getOperand(2).getImm();
-        if (Bits >= (unsigned)llvm::bit_width<uint64_t>(~Imm))
-          break;
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-      }
-
-      case RISCV::SLL:
-      case RISCV::BSET:
-      case RISCV::BCLR:
-      case RISCV::BINV:
-        // Operand 2 is the shift amount which uses log2(xlen) bits.
-        if (OpIdx == 2) {
-          if (Bits >= Log2_32(STI.getXLen()))
-            break;
-          return false;
-        }
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-
-      case RISCV::SRA:
-      case RISCV::SRL:
-      case RISCV::ROL:
-      case RISCV::ROR:
-        // Operand 2 is the shift amount which uses 6 bits.
-        if (OpIdx == 2 && Bits >= Log2_32(STI.getXLen()))
-          break;
-        return false;
-
-      case RISCV::ADD_UW:
-      case RISCV::SH1ADD_UW:
-      case RISCV::SH2ADD_UW:
-      case RISCV::SH3ADD_UW:
-        // Operand 1 is implicitly zero extended.
-        if (OpIdx == 1 && Bits >= 32)
-          break;
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-
-      case RISCV::BEXTI:
-        if (UserMI->getOperand(2).getImm() >= Bits)
-          return false;
-        break;
-
-      case RISCV::SB:
-        // The first argument is the value to store.
-        if (OpIdx == 0 && Bits >= 8)
-          break;
-        return false;
-      case RISCV::SH:
-        // The first argument is the value to store.
-        if (OpIdx == 0 && Bits >= 16)
-          break;
-        return false;
-      case RISCV::SW:
-        // The first argument is the value to store.
-        if (OpIdx == 0 && Bits >= 32)
-          break;
-        return false;
-
-      // For these, lower word of output in these operations, depends only on
-      // the lower word of input. So, we check all uses only read lower word.
-      case RISCV::COPY:
-      case RISCV::PHI:
-
-      case RISCV::ADD:
-      case RISCV::ADDI:
-      case RISCV::AND:
-      case RISCV::MUL:
-      case RISCV::OR:
-      case RISCV::SUB:
-      case RISCV::XOR:
-      case RISCV::XORI:
-
-      case RISCV::ANDN:
-      case RISCV::BREV8:
-      case RISCV::CLMUL:
-      case RISCV::ORC_B:
-      case RISCV::ORN:
-      case RISCV::SH1ADD:
-      case RISCV::SH2ADD:
-      case RISCV::SH3ADD:
-      case RISCV::XNOR:
-      case RISCV::BSETI:
-      case RISCV::BCLRI:
-      case RISCV::BINVI:
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-
-      case RISCV::PseudoCCMOVGPR:
-        // Either operand 4 or operand 5 is returned by this instruction. If
-        // only the lower word of the result is used, then only the lower word
-        // of operand 4 and 5 is used.
-        if (OpIdx != 4 && OpIdx != 5)
-          return false;
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-
-      case RISCV::VT_MASKC:
-      case RISCV::VT_MASKCN:
-        if (OpIdx != 1)
-          return false;
-        Worklist.push_back(std::make_pair(UserMI, Bits));
-        break;
-      }
-    }
-  }
-
-  return true;
 }
 
 // Returns true if this is the sext.w pattern, addiw rd, rs1, 0.

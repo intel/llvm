@@ -2,14 +2,18 @@
 
 ## Introduction
 
-The main motivation for introducing the Explicit SIMD Programming (ESP) DPC++
-extension is enabling low-level efficient programming for Intel graphics
-architectures. More specifically, Explicit SIMD provides the following
-additional features:
+The main motivation for introducing the "Explicit SIMD" SYCL extension 
+(or simply "ESIMD") is enabling efficient low-level programming for Intel graphics
+architectures. It provides APIs close to the Intel GPU ISA
+and allows writing explicitly vectorized device code.
+
+Explicit SIMD provides the following key features complementary to SYCL:
 - Manual vectorization of device code using the `simd` class mapped to Intel GPU's
   general register file. This allows to write efficient code not relying on
   further widening by the compiler, as with traditional SPMD programming.
-- Low-level APIs efficiently mapped to Intel GPU architecture, such as block reads.
+- Low-level APIs efficiently mapped to the Intel GPU architecture, such as block loads/stores/gathers/scatters, explicit cache hints, GPU inline assembly, etc.
+
+Explicit SIMD though have some [restrictions](./README.md#restrictions) as well.
 
 ## Explicit SIMD execution model
 
@@ -82,7 +86,7 @@ int main(void) {
     auto Acc1 = Buf1.get_access<sycl::access::mode::read>(Cgh);
     auto Acc2 = Buf2.get_access<sycl::access::mode::read_write>(Cgh);
 
-    Cgh.single_task<class KernelID>([=]() [[intel::sycl_explicit_simd]] {
+    Cgh.single_task([=]() [[intel::sycl_explicit_simd]] {
       simd<float, 8> Val = esimd::block_load<float, 8>(Acc1, 0);
       sycl_device_f(Acc2, Val);
     });
@@ -92,21 +96,21 @@ int main(void) {
 
 ## Implementation restrictions
 
-Current ESP implementation does not support using certain standard SYCL features
+Current ESIMD implementation does not support using certain standard SYCL features
 inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
 - Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
-  translation unit and in the same program. However, interoperability between
-  them is not yet supported, e.g. currently it's not allowed to invoke an ESIMD
-  function from a regular SYCL kernel and vice-versa.
-- Local accessors. Local memory is allocated and accessed via explicit
-device-side API
-- 2D and 3D accessors
-- Constant accessors
+  translation unit and in the same program.
+- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
+  Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.
+- Local accessors are not supported yet. Local memory is allocated and accessed
+  via explicit device-side API.
+- 2D and 3D accessors;
+- Constant accessors;
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
 done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
 - Accessors with offsets and/or access range specified
-- `sycl::sampler` and `sycl::stream` classes
+- `sycl::image`, `sycl::sampler` and `sycl::stream` classes.
 
 
 ## Core Explicit SIMD programming APIs
@@ -118,7 +122,7 @@ efficient mapping to SIMD vector operations on Intel graphics architectures.
 ### SIMD vector class
 
 The `simd` class is a vector templated on some element type.
-The element type must either be a vectorizable type. or the `sycl::half` type.
+The element type must either be a vectorizable type or the `sycl::half` type.
 The set of vectorizable types is the
 set of fundamental SYCL arithmetic types excluding `bool`. The length of the
 vector is the second template parameter.
@@ -607,7 +611,7 @@ They also may require horizontal packing or unpacking for `A`, `C`, `Result` bef
 #### Horizontal packing for `A`, `C`, and `Result`
 
 The operands `A`, `C` and the `result` of `xmx::dpas()` are horizontally packed into 32-bit elements.
-For input elements with bit-size 8-bit or more, the packing is automatic and any explicit actions on it may be omitted. So, if the matrix `A` has `sycl::half` elements and is interpreted as a 4x8 matrix:
+For input elements with bit-size 8-bit or more, the packing is automatic and any explicit actions on it may be omitted. For example, 4x8 matrix `A` with `sycl::half` elements:
 |||||||||
 |--- |--- |--- |--- |--- |--- |--- |--- |
 | a0 | a1	| a2 | a3 | a4 | a5	| a6 | a7 |
@@ -615,8 +619,8 @@ For input elements with bit-size 8-bit or more, the packing is automatic and any
 | c0 | c1	| c2 | c3 | c4 | c5	| c6 | c7 |
 | d0 | d1	| d2 | d3 | d4 | d5	| d6 | d7 |
 
-Then the corresponding input `simd` operand (or output `simd` result) looks as simple as {a0, a1, a2, a3, a4, a5, a6, a7, a8, b0, b1, ..., b7, c0, c1, ..., c7, d0, ..., d7}.  
-Matrices with elements smaller than 8-bit they are packed to 1-,2-,or 4-byte elements. So, the operand `A` representing the 4x64 `unpacked` matrix of 4-bit unsigned integers:
+has the corresponding input `simd` operand (or output `simd` result) represented as simple as {a0, a1, a2, a3, a4, a5, a6, a7, a8, b0, b1, ..., b7, c0, c1, ..., c7, d0, ..., d7}.  
+Matrices with elements smaller than 8-bit are packed to 1-,2-,or 4-byte elements. For example, the operand `A` representing a 4x64 `unpacked` matrix of 4-bit unsigned integers:
 |||||||
 |--- |--- |--- |--- |---  |--- |
 | a0 | a1	| a2 | a3 | ... | a63 |
@@ -624,7 +628,7 @@ Matrices with elements smaller than 8-bit they are packed to 1-,2-,or 4-byte ele
 | c0 | c1	| c2 | c3 | ... | c63 |
 | d0 | d1	| d2 | d3 | ... | d63 |
 
-actually stored as 4x32 matrix of `uint8_t` packed elements (1 uint8_t fits 2 4-bit uinteger ints):
+actually stored as 4x32 matrix of `uint8_t` packed elements (1 uint8_t holds 2 4-bit unsigned integer):
 
 |||||
 |--- |--- |--- |--- |
@@ -668,7 +672,7 @@ looks as below if packed as 8x8 matrix with `uint32_t` elements:
 
 and is passed to `xmx::dpas()` as simd<uint32_t, 8*8> {(b0<<16)|a0, | (b1<<16)|a1, ..., (b7<<16)|a7, (d0<<16)|c0, ..., ..., p7<<16\|o7}.
 
-Some more examples can be found in test for `xmx::dpas()` in [LIT tests](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD/dpas).
+Some more examples can be found in test for `xmx::dpas()` in [LIT tests](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/ESIMD/dpas).
 
 ### Other APIs
 
@@ -815,6 +819,22 @@ simd<float, 8> __regcall SCALE(simd<float, 8> v);
 The parameter and the return type in the ABI form will be `<8 x float>`.
 <br>
 
+### Inline assembly
+Inline assembly is supported with ESIMD classes `simd`, `simd_mask` and `simd_view`. `simd_view` only supports read operations.
+In order the access the raw underlying vector required for inline assembly, the `data` function can be used for read-only access and
+the `data_ref` function can be used for write access. The `data_ref` function only exists for `simd` and `simd_mask`, and should only be used in inline assembly.
+
+Example of inline GEN assembly:
+```cpp
+simd<float, 16> va;
+simd<float, 16> vb;
+simd<float, 16> vc;
+
+__asm__("add (M1, 16) %0 %1 %2"
+                    : "=r"(vc.data_ref())
+                    : "r"(va.data()), "r"(vb.data()));
+```
+
 ## Examples
 ### Vector addition (USM)
 ```cpp
@@ -907,4 +927,4 @@ int main(void) {
 }
 ```
 more examples can be found in the
-[ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github.
+[ESIMD test suite](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/ESIMD) on github.

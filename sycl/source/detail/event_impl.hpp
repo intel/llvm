@@ -251,6 +251,11 @@ public:
 
   bool isContextInitialized() const noexcept { return MIsContextInitialized; }
 
+  ContextImplPtr getContextImplPtr() {
+    ensureContextInitialized();
+    return MContext;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -274,6 +279,7 @@ protected:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+  const bool MLimitedProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;

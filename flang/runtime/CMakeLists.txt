@@ -96,6 +96,7 @@ add_subdirectory(FortranMain)
 add_flang_library(FortranRuntime
   ISO_Fortran_binding.cpp
   allocatable.cpp
+  array-constructor.cpp
   assign.cpp
   buffer.cpp
   command.cpp
@@ -124,10 +125,12 @@ add_flang_library(FortranRuntime
   io-error.cpp
   io-stmt.cpp
   main.cpp
+  matmul-transpose.cpp
   matmul.cpp
   memory.cpp
   misc-intrinsic.cpp
   namelist.cpp
+  non-tbp-dio.cpp
   numeric.cpp
   ragged.cpp
   random.cpp

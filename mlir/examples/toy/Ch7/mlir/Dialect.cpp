@@ -195,7 +195,7 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
 
     // Check that the rank of the attribute type matches the rank of the
     // constant result type.
-    auto attrType = attrValue.getType().cast<mlir::TensorType>();
+    auto attrType = attrValue.getType().cast<mlir::RankedTensorType>();
     if (attrType.getRank() != resultType.getRank()) {
       return op->emitOpError("return type must match the one of the attached "
                              "value attribute: ")
@@ -334,6 +334,18 @@ mlir::Region *FuncOp::getCallableRegion() { return &getBody(); }
 /// executed.
 llvm::ArrayRef<mlir::Type> FuncOp::getCallableResults() {
   return getFunctionType().getResults();
+}
+
+/// Returns the argument attributes for all callable region arguments or
+/// null if there are none.
+ArrayAttr FuncOp::getCallableArgAttrs() {
+  return getArgAttrs().value_or(nullptr);
+}
+
+/// Returns the result attributes for all callable region results or
+/// null if there are none.
+ArrayAttr FuncOp::getCallableResAttrs() {
+  return getResAttrs().value_or(nullptr);
 }
 
 //===----------------------------------------------------------------------===//

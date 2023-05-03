@@ -90,7 +90,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPURegBankSelect.cpp
   AMDGPURegisterBankInfo.cpp
   AMDGPUReleaseVGPRs.cpp
-  AMDGPUReplaceLDSUseWithPointer.cpp
+  AMDGPURemoveIncompatibleFunctions.cpp
   AMDGPUResourceUsageAnalysis.cpp
   AMDGPURewriteOutArguments.cpp
   AMDGPURewriteUndefForPHI.cpp
@@ -151,6 +151,7 @@ add_llvm_target(AMDGPUCodeGen
   SIMachineScheduler.cpp
   SIMemoryLegalizer.cpp
   SIModeRegister.cpp
+  SIModeRegisterDefaults.cpp
   SIOptimizeExecMasking.cpp
   SIOptimizeExecMaskingPreRA.cpp
   SIOptimizeVGPRLiveRange.cpp

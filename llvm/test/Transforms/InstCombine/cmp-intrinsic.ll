@@ -13,6 +13,8 @@ declare i11 @llvm.ctpop.i11(i11)
 declare <2 x i32> @llvm.cttz.v2i32(<2 x i32>, i1)
 declare <2 x i32> @llvm.ctlz.v2i32(<2 x i32>, i1)
 declare <2 x i32> @llvm.ctpop.v2i32(<2 x i32>)
+declare i8 @llvm.bitreverse.i8(i8)
+declare <2 x i8> @llvm.bitreverse.v2i8(<2 x i8>)
 declare void @use6(i6)
 
 define i1 @bswap_eq_i16(i16 %x) {
@@ -215,7 +217,7 @@ define <2 x i1> @ctlz_ult_other_v2i32(<2 x i32> %x) {
 
 define <2 x i1> @ctlz_ult_other_multiuse_v2i32(<2 x i32> %x, ptr %p) {
 ; CHECK-LABEL: @ctlz_ult_other_multiuse_v2i32(
-; CHECK-NEXT:    [[LZ:%.*]] = tail call <2 x i32> @llvm.ctlz.v2i32(<2 x i32> [[X:%.*]], i1 false)
+; CHECK-NEXT:    [[LZ:%.*]] = tail call <2 x i32> @llvm.ctlz.v2i32(<2 x i32> [[X:%.*]], i1 false), !range [[RNG0]]
 ; CHECK-NEXT:    store <2 x i32> [[LZ]], ptr [[P:%.*]], align 8
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt <2 x i32> [[X]], <i32 65535, i32 65535>
 ; CHECK-NEXT:    ret <2 x i1> [[CMP]]
@@ -422,7 +424,7 @@ define <2 x i1> @cttz_ult_other_v2i32(<2 x i32> %x) {
 
 define <2 x i1> @cttz_ult_other_multiuse_v2i32(<2 x i32> %x, ptr %p) {
 ; CHECK-LABEL: @cttz_ult_other_multiuse_v2i32(
-; CHECK-NEXT:    [[TZ:%.*]] = tail call <2 x i32> @llvm.cttz.v2i32(<2 x i32> [[X:%.*]], i1 false)
+; CHECK-NEXT:    [[TZ:%.*]] = tail call <2 x i32> @llvm.cttz.v2i32(<2 x i32> [[X:%.*]], i1 false), !range [[RNG0]]
 ; CHECK-NEXT:    store <2 x i32> [[TZ]], ptr [[P:%.*]], align 8
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ult <2 x i32> [[TZ]], <i32 16, i32 16>
 ; CHECK-NEXT:    ret <2 x i1> [[CMP]]
@@ -761,4 +763,47 @@ define i1 @trunc_negative_destbits_not_enough(i33 %x) {
   %trunc = trunc i33 %tz to i4
   %cmp = icmp ult i4 %trunc, 7
   ret i1 %cmp
+}
+
+define i1 @bitreverse_ne_22(i8 %x) {
+; CHECK-LABEL: @bitreverse_ne_22(
+; CHECK-NEXT:    [[Z:%.*]] = icmp ne i8 [[X:%.*]], 104
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %y = call i8 @llvm.bitreverse.i8(i8 %x)
+  %z = icmp ne i8 %y, 22
+  ret i1 %z
+}
+
+define i1 @bitreverse_ult_22_fail_not_equality_pred(i8 %x) {
+; CHECK-LABEL: @bitreverse_ult_22_fail_not_equality_pred(
+; CHECK-NEXT:    [[Y:%.*]] = call i8 @llvm.bitreverse.i8(i8 [[X:%.*]])
+; CHECK-NEXT:    [[Z:%.*]] = icmp ult i8 [[Y]], 22
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %y = call i8 @llvm.bitreverse.i8(i8 %x)
+  %z = icmp ult i8 %y, 22
+  ret i1 %z
+}
+
+
+define <2 x i1> @bitreverse_vec_eq_2_2(<2 x i8> %x) {
+; CHECK-LABEL: @bitreverse_vec_eq_2_2(
+; CHECK-NEXT:    [[Z:%.*]] = icmp eq <2 x i8> [[X:%.*]], <i8 64, i8 64>
+; CHECK-NEXT:    ret <2 x i1> [[Z]]
+;
+  %y = call <2 x i8> @llvm.bitreverse.v2i8(<2 x i8> %x)
+  %z = icmp eq <2 x i8> %y, <i8 2, i8 2>
+  ret <2 x i1> %z
+}
+
+define <2 x i1> @bitreverse_vec_eq_1_2_todo_no_splat(<2 x i8> %x) {
+; CHECK-LABEL: @bitreverse_vec_eq_1_2_todo_no_splat(
+; CHECK-NEXT:    [[Y:%.*]] = call <2 x i8> @llvm.bitreverse.v2i8(<2 x i8> [[X:%.*]])
+; CHECK-NEXT:    [[Z:%.*]] = icmp eq <2 x i8> [[Y]], <i8 1, i8 2>
+; CHECK-NEXT:    ret <2 x i1> [[Z]]
+;
+  %y = call <2 x i8> @llvm.bitreverse.v2i8(<2 x i8> %x)
+  %z = icmp eq <2 x i8> %y, <i8 1, i8 2>
+  ret <2 x i1> %z
 }

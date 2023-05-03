@@ -288,7 +288,7 @@ def tailcall      : SDNode<"SPISD::TAIL_CALL", SDT_SPCall,
                             SDNPVariadic]>;
 
 def SDT_SPRet     : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
-def retflag       : SDNode<"SPISD::RET_FLAG", SDT_SPRet,
+def retglue       : SDNode<"SPISD::RET_GLUE", SDT_SPRet,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 def flushw        : SDNode<"SPISD::FLUSHW", SDTNone,
@@ -850,15 +850,8 @@ class BranchPredictAlways<dag ins, string asmstr, list<dag> pattern>
   : F2_3<0b001, 0, 1, (outs), ins, asmstr, pattern>;
 }
 
-let cond = 8 in {
-  // If we're compiling for v9, prefer BPA rather than BA
-  // TODO: Disallow BA emission when FeatureV8Deprecated isn't enabled
-  let Predicates = [HasV9], cc = 0b00 in
-    def BPA : BranchPredictAlways<(ins bprtarget:$imm19),
-      "ba %icc, $imm19", [(br bb:$imm19)]>;
-
+let cond = 8 in
   def BA : BranchAlways<(ins brtarget:$imm22), "ba $imm22", [(br bb:$imm22)]>;
-}
 
 let isBranch = 1, isTerminator = 1, hasDelaySlot = 1 in {
 
@@ -1041,7 +1034,7 @@ let isReturn = 1, isTerminator = 1, hasDelaySlot = 1, isBarrier = 1,
     def RETL: F3_2<2, 0b111000,
                    (outs), (ins i32imm:$simm13),
                    "jmp %o7+$simm13",
-                   [(retflag simm13:$simm13)],
+                   [(retglue simm13:$simm13)],
                    IIC_jmp_or_call>;
 
   let rd = 0, rs1 = 31 in

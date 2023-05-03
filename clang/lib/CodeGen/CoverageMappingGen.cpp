@@ -602,6 +602,19 @@ struct CounterCoverageMappingBuilder
       MostRecentLocation = *StartLoc;
     }
 
+    // If either of these locations is invalid, something elsewhere in the
+    // compiler has broken.
+    assert((!StartLoc || StartLoc->isValid()) && "Start location is not valid");
+    assert((!EndLoc || EndLoc->isValid()) && "End location is not valid");
+
+    // However, we can still recover without crashing.
+    // If either location is invalid, set it to std::nullopt to avoid
+    // letting users of RegionStack think that region has a valid start/end
+    // location.
+    if (StartLoc && StartLoc->isInvalid())
+      StartLoc = std::nullopt;
+    if (EndLoc && EndLoc->isInvalid())
+      EndLoc = std::nullopt;
     RegionStack.emplace_back(Count, FalseCount, StartLoc, EndLoc);
 
     return RegionStack.size() - 1;
@@ -624,7 +637,8 @@ struct CounterCoverageMappingBuilder
     assert(RegionStack.size() >= ParentIndex && "parent not in stack");
     while (RegionStack.size() > ParentIndex) {
       SourceMappingRegion &Region = RegionStack.back();
-      if (Region.hasStartLoc()) {
+      if (Region.hasStartLoc() &&
+          (Region.hasEndLoc() || RegionStack[ParentIndex].hasEndLoc())) {
         SourceLocation StartLoc = Region.getBeginLoc();
         SourceLocation EndLoc = Region.hasEndLoc()
                                     ? Region.getEndLoc()
@@ -691,7 +705,7 @@ struct CounterCoverageMappingBuilder
         assert(SM.isWrittenInSameFile(Region.getBeginLoc(), EndLoc));
         assert(SpellingRegion(SM, Region).isInSourceOrder());
         SourceRegions.push_back(Region);
-        }
+      }
       RegionStack.pop_back();
     }
   }
@@ -1466,6 +1480,7 @@ struct CounterCoverageMappingBuilder
     Counter TrueCount = getRegionCounter(E);
 
     propagateCounts(ParentCount, E->getCond());
+    Counter OutCount;
 
     if (!isa<BinaryConditionalOperator>(E)) {
       // The 'then' count applies to the area immediately after the condition.
@@ -1475,12 +1490,18 @@ struct CounterCoverageMappingBuilder
         fillGapAreaWithCount(Gap->getBegin(), Gap->getEnd(), TrueCount);
 
       extendRegion(E->getTrueExpr());
-      propagateCounts(TrueCount, E->getTrueExpr());
+      OutCount = propagateCounts(TrueCount, E->getTrueExpr());
     }
 
     extendRegion(E->getFalseExpr());
-    propagateCounts(subtractCounters(ParentCount, TrueCount),
-                    E->getFalseExpr());
+    OutCount = addCounters(
+        OutCount, propagateCounts(subtractCounters(ParentCount, TrueCount),
+                                  E->getFalseExpr()));
+
+    if (OutCount != ParentCount) {
+      pushRegion(OutCount);
+      GapRegionCounter = OutCount;
+    }
 
     // Create Branch Region around condition.
     createBranchRegion(E->getCond(), TrueCount,
@@ -1514,9 +1535,19 @@ struct CounterCoverageMappingBuilder
                        subtractCounters(RHSExecCnt, RHSTrueCnt));
   }
 
+  // Determine whether the right side of OR operation need to be visited.
+  bool shouldVisitRHS(const Expr *LHS) {
+    bool LHSIsTrue = false;
+    bool LHSIsConst = false;
+    if (!LHS->isValueDependent())
+      LHSIsConst = LHS->EvaluateAsBooleanCondition(
+          LHSIsTrue, CVM.getCodeGenModule().getContext());
+    return !LHSIsConst || (LHSIsConst && !LHSIsTrue);
+  }
+
   void VisitBinLOr(const BinaryOperator *E) {
     extendRegion(E->getLHS());
-    propagateCounts(getRegion().getCounter(), E->getLHS());
+    Counter OutCount = propagateCounts(getRegion().getCounter(), E->getLHS());
     handleFileExit(getEnd(E->getLHS()));
 
     // Counter tracks the right hand side of a logical or operator.
@@ -1528,6 +1559,10 @@ struct CounterCoverageMappingBuilder
 
     // Extract the RHS's "False" Instance Counter.
     Counter RHSFalseCnt = getRegionCounter(E->getRHS());
+
+    if (!shouldVisitRHS(E->getLHS())) {
+      GapRegionCounter = OutCount;
+    }
 
     // Extract the Parent Region Counter.
     Counter ParentCnt = getRegion().getCounter();
@@ -1544,6 +1579,15 @@ struct CounterCoverageMappingBuilder
   void VisitLambdaExpr(const LambdaExpr *LE) {
     // Lambdas are treated as their own functions for now, so we shouldn't
     // propagate counts into them.
+  }
+
+  void VisitPseudoObjectExpr(const PseudoObjectExpr *POE) {
+    // Just visit syntatic expression as this is what users actually write.
+    VisitStmt(POE->getSyntacticForm());
+  }
+
+  void VisitOpaqueValueExpr(const OpaqueValueExpr* OVE) {
+    Visit(OVE->getSourceExpr());
   }
 };
 
