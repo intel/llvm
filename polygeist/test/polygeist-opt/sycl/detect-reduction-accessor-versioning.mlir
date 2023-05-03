@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --detect-reduction --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --detect-reduction='use-opaque-pointers=1' --split-input-file %s | FileCheck %s
 
 // Original loop:
 // for(size_t i = 0; i < 8; i++)
@@ -48,12 +48,12 @@
 
 // CHECK:         [[ARG1_BEGIN:%.*]] = sycl.accessor.subscript %arg1[%alloca_15]
 // CHECK:         [[ARG1_END:%.*]] = sycl.accessor.subscript %arg1[%alloca_20]
-// CHECK-DAG:     [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-DAG:     [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-NEXT:    [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG0_END_PTR]], [[ARG1_BEGIN_PTR]] : !llvm.ptr<i32, 1>
-// CHECK-DAG:     [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-DAG:     [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-NEXT:    [[AFTER_COND:%.*]] = llvm.icmp "uge" [[ARG0_BEGIN_PTR]], [[ARG1_END_PTR]] : !llvm.ptr<i32, 1>
+// CHECK-DAG:     [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-DAG:     [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-NEXT:    [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG0_END_PTR]], [[ARG1_BEGIN_PTR]] : !llvm.ptr<1>
+// CHECK-DAG:     [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-DAG:     [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-NEXT:    [[AFTER_COND:%.*]] = llvm.icmp "uge" [[ARG0_BEGIN_PTR]], [[ARG1_END_PTR]] : !llvm.ptr<1>
 
 // COM: Version with condition: [[ARG0_END]] <= [[ARG1_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG1_END]].
 // CHECK-NEXT:    [[COND:%.*]] = arith.ori [[BEFORE_COND]], [[AFTER_COND]] : i1

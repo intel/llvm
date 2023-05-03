@@ -1,5 +1,5 @@
-// RUN: polygeist-opt -licm -licm-enable-sycl-accessor-versioning --split-input-file %s | FileCheck %s --check-prefixes=CHECK,1PAIR
-// RUN: polygeist-opt -licm -licm-enable-sycl-accessor-versioning -licm-sycl-accessor-pairs-limit=2 --split-input-file %s | FileCheck %s --check-prefixes=CHECK,2PAIRS
+// RUN: polygeist-opt -licm='use-opaque-pointers=1' -licm-enable-sycl-accessor-versioning --split-input-file %s | FileCheck %s --check-prefixes=CHECK,1PAIR
+// RUN: polygeist-opt -licm='use-opaque-pointers=1' -licm-enable-sycl-accessor-versioning -licm-sycl-accessor-pairs-limit=2 --split-input-file %s | FileCheck %s --check-prefixes=CHECK,2PAIRS
 
 // Original loop:
 // for(size_t i = 0; i < 8; i++)
@@ -55,12 +55,12 @@
 
 // CHECK: [[ARG0_BEGIN:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 // CHECK: [[ARG0_END:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
-// CHECK-DAG:  [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-DAG:  [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-NEXT: [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG1_END_PTR]], [[ARG0_BEGIN_PTR]] : !llvm.ptr<i32, 1>
-// CHECK-DAG:  [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-DAG:  [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
-// CHECK-NEXT: [[AFTER_COND:%.*]] = llvm.icmp "uge" [[ARG1_BEGIN_PTR]], [[ARG0_END_PTR]] : !llvm.ptr<i32, 1>
+// CHECK-DAG:  [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-DAG:  [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-NEXT: [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG1_END_PTR]], [[ARG0_BEGIN_PTR]] : !llvm.ptr<1>
+// CHECK-DAG:  [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-DAG:  [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<1>
+// CHECK-NEXT: [[AFTER_COND:%.*]] = llvm.icmp "uge" [[ARG1_BEGIN_PTR]], [[ARG0_END_PTR]] : !llvm.ptr<1>
 
 // COM: Version with condition: [[ARG1_END]] <= [[ARG0_BEGIN]] || [[ARG1_BEGIN]] >= [[ARG0_END]].
 // CHECK-NEXT: [[COND:%.*]] = arith.ori [[BEFORE_COND]], [[AFTER_COND]] : i1
@@ -122,8 +122,8 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw
 // CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 
 // COM: Version with condition: [[ARG1_END]] <= [[ARG0_BEGIN]] || [[ARG1_BEGIN]] >= [[ARG0_END]].
-// CHECK:      [[BEFORE_COND:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
-// CHECK:      [[AFTER_COND:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// CHECK:      [[BEFORE_COND:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<1>
+// CHECK:      [[AFTER_COND:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<1>
 // CHECK-NEXT: [[COND:%.*]] = arith.ori [[BEFORE_COND]], [[AFTER_COND]] : i1
 // CHECK-NEXT: scf.if [[COND]] {
 
@@ -213,11 +213,11 @@ func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32
 
 // COM: Version with condition: ([[ARG0_END]] <= [[ARG1_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG1_END]])
 // COM:                          && ([[ARG0_END]] <= [[ARG2_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG2_END]]).
-// 2PAIRS:      [[BEFORE_COND1:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
-// 2PAIRS:      [[AFTER_COND1:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// 2PAIRS:      [[BEFORE_COND1:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<1>
+// 2PAIRS:      [[AFTER_COND1:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<1>
 // 2PAIRS-NEXT: [[COND1:%.*]] = arith.ori [[BEFORE_COND1]], [[AFTER_COND1]] : i1
-// 2PAIRS:      [[BEFORE_COND2:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
-// 2PAIRS:      [[AFTER_COND2:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// 2PAIRS:      [[BEFORE_COND2:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<1>
+// 2PAIRS:      [[AFTER_COND2:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<1>
 // 2PAIRS-NEXT: [[COND2:%.*]] = arith.ori [[BEFORE_COND2]], [[AFTER_COND2]] : i1
 // 2PAIRS-NEXT: [[COND:%.*]] = arith.andi [[COND1]], [[COND2]] : i1
 // 2PAIRS-NEXT: scf.if [[COND]] {
