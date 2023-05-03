@@ -209,6 +209,12 @@ struct urHostPipeTest : urQueueTest {
                                        UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED,
                                        size, info_data, nullptr));
         ASSERT_NE(info_data, nullptr);
+
+        bool supported;
+        GetDeviceHostPipeRWSupported(device, supported);
+        if (!supported) {
+            GTEST_SKIP() << "Host pipe read/write is not supported.";
+        }
     }
 
     void TearDown() override {
@@ -223,14 +229,9 @@ struct urHostPipeTest : urQueueTest {
     ur_program_handle_t program = nullptr;
 
     const char *pipe_symbol = "pipe_symbol";
-    bool blocking = true;
 
     static const size_t size = 1024;
     char buffer[size];
-
-    uint32_t numEventsInWaitList = 0;
-    ur_event_handle_t phEventWaitList;
-    ur_event_handle_t *phEvent = nullptr;
 };
 
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
