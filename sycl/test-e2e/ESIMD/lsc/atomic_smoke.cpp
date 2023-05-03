@@ -747,7 +747,6 @@ bool test_int_types(queue q, const Config &cfg) {
   return passed;
 }
 
-#ifndef USE_DWORD_ATOMICS
 template <int N, template <class, int> class Op>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
@@ -756,10 +755,12 @@ bool test_fp_types(queue q, const Config &cfg) {
   // passed &= test<sycl::half, N, Op>(q, cfg);
 
   passed &= test<float, N, Op>(q, cfg);
-  passed &= test<double, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
+  if (q.get_device().has(sycl::aspect::fp64))
+    passed &= test<double, N, Op>(q, cfg);
+#endif
   return passed;
 }
-#endif // !USE_DWORD_ATOMICS
 
 template <template <class, int> class Op, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q, const Config &cfg) {
@@ -780,7 +781,6 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
   return passed;
 }
 
-#ifndef USE_DWORD_ATOMICS
 template <template <class, int> class Op>
 bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
@@ -792,7 +792,6 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   passed &= test_fp_types<32, Op>(q, cfg);
   return passed;
 }
-#endif // !USE_DWORD_ATOMICS
 
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
@@ -845,13 +844,12 @@ int main(void) {
 
   // Check load/store operations
   passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
 #ifndef USE_SCALAR_OFFSET
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
     passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
-#ifndef USE_DWORD_ATOMICS
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
     passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
-#endif // USE_DWORD_ATOMICS
+  }
 #endif
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
