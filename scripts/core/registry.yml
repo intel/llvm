@@ -211,6 +211,9 @@ etors:
 - name: MEM_GET_NATIVE_HANDLE
   desc: Enumerator for $xMemGetNativeHandle
   value: '68'
+- name: ENQUEUE_READ_HOST_PIPE
+  desc: Enumerator for $xEnqueueReadHostPipe
+  value: '69'
 - name: MEM_GET_INFO
   desc: Enumerator for $xMemGetInfo
   value: '70'
@@ -352,3 +355,6 @@ etors:
 - name: MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE
   desc: Enumerator for $xMemImageCreateWithNativeHandle
   value: '116'
+- name: ENQUEUE_WRITE_HOST_PIPE
+  desc: Enumerator for $xEnqueueWriteHostPipe
+  value: '117'

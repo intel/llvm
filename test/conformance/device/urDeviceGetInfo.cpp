@@ -108,6 +108,7 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(uint32_t)},
     {UR_DEVICE_INFO_ASYNC_BARRIER, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, sizeof(ur_bool_t)},
 };
 
 struct urDeviceGetInfoTest : uur::urAllDevicesTest,
@@ -225,7 +226,8 @@ INSTANTIATE_TEST_SUITE_P(
         UR_DEVICE_INFO_MEMORY_BUS_WIDTH,                       //
         UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,                     //
         UR_DEVICE_INFO_ASYNC_BARRIER,                          //
-        UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT                     //
+        UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT,                    //
+        UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED          //
         ),
     [](const ::testing::TestParamInfo<ur_device_info_t> &info) {
         std::stringstream ss;

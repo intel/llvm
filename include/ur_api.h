@@ -890,6 +890,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                    ///< [uint32_t] return max 3D work groups
     UR_DEVICE_INFO_ASYNC_BARRIER = 109,                         ///< [::ur_bool_t] return true if Async Barrier is supported
     UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                   ///< [::ur_bool_t] return true if specifying memory channels is supported
+    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,        ///< [::ur_bool_t] Return true if the device supports enqueing commands to
+                                                                ///< read and write pipes from the host.
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -914,7 +916,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT < propName`
+///         + `::UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
@@ -4077,6 +4079,8 @@ typedef enum ur_command_t {
     UR_COMMAND_USM_MEMCPY_2D = 22,                ///< Event created by ::urEnqueueUSMMemcpy2D
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 23, ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 24,  ///< Event created by ::urEnqueueDeviceGlobalVariableRead
+    UR_COMMAND_READ_HOST_PIPE = 25,               ///< Event created by ::urEnqueueReadHostPipe
+    UR_COMMAND_WRITE_HOST_PIPE = 26,              ///< Event created by ::urEnqueueWriteHostPipe
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4456,6 +4460,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_MEM_RELEASE = 66,                           ///< Enumerator for ::urMemRelease
     UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                  ///< Enumerator for ::urMemBufferPartition
     UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                 ///< Enumerator for ::urMemGetNativeHandle
+    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                ///< Enumerator for ::urEnqueueReadHostPipe
     UR_FUNCTION_MEM_GET_INFO = 70,                          ///< Enumerator for ::urMemGetInfo
     UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                    ///< Enumerator for ::urMemImageGetInfo
     UR_FUNCTION_PLATFORM_GET = 72,                          ///< Enumerator for ::urPlatformGet
@@ -4503,6 +4508,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,          ///< Enumerator for ::urPlatformGetBackendOption
     UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115, ///< Enumerator for ::urMemBufferCreateWithNativeHandle
     UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,  ///< Enumerator for ::urMemImageCreateWithNativeHandle
+    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,              ///< Enumerator for ::urEnqueueWriteHostPipe
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5619,6 +5625,81 @@ urEnqueueDeviceGlobalVariableRead(
                                               ///< kernel execution instance.
 );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to read from a pipe to the host.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pipe_symbol`
+///         + `NULL == pDst`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueReadHostPipe(
+    ur_queue_handle_t hQueue,                 ///< [in] a valid host command-queue in which the read command
+                                              ///< will be queued. hQueue and hProgram must be created with the same
+                                              ///< UR context.
+    ur_program_handle_t hProgram,             ///< [in] a program object with a successfully built executable.
+    const char *pipe_symbol,                  ///< [in] the name of the program scope pipe global variable.
+    bool blocking,                            ///< [in] indicate if the read operation is blocking or non-blocking.
+    void *pDst,                               ///< [in] a pointer to buffer in host memory that will hold resulting data
+                                              ///< from pipe.
+    size_t size,                              ///< [in] size of the memory region to read, in bytes.
+    uint32_t numEventsInWaitList,             ///< [in] number of events in the wait list.
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before the host pipe read.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *phEvent                ///< [out][optional] returns an event object that identifies this read
+                                              ///< command
+                                              ///< and can be used to query or queue a wait for this command to complete.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to write data from the host to a pipe.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pipe_symbol`
+///         + `NULL == pSrc`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueWriteHostPipe(
+    ur_queue_handle_t hQueue,                 ///< [in] a valid host command-queue in which the write command
+                                              ///< will be queued. hQueue and hProgram must be created with the same
+                                              ///< UR context.
+    ur_program_handle_t hProgram,             ///< [in] a program object with a successfully built executable.
+    const char *pipe_symbol,                  ///< [in] the name of the program scope pipe global variable.
+    bool blocking,                            ///< [in] indicate if the read and write operations are blocking or
+                                              ///< non-blocking.
+    void *pSrc,                               ///< [in] a pointer to buffer in host memory that holds data to be written
+                                              ///< to the host pipe.
+    size_t size,                              ///< [in] size of the memory region to read or write, in bytes.
+    uint32_t numEventsInWaitList,             ///< [in] number of events in the wait list.
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before the host pipe write.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *phEvent                ///< [out] returns an event object that identifies this write command
+                                              ///< and can be used to query or queue a wait for this command to complete.
+);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -6667,6 +6748,38 @@ typedef struct ur_enqueue_device_global_variable_read_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_device_global_variable_read_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueReadHostPipe
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_read_host_pipe_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_program_handle_t *phProgram;
+    const char **ppipe_symbol;
+    bool *pblocking;
+    void **ppDst;
+    size_t *psize;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_read_host_pipe_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueWriteHostPipe
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_write_host_pipe_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_program_handle_t *phProgram;
+    const char **ppipe_symbol;
+    bool *pblocking;
+    void **ppSrc;
+    size_t *psize;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_write_host_pipe_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urQueueGetInfo

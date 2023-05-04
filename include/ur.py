@@ -542,6 +542,8 @@ class ur_device_info_v(IntEnum):
     MAX_WORK_GROUPS_3D = 108                        ## [uint32_t] return max 3D work groups
     ASYNC_BARRIER = 109                             ## [::ur_bool_t] return true if Async Barrier is supported
     MEM_CHANNEL_SUPPORT = 110                       ## [::ur_bool_t] return true if specifying memory channels is supported
+    HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueing commands to
+                                                    ## read and write pipes from the host.
 
 class ur_device_info_t(c_int):
     def __str__(self):
@@ -1487,6 +1489,8 @@ class ur_command_v(IntEnum):
     USM_MEMCPY_2D = 22                              ## Event created by ::urEnqueueUSMMemcpy2D
     DEVICE_GLOBAL_VARIABLE_WRITE = 23               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
     DEVICE_GLOBAL_VARIABLE_READ = 24                ## Event created by ::urEnqueueDeviceGlobalVariableRead
+    READ_HOST_PIPE = 25                             ## Event created by ::urEnqueueReadHostPipe
+    WRITE_HOST_PIPE = 26                            ## Event created by ::urEnqueueWriteHostPipe
 
 class ur_command_t(c_int):
     def __str__(self):
@@ -1645,6 +1649,7 @@ class ur_function_v(IntEnum):
     MEM_RELEASE = 66                                ## Enumerator for ::urMemRelease
     MEM_BUFFER_PARTITION = 67                       ## Enumerator for ::urMemBufferPartition
     MEM_GET_NATIVE_HANDLE = 68                      ## Enumerator for ::urMemGetNativeHandle
+    ENQUEUE_READ_HOST_PIPE = 69                     ## Enumerator for ::urEnqueueReadHostPipe
     MEM_GET_INFO = 70                               ## Enumerator for ::urMemGetInfo
     MEM_IMAGE_GET_INFO = 71                         ## Enumerator for ::urMemImageGetInfo
     PLATFORM_GET = 72                               ## Enumerator for ::urPlatformGet
@@ -1692,6 +1697,7 @@ class ur_function_v(IntEnum):
     PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
     MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
     MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
+    ENQUEUE_WRITE_HOST_PIPE = 117                   ## Enumerator for ::urEnqueueWriteHostPipe
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2453,6 +2459,20 @@ if __use_win_types:
 else:
     _urEnqueueDeviceGlobalVariableRead_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urEnqueueReadHostPipe
+if __use_win_types:
+    _urEnqueueReadHostPipe_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueReadHostPipe_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urEnqueueWriteHostPipe
+if __use_win_types:
+    _urEnqueueWriteHostPipe_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueWriteHostPipe_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
 
 ###############################################################################
 ## @brief Table of Enqueue functions pointers
@@ -2480,7 +2500,9 @@ class ur_enqueue_dditable_t(Structure):
         ("pfnUSMFill2D", c_void_p),                                     ## _urEnqueueUSMFill2D_t
         ("pfnUSMMemcpy2D", c_void_p),                                   ## _urEnqueueUSMMemcpy2D_t
         ("pfnDeviceGlobalVariableWrite", c_void_p),                     ## _urEnqueueDeviceGlobalVariableWrite_t
-        ("pfnDeviceGlobalVariableRead", c_void_p)                       ## _urEnqueueDeviceGlobalVariableRead_t
+        ("pfnDeviceGlobalVariableRead", c_void_p),                      ## _urEnqueueDeviceGlobalVariableRead_t
+        ("pfnReadHostPipe", c_void_p),                                  ## _urEnqueueReadHostPipe_t
+        ("pfnWriteHostPipe", c_void_p)                                  ## _urEnqueueWriteHostPipe_t
     ]
 
 ###############################################################################
@@ -2919,6 +2941,8 @@ class UR_DDI:
         self.urEnqueueUSMMemcpy2D = _urEnqueueUSMMemcpy2D_t(self.__dditable.Enqueue.pfnUSMMemcpy2D)
         self.urEnqueueDeviceGlobalVariableWrite = _urEnqueueDeviceGlobalVariableWrite_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableWrite)
         self.urEnqueueDeviceGlobalVariableRead = _urEnqueueDeviceGlobalVariableRead_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableRead)
+        self.urEnqueueReadHostPipe = _urEnqueueReadHostPipe_t(self.__dditable.Enqueue.pfnReadHostPipe)
+        self.urEnqueueWriteHostPipe = _urEnqueueWriteHostPipe_t(self.__dditable.Enqueue.pfnWriteHostPipe)
 
         # call driver to get function pointers
         Queue = ur_queue_dditable_t()

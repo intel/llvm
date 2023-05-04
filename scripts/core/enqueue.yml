@@ -1355,3 +1355,95 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read from a pipe to the host."
+class: $xEnqueue
+name: ReadHostPipe
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue 
+      desc: |
+            [in] a valid host command-queue in which the read command
+            will be queued. hQueue and hProgram must be created with the same
+            UR context.
+    - type: $x_program_handle_t
+      name: hProgram 
+      desc: "[in] a program object with a successfully built executable."
+    - type: const char*
+      name: pipe_symbol 
+      desc: "[in] the name of the program scope pipe global variable."
+    - type: bool
+      name: blocking 
+      desc: "[in] indicate if the read operation is blocking or non-blocking."
+    - type: void*
+      name: pDst 
+      desc: "[in] a pointer to buffer in host memory that will hold resulting data from pipe."
+    - type: size_t
+      name: size 
+      desc: "[in] size of the memory region to read, in bytes."
+    - type: uint32_t
+      name: numEventsInWaitList 
+      desc: "[in] number of events in the wait list."
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the host pipe read.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent 
+      desc: |
+            [out][optional] returns an event object that identifies this read command 
+            and can be used to query or queue a wait for this command to complete.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write data from the host to a pipe."
+class: $xEnqueue
+name: WriteHostPipe
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue 
+      desc: |
+            [in] a valid host command-queue in which the write command
+            will be queued. hQueue and hProgram must be created with the same
+            UR context.
+    - type: $x_program_handle_t
+      name: hProgram 
+      desc: "[in] a program object with a successfully built executable."
+    - type: const char*
+      name: pipe_symbol 
+      desc: "[in] the name of the program scope pipe global variable."
+    - type: bool
+      name: blocking 
+      desc: "[in] indicate if the read and write operations are blocking or non-blocking."
+    - type: void*
+      name: pSrc 
+      desc: "[in] a pointer to buffer in host memory that holds data to be written to the host pipe."
+    - type: size_t
+      name: size 
+      desc: "[in] size of the memory region to read or write, in bytes."
+    - type: uint32_t
+      name: numEventsInWaitList 
+      desc: "[in] number of events in the wait list."
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the host pipe write.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent 
+      desc: |
+            [out] returns an event object that identifies this write command 
+            and can be used to query or queue a wait for this command to complete.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
