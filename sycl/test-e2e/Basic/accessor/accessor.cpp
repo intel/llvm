@@ -760,7 +760,7 @@ int main() {
     }
   }
 
-  // empty accessor exception calling require() // SYCL2020 4.9.4.1
+  // SYCL2020 4.9.4.1: calling require() on empty accessor should throw
   {
     sycl::queue q;
     try {
