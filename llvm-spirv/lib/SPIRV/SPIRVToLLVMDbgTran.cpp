@@ -1391,8 +1391,12 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
     auto *DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
         Val, LocalVar.first, Expr, LocalVar.second, BB);
-    if (Expr->getNumLocationOperands() == 1) {
-      SmallVector<ValueAsMetadata *, 1> MDs = {ValueAsMetadata::get(Val)};
+
+    std::vector<ValueAsMetadata *> MDs;
+    for (size_t I = 0; I != Expr->getNumLocationOperands(); ++I) {
+      MDs.emplace_back(ValueAsMetadata::get(Val));
+    }
+    if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
       cast<DbgVariableIntrinsic>(DbgValIntr)->setRawLocation(AL);
     }

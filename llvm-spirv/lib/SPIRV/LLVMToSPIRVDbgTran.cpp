@@ -151,9 +151,11 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
   SPIRVBasicBlock *BB = DV->getBasicBlock();
   Value *Val = DbgValue->getVariableLocationOp(0);
   DIExpression *Expr = DbgValue->getExpression();
-  if (DbgValue->getNumVariableLocationOps() > 1) {
-    Val = UndefValue::get(Val->getType());
-    Expr = DIExpression::get(M->getContext(), {});
+  if (!isNonSemanticDebugInfo()) {
+    if (DbgValue->getNumVariableLocationOps() > 1) {
+      Val = UndefValue::get(Val->getType());
+      Expr = DIExpression::get(M->getContext(), {});
+    }
   }
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount);
