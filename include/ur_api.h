@@ -890,8 +890,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                    ///< [uint32_t] return max 3D work groups
     UR_DEVICE_INFO_ASYNC_BARRIER = 109,                         ///< [::ur_bool_t] return true if Async Barrier is supported
     UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                   ///< [::ur_bool_t] return true if specifying memory channels is supported
-    UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED = 111,                ///< [::ur_bool_t] Return true if the device supports reading from and
-                                                                ///< writing to host pipes.
+    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,        ///< [::ur_bool_t] Return true if the device supports enqueing commands to
+                                                                ///< read and write pipes from the host.
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -916,7 +916,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED < propName`
+///         + `::UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
@@ -6780,31 +6780,6 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_write_host_pipe_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urInit
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_init_params_t {
-    ur_device_init_flags_t *pdevice_flags;
-} ur_init_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urGetLastResult
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_get_last_result_params_t {
-    ur_platform_handle_t *phPlatform;
-    const char ***pppMessage;
-} ur_get_last_result_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urTearDown
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_tear_down_params_t {
-    void **ppParams;
-} ur_tear_down_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urQueueGetInfo

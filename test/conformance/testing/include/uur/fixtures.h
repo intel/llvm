@@ -201,13 +201,14 @@ struct urHostPipeTest : urQueueTest {
 
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(
-            device, UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED, 0, nullptr, &size));
+            device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, 0, nullptr,
+            &size));
         ASSERT_NE(size, 0);
         ASSERT_EQ(sizeof(ur_bool_t), size);
         void *info_data = alloca(size);
-        ASSERT_SUCCESS(urDeviceGetInfo(device,
-                                       UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED,
-                                       size, info_data, nullptr));
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, size,
+            info_data, nullptr));
         ASSERT_NE(info_data, nullptr);
 
         bool supported;

@@ -377,8 +377,8 @@ etors:
       desc: "[$x_bool_t] return true if Async Barrier is supported"
     - name: MEM_CHANNEL_SUPPORT
       desc: "[$x_bool_t] return true if specifying memory channels is supported"
-    - name: HOST_PIPE_RW_SUPPORTED
-      desc: "[$x_bool_t] Return true if the device supports reading from and writing to host pipes."
+    - name: HOST_PIPE_READ_WRITE_SUPPORTED
+      desc: "[$x_bool_t] Return true if the device supports enqueing commands to read and write pipes from the host."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

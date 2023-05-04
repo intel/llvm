@@ -1578,8 +1578,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT";
         break;
 
-    case UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED:
-        os << "UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED";
+    case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+        os << "UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED";
         break;
     default:
         os << "unknown enumerator";
@@ -3101,7 +3101,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         os << ")";
     } break;
 
-    case UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED: {
+    case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size
