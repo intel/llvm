@@ -948,51 +948,47 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
   if (CtorDecl->isTrivial() && CtorDecl->isDefaultConstructor())
     return ValueCategory(Op, /*isReference*/ true, SubType);
 
-  mlir::Block::iterator OldPoint;
-  mlir::Block *OldBlock;
-  ValueCategory EndObj(Op, /*isReference*/ true, SubType);
+  {
+    OpBuilder::InsertionGuard InsGuard(Builder);
+    ValueCategory EndObj(Op, /*isReference*/ true, SubType);
 
-  ValueCategory Obj(Op, /*isReference*/ true, SubType);
-  QualType InnerType = Cons->getType();
-  if (const auto *ArrayType =
-          Glob.getCGM().getContext().getAsArrayType(Cons->getType())) {
-    InnerType = ArrayType->getElementType();
-    mlir::Value Size;
-    if (Count)
-      Size = Count;
-    else {
-      const auto *CAT = cast<clang::ConstantArrayType>(ArrayType);
-      Size = getConstantIndex(CAT->getSize().getLimitedValue());
+    ValueCategory Obj(Op, /*isReference*/ true, SubType);
+    QualType InnerType = Cons->getType();
+    if (const auto *ArrayType =
+            Glob.getCGM().getContext().getAsArrayType(Cons->getType())) {
+      InnerType = ArrayType->getElementType();
+      mlir::Value Size;
+      if (Count)
+        Size = Count;
+      else {
+        const auto *CAT = cast<clang::ConstantArrayType>(ArrayType);
+        Size = getConstantIndex(CAT->getSize().getLimitedValue());
+      }
+      auto ForOp = Builder.create<scf::ForOp>(Loc, getConstantIndex(0), Size,
+                                              getConstantIndex(1));
+
+      Builder.setInsertionPointToStart(&ForOp.getLoopBody().front());
+      assert(Obj.isReference);
+      Obj = CommonArrayToPointer(Obj);
+      Obj = CommonArrayLookup(Obj, ForOp.getInductionVar(),
+                              /*isImplicitRef*/ false, /*removeIndex*/ false);
+      assert(Obj.isReference);
     }
-    auto ForOp = Builder.create<scf::ForOp>(Loc, getConstantIndex(0), Size,
-                                            getConstantIndex(1));
-    OldPoint = Builder.getInsertionPoint();
-    OldBlock = Builder.getInsertionBlock();
 
-    Builder.setInsertionPointToStart(&ForOp.getLoopBody().front());
-    assert(Obj.isReference);
-    Obj = CommonArrayToPointer(Obj);
-    Obj = CommonArrayLookup(Obj, ForOp.getInductionVar(),
-                            /*isImplicitRef*/ false, /*removeIndex*/ false);
-    assert(Obj.isReference);
+    FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
+    auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
+
+    SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{Obj, nullptr}};
+    Args.reserve(Cons->getNumArgs() + 1);
+    for (auto *A : Cons->arguments())
+      Args.emplace_back(Visit(A), A);
+
+    callHelper(ToCall, InnerType, Args,
+               /*retType*/ Glob.getCGM().getContext().VoidTy, false, Cons,
+               *CtorDecl);
+
+    return EndObj;
   }
-
-  FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
-  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
-
-  SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{Obj, nullptr}};
-  Args.reserve(Cons->getNumArgs() + 1);
-  for (auto *A : Cons->arguments())
-    Args.emplace_back(Visit(A), A);
-
-  callHelper(ToCall, InnerType, Args,
-             /*retType*/ Glob.getCGM().getContext().VoidTy, false, Cons,
-             *CtorDecl);
-
-  if (Glob.getCGM().getContext().getAsArrayType(Cons->getType()))
-    Builder.setInsertionPoint(OldBlock, OldPoint);
-
-  return EndObj;
 }
 
 ValueCategory
