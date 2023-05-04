@@ -623,8 +623,8 @@ ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
 
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support) {
-    return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_HOST_PIPE_RW_SUPPORTED,
-                               support);
+    return GetDeviceInfo<bool>(
+        device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, support);
 }
 
 } // namespace uur
