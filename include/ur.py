@@ -219,6 +219,7 @@ class ur_structure_type_v(IntEnum):
     KERNEL_NATIVE_PROPERTIES = 17                   ## ::ur_kernel_native_properties_t
     QUEUE_NATIVE_PROPERTIES = 18                    ## ::ur_queue_native_properties_t
     MEM_NATIVE_PROPERTIES = 19                      ## ::ur_mem_native_properties_t
+    EVENT_NATIVE_PROPERTIES = 20                    ## ::ur_event_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1540,6 +1541,18 @@ class ur_profiling_info_t(c_int):
 
 
 ###############################################################################
+## @brief Properties for for ::urEventCreateWithNativeHandle.
+class ur_event_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an interoperability
+                                                                        ## operation in the application that asked to not transfer the ownership to
+                                                                        ## the unified-runtime.
+    ]
+
+###############################################################################
 ## @brief Event states for all events.
 class ur_execution_info_v(IntEnum):
     EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed.
@@ -1873,9 +1886,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEventCreateWithNativeHandle
 if __use_win_types:
-    _urEventCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
+    _urEventCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_native_properties_t), POINTER(ur_event_handle_t) )
 else:
-    _urEventCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
+    _urEventCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_native_properties_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEventSetCallback
@@ -2471,37 +2484,6 @@ class ur_enqueue_dditable_t(Structure):
     ]
 
 ###############################################################################
-## @brief Function-pointer for urInit
-if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
-else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
-
-###############################################################################
-## @brief Function-pointer for urGetLastResult
-if __use_win_types:
-    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
-else:
-    _urGetLastResult_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
-
-###############################################################################
-## @brief Function-pointer for urTearDown
-if __use_win_types:
-    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
-else:
-    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
-
-
-###############################################################################
-## @brief Table of Global functions pointers
-class ur_global_dditable_t(Structure):
-    _fields_ = [
-        ("pfnInit", c_void_p),                                          ## _urInit_t
-        ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
-        ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
-    ]
-
-###############################################################################
 ## @brief Function-pointer for urQueueGetInfo
 if __use_win_types:
     _urQueueGetInfo_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_queue_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
@@ -2570,6 +2552,37 @@ class ur_queue_dditable_t(Structure):
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urQueueCreateWithNativeHandle_t
         ("pfnFinish", c_void_p),                                        ## _urQueueFinish_t
         ("pfnFlush", c_void_p)                                          ## _urQueueFlush_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urInit
+if __use_win_types:
+    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+else:
+    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+
+###############################################################################
+## @brief Function-pointer for urGetLastResult
+if __use_win_types:
+    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
+else:
+    _urGetLastResult_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
+
+###############################################################################
+## @brief Function-pointer for urTearDown
+if __use_win_types:
+    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
+else:
+    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
+
+
+###############################################################################
+## @brief Table of Global functions pointers
+class ur_global_dditable_t(Structure):
+    _fields_ = [
+        ("pfnInit", c_void_p),                                          ## _urInit_t
+        ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
+        ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
     ]
 
 ###############################################################################
@@ -2725,8 +2738,8 @@ class ur_dditable_t(Structure):
         ("Sampler", ur_sampler_dditable_t),
         ("Mem", ur_mem_dditable_t),
         ("Enqueue", ur_enqueue_dditable_t),
-        ("Global", ur_global_dditable_t),
         ("Queue", ur_queue_dditable_t),
+        ("Global", ur_global_dditable_t),
         ("USM", ur_usm_dditable_t),
         ("Device", ur_device_dditable_t)
     ]
@@ -2908,18 +2921,6 @@ class UR_DDI:
         self.urEnqueueDeviceGlobalVariableRead = _urEnqueueDeviceGlobalVariableRead_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableRead)
 
         # call driver to get function pointers
-        Global = ur_global_dditable_t()
-        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
-        if r != ur_result_v.SUCCESS:
-            raise Exception(r)
-        self.__dditable.Global = Global
-
-        # attach function interface to function address
-        self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
-        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
-        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
-
-        # call driver to get function pointers
         Queue = ur_queue_dditable_t()
         r = ur_result_v(self.__dll.urGetQueueProcAddrTable(version, byref(Queue)))
         if r != ur_result_v.SUCCESS:
@@ -2935,6 +2936,18 @@ class UR_DDI:
         self.urQueueCreateWithNativeHandle = _urQueueCreateWithNativeHandle_t(self.__dditable.Queue.pfnCreateWithNativeHandle)
         self.urQueueFinish = _urQueueFinish_t(self.__dditable.Queue.pfnFinish)
         self.urQueueFlush = _urQueueFlush_t(self.__dditable.Queue.pfnFlush)
+
+        # call driver to get function pointers
+        Global = ur_global_dditable_t()
+        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.Global = Global
+
+        # attach function interface to function address
+        self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
+        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
+        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
 
         # call driver to get function pointers
         USM = ur_usm_dditable_t()
