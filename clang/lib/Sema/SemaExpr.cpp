@@ -18463,9 +18463,6 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
   if (getLangOpts().SYCLIsDevice)
     checkSYCLDeviceFunction(Loc, Func);
 
-  if (getLangOpts().SYCLIsDevice)
-    checkSYCLDeviceFunction(Loc, Func);
-
   // If we need a definition, try to create one.
   if (NeedDefinition && !Func->getBody()) {
     runWithSufficientStackSpace(Loc, [&] {
