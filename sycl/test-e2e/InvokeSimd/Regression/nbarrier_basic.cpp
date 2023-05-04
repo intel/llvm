@@ -3,9 +3,6 @@
 // REQUIRES: gpu-intel-pvc && linux
 // UNSUPPORTED: cuda || hip
 //
-// TODO: enable when Jira issue resolved, currently fail with VISALTO enable
-// XFAIL: gpu-intel-pvc
-//
 // RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
 //

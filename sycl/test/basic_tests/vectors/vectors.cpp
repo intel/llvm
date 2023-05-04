@@ -55,6 +55,33 @@ template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, double>();
 }
 
+template <typename T, typename OpT> void check_ops(OpT op, T c1, T c2) {
+  auto check = [&](sycl::vec<T, 2> vres) {
+    assert(op(c1, c2) == vres[0]);
+    assert(op(c1, c2) == vres[1]);
+  };
+
+  sycl::vec<T, 2> v1(c1);
+  sycl::vec<T, 2> v2(c2);
+  check(op(v1.template swizzle<0, 1>(), v2.template swizzle<0, 1>()));
+  check(op(v1.template swizzle<0, 1>(), v2));
+  check(op(v1.template swizzle<0, 1>(), c2));
+  check(op(c1, v2.template swizzle<0, 1>()));
+  check(op(c1, v2));
+  check(op(v1, v2.template swizzle<0, 1>()));
+  check(op(v1, v2));
+  check(op(v1, c2));
+
+  sycl::vec<T, 2> v3 = {c1, c2};
+  sycl::vec<T, 2> v4 = op(v3, v3.template swizzle<1, 0>());
+  assert(v4[0] == op(c1, c2) && v4[1] == op(c2, c1));
+  sycl::vec<T, 2> v5 = op(v3.template swizzle<1, 1>(), v3);
+  assert(v5[0] == op(c2, c1) && v5[1] == op(c2, c2));
+  sycl::vec<T, 2> v6 =
+      op(v3.template swizzle<1, 1>(), v3.template swizzle<0, 0>());
+  assert(v6[0] == op(c2, c1) && v6[1] == op(c2, c1));
+}
+
 int main() {
   sycl::int4 a = {1, 2, 3, 4};
   const sycl::int4 b = {10, 20, 30, 40};
@@ -91,6 +118,11 @@ int main() {
   assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.5));
+  b_vec.swizzle<0, 1, 2, 3>() = 0.6;
+  assert(static_cast<float>(b_vec.x()) == static_cast<float>(0.6));
+  assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.6));
+  assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.6));
+  assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.6));
 
   // Check that vector with 'unsigned long long' elements has enough bits to
   // store value.
@@ -141,6 +173,8 @@ int main() {
   check_convert_from<float>();
   check_convert_from<double>();
   check_convert_from<bool>();
+
+  check_ops<int>(std::modulus(), 6, 3);
 
   return 0;
 }

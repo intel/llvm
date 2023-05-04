@@ -831,21 +831,8 @@ simd<float, 16> vb;
 simd<float, 16> vc;
 
 __asm__("add (M1, 16) %0 %1 %2"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()));
-```
-
-Example of inline GEN assembly writing to a private global variable:
-```cpp
-ESIMD_PRIVATE ESIMD_REGISTER(0) simd<float, 16> vc;
-
-void calledFromKernel() {
-  simd<float, 16> va;
-  simd<float, 16> vb;
-  __asm__("add (M1, 16) %0 %1 %2"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()));
-}
+                    : "=r"(vc.data_ref())
+                    : "r"(va.data()), "r"(vb.data()));
 ```
 
 ## Examples

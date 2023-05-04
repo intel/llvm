@@ -1,4 +1,3 @@
-// REQUIRES: TEMPORARY_DISABLED
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 //
@@ -43,22 +42,24 @@ int main() {
       return_fail();
     }
 
-    queue q(c, default_selector_v);
-    if (q.get_backend() != plt.get_backend()) {
-      return_fail();
-    }
-
-    auto device = q.get_device();
+    auto device = c.get_devices()[0];
     if (device.get_backend() != plt.get_backend()) {
       return_fail();
     }
 
-    unsigned char *HostAlloc = (unsigned char *)malloc_host(1, c);
-    auto e = q.memset(HostAlloc, 42, 1);
+    queue q(c, device);
+    if (q.get_backend() != plt.get_backend()) {
+      return_fail();
+    }
+
+    buffer<int, 1> buf{range<1>(1)};
+    event e = q.submit([&](handler &cgh) {
+      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      cgh.fill(acc, 0);
+    });
     if (e.get_backend() != plt.get_backend()) {
       return_fail();
     }
-    free(HostAlloc, c);
   }
   std::cout << "Passed" << std::endl;
   return 0;
