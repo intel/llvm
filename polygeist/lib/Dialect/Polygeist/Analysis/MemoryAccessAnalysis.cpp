@@ -1,4 +1,4 @@
-//===- MemoryAccessAnalysis.cpp - SYCL Memory Access Analysis -------------===//
+//===- MemoryAccessAnalysis.cpp - Memory Access Analysis ------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SYCL/Analysis/MemoryAccessAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/STLExtras.h"
@@ -16,7 +16,7 @@
 #define DEBUG_TYPE "memory-access-analysis"
 
 using namespace mlir;
-using namespace mlir::sycl;
+using namespace mlir::polygeist;
 
 //===----------------------------------------------------------------------===//
 // Helper Functions
@@ -642,10 +642,10 @@ MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
 }
 
 namespace mlir {
-namespace sycl {
+namespace polygeist {
 
 template class MemoryAccess<AffineLoadOp>;
 template class MemoryAccess<AffineStoreOp>;
 
-} // namespace sycl
+} // namespace polygeist
 } // namespace mlir

@@ -1,4 +1,5 @@
 add_mlir_dialect_library(MLIRPolygeistAnalysis
+  MemoryAccessAnalysis.cpp
   ReachingDefinitionAnalysis.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -7,4 +8,5 @@ add_mlir_dialect_library(MLIRPolygeistAnalysis
   LINK_LIBS PUBLIC
   MLIRAnalysis
   MLIRPolygeistUtils
-  )
+)
+

@@ -12,14 +12,14 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SYCL/Analysis/MemoryAccessAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/Debug.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 using namespace mlir;
-using namespace mlir::sycl;
+using namespace mlir::polygeist;
 
 static void loadDialects(MLIRContext &ctx) {
   ctx.getOrLoadDialect<AffineDialect>();
