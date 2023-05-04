@@ -67,6 +67,10 @@ etors:
       desc: Event created by $xEnqueueDeviceGlobalVariableWrite
     - name: DEVICE_GLOBAL_VARIABLE_READ
       desc: Event created by $xEnqueueDeviceGlobalVariableRead
+    - name: READ_HOST_PIPE
+      desc: Event created by $xEnqueueReadHostPipe
+    - name: WRITE_HOST_PIPE
+      desc: Event created by $xEnqueueWriteHostPipe
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Event Status"

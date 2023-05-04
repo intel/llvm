@@ -192,6 +192,49 @@ struct urQueueTest : urContextTest {
     ur_queue_handle_t queue = nullptr;
 };
 
+struct urHostPipeTest : urQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        ASSERT_SUCCESS(urProgramCreateWithIL(
+            context, il_binary->data(), il_binary->size(), nullptr, &program));
+
+        size_t size = 0;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, 0, nullptr,
+            &size));
+        ASSERT_NE(size, 0);
+        ASSERT_EQ(sizeof(ur_bool_t), size);
+        void *info_data = alloca(size);
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, size,
+            info_data, nullptr));
+        ASSERT_NE(info_data, nullptr);
+
+        bool supported;
+        GetDeviceHostPipeRWSupported(device, supported);
+        if (!supported) {
+            GTEST_SKIP() << "Host pipe read/write is not supported.";
+        }
+    }
+
+    void TearDown() override {
+        if (program) {
+            EXPECT_SUCCESS(urProgramRelease(program));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    }
+
+    std::shared_ptr<std::vector<char>> il_binary;
+    std::string program_name = "foo";
+    ur_program_handle_t program = nullptr;
+
+    const char *pipe_symbol = "pipe_symbol";
+
+    static const size_t size = 1024;
+    char buffer[size];
+};
+
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
 
     void SetUp() override {
