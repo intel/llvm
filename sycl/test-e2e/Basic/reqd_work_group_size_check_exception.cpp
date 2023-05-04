@@ -7,7 +7,7 @@
 
 #define CHECK_INVALID_REQD_WORK_GROUP_SIZE(Dim, ...)                           \
   {                                                                            \
-    bool ExceptionThorwn = false;                                              \
+    bool ExceptionThrown = false;                                              \
     std::error_code Errc;                                                      \
     try {                                                                      \
       q.submit([&](sycl::handler &h) {                                         \
@@ -17,15 +17,12 @@
       });                                                                      \
       q.wait();                                                                \
     } catch (sycl::exception & e) {                                            \
-      ExceptionThorwn = true;                                                  \
+      ExceptionThrown = true;                                                  \
       Errc = e.code();                                                         \
     }                                                                          \
-    if (ExpectThrow) {                                                         \
-      assert(                                                                  \
-          ExceptionThorwn &&                                                   \
-          "Invalid use of reqd_work_group_size should throw an exception.");   \
-      assert(Errc == sycl::errc::kernel_not_supported);                        \
-    }                                                                          \
+    assert(ExceptionThrown &&                                                  \
+           "Invalid use of reqd_work_group_size should throw an exception.");  \
+    assert(Errc == sycl::errc::kernel_not_supported);                          \
   }
 
 int main() {
@@ -33,11 +30,12 @@ int main() {
   constexpr int N = 1e9;
   auto MaxWGSize =
       q.get_device().get_info<sycl::info::device::max_work_group_size>();
-  bool ExpectThrow = N > MaxWGSize;
 
-  CHECK_INVALID_REQD_WORK_GROUP_SIZE(1, N)
-  CHECK_INVALID_REQD_WORK_GROUP_SIZE(2, 1, N)
-  CHECK_INVALID_REQD_WORK_GROUP_SIZE(3, 1, 1, N)
+  if (N > MaxWGSize) {
+    CHECK_INVALID_REQD_WORK_GROUP_SIZE(1, N)
+    CHECK_INVALID_REQD_WORK_GROUP_SIZE(2, 1, N)
+    CHECK_INVALID_REQD_WORK_GROUP_SIZE(3, 1, 1, N)
+  }
 
   return 0;
 }
