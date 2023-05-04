@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -c -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -c -S | FileCheck %s
 
 float *foo(float *a) {
 	a += 32;

@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=foo -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=foo -S | FileCheck %s
 
 #define N 8
 int foo() {

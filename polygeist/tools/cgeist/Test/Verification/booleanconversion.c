@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S -O0 -w | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S -O0 -w | FileCheck %s
 
 #include <stdbool.h>
 
@@ -35,18 +35,18 @@ bool float_conversion(float i) { return (bool)i; }
 bool double_conversion(double i) { return (bool)i; }
 
 // CHECK-LABEL:   func.func @ptr_conversion(
-// CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr<i8>) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.null : !llvm.ptr<i8>
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.icmp "ne" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr<i8>
+// CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr) -> i1
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.icmp "ne" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
 // CHECK-NEXT:      return %[[VAL_2]] : i1
 // CHECK-NEXT:    }
 bool ptr_conversion(void *i) { return (bool)i; }
 
 // CHECK-LABEL:   func.func @memref_conversion(
 // CHECK-SAME:                                 %[[VAL_0:.*]]: memref<?xi32>) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.null : !llvm.ptr<i32>
-// CHECK-NEXT:      %[[VAL_2:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.icmp "ne" %[[VAL_2]], %[[VAL_1]] : !llvm.ptr<i32>
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xi32>) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.icmp "ne" %[[VAL_2]], %[[VAL_1]] : !llvm.ptr
 // CHECK-NEXT:      return %[[VAL_3]] : i1
 // CHECK-NEXT:    }
 bool memref_conversion(int *i) { return (bool)i; }

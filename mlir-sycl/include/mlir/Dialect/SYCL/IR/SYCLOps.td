@@ -292,7 +292,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor",
 
     /// Set the callee for this operation.
     void setCalleeFromCallable(CallInterfaceCallable callee) {
-      (*this)->setAttr(getMangledFunctionNameAttrName(), dyn_cast<SymbolRefAttr>(callee));
+      (*this)->setAttr(getMangledFunctionNameAttrName(), callee.get<SymbolRefAttr>());
     }
 
     /// Get the argument operands to the called function, this is required by the
@@ -413,7 +413,7 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
 
     /// Set the callee for this operation.
     void setCalleeFromCallable(CallInterfaceCallable callee) {
-      (*this)->setAttr(getMangledFunctionNameAttrName(), dyn_cast<SymbolRefAttr>(callee));
+      (*this)->setAttr(getMangledFunctionNameAttrName(), callee.get<SymbolRefAttr>());
     }
 
     /// Get the argument operands to the called function, this is required by the

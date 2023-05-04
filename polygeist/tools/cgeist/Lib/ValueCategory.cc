@@ -26,28 +26,34 @@
 using namespace mlir;
 using namespace mlir::arith;
 
-ValueCategory::ValueCategory(mlir::Value val, bool isReference)
-    : val(val), isReference(isReference) {
+extern llvm::cl::opt<bool> UseOpaquePointers;
+
+ValueCategory::ValueCategory(mlir::Value val, bool isReference,
+                             std::optional<mlir::Type> elementType)
+    : val(val), isReference(isReference), ElementType{elementType} {
   assert(val && "null value");
   if (isReference) {
-    if (!(isa<MemRefType>(val.getType()) ||
-          isa<LLVM::LLVMPointerType>(val.getType()))) {
-      llvm::errs() << "val: " << val << "\n";
-    }
     assert((isa<MemRefType>(val.getType()) ||
             isa<LLVM::LLVMPointerType>(val.getType())) &&
            "Reference value must have pointer/memref type");
   }
+  if (val.getDefiningOp() && val.getDefiningOp()->getNumResults() &&
+      isa<LLVM::LLVMPointerType>(val.getType())) {
+    assert(ElementType && "Must provide an element type for LLVM pointers");
+  }
+  if (!ElementType && val.getDefiningOp() && isa<MemRefType>(val.getType())) {
+    ElementType = cast<MemRefType>(val.getType()).getElementType();
+  }
 }
 
-ValueCategory::ValueCategory(mlir::Value Val, mlir::Value Index)
-    : val{Val}, isReference{true}, Index{Index} {
-  assert(((isa<MemRefType>(val.getType()) &&
-           isa<VectorType>(cast<MemRefType>(val.getType()).getElementType())) ||
-          (isa<LLVM::LLVMPointerType>(val.getType()) &&
-           isa<VectorType>(
-               cast<LLVM::LLVMPointerType>(val.getType()).getElementType()))) &&
-         "Expecting memref/pointer of vector");
+ValueCategory::ValueCategory(mlir::Value Val, mlir::Value Index,
+                             std::optional<mlir::Type> elementType)
+    : val{Val}, isReference{true}, Index{Index}, ElementType{elementType} {
+  assert(ElementType && "Must provide an element type");
+  assert((isa<MemRefType>(val.getType()) ||
+          isa<LLVM::LLVMPointerType>(val.getType())) &&
+         isa<VectorType>(*ElementType) &&
+         "Expecting memref/pointer of/to vector");
   assert(isa<IntegerType>(Index.getType()) && "Expecting integer index");
 }
 
@@ -57,7 +63,7 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
     return val;
   auto loc = builder.getUnknownLoc();
   if (isa<mlir::LLVM::LLVMPointerType>(val.getType())) {
-    return builder.create<mlir::LLVM::LoadOp>(loc, val);
+    return builder.create<mlir::LLVM::LoadOp>(loc, getElemTy(), val);
   }
   if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
     assert(mt.getShape().size() == 1 && "must have shape 1");
@@ -106,55 +112,39 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(val && "expect not-null");
   if (toStore.getType().isInteger(1)) {
     // Ad-hoc extension of booleans
-    auto ElementType = static_cast<Type>(
-        llvm::TypeSwitch<Type, Type>{val.getType()}
-            .Case<MemRefType, LLVM::LLVMPointerType>(
-                [](auto Ty) -> Type { return Ty.getElementType(); }));
+    assert(getElemTy().isIntOrIndex() && "Elem ty");
     toStore = builder.createOrFold<arith::ExtUIOp>(builder.getUnknownLoc(),
-                                                   ElementType, toStore);
+                                                   getElemTy(), toStore);
   }
   auto loc = builder.getUnknownLoc();
   if (auto pt = dyn_cast<mlir::LLVM::LLVMPointerType>(val.getType())) {
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
-      if (pt.getElementType() == p2m.getSource().getType())
+      if (getElemTy() == p2m.getSource().getType())
         toStore = p2m.getSource();
       else if (auto nt = p2m.getSource().getDefiningOp<LLVM::NullOp>()) {
-        if (isa<LLVM::LLVMPointerType>(pt.getElementType()))
-          toStore =
-              builder.create<LLVM::NullOp>(nt.getLoc(), pt.getElementType());
+        if (isa<LLVM::LLVMPointerType>(getElemTy()))
+          toStore = builder.create<LLVM::NullOp>(nt.getLoc(), getElemTy());
       }
     }
 
     if (Index) {
-      auto ElemTy =
-          cast<mlir::VectorType>(pt.getElementType()).getElementType();
+      auto ElemTy = cast<mlir::VectorType>(getElemTy()).getElementType();
       assert(ElemTy == toStore.getType() &&
              "Vector insertion element mismatch");
-      ValueCategory Vec{builder.create<mlir::LLVM::LoadOp>(loc, val), false};
+      ValueCategory Vec{
+          builder.create<mlir::LLVM::LoadOp>(loc, getElemTy(), val), false};
       Vec = Vec.InsertElement(builder, loc, toStore, *Index);
       toStore = Vec.val;
     }
 
-    if (toStore.getType() != pt.getElementType()) {
+    if (toStore.getType() != getElemTy()) {
       if (auto mt = dyn_cast<MemRefType>(toStore.getType())) {
-        if (auto spt =
-                dyn_cast<mlir::LLVM::LLVMPointerType>(pt.getElementType())) {
-          CGEIST_WARNING({
-            if (mt.getElementType() != spt.getElementType()) {
-              // llvm::errs() << " func: " <<
-              // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-              llvm::WithColor::warning()
-                  << "potential store type mismatch:\n"
-                  << "val: " << val << " tosval: " << toStore << "\n"
-                  << "mt: " << mt << "spt: " << spt << "\n";
-            }
-          });
+        if (auto spt = dyn_cast<mlir::LLVM::LLVMPointerType>(getElemTy())) {
           toStore =
               builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
         }
       }
     } else { // toStore.getType() == pt.getElementType()
-      assert(toStore.getType() == pt.getElementType() && "expect same type");
       builder.create<mlir::LLVM::StoreOp>(loc, toStore, val);
     }
     return;
@@ -180,15 +170,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
               cast<MemRefType>(val.getType()).getElementType())) {
         assert(MT.getShape().size() == 1);
         assert(MT.getShape()[0] == ShapedType::kDynamic);
-        assert(MT.getElementType() == PT.getElementType());
         toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
       }
     }
     if (auto RHS = dyn_cast<mlir::MemRefType>(toStore.getType())) {
       if (auto LHS =
               dyn_cast<mlir::LLVM::LLVMPointerType>(mt.getElementType())) {
-        assert(LHS.getElementType() == RHS.getElementType() &&
-               "Store types mismatch");
         assert(LHS.getAddressSpace() == RHS.getMemorySpaceAsInt() &&
                "Store address spaces mismatch");
         toStore =
@@ -212,10 +199,12 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
   auto loc = builder.getUnknownLoc();
   if (isa<mlir::LLVM::LLVMPointerType>(val.getType())) {
     if (!isReference)
-      return ValueCategory(val, /*isReference*/ true);
-    else
-      return ValueCategory(builder.create<mlir::LLVM::LoadOp>(loc, val),
-                           /*isReference*/ true);
+      return ValueCategory(val, /*isReference*/ true, ElementType);
+
+    assert(ElementType && "Need to specify element type for pointer");
+    return ValueCategory(
+        builder.create<mlir::LLVM::LoadOp>(loc, getElemTy(), val),
+        /*isReference*/ true, ElementType);
   }
 
   if (auto mt = cast<mlir::MemRefType>(val.getType())) {
@@ -229,15 +218,15 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
                                          mt.getLayout(), mt.getMemorySpace());
         return ValueCategory(
             builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
-            /*isReference*/ true);
+            /*isReference*/ true, ElementType);
       } else {
         // shape[0] = ShapedType::kDynamic;
         return ValueCategory(builder.create<mlir::memref::LoadOp>(
                                  loc, val, std::vector<mlir::Value>({c0})),
-                             /*isReference*/ true);
+                             /*isReference*/ true, ElementType);
       }
     }
-    return ValueCategory(val, /*isReference*/ true);
+    return ValueCategory(val, /*isReference*/ true, mt.getElementType());
   }
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
@@ -279,7 +268,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
       } else {
         auto pt = cast<mlir::LLVM::LLVMPointerType>(val.getType());
         mlir::Type elty;
-        if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
+        if (auto at = dyn_cast<LLVM::LLVMArrayType>(getElemTy())) {
           elty = at.getElementType();
           if (smt.getShape().back() != at.getNumElements()) {
             llvm::errs() << " pt: " << pt << " smt: " << smt << "\n";
@@ -290,7 +279,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
           }
           assert(smt.getShape().back() == at.getNumElements());
         } else {
-          auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
+          auto st = dyn_cast<LLVM::LLVMStructType>(getElemTy());
           elty = st.getBody()[0];
           assert(smt.getShape().back() == (ssize_t)st.getBody().size());
         }
@@ -305,7 +294,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                        << " isArray: " << isArray << "\n";
         }
         assert(elty == smt.getElementType());
-        elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
+        elty = getPointerType(elty, pt.getAddressSpace());
 
         auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
         for (ssize_t i = 0; i < smt.getShape().back(); i++) {
@@ -317,7 +306,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                                 builder.create<ConstantIntOp>(loc, i, 32)};
           builder.create<mlir::LLVM::StoreOp>(
               loc, builder.create<mlir::memref::LoadOp>(loc, toStore.val, idx),
-              builder.create<mlir::LLVM::GEPOp>(loc, elty, val, lidx,
+              builder.create<mlir::LLVM::GEPOp>(loc, elty, getElemTy(), val,
+                                                lidx,
                                                 /* inbounds */ true));
         }
       }
@@ -325,17 +315,18 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
       assert(smt.getShape().size() <= 2);
 
       auto pt = cast<LLVM::LLVMPointerType>(toStore.val.getType());
+      assert(toStore.ElementType);
       mlir::Type elty;
-      if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
+      if (auto at = dyn_cast<LLVM::LLVMArrayType>(toStore.getElemTy())) {
         elty = at.getElementType();
         assert(smt.getShape().back() == at.getNumElements());
       } else {
-        auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
+        auto st = dyn_cast<LLVM::LLVMStructType>(toStore.getElemTy());
         elty = st.getBody()[0];
         assert(smt.getShape().back() == (ssize_t)st.getBody().size());
       }
       assert(elty == smt.getElementType());
-      elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
+      elty = getPointerType(elty, pt.getAddressSpace());
 
       auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
       for (ssize_t i = 0; i < smt.getShape().back(); i++) {
@@ -348,8 +339,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         builder.create<mlir::memref::StoreOp>(
             loc,
             builder.create<mlir::LLVM::LoadOp>(
-                loc, builder.create<mlir::LLVM::GEPOp>(
-                         loc, elty, toStore.val, lidx, /* inbounds */ true)),
+                loc, elty,
+                builder.create<mlir::LLVM::GEPOp>(
+                    loc, elty, toStore.getElemTy(), toStore.val, lidx,
+                    /* inbounds */ true)),
             val, idx);
       }
     } else
@@ -486,16 +479,16 @@ ValueCategory ValueCategory::PtrToInt(OpBuilder &Builder, Location Loc,
 }
 
 ValueCategory ValueCategory::IntToPtr(OpBuilder &Builder, Location Loc,
-                                      Type DestTy) const {
+                                      Type DestTy, Type ElemTy) const {
   assert(isa<IntegerType>(val.getType()) && "Expecting pointer source type");
   assert(isa<LLVM::LLVMPointerType>(DestTy) &&
          "Expecting floating point promotion type");
 
-  return Cast<LLVM::IntToPtrOp>(Builder, Loc, DestTy);
+  return Cast<LLVM::IntToPtrOp>(Builder, Loc, DestTy, ElemTy);
 }
 
 ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
-                                     Type DestTy) const {
+                                     Type DestTy, Type ElemTy) const {
   assert(mlirclang::isFirstClassType(val.getType()) &&
          "Expecting first class type");
   assert(mlirclang::isFirstClassType(DestTy) && "Expecting first class type");
@@ -525,7 +518,7 @@ ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
           cast<mlir::VectorType>(DestTy).getNumElements() == 1) &&
          "Expecting single-element vector");
 
-  return Cast<LLVM::BitcastOp>(Builder, Loc, DestTy);
+  return Cast<LLVM::BitcastOp>(Builder, Loc, DestTy, ElemTy);
 }
 
 ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
@@ -537,10 +530,9 @@ ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
     return *this;
   }
 
-  auto DestTy =
-      LLVM::LLVMPointerType::get(Ty.getElementType(), Ty.getMemorySpaceAsInt());
+  auto DestTy = getPointerType(Ty.getElementType(), Ty.getMemorySpaceAsInt());
   return {Builder.createOrFold<polygeist::Memref2PointerOp>(Loc, DestTy, val),
-          isReference};
+          isReference, ElementType};
 }
 
 ValueCategory
@@ -554,10 +546,10 @@ ValueCategory::Ptr2MemRef(OpBuilder &Builder, Location Loc,
   }
 
   auto DestTy =
-      MemRefType::get(Shape, Ty.getElementType(), Layout,
+      MemRefType::get(Shape, getElemTy(), Layout,
                       Builder.getI32IntegerAttr(Ty.getAddressSpace()));
   return {Builder.createOrFold<polygeist::Pointer2MemrefOp>(Loc, DestTy, val),
-          isReference};
+          isReference, ElementType};
 }
 
 ValueCategory ValueCategory::Splat(OpBuilder &Builder, Location Loc,
@@ -723,7 +715,7 @@ ValueCategory ValueCategory::SubIndex(OpBuilder &Builder, Location Loc,
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
   return {Builder.createOrFold<polygeist::SubIndexOp>(Loc, PtrTy, val, Index),
-          isReference};
+          isReference, ElementType};
 }
 
 ValueCategory ValueCategory::InBoundsSubIndex(OpBuilder &Builder, Location Loc,
@@ -745,9 +737,9 @@ ValueCategory ValueCategory::GEP(OpBuilder &Builder, Location Loc, Type Type,
   });
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
-  return {
-      Builder.createOrFold<LLVM::GEPOp>(Loc, PtrTy, val, IdxList, IsInBounds),
-      isReference};
+  return {Builder.createOrFold<LLVM::GEPOp>(Loc, PtrTy, Type, val, IdxList,
+                                            IsInBounds),
+          isReference, Type};
 }
 
 ValueCategory ValueCategory::InBoundsGEP(OpBuilder &Builder, Location Loc,
@@ -888,4 +880,12 @@ ValueCategory ValueCategory::Reshape(OpBuilder &Builder, Location Loc,
               Builder.createOrFold<arith::ConstantIndexOp>(Loc, Shape[0]),
               Builder.getArrayAttr({})),
           false};
+}
+
+mlir::Type ValueCategory::getPointerType(mlir::Type ElementType,
+                                         unsigned AddressSpace) const {
+  return (UseOpaquePointers)
+             ? LLVM::LLVMPointerType::get(ElementType.getContext(),
+                                          AddressSpace)
+             : LLVM::LLVMPointerType::get(ElementType, AddressSpace);
 }
