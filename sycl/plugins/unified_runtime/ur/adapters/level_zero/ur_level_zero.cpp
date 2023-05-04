@@ -1523,12 +1523,12 @@ void ZeUSMImportExtension::setZeUSMImport(_ur_platform_handle_t *Platform) {
   }
 }
 void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
-  void* HostPtr, size_t Size) {
+                                         void *HostPtr, size_t Size) {
   ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-    (DriverHandle, HostPtr, Size));
+                  (DriverHandle, HostPtr, Size));
 }
 void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
-  void* HostPtr) {
+                                          void *HostPtr) {
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
 }
 

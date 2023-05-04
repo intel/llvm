@@ -659,8 +659,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
 // Device copy enhancement APIs, prepare_for and release_from USM.
 
-__SYCL_EXPORT void ext::oneapi::experimental::prepare_for_device_copy(
-    void *Ptr, size_t Size, const context &Ctxt) {
+void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
+                                                        const context &Ctxt) {
   std::shared_ptr<sycl::_V1::detail::context_impl> CtxImpl =
       sycl::_V1::detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
@@ -669,14 +669,14 @@ __SYCL_EXPORT void ext::oneapi::experimental::prepare_for_device_copy(
   Plugin.call<sycl::_V1::detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
 }
 
-__SYCL_EXPORT void ext::oneapi::experimental::prepare_for_device_copy(
-    void *Ptr, size_t Size, const queue &Queue) {
+void ext::oneapi::experimental::prepare_for_device_copy(void *Ptr, size_t Size,
+                                                        const queue &Queue) {
   ext::oneapi::experimental::prepare_for_device_copy(Ptr, Size,
                                                      Queue.get_context());
 }
 
-__SYCL_EXPORT void ext::oneapi::experimental::release_from_device_copy(
-    void *Ptr, const context &Ctxt) {
+void ext::oneapi::experimental::release_from_device_copy(void *Ptr,
+                                                         const context &Ctxt) {
   std::shared_ptr<sycl::_V1::detail::context_impl> CtxImpl =
       sycl::_V1::detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
@@ -685,8 +685,8 @@ __SYCL_EXPORT void ext::oneapi::experimental::release_from_device_copy(
   Plugin.call<sycl::_V1::detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
 }
 
-__SYCL_EXPORT void ext::oneapi::experimental::release_from_device_copy(
-    void *Ptr, const queue &Queue) {
+void ext::oneapi::experimental::release_from_device_copy(void *Ptr,
+                                                         const queue &Queue) {
   ext::oneapi::experimental::release_from_device_copy(Ptr, Queue.get_context());
 }
 

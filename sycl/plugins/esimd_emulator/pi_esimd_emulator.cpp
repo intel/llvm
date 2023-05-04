@@ -2054,11 +2054,11 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMImport(void* ptr, size_t size, pi_context context) {
+pi_result piextUSMImport(void *ptr, size_t size, pi_context context) {
   return PI_SUCCESS;
 }
 
-pi_result piextUSMRelease(void* ptr, pi_context context) { return PI_SUCCESS; }
+pi_result piextUSMRelease(void *ptr, pi_context context) { return PI_SUCCESS; }
 
 /// Host Pipes
 pi_result piextEnqueueReadHostPipe(pi_queue, pi_program, const char *, pi_bool,
