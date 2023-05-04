@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp16
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
@@ -22,12 +23,11 @@
 
 int main() {
   queue Queue;
-  if (Queue.get_device().has(sycl::aspect::fp16)) {
-    check<half>(Queue);
-    std::cout << "Test passed." << std::endl;
-  } else {
-    std::cout << "Test skipped because device doesn't support aspect::fp16"
-              << std::endl;
-  }
+  check<half>(Queue);
+  check<half, 2>(Queue);
+  check<half, 4>(Queue);
+  check<half, 8>(Queue);
+  check<half, 16>(Queue);
+  std::cout << "Test passed." << std::endl;
   return 0;
 }

@@ -251,7 +251,10 @@ public:
 
   bool isContextInitialized() const noexcept { return MIsContextInitialized; }
 
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  ContextImplPtr getContextImplPtr() {
+    ensureContextInitialized();
+    return MContext;
+  }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and

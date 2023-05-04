@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-gen9 || gpu-intel-dg2 || gpu-intel-pvc || esimd_emulator
+// REQUIRES: gpu-intel-gen9 || gpu-intel-pvc || esimd_emulator
 
 // RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
