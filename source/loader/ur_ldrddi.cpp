@@ -2502,7 +2502,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue ///< [in] handle of Memory object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -2517,9 +2517,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
 
     // convert loader handle to platform handle
-    hArgValue = (hArgValue)
-                    ? reinterpret_cast<ur_mem_object_t *>(hArgValue)->handle
-                    : nullptr;
+    hArgValue = reinterpret_cast<ur_mem_object_t *>(hArgValue)->handle;
 
     // forward to device-platform
     result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);

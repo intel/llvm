@@ -40,3 +40,8 @@ TEST_P(urKernelSetArgMemObjTest, InvalidKernelArgumentIndex) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
                      urKernelSetArgMemObj(kernel, num_kernel_args + 1, buffer));
 }
+
+TEST_P(urKernelSetArgMemObjTest, InvalidNullPointer) {
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urKernelSetArgMemObj(kernel, 0, nullptr));
+}

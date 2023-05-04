@@ -360,7 +360,7 @@ params:
       desc: "[in] argument index in range [0, num args - 1]"
     - type: "$x_mem_handle_t"
       name: hArgValue
-      desc: "[in][optional] handle of Memory object."
+      desc: "[in] handle of Memory object."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
