@@ -13,4 +13,5 @@
 
    core/INTRO.rst
    core/PROG.rst
+   core/CONTRIB.rst
    api.rst
