@@ -5,12 +5,12 @@
 
 #include "common.hpp"
 
-constexpr size_t IMAGE_X = 5;
-constexpr size_t IMAGE_Y = 4;
-constexpr size_t IMAGE_Z = 2;
+constexpr size_t IMAGE_WIDTH = 5;
+constexpr size_t IMAGE_HEIGHT = 4;
+constexpr size_t IMAGE_DEPTH = 2;
 
-constexpr size_t IMAGE_PITCH_X = 7;
-constexpr size_t IMAGE_PITCH_Y = 5 * IMAGE_PITCH_X;
+constexpr size_t IMAGE_PITCH_WIDTH = 7;
+constexpr size_t IMAGE_PITCH_HEIGHT = 5 * IMAGE_PITCH_WIDTH;
 
 using namespace sycl;
 
@@ -28,7 +28,8 @@ int check(const unsampled_image<Dims, AllocT> &Img) {
   int Failures = 0;
 
   // Check get_range().
-  range<Dims> ExpectedRange = CreateImageRange<Dims>(IMAGE_X, IMAGE_Y, IMAGE_Z);
+  range<Dims> ExpectedRange =
+      CreateImageRange<Dims>(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_DEPTH);
   Failures += checkEqual<Format>(Img.get_range(), ExpectedRange,
                                  "Unexpected value returned by get_range()");
 
@@ -41,9 +42,11 @@ int check(const unsampled_image<Dims, AllocT> &Img) {
     // Check get_pitch().
     range<Dims - 1> ExpectedPitch = [&]() {
       if constexpr (ExplicitPitch)
-        return CreateImageRange<Dims - 1>(IMAGE_PITCH_X, IMAGE_PITCH_Y, 0);
+        return CreateImageRange<Dims - 1>(IMAGE_PITCH_WIDTH, IMAGE_PITCH_HEIGHT,
+                                          0);
       else
-        return CreateImageRange<Dims - 1>(IMAGE_X, IMAGE_X * IMAGE_Y, 0);
+        return CreateImageRange<Dims - 1>(IMAGE_WIDTH,
+                                          IMAGE_WIDTH * IMAGE_HEIGHT, 0);
     }();
     ExpectedPitch *= BytesPerPixel<Format>;
     Failures += checkEqual<Format>(Img.get_pitch(), ExpectedPitch,
@@ -76,7 +79,8 @@ int checkFormatAndDims(std::shared_ptr<void> HostData) {
 
   int Failures = 0;
 
-  range<Dims> ImgRange = CreateImageRange<Dims>(IMAGE_X, IMAGE_Y, IMAGE_Z);
+  range<Dims> ImgRange =
+      CreateImageRange<Dims>(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_DEPTH);
   alternate_alloc_t ImgAlloc;
   Failures += check<Format, false>(unsampled_image<Dims>{Format, ImgRange});
   Failures += check<Format, false>(
@@ -92,7 +96,7 @@ int checkFormatAndDims(std::shared_ptr<void> HostData) {
 
   if constexpr (Dims > 1) {
     range<Dims - 1> ImgPitch =
-        CreateImageRange<Dims - 1>(IMAGE_PITCH_X, IMAGE_PITCH_Y, 0) *
+        CreateImageRange<Dims - 1>(IMAGE_PITCH_WIDTH, IMAGE_PITCH_HEIGHT, 0) *
         BytesPerPixel<Format>;
     Failures +=
         check<Format, true>(unsampled_image<Dims>{Format, ImgRange, ImgPitch});
@@ -115,7 +119,8 @@ template <image_format Format> int checkFormat() {
   // for testing.
   using rep_elem_type = typename FormatTraits<Format>::rep_elem_type;
   std::shared_ptr<rep_elem_type> Data(
-      new rep_elem_type[IMAGE_PITCH_X * IMAGE_PITCH_Y * IMAGE_Z * 4],
+      new rep_elem_type[IMAGE_PITCH_WIDTH * IMAGE_PITCH_HEIGHT * IMAGE_DEPTH *
+                        4],
       std::default_delete<rep_elem_type[]>());
 
   int Failures = 0;
