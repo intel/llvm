@@ -6669,31 +6669,6 @@ typedef struct ur_enqueue_device_global_variable_read_params_t {
 } ur_enqueue_device_global_variable_read_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urInit
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_init_params_t {
-    ur_device_init_flags_t *pdevice_flags;
-} ur_init_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urGetLastResult
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_get_last_result_params_t {
-    ur_platform_handle_t *phPlatform;
-    const char ***pppMessage;
-} ur_get_last_result_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urTearDown
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_tear_down_params_t {
-    void **ppParams;
-} ur_tear_down_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urQueueGetInfo
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -6768,6 +6743,31 @@ typedef struct ur_queue_finish_params_t {
 typedef struct ur_queue_flush_params_t {
     ur_queue_handle_t *phQueue;
 } ur_queue_flush_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urInit
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_init_params_t {
+    ur_device_init_flags_t *pdevice_flags;
+} ur_init_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGetLastResult
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_get_last_result_params_t {
+    ur_platform_handle_t *phPlatform;
+    const char ***pppMessage;
+} ur_get_last_result_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urTearDown
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_tear_down_params_t {
+    void **ppParams;
+} ur_tear_down_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMHostAlloc
