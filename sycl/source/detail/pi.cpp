@@ -509,7 +509,7 @@ template <backend BE> const PluginPtr &getPlugin() {
   std::vector<PluginPtr> &Plugins = pi::initialize();
   for (auto &P : Plugins)
     if (P->hasBackend(BE)) {
-      *Plugin = P;
+      Plugin = &P;
       return *Plugin;
     }
 
