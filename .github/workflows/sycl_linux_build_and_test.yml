@@ -109,10 +109,10 @@ jobs:
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
-    - name: sycl-doc
+    - name: mlir-sycl-doc
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target sycl-doc
+        cmake --build $GITHUB_WORKSPACE/build --target mlir-sycl-doc
     - name: polygeist-doc
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
