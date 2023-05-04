@@ -1253,7 +1253,8 @@ int main() {
       Queue.submit([&](sycl::handler &CGH) {
         sycl::accessor<int, 0> Acc(DataBuffer, CGH);
         sycl::local_accessor<int, 0> LocalAcc(CGH);
-        CGH.single_task<class local_acc_0_dim_iter_assignment>([=]() {
+        CGH.parallel_for<class local_acc_0_dim_iter_assignment>(
+          sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> ID) {
           *LocalAcc.begin() = 32;
           auto value = *LocalAcc.cbegin();
           value += *LocalAcc.crbegin();
