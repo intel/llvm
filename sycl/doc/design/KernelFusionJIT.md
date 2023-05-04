@@ -173,7 +173,7 @@ inflation in case kernel fusion is not used. If users want to use kernel fusion
 at runtime on the NVPTX/CUDA backend, they need to pass the `-fsycl-embed-ir`
 flag during static compilation. 
 
-During the fusion process at runtime , the JIT will load the LLVM IR and
+During the fusion process at runtime, the JIT will load the LLVM IR and
 finalize the fused kernel to the final target. More information is available
 [here](./CompilerAndRuntimeDesign.md#kernel-fusion-support). 
 
