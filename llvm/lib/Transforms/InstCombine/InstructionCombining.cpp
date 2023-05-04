@@ -77,7 +77,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
@@ -194,6 +193,10 @@ std::optional<Value *> InstCombiner::targetSimplifyDemandedVectorEltsIntrinsic(
         SimplifyAndSetOp);
   }
   return std::nullopt;
+}
+
+bool InstCombiner::isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const {
+  return TTI.isValidAddrSpaceCast(FromAS, ToAS);
 }
 
 Value *InstCombinerImpl::EmitGEPOffset(User *GEP) {
@@ -1039,7 +1042,7 @@ static Constant *constantFoldOperationIntoSelectOperand(
     else if (auto *C = dyn_cast<Constant>(Op))
       ConstOps.push_back(C);
     else
-      llvm_unreachable("Operands should be select or constant");
+      return nullptr;
   }
   return ConstantFoldInstOperands(&I, ConstOps, I.getModule()->getDataLayout());
 }
@@ -1080,45 +1083,6 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
     // If vectors, verify that they have the same number of elements.
     if (SrcTy && SrcTy->getElementCount() != DestTy->getElementCount())
       return nullptr;
-  }
-
-  // Test if a CmpInst instruction is used exclusively by a select as
-  // part of a minimum or maximum operation. If so, refrain from doing
-  // any other folding. This helps out other analyses which understand
-  // non-obfuscated minimum and maximum idioms, such as ScalarEvolution
-  // and CodeGen. And in this case, at least one of the comparison
-  // operands has at least one user besides the compare (the select),
-  // which would often largely negate the benefit of folding anyway.
-  if (auto *CI = dyn_cast<CmpInst>(SI->getCondition())) {
-    if (CI->hasOneUse()) {
-      Value *Op0 = CI->getOperand(0), *Op1 = CI->getOperand(1);
-
-      // FIXME: This is a hack to avoid infinite looping with min/max patterns.
-      //        We have to ensure that vector constants that only differ with
-      //        undef elements are treated as equivalent.
-      auto areLooselyEqual = [](Value *A, Value *B) {
-        if (A == B)
-          return true;
-
-        // Test for vector constants.
-        Constant *ConstA, *ConstB;
-        if (!match(A, m_Constant(ConstA)) || !match(B, m_Constant(ConstB)))
-          return false;
-
-        // TODO: Deal with FP constants?
-        if (!A->getType()->isIntOrIntVectorTy() || A->getType() != B->getType())
-          return false;
-
-        // Compare for equality including undefs as equal.
-        auto *Cmp = ConstantExpr::getCompare(ICmpInst::ICMP_EQ, ConstA, ConstB);
-        const APInt *C;
-        return match(Cmp, m_APIntAllowUndef(C)) && C->isOne();
-      };
-
-      if ((areLooselyEqual(TV, Op0) && areLooselyEqual(FV, Op1)) ||
-          (areLooselyEqual(FV, Op0) && areLooselyEqual(TV, Op1)))
-        return nullptr;
-    }
   }
 
   // Make sure that one of the select arms constant folds successfully.
@@ -1379,6 +1343,7 @@ Instruction *InstCombinerImpl::foldBinOpIntoSelectOrPhi(BinaryOperator &I) {
   return nullptr;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 /// Given a pointer type and a constant offset, determine whether or not there
 /// is a sequence of GEP indices into the pointed type that will land us at the
 /// specified offset. If so, fill them into NewIndices and return the resultant
@@ -1400,6 +1365,7 @@ static Type *findElementAtOffset(PointerType *PtrTy, int64_t IntOffset,
     NewIndices.push_back(ConstantInt::get(PtrTy->getContext(), Index));
   return Ty;
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 static bool shouldMergeGEPs(GEPOperator &GEP, GEPOperator &Src) {
   // If this GEP has only 0 indices, it is the same pointer as
@@ -2039,7 +2005,11 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
   // For constant GEPs, use a more general offset-based folding approach.
   // Only do this for opaque pointers, as the result element type may change.
   Type *PtrTy = Src->getType()->getScalarType();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  if (GEP.hasAllConstantIndices() &&
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   if (PtrTy->isOpaquePointerTy() && GEP.hasAllConstantIndices() &&
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       (Src->hasOneUse() || Src->hasAllConstantIndices())) {
     // Split Src into a variable part and a constant suffix.
     gep_type_iterator GTI = gep_type_begin(*Src);
@@ -2082,13 +2052,11 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
       // If both GEP are constant-indexed, and cannot be merged in either way,
       // convert them to a GEP of i8.
       if (Src->hasAllConstantIndices())
-        return isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))
-            ? GetElementPtrInst::CreateInBounds(
-                Builder.getInt8Ty(), Src->getOperand(0),
-                Builder.getInt(OffsetOld), GEP.getName())
-            : GetElementPtrInst::Create(
-                Builder.getInt8Ty(), Src->getOperand(0),
-                Builder.getInt(OffsetOld), GEP.getName());
+        return replaceInstUsesWith(
+            GEP, Builder.CreateGEP(
+                     Builder.getInt8Ty(), Src->getOperand(0),
+                     Builder.getInt(OffsetOld), "",
+                     isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))));
       return nullptr;
     }
 
@@ -2105,13 +2073,9 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
       IsInBounds &= Idx.isNonNegative() == ConstIndices[0].isNonNegative();
     }
 
-    return IsInBounds
-               ? GetElementPtrInst::CreateInBounds(Src->getSourceElementType(),
-                                                   Src->getOperand(0), Indices,
-                                                   GEP.getName())
-               : GetElementPtrInst::Create(Src->getSourceElementType(),
-                                           Src->getOperand(0), Indices,
-                                           GEP.getName());
+    return replaceInstUsesWith(
+        GEP, Builder.CreateGEP(Src->getSourceElementType(), Src->getOperand(0),
+                               Indices, "", IsInBounds));
   }
 
   if (Src->getResultElementType() != GEP.getSourceElementType())
@@ -2165,17 +2129,15 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
   }
 
   if (!Indices.empty())
-    return isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))
-               ? GetElementPtrInst::CreateInBounds(
-                     Src->getSourceElementType(), Src->getOperand(0), Indices,
-                     GEP.getName())
-               : GetElementPtrInst::Create(Src->getSourceElementType(),
-                                           Src->getOperand(0), Indices,
-                                           GEP.getName());
+    return replaceInstUsesWith(
+        GEP, Builder.CreateGEP(
+                 Src->getSourceElementType(), Src->getOperand(0), Indices, "",
+                 isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))));
 
   return nullptr;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 // Note that we may have also stripped an address space cast in between.
 Instruction *InstCombinerImpl::visitGEPOfBitcast(BitCastInst *BCI,
                                                  GetElementPtrInst &GEP) {
@@ -2280,6 +2242,7 @@ Instruction *InstCombinerImpl::visitGEPOfBitcast(BitCastInst *BCI,
 
   return nullptr;
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   Value *PtrOp = GEP.getOperand(0);
@@ -2502,6 +2465,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   if (GEPType->isVectorTy())
     return nullptr;
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // Handle gep(bitcast x) and gep(gep x, 0, 0, 0).
   Value *StrippedPtr = PtrOp->stripPointerCasts();
   PointerType *StrippedPtrTy = cast<PointerType>(StrippedPtr->getType());
@@ -2670,7 +2634,6 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
       }
     }
   }
-
   // addrspacecast between types is canonicalized as a bitcast, then an
   // addrspacecast. To take advantage of the below bitcast + struct GEP, look
   // through the addrspacecast.
@@ -2687,6 +2650,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   if (auto *BCI = dyn_cast<BitCastInst>(ASCStrippedPtrOp))
     if (Instruction *I = visitGEPOfBitcast(BCI, GEP))
       return I;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (!GEP.isInBounds()) {
     unsigned IdxWidth =

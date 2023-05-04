@@ -21956,60 +21956,68 @@ TEST_F(FormatTest, FormatsLambdas) {
                LLVMWithBeforeLambdaBody);
 
   // Lambdas with different indentation styles.
-  Style = getLLVMStyleWithColumns(100);
-  EXPECT_EQ("SomeResult doSomething(SomeObject promise) {\n"
-            "  return promise.then(\n"
-            "      [this, &someVariable, someObject = "
-            "std::mv(s)](std::vector<int> evaluated) mutable {\n"
-            "        return someObject.startAsyncAction().then(\n"
-            "            [this, &someVariable](AsyncActionResult result) "
-            "mutable { result.processMore(); });\n"
-            "      });\n"
-            "}\n",
-            format("SomeResult doSomething(SomeObject promise) {\n"
-                   "  return promise.then([this, &someVariable, someObject = "
-                   "std::mv(s)](std::vector<int> evaluated) mutable {\n"
-                   "    return someObject.startAsyncAction().then([this, "
-                   "&someVariable](AsyncActionResult result) mutable {\n"
-                   "      result.processMore();\n"
-                   "    });\n"
-                   "  });\n"
-                   "}\n",
-                   Style));
+  Style = getLLVMStyleWithColumns(60);
+  verifyFormat("Result doSomething(Promise promise) {\n"
+               "  return promise.then(\n"
+               "      [this, obj = std::move(s)](int bar) mutable {\n"
+               "        return someObject.startAsyncAction().then(\n"
+               "            [this, &obj](Result result) mutable {\n"
+               "              result.processMore();\n"
+               "            });\n"
+               "      });\n"
+               "}\n",
+               Style);
   Style.LambdaBodyIndentation = FormatStyle::LBI_OuterScope;
-  verifyFormat("test() {\n"
-               "  ([]() -> {\n"
+  verifyFormat("Result doSomething(Promise promise) {\n"
+               "  return promise.then(\n"
+               "      [this, obj = std::move(s)](int bar) mutable {\n"
+               "    return obj.startAsyncAction().then(\n"
+               "        [this, &obj](Result result) mutable {\n"
+               "      result.processMore();\n"
+               "    });\n"
+               "  });\n"
+               "}\n",
+               Style);
+  verifyFormat("Result doSomething(Promise promise) {\n"
+               "  return promise.then([this, obj = std::move(s)] {\n"
+               "    return obj.startAsyncAction().then(\n"
+               "        [this, &obj](Result result) mutable {\n"
+               "      result.processMore();\n"
+               "    });\n"
+               "  });\n"
+               "}\n",
+               Style);
+  verifyFormat("void test() {\n"
+               "  ([]() -> auto {\n"
                "    int b = 32;\n"
                "    return 3;\n"
                "  }).foo();\n"
                "}",
                Style);
-  verifyFormat("test() {\n"
-               "  []() -> {\n"
+  verifyFormat("void test() {\n"
+               "  []() -> auto {\n"
                "    int b = 32;\n"
                "    return 3;\n"
                "  }\n"
                "}",
                Style);
   verifyFormat("std::sort(v.begin(), v.end(),\n"
-               "          [](const auto &someLongArgumentName, const auto "
-               "&someOtherLongArgumentName) {\n"
-               "  return someLongArgumentName.someMemberVariable < "
-               "someOtherLongArgumentName.someMemberVariable;\n"
-               "});",
+               "          [](const auto &foo, const auto &bar) {\n"
+               "  return foo.baz < bar.baz;\n"
+               "});\n",
                Style);
-  verifyFormat("test() {\n"
+  verifyFormat("void test() {\n"
                "  (\n"
-               "      []() -> {\n"
-               "        int b = 32;\n"
-               "        return 3;\n"
-               "      },\n"
+               "      []() -> auto {\n"
+               "    int b = 32;\n"
+               "    return 3;\n"
+               "  },\n"
                "      foo, bar)\n"
                "      .foo();\n"
                "}",
                Style);
-  verifyFormat("test() {\n"
-               "  ([]() -> {\n"
+  verifyFormat("void test() {\n"
+               "  ([]() -> auto {\n"
                "    int b = 32;\n"
                "    return 3;\n"
                "  })\n"
@@ -22017,54 +22025,82 @@ TEST_F(FormatTest, FormatsLambdas) {
                "      .bar();\n"
                "}",
                Style);
-  EXPECT_EQ("SomeResult doSomething(SomeObject promise) {\n"
-            "  return promise.then(\n"
-            "      [this, &someVariable, someObject = "
-            "std::mv(s)](std::vector<int> evaluated) mutable {\n"
-            "    return someObject.startAsyncAction().then(\n"
-            "        [this, &someVariable](AsyncActionResult result) mutable { "
-            "result.processMore(); });\n"
-            "  });\n"
-            "}\n",
-            format("SomeResult doSomething(SomeObject promise) {\n"
-                   "  return promise.then([this, &someVariable, someObject = "
-                   "std::mv(s)](std::vector<int> evaluated) mutable {\n"
-                   "    return someObject.startAsyncAction().then([this, "
-                   "&someVariable](AsyncActionResult result) mutable {\n"
-                   "      result.processMore();\n"
-                   "    });\n"
-                   "  });\n"
-                   "}\n",
-                   Style));
-  EXPECT_EQ("SomeResult doSomething(SomeObject promise) {\n"
-            "  return promise.then([this, &someVariable] {\n"
-            "    return someObject.startAsyncAction().then(\n"
-            "        [this, &someVariable](AsyncActionResult result) mutable { "
-            "result.processMore(); });\n"
-            "  });\n"
-            "}\n",
-            format("SomeResult doSomething(SomeObject promise) {\n"
-                   "  return promise.then([this, &someVariable] {\n"
-                   "    return someObject.startAsyncAction().then([this, "
-                   "&someVariable](AsyncActionResult result) mutable {\n"
-                   "      result.processMore();\n"
-                   "    });\n"
-                   "  });\n"
-                   "}\n",
-                   Style));
-  Style = getGoogleStyle();
-  Style.LambdaBodyIndentation = FormatStyle::LBI_OuterScope;
-  EXPECT_EQ("#define A                                       \\\n"
-            "  [] {                                          \\\n"
-            "    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx(        \\\n"
-            "        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx); \\\n"
-            "      }",
-            format("#define A [] { xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx( \\\n"
-                   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx); }",
-                   Style));
-  // TODO: The current formatting has a minor issue that's not worth fixing
-  // right now whereby the closing brace is indented relative to the signature
-  // instead of being aligned. This only happens with macros.
+  verifyFormat("#define A                                                  \\\n"
+               "  [] {                                                     \\\n"
+               "    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx(                   \\\n"
+               "        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx);            \\\n"
+               "  }",
+               Style);
+  verifyFormat("void foo() {\n"
+               "  aFunction(1, b(c(foo, bar, baz, [](d) {\n"
+               "    auto f = e(d);\n"
+               "    return f;\n"
+               "  })));\n"
+               "}",
+               Style);
+  Style.AlignAfterOpenBracket = FormatStyle::BAS_AlwaysBreak;
+  verifyFormat("void foo() {\n"
+               "  aFunction(\n"
+               "      1, b(c(\n"
+               "             [](d) -> Foo {\n"
+               "    auto f = e(d);\n"
+               "    return f;\n"
+               "  },\n"
+               "             foo, Bar{},\n"
+               "             [] {\n"
+               "    auto g = h();\n"
+               "    return g;\n"
+               "  },\n"
+               "             baz)));\n"
+               "}",
+               Style);
+  verifyFormat("void foo() {\n"
+               "  aFunction(1, b(c(foo, Bar{}, baz, [](d) -> Foo {\n"
+               "    auto f = e(\n"
+               "        foo,\n"
+               "        [&] {\n"
+               "      auto g = h();\n"
+               "      return g;\n"
+               "    },\n"
+               "        qux,\n"
+               "        [&] -> Bar {\n"
+               "      auto i = j();\n"
+               "      return i;\n"
+               "    });\n"
+               "    return f;\n"
+               "  })));\n"
+               "}",
+               Style);
+  verifyFormat("Namespace::Foo::Foo(\n"
+               "    LongClassName bar, AnotherLongClassName baz)\n"
+               "    : baz{baz}, func{[&] {\n"
+               "  auto qux = bar;\n"
+               "  return aFunkyFunctionCall(qux);\n"
+               "}} {}",
+               Style);
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.BeforeLambdaBody = true;
+  verifyFormat("void foo() {\n"
+               "  aFunction(\n"
+               "      1, b(c(foo, Bar{}, baz,\n"
+               "             [](d) -> Foo\n"
+               "  {\n"
+               "    auto f = e(\n"
+               "        [&]\n"
+               "    {\n"
+               "      auto g = h();\n"
+               "      return g;\n"
+               "    },\n"
+               "        qux,\n"
+               "        [&] -> Bar\n"
+               "    {\n"
+               "      auto i = j();\n"
+               "      return i;\n"
+               "    });\n"
+               "    return f;\n"
+               "  })));\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTest, LambdaWithLineComments) {

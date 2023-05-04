@@ -177,23 +177,24 @@ int init_and_multiply() {
 }
 
 int main() {
-  init_and_multiply<bfloat16, float, 2, 1, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 2, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 3, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 4, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 5, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 6, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 7, SG_SZ, 16>();
-  init_and_multiply<bfloat16, float, 2, 8, SG_SZ, 16>();
+  int errors = 0;
+  errors += init_and_multiply<bfloat16, float, 2, 1, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 2, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 3, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 4, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 5, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 6, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 7, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 8, SG_SZ, 16>();
 
-  init_and_multiply<int8_t, int32_t, 4, 1, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 2, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 3, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 4, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 5, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 6, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 7, SG_SZ, 32>();
-  init_and_multiply<int8_t, int32_t, 4, 8, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 1, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 2, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 3, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 4, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 5, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 6, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 7, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 8, SG_SZ, 32>();
 
-  return 0;
+  return errors;
 }

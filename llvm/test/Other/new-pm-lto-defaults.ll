@@ -27,9 +27,8 @@
 ; RUN:     -passes='lto<O3>' -S  %s -passes-ep-peephole='no-op-function' 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O3,CHECK-O23,CHECK-O23SZ,CHECK-EP-Peephole
 
-; CHECK-O: Running pass: Annotation2Metadata
-; CHECK-EP-NEXT: Running pass: NoOpModulePass
-; CHECK-O-NEXT: Running pass: CrossDSOCFIPass
+; CHECK-EP: Running pass: NoOpModulePass
+; CHECK-O: Running pass: CrossDSOCFIPass
 ; CHECK-O-NEXT: Running pass: OpenMPOptPass
 ; CHECK-O-NEXT: Running pass: GlobalDCEPass
 ; CHECK-O-NEXT: Running pass: ForceFunctionAttrsPass
@@ -70,7 +69,7 @@
 ; CHECK-O23SZ-NEXT: Running pass: ConstantMergePass
 ; CHECK-O23SZ-NEXT: Running pass: DeadArgumentEliminationPass
 ; CHECK-O23SZ-NEXT: Running pass: InstCombinePass
-; CHECK-O3-NEXT: Running pass: AggressiveInstCombinePass
+; CHECK-O23SZ-NEXT: Running pass: AggressiveInstCombinePass
 ; CHECK-EP-Peephole-NEXT: Running pass: NoOpFunctionPass
 ; CHECK-O23SZ-NEXT: Running pass: ModuleInlinerWrapperPass
 ; CHECK-O23SZ-NEXT: Running analysis: InlineAdvisorAnalysis

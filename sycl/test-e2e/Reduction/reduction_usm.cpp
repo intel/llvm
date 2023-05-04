@@ -38,12 +38,12 @@ int test(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   }
 
   // Initialize.
-  T CorrectOut;
+  std::optional<T> CorrectOutOpt;
   BinaryOperation BOp;
 
   buffer<T, 1> InBuf(NWItems);
-  initInputData(InBuf, CorrectOut, BOp, NWItems);
-  CorrectOut = BOp(CorrectOut, Init);
+  initInputData(InBuf, CorrectOutOpt, BOp, NWItems);
+  T CorrectOut = BOp(*CorrectOutOpt, Init);
 
   // Compute.
   Q.submit([&](handler &CGH) {

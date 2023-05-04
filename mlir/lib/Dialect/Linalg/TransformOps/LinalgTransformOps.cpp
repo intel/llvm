@@ -23,9 +23,11 @@
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformOps.h"
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/Dialect/Transform/Utils/Utils.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/Transforms/LoweringPatterns.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -135,81 +137,6 @@ static DiagnosedSilenceableFailure unpackSingleIndexResultPDLOperations(
   }
 
   return DiagnosedSilenceableFailure::success();
-}
-
-/// Return a permutation vector of size permSize that would result in moving
-/// positions into desiredPositions.
-///
-/// For example, permSize == 5, positions = {2, 4}, desiredPositions = {1, 0}
-/// would result in a {4, 2, 0, 1, 3} permutation vector.
-static SmallVector<int64_t>
-computePermutationVector(int64_t permSize, ArrayRef<int64_t> positions,
-                         ArrayRef<int64_t> desiredPositions) {
-  SmallVector<int64_t> res(permSize, -1);
-  DenseSet<int64_t> seen;
-  for (auto [pos, desiredPos] : llvm::zip_equal(positions, desiredPositions)) {
-    res[desiredPos] = pos;
-    seen.insert(pos);
-  }
-  int64_t nextPos = 0;
-  for (int64_t &entry : res) {
-    if (entry != -1)
-      continue;
-    while (seen.contains(nextPos))
-      ++nextPos;
-    entry = nextPos;
-    ++nextPos;
-  }
-  return res;
-}
-
-struct PackingMetadata {
-  SmallVector<int64_t> insertPositions;
-  SmallVector<ReassociationIndices> reassociations;
-};
-/// Given a vector of `positions` indices representing desired packing insertion
-/// points into a target vector (i.e. pack/unpack.inner_dim_pos), compute the
-/// final positions in the target shape as well as the reshape reassociations.
-// Note: This should not be called with a large positions array (or the
-// implementation needs to be updated to use an N.log N sort instead of
-// repeated N^2 counts).
-static PackingMetadata computePackingMetadata(int64_t packedRank,
-                                              ArrayRef<int64_t> innerDimPos) {
-  PackingMetadata res;
-  res.insertPositions.reserve(innerDimPos.size());
-  // The pack insert position is the position + the number of previously
-  // inserted positions + offset.
-  // The offset controls whether the packing dimension is the first or last.
-  //
-  // Example
-  // =======
-  // Consider packing from a hypothetical ABCD layout to ABCDba whose
-  // pack.inner_dims is [1, 0]. The first step consists in undoing the
-  // permutation and producing AaBbCD. This is achieved purely by computing the
-  // insert positions of `b` and `a` into `ABCD`, starting from [1, 0]. One
-  // possibility, is to produce insert positions [2, 0], this would result in an
-  // aAbBCD layout (i.e. offset 0). The other possibility, is to produce insert
-  // positions [3, 1], this would result in an AaBbCD layout (i.e. offset 1).
-  // The latter is what we expect from packing.
-  int64_t offset = 1;
-  for (int64_t pos : innerDimPos) {
-    int64_t numInsertedBefore = llvm::count_if(
-        innerDimPos, [&pos](int64_t pos2) { return pos > pos2; });
-    res.insertPositions.push_back(pos + numInsertedBefore + offset);
-  }
-
-  DenseSet<int64_t> posSet(res.insertPositions.begin(),
-                           res.insertPositions.end());
-  res.reassociations.reserve(packedRank);
-  for (int64_t i = 1; i <= packedRank; ++i) {
-    if (!posSet.contains(i)) {
-      res.reassociations.push_back(ReassociationIndices{i - 1});
-      continue;
-    }
-    res.reassociations.push_back(ReassociationIndices{i - 1, i});
-    ++i;
-  }
-  return res;
 }
 
 //===----------------------------------------------------------------------===//
@@ -886,6 +813,30 @@ static FailureOr<LowerPackResult> lowerPack(RewriterBase &rewriter,
       llvm::interleaveComma(stripMinedShape, DBGS() << "stripMinedShape: ");
       DBGSNL(); DBGS() << "collapsed type: " << collapsed; DBGSNL(););
 
+  if (packOp.isLikePad()) {
+    // This pack is just a plain pad.
+    // Just insert the pad in the higher ranked tensor.
+    auto emptyOp =
+        rewriter.create<tensor::EmptyOp>(loc, packedTensorType, ValueRange{});
+    // Offsets.
+    SmallVector<OpFoldResult> zeros(packedRank, rewriter.getIndexAttr(0));
+    // Strides.
+    SmallVector<OpFoldResult> ones(packedRank, rewriter.getIndexAttr(1));
+    SmallVector<OpFoldResult> sizes =
+        getMixedDimensions(rewriter, loc, packOp.getDest());
+
+    auto insertSliceOp = rewriter.create<tensor::InsertSliceOp>(
+        loc, /*source=*/padOp, /*dest=*/emptyOp,
+        /*offsets=*/zeros, sizes,
+        /*strides=*/ones);
+
+    LLVM_DEBUG(DBGS() << "insert_slice op: " << insertSliceOp; DBGSNL(););
+
+    rewriter.replaceOp(packOp, insertSliceOp->getResults());
+
+    return LowerPackResult{padOp, /*reshapeOp=*/nullptr,
+                           /*transposeOp=*/nullptr};
+  }
   // 5. Expand from the padded result to the stripMinedShape.
   auto reshapeOp = rewriter.create<tensor::ExpandShapeOp>(
       loc,
@@ -956,10 +907,32 @@ static FailureOr<LowerUnPackOpResult> lowerUnPack(RewriterBase &rewriter,
   OpBuilder::InsertionGuard g(rewriter);
   rewriter.setInsertionPoint(unPackOp);
 
-  // 2. Compute the permutation vector to move the last `numPackedDims` into the
-  // `innerPosDims` of a shape of rank `packedRank`.
-  int64_t numPackedDims = unPackOp.getInnerDimsPos().size();
   int64_t packedRank = packedTensorType.getRank();
+
+  OpFoldResult zero = rewriter.getIndexAttr(0), one = rewriter.getIndexAttr(1);
+  auto destTensorType = unPackOp.getDest().getType().cast<RankedTensorType>();
+  if (unPackOp.isLikeUnPad()) {
+    // This unpack is just a plain unpad.
+    // Just extract the slice from the higher ranked tensor.
+    ArrayRef<int64_t> destShape = destTensorType.getShape();
+    // The inner dimensions stay the same as the destination tensor, but the
+    // outer ones are additional 1s.
+    SmallVector<OpFoldResult> sizes(packedRank - destShape.size(), one);
+    sizes.append(getMixedDimensions(rewriter, loc, unPackOp.getDest()));
+
+    auto extractSliceOp = rewriter.create<tensor::ExtractSliceOp>(
+        loc, destTensorType, unPackOp.getSource(),
+        SmallVector<OpFoldResult>(packedRank, zero), sizes,
+        SmallVector<OpFoldResult>(packedRank, one));
+
+    rewriter.replaceOp(unPackOp, extractSliceOp->getResults());
+
+    return LowerUnPackOpResult{/*emptyOp=*/nullptr, /*transposeOp=*/nullptr,
+                               /*reshapeOp=*/nullptr, extractSliceOp};
+  }
+  // 2. Compute the permutation vector to move the last `numPackedDims` into
+  // the `innerPosDims` of a shape of rank `packedRank`.
+  int64_t numPackedDims = unPackOp.getInnerDimsPos().size();
   auto lastDims = llvm::to_vector(
       llvm::seq<int64_t>(packedRank - numPackedDims, packedRank));
   PackingMetadata packingMetadata =
@@ -1005,16 +978,14 @@ static FailureOr<LowerUnPackOpResult> lowerUnPack(RewriterBase &rewriter,
       packingMetadata.reassociations);
 
   // 6. ExtractSlice
-  auto destTensorType = unPackOp.getDest().getType().cast<RankedTensorType>();
   int64_t destRank = destTensorType.getRank();
-  OpFoldResult zero = rewriter.getIndexAttr(0), one = rewriter.getIndexAttr(1);
   auto extractSliceOp = rewriter.create<tensor::ExtractSliceOp>(
       loc, destTensorType, reshapeOp->getResult(0),
       SmallVector<OpFoldResult>(destRank, zero),
       tensor::getMixedSizes(rewriter, loc, unPackOp->getResult(0)),
       SmallVector<OpFoldResult>(destRank, one));
 
-  // 7. Replace unPackOp by transposeOp.
+  // 7. Replace unPackOp by extractSliceOp.
   rewriter.replaceOp(unPackOp, extractSliceOp->getResults());
 
   return LowerUnPackOpResult{emptyOp, transposeOp, reshapeOp, extractSliceOp};
@@ -1298,11 +1269,18 @@ LogicalResult transform::PackGreedilyOp::verify() {
                          << " is not a valid permutation";
   }
   // TODO: relax to allow empty once we have another strategy than just matmul.
-  if (getMatmulInnerDimsOrder().size() != 3 ||
-      getMixedMatmulPackedSizes().size() != 3) {
-    return emitOpError() << " needs 3 entries for matmul_packed_sizes and "
-                         << getMatmulInnerDimsOrderAttrName()
-                         << " order for the matmul strategy";
+  if (!getMatmulPaddedSizesNextMultipleOf().empty()) {
+    for (auto [s, nmo] :
+         llvm::zip_equal(getMixedMatmulPackedSizes(),
+                         getMatmulPaddedSizesNextMultipleOf())) {
+      std::optional<int64_t> maybeStaticPackedSize = getConstantIntValue(s);
+      if (nmo != 0 &&
+          (!maybeStaticPackedSize.has_value() || *maybeStaticPackedSize != 0)) {
+        return emitOpError() << "at most one of the packed_size and the "
+                                "padded_sizes_next_multiple_of can be nonzero "
+                                "for the matmul strategy";
+      }
+    }
   }
   return success();
 }
@@ -1318,8 +1296,12 @@ LogicalResult transform::PackGreedilyOp::verify() {
 static FailureOr<PackResult>
 packMatmulGreedily(RewriterBase &rewriter, LinalgOp linalgOp,
                    ArrayRef<OpFoldResult> mnkPackedSizes,
+                   ArrayRef<int64_t> mnkPaddedSizesNextMultipleOf,
                    ArrayRef<int64_t> mnkOrder) {
   assert(mnkPackedSizes.size() == 3 && "unexpected num of packing sizes");
+  assert((mnkPaddedSizesNextMultipleOf.empty() ||
+          mnkPaddedSizesNextMultipleOf.size() == 3) &&
+         "num of packing sizes next multiple should be empty or of size 3");
   assert(mnkOrder.size() == 3 && "unexpected mnkOrder size");
   assert(isPermutationVector(mnkOrder) && "expected a permutation");
 
@@ -1334,9 +1316,15 @@ packMatmulGreedily(RewriterBase &rewriter, LinalgOp linalgOp,
   SmallVector<int64_t> mmnnkkPos(numPackedDims);
   for (int64_t i = 0, e = numPackedDims; i < e; ++i)
     mmnnkkPos[i] = numLoops - numPackedDims + mnkOrder[i];
-  SmallVector<OpFoldResult> packedSizes(mnkPackedSizes.size());
+  SmallVector<OpFoldResult> packedSizes(numPackedDims);
   for (int64_t i = 0, e = numPackedDims; i < e; ++i)
     packedSizes[mnkOrder[i]] = mnkPackedSizes[i];
+  SmallVector<int64_t> paddedSizesNextMultipleOf(numPackedDims);
+  for (int64_t i = 0, e = numPackedDims; i < e; ++i) {
+    paddedSizesNextMultipleOf[mnkOrder[i]] =
+        mnkPaddedSizesNextMultipleOf.empty() ? 0
+                                             : mnkPaddedSizesNextMultipleOf[i];
+  }
 
   // 1. Infer dims that are important for matmul.
   FailureOr<EmbeddedMatmulDimsCandidates> res = inferMatmulDims(linalgOp);
@@ -1391,17 +1379,43 @@ packMatmulGreedily(RewriterBase &rewriter, LinalgOp linalgOp,
   // desired outerPerm for each operand.
   // This is left for future work.
 
-  // Add leading zeros to match numLoops.
+  // TODO: this creates too much IR, go use reifyResultShapes.
+  SmallVector<Range, 4> loopRanges =
+      cast<LinalgOp>(genericOp.getOperation())
+          .createLoopRanges(rewriter, genericOp.getLoc());
+
+  // Add leading zeros to match numLoops, we only pack the last 3 dimensions
+  // post interchange.
+  LLVM_DEBUG(llvm::interleaveComma(paddedSizesNextMultipleOf,
+                                   DBGS() << "paddedSizesNextMultipleOf: ");
+             DBGSNL(););
+  LLVM_DEBUG(llvm::interleaveComma(loopRanges, DBGS() << "loopRanges: ",
+                                   [](Range r) { llvm::dbgs() << r.size; });
+             DBGSNL(););
   SmallVector<OpFoldResult> adjustedPackedSizes(numLoops - packedSizes.size(),
                                                 rewriter.getIndexAttr(0));
-  llvm::append_range(adjustedPackedSizes, packedSizes);
+  for (int64_t i = 0, e = numPackedDims; i < e; ++i) {
+    if (paddedSizesNextMultipleOf[i] == 0) {
+      adjustedPackedSizes.push_back(packedSizes[i]);
+      continue;
+    }
+    AffineExpr d0, s0;
+    bindDims(rewriter.getContext(), d0);
+    bindSymbols(rewriter.getContext(), s0);
+    adjustedPackedSizes.push_back(makeComposedFoldedAffineApply(
+        rewriter, genericOp->getLoc(), d0.ceilDiv(s0) * s0,
+        {loopRanges[adjustedPackedSizes.size()].size,
+         rewriter.getIndexAttr(paddedSizesNextMultipleOf[i])}));
+  }
+  LLVM_DEBUG(llvm::interleaveComma(adjustedPackedSizes,
+                                   DBGS() << "adjustedPackedSizes: ");
+             DBGSNL(););
 
   // TODO: If we wanted to give the genericOp a name after packing, after
-  // calling `pack` would be a good time.
-  auto packingRes = linalg::pack(rewriter, genericOp, adjustedPackedSizes);
-  assert(containsMostMinorMatmul(packingRes->packedLinalgOp) &&
-         "failed to pack to a most minor matmul");
-  return packingRes;
+  // calling `pack` would be a good time. One would still need to check that
+  // `containsMostMinorMatmul(packingRes->packedLinalgOp)` is true, since we
+  // also allow degenerate matmul cases (i.e. matvec, dot).
+  return linalg::pack(rewriter, genericOp, adjustedPackedSizes);
 }
 
 DiagnosedSilenceableFailure
@@ -1424,6 +1438,8 @@ PackGreedilyOp::apply(transform::TransformResults &transformResults,
         /*rewriter=*/rewriter,
         /*linalgOp=*/linalgOp,
         /*mnkPackedSizes=*/getMixedMatmulPackedSizes(),
+        /*mnkPaddedSizesNextMultipleOf=*/
+        getMatmulPaddedSizesNextMultipleOf(),
         /*mnkOrder=*/getMatmulInnerDimsOrder());
     if (succeeded(packResult)) {
       results.push_back(packResult->packedLinalgOp);
@@ -1711,13 +1727,68 @@ LogicalResult transform::PadOp::verify() {
 // HoistPadOp
 //===---------------------------------------------------------------------===//
 
+DiagnosedSilenceableFailure transform::HoistPadBuildPackingLoopNestOp::apply(
+    transform::TransformResults &transformResults,
+    transform::TransformState &state) {
+  ArrayRef<Operation *> targetOps = state.getPayloadOps(getTarget());
+  ArrayRef<Operation *> loopOps = state.getPayloadOps(getLoop());
+  if (targetOps.size() != 1 || loopOps.size() != 1) {
+    return emitDefiniteFailure()
+           << "requires exactly one target and one loop handle (got "
+           << targetOps.size() << " and " << loopOps.size() << ")";
+  }
+
+  auto padOp = dyn_cast_or_null<tensor::PadOp>(targetOps.front());
+  auto loopOp = dyn_cast_or_null<scf::ForOp>(loopOps.front());
+  if (!padOp || !loopOp)
+    return emitDefiniteFailure() << "requires exactly 2 non-null handles";
+
+  IRRewriter rewriter(getContext());
+  FailureOr<linalg::detail::PackingResult> result =
+      linalg::detail::buildPackingLoopNest(rewriter, padOp, loopOp,
+                                           getTranspose());
+  if (failed(result))
+    return emitDefiniteFailure() << "could not build packing loop nest";
+
+  if (result->clonedLoopIvs.empty()) {
+    transformResults.set(getPackingLoop().cast<OpResult>(),
+                         result->hoistedPadOp.getOperation());
+    return DiagnosedSilenceableFailure::success();
+  }
+  auto outerPackedLoop =
+      scf::getForInductionVarOwner(result->clonedLoopIvs.front());
+  transformResults.set(getPackingLoop().cast<OpResult>(),
+                       outerPackedLoop.getOperation());
+  return DiagnosedSilenceableFailure::success();
+}
+
+LogicalResult transform::HoistPadBuildPackingLoopNestOp::verify() {
+  ArrayRef<int64_t> transpose = getTranspose();
+  auto sequence = llvm::to_vector(llvm::seq<int64_t>(0, transpose.size()));
+  if (!std::is_permutation(sequence.begin(), sequence.end(), transpose.begin(),
+                           transpose.end())) {
+    return emitOpError() << "expects transpose to be a permutation, found "
+                         << getTranspose();
+  }
+  return success();
+}
+
+void transform::HoistPadBuildPackingLoopNestOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getTarget(), effects);
+  transform::onlyReadsHandle(getLoop(), effects);
+  transform::producesHandle(getPackingLoop(), effects);
+  transform::modifiesPayload(effects);
+}
+
 DiagnosedSilenceableFailure
 transform::HoistPadOp::applyToOne(tensor::PadOp target,
                                   transform::ApplyToEachResultList &results,
                                   transform::TransformState &state) {
   tensor::PadOp hoistedPadOp;
   SmallVector<GenericOp> transposeOps;
-  IRRewriter rewriter(target->getContext());
+  TrackingListener listener(state, *this);
+  IRRewriter rewriter(target->getContext(), &listener);
   FailureOr<Value> result =
       hoistPaddingOnTensors(rewriter, target, getNumLoops(), getTranspose(),
                             hoistedPadOp, transposeOps);
@@ -2966,7 +3037,10 @@ transform::VectorizeOp::applyToOne(Operation *target,
   if (getVectorizePadding())
     linalg::populatePadOpVectorizationPatterns(patterns);
 
-  if (failed(applyPatternsAndFoldGreedily(target, std::move(patterns))))
+  TrackingListener listener(state, *this);
+  GreedyRewriteConfig config;
+  config.listener = &listener;
+  if (failed(applyPatternsAndFoldGreedily(target, std::move(patterns), config)))
     return emitDefaultDefiniteFailure(target);
 
   results.push_back(target);
@@ -3024,6 +3098,16 @@ DiagnosedSilenceableFailure transform::MaskedVectorizeOp::apply(
   // TODO: Check that the correct number of vectorSizes was provided.
 
   for (Operation *target : targets) {
+    if (auto padOp = dyn_cast<tensor::PadOp>(target)) {
+      FailureOr<vector::TransferWriteOp> maybeWriteOp =
+          maskedVectorize(rewriter, padOp, vectorSizes);
+      if (failed(maybeWriteOp)) {
+        return mlir::emitSilenceableFailure(target->getLoc())
+               << "failed to vectorize padOp";
+      }
+      continue;
+    }
+
     auto linalgOp = dyn_cast<LinalgOp>(target);
     if (!linalgOp) {
       return mlir::emitSilenceableFailure(target->getLoc())
@@ -3033,7 +3117,7 @@ DiagnosedSilenceableFailure transform::MaskedVectorizeOp::apply(
     if (failed(linalg::vectorize(rewriter, linalgOp, vectorSizes,
                                  getVectorizeNdExtract()))) {
       return mlir::emitSilenceableFailure(target->getLoc())
-             << "failed to vectorize op";
+             << "failed to vectorize linalg op";
     }
   }
 
@@ -3128,6 +3212,36 @@ transform::HoistRedundantTensorSubsetsOp::applyToOne(
 }
 
 //===----------------------------------------------------------------------===//
+// InsertSliceToCopyOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure transform::InsertSliceToCopyOp::applyToOne(
+    tensor::InsertSliceOp target, transform::ApplyToEachResultList &results,
+    transform::TransformState &state) {
+  if (auto copySource = target.getSource().getDefiningOp<linalg::CopyOp>()) {
+    results.push_back(copySource);
+    return DiagnosedSilenceableFailure::success();
+  }
+
+  TrackingListener listener(state, *this);
+  IRRewriter rewriter(target->getContext(), &listener);
+  rewriter.setInsertionPoint(target);
+  Value extracted = rewriter.create<tensor::ExtractSliceOp>(
+      target.getLoc(), target.getDest(), target.getMixedOffsets(),
+      target.getMixedSizes(), target.getMixedStrides());
+  Value copied = rewriter
+                     .create<linalg::CopyOp>(target.getLoc(),
+                                             target.getSource(), extracted)
+                     .getResult(0);
+  rewriter.replaceOpWithNewOp<tensor::InsertSliceOp>(
+      target, copied, target.getDest(), target.getMixedOffsets(),
+      target.getMixedSizes(), target.getMixedStrides());
+
+  results.push_back(copied.getDefiningOp());
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
 // Transform op registration
 //===----------------------------------------------------------------------===//
 
@@ -3152,6 +3266,10 @@ public:
     registerTransformOps<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.cpp.inc"
+        >();
+    registerTransformOps<
+#define GET_OP_LIST
+#include "mlir/Dialect/Linalg/TransformOps/LinalgMatchOps.cpp.inc"
         >();
   }
 };

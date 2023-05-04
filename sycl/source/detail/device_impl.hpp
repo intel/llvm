@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
@@ -198,12 +197,7 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <typename Param> typename Param::return_type get_info() const {
-    if (is_host()) {
-      return get_device_info_host<Param>();
-    }
-    return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
-  }
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Check if affinity partitioning by specified domain is supported by
   /// device
@@ -241,6 +235,16 @@ public:
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
+
+  /// Get the backend of this device
+  backend getBackend() const { return MPlatform->getBackend(); }
+
+  /// @brief  Get the platform impl serving this device
+  /// @return PlatformImplPtr
+  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+
+  /// Get device info string
+  std::string get_device_info_string(RT::PiDeviceInfo InfoCode) const;
 
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,

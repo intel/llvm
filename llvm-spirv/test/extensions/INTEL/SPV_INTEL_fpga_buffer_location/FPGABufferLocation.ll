@@ -73,17 +73,23 @@ entry:
   store ptr addrspace(1) %arg_a, ptr addrspace(4) %arg_a.addr.ascast, align 8
   %a = getelementptr inbounds %struct.MyIP, ptr addrspace(4) %MyIP.ascast, i32 0, i32 0
   %0 = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr getelementptr inbounds ([33 x i8], ptr @.str.4, i32 0, i32 0), ptr getelementptr inbounds ([9 x i8], ptr @.str.1, i32 0, i32 0), i32 7, ptr null)
-; CHECK-LLVM: call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
   %b = load ptr addrspace(1), ptr addrspace(4) %arg_a.addr.ascast, align 8
   %1 = addrspacecast ptr addrspace(1) %b to ptr addrspace(4)
   store ptr addrspace(4) %1, ptr addrspace(4) %0, align 8
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[BITCAST_CALL1:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
+; CHECK-LLVM: %[[BITCAST_CALL2:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[BITCAST_CALL1]] to ptr addrspace(4)
+; CHECK-LLVM: store ptr addrspace(4) %4, ptr addrspace(4) %[[BITCAST_CALL2]], align 8
   %this.addr.ascast.i = addrspacecast ptr %this.addr.i to ptr addrspace(4)
   store ptr addrspace(4) %MyIP.ascast, ptr addrspace(4) %this.addr.ascast.i, align 8
   %this1.i = load ptr addrspace(4), ptr addrspace(4) %this.addr.ascast.i, align 8
   %a.i = getelementptr inbounds %struct.MyIP, ptr addrspace(4) %this1.i, i32 0, i32 0
   %2 = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a.i, ptr getelementptr inbounds ([19 x i8], ptr @.str.4, i32 0, i32 0), ptr getelementptr inbounds ([9 x i8], ptr @.str.1, i32 0, i32 0), i32 7, ptr null)
-; CHECK-LLVM: call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a.i, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
   %3 = load ptr addrspace(4), ptr addrspace(4) %2, align 8
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a.i, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[BITCAST_CALL1:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
+; CHECK-LLVM: %[[BITCAST_CALL2:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[BITCAST_CALL1]] to ptr addrspace(4)
+; CHECK-LLVM: load ptr addrspace(4), ptr addrspace(4) %[[BITCAST_CALL2]], align 8
   %4 = load i32, ptr addrspace(4) %3, align 4
   %inc.i = add nsw i32 %4, 1
   store i32 %inc.i, ptr addrspace(4) %3, align 4

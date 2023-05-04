@@ -33,8 +33,8 @@ __SYCL_EXPORT event make_event(const context &Context,
                                bool keep_ownership = false);
 
 // Construction of SYCL platform.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, platform>::value> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same_v<T, platform>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop) {
@@ -42,8 +42,8 @@ T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
 }
 
 // Construction of SYCL device.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, device>::value> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same_v<T, device>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
 T make(const platform &Platform,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -60,8 +60,7 @@ T make(const platform &Platform,
 ///        native context handle. Default is that SYCL RT does, so it destroys
 ///        the native handle when the created SYCL object goes out of life.
 ///
-template <typename T, typename std::enable_if<
-                          std::is_same<T, context>::value>::type * = nullptr>
+template <typename T, std::enable_if_t<std::is_same_v<T, context>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
 T make(const std::vector<device> &DeviceList,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -71,10 +70,10 @@ T make(const std::vector<device> &DeviceList,
                       sycl::detail::pi::cast<pi_native_handle>(Interop),
                       Ownership == ownership::keep);
 }
-#if 0
+
 // Construction of SYCL event.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, event>::value> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same_v<T, event>> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
@@ -83,7 +82,7 @@ T make(const context &Context,
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
-#endif
+
 } // namespace ext::oneapi::level_zero
 
 // Specialization of sycl::make_context for Level-Zero backend.
@@ -183,8 +182,8 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 // Specialization of sycl::make_buffer with event for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
@@ -198,8 +197,8 @@ make_buffer(
 // Specialization of sycl::make_buffer for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                 buffer<T, Dimensions, AllocatorT>>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
@@ -208,6 +207,24 @@ make_buffer(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
+}
+
+// Specialization of sycl::make_image for Level-Zero backend.
+template <backend Backend, int Dimensions = 1,
+          typename AllocatorT = image_allocator>
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                 image<Dimensions, AllocatorT>>
+make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
+               &BackendObject,
+           const context &TargetContext, event AvailableEvent) {
+
+  bool OwnNativeHandle =
+      (BackendObject.Ownership == ext::oneapi::level_zero::ownership::transfer);
+
+  return image<Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject.ZeImageHandle),
+      TargetContext, AvailableEvent, BackendObject.ChanOrder,
+      BackendObject.ChanType, OwnNativeHandle, BackendObject.Range);
 }
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")

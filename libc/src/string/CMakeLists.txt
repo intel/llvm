@@ -32,6 +32,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  index
+  SRCS
+    index.cpp
+  HDRS
+    index.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
   memccpy
   SRCS
     memccpy.cpp
@@ -50,6 +60,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  memmem
+  SRCS
+    memmem.cpp
+  HDRS
+    memmem.h
+  DEPENDS
+    .memory_utils.memmem_implementation
+)
+
+add_entrypoint_object(
   memchr
   SRCS
     memchr.cpp
@@ -65,6 +85,16 @@ add_entrypoint_object(
     memrchr.cpp
   HDRS
     memrchr.h
+)
+
+add_entrypoint_object(
+  rindex
+  SRCS
+    rindex.cpp
+  HDRS
+    rindex.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -105,6 +135,18 @@ add_entrypoint_object(
     strchr.cpp
   HDRS
     strchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strchrnul
+  SRCS
+    strchrnul.cpp
+  HDRS
+    strchrnul.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -313,6 +355,18 @@ add_entrypoint_object(
     strrchr.cpp
   HDRS
     strrchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  strsep
+  SRCS
+    strsep.cpp
+  HDRS
+    strsep.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -363,6 +417,17 @@ add_entrypoint_object(
     strtok_r.h
   DEPENDS
     .string_utils
+)
+
+add_entrypoint_object(
+  strxfrm
+  SRCS
+    strxfrm.cpp
+  HDRS
+    strxfrm.h
+  DEPENDS
+    .string_utils
+    .memory_utils.memcpy_implementation
 )
 
 # Helper to define a function with multiple implementations

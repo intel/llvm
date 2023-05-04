@@ -98,6 +98,9 @@ Improvements to clang-tidy
   `ImplementationFileExtensions`, replacing the check-local options of the
   same name.
 
+- Support specifying `Checks` as a YAML list in the `.clang-tidy` configuration
+  file.
+
 New checks
 ^^^^^^^^^^
 
@@ -133,12 +136,24 @@ New checks
   Checks that all implicit and explicit inline functions in header files are
   tagged with the ``LIBC_INLINE`` macro.
 
+- New :doc:`modernize-type-traits
+  <clang-tidy/checks/modernize/type-traits>` check.
+
+  Converts standard library type traits of the form ``traits<...>::type`` and
+  ``traits<...>::value`` into ``traits_t<...>`` and ``traits_v<...>`` respectively.
+
 - New :doc:`readability-avoid-unconditional-preprocessor-if
   <clang-tidy/checks/readability/avoid-unconditional-preprocessor-if>` check.
 
   Finds code blocks that are constantly enabled or disabled in preprocessor
   directives by analyzing ``#if`` conditions, such as ``#if 0`` and
   ``#if 1``, etc.
+
+- New :doc:`readability-operators-representation
+  <clang-tidy/checks/readability/operators-representation>` check.
+
+  Enforces consistent token representation for invoked binary, unary and
+  overloaded operators in C++ code.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
@@ -164,14 +179,25 @@ Changes in existing checks
   <clang-tidy/checks/bugprone/dynamic-static-initializers>` check.
   Global options of the same name should be used instead.
 
+- Improved :doc:`bugprone-fold-init-type
+  <clang-tidy/checks/bugprone/fold-init-type>` to handle iterators that do not
+  define `value_type` type aliases.
+
 - Deprecated check-local options `HeaderFileExtensions` and `ImplementationFileExtensions`
   in :doc:`bugprone-suspicious-include
   <clang-tidy/checks/bugprone/suspicious-include>` check.
   Global options of the same name should be used instead.
 
+- Improved :doc:`bugprone-unchecked-optional-access
+  <clang-tidy/checks/bugprone/unchecked-optional-access>` check to properly handle calls
+  to ``std::forward``.
+
 - Improved :doc:`bugprone-use-after-move
   <clang-tidy/checks/bugprone/use-after-move>` check to also cover constructor
   initializers.
+
+- Deprecated :doc:`cert-dcl21-cpp
+  <clang-tidy/checks/cert/dcl21-cpp>` check.
 
 - Deprecated check-local options `HeaderFileExtensions`
   in :doc:`google-build-namespaces
@@ -192,6 +218,14 @@ Changes in existing checks
   in :doc:`misc-definitions-in-headers
   <clang-tidy/checks/misc/definitions-in-headers>` check.
   Global options of the same name should be used instead.
+
+- Fixed false positive in :doc:`misc-definitions-in-headers
+  <clang-tidy/checks/misc/definitions-in-headers>` to avoid warning on
+  declarations inside anonymous namespaces.
+
+- Improved :doc:`misc-unused-parameters
+  <clang-tidy/checks/misc/unused-parameters>` check with new `IgnoreVirtual`
+  option to optionally ignore virtual methods.
 
 - Deprecated check-local options `HeaderFileExtensions`
   in :doc:`misc-unused-using-decls
@@ -223,6 +257,14 @@ Changes in existing checks
   behavior of using `i` as the prefix for enum tags, set the `EnumConstantPrefix`
   option to `i` instead of using `EnumConstantHungarianPrefix`.
 
+- Fixed a hungarian notation issue in :doc:`readability-identifier-naming
+  <clang-tidy/checks/readability/identifier-naming>` which failed to indicate
+  the number of asterisks.
+
+- Fixed a false positive in :doc:`readability-implicit-bool-conversion
+  <clang-tidy/checks/readability/implicit-bool-conversion>` check warning would
+  be unnecessarily emitted for explicit cast using direct list initialization.
+
 - Added support to optionally ignore user-defined literals in
   :doc:`readability-magic-numbers<clang-tidy/checks/readability/magic-numbers>`.
 
@@ -240,6 +282,19 @@ Changes in existing checks
   magic numbers in type aliases such as ``using`` and ``typedef`` declarations if
   the new ``IgnoreTypeAliases`` option is set to true.
 
+- Fixed a false positive in :doc:`readability-misleading-indentation
+  <clang-tidy/checks/readability/misleading-indentation>` check when warning would
+  be unnecessarily emitted for template dependent ``if constexpr``.
+
+- Fixed incorrect fixes in :doc:`readability-redundant-declaration
+  <clang-tidy/checks/readability/redundant-declaration>` check when linkage
+  (like ``extern "C"``) is explicitly specified.
+
+- Improved :doc:`readability-static-accessed-through-instance
+  <clang-tidy/checks/readability/static-accessed-through-instance>` check to
+  support unscoped enumerations through instances and fixed usage of anonymous
+  structs or classes.
+
 - Fixed a false positive in :doc:`cppcoreguidelines-slicing
   <clang-tidy/checks/cppcoreguidelines/slicing>` check when warning would be
   emitted in constructor for virtual base class initialization.
@@ -256,6 +311,15 @@ Changes in existing checks
 - Fixed an issue in :doc:`google-readability-avoid-underscore-in-googletest-name
   <clang-tidy/checks/google/readability-avoid-underscore-in-googletest-name>` when using
   ``DISABLED_`` in the test suite name.
+
+- Improved :doc:`modernize-concat-nested-namespaces
+  <clang-tidy/checks/modernize/concat-nested-namespaces>` to fix incorrect fixes when
+  using macro between namespace declarations, to fix false positive when using namespace
+  with attributes and to support nested inline namespace introduced in c++20.
+
+- Fixed a false positive in :doc:`performance-no-automatic-move
+  <clang-tidy/checks/performance/no-automatic-move>` when warning would be
+  emitted for a const local variable to which NRVO is applied.
 
 Removed checks
 ^^^^^^^^^^^^^^

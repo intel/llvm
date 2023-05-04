@@ -126,9 +126,9 @@ namespace llvm {
     /// operand 1 is the target address.
     NT_BRIND,
 
-    /// Return with a flag operand. Operand 0 is the chain operand, operand
+    /// Return with a glue operand. Operand 0 is the chain operand, operand
     /// 1 is the number of bytes of stack to pop.
-    RET_FLAG,
+    RET_GLUE,
 
     /// Return from interrupt. Operand 0 is the number of bytes to pop.
     IRET,
@@ -1126,7 +1126,7 @@ namespace llvm {
         unsigned OldShiftOpcode, unsigned NewShiftOpcode,
         SelectionDAG &DAG) const override;
 
-    bool preferScalarizeSplat(unsigned Opc) const override;
+    bool preferScalarizeSplat(SDNode *N) const override;
 
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
@@ -1577,7 +1577,7 @@ namespace llvm {
       LegalFPImmediates.push_back(Imm);
     }
 
-    SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+    SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
                             CallingConv::ID CallConv, bool isVarArg,
                             const SmallVectorImpl<ISD::InputArg> &Ins,
                             const SDLoc &dl, SelectionDAG &DAG,

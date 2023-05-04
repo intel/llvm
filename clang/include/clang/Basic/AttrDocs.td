@@ -656,6 +656,9 @@ Any variables in scope, including all arguments to the function and the
 return value must be trivially destructible. The calling convention of the
 caller and callee must match, and they must not be variadic functions or have
 old style K&R C function declarations.
+
+``clang::musttail`` provides assurances that the tail call can be optimized on
+all targets, not just one.
   }];
 }
 
@@ -3331,7 +3334,7 @@ disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
 function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-``ivdep``, or ``max_reinvocation_delay``.
+``ivdep``, ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -3486,6 +3489,43 @@ conjunction with disable_loop_pipelining.
   void bar() {
     [[intel::max_reinvocation_delay(N)]] for(;;) { }
   }
+  }];
+}
+
+def SYCLIntelEnableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::enable_loop_pipelining";
+  let Content = [{
+The ``enable_loop_pipelining`` attribute applies to a loop in SYCL device code.
+Takes no arguments and enables pipelining of the loop. This attribute is useful
+in the low-area flow, in which all loops are unpipelined by default. Cannot be
+used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
+
+.. code-block:: c++
+
+  void bar() {
+    int a[10];
+    [[[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  void Array(int *array, size_t n) {
+    [[intel::enable_loop_pipelining]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+    int a1[10], i = 0;
+    [[intel::enable_loop_pipelining]] while (i < 10) {
+      a1[i++] = 3;
+    }
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::enable_loop_pipelining]] do {
+      a = a + 1;
+    } while (a < 20);
+  }
+
   }];
 }
 

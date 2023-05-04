@@ -38,9 +38,28 @@ static const plugin &getPlugin(backend Backend) {
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
   default:
-    throw sycl::runtime_error{"Unsupported backend",
+    throw sycl::runtime_error{"getPlugin: Unsupported backend",
                               PI_ERROR_INVALID_OPERATION};
   }
+}
+
+backend convertBackend(pi_platform_backend PiBackend) {
+  switch (PiBackend) {
+  case PI_EXT_PLATFORM_BACKEND_UNKNOWN:
+    return backend::all; // No specific backend
+  case PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO:
+    return backend::ext_oneapi_level_zero;
+  case PI_EXT_PLATFORM_BACKEND_OPENCL:
+    return backend::opencl;
+  case PI_EXT_PLATFORM_BACKEND_CUDA:
+    return backend::ext_oneapi_cuda;
+  case PI_EXT_PLATFORM_BACKEND_HIP:
+    return backend::ext_oneapi_hip;
+  case PI_EXT_PLATFORM_BACKEND_ESIMD:
+    return backend::ext_intel_esimd_emulator;
+  }
+  throw sycl::runtime_error{"convertBackend: Unsupported backend",
+                            PI_ERROR_INVALID_OPERATION};
 }
 
 platform make_platform(pi_native_handle NativeHandle, backend Backend) {
@@ -80,10 +99,13 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
       std::make_shared<context_impl>(PiContext, Handler, Plugin));
 }
 
-queue make_queue_impl(pi_native_handle NativeHandle, int32_t NativeHandleDesc,
-                      const context &Context, RT::PiDevice Device,
-                      bool KeepOwnership, const property_list &PropList,
-                      const async_handler &Handler, backend Backend) {
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               int32_t NativeHandleDesc, const context &Context,
+                               const device *Device, bool KeepOwnership,
+                               const property_list &PropList,
+                               const async_handler &Handler, backend Backend) {
+  const auto &DeviceImpl = getSyclObjImpl(*Device);
+  RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
@@ -104,22 +126,11 @@ queue make_queue_impl(pi_native_handle NativeHandle, int32_t NativeHandleDesc,
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), Device,
+      NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), PiDevice,
       !KeepOwnership, Properties, &PiQueue);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler, PropList));
-}
-
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               int32_t NativeHandleDesc, const context &Context,
-                               const device *Device, bool KeepOwnership,
-                               const property_list &PropList,
-                               const async_handler &Handler, backend Backend) {
-  const auto &DeviceImpl = getSyclObjImpl(*Device);
-  return make_queue_impl(NativeHandle, NativeHandleDesc, Context,
-                         DeviceImpl->getHandleRef(), KeepOwnership, PropList,
-                         Handler, Backend);
 }
 
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -154,7 +165,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   pi::PiProgram PiProgram = nullptr;
   Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiProgram);
-  if (Plugin.getBackend() == backend::opencl)
+  if (ContextImpl->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piProgramRetain>(PiProgram);
 
   std::vector<pi::PiDevice> ProgramDevices;

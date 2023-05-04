@@ -112,6 +112,15 @@ public:
   bool all_specialization_constant_native() const noexcept {
     // Specialization constants are natively supported in JIT mode on backends,
     // that are using SPIR-V as IR
+
+    // Not sure if it's possible currently, but probably it may happen if the
+    // kernel bundle is created with interop function. Now the only one such
+    // function is make_kernel(), but I'm not sure if it's even possible to
+    // use spec constant with such kernel. So, in such case we need to check
+    // if it's JIT or no somehow.
+    assert(MBinImage &&
+           "native_specialization_constant() called for unimplemented case");
+
     auto IsJITSPIRVTarget = [](const char *Target) {
       return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
               strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
@@ -237,7 +246,7 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const plugin &Plugin = ContextImplPtr->getPlugin();
 
-    if (Plugin.getBackend() == backend::opencl)
+    if (ContextImplPtr->getBackend() == backend::opencl)
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     pi_native_handle NativeProgram = 0;
     Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,

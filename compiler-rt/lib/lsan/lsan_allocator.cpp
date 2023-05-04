@@ -145,6 +145,22 @@ void GetAllocatorCacheRange(uptr *begin, uptr *end) {
   *end = *begin + sizeof(AllocatorCache);
 }
 
+static const void *GetMallocBegin(const void *p) {
+  if (!p)
+    return nullptr;
+  void *beg = allocator.GetBlockBegin(p);
+  if (!beg)
+    return nullptr;
+  ChunkMetadata *m = Metadata(beg);
+  if (!m)
+    return nullptr;
+  if (!m->allocated)
+    return nullptr;
+  if (m->requested_size == 0)
+    return nullptr;
+  return (const void *)beg;
+}
+
 uptr GetMallocUsableSize(const void *p) {
   if (!p)
     return 0;
@@ -308,7 +324,7 @@ void ForEachChunk(ForEachChunkCallback callback, void *arg) {
   allocator.ForEachChunk(callback, arg);
 }
 
-IgnoreObjectResult IgnoreObjectLocked(const void *p) {
+IgnoreObjectResult IgnoreObject(const void *p) {
   void *chunk = allocator.GetBlockBegin(p);
   if (!chunk || p < chunk) return kIgnoreObjectInvalid;
   ChunkMetadata *m = Metadata(chunk);
@@ -362,6 +378,11 @@ uptr __sanitizer_get_estimated_allocated_size(uptr size) { return size; }
 
 SANITIZER_INTERFACE_ATTRIBUTE
 int __sanitizer_get_ownership(const void *p) { return Metadata(p) != nullptr; }
+
+SANITIZER_INTERFACE_ATTRIBUTE
+const void * __sanitizer_get_allocated_begin(const void *p) {
+  return GetMallocBegin(p);
+}
 
 SANITIZER_INTERFACE_ATTRIBUTE
 uptr __sanitizer_get_allocated_size(const void *p) {

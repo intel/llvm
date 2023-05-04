@@ -580,7 +580,9 @@ void VPRegionBlock::print(raw_ostream &O, const Twine &Indent,
 #endif
 
 VPlan::~VPlan() {
-  clearLiveOuts();
+  for (auto &KV : LiveOuts)
+    delete KV.second;
+  LiveOuts.clear();
 
   if (Entry) {
     VPValue DummyValue;
@@ -653,8 +655,7 @@ void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
                                VPInstruction::CanonicalIVIncrementNUW;
                   }) &&
            "the canonical IV should only be used by its increments or "
-           "ScalarIVSteps when "
-           "resetting the start value");
+           "ScalarIVSteps when resetting the start value");
     IV->setOperand(0, VPV);
   }
 }
@@ -1107,10 +1108,6 @@ void VPSlotTracker::assignSlot(const VPValue *V) {
 }
 
 void VPSlotTracker::assignSlots(const VPlan &Plan) {
-
-  for (const auto &P : Plan.VPExternalDefs)
-    assignSlot(P.second);
-
   assignSlot(&Plan.VectorTripCount);
   if (Plan.BackedgeTakenCount)
     assignSlot(Plan.BackedgeTakenCount);

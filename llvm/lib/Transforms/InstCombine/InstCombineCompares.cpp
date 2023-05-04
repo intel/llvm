@@ -277,14 +277,14 @@ Instruction *InstCombinerImpl::foldCmpLoadFromIndexedGlobal(
   // order the state machines in complexity of the generated code.
   Value *Idx = GEP->getOperand(2);
 
-  // If the index is larger than the pointer size of the target, truncate the
-  // index down like the GEP would do implicitly.  We don't have to do this for
-  // an inbounds GEP because the index can't be out of range.
+  // If the index is larger than the pointer offset size of the target, truncate
+  // the index down like the GEP would do implicitly.  We don't have to do this
+  // for an inbounds GEP because the index can't be out of range.
   if (!GEP->isInBounds()) {
-    Type *IntPtrTy = DL.getIntPtrType(GEP->getType());
-    unsigned PtrSize = IntPtrTy->getIntegerBitWidth();
-    if (Idx->getType()->getPrimitiveSizeInBits().getFixedValue() > PtrSize)
-      Idx = Builder.CreateTrunc(Idx, IntPtrTy);
+    Type *PtrIdxTy = DL.getIndexType(GEP->getType());
+    unsigned OffsetSize = PtrIdxTy->getIntegerBitWidth();
+    if (Idx->getType()->getPrimitiveSizeInBits().getFixedValue() > OffsetSize)
+      Idx = Builder.CreateTrunc(Idx, PtrIdxTy);
   }
 
   // If inbounds keyword is not present, Idx * ElementSize can overflow.
@@ -1951,6 +1951,30 @@ Instruction *InstCombinerImpl::foldICmpOrConstant(ICmpInst &Cmp,
     auto NewPred = TrueIfSigned ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_SGT;
     Constant *NewC = ConstantInt::get(X->getType(), TrueIfSigned ? 1 : 0);
     return new ICmpInst(NewPred, X, NewC);
+  }
+
+  const APInt *OrC;
+  // icmp(X | OrC, C) --> icmp(X, 0)
+  if (C.isNonNegative() && match(Or, m_Or(m_Value(X), m_APInt(OrC)))) {
+    switch (Pred) {
+    // X | OrC s< C --> X s< 0 iff OrC s>= C s>= 0
+    case ICmpInst::ICMP_SLT:
+    // X | OrC s>= C --> X s>= 0 iff OrC s>= C s>= 0
+    case ICmpInst::ICMP_SGE:
+      if (OrC->sge(C))
+        return new ICmpInst(Pred, X, ConstantInt::getNullValue(X->getType()));
+      break;
+    // X | OrC s<= C --> X s< 0 iff OrC s> C s>= 0
+    case ICmpInst::ICMP_SLE:
+    // X | OrC s> C --> X s>= 0 iff OrC s> C s>= 0
+    case ICmpInst::ICMP_SGT:
+      if (OrC->sgt(C))
+        return new ICmpInst(ICmpInst::getFlippedStrictnessPredicate(Pred), X,
+                            ConstantInt::getNullValue(X->getType()));
+      break;
+    default:
+      break;
+    }
   }
 
   if (!Cmp.isEquality() || !C.isZero() || !Or->hasOneUse())
@@ -6901,7 +6925,7 @@ static Instruction *foldFabsWithFcmpZero(FCmpInst &I, InstCombinerImpl &IC) {
         Mode.Input == DenormalMode::PositiveZero) {
 
       auto replaceFCmp = [](FCmpInst *I, FCmpInst::Predicate P, Value *X) {
-        Constant *Zero = ConstantFP::getNullValue(X->getType());
+        Constant *Zero = ConstantFP::getZero(X->getType());
         return new FCmpInst(P, X, Zero, "", I);
       };
 
@@ -6997,7 +7021,7 @@ static Instruction *foldFCmpFNegCommonOp(FCmpInst &I) {
 
   // Replace the negated operand with 0.0:
   // fcmp Pred Op0, -Op0 --> fcmp Pred Op0, 0.0
-  Constant *Zero = ConstantFP::getNullValue(Op0->getType());
+  Constant *Zero = ConstantFP::getZero(Op0->getType());
   return new FCmpInst(Pred, Op0, Zero, "", &I);
 }
 
@@ -7048,10 +7072,10 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
   // then canonicalize the operand to 0.0.
   if (Pred == CmpInst::FCMP_ORD || Pred == CmpInst::FCMP_UNO) {
     if (!match(Op0, m_PosZeroFP()) && isKnownNeverNaN(Op0, &TLI))
-      return replaceOperand(I, 0, ConstantFP::getNullValue(OpType));
+      return replaceOperand(I, 0, ConstantFP::getZero(OpType));
 
     if (!match(Op1, m_PosZeroFP()) && isKnownNeverNaN(Op1, &TLI))
-      return replaceOperand(I, 1, ConstantFP::getNullValue(OpType));
+      return replaceOperand(I, 1, ConstantFP::getZero(OpType));
   }
 
   // fcmp pred (fneg X), (fneg Y) -> fcmp swap(pred) X, Y
@@ -7080,7 +7104,7 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
   // The sign of 0.0 is ignored by fcmp, so canonicalize to +0.0:
   // fcmp Pred X, -0.0 --> fcmp Pred X, 0.0
   if (match(Op1, m_AnyZeroFP()) && !match(Op1, m_PosZeroFP()))
-    return replaceOperand(I, 1, ConstantFP::getNullValue(OpType));
+    return replaceOperand(I, 1, ConstantFP::getZero(OpType));
 
   // Ignore signbit of bitcasted int when comparing equality to FP 0.0:
   // fcmp oeq/une (bitcast X), 0.0 --> (and X, SignMaskC) ==/!= 0
@@ -7169,11 +7193,11 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
         case FCmpInst::FCMP_ONE:
           // X is ordered and not equal to an impossible constant --> ordered
           return new FCmpInst(FCmpInst::FCMP_ORD, X,
-                              ConstantFP::getNullValue(X->getType()));
+                              ConstantFP::getZero(X->getType()));
         case FCmpInst::FCMP_UEQ:
           // X is unordered or equal to an impossible constant --> unordered
           return new FCmpInst(FCmpInst::FCMP_UNO, X,
-                              ConstantFP::getNullValue(X->getType()));
+                              ConstantFP::getZero(X->getType()));
         case FCmpInst::FCMP_UNE:
           // X is unordered or not equal to an impossible constant --> true
           return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));

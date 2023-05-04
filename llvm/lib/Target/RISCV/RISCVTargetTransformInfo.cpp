@@ -243,11 +243,23 @@ RISCVTTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
   llvm_unreachable("Unsupported register kind");
 }
 
+InstructionCost
+RISCVTTIImpl::getConstantPoolLoadCost(Type *Ty,  TTI::TargetCostKind CostKind) {
+  // Add a cost of address generation + the cost of the load. The address
+  // is expected to be a PC relative offset to a constant pool entry
+  // using auipc/addi.
+  return 2 + getMemoryOpCost(Instruction::Load, Ty, DL.getABITypeAlign(Ty),
+                             /*AddressSpace=*/0, CostKind);
+}
+
+
 InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                              VectorType *Tp, ArrayRef<int> Mask,
                                              TTI::TargetCostKind CostKind,
                                              int Index, VectorType *SubTp,
                                              ArrayRef<const Value *> Args) {
+  Kind = improveShuffleKindFromMask(Kind, Mask);
+
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
 
   // First, handle cases where having a fixed length vector enables us to
@@ -280,7 +292,39 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
               return LT.first * getLMULCost(LT.second);
           }
         }
+
+        // vrgather + cost of generating the mask constant.
+        // We model this for an unknown mask with a single vrgather.
+        if (LT.first == 1 &&
+            (LT.second.getScalarSizeInBits() != 8 ||
+             LT.second.getVectorNumElements() <= 256)) {
+          VectorType *IdxTy = VectorType::get(IntegerType::getInt8Ty(Tp->getContext()),
+                                              Tp->getElementCount());
+          InstructionCost IndexCost = getConstantPoolLoadCost(IdxTy, CostKind);
+          return IndexCost + getLMULCost(LT.second);
+        }
       }
+      break;
+    }
+    case TTI::SK_Transpose:
+    case TTI::SK_PermuteTwoSrc: {
+      if (Mask.size() >= 2 && LT.second.isFixedLengthVector()) {
+        // 2 x (vrgather + cost of generating the mask constant) + cost of mask
+        // register for the second vrgather. We model this for an unknown
+        // (shuffle) mask.
+        if (LT.first == 1 &&
+            (LT.second.getScalarSizeInBits() != 8 ||
+             LT.second.getVectorNumElements() <= 256)) {
+          auto &C = Tp->getContext();
+          auto EC = Tp->getElementCount();
+          VectorType *IdxTy = VectorType::get(IntegerType::getInt8Ty(C), EC);
+          VectorType *MaskTy = VectorType::get(IntegerType::getInt1Ty(C), EC);
+          InstructionCost IndexCost = getConstantPoolLoadCost(IdxTy, CostKind);
+          InstructionCost MaskCost = getConstantPoolLoadCost(MaskTy, CostKind);
+          return 2 * IndexCost + 2 * getLMULCost(LT.second) + MaskCost;
+        }
+      }
+      break;
     }
     }
   };
@@ -292,6 +336,11 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
     // TODO: Most of these cases will return getInvalid in generic code, and
     // must be implemented here.
     break;
+  case TTI::SK_ExtractSubvector:
+    // Example sequence:
+    // vsetivli     zero, 4, e8, mf2, tu, ma (ignored)
+    // vslidedown.vi  v8, v9, 2
+    return LT.first * getLMULCost(LT.second);
   case TTI::SK_InsertSubvector:
     // Example sequence:
     // vsetivli     zero, 4, e8, mf2, tu, ma (ignored)
@@ -394,6 +443,29 @@ InstructionCost RISCVTTIImpl::getInterleavedMemoryOpCost(
   InstructionCost MemCost =
       getMemoryOpCost(Opcode, VecTy, Alignment, AddressSpace, CostKind);
   unsigned VF = FVTy->getNumElements() / Factor;
+
+  // The interleaved memory access pass will lower interleaved memory ops (i.e
+  // a load and store followed by a specific shuffle) to vlseg/vsseg
+  // intrinsics. In those cases then we can treat it as if it's just one (legal)
+  // memory op
+  if (!UseMaskForCond && !UseMaskForGaps &&
+      Factor <= TLI->getMaxSupportedInterleaveFactor()) {
+    std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(FVTy);
+    // Need to make sure type has't been scalarized
+    if (LT.second.isFixedLengthVector()) {
+      auto *LegalFVTy = FixedVectorType::get(FVTy->getElementType(),
+                                             LT.second.getVectorNumElements());
+      // FIXME: We use the memory op cost of the *legalized* type here, becuase
+      // it's getMemoryOpCost returns a really expensive cost for types like
+      // <6 x i8>, which show up when doing interleaves of Factor=3 etc.
+      // Should the memory op cost of these be cheaper?
+      if (TLI->isLegalInterleavedAccessType(LegalFVTy, Factor, DL)) {
+        InstructionCost LegalMemCost = getMemoryOpCost(
+            Opcode, LegalFVTy, Alignment, AddressSpace, CostKind);
+        return LT.first + LegalMemCost;
+      }
+    }
+  }
 
   // An interleaved load will look like this for Factor=3:
   // %wide.vec = load <12 x i32>, ptr %3, align 4
@@ -1095,14 +1167,14 @@ unsigned RISCVTTIImpl::getEstimatedVLFor(VectorType *Ty) {
 
 InstructionCost
 RISCVTTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                     bool IsUnsigned,
+                                     bool IsUnsigned, FastMathFlags FMF,
                                      TTI::TargetCostKind CostKind) {
   if (isa<FixedVectorType>(Ty) && !ST->useRVVForFixedLengthVectors())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
 
   // Skip if scalar size of Ty is bigger than ELEN.
   if (Ty->getScalarSizeInBits() > ST->getELEN())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
 
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
   if (Ty->getElementType()->isIntegerTy(1))
@@ -1157,7 +1229,7 @@ RISCVTTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
 
 InstructionCost RISCVTTIImpl::getExtendedReductionCost(
     unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *ValTy,
-    std::optional<FastMathFlags> FMF, TTI::TargetCostKind CostKind) {
+    FastMathFlags FMF, TTI::TargetCostKind CostKind) {
   if (isa<FixedVectorType>(ValTy) && !ST->useRVVForFixedLengthVectors())
     return BaseT::getExtendedReductionCost(Opcode, IsUnsigned, ResTy, ValTy,
                                            FMF, CostKind);
@@ -1197,11 +1269,7 @@ InstructionCost RISCVTTIImpl::getStoreImmCost(Type *Ty,
     // with how we treat scalar constants themselves just above.
     return 1;
 
-  // Add a cost of address generation + the cost of the vector load. The
-  // address is expected to be a PC relative offset to a constant pool entry
-  // using auipc/addi.
-  return 2 + getMemoryOpCost(Instruction::Load, Ty, DL.getABITypeAlign(Ty),
-                             /*AddressSpace=*/0, CostKind);
+  return getConstantPoolLoadCost(Ty, CostKind);
 }
 
 
@@ -1211,11 +1279,26 @@ InstructionCost RISCVTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
                                               TTI::TargetCostKind CostKind,
                                               TTI::OperandValueInfo OpInfo,
                                               const Instruction *I) {
+  EVT VT = TLI->getValueType(DL, Src, true);
+  // Type legalization can't handle structs
+  if (VT == MVT::Other)
+    return BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
+                                  CostKind, OpInfo, I);
+
   InstructionCost Cost = 0;
   if (Opcode == Instruction::Store && OpInfo.isConstant())
     Cost += getStoreImmCost(Src, OpInfo, CostKind);
-  return Cost + BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
-                                       CostKind, OpInfo, I);
+  InstructionCost BaseCost =
+    BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
+                           CostKind, OpInfo, I);
+  // Assume memory ops cost scale with the number of vector registers
+  // possible accessed by the instruction.  Note that BasicTTI already
+  // handles the LT.first term for us.
+  if (std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Src);
+      LT.second.isVector())
+    BaseCost *= getLMULCost(LT.second);
+  return Cost + BaseCost;
+
 }
 
 InstructionCost RISCVTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
@@ -1434,11 +1517,7 @@ InstructionCost RISCVTTIImpl::getArithmeticInstrCost(
       // scalar constants in GPRs.
       return 0;
 
-    // Add a cost of address generation + the cost of the vector load. The
-    // address is expected to be a PC relative offset to a constant pool entry
-    // using auipc/addi.
-    return 2 + getMemoryOpCost(Instruction::Load, Ty, DL.getABITypeAlign(Ty),
-                               /*AddressSpace=*/0, CostKind);
+    return getConstantPoolLoadCost(Ty, CostKind);
   };
 
   // Add the cost of materializing any constant vectors required.

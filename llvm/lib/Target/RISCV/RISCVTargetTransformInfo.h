@@ -51,6 +51,10 @@ class RISCVTTIImpl : public BasicTTIImplBase<RISCVTTIImpl> {
   /// Return the cost of LMUL. The larger the LMUL, the higher the cost.
   InstructionCost getLMULCost(MVT VT);
 
+  /// Return the cost of accessing a constant pool entry of the specified
+  /// type.
+  InstructionCost getConstantPoolLoadCost(Type *Ty,
+                                          TTI::TargetCostKind CostKind);
 public:
   explicit RISCVTTIImpl(const RISCVTargetMachine *TM, const Function &F)
       : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)),
@@ -139,7 +143,7 @@ public:
                                    const Instruction *I = nullptr);
 
   InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                         bool IsUnsigned,
+                                         bool IsUnsigned, FastMathFlags FMF,
                                          TTI::TargetCostKind CostKind);
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
@@ -148,7 +152,7 @@ public:
 
   InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
                                            Type *ResTy, VectorType *ValTy,
-                                           std::optional<FastMathFlags> FMF,
+                                           FastMathFlags FMF,
                                            TTI::TargetCostKind CostKind);
 
   InstructionCost

@@ -95,7 +95,7 @@ struct allocator_traits<sycl::detail::aligned_allocator<T>> {
       typename std::pointer_traits<pointer>::template rebind<const void>;
   using difference_type =
       typename std::pointer_traits<pointer>::difference_type;
-  using size_type = typename std::make_unsigned<difference_type>::type;
+  using size_type = std::make_unsigned_t<difference_type>;
   using propagate_on_container_copy_assignment = std::false_type;
   using propagate_on_container_move_assignment = std::false_type;
   using propagate_on_container_swap = std::false_type;

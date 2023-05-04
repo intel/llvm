@@ -23,8 +23,7 @@
 ; Suppress FileCheck --allow-unused-prefixes=false diagnostics.
 ; CHECK-NOEXT: {{^}}
 
-; CHECK-O: Running pass: Annotation2Metadata
-; CHECK-O-NEXT: Running pass: ForceFunctionAttrsPass
+; CHECK-O: Running pass: ForceFunctionAttrsPass
 ; CHECK-EP-PIPELINE-START-NEXT: Running pass: NoOpModulePass
 ; CHECK-O-NEXT: Running pass: PGOIndirectCallPromotion
 ; CHECK-O-NEXT: Running analysis: ProfileSummaryAnalysis
@@ -90,7 +89,7 @@
 ; CHECK-O23SZ-NEXT: Invalidating analysis: LazyValueAnalysis
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
-; CHECK-O3-NEXT: Running pass: AggressiveInstCombinePass
+; CHECK-O23SZ-NEXT: Running pass: AggressiveInstCombinePass
 ; CHECK-O23SZ-NEXT: Running pass: ConstraintEliminationPass
 ; CHECK-O1-NEXT: Running pass: LibCallsShrinkWrapPass
 ; CHECK-O2-NEXT: Running pass: LibCallsShrinkWrapPass

@@ -150,7 +150,7 @@ void ASTStmtWriter::VisitIfStmt(IfStmt *S) {
   if (HasElse)
     Record.AddStmt(S->getElse());
   if (HasVar)
-    Record.AddDeclRef(S->getConditionVariable());
+    Record.AddStmt(S->getConditionVariableDeclStmt());
   if (HasInit)
     Record.AddStmt(S->getInit());
 
@@ -177,7 +177,7 @@ void ASTStmtWriter::VisitSwitchStmt(SwitchStmt *S) {
   if (HasInit)
     Record.AddStmt(S->getInit());
   if (HasVar)
-    Record.AddDeclRef(S->getConditionVariable());
+    Record.AddStmt(S->getConditionVariableDeclStmt());
 
   Record.AddSourceLocation(S->getSwitchLoc());
   Record.AddSourceLocation(S->getLParenLoc());
@@ -198,7 +198,7 @@ void ASTStmtWriter::VisitWhileStmt(WhileStmt *S) {
   Record.AddStmt(S->getCond());
   Record.AddStmt(S->getBody());
   if (HasVar)
-    Record.AddDeclRef(S->getConditionVariable());
+    Record.AddStmt(S->getConditionVariableDeclStmt());
 
   Record.AddSourceLocation(S->getWhileLoc());
   Record.AddSourceLocation(S->getLParenLoc());
@@ -220,7 +220,7 @@ void ASTStmtWriter::VisitForStmt(ForStmt *S) {
   VisitStmt(S);
   Record.AddStmt(S->getInit());
   Record.AddStmt(S->getCond());
-  Record.AddDeclRef(S->getConditionVariable());
+  Record.AddStmt(S->getConditionVariableDeclStmt());
   Record.AddStmt(S->getInc());
   Record.AddStmt(S->getBody());
   Record.AddSourceLocation(S->getForLoc());
@@ -1109,13 +1109,13 @@ void ASTStmtWriter::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       Record.AddSourceLocation(D.getFieldLoc());
     } else if (D.isArrayDesignator()) {
       Record.push_back(serialization::DESIG_ARRAY);
-      Record.push_back(D.getFirstExprIndex());
+      Record.push_back(D.getArrayIndex());
       Record.AddSourceLocation(D.getLBracketLoc());
       Record.AddSourceLocation(D.getRBracketLoc());
     } else {
       assert(D.isArrayRangeDesignator() && "Unknown designator");
       Record.push_back(serialization::DESIG_ARRAY_RANGE);
-      Record.push_back(D.getFirstExprIndex());
+      Record.push_back(D.getArrayIndex());
       Record.AddSourceLocation(D.getLBracketLoc());
       Record.AddSourceLocation(D.getEllipsisLoc());
       Record.AddSourceLocation(D.getRBracketLoc());

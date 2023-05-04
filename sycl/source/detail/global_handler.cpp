@@ -85,10 +85,13 @@ void GlobalHandler::InitXPTI() {
 }
 
 void GlobalHandler::TraceEventXPTI(const char *Message) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!Message)
     return;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  static std::once_flag InitXPTIFlag;
   if (xptiTraceEnabled()) {
+    std::call_once(InitXPTIFlag, [&]() { InitXPTI(); });
+
     // We have to handle the cases where: (1) we may have just the code location
     // set and not UID and (2) UID set
     detail::tls_code_loc_t Tls;
@@ -122,13 +125,6 @@ GlobalHandler *&GlobalHandler::getInstancePtr() {
 GlobalHandler &GlobalHandler::instance() {
   GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
   assert(RTGlobalObjHandler && "Handler must not be deallocated earlier");
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  static std::once_flag InitXPTIFlag;
-  if (xptiTraceEnabled()) {
-    std::call_once(InitXPTIFlag, [&]() { RTGlobalObjHandler->InitXPTI(); });
-  }
-#endif
   return *RTGlobalObjHandler;
 }
 
@@ -289,13 +285,13 @@ void GlobalHandler::drainThreadPool() {
 }
 
 #ifdef _WIN32
-  // because of something not-yet-understood on Windows
-  // threads may be shutdown once the end of main() is reached
-  // making an orderly shutdown difficult. Fortunately, Windows
-  // itself is very aggressive about reclaiming memory. Thus,
-  // we focus solely on unloading the plugins, so as to not
-  // accidentally retain device handles. etc 
-void shutdown(){
+// because of something not-yet-understood on Windows
+// threads may be shutdown once the end of main() is reached
+// making an orderly shutdown difficult. Fortunately, Windows
+// itself is very aggressive about reclaiming memory. Thus,
+// we focus solely on unloading the plugins, so as to not
+// accidentally retain device handles. etc
+void shutdown() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadPlugins();
 }
@@ -356,7 +352,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-    // TODO: figure out what XPTI is doing that prevents release.
+                   // TODO: figure out what XPTI is doing that prevents release.
 #endif
 
     shutdown();

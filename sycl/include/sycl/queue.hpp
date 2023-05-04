@@ -88,6 +88,8 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \ingroup sycl_api
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
+
+public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
   ///
@@ -244,6 +246,7 @@ public:
   /// \param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device &SyclDevice,
         const async_handler &AsyncHandler, const property_list &PropList = {});
+
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
@@ -1090,6 +1093,15 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy to device_global is out of bounds.");
 
+    if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
+      // device_global is unregistered so we need a fallback. We let the handler
+      // implement this fallback.
+      return submit([&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        return CGH.memcpy(Dest, Src, NumBytes, Offset);
+      });
+    }
+
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
     return memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes,
@@ -1153,6 +1165,15 @@ public:
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy from device_global is out of bounds.");
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
+      // device_global is unregistered so we need a fallback. We let the handler
+      // implement this fallback.
+      return submit([&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        return CGH.memcpy(Dest, Src, NumBytes, Offset);
+      });
+    }
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
@@ -1343,9 +1364,9 @@ public:
   single_task(PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1383,9 +1404,9 @@ public:
   single_task(event DepEvent, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1427,9 +1448,9 @@ public:
   single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1898,7 +1919,6 @@ public:
   pi_native_handle getNative(int32_t& NativeHandleDesc) const;
 
 private:
-
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 

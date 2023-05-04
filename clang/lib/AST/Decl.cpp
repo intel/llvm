@@ -1600,6 +1600,7 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
     return nullptr;
 
   case Module::ModuleInterfaceUnit:
+  case Module::ModuleImplementationUnit:
   case Module::ModulePartitionInterface:
   case Module::ModulePartitionImplementation:
     return M;
@@ -2359,12 +2360,15 @@ Expr *VarDecl::getInit() {
   if (auto *S = Init.dyn_cast<Stmt *>())
     return cast<Expr>(S);
 
-  return cast_or_null<Expr>(Init.get<EvaluatedStmt *>()->Value);
+  auto *Eval = getEvaluatedStmt();
+  return cast<Expr>(Eval->Value.isOffset()
+                        ? Eval->Value.get(getASTContext().getExternalSource())
+                        : Eval->Value.get(nullptr));
 }
 
 Stmt **VarDecl::getInitAddress() {
   if (auto *ES = Init.dyn_cast<EvaluatedStmt *>())
-    return &ES->Value;
+    return ES->Value.getAddressOfPointer(getASTContext().getExternalSource());
 
   return Init.getAddrOfPtr1();
 }
@@ -2501,7 +2505,7 @@ APValue *VarDecl::evaluateValueImpl(SmallVectorImpl<PartialDiagnosticAt> &Notes,
                                     bool IsConstantInitialization) const {
   EvaluatedStmt *Eval = ensureEvaluatedStmt();
 
-  const auto *Init = cast<Expr>(Eval->Value);
+  const auto *Init = getInit();
   assert(!Init->isValueDependent());
 
   // We only produce notes indicating why an initializer is non-constant the
@@ -2585,7 +2589,7 @@ bool VarDecl::checkForConstantInitialization(
          "already evaluated var value before checking for constant init");
   assert(getASTContext().getLangOpts().CPlusPlus && "only meaningful in C++");
 
-  assert(!cast<Expr>(Eval->Value)->isValueDependent());
+  assert(!getInit()->isValueDependent());
 
   // Evaluate the initializer to check whether it's a constant expression.
   Eval->HasConstantInitialization =
@@ -3302,8 +3306,7 @@ bool FunctionDecl::isInlineBuiltinDeclaration() const {
 
   const FunctionDecl *Definition;
   return hasBody(Definition) && Definition->isInlineSpecified() &&
-         Definition->hasAttr<AlwaysInlineAttr>() &&
-         Definition->hasAttr<GNUInlineAttr>();
+         Definition->hasAttr<AlwaysInlineAttr>();
 }
 
 bool FunctionDecl::isDestroyingOperatorDelete() const {
@@ -3368,6 +3371,27 @@ bool FunctionDecl::isNoReturn() const {
   return false;
 }
 
+bool FunctionDecl::isMemberLikeConstrainedFriend() const {
+  // C++20 [temp.friend]p9:
+  //   A non-template friend declaration with a requires-clause [or]
+  //   a friend function template with a constraint that depends on a template
+  //   parameter from an enclosing template [...] does not declare the same
+  //   function or function template as a declaration in any other scope.
+
+  // If this isn't a friend then it's not a member-like constrained friend.
+  if (!getFriendObjectKind()) {
+    return false;
+  }
+
+  if (!getDescribedFunctionTemplate()) {
+    // If these friends don't have constraints, they aren't constrained, and
+    // thus don't fall under temp.friend p9. Else the simple presence of a
+    // constraint makes them unique.
+    return getTrailingRequiresClause();
+  }
+
+  return FriendConstraintRefersToEnclosingTemplate();
+}
 
 MultiVersionKind FunctionDecl::getMultiVersionKind() const {
   if (hasAttr<TargetAttr>())
@@ -4324,6 +4348,28 @@ bool FieldDecl::isAnonymousStructOrUnion() const {
   return false;
 }
 
+Expr *FieldDecl::getInClassInitializer() const {
+  if (!hasInClassInitializer())
+    return nullptr;
+
+  LazyDeclStmtPtr InitPtr = BitField ? InitAndBitWidth->Init : Init;
+  return cast_or_null<Expr>(
+      InitPtr.isOffset() ? InitPtr.get(getASTContext().getExternalSource())
+                         : InitPtr.get(nullptr));
+}
+
+void FieldDecl::setInClassInitializer(Expr *NewInit) {
+  setLazyInClassInitializer(LazyDeclStmtPtr(NewInit));
+}
+
+void FieldDecl::setLazyInClassInitializer(LazyDeclStmtPtr NewInit) {
+  assert(hasInClassInitializer() && !getInClassInitializer());
+  if (BitField)
+    InitAndBitWidth->Init = NewInit;
+  else
+    Init = NewInit;
+}
+
 unsigned FieldDecl::getBitWidthValue(const ASTContext &Ctx) const {
   assert(isBitField() && "not a bitfield");
   return getBitWidth()->EvaluateKnownConstInt(Ctx).getZExtValue();
@@ -4384,6 +4430,8 @@ unsigned FieldDecl::getFieldIndex() const {
 
   for (auto *Field : RD->fields()) {
     Field->getCanonicalDecl()->CachedFieldIndex = Index + 1;
+    assert(Field->getCanonicalDecl()->CachedFieldIndex == Index + 1 &&
+           "overflow in field numbering");
     ++Index;
   }
 
@@ -4403,11 +4451,11 @@ SourceRange FieldDecl::getSourceRange() const {
 void FieldDecl::setCapturedVLAType(const VariableArrayType *VLAType) {
   assert((getParent()->isLambda() || getParent()->isCapturedRecord()) &&
          "capturing type in non-lambda or captured record.");
-  assert(InitStorage.getInt() == ISK_NoInit &&
-         InitStorage.getPointer() == nullptr &&
-         "bit width, initializer or captured type already set");
-  InitStorage.setPointerAndInt(const_cast<VariableArrayType *>(VLAType),
-                               ISK_CapturedVLAType);
+  assert(StorageKind == ISK_NoInit && !BitField &&
+         "bit-field or field with default member initializer cannot capture "
+         "VLA type");
+  StorageKind = ISK_CapturedVLAType;
+  CapturedVLAType = VLAType;
 }
 
 //===----------------------------------------------------------------------===//

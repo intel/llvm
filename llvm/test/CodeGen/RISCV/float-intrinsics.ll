@@ -641,28 +641,28 @@ define float @floor_f32(float %a) nounwind {
 ; RV32IF-LABEL: floor_f32:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lui a0, 307200
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    fabs.s ft1, fa0
-; RV32IF-NEXT:    flt.s a0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x fa5, a0
+; RV32IF-NEXT:    fabs.s fa4, fa0
+; RV32IF-NEXT:    flt.s a0, fa4, fa5
 ; RV32IF-NEXT:    beqz a0, .LBB17_2
 ; RV32IF-NEXT:  # %bb.1:
 ; RV32IF-NEXT:    fcvt.w.s a0, fa0, rdn
-; RV32IF-NEXT:    fcvt.s.w ft0, a0, rdn
-; RV32IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV32IF-NEXT:    fcvt.s.w fa5, a0, rdn
+; RV32IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV32IF-NEXT:  .LBB17_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: floor_f32:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, 307200
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fabs.s ft1, fa0
-; RV64IF-NEXT:    flt.s a0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x fa5, a0
+; RV64IF-NEXT:    fabs.s fa4, fa0
+; RV64IF-NEXT:    flt.s a0, fa4, fa5
 ; RV64IF-NEXT:    beqz a0, .LBB17_2
 ; RV64IF-NEXT:  # %bb.1:
 ; RV64IF-NEXT:    fcvt.w.s a0, fa0, rdn
-; RV64IF-NEXT:    fcvt.s.w ft0, a0, rdn
-; RV64IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV64IF-NEXT:    fcvt.s.w fa5, a0, rdn
+; RV64IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV64IF-NEXT:  .LBB17_2:
 ; RV64IF-NEXT:    ret
 ;
@@ -693,28 +693,28 @@ define float @ceil_f32(float %a) nounwind {
 ; RV32IF-LABEL: ceil_f32:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lui a0, 307200
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    fabs.s ft1, fa0
-; RV32IF-NEXT:    flt.s a0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x fa5, a0
+; RV32IF-NEXT:    fabs.s fa4, fa0
+; RV32IF-NEXT:    flt.s a0, fa4, fa5
 ; RV32IF-NEXT:    beqz a0, .LBB18_2
 ; RV32IF-NEXT:  # %bb.1:
 ; RV32IF-NEXT:    fcvt.w.s a0, fa0, rup
-; RV32IF-NEXT:    fcvt.s.w ft0, a0, rup
-; RV32IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV32IF-NEXT:    fcvt.s.w fa5, a0, rup
+; RV32IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV32IF-NEXT:  .LBB18_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: ceil_f32:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, 307200
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fabs.s ft1, fa0
-; RV64IF-NEXT:    flt.s a0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x fa5, a0
+; RV64IF-NEXT:    fabs.s fa4, fa0
+; RV64IF-NEXT:    flt.s a0, fa4, fa5
 ; RV64IF-NEXT:    beqz a0, .LBB18_2
 ; RV64IF-NEXT:  # %bb.1:
 ; RV64IF-NEXT:    fcvt.w.s a0, fa0, rup
-; RV64IF-NEXT:    fcvt.s.w ft0, a0, rup
-; RV64IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV64IF-NEXT:    fcvt.s.w fa5, a0, rup
+; RV64IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV64IF-NEXT:  .LBB18_2:
 ; RV64IF-NEXT:    ret
 ;
@@ -745,28 +745,28 @@ define float @trunc_f32(float %a) nounwind {
 ; RV32IF-LABEL: trunc_f32:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lui a0, 307200
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    fabs.s ft1, fa0
-; RV32IF-NEXT:    flt.s a0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x fa5, a0
+; RV32IF-NEXT:    fabs.s fa4, fa0
+; RV32IF-NEXT:    flt.s a0, fa4, fa5
 ; RV32IF-NEXT:    beqz a0, .LBB19_2
 ; RV32IF-NEXT:  # %bb.1:
 ; RV32IF-NEXT:    fcvt.w.s a0, fa0, rtz
-; RV32IF-NEXT:    fcvt.s.w ft0, a0, rtz
-; RV32IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV32IF-NEXT:    fcvt.s.w fa5, a0, rtz
+; RV32IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV32IF-NEXT:  .LBB19_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: trunc_f32:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, 307200
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fabs.s ft1, fa0
-; RV64IF-NEXT:    flt.s a0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x fa5, a0
+; RV64IF-NEXT:    fabs.s fa4, fa0
+; RV64IF-NEXT:    flt.s a0, fa4, fa5
 ; RV64IF-NEXT:    beqz a0, .LBB19_2
 ; RV64IF-NEXT:  # %bb.1:
 ; RV64IF-NEXT:    fcvt.w.s a0, fa0, rtz
-; RV64IF-NEXT:    fcvt.s.w ft0, a0, rtz
-; RV64IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV64IF-NEXT:    fcvt.s.w fa5, a0, rtz
+; RV64IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV64IF-NEXT:  .LBB19_2:
 ; RV64IF-NEXT:    ret
 ;
@@ -797,28 +797,28 @@ define float @rint_f32(float %a) nounwind {
 ; RV32IF-LABEL: rint_f32:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lui a0, 307200
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    fabs.s ft1, fa0
-; RV32IF-NEXT:    flt.s a0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x fa5, a0
+; RV32IF-NEXT:    fabs.s fa4, fa0
+; RV32IF-NEXT:    flt.s a0, fa4, fa5
 ; RV32IF-NEXT:    beqz a0, .LBB20_2
 ; RV32IF-NEXT:  # %bb.1:
 ; RV32IF-NEXT:    fcvt.w.s a0, fa0
-; RV32IF-NEXT:    fcvt.s.w ft0, a0
-; RV32IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV32IF-NEXT:    fcvt.s.w fa5, a0
+; RV32IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV32IF-NEXT:  .LBB20_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: rint_f32:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, 307200
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fabs.s ft1, fa0
-; RV64IF-NEXT:    flt.s a0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x fa5, a0
+; RV64IF-NEXT:    fabs.s fa4, fa0
+; RV64IF-NEXT:    flt.s a0, fa4, fa5
 ; RV64IF-NEXT:    beqz a0, .LBB20_2
 ; RV64IF-NEXT:  # %bb.1:
 ; RV64IF-NEXT:    fcvt.w.s a0, fa0
-; RV64IF-NEXT:    fcvt.s.w ft0, a0
-; RV64IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV64IF-NEXT:    fcvt.s.w fa5, a0
+; RV64IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV64IF-NEXT:  .LBB20_2:
 ; RV64IF-NEXT:    ret
 ;
@@ -881,28 +881,28 @@ define float @round_f32(float %a) nounwind {
 ; RV32IF-LABEL: round_f32:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lui a0, 307200
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    fabs.s ft1, fa0
-; RV32IF-NEXT:    flt.s a0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x fa5, a0
+; RV32IF-NEXT:    fabs.s fa4, fa0
+; RV32IF-NEXT:    flt.s a0, fa4, fa5
 ; RV32IF-NEXT:    beqz a0, .LBB22_2
 ; RV32IF-NEXT:  # %bb.1:
 ; RV32IF-NEXT:    fcvt.w.s a0, fa0, rmm
-; RV32IF-NEXT:    fcvt.s.w ft0, a0, rmm
-; RV32IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV32IF-NEXT:    fcvt.s.w fa5, a0, rmm
+; RV32IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV32IF-NEXT:  .LBB22_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: round_f32:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, 307200
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fabs.s ft1, fa0
-; RV64IF-NEXT:    flt.s a0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x fa5, a0
+; RV64IF-NEXT:    fabs.s fa4, fa0
+; RV64IF-NEXT:    flt.s a0, fa4, fa5
 ; RV64IF-NEXT:    beqz a0, .LBB22_2
 ; RV64IF-NEXT:  # %bb.1:
 ; RV64IF-NEXT:    fcvt.w.s a0, fa0, rmm
-; RV64IF-NEXT:    fcvt.s.w ft0, a0, rmm
-; RV64IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV64IF-NEXT:    fcvt.s.w fa5, a0, rmm
+; RV64IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV64IF-NEXT:  .LBB22_2:
 ; RV64IF-NEXT:    ret
 ;
@@ -933,28 +933,28 @@ define float @roundeven_f32(float %a) nounwind {
 ; RV32IF-LABEL: roundeven_f32:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    lui a0, 307200
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    fabs.s ft1, fa0
-; RV32IF-NEXT:    flt.s a0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x fa5, a0
+; RV32IF-NEXT:    fabs.s fa4, fa0
+; RV32IF-NEXT:    flt.s a0, fa4, fa5
 ; RV32IF-NEXT:    beqz a0, .LBB23_2
 ; RV32IF-NEXT:  # %bb.1:
 ; RV32IF-NEXT:    fcvt.w.s a0, fa0, rne
-; RV32IF-NEXT:    fcvt.s.w ft0, a0, rne
-; RV32IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV32IF-NEXT:    fcvt.s.w fa5, a0, rne
+; RV32IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV32IF-NEXT:  .LBB23_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: roundeven_f32:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, 307200
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    fabs.s ft1, fa0
-; RV64IF-NEXT:    flt.s a0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x fa5, a0
+; RV64IF-NEXT:    fabs.s fa4, fa0
+; RV64IF-NEXT:    flt.s a0, fa4, fa5
 ; RV64IF-NEXT:    beqz a0, .LBB23_2
 ; RV64IF-NEXT:  # %bb.1:
 ; RV64IF-NEXT:    fcvt.w.s a0, fa0, rne
-; RV64IF-NEXT:    fcvt.s.w ft0, a0, rne
-; RV64IF-NEXT:    fsgnj.s fa0, ft0, fa0
+; RV64IF-NEXT:    fcvt.s.w fa5, a0, rne
+; RV64IF-NEXT:    fsgnj.s fa0, fa5, fa0
 ; RV64IF-NEXT:  .LBB23_2:
 ; RV64IF-NEXT:    ret
 ;
@@ -1013,7 +1013,8 @@ define iXLen @lrint_f32(float %a) nounwind {
   ret iXLen %1
 }
 
-declare iXLen @llvm.lround.iXLen.f32(float)
+declare i32 @llvm.lround.i32.f32(float)
+declare i64 @llvm.lround.i64.f32(float)
 
 define iXLen @lround_f32(float %a) nounwind {
 ; RV32IF-LABEL: lround_f32:
@@ -1045,6 +1046,40 @@ define iXLen @lround_f32(float %a) nounwind {
 ; RV64I-NEXT:    ret
   %1 = call iXLen @llvm.lround.iXLen.f32(float %a)
   ret iXLen %1
+}
+
+; We support i32 lround on RV64 even though long isn't 32 bits. This is needed
+; by flang.
+define i32 @lround_i32_f32(float %a) nounwind {
+; RV32IF-LABEL: lround_i32_f32:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    fcvt.w.s a0, fa0, rmm
+; RV32IF-NEXT:    ret
+;
+; RV64IF-LABEL: lround_i32_f32:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    fcvt.w.s a0, fa0, rmm
+; RV64IF-NEXT:    ret
+;
+; RV32I-LABEL: lround_i32_f32:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    addi sp, sp, -16
+; RV32I-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32I-NEXT:    call lroundf@plt
+; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32I-NEXT:    addi sp, sp, 16
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: lround_i32_f32:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    addi sp, sp, -16
+; RV64I-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64I-NEXT:    call lroundf@plt
+; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64I-NEXT:    addi sp, sp, 16
+; RV64I-NEXT:    ret
+  %1 = call i32 @llvm.lround.i32.f32(float %a)
+  ret i32 %1
 }
 
 declare i64 @llvm.llrint.i64.f32(float)

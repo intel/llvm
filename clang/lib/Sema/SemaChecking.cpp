@@ -4619,7 +4619,7 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
         std::string FeatureStr = OF.str();
         FeatureStr[0] = std::toupper(FeatureStr[0]);
         // Combine strings.
-        FeatureStrs += FeatureStrs == "" ? "" : ", ";
+        FeatureStrs += FeatureStrs.empty() ? "" : ", ";
         FeatureStrs += "'";
         FeatureStrs += FeatureStr;
         FeatureStrs += "'";
@@ -5262,6 +5262,8 @@ bool Sema::CheckX86BuiltinTileArguments(unsigned BuiltinID, CallExpr *TheCall) {
   case X86::BI__builtin_ia32_tdpbuud:
   case X86::BI__builtin_ia32_tdpbf16ps:
   case X86::BI__builtin_ia32_tdpfp16ps:
+  case X86::BI__builtin_ia32_tcmmimfp16ps:
+  case X86::BI__builtin_ia32_tcmmrlfp16ps:
     return CheckX86BuiltinTileRangeAndDuplicate(TheCall, {0, 1, 2});
   }
 }
@@ -9651,13 +9653,13 @@ void CheckFormatHandler::HandlePosition(const char *startPos,
                                getSpecifierRange(startPos, posLen));
 }
 
-void
-CheckFormatHandler::HandleInvalidPosition(const char *startPos, unsigned posLen,
-                                     analyze_format_string::PositionContext p) {
-  EmitFormatDiagnostic(S.PDiag(diag::warn_format_invalid_positional_specifier)
-                         << (unsigned) p,
-                       getLocationOfByte(startPos), /*IsStringLocation*/true,
-                       getSpecifierRange(startPos, posLen));
+void CheckFormatHandler::HandleInvalidPosition(
+    const char *startSpecifier, unsigned specifierLen,
+    analyze_format_string::PositionContext p) {
+  EmitFormatDiagnostic(
+      S.PDiag(diag::warn_format_invalid_positional_specifier) << (unsigned)p,
+      getLocationOfByte(startSpecifier), /*IsStringLocation*/ true,
+      getSpecifierRange(startSpecifier, specifierLen));
 }
 
 void CheckFormatHandler::HandleZeroPosition(const char *startPos,
@@ -9702,7 +9704,7 @@ void CheckFormatHandler::DoneProcessing() {
 
 void UncoveredArgHandler::Diagnose(Sema &S, bool IsFunctionCall,
                                    const Expr *ArgExpr) {
-  assert(hasUncoveredArg() && DiagnosticExprs.size() > 0 &&
+  assert(hasUncoveredArg() && !DiagnosticExprs.empty() &&
          "Invalid state");
 
   if (!ArgExpr)
@@ -16045,10 +16047,7 @@ bool Sema::CheckParmsForFunctionDef(ArrayRef<ParmVarDecl *> Parameters,
                                     bool CheckParameterNames) {
   bool HasInvalidParm = false;
   for (ParmVarDecl *Param : Parameters) {
-    if (!Param) {
-      HasInvalidParm = true;
-      continue;
-    }
+    assert(Param && "null in a parameter list");
     // C99 6.7.5.3p4: the parameters in a parameter type list in a
     // function declarator that is part of a function definition of
     // that function shall not have incomplete type.
@@ -16781,14 +16780,13 @@ static bool findRetainCycleOwner(Sema &S, Expr *e, RetainCycleOwner &owner) {
 namespace {
 
   struct FindCaptureVisitor : EvaluatedExprVisitor<FindCaptureVisitor> {
-    ASTContext &Context;
     VarDecl *Variable;
     Expr *Capturer = nullptr;
     bool VarWillBeReased = false;
 
     FindCaptureVisitor(ASTContext &Context, VarDecl *variable)
         : EvaluatedExprVisitor<FindCaptureVisitor>(Context),
-          Context(Context), Variable(variable) {}
+          Variable(variable) {}
 
     void VisitDeclRefExpr(DeclRefExpr *ref) {
       if (ref->getDecl() == Variable && !Capturer)

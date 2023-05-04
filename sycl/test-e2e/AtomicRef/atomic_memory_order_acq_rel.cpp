@@ -20,7 +20,7 @@ template <memory_order order> void test_acquire_global() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =
@@ -64,7 +64,7 @@ template <memory_order order> void test_acquire_local() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =
@@ -111,7 +111,7 @@ template <memory_order order> void test_release_global() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =
@@ -155,7 +155,7 @@ template <memory_order order> void test_release_local() {
   queue q;
   {
     buffer<int> error_buf(&error, 1);
-    buffer<int> val_buf(val, 1);
+    buffer<int> val_buf(val, 2);
 
     q.submit([&](handler &cgh) {
        auto error =

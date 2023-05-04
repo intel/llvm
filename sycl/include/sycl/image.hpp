@@ -22,7 +22,16 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
+// forward declarations
 class handler;
+
+template <int D, typename A> class image;
+
+// 'friend'
+template <backend Backend, int D, typename A>
+std::enable_if_t<Backend == backend::ext_oneapi_level_zero, image<D, A>>
+make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
+           const context &TargetContext, event AvailableEvent = {});
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -76,7 +85,7 @@ using is_validImageDataT = typename detail::is_contained<
 
 template <typename DataT>
 using EnableIfImgAccDataT =
-    typename detail::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
 
 // The non-template base for the sycl::image class
 class __SYCL_EXPORT image_plain {
@@ -127,6 +136,13 @@ protected:
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions);
 #endif
+
+  image_plain(pi_native_handle MemObject, const context &SyclContext,
+              event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              uint8_t Dimensions, image_channel_order Order,
+              image_channel_type Type, bool OwnNativeHandle,
+              range<3> Range3WithOnes);
 
   template <typename propertyT> bool has_property() const noexcept;
 
@@ -202,7 +218,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(Order, Type, detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
@@ -214,7 +230,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -262,7 +278,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
@@ -275,7 +291,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -306,7 +322,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
@@ -319,7 +335,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -368,7 +384,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  typename detail::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
+  typename std::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
     return detail::convertToArrayOfN<Dimensions - 1, 0>(
         image_plain::get_pitch());
   }
@@ -418,8 +434,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  detail::enable_if_t<
-      std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -467,6 +482,15 @@ public:
   void set_write_back(bool flag = true) { image_plain::set_write_back(flag); }
 
 private:
+  image(pi_native_handle MemObject, const context &SyclContext,
+        event AvailableEvent, image_channel_order Order,
+        image_channel_type Type, bool OwnNativeHandle, range<Dimensions> Range)
+      : image_plain(MemObject, SyclContext, AvailableEvent,
+                    make_unique_ptr<
+                        detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
+                    Dimensions, Order, Type, OwnNativeHandle,
+                    detail::convertToArrayOfN<3, 1>(Range)) {}
+
   // This utility api is currently used by accessor to get the element size of
   // the image. Element size is dependent on num of channels and channel type.
   // This information is not accessible from the image using any public API.
@@ -483,6 +507,23 @@ private:
   image_channel_type getChannelType() const {
     return image_plain::getChannelType();
   }
+
+  // Declare make_image as a friend function
+  template <backend Backend, int D, typename A>
+  friend std::enable_if_t<
+      detail::InteropFeatureSupportMap<Backend>::MakeImage == true &&
+          Backend != backend::ext_oneapi_level_zero,
+      image<D, A>>
+  make_image(
+      const typename backend_traits<Backend>::template input_type<image<D, A>>
+          &BackendObject,
+      const context &TargetContext, event AvailableEvent);
+
+  template <backend Backend, int D, typename A>
+  friend std::enable_if_t<Backend == backend::ext_oneapi_level_zero,
+                          image<D, A>>
+  make_image(const backend_input_t<Backend, image<D, A>> &BackendObject,
+             const context &TargetContext, event AvailableEvent);
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

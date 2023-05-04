@@ -18,6 +18,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorSymbolDef.h"
 #include "llvm/ExecutionEngine/Orc/Shared/MemoryFlags.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/BinaryStreamReader.h"
@@ -352,13 +354,13 @@ private:
 };
 
 // Align an address to conform with block alignment requirements.
-inline uint64_t alignToBlock(uint64_t Addr, Block &B) {
+inline uint64_t alignToBlock(uint64_t Addr, const Block &B) {
   uint64_t Delta = (B.getAlignmentOffset() - Addr) % B.getAlignment();
   return Addr + Delta;
 }
 
 // Align a orc::ExecutorAddr to conform with block alignment requirements.
-inline orc::ExecutorAddr alignToBlock(orc::ExecutorAddr Addr, Block &B) {
+inline orc::ExecutorAddr alignToBlock(orc::ExecutorAddr Addr, const Block &B) {
   return orc::ExecutorAddr(alignToBlock(Addr.getValue(), B));
 }
 
@@ -1100,7 +1102,7 @@ public:
                                    orc::ExecutorAddr Address,
                                    uint64_t Alignment, uint64_t AlignmentOffset,
                                    bool ZeroInitialize = true) {
-    auto Content = allocateContent(ContentSize);
+    auto Content = allocateBuffer(ContentSize);
     if (ZeroInitialize)
       memset(Content.data(), 0, Content.size());
     return createBlock(Parent, Content, Address, Alignment, AlignmentOffset);
@@ -1731,7 +1733,7 @@ enum class SymbolLookupFlags { RequiredSymbol, WeaklyReferencedSymbol };
 raw_ostream &operator<<(raw_ostream &OS, const SymbolLookupFlags &LF);
 
 /// A map of symbol names to resolved addresses.
-using AsyncLookupResult = DenseMap<StringRef, JITEvaluatedSymbol>;
+using AsyncLookupResult = DenseMap<StringRef, orc::ExecutorSymbolDef>;
 
 /// A function object to call with a resolved symbol map (See AsyncLookupResult)
 /// or an error if resolution failed.

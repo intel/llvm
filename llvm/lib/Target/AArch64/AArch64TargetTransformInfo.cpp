@@ -1178,6 +1178,10 @@ static Instruction::BinaryOps intrinsicIDToBinOpCode(unsigned Intrinsic) {
 
 static std::optional<Instruction *>
 instCombineSVEVectorBinOp(InstCombiner &IC, IntrinsicInst &II) {
+  // Bail due to missing support for ISD::STRICT_ scalable vector operations.
+  if (II.isStrictFP())
+    return std::nullopt;
+
   auto *OpPredicate = II.getOperand(0);
   auto BinOpCode = intrinsicIDToBinOpCode(II.getIntrinsicID());
   if (BinOpCode == Instruction::BinaryOpsEnd ||
@@ -2404,11 +2408,19 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
     // We know that they are legal. See LowerAdd in ISelLowering.
     return LT.first;
 
+  case ISD::FNEG:
   case ISD::FADD:
   case ISD::FSUB:
+    // Increase the cost for half and bfloat types if not architecturally
+    // supported.
+    if ((Ty->getScalarType()->isHalfTy() && !ST->hasFullFP16()) ||
+        (Ty->getScalarType()->isBFloatTy() && !ST->hasBF16()))
+      return 2 * LT.first;
+    if (!Ty->getScalarType()->isFP128Ty())
+      return LT.first;
+    LLVM_FALLTHROUGH;
   case ISD::FMUL:
   case ISD::FDIV:
-  case ISD::FNEG:
     // These nodes are marked as 'custom' just to lower them to SVE.
     // We know said lowering will incur no additional cost.
     if (!Ty->getScalarType()->isFP128Ty())
@@ -2945,12 +2957,12 @@ bool AArch64TTIImpl::isLegalToVectorizeReduction(
 
 InstructionCost
 AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                       bool IsUnsigned,
+                                       bool IsUnsigned, FastMathFlags FMF,
                                        TTI::TargetCostKind CostKind) {
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
 
   if (LT.second.getScalarType() == MVT::f16 && !ST->hasFullFP16())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
 
   assert((isa<ScalableVectorType>(Ty) == isa<ScalableVectorType>(CondTy)) &&
          "Both vector needs to be equally scalable");
@@ -2958,11 +2970,12 @@ AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
   InstructionCost LegalizationCost = 0;
   if (LT.first > 1) {
     Type *LegalVTy = EVT(LT.second).getTypeForEVT(Ty->getContext());
-    unsigned MinMaxOpcode =
+    Intrinsic::ID MinMaxOpcode =
         Ty->isFPOrFPVectorTy()
             ? Intrinsic::maxnum
             : (IsUnsigned ? Intrinsic::umin : Intrinsic::smin);
-    IntrinsicCostAttributes Attrs(MinMaxOpcode, LegalVTy, {LegalVTy, LegalVTy});
+    IntrinsicCostAttributes Attrs(MinMaxOpcode, LegalVTy, {LegalVTy, LegalVTy},
+                                  FMF);
     LegalizationCost = getIntrinsicInstrCost(Attrs, CostKind) * (LT.first - 1);
   }
 
@@ -3410,29 +3423,27 @@ static bool containsDecreasingPointers(Loop *TheLoop,
   return false;
 }
 
-bool AArch64TTIImpl::preferPredicateOverEpilogue(
-    Loop *L, LoopInfo *LI, ScalarEvolution &SE, AssumptionCache &AC,
-    TargetLibraryInfo *TLI, DominatorTree *DT, LoopVectorizationLegality *LVL,
-    InterleavedAccessInfo *IAI) {
+bool AArch64TTIImpl::preferPredicateOverEpilogue(TailFoldingInfo *TFI) {
   if (!ST->hasSVE() || TailFoldingKindLoc == TailFoldingKind::TFDisabled)
     return false;
 
   // We don't currently support vectorisation with interleaving for SVE - with
   // such loops we're better off not using tail-folding. This gives us a chance
   // to fall back on fixed-width vectorisation using NEON's ld2/st2/etc.
-  if (IAI->hasGroups())
+  if (TFI->IAI->hasGroups())
     return false;
 
   TailFoldingKind Required; // Defaults to 0.
-  if (LVL->getReductionVars().size())
+  if (TFI->LVL->getReductionVars().size())
     Required.add(TailFoldingKind::TFReductions);
-  if (LVL->getFixedOrderRecurrences().size())
+  if (TFI->LVL->getFixedOrderRecurrences().size())
     Required.add(TailFoldingKind::TFRecurrences);
 
   // We call this to discover whether any load/store pointers in the loop have
   // negative strides. This will require extra work to reverse the loop
   // predicate, which may be expensive.
-  if (containsDecreasingPointers(L, LVL->getPredicatedScalarEvolution()))
+  if (containsDecreasingPointers(TFI->LVL->getLoop(),
+                                 TFI->LVL->getPredicatedScalarEvolution()))
     Required.add(TailFoldingKind::TFReverse);
   if (!Required)
     Required.add(TailFoldingKind::TFSimple);

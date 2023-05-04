@@ -14,6 +14,8 @@
 #include <__algorithm/ranges_fill_n.h>
 #include <__algorithm/ranges_for_each.h>
 #include <__algorithm/ranges_transform.h>
+#include <__charconv/to_chars_integral.h>
+#include <__charconv/to_chars_result.h>
 #include <__chrono/statically_widen.h>
 #include <__concepts/same_as.h>
 #include <__config>
@@ -26,10 +28,10 @@
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/concepts.h>
 #include <__iterator/readable_traits.h> // iter_value_t
+#include <__system_error/errc.h>
 #include <__type_traits/make_unsigned.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
-#include <charconv>
 #include <cstddef>
 #include <string>
 #include <string_view>
