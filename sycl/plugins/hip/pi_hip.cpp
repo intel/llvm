@@ -1980,6 +1980,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
+  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
     setErrorMessage("HIP backend does not support this query",
                     PI_ERROR_INVALID_ARG_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;

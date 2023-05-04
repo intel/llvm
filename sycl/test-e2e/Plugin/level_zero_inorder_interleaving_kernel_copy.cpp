@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_device_allocations
 // REQUIRES: level_zero
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
@@ -67,14 +68,9 @@ void ValidationPrint(const std::string &vectName, const std::vector<int> &vect,
 
 void RunCalculation(sycl::queue Q) {
   sycl::range<1> Range(buffer_size);
-  auto Dev = Q.get_device();
-  if (!Dev.has(sycl::aspect::usm_device_allocations))
-    return;
 
-  int *Dvalues =
-      sycl::malloc<int>(buffer_size, Dev, Q.get_context(), AllocType);
-  int *DvaluesTmp =
-      sycl::malloc<int>(buffer_size, Dev, Q.get_context(), AllocType);
+  int *Dvalues = sycl::malloc<int>(buffer_size, Q, AllocType);
+  int *DvaluesTmp = sycl::malloc<int>(buffer_size, Q, AllocType);
 
   std::vector<int> Hvalues1(buffer_size, 0);
   std::vector<int> HvaluesTmp(buffer_size, 0);
