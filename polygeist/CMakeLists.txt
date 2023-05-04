@@ -1,5 +1,3 @@
-# Copyright (C) Codeplay Software Limited
-
 cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0068)
@@ -98,5 +96,8 @@ include(sanitizers)
 
 add_subdirectory(include)
 add_subdirectory(lib)
+if (MLIR_INCLUDE_TESTS)
+  add_definitions(-DMLIR_INCLUDE_TESTS)
+  add_subdirectory(test)  
+endif()
 add_subdirectory(tools)
-add_subdirectory(test)
