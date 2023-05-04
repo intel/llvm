@@ -28,7 +28,7 @@
 #endif //__SYCL_BUILD_SYCL_DLL
 #else  // _WIN32
 
-#define __SYCL_DLL_LOCAL __attribute__((visibility("hidden")))
+#define __SYCL_DLL_LOCAL __attribute__((visibility("hidden"), used))
 
 #define __SYCL_EXPORT __attribute__((visibility("default")))
 #define __SYCL_EXPORT_DEPRECATED(x)                                            \

@@ -1872,11 +1872,12 @@ public:
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    // using KI = sycl::detail::KernelInfo<KernelName>;
+    // constexpr detail::code_location CodeLoc(
+    //     KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+    //     KI::getColumnNumber());
+    // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
@@ -1909,11 +1910,12 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    // using KI = sycl::detail::KernelInfo<KernelName>;
+    // constexpr detail::code_location CodeLoc(
+    //     KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+    //     KI::getColumnNumber());
+    // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -1934,11 +1936,12 @@ public:
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    // using KI = sycl::detail::KernelInfo<KernelName>;
+    // constexpr detail::code_location CodeLoc(
+    //     KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+    //     KI::getColumnNumber());
+    // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -2165,11 +2168,12 @@ private:
       event>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties,
                     RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    // using KI = sycl::detail::KernelInfo<KernelName>;
+    // constexpr detail::code_location CodeLoc(
+    //     KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+    //     KI::getColumnNumber());
+    // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
@@ -2203,11 +2207,12 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
                     RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    // using KI = sycl::detail::KernelInfo<KernelName>;
+    // constexpr detail::code_location CodeLoc(
+    //     KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+    //     KI::getColumnNumber());
+    // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -2243,11 +2248,12 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
                     PropertiesT Properties, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    // using KI = sycl::detail::KernelInfo<KernelName>;
+    // constexpr detail::code_location CodeLoc(
+    //     KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+    //     KI::getColumnNumber());
+    // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);

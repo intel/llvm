@@ -12,6 +12,7 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <type_traits>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -73,35 +74,31 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID_impl();
 // Definition in spec_const_integration.hpp.
 template <auto &SpecName> const char *get_spec_constant_symbolic_ID();
 
-#ifndef __SYCL_UNNAMED_LAMBDA__
+// Only declaration, no default definition since definition must be in
+// integration header.
 template <class KernelNameType> struct KernelInfo {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return ""; }
-  static constexpr bool isESIMD() { return 0; }
-  static constexpr const char *getFileName() { return ""; }
-  static constexpr const char *getFunctionName() { return ""; }
-  static constexpr unsigned getLineNumber() { return 0; }
-  static constexpr unsigned getColumnNumber() { return 0; }
-  static constexpr int64_t getKernelSize() { return 0; }
+  static constexpr unsigned getNumParams();
+  static const kernel_param_desc_t &getParamDesc(int);
+  static constexpr const char *getName();
+  static constexpr bool isESIMD();
+  static constexpr const char *getFileName();
+  static constexpr const char *getFunctionName();
+  static constexpr unsigned getLineNumber();
+  static constexpr unsigned getColumnNumber();
+  static constexpr int64_t getKernelSize();
 };
-#else
+
+#ifdef __SYCL_UNNAMED_LAMBDA__
 template <char...> struct KernelInfoData {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return ""; }
-  static constexpr bool isESIMD() { return 0; }
-  static constexpr const char *getFileName() { return ""; }
-  static constexpr const char *getFunctionName() { return ""; }
-  static constexpr unsigned getLineNumber() { return 0; }
-  static constexpr unsigned getColumnNumber() { return 0; }
-  static constexpr int64_t getKernelSize() { return 0; }
+  static constexpr unsigned getNumParams();
+  static const kernel_param_desc_t &getParamDesc(int);
+  static constexpr const char *getName();
+  static constexpr bool isESIMD();
+  static constexpr const char *getFileName();
+  static constexpr const char *getFunctionName();
+  static constexpr unsigned getLineNumber();
+  static constexpr unsigned getColumnNumber();
+  static constexpr int64_t getKernelSize();
 };
 
 // C++14 like index_sequence and make_index_sequence
@@ -125,13 +122,20 @@ public:
   using type = decltype(impl(make_index_sequence<__builtin_strlen(n)>{}));
 };
 
-// For named kernels, this structure is specialized in the integration header.
-// For unnamed kernels, KernelInfoData is specialized in the integration header,
-// and this picks it up via the KernelInfoImpl. For non-existent kernels, this
-// will also pick up a KernelInfoData (as SubKernelInfo) via KernelInfoImpl, but
-// it will instead get the unspecialized case, defined above.
-template <class KernelNameType> struct KernelInfo {
-  using SubKernelInfo = typename KernelInfoImpl<KernelNameType>::type;
+#endif //__SYCL_UNNAMED_LAMBDA__
+
+template <class KernelNameType, bool UnnamedKernel> struct KernelInfoProxy {
+#ifdef __SYCL_UNNAMED_LAMBDA__
+  typedef std::conditional<UnnamedKernel,
+                           typename KernelInfoImpl<KernelNameType>::type,
+                           KernelInfo<KernelNameType>>::type SubKernelInfo;
+#else
+  static_assert(
+      !UnnamedKernel,
+      "No kernel name provided without -fsycl-unnamed-lambda enabled!");
+  typedef KernelInfo<KernelNameType> SubKernelInfo;
+#endif
+
   static constexpr unsigned getNumParams() {
     return SubKernelInfo::getNumParams();
   }
@@ -140,15 +144,22 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
   static constexpr bool isESIMD() { return SubKernelInfo::isESIMD(); }
-  static constexpr const char *getFileName() { return ""; }
-  static constexpr const char *getFunctionName() { return ""; }
-  static constexpr unsigned getLineNumber() { return 0; }
-  static constexpr unsigned getColumnNumber() { return 0; }
+  static constexpr const char *getFileName() {
+    return SubKernelInfo::getFileName();
+  }
+  static constexpr const char *getFunctionName() {
+    return SubKernelInfo::getFunctionName();
+  }
+  static constexpr unsigned getLineNumber() {
+    return SubKernelInfo::getLineNumber();
+  }
+  static constexpr unsigned getColumnNumber() {
+    return SubKernelInfo::getColumnNumber();
+  }
   static constexpr int64_t getKernelSize() {
     return SubKernelInfo::getKernelSize();
   }
 };
-#endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
