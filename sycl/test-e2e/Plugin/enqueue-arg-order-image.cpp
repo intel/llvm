@@ -1,4 +1,5 @@
-// UNSUPPORTED: hip, gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.

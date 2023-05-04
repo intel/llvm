@@ -8,7 +8,8 @@
 
 // TODO enable on Windows
 // REQUIRES: linux && gpu
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: cuda || hip
 // TODO online_compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out

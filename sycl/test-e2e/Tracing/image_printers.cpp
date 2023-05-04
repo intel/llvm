@@ -1,9 +1,10 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // Unsupported hip call on AMD
-// UNSUPPORTED: hip_amd, gpu-intel-pvc
+// UNSUPPORTED: hip_amd
 
 // Test image-specific printers of the Plugin Interace
 //

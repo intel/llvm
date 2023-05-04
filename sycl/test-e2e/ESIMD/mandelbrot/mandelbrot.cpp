@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm
 
