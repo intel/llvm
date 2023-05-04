@@ -471,8 +471,7 @@ public:
         // arg1: i32 surface index
         // arg2: vXi32 element offset in bytes
         // arg3: vXi32 original value of the register that the data is read into
-        {"dword_atomic0",
-         {"dword.atomic2", {ai1(0), aSI(1), a(2)}, bo(0)}},
+        {"dword_atomic0", {"dword.atomic2", {ai1(0), aSI(1), a(2)}, bo(0)}},
 
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 surface index
