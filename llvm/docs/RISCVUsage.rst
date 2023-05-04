@@ -100,10 +100,10 @@ on support follow.
      ``Zbkc``         Supported
      ``Zbkx``         Supported (`See note <#riscv-scalar-crypto-note1>`__)
      ``Zbs``          Supported
-     ``Zdinx``        Assembly Support
+     ``Zdinx``        Assembly Support for RV32. Full support for RV64.
      ``Zfh``          Supported
      ``Zfhmin``       Supported
-     ``Zfinx``        Assembly Support
+     ``Zfinx``        Supported
      ``Zhinx``        Assembly Support
      ``Zhinxmin``     Assembly Support
      ``Zicbom``       Assembly Support
@@ -177,6 +177,12 @@ LLVM supports (to various degrees) a number of experimental extensions.  All exp
 
 The primary goal of experimental support is to assist in the process of ratification by providing an existence proof of an implementation, and simplifying efforts to validate the value of a proposed extension against large code bases.  Experimental extensions are expected to either transition to ratified status, or be eventually removed.  The decision on whether to accept an experimental extension is currently done on an entirely case by case basis; if you want to propose one, attending the bi-weekly RISC-V sync-up call is strongly advised.
 
+``experimental-smaia``
+  LLVM implements the `Ratification candidate 3 <https://github.com/riscv/riscv-aia/releases/tag/1.0-RC3>`_.
+
+``experimental-ssaia``
+  LLVM implements the `Ratification candidate 3 <https://github.com/riscv/riscv-aia/releases/tag/1.0-RC3>`_.
+
 ``experimental-zca``
   LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
 
@@ -188,6 +194,9 @@ The primary goal of experimental support is to assist in the process of ratifica
 
 ``experimental-zcf``
   LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
+
+``experimental-zcmt``
+  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`_.
 
 ``experimental-zfa``
   LLVM implements the `0.2 draft specification <https://github.com/riscv/riscv-isa-manual/releases/download/draft-20230131-c0b298a/zfa-20230414.pdf>`__.

@@ -134,9 +134,33 @@ HandleDefaultTempArgIntoTempTempParam(const TemplateTemplateParmDecl *TTP,
 Response HandlePartialClassTemplateSpec(
     const ClassTemplatePartialSpecializationDecl *PartialClassTemplSpec,
     MultiLevelTemplateArgumentList &Result, bool SkipForSpecialization) {
+  // We don't want the arguments from the Partial Specialization, since
+  // anything instantiating here cannot access the arguments from the
+  // specialized template anyway, so any substitution we would do with these
+  // partially specialized arguments would 'wrong' and confuse constraint
+  // instantiation. We only do this in the case of a constraint check, since
+  // code elsewhere actually uses these and replaces them later with what
+  // they mean.
+  // If we know this is the 'top level', we can replace this with an
+  // OuterRetainedLevel, else we have to generate a set of identity arguments.
+
+  // If this is the top-level template entity, we can just add a retained level
+  // and be done.
+  if (!PartialClassTemplSpec->getTemplateDepth()) {
+    if (!SkipForSpecialization)
+      Result.addOuterRetainedLevel();
+    return Response::Done();
+  }
+
+  // Else, we can replace this with an 'empty' level, and the checking will just
+  // alter the 'depth', since this we don't have the 'Index' for this level.
   if (!SkipForSpecialization)
-      Result.addOuterRetainedLevels(PartialClassTemplSpec->getTemplateDepth());
-  return Response::Done();
+    Result.addOuterTemplateArguments(
+        const_cast<ClassTemplatePartialSpecializationDecl *>(
+            PartialClassTemplSpec),
+        {}, /*Final=*/false);
+
+  return Response::UseNextDecl(PartialClassTemplSpec);
 }
 
 // Add template arguments from a class template instantiation.
@@ -312,14 +336,15 @@ MultiLevelTemplateArgumentList Sema::getTemplateInstantiationArgs(
   // Accumulate the set of template argument lists in this structure.
   MultiLevelTemplateArgumentList Result;
 
-  if (Innermost)
+  using namespace TemplateInstArgsHelpers;
+  const Decl *CurDecl = ND;
+  if (Innermost) {
     Result.addOuterTemplateArguments(const_cast<NamedDecl *>(ND),
                                      Innermost->asArray(), Final);
-
-  const Decl *CurDecl = ND;
+    CurDecl = Response::UseNextDecl(ND).NextDecl;
+  }
 
   while (!CurDecl->isFileContextDecl()) {
-    using namespace TemplateInstArgsHelpers;
     Response R;
     if (const auto *VarTemplSpec =
             dyn_cast<VarTemplateSpecializationDecl>(CurDecl)) {

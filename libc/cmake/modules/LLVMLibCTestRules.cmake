@@ -568,6 +568,7 @@ endif()
 #     ARGS <list of command line arguments to be passed to the test>
 #     ENV <list of environment variables to set before running the test>
 #     COMPILE_OPTIONS <list of special compile options for the test>
+#     LINK_LIBRARIES <list of linking libraries for this target>
 #     LOADER_ARGS <list of special args to loaders (like the GPU loader)>
 #   )
 function(add_libc_hermetic_test test_name)
@@ -579,7 +580,7 @@ function(add_libc_hermetic_test test_name)
     "HERMETIC_TEST"
     "" # No optional arguments
     "SUITE" # Single value arguments
-    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS;LOADER_ARGS" # Multi-value arguments
+    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS;LINK_LIBRARIES;LOADER_ARGS" # Multi-value arguments
     ${ARGN}
   )
 
@@ -657,16 +658,22 @@ function(add_libc_hermetic_test test_name)
   target_compile_options(${fq_build_target_name}
       PRIVATE ${LIBC_HERMETIC_TEST_COMPILE_OPTIONS} ${HERMETIC_TEST_COMPILE_OPTIONS})
 
-  target_link_options(${fq_build_target_name} PRIVATE -nostdlib -static)
+  if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+    target_link_options(${fq_build_target_name} PRIVATE -nostdlib -static)
+  else()
+    target_link_options(${fq_build_target_name} PRIVATE -nolibc -nostartfiles -nostdlib++ -static)
+  endif()
   target_link_libraries(
     ${fq_build_target_name}
-    libc.startup.${LIBC_TARGET_OS}.crt1
-    LibcHermeticTestMain LibcHermeticTest
-    # The NVIDIA 'nvlink' linker does not currently support static libraries.
-    $<$<NOT:$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>>:${fq_target_name}.__libc__>)
+    PRIVATE
+      ${HERMETIC_TEST_LINK_LIBRARIES}
+      libc.startup.${LIBC_TARGET_OS}.crt1
+      LibcHermeticTestMain LibcHermeticTest
+      # The NVIDIA 'nvlink' linker does not currently support static libraries.
+      $<$<NOT:$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>>:${fq_target_name}.__libc__>)
   add_dependencies(${fq_build_target_name}
                    LibcHermeticTest
-                   ${HERMETIC_TEST_DEPENDS})
+                   ${fq_deps_list})
 
   # Tests on the GPU require an external loader utility to launch the kernel.
   if(TARGET libc.utils.gpu.loader)
@@ -690,10 +697,17 @@ endfunction(add_libc_hermetic_test)
 
 # A convenience function to add both a unit test as well as a hermetic test.
 function(add_libc_test test_name)
-  if(LIBC_ENABLE_UNITTESTS)
-    add_libc_unittest(${test_name}.__unit__ ${ARGN})
+  cmake_parse_arguments(
+    "LIBC_TEST"
+    "UNIT_TEST_ONLY;HERMETIC_TEST_ONLY" # Optional arguments
+    "" # Single value arguments
+    "" # Multi-value arguments
+    ${ARGN}
+  )
+  if(LIBC_ENABLE_UNITTESTS AND NOT LIBC_TEST_HERMETIC_TEST_ONLY)
+    add_libc_unittest(${test_name}.__unit__ ${LIBC_TEST_UNPARSED_ARGUMENTS})
   endif()
-  if(LIBC_ENABLE_HERMETIC_TESTS)
-    add_libc_hermetic_test(${test_name}.__hermetic__ ${ARGN})
+  if(LIBC_ENABLE_HERMETIC_TESTS AND NOT LIBC_TEST_UNIT_TEST_ONLY)
+    add_libc_hermetic_test(${test_name}.__hermetic__ ${LIBC_TEST_UNPARSED_ARGUMENTS})
   endif()
 endfunction(add_libc_test)

@@ -4727,6 +4727,74 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
           Known.knownNot(fcNan);
         break;
       }
+
+      case Intrinsic::maxnum:
+      case Intrinsic::minnum:
+      case Intrinsic::minimum:
+      case Intrinsic::maximum: {
+        KnownFPClass KnownLHS, KnownRHS;
+        computeKnownFPClass(II->getArgOperand(0), DemandedElts,
+                            InterestedClasses, KnownLHS, Depth + 1, Q, TLI);
+        computeKnownFPClass(II->getArgOperand(1), DemandedElts,
+                            InterestedClasses, KnownRHS, Depth + 1, Q, TLI);
+
+        bool NeverNaN =
+            KnownLHS.isKnownNeverNaN() || KnownRHS.isKnownNeverNaN();
+        Known = KnownLHS | KnownRHS;
+
+        // If either operand is not NaN, the result is not NaN.
+        if (NeverNaN && (IID == Intrinsic::minnum || IID == Intrinsic::maxnum))
+          Known.knownNot(fcNan);
+
+        if (IID == Intrinsic::maxnum) {
+          // If at least one operand is known to be positive, the result must be
+          // positive.
+          if ((KnownLHS.cannotBeOrderedLessThanZero() &&
+               KnownLHS.isKnownNeverNaN()) ||
+              (KnownRHS.cannotBeOrderedLessThanZero() &&
+               KnownRHS.isKnownNeverNaN()))
+            Known.knownNot(KnownFPClass::OrderedLessThanZeroMask);
+        } else if (IID == Intrinsic::maximum) {
+          // If at least one operand is known to be positive, the result must be
+          // positive.
+          if (KnownLHS.cannotBeOrderedLessThanZero() ||
+              KnownRHS.cannotBeOrderedLessThanZero())
+            Known.knownNot(KnownFPClass::OrderedLessThanZeroMask);
+        } else if (IID == Intrinsic::minnum) {
+          // If at least one operand is known to be negative, the result must be
+          // negative.
+          if ((KnownLHS.cannotBeOrderedGreaterThanZero() &&
+               KnownLHS.isKnownNeverNaN()) ||
+              (KnownRHS.cannotBeOrderedGreaterThanZero() &&
+               KnownRHS.isKnownNeverNaN()))
+            Known.knownNot(KnownFPClass::OrderedGreaterThanZeroMask);
+        } else {
+          // If at least one operand is known to be negative, the result must be
+          // negative.
+          if (KnownLHS.cannotBeOrderedGreaterThanZero() ||
+              KnownRHS.cannotBeOrderedGreaterThanZero())
+            Known.knownNot(KnownFPClass::OrderedGreaterThanZeroMask);
+          }
+
+        // Fixup zero handling if denormals could be returned as a zero.
+        //
+        // As there's no spec for denormal flushing, be conservative with the
+        // treatment of denormals that could be flushed to zero. For older
+        // subtargets on AMDGPU the min/max instructions would not flush the
+        // output and return the original value.
+        //
+        // TODO: This could be refined based on the sign
+        if ((Known.KnownFPClasses & fcZero) != fcNone &&
+            !Known.isKnownNeverSubnormal()) {
+          const Function *Parent = II->getFunction();
+          DenormalMode Mode = Parent->getDenormalMode(
+              II->getType()->getScalarType()->getFltSemantics());
+          if (Mode != DenormalMode::getIEEE())
+            Known.KnownFPClasses |= fcZero;
+        }
+
+        break;
+      }
       case Intrinsic::canonicalize: {
         computeKnownFPClass(II->getArgOperand(0), DemandedElts,
                             InterestedClasses, Known, Depth + 1, Q, TLI);

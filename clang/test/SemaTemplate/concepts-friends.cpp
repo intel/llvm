@@ -443,7 +443,7 @@ namespace NTTP {
 }
 
 
-namespace FrineOfFriend {
+namespace FriendOfFriend {
 
 template <typename>
 concept Concept = true;
@@ -464,4 +464,4 @@ template <Concept> class Foo {
   friend void internal::FriendOfFoo(FriendOfBar<void>);
 };
 
-} // namespace FrineOfFriend
+} // namespace FriendOfFriend

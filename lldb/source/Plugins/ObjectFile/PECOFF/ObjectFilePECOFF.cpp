@@ -90,14 +90,14 @@ public:
   }
 
   llvm::Triple::EnvironmentType ABI() const {
-    return (llvm::Triple::EnvironmentType)
-        m_collection_sp->GetPropertyAtIndexAsEnumeration(
-            nullptr, ePropertyABI, llvm::Triple::UnknownEnvironment);
+    return (llvm::Triple::EnvironmentType)m_collection_sp
+        ->GetPropertyAtIndexAsEnumeration(ePropertyABI)
+        .value_or(llvm::Triple::UnknownEnvironment);
   }
 
   OptionValueDictionary *ModuleABIMap() const {
     return m_collection_sp->GetPropertyAtIndexAsOptionValueDictionary(
-        nullptr, ePropertyModuleABIMap);
+        ePropertyModuleABIMap);
   }
 };
 
@@ -166,7 +166,7 @@ static UUID GetCoffUUID(llvm::object::COFFObjectFile &coff_obj) {
     auto raw_data = coff_obj.getData();
     LLDB_SCOPED_TIMERF(
         "Calculating module crc32 %s with size %" PRIu64 " KiB",
-        FileSpec(coff_obj.getFileName()).GetLastPathComponent().AsCString(),
+        FileSpec(coff_obj.getFileName()).GetFilename().AsCString(),
         static_cast<lldb::offset_t>(raw_data.size()) / 1024);
     gnu_debuglink_crc = llvm::crc32(0, llvm::arrayRefFromStringRef(raw_data));
   }
@@ -295,7 +295,7 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   const auto *map = GetGlobalPluginProperties().ModuleABIMap();
   if (map->GetNumValues() > 0) {
     // Step 1: Try with the exact file name.
-    auto name = file.GetLastPathComponent();
+    auto name = file.GetFilename();
     module_env_option = map->GetValueForKey(name);
     if (!module_env_option) {
       // Step 2: Try with the file name in lowercase.

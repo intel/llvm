@@ -99,29 +99,29 @@ PlatformProperties::PlatformProperties() {
 
 bool PlatformProperties::GetUseModuleCache() const {
   const auto idx = ePropertyUseModuleCache;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_platform_properties[idx].default_uint_value != 0);
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
+      g_platform_properties[idx].default_uint_value != 0);
 }
 
 bool PlatformProperties::SetUseModuleCache(bool use_module_cache) {
-  return m_collection_sp->SetPropertyAtIndexAsBoolean(
-      nullptr, ePropertyUseModuleCache, use_module_cache);
+  return m_collection_sp->SetPropertyAtIndexAsBoolean(ePropertyUseModuleCache,
+                                                      use_module_cache);
 }
 
 FileSpec PlatformProperties::GetModuleCacheDirectory() const {
   return m_collection_sp->GetPropertyAtIndexAsFileSpec(
-      nullptr, ePropertyModuleCacheDirectory);
+      ePropertyModuleCacheDirectory);
 }
 
 bool PlatformProperties::SetModuleCacheDirectory(const FileSpec &dir_spec) {
   return m_collection_sp->SetPropertyAtIndexAsFileSpec(
-      nullptr, ePropertyModuleCacheDirectory, dir_spec);
+      ePropertyModuleCacheDirectory, dir_spec);
 }
 
 void PlatformProperties::SetDefaultModuleCacheDirectory(
     const FileSpec &dir_spec) {
   auto f_spec_opt = m_collection_sp->GetPropertyAtIndexAsOptionValueFileSpec(
-        nullptr, false, ePropertyModuleCacheDirectory);
+      ePropertyModuleCacheDirectory);
   assert(f_spec_opt);
   f_spec_opt->SetDefaultValue(dir_spec);
 }
@@ -435,7 +435,7 @@ RecurseCopy_Callback(void *baton, llvm::sys::fs::file_type ft,
     // make the new directory and get in there
     FileSpec dst_dir = rc_baton->dst;
     if (!dst_dir.GetFilename())
-      dst_dir.SetFilename(src.GetLastPathComponent());
+      dst_dir.SetFilename(src.GetFilename());
     Status error = rc_baton->platform_ptr->MakeDirectory(
         dst_dir, lldb::eFilePermissionsDirectoryDefault);
     if (error.Fail()) {

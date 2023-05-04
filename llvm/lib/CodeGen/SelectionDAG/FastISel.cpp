@@ -59,6 +59,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -95,7 +96,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -1208,19 +1208,15 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       return true;
     }
 
+    if (FuncInfo.PreprocessedDbgDeclares.contains(DI))
+      return true;
+
     const Value *Address = DI->getAddress();
     if (!Address || isa<UndefValue>(Address)) {
       LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
                         << " (bad/undef address)\n");
       return true;
     }
-
-    // Byval arguments with frame indices were already handled after argument
-    // lowering and before isel.
-    const auto *Arg =
-        dyn_cast<Argument>(Address->stripInBoundsConstantOffsets());
-    if (Arg && FuncInfo.getArgumentFrameIndex(Arg) != INT_MAX)
-      return true;
 
     std::optional<MachineOperand> Op;
     if (Register Reg = lookUpRegForValue(Address))

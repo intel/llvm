@@ -53,9 +53,10 @@ void runDataflow(llvm::StringRef Code, Matcher Match,
       [UseBuiltinModel = Options.BuiltinOpts.has_value()](ASTContext &C,
                                                           Environment &Env) {
         return NoopAnalysis(
-            C, DataflowAnalysisOptions{UseBuiltinModel
-                                           ? Env.getAnalysisOptions()
-                                           : std::optional<BuiltinOptions>()});
+            C,
+            DataflowAnalysisOptions{
+                UseBuiltinModel ? Env.getDataflowAnalysisContext().getOptions()
+                                : std::optional<BuiltinOptions>()});
       });
   AI.ASTBuildArgs = ASTBuildArgs;
   if (Options.BuiltinOpts)
@@ -2643,7 +2644,7 @@ TEST(TransferTest, VarDeclInDoWhile) {
     void target(int *Foo) {
       do {
         int Bar = *Foo;
-      } while (true);
+      } while (false);
       (void)0;
       /*[[p]]*/
     }
@@ -2671,6 +2672,24 @@ TEST(TransferTest, VarDeclInDoWhile) {
         ASSERT_THAT(BarVal, NotNull());
 
         EXPECT_EQ(BarVal, FooPointeeVal);
+      });
+}
+
+TEST(TransferTest, UnreachableAfterWhileTrue) {
+  std::string Code = R"(
+    void target() {
+      while (true) {}
+      (void)0;
+      /*[[p]]*/
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        // The node after the while-true is pruned because it is trivially
+        // known to be unreachable.
+        ASSERT_TRUE(Results.empty());
       });
 }
 
