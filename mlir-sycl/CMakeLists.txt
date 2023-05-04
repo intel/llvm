@@ -70,22 +70,7 @@ set(MLIR_SYCL_TOOLS_DIR ${CMAKE_BINARY_DIR}/bin)
 set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 
-# Generate Documentation
-add_custom_target(sycl-doc)
-add_dependencies(mlir-doc sycl-doc)
-function(add_sycl_doc doc_filename output_file output_directory command)
-  set(LLVM_TARGET_DEFINITIONS ${doc_filename}.td)
-  tablegen(MLIR ${output_file}.md ${command} ${ARGN})
-  set(GEN_DOC_FILE ${MLIR_BINARY_DIR}/docs/${output_directory}${output_file}.md)
-  add_custom_command(
-      OUTPUT ${GEN_DOC_FILE}
-      COMMAND ${CMAKE_COMMAND} -E copy
-              ${CMAKE_CURRENT_BINARY_DIR}/${output_file}.md
-              ${GEN_DOC_FILE}
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${output_file}.md)
-  add_custom_target(${output_file}DocGen DEPENDS ${GEN_DOC_FILE})
-  add_dependencies(sycl-doc ${output_file}DocGen)
-endfunction()
+include(AddMLIRSYCL)
 
 add_subdirectory(include/mlir)
 add_subdirectory(lib)
