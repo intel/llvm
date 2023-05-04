@@ -291,7 +291,7 @@ using system_barrier = syclex::barrier<sycl::memory_scope::system>;
 system_barrier* bar = sycl::shared_malloc<system_barrier>(1, q);
 
 // Construct the barrier using placement new
-bar = new (mem) system_barrier(nthreads);
+bar = new (bar) system_barrier(nthreads);
 
 // Use the barrier
 q.parallel_for(..., [=](sycl::nd_item it) {
