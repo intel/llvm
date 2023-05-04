@@ -1164,6 +1164,58 @@ template <typename T> static void filterFunctions(T Module) {
     Func.erase();
 }
 
+static bool readHostModule(MLIRContext &context, ModuleOp module,
+                           llvm::StringRef inputFilename) {
+  Block &dest = module.getBodyRegion().front();
+  assert(dest.getOperations().size() == 1 &&
+         "Expecting a single operation in the original module");
+
+  // Set up the input file.
+  std::string errorMessage;
+  auto file = openInputFile(inputFilename, &errorMessage);
+  if (!file) {
+    llvm::errs() << errorMessage << "\n";
+    return false;
+  }
+
+  // Tell sourceMgr about this buffer, which is what the parser will pick up.
+  auto sourceMgr = std::make_shared<llvm::SourceMgr>();
+  sourceMgr->AddNewSourceBuffer(std::move(file), SMLoc());
+
+  SourceMgrDiagnosticVerifierHandler sourceMgrHandler(*sourceMgr, &context);
+
+  // Disable multi-threading when parsing the input file. This removes the
+  // unnecessary/costly context synchronization when parsing.
+  bool wasThreadingEnabled = context.isMultithreadingEnabled();
+  context.disableMultithreading();
+
+  // Prepare the parser config, and attach any useful/necessary resource
+  // handlers. Unhandled external resources are treated as passthrough, i.e.
+  // they are not processed and will be emitted directly to the output
+  // untouched.
+  PassReproducerOptions reproOptions;
+  FallbackAsmResourceMap fallbackResourceMap;
+  ParserConfig parseConfig(&context, /*verifyAfterParse=*/true,
+                           &fallbackResourceMap);
+  reproOptions.attachResourceParser(parseConfig);
+
+  // Parse the input file and reset the context threading state.
+  OwningOpRef<Operation *> op = parseSourceFileForTool(
+      sourceMgr, parseConfig, /*shouldUseExplicitModule=*/true);
+  context.enableMultithreading(wasThreadingEnabled);
+
+  if (!op || !isa<ModuleOp>(*op)) {
+    llvm::errs() << "Error parsing input module\n";
+    return false;
+  }
+
+  // Clone new module into original one.
+  Block &source = (*op)->getRegion(0).front();
+  dest.getOperations().splice(dest.end(), source.getOperations());
+
+  return true;
+}
+
 int main(int argc, char **argv) {
   if (argc >= 1 && std::string(argv[1]) == "-cc1") {
     SmallVector<const char *> Argv;
@@ -1236,6 +1288,20 @@ int main(int argc, char **argv) {
     llvm::dbgs() << "MLIR before compilation:\n";
     Module->dump();
   });
+
+  if (SYCLUseHostModule != "") {
+    // TODO: Drop host code when done compiling. Host code is kept for now for
+    // testing.
+    if (!options.getCgeistOpts().getSYCLIsDevice()) {
+      llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
+                      "device compilation\n";
+      return -1;
+    }
+    if (!readHostModule(Ctx, *Module, SYCLUseHostModule)) {
+      llvm::errs() << "Failed to read SYCL host module\n";
+      return -1;
+    }
+  }
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
   if (mlir::failed(compileModule(
