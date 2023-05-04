@@ -202,6 +202,110 @@ the number of threads of execution expected in the next phase, and decreases
 the expected count of the current phase by 1.
 
 
+==== Usage examples
+
+As noted above, `barrier` objects must be allocated in memory that is visible
+to all of the work-items using the barrier. There are many ways to satisfy this
+condition. The examples in this section demonstrate some common ways to
+allocate and construct barrier objects for different scopes.
+
+
+===== Work-group scope
+
+Barriers at work-group scope can be allocated in group-local memory. The
+simplest way to allocate and construct a `barrier` object in group-local memory
+is to use the
+link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
+extension.
+
+[source,c++]
+----
+using work_group_barrier = syclex::barrier<sycl::memory_scope::work_group>;
+
+q.parallel_for(..., [=](sycl::nd_item it) {
+
+  // Allocate memory for and construct the barrier
+  auto* bar = sycl::ext::oneapi::group_local_memory<work_group_barrier>(it.get_group(), nthreads);
+
+  // Use the barrier
+  bar->arrive_and_wait();
+
+  // The barrier is automatically destructed and the memory is freed upon kernel completion
+
+}).wait();
+----
+
+
+===== Device scope
+
+Barriers at device scope must be allocated in global memory (including various
+kinds of USM). It is recommended that device scope barriers are initialized on
+the device that will use the barrier.
+
+[source,c++]
+----
+using device_barrier = syclex::barrier<sycl::memory_scope::device>;
+
+// Allocate memory for the barrier
+device_barrier* bar = sycl::device_malloc<device_barrier>(1, q);
+
+// Construct the barrier using placement new
+q.single_task([=]() {
+  new (bar) device_barrier(nthreads);
+}).wait();
+
+// Use the barrier
+q.parallel_for(..., [=](sycl::nd_item it) {
+  auto mybar = std::launder(bar);
+  mybar->arrive_and_wait();
+}).wait();
+
+// Destruct the barrier
+q.single_task([=]() {
+  auto mybar = std::launder(bar);
+  mybar->~barrier();
+}).wait();
+
+// Free memory for the barrier
+sycl::free(bar, q);
+----
+
+It is possible to construct and destruct a `barrier` object in the same kernel
+that uses it, rather than using `single_task` as shown above, but this will
+require an additional mechanism of device synchronization such as the root-group
+barrier provided by the
+link:../proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
+extension.
+
+
+===== System scope
+
+Barriers at system scope must be allocated in host, shared, or system USM. Such
+barriers can be constructed on the host.
+
+[source,c++]
+----
+using system_barrier = syclex::barrier<sycl::memory_scope::system>;
+
+// Allocate memory for the barrier
+system_barrier* bar = sycl::shared_malloc<system_barrier>(1, q);
+
+// Construct the barrier using placement new
+bar = new (mem) system_barrier(nthreads);
+
+// Use the barrier
+q.parallel_for(..., [=](sycl::nd_item it) {
+  bar->arrive_and_wait();
+});
+
+// Destruct the barrier
+bar->~barrier();
+
+// Free memory for the barrier
+sycl::free(bar, q);
+----
+
+
 === `group_arrive` and `group_wait`
 
 This extension provides two convenience functions for `arrive` and `wait` with
