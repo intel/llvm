@@ -2,7 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// REQUIRES: fusion, aspect-usm_shared_allocations
 
 // Test complete fusion where one kernel in the fusion list specifies an
 // explicit dependency (via events) on another kernel in the fusion list.
@@ -17,10 +17,6 @@ int main() {
   constexpr size_t dataSize = 512;
 
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  if (!q.get_device().has(sycl::aspect::usm_shared_allocations)) {
-    return 0;
-  }
 
   int *in1 = sycl::malloc_shared<int>(dataSize, q);
   int *in2 = sycl::malloc_shared<int>(dataSize, q);

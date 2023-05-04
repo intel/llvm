@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu, aspect-fp16
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
@@ -59,13 +59,6 @@ int main(int argc, char **argv) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
-  if (!dev.has(sycl::aspect::fp16)) {
-    std::cout << "Test was skipped becasue the selected device does not "
-                 "support sycl::aspect::fp16"
-              << std::endl;
-    return 0;
-  }
 
   TstT *A = malloc_shared<TstT>(Size, q);
   SrcT *B = malloc_shared<SrcT>(Size, q);

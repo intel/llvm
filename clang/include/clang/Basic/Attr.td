@@ -2509,6 +2509,17 @@ def SYCLIntelMaxReinvocationDelay : StmtAttr {
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
                         SYCLIntelMaxReinvocationDelay]>;
 
+def SYCLIntelEnableLoopPipelining : StmtAttr {
+  let Spellings = [CXX11<"intel", "enable_loop_pipelining">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                              ErrorDiag, "'for', 'while', and 'do' statements">;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLIntelEnableLoopPipeliningAttrDocs];
+}
+
+def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
+                        SYCLIntelEnableLoopPipelining]>;
+
 def SYCLIntelLocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
