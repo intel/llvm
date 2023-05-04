@@ -103,7 +103,7 @@ private:
 
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
 
-  DICompileUnit *transCompileUnit(const SPIRVExtInst *DebugInst);
+  DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst);
 
   DIBasicType *transTypeBasic(const SPIRVExtInst *DebugInst);
 
@@ -128,11 +128,11 @@ private:
 
   DINode *transTypeEnum(const SPIRVExtInst *DebugInst);
 
-  DINode *transTemplateParameter(const SPIRVExtInst *DebugInst);
-  DINode *transTemplateTemplateParameter(const SPIRVExtInst *DebugInst);
-  DINode *transTemplateParameterPack(const SPIRVExtInst *DebugInst);
+  DINode *transTypeTemplateParameter(const SPIRVExtInst *DebugInst);
+  DINode *transTypeTemplateTemplateParameter(const SPIRVExtInst *DebugInst);
+  DINode *transTypeTemplateParameterPack(const SPIRVExtInst *DebugInst);
 
-  MDNode *transTemplate(const SPIRVExtInst *DebugInst);
+  MDNode *transTypeTemplate(const SPIRVExtInst *DebugInst);
 
   DINode *transTypeFunction(const SPIRVExtInst *DebugInst);
 
@@ -151,7 +151,7 @@ private:
 
   DINode *transTypedef(const SPIRVExtInst *DebugInst);
 
-  DINode *transInheritance(const SPIRVExtInst *DebugInst);
+  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst);
 
   DINode *transImportedEntry(const SPIRVExtInst *DebugInst);
 

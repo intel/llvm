@@ -76,16 +76,17 @@ Value *getRuntimeVF(IRBuilderBase &B, Type *Ty, ElementCount VF);
 Value *createStepForVF(IRBuilderBase &B, Type *Ty, ElementCount VF,
                        int64_t Step);
 
-const SCEV *createTripCountSCEV(Type *IdxTy, PredicatedScalarEvolution &PSE);
+const SCEV *createTripCountSCEV(Type *IdxTy, PredicatedScalarEvolution &PSE,
+                                Loop *CurLoop = nullptr);
 
 /// A range of powers-of-2 vectorization factors with fixed start and
 /// adjustable end. The range includes start and excludes end, e.g.,:
-/// [1, 9) = {1, 2, 4, 8}
+/// [1, 16) = {1, 2, 4, 8}
 struct VFRange {
   // A power of 2.
   const ElementCount Start;
 
-  // Need not be a power of 2. If End <= Start range is empty.
+  // A power of 2. If End <= Start range is empty.
   ElementCount End;
 
   bool isEmpty() const {
@@ -98,6 +99,33 @@ struct VFRange {
            "Both Start and End should have the same scalable flag");
     assert(isPowerOf2_32(Start.getKnownMinValue()) &&
            "Expected Start to be a power of 2");
+    assert(isPowerOf2_32(End.getKnownMinValue()) &&
+           "Expected End to be a power of 2");
+  }
+
+  /// Iterator to iterate over vectorization factors in a VFRange.
+  class iterator
+      : public iterator_facade_base<iterator, std::forward_iterator_tag,
+                                    ElementCount> {
+    ElementCount VF;
+
+  public:
+    iterator(ElementCount VF) : VF(VF) {}
+
+    bool operator==(const iterator &Other) const { return VF == Other.VF; }
+
+    ElementCount operator*() const { return VF; }
+
+    iterator &operator++() {
+      VF *= 2;
+      return *this;
+    }
+  };
+
+  iterator begin() { return iterator(Start); }
+  iterator end() {
+    assert(isPowerOf2_32(End.getKnownMinValue()));
+    return iterator(End);
   }
 };
 
@@ -638,6 +666,10 @@ class VPLiveOut : public VPUser {
 public:
   VPLiveOut(PHINode *Phi, VPValue *Op)
       : VPUser({Op}, VPUser::VPUserID::LiveOut), Phi(Phi) {}
+
+  static inline bool classof(const VPUser *U) {
+    return U->getVPUserID() == VPUser::VPUserID::LiveOut;
+  }
 
   /// Fixup the wrapped LCSSA phi node in the unique exit block.  This simply
   /// means we need to add the appropriate incoming value from the middle
@@ -1391,12 +1423,20 @@ public:
 class VPInterleaveRecipe : public VPRecipeBase {
   const InterleaveGroup<Instruction> *IG;
 
+  /// Indicates if the interleave group is in a conditional block and requires a
+  /// mask.
   bool HasMask = false;
+
+  /// Indicates if gaps between members of the group need to be masked out or if
+  /// unusued gaps can be loaded speculatively.
+  bool NeedsMaskForGaps = false;
 
 public:
   VPInterleaveRecipe(const InterleaveGroup<Instruction> *IG, VPValue *Addr,
-                     ArrayRef<VPValue *> StoredValues, VPValue *Mask)
-      : VPRecipeBase(VPDef::VPInterleaveSC, {Addr}), IG(IG) {
+                     ArrayRef<VPValue *> StoredValues, VPValue *Mask,
+                     bool NeedsMaskForGaps)
+      : VPRecipeBase(VPDef::VPInterleaveSC, {Addr}), IG(IG),
+        NeedsMaskForGaps(NeedsMaskForGaps) {
     for (unsigned i = 0; i < IG->getFactor(); ++i)
       if (Instruction *I = IG->getMember(i)) {
         if (I->getType()->isVoidTy())
@@ -2389,12 +2429,6 @@ public:
   VPActiveLaneMaskPHIRecipe *getActiveLaneMaskPhi();
 
   void addLiveOut(PHINode *PN, VPValue *V);
-
-  void clearLiveOuts() {
-    for (auto &KV : LiveOuts)
-      delete KV.second;
-    LiveOuts.clear();
-  }
 
   void removeLiveOut(PHINode *PN) {
     delete LiveOuts[PN];

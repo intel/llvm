@@ -890,6 +890,7 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
   case internal::OpTypeJointMatrixINTEL:
+  case internal::OpTypeJointMatrixINTELv2:
     return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))

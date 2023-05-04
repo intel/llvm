@@ -20,7 +20,7 @@ using namespace sycl;
 using namespace std;
 using namespace sycl::ext::intel::esimd;
 
-const unsigned int ESIMD_EMULATOR_SIZE_LIMIT = 1U << 10;
+const unsigned int ESIMD_EMULATOR_SIZE_LIMIT = 1U << 9;
 
 void initMatrix(int *M, unsigned N) {
   assert(N >= 8 && (((N - 1) & N) == 0) &&
@@ -340,14 +340,14 @@ int main(int argc, char *argv[]) {
   bool success = true;
   success &= runTest(MZ, 16, num_iters, kernel_times, total_times);
   if (argc == 1) {
+    success &= runTest(1U << 9, 8, num_iters, kernel_times, total_times);
     success &= runTest(1U << 10, 8, num_iters, kernel_times, total_times);
     success &= runTest(1U << 11, 8, num_iters, kernel_times, total_times);
     success &= runTest(1U << 12, 8, num_iters, kernel_times, total_times);
-    // success &= runTest(1U << 13, 8, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 9, 16, num_iters, kernel_times, total_times);
     success &= runTest(1U << 10, 16, num_iters, kernel_times, total_times);
     success &= runTest(1U << 11, 16, num_iters, kernel_times, total_times);
     success &= runTest(1U << 12, 16, num_iters, kernel_times, total_times);
-    // success &= runTest(1U << 13, 16, num_iters, kernel_times, total_times);
   }
 
   const bool profiling =

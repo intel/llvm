@@ -99,7 +99,7 @@ private:
   SPIRVId getDebugInfoNoneId();
 
   // Compilation unit
-  SPIRVEntry *transDbgCompilationUnit(const DICompileUnit *CU);
+  SPIRVEntry *transDbgCompileUnit(const DICompileUnit *CU);
 
   /// The following methods (till the end of the file) implement translation
   /// of debug instrtuctions described in the spec.

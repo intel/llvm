@@ -362,6 +362,26 @@ rewriteAsPaddedOp(RewriterBase &rewriter, LinalgOp opToPad,
                   ArrayRef<Attribute> paddingValues,
                   ArrayRef<bool> packPaddings, LinalgOp &paddedOp);
 
+namespace detail {
+
+/// Helper struct to hold the results of building a packing loop nest.
+struct PackingResult {
+  SmallVector<OpFoldResult> offsets, sizes, strides;
+  SmallVector<Value> clonedLoopIvs, leadingPackedTensorIndexings;
+  GenericOp maybeTransposeOp;
+  tensor::PadOp hoistedPadOp;
+};
+
+/// Build the packing loop nest required to hoist `opToHoist` above
+/// `outermostEnclosingForOp`.
+/// The loop nest is built just before `outermostEnclosingForOp`.
+FailureOr<PackingResult>
+buildPackingLoopNest(RewriterBase &rewriter, tensor::PadOp opToHoist,
+                     scf::ForOp outermostEnclosingForOp,
+                     ArrayRef<int64_t> transposeVector);
+
+} // namespace detail
+
 /// Mechanically hoist padding operations on tensors by `numLoops` into a new,
 /// generally larger tensor. This achieves packing of multiple padding ops into
 /// a larger tensor. On success, `opToHoist` is replaced by the cloned version
@@ -568,6 +588,13 @@ LogicalResult vectorize(RewriterBase &rewriter, LinalgOp linalgOp,
 
 /// Emit a suitable vector form for a Copy op with fully static shape.
 LogicalResult vectorizeCopy(RewriterBase &builder, memref::CopyOp copyOp);
+
+/// Vectorize a `padOp` with (1) static result type, (2) constant padding value
+/// and (3) all-zero lowPad to
+///   `transfer_write_in_bounds(transfer_read_masked(pad_source, pad_value))`.
+FailureOr<vector::TransferWriteOp>
+maskedVectorize(RewriterBase &rewriter, tensor::PadOp padOp,
+                ArrayRef<int64_t> inputVectorSizes);
 
 /// Emit a loop nest of `scf.for` with the proper body for `linalgOp`.
 FailureOr<LinalgLoops> linalgOpToLoops(RewriterBase &rewriter,
@@ -1306,8 +1333,14 @@ void populateElementwiseOpsFusionPatterns(
     RewritePatternSet &patterns,
     const ControlFusionFn &controlElementwiseOpFusion);
 
+/// Function type which is used to control propagation of tensor.pack/unpack
+/// ops.
+using ControlPropagationFn = std::function<bool(Operation *op)>;
+
 /// Patterns to bubble up or down data layout ops across other operations.
-void populateDataLayoutPropagationPatterns(RewritePatternSet &patterns);
+void populateDataLayoutPropagationPatterns(
+    RewritePatternSet &patterns,
+    const ControlPropagationFn &controlPackUnPackPropagation);
 
 /// Pattern to remove dead operands and results of `linalg.generic` operations.
 /// This is effectively DCE for a linalg op.

@@ -640,10 +640,9 @@ ParseResult ContractionOp::parse(OpAsmParser &parser, OperationState &result) {
   auto loc = parser.getCurrentLocation();
   DictionaryAttr dictAttr;
   // TODO: Unify linalg op attribute parsing.
-  if (parser.parseAttribute(dictAttr) ||
-      parser.parseOperand(lhsInfo) || parser.parseComma() ||
-      parser.parseOperand(rhsInfo) || parser.parseComma() ||
-      parser.parseOperand(accInfo) ||
+  if (parser.parseAttribute(dictAttr) || parser.parseOperand(lhsInfo) ||
+      parser.parseComma() || parser.parseOperand(rhsInfo) ||
+      parser.parseComma() || parser.parseOperand(accInfo) ||
       parser.parseTrailingOperandList(masksInfo) ||
       parser.parseOptionalAttrDict(result.attributes) ||
       parser.parseColonTypeList(types) ||
@@ -729,8 +728,6 @@ void ContractionOp::print(OpAsmPrinter &p) {
   auto dictAttr = DictionaryAttr::get(getContext(), attrs);
   p << " " << dictAttr << " " << getLhs() << ", ";
   p << getRhs() << ", " << getAcc();
-  if (getMasks().size() == 2)
-    p << ", " << getMasks();
 
   p.printOptionalAttrDict((*this)->getAttrs(), attrNames);
   p << " : " << getLhs().getType() << ", " << getRhs().getType() << " into "
@@ -897,18 +894,6 @@ LogicalResult ContractionOp::verify() {
   if (failed(verifyOutputShape(*this, lhsType, rhsType, accType, resType,
                                contractingDimMap, batchDimMap)))
     return failure();
-
-  // Verify that either two vector masks are set or none are set.
-  auto lhsMaskType = getLHSVectorMaskType();
-  auto rhsMaskType = getRHSVectorMaskType();
-  if ((lhsMaskType && !rhsMaskType) || (!lhsMaskType && rhsMaskType))
-    return emitOpError("invalid number of vector masks specified");
-  if (lhsMaskType && rhsMaskType) {
-    // Verify mask rank == argument rank.
-    if (lhsMaskType.getShape().size() != lhsType.getShape().size() ||
-        rhsMaskType.getShape().size() != rhsType.getShape().size())
-      return emitOpError("invalid vector mask rank");
-  }
 
   // Verify supported combining kind.
   auto vectorType = resType.dyn_cast<VectorType>();
@@ -5283,23 +5268,37 @@ class FoldTransposeCreateMask final : public OpRewritePattern<TransposeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(TransposeOp transposeOp,
+  LogicalResult matchAndRewrite(TransposeOp transpOp,
                                 PatternRewriter &rewriter) const override {
-    auto createMaskOp =
-        transposeOp.getVector().getDefiningOp<vector::CreateMaskOp>();
-    if (!createMaskOp)
+    Value transposeSrc = transpOp.getVector();
+    auto createMaskOp = transposeSrc.getDefiningOp<vector::CreateMaskOp>();
+    auto constantMaskOp = transposeSrc.getDefiningOp<vector::ConstantMaskOp>();
+    if (!createMaskOp && !constantMaskOp)
       return failure();
 
-    // Get the transpose permutation and apply it to the vector.create_mask
-    // operands.
-    auto maskOperands = createMaskOp.getOperands();
+    // Get the transpose permutation and apply it to the vector.create_mask or
+    // vector.constant_mask operands.
     SmallVector<int64_t> permutation;
-    transposeOp.getTransp(permutation);
-    SmallVector<Value> newOperands(maskOperands.begin(), maskOperands.end());
-    applyPermutationToVector(newOperands, permutation);
+    transpOp.getTransp(permutation);
 
-    rewriter.replaceOpWithNewOp<vector::CreateMaskOp>(
-        transposeOp, transposeOp.getResultVectorType(), newOperands);
+    if (createMaskOp) {
+      auto maskOperands = createMaskOp.getOperands();
+      SmallVector<Value> newOperands(maskOperands.begin(), maskOperands.end());
+      applyPermutationToVector(newOperands, permutation);
+
+      rewriter.replaceOpWithNewOp<vector::CreateMaskOp>(
+          transpOp, transpOp.getResultVectorType(), newOperands);
+      return success();
+    }
+
+    // ConstantMaskOp case.
+    auto maskDimSizes = constantMaskOp.getMaskDimSizes();
+    SmallVector<Attribute> newMaskDimSizes(maskDimSizes.getValue());
+    applyPermutationToVector(newMaskDimSizes, permutation);
+
+    rewriter.replaceOpWithNewOp<vector::ConstantMaskOp>(
+        transpOp, transpOp.getResultVectorType(),
+        ArrayAttr::get(transpOp.getContext(), newMaskDimSizes));
     return success();
   }
 };
@@ -5368,6 +5367,14 @@ LogicalResult ConstantMaskOp::verify() {
 //===----------------------------------------------------------------------===//
 // CreateMaskOp
 //===----------------------------------------------------------------------===//
+
+void CreateMaskOp::build(OpBuilder &builder, OperationState &result,
+                         VectorType type,
+                         ArrayRef<OpFoldResult> mixedOperands) {
+  SmallVector<Value> operands =
+      getValueOrCreateConstantIndexOp(builder, result.location, mixedOperands);
+  build(builder, result, type, operands);
+}
 
 LogicalResult CreateMaskOp::verify() {
   auto vectorType = getResult().getType().cast<VectorType>();

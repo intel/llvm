@@ -76,9 +76,9 @@ buffer_impl::getNativeVector(backend BackendName) const {
       continue;
     auto Plugin = Platform->getPlugin();
 
-    if (Plugin.getBackend() != BackendName)
+    if (Platform->getBackend() != BackendName)
       continue;
-    if (Plugin.getBackend() == backend::opencl) {
+    if (Platform->getBackend() == backend::opencl) {
       Plugin.call<PiApiKind::piMemRetain>(NativeMem);
     }
 

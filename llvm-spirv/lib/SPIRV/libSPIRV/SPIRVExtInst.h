@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVEXTINST_H
 #define SPIRV_LIBSPIRV_SPIRVEXTINST_H
 
+#include "NonSemantic.AuxData.h"
 #include "OpenCL.std.h"
 #include "SPIRV.debug.h"
 #include "SPIRVEnum.h"
@@ -221,7 +222,7 @@ SPIRV_DEF_NAMEMAP(OCLExtOpKind, OCLExtOpMap)
 typedef SPIRVDebug::Instruction SPIRVDebugExtOpKind;
 template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::DebugInfoNone, "DebugInfoNone");
-  add(SPIRVDebug::CompilationUnit, "DebugCompileUnit");
+  add(SPIRVDebug::CompilationUnit, "DebugCompilationUnit");
   add(SPIRVDebug::Source, "DebugSource");
   add(SPIRVDebug::TypeBasic, "DebugTypeBasic");
   add(SPIRVDebug::TypePointer, "DebugTypePointer");
@@ -234,19 +235,19 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::TypeMember, "DebugTypeMember");
   add(SPIRVDebug::TypeEnum, "DebugTypeEnum");
   add(SPIRVDebug::Typedef, "DebugTypedef");
-  add(SPIRVDebug::TypeTemplateParameter, "DebugTemplateParameter");
-  add(SPIRVDebug::TypeTemplateParameterPack, "DebugTemplateParameterPack");
+  add(SPIRVDebug::TypeTemplateParameter, "DebugTypeTemplateParameter");
+  add(SPIRVDebug::TypeTemplateParameterPack, "DebugTypeTemplateParameterPack");
   add(SPIRVDebug::TypeTemplateTemplateParameter,
-      "DebugTemplateTemplateParameter");
-  add(SPIRVDebug::TypeTemplate, "DebugTemplate");
+      "DebugTypeTemplateTemplateParameter");
+  add(SPIRVDebug::TypeTemplate, "DebugTypeTemplate");
   add(SPIRVDebug::TypePtrToMember, "DebugTypePtrToMember,");
   add(SPIRVDebug::TypeSubrange, "DebugTypeSubrange");
   add(SPIRVDebug::TypeString, "DebugTypeString");
-  add(SPIRVDebug::Inheritance, "DebugInheritance");
+  add(SPIRVDebug::TypeInheritance, "DebugTypeInheritance");
   add(SPIRVDebug::Function, "DebugFunction");
-  add(SPIRVDebug::FunctionDecl, "DebugFunctionDecl");
+  add(SPIRVDebug::FunctionDeclaration, "DebugFunctionDeclaration");
   add(SPIRVDebug::LexicalBlock, "DebugLexicalBlock");
-  add(SPIRVDebug::LexicalBlockDiscriminator, "LexicalBlockDiscriminator");
+  add(SPIRVDebug::LexicalBlockDiscriminator, "DebugLexicalBlockDiscriminator");
   add(SPIRVDebug::LocalVariable, "DebugLocalVariable");
   add(SPIRVDebug::InlinedVariable, "DebugInlinedVariable");
   add(SPIRVDebug::GlobalVariable, "DebugGlobalVariable");
@@ -262,6 +263,16 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::Operation, "DebugOperation");
 }
 SPIRV_DEF_NAMEMAP(SPIRVDebugExtOpKind, SPIRVDebugExtOpMap)
+
+typedef NonSemanticAuxData::Instruction NonSemanticAuxDataOpKind;
+template <>
+inline void SPIRVMap<NonSemanticAuxDataOpKind, std::string>::init() {
+  add(NonSemanticAuxData::FunctionMetadata,
+      "NonSemanticAuxDataFunctionMetadata");
+  add(NonSemanticAuxData::FunctionAttribute,
+      "NonSemanticAuxDataFunctionAttribute");
+}
+SPIRV_DEF_NAMEMAP(NonSemanticAuxDataOpKind, NonSemanticAuxDataOpMap)
 
 } // namespace SPIRV
 

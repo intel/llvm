@@ -4125,9 +4125,14 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
 
 /// Return true if it's possible to assume IEEE treatment of input denormals in
 /// \p F for \p Val.
-static bool inputDenormalIsIEEE(const Function &F, const Value *Val) {
-  Type *Ty = Val->getType()->getScalarType();
+static bool inputDenormalIsIEEE(const Function &F, const Type *Ty) {
+  Ty = Ty->getScalarType();
   return F.getDenormalMode(Ty->getFltSemantics()).Input == DenormalMode::IEEE;
+}
+
+bool KnownFPClass::isKnownNeverLogicalZero(const Function &F, Type *Ty) const {
+  return isKnownNeverZero() &&
+         (isKnownNeverSubnormal() || inputDenormalIsIEEE(F, Ty));
 }
 
 /// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
@@ -4143,7 +4148,7 @@ std::pair<Value *, FPClassTest> llvm::fcmpToClassTest(FCmpInst::Predicate Pred,
   if (ConstRHS->isZero()) {
     // Compares with fcNone are only exactly equal to fcZero if input denormals are
     // not flushed.
-    if (FCmpInst::isEquality(Pred) && !inputDenormalIsIEEE(F, LHS))
+    if (FCmpInst::isEquality(Pred) && !inputDenormalIsIEEE(F, LHS->getType()))
       return {nullptr, fcNone};
 
     switch (Pred) {
@@ -4439,6 +4444,51 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
 
     break;
   }
+  case Instruction::FAdd:
+  case Instruction::FSub: {
+    KnownFPClass KnownLHS, KnownRHS;
+    computeKnownFPClass(Op->getOperand(1), DemandedElts, fcNan | fcInf,
+                        KnownRHS, Depth + 1, Q, TLI);
+    if (KnownRHS.isKnownNeverNaN()) {
+      // RHS is canonically cheaper to compute. Skip inspecting the LHS if
+      // there's no point.
+      computeKnownFPClass(Op->getOperand(0), DemandedElts, fcNan | fcInf,
+                          KnownLHS, Depth + 1, Q, TLI);
+      // Adding positive and negative infinity produces NaN.
+      // TODO: Check sign of infinities.
+      if (KnownLHS.isKnownNeverNaN() &&
+          (KnownLHS.isKnownNeverInfinity() || KnownRHS.isKnownNeverInfinity()))
+        Known.knownNot(fcNan);
+    }
+
+    break;
+  }
+  case Instruction::FMul: {
+    KnownFPClass KnownLHS, KnownRHS;
+    computeKnownFPClass(Op->getOperand(1), DemandedElts,
+                        fcNan | fcInf | fcZero | fcSubnormal, KnownRHS,
+                        Depth + 1, Q, TLI);
+    if (KnownRHS.isKnownNeverNaN() &&
+        (KnownRHS.isKnownNeverInfinity() || KnownRHS.isKnownNeverZero())) {
+      computeKnownFPClass(Op->getOperand(0), DemandedElts,
+                          fcNan | fcInf | fcZero, KnownLHS, Depth + 1, Q, TLI);
+      if (!KnownLHS.isKnownNeverNaN())
+        break;
+
+      const Function *F = cast<Instruction>(Op)->getFunction();
+
+      // If neither side can be zero (or nan) fmul never produces NaN.
+      // TODO: Check operand combinations.
+      // e.g. fmul nofpclass(inf nan zero), nofpclass(nan) -> nofpclass(nan)
+      if ((KnownLHS.isKnownNeverInfinity() ||
+           KnownLHS.isKnownNeverLogicalZero(*F, Op->getType())) &&
+          (KnownRHS.isKnownNeverInfinity() ||
+           KnownRHS.isKnownNeverLogicalZero(*F, Op->getType())))
+        Known.knownNot(fcNan);
+    }
+
+    break;
+  }
   case Instruction::SIToFP:
   case Instruction::UIToFP: {
     // Cannot produce nan
@@ -4466,8 +4516,6 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
   default:
     break;
   }
-
-  // TODO: Handle assumes
 }
 
 KnownFPClass llvm::computeKnownFPClass(
@@ -5444,7 +5492,7 @@ static ConstantRange computeConstantRangeIncludingKnownBits(
   KnownBits Known = computeKnownBits(
       V, DL, Depth, AC, CxtI, DT, ORE, UseInstrInfo);
   ConstantRange CR1 = ConstantRange::fromKnownBits(Known, ForSigned);
-  ConstantRange CR2 = computeConstantRange(V, UseInstrInfo);
+  ConstantRange CR2 = computeConstantRange(V, ForSigned, UseInstrInfo);
   ConstantRange::PreferredRangeType RangeType =
       ForSigned ? ConstantRange::Signed : ConstantRange::Unsigned;
   return CR1.intersectWith(CR2, RangeType);

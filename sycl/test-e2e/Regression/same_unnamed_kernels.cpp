@@ -1,9 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out -fsycl-unnamed-lambda
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: gpu
-// UNSUPPORTED: hip
+// Temporarily disabled on CUDA: https://github.com/intel/llvm/issues/9174
+// UNSUPPORTED: hip, cuda
 
 //==----- same_unnamed_kernels.cpp - SYCL kernel naming variants test ------==//
 //
@@ -41,7 +41,9 @@ int main() {
         acc[0] *= 2;
       });
 
-  if (A[0] != 0 || B[0] != 2)
+  sycl::host_accessor hostA{bufA, sycl::read_only};
+  sycl::host_accessor hostB{bufB, sycl::read_only};
+  if (hostA[0] != 0 || hostB[0] != 2)
     return -1;
 
   return 0;

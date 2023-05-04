@@ -271,7 +271,7 @@ public:
   /// \returns a kernel object which represents the kernel identified by
   /// kernel_id passed
   template <bundle_state _State = State,
-            typename = detail::enable_if_t<_State == bundle_state::executable>>
+            typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel get_kernel(const kernel_id &KernelID) const {
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
@@ -279,7 +279,7 @@ public:
   /// \returns a kernel object which represents the kernel identified by
   /// KernelName.
   template <typename KernelName, bundle_state _State = State,
-            typename = detail::enable_if_t<_State == bundle_state::executable>>
+            typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel get_kernel() const {
     return detail::kernel_bundle_plain::get_kernel(get_kernel_id<KernelName>());
   }
@@ -295,7 +295,7 @@ public:
   /// for this bundle. If the specialization constant’s value was previously set
   /// in this bundle, the value is overwritten.
   template <auto &SpecName, bundle_state _State = State,
-            typename = detail::enable_if_t<_State == bundle_state::input>>
+            typename = std::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
     const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();

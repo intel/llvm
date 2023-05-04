@@ -475,10 +475,10 @@ static void hoistLoopToNewParent(Loop &L, BasicBlock &Preheader,
 // Return the top-most loop containing ExitBB and having ExitBB as exiting block
 // or the loop containing ExitBB, if there is no parent loop containing ExitBB
 // as exiting block.
-static const Loop *getTopMostExitingLoop(const BasicBlock *ExitBB,
-                                         const LoopInfo &LI) {
-  const Loop *TopMost = LI.getLoopFor(ExitBB);
-  const Loop *Current = TopMost;
+static Loop *getTopMostExitingLoop(const BasicBlock *ExitBB,
+                                   const LoopInfo &LI) {
+  Loop *TopMost = LI.getLoopFor(ExitBB);
+  Loop *Current = TopMost;
   while (Current) {
     if (Current->isLoopExiting(ExitBB))
       TopMost = Current;
@@ -792,7 +792,14 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
 
   if (DefaultExitBB) {
     // Check the loop containing this exit.
-    Loop *ExitL = LI.getLoopFor(DefaultExitBB);
+    Loop *ExitL = getTopMostExitingLoop(DefaultExitBB, LI);
+    if (!ExitL || ExitL->contains(OuterL))
+      OuterL = ExitL;
+  }
+  for (unsigned Index : ExitCaseIndices) {
+    auto CaseI = SI.case_begin() + Index;
+    // Compute the outer loop from this exit.
+    Loop *ExitL = getTopMostExitingLoop(CaseI->getCaseSuccessor(), LI);
     if (!ExitL || ExitL->contains(OuterL))
       OuterL = ExitL;
   }
@@ -821,10 +828,6 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
   // and don't disrupt the earlier indices.
   for (unsigned Index : reverse(ExitCaseIndices)) {
     auto CaseI = SI.case_begin() + Index;
-    // Compute the outer loop from this exit.
-    Loop *ExitL = LI.getLoopFor(CaseI->getCaseSuccessor());
-    if (!ExitL || ExitL->contains(OuterL))
-      OuterL = ExitL;
     // Save the value of this case.
     auto W = SIW.getSuccessorWeight(CaseI->getSuccessorIndex());
     ExitCases.emplace_back(CaseI->getCaseValue(), CaseI->getCaseSuccessor(), W);
@@ -2204,7 +2207,9 @@ static void unswitchNontrivialInvariants(
   SmallVector<BasicBlock *, 4> ExitBlocks;
   L.getUniqueExitBlocks(ExitBlocks);
   for (auto *ExitBB : ExitBlocks) {
-    Loop *NewOuterExitL = LI.getLoopFor(ExitBB);
+    // ExitBB can be an exit block for several levels in the loop nest. Make
+    // sure we find the top most.
+    Loop *NewOuterExitL = getTopMostExitingLoop(ExitBB, LI);
     if (!NewOuterExitL) {
       // We exited the entire nest with this block, so we're done.
       OuterExitL = nullptr;
@@ -3161,6 +3166,8 @@ static bool collectUnswitchCandidatesWithInjections(
     auto *Term = BB->getTerminator();
     if (!match(Term, m_Br(m_ICmp(Pred, m_Value(LHS), m_Value(RHS)),
                           m_BasicBlock(IfTrue), m_BasicBlock(IfFalse))))
+      continue;
+    if (!LHS->getType()->isIntegerTy())
       continue;
     canonicalizeForInvariantConditionInjection(Pred, LHS, RHS, IfTrue, IfFalse,
                                                L);

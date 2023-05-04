@@ -149,6 +149,66 @@ define i32 @testpsnzc_256_invert0(<8 x float> %c, <8 x float> %d, i32 %a, i32 %b
   ret i32 %t5
 }
 
+;
+; SimplifyDemandedBits - only the sign bit is required
+;
+
+define i32 @testpsz_128_signbit(<4 x float> %c, <4 x float> %d, i32 %a, i32 %b) {
+; CHECK-LABEL: testpsz_128_signbit:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    vtestps %xmm1, %xmm0
+; CHECK-NEXT:    cmovnel %esi, %eax
+; CHECK-NEXT:    retq
+  %t0 = bitcast <4 x float> %c to <4 x i32>
+  %t1 = ashr <4 x i32> %t0, <i32 31, i32 31, i32 31, i32 31>
+  %t2 = bitcast <4 x i32> %t1 to <4 x float>
+  %t3 = call i32 @llvm.x86.avx.vtestz.ps(<4 x float> %t2, <4 x float> %d)
+  %t4 = icmp ne i32 %t3, 0
+  %t5 = select i1 %t4, i32 %a, i32 %b
+  ret i32 %t5
+}
+
+define i32 @testpsnzc_256_signbit(<8 x float> %c, <8 x float> %d, i32 %a, i32 %b) {
+; CHECK-LABEL: testpsnzc_256_signbit:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    vtestps %ymm1, %ymm0
+; CHECK-NEXT:    cmovnel %esi, %eax
+; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    retq
+  %t0 = bitcast <8 x float> %c to <8 x i32>
+  %t1 = icmp sgt <8 x i32> zeroinitializer, %t0
+  %t2 = sext <8 x i1> %t1 to <8 x i32>
+  %t3 = bitcast <8 x i32> %t2 to <8 x float>
+  %t4 = call i32 @llvm.x86.avx.vtestz.ps.256(<8 x float> %t3, <8 x float> %d)
+  %t5 = icmp ne i32 %t4, 0
+  %t6 = select i1 %t5, i32 %a, i32 %b
+  ret i32 %t6
+}
+
+define void @combine_testp_v8f32(<8 x i32> %x){
+; CHECK-LABEL: combine_testp_v8f32:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    vxorps %xmm1, %xmm1, %xmm1
+; CHECK-NEXT:    vcmptrueps %ymm1, %ymm1, %ymm1
+; CHECK-NEXT:    vtestps %ymm1, %ymm0
+; CHECK-NEXT:    vzeroupper
+; CHECK-NEXT:    retq
+entry:
+  %xor.i.i.i.i.i.i.i.i.i = xor <8 x i32> %x, <i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1>
+  %.cast.i.i.i.i.i.i = bitcast <8 x i32> %xor.i.i.i.i.i.i.i.i.i to <8 x float>
+  %0 = call i32 @llvm.x86.avx.vtestz.ps.256(<8 x float> %.cast.i.i.i.i.i.i, <8 x float> %.cast.i.i.i.i.i.i)
+  %cmp.i.not.i.i.i.i.i.i = icmp eq i32 %0, 0
+  br i1 %cmp.i.not.i.i.i.i.i.i, label %if.end3.i.i.i.i.i.i, label %end
+
+if.end3.i.i.i.i.i.i:                              ; preds = %entry
+  ret void
+
+end: ; preds = %entry
+  ret void
+}
+
 declare i32 @llvm.x86.avx.vtestz.ps(<4 x float>, <4 x float>) nounwind readnone
 declare i32 @llvm.x86.avx.vtestc.ps(<4 x float>, <4 x float>) nounwind readnone
 declare i32 @llvm.x86.avx.vtestnzc.ps(<4 x float>, <4 x float>) nounwind readnone

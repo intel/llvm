@@ -31,6 +31,7 @@ class TestSetAndGetOnDevice;
 bool test_default_values(sycl::queue q);
 bool test_set_and_get_on_host(sycl::queue q);
 bool test_set_and_get_on_device(sycl::queue q);
+bool test_native_specialization_constant(sycl::queue q);
 
 int main() {
   auto exception_handler = [&](sycl::exception_list exceptions) {
@@ -60,6 +61,12 @@ int main() {
 
   if (!test_set_and_get_on_device(q)) {
     std::cout << "Test for set and get API on device failed!" << std::endl;
+    return 1;
+  }
+
+  if (!test_native_specialization_constant(q)) {
+    std::cout << "Test for native specialization constants failed!"
+              << std::endl;
     return 1;
   }
 
@@ -256,4 +263,35 @@ bool test_set_and_get_on_device(sycl::queue q) {
     return false;
 
   return true;
+}
+
+bool test_native_specialization_constant(sycl::queue q) {
+  {
+    q.submit([&](sycl::handler &cgh) {
+      cgh.single_task<class Kernel>([=](sycl::kernel_handler h) {
+        h.get_specialization_constant<int_id>();
+      });
+    });
+
+    auto inputBundle =
+        sycl::get_kernel_bundle<class Kernel, sycl::bundle_state::input>(
+            q.get_context(), {q.get_device()});
+    auto objectBundle = sycl::compile(inputBundle);
+    auto execBundleViaLink = sycl::link(objectBundle);
+    auto BE = q.get_backend();
+    bool expected = (BE == sycl::backend::opencl ||
+                     BE == sycl::backend::ext_oneapi_level_zero)
+                        ? true
+                        : false;
+    if (!check_value(expected,
+                     execBundleViaLink.native_specialization_constant(),
+                     "linked bundle native specialization constant"))
+      return false;
+  }
+
+  const auto always_false_selector = [](auto device_image) { return false; };
+  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+      q.get_context(), always_false_selector);
+  return check_value(false, bundle.native_specialization_constant(),
+                     "empty bundle native specialization constant");
 }

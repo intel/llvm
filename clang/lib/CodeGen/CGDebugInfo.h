@@ -56,7 +56,7 @@ class CGDebugInfo {
   friend class ApplyDebugLocation;
   friend class SaveAndRestoreLocation;
   CodeGenModule &CGM;
-  const codegenoptions::DebugInfoKind DebugKind;
+  const llvm::codegenoptions::DebugInfoKind DebugKind;
   bool DebugTypeExtRefs;
   llvm::DIBuilder DBuilder;
   llvm::DICompileUnit *TheCU = nullptr;
@@ -197,7 +197,15 @@ class CGDebugInfo {
   llvm::DIType *CreateType(const FunctionType *Ty, llvm::DIFile *F);
   /// Get structure or union type.
   llvm::DIType *CreateType(const RecordType *Tyg);
-  llvm::DIType *CreateTypeDefinition(const RecordType *Ty);
+
+  /// Create definition for the specified 'Ty'.
+  ///
+  /// \returns A pair of 'llvm::DIType's. The first is the definition
+  /// of the 'Ty'. The second is the type specified by the preferred_name
+  /// attribute on 'Ty', which can be a nullptr if no such attribute
+  /// exists.
+  std::pair<llvm::DIType *, llvm::DIType *>
+  CreateTypeDefinition(const RecordType *Ty);
   llvm::DICompositeType *CreateLimitedType(const RecordType *Ty);
   void CollectContainingType(const CXXRecordDecl *RD,
                              llvm::DICompositeType *CT);
@@ -281,6 +289,12 @@ class CGDebugInfo {
       llvm::DenseSet<CanonicalDeclPtr<const CXXRecordDecl>> &SeenTypes,
       llvm::DINode::DIFlags StartingFlags);
 
+  /// Helper function that returns the llvm::DIType that the
+  /// PreferredNameAttr attribute on \ref RD refers to. If no such
+  /// attribute exists, returns nullptr.
+  llvm::DIType *GetPreferredNameType(const CXXRecordDecl *RD,
+                                     llvm::DIFile *Unit);
+
   struct TemplateArgs {
     const TemplateParameterList *TList;
     llvm::ArrayRef<TemplateArgument> Args;
@@ -327,9 +341,15 @@ class CGDebugInfo {
   }
 
   /// Create new bit field member.
-  llvm::DIType *createBitFieldType(const FieldDecl *BitFieldDecl,
-                                   llvm::DIScope *RecordTy,
-                                   const RecordDecl *RD);
+  llvm::DIDerivedType *createBitFieldType(const FieldDecl *BitFieldDecl,
+                                          llvm::DIScope *RecordTy,
+                                          const RecordDecl *RD);
+
+  /// Create an anonnymous zero-size separator for bit-field-decl if needed on
+  /// the target.
+  llvm::DIDerivedType *createBitFieldSeparatorIfNeeded(
+      const FieldDecl *BitFieldDecl, const llvm::DIDerivedType *BitFieldDI,
+      llvm::ArrayRef<llvm::Metadata *> PreviousFieldsDI, const RecordDecl *RD);
 
   /// Helpers for collecting fields of a record.
   /// @{

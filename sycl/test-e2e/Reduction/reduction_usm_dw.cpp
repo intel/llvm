@@ -39,11 +39,12 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   }
 
   // Initialize.
-  T CorrectOut;
+  std::optional<T> CorrectOutOpt;
   BinaryOperation BOp;
 
   buffer<T, 1> InBuf(NWItems);
-  initInputData(InBuf, CorrectOut, BOp, NWItems);
+  initInputData(InBuf, CorrectOutOpt, BOp, NWItems);
+  T CorrectOut = *CorrectOutOpt;
 
   // Compute.
   Q.submit([&](handler &CGH) {

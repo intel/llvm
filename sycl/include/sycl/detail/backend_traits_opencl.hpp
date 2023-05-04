@@ -155,6 +155,7 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeBuffer = true;
   static constexpr bool MakeKernel = true;
   static constexpr bool MakeKernelBundle = true;
+  static constexpr bool MakeImage = false;
 };
 
 namespace pi {

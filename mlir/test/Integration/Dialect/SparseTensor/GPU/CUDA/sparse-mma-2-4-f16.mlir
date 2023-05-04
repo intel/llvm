@@ -1,3 +1,6 @@
+//
+// NOTE: this test requires gpu-sm80
+//
 // RUN: mlir-opt \
 // RUN: --pass-pipeline="builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,convert-nvgpu-to-nvvm,affine-expand-index-ops,lower-affine,convert-arith-to-llvm),convert-vector-to-llvm,canonicalize,cse,gpu.module(gpu-to-cubin{chip=sm_80 features=+ptx71}))" \
 // RUN: %s \

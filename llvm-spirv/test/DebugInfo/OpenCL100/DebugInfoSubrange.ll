@@ -14,7 +14,7 @@
 ; CHECK-SPIRV: Constant [[#TypeInt64Id]] [[#NegativeCount:]] 4294967295 4294967295
 
 ; CHECK-SPIRV: [[#DbgFuncId:]] [[#]] DebugFunction [[#FuncNameId]]
-; CHECK-SPIRV: [[#DbgTemplateId:]] [[#]] DebugTemplate [[#DbgFuncId]]
+; CHECK-SPIRV: [[#DbgTemplateId:]] [[#]] DebugTypeTemplate [[#DbgFuncId]]
 ; CHECK-SPIRV: [[#]] [[#DbgLocVarId:]] [[#]] DebugLocalVariable [[#VarNameId]] [[#]] [[#]] [[#]] [[#]] [[#DbgTemplateId]]
 ; CHECK-SPIRV: DebugTypeArray [[#]] [[#DbgLocVarId]] [[#LowerBoundId]]
 

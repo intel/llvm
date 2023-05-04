@@ -44,7 +44,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void bf16_scalar() {
   // The actual support in GPU RT is on the way though.
   float F32_scalar = 1;
   bfloat16 BF16_scalar = F32_scalar;
-  // CHECK: call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{[^)]+}})
+  // CHECK: call i16 @__spirv_ConvertFToBF16INTEL(float {{[^)]+}})
   float F32_scalar_conv = BF16_scalar;
-  // CHECK: call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{[^)]+}})
+  // CHECK: call float @__spirv_ConvertBF16ToFINTEL(i16 {{[^)]+}})
 }

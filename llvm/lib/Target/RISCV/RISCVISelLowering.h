@@ -27,10 +27,10 @@ struct RISCVRegisterInfo;
 namespace RISCVISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  RET_FLAG,
-  URET_FLAG,
-  SRET_FLAG,
-  MRET_FLAG,
+  RET_GLUE,
+  URET_GLUE,
+  SRET_GLUE,
+  MRET_GLUE,
   CALL,
   /// Select with condition operator - This selects between a true value and
   /// a false value (ops #3 and #4) based on the boolean result of comparing
@@ -241,11 +241,11 @@ enum NodeType : unsigned {
   VFCVT_X_F_VL,
   VFCVT_XU_F_VL,
   VFROUND_NOEXCEPT_VL,
-  VFCVT_RM_X_F_VL, // Has a rounding mode operand.
+  VFCVT_RM_X_F_VL,  // Has a rounding mode operand.
   VFCVT_RM_XU_F_VL, // Has a rounding mode operand.
   SINT_TO_FP_VL,
   UINT_TO_FP_VL,
-  VFCVT_RM_F_X_VL, // Has a rounding mode operand.
+  VFCVT_RM_F_X_VL,  // Has a rounding mode operand.
   VFCVT_RM_F_XU_VL, // Has a rounding mode operand.
   FP_ROUND_VL,
   FP_EXTEND_VL,
@@ -335,7 +335,19 @@ enum NodeType : unsigned {
   STRICT_FMUL_VL,
   STRICT_FDIV_VL,
   STRICT_FSQRT_VL,
+  STRICT_VFMADD_VL,
+  STRICT_VFNMADD_VL,
+  STRICT_VFMSUB_VL,
+  STRICT_VFNMSUB_VL,
+  STRICT_FP_ROUND_VL,
   STRICT_FP_EXTEND_VL,
+  STRICT_VFNCVT_ROD_VL,
+  STRICT_SINT_TO_FP_VL,
+  STRICT_UINT_TO_FP_VL,
+  STRICT_VFCVT_RTZ_X_F_VL,
+  STRICT_VFCVT_RTZ_XU_F_VL,
+  STRICT_FSETCC_VL,
+  STRICT_FSETCCS_VL,
 
   // WARNING: Do not add anything in the end unless you want the node to
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
@@ -402,7 +414,7 @@ public:
 
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
 
-  bool preferScalarizeSplat(unsigned Opc) const override;
+  bool preferScalarizeSplat(SDNode *N) const override;
 
   bool softPromoteHalfType() const override { return true; }
 
@@ -675,6 +687,21 @@ public:
   /// returns the address of that location. Otherwise, returns nullptr.
   Value *getIRStackGuard(IRBuilderBase &IRB) const override;
 
+  /// Returns whether or not generating a fixed length interleaved load/store
+  /// intrinsic for this type will be legal.
+  bool isLegalInterleavedAccessType(FixedVectorType *, unsigned Factor,
+                                    const DataLayout &) const;
+
+  unsigned getMaxSupportedInterleaveFactor() const override { return 8; }
+
+  bool lowerInterleavedLoad(LoadInst *LI,
+                            ArrayRef<ShuffleVectorInst *> Shuffles,
+                            ArrayRef<unsigned> Indices,
+                            unsigned Factor) const override;
+
+  bool lowerInterleavedStore(StoreInst *SI, ShuffleVectorInst *SVI,
+                             unsigned Factor) const override;
+
 private:
   /// RISCVCCAssignFn - This target-specific function extends the default
   /// CCValAssign with additional information used to lower RISC-V calling
@@ -773,7 +800,9 @@ private:
   SDValue lowerEH_DWARF_CFA(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerCTLZ_CTTZ_ZERO_UNDEF(SDValue Op, SelectionDAG &DAG) const;
 
-  SDValue lowerStrictFPExtend(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerStrictFPExtendOrRoundLike(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue lowerVectorStrictFSetcc(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue expandUnalignedRVVLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue expandUnalignedRVVStore(SDValue Op, SelectionDAG &DAG) const;
@@ -832,6 +861,7 @@ using namespace RISCV;
 
 #define GET_RISCVVIntrinsicsTable_DECL
 #include "RISCVGenSearchableTables.inc"
+#undef GET_RISCVVIntrinsicsTable_DECL
 
 } // end namespace RISCVVIntrinsicsTable
 

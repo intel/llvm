@@ -28,25 +28,30 @@ set(TARGET_LIBC_ENTRYPOINTS
     # sched.h entrypoints
     libc.src.sched.sched_getaffinity
     libc.src.sched.sched_setaffinity
+    libc.src.sched.sched_yield
 
     # string.h entrypoints
     libc.src.string.bcmp
     libc.src.string.bcopy
     libc.src.string.bzero
+    libc.src.string.index
     libc.src.string.memccpy
     libc.src.string.memchr
     libc.src.string.memcmp
     libc.src.string.memcpy
+    libc.src.string.memmem
     libc.src.string.memmove
     libc.src.string.mempcpy
     libc.src.string.memrchr
     libc.src.string.memset
+    libc.src.string.rindex
     libc.src.string.stpcpy
     libc.src.string.stpncpy
     libc.src.string.strcasecmp
     libc.src.string.strcasestr
     libc.src.string.strcat
     libc.src.string.strchr
+    libc.src.string.strchrnul
     libc.src.string.strcmp
     libc.src.string.strcoll
     libc.src.string.strcpy
@@ -65,11 +70,13 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strnlen
     libc.src.string.strpbrk
     libc.src.string.strrchr
+    libc.src.string.strsep
     libc.src.string.strsignal
     libc.src.string.strspn
     libc.src.string.strstr
     libc.src.string.strtok
     libc.src.string.strtok_r
+    libc.src.string.strxfrm
 
     # inttypes.h entrypoints
     libc.src.inttypes.imaxabs
@@ -488,6 +495,7 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.unistd.optind
     libc.src.unistd.optopt
     libc.src.unistd.opterr
+    libc.src.unistd.swab
 
     # sys/select.h entrypoints
     libc.src.sys.select.select

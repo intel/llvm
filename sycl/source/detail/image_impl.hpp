@@ -167,6 +167,12 @@ public:
              std::unique_ptr<SYCLMemObjAllocator> Allocator,
              uint8_t Dimensions);
 
+  image_impl(pi_native_handle MemObject, const context &SyclContext,
+             event AvailableEvent,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
+             image_channel_order Order, image_channel_type Type,
+             bool OwnNativeHandle, range<3> Range3WithOnes);
+
   // Return a range object representing the size of the image in terms of the
   // number of elements in each dimension as passed to the constructor
   range<3> get_range() const { return MRange; }

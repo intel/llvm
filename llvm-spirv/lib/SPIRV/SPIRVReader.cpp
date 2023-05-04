@@ -439,10 +439,11 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
     auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
     auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
     auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
-    auto L = static_cast<SPIRVConstant *>(MT->getLayout())->getZExtIntValue();
-    auto S = static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue();
-    SmallVector<unsigned, 5> Params = {(unsigned)R, (unsigned)C, (unsigned)L,
-                                       (unsigned)S};
+    std::vector<unsigned> Params = {(unsigned)R, (unsigned)C};
+    if (auto *Layout = MT->getLayout())
+      Params.push_back(static_cast<SPIRVConstant *>(Layout)->getZExtIntValue());
+    Params.push_back(
+        static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue());
     if (auto *Use = MT->getUse())
       Params.push_back(static_cast<SPIRVConstant *>(Use)->getZExtIntValue());
     auto *CTI = MT->getComponentTypeInterpretation();
@@ -1236,19 +1237,64 @@ Value *SPIRVToLLVM::oclTransConstantPipeStorage(
                             GlobalValue::NotThreadLocal, SPIRAS_Global);
 }
 
+namespace {
+
 // A pointer annotation may have been generated for the operand. If the operand
 // is used further in IR, it should be replaced with the intrinsic call result.
 // Otherwise, the generated pointer annotation call is left unused.
-static void replaceOperandWithAnnotationIntrinsicCallResult(Value *&V) {
-  if (Use *SingleUse = V->getSingleUndroppableUse()) {
-    if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-      if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
-          II->getType() == V->getType())
-        // Overwrite the future operand with the intrinsic call result.
-        V = II;
+static void replaceOperandWithAnnotationIntrinsicCallResult(Function *F,
+                                                            Value *&V) {
+
+  SPIRVDBG(spvdbgs() << "\n"
+                     << "-------- REPLACE --------" << '\n';)
+  SPIRVDBG(dbgs() << "value: " << *V << '\n');
+
+  Value *BaseValue = nullptr;
+  IntrinsicInst *CallResult = nullptr;
+
+  auto SearchPtrAnn = [=](Value *BV, IntrinsicInst *&CR) {
+    CR = nullptr;
+    for (auto *Use : BV->users()) {
+      if (auto *II = dyn_cast<IntrinsicInst>(Use)) {
+        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            II->getType() == BV->getType())
+          CR = II;
+      }
+    }
+    return CR ? true : false;
+  };
+
+  if (SearchPtrAnn(V, CallResult)) {
+    BaseValue = V;
+  } else {
+    // scan def-use chain, skip bitcast and addrspacecast
+    // search for the closest floating ptr.annotation
+    auto *Inst = dyn_cast<Instruction>(V);
+    while (Inst && (isa<BitCastInst>(Inst) || isa<AddrSpaceCastInst>(Inst))) {
+      if ((Inst = dyn_cast<Instruction>(Inst->getOperand(0))) &&
+          SearchPtrAnn(Inst, CallResult)) {
+        BaseValue = Inst;
+        break;
+      }
     }
   }
+
+  // overwrite operand with intrinsic call result
+  if (CallResult) {
+    SPIRVDBG(dbgs() << "BaseValue: " << *BaseValue << '\n'
+                    << "CallResult: " << *CallResult << '\n');
+    DominatorTree DT(*F);
+    BaseValue->replaceUsesWithIf(CallResult, [&DT, &CallResult](Use &U) {
+      return DT.dominates(CallResult, U);
+    });
+
+    // overwrite V
+    if (V == BaseValue)
+      V = CallResult;
+  }
 }
+
+} // namespace
 
 // Translate aliasing memory access masks for SPIRVLoad and SPIRVStore
 // instructions. These masks are mapped on alias.scope and noalias
@@ -1727,9 +1773,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
     // A ptr.annotation may have been generated for the source variable.
-    replaceOperandWithAnnotationIntrinsicCallResult(Src);
+    replaceOperandWithAnnotationIntrinsicCallResult(F, Src);
     // A ptr.annotation may have been generated for the destination variable.
-    replaceOperandWithAnnotationIntrinsicCallResult(Dst);
+    replaceOperandWithAnnotationIntrinsicCallResult(F, Dst);
 
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
     uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
@@ -1747,7 +1793,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
     auto *V = transValue(BL->getSrc(), F, BB);
     // A ptr.annotation may have been generated for the source variable.
-    replaceOperandWithAnnotationIntrinsicCallResult(V);
+    replaceOperandWithAnnotationIntrinsicCallResult(F, V);
 
     Type *Ty = transType(BL->getType());
     LoadInst *LI = nullptr;
@@ -2318,6 +2364,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
     default:
@@ -2835,7 +2882,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
 
   auto IsKernel = isKernel(BF);
   auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
-  FunctionType *FT = dyn_cast<FunctionType>(transType(BF->getFunctionType()));
+  FunctionType *FT = cast<FunctionType>(transType(BF->getFunctionType()));
   std::string FuncName = BF->getName();
   StringRef FuncNameRef(FuncName);
   // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
@@ -2865,7 +2912,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     if (F->getIntrinsicID() != Intrinsic::umul_with_overflow)
       return F;
     std::string Name = F->getName().str();
-    auto *ST = dyn_cast<StructType>(F->getReturnType());
+    auto *ST = cast<StructType>(F->getReturnType());
     auto *FT = F->getFunctionType();
     auto *NewST = StructType::get(ST->getContext(), ST->elements());
     auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
@@ -2927,7 +2974,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
 
   for (size_t I = 0, E = BF->getNumBasicBlock(); I != E; ++I) {
     SPIRVBasicBlock *BBB = BF->getBasicBlock(I);
-    BasicBlock *BB = dyn_cast<BasicBlock>(transValue(BBB, F, nullptr));
+    BasicBlock *BB = cast<BasicBlock>(transValue(BBB, F, nullptr));
     for (size_t BI = 0, BE = BBB->getNumInst(); BI != BE; ++BI) {
       SPIRVInstruction *BInst = BBB->getInst(BI);
       transValue(BInst, F, BB, false);
@@ -3311,6 +3358,11 @@ bool SPIRVToLLVM::translate() {
 
   DbgTran->addDbgInfoVersion();
   DbgTran->finalize();
+
+  for (SPIRVExtInst *EI : BM->getAuxDataInstVec()) {
+    transAuxDataInst(EI);
+  }
+
   return true;
 }
 
@@ -3377,6 +3429,16 @@ void generateIntelFPGAAnnotation(
     Out << "{force_pow2_depth:" << Result << '}';
   if (E->hasDecorate(DecorationBufferLocationINTEL, 0, &Result))
     Out << "{sycl-buffer-location:" << Result << '}';
+  if (E->hasDecorate(DecorationLatencyControlLabelINTEL, 0, &Result))
+    Out << "{sycl-latency-anchor-id:" << Result << '}';
+  if (E->hasDecorate(DecorationLatencyControlConstraintINTEL)) {
+    auto Literals =
+        E->getDecorationLiterals(DecorationLatencyControlConstraintINTEL);
+    assert(Literals.size() == 3 &&
+           "Latency Control Constraint decoration shall have 3 extra operands");
+    Out << "{sycl-latency-constraint:" << Literals[0] << "," << Literals[1]
+        << "," << Literals[2] << '}';
+  }
 
   unsigned LSUParamsBitmask = 0;
   llvm::SmallString<32> AdditionalParamsStr;
@@ -4441,6 +4503,60 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
   setCallingConv(CI);
   addFnAttr(CI, Attribute::NoUnwind);
   return CI;
+}
+
+void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
+  assert(BC->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_AuxData);
+  if (!BC->getModule()->preserveAuxData())
+    return;
+  auto Args = BC->getArguments();
+  // Args 0 and 1 are common between attributes and metadata.
+  // 0 is the function, 1 is the name of the attribute/metadata as a string
+  auto *SpvFcn = BC->getModule()->getValue(Args[0]);
+  auto *F = static_cast<Function *>(getTranslatedValue(SpvFcn));
+  assert(F && "Function should already have been translated!");
+  auto AttrOrMDName = BC->getModule()->get<SPIRVString>(Args[1])->getStr();
+  switch (BC->getExtOp()) {
+  case NonSemanticAuxData::FunctionAttribute: {
+    assert(Args.size() < 4 && "Unexpected FunctionAttribute Args");
+    // If this attr was specially handled and added elsewhere, skip it.
+    if (F->hasFnAttribute(AttrOrMDName))
+      return;
+    // For attributes, arg 2 is the attribute value as a string, which may not
+    // exist.
+    if (Args.size() == 3) {
+      auto AttrValue = BC->getModule()->get<SPIRVString>(Args[2])->getStr();
+      F->addFnAttr(AttrOrMDName, AttrValue);
+    } else {
+      F->addFnAttr(AttrOrMDName);
+    }
+    break;
+  }
+  case NonSemanticAuxData::FunctionMetadata: {
+    // If this metadata was specially handled and added elsewhere, skip it.
+    if (F->hasMetadata(AttrOrMDName))
+      return;
+    SmallVector<Metadata *> MetadataArgs;
+    // Process the metadata values.
+    for (size_t CurArg = 2; CurArg < Args.size(); CurArg++) {
+      auto *Arg = BC->getModule()->get<SPIRVEntry>(Args[CurArg]);
+      // For metadata, the metadata values can be either values or strings.
+      if (Arg->getOpCode() == OpString) {
+        auto *ArgAsStr = static_cast<SPIRVString *>(Arg);
+        MetadataArgs.push_back(
+            MDString::get(F->getContext(), ArgAsStr->getStr()));
+      } else {
+        auto *ArgAsVal = static_cast<SPIRVValue *>(Arg);
+        auto *TranslatedMD = transValue(ArgAsVal, F, nullptr);
+        MetadataArgs.push_back(ValueAsMetadata::get(TranslatedMD));
+      }
+    }
+    F->setMetadata(AttrOrMDName, MDNode::get(*Context, MetadataArgs));
+    break;
+  }
+  default:
+    llvm_unreachable("Invalid op");
+  }
 }
 
 // SPIR-V only contains language version. Use OpenCL language version as

@@ -7,7 +7,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV-DAG: Capability TensorFloat32ConversionINTEL
+; CHECK-SPIRV-DAG: Capability TensorFloat32RoundingINTEL
 ; CHECK-SPIRV-DAG: Capability JointMatrixINTEL
 ; CHECK-SPIRV-DAG: Capability JointMatrixTF32ComponentTypeINTEL
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_tensor_float32_conversion"
@@ -110,7 +110,7 @@ for.cond30.i:                                     ; preds = %for.body37.i, %for.
 
 for.body37.i:                                     ; preds = %for.cond30.i
   %call.i218.i = tail call spir_func noundef float @_Z28__spirv_VectorExtractDynamicIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm16ELN5__spv9MatrixUseE0ELNS8_12MatrixLayoutE0ELNS8_5Scope4FlagE3EET_PNS8_24__spirv_JointMatrixINTELIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEm(%spirv.JointMatrixINTEL._tf32_8_16_0_3_0 addrspace(4)* noundef %sub_a.sroa.0.1.i, i64 noundef %conv31.i) #3
-  %call.i.i = tail call spir_func noundef float @_Z27__spirv_ConvertFToTF32INTELf(float noundef %call.i218.i) #3
+  %call.i.i = tail call spir_func noundef float @_Z25__spirv_RoundFToTF32INTELf(float noundef %call.i218.i) #3
   %call.i225.i = tail call spir_func noundef %spirv.JointMatrixINTEL._tf32_8_16_0_3_0 addrspace(4)* @_Z27__spirv_VectorInsertDynamicIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm16ELN5__spv9MatrixUseE0ELNS8_12MatrixLayoutE0ELNS8_5Scope4FlagE3EEPNS8_24__spirv_JointMatrixINTELIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEESG_T_m(%spirv.JointMatrixINTEL._tf32_8_16_0_3_0 addrspace(4)* noundef %sub_a.sroa.0.1.i, float noundef %call.i.i, i64 noundef %conv31.i) #3
   %inc.i = add nuw nsw i32 %i.0.i, 1
   br label %for.cond30.i
@@ -130,7 +130,7 @@ for.cond.cleanup58.i:                             ; preds = %for.cond52.i
 
 for.body59.i:                                     ; preds = %for.cond52.i
   %call.i236.i = tail call spir_func noundef float @_Z28__spirv_VectorExtractDynamicIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm16ELm16ELN5__spv9MatrixUseE1ELNS8_12MatrixLayoutE0ELNS8_5Scope4FlagE3EET_PNS8_24__spirv_JointMatrixINTELIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEm(%spirv.JointMatrixINTEL._tf32_16_16_0_3_1 addrspace(4)* noundef %sub_b.sroa.0.0.i, i64 noundef %conv53.i) #3
-  %call.i171.i = tail call spir_func noundef float @_Z27__spirv_ConvertFToTF32INTELf(float noundef %call.i236.i) #3
+  %call.i171.i = tail call spir_func noundef float @_Z25__spirv_RoundFToTF32INTELf(float noundef %call.i236.i) #3
   %call.i243.i = tail call spir_func noundef %spirv.JointMatrixINTEL._tf32_16_16_0_3_1 addrspace(4)* @_Z27__spirv_VectorInsertDynamicIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm16ELm16ELN5__spv9MatrixUseE1ELNS8_12MatrixLayoutE0ELNS8_5Scope4FlagE3EEPNS8_24__spirv_JointMatrixINTELIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEESG_T_m(%spirv.JointMatrixINTEL._tf32_16_16_0_3_1 addrspace(4)* noundef %sub_b.sroa.0.0.i, float noundef %call.i171.i, i64 noundef %conv53.i) #3
   %inc74.i = add nuw nsw i32 %i51.0.i, 1
   br label %for.cond52.i
@@ -173,7 +173,7 @@ declare dso_local spir_func noundef %spirv.JointMatrixINTEL._tf32_16_16_0_3_1 ad
 declare dso_local spir_func noundef i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELIN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm16ELN5__spv9MatrixUseE0ELNS8_12MatrixLayoutE0ELNS8_5Scope4FlagE3EEmPNS8_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT3_EXT4_EXT2_EEE(%spirv.JointMatrixINTEL._tf32_8_16_0_3_0 addrspace(4)* noundef) local_unnamed_addr #2
 
 ; Function Attrs: convergent
-declare dso_local spir_func noundef float @_Z27__spirv_ConvertFToTF32INTELf(float noundef) local_unnamed_addr #2
+declare dso_local spir_func noundef float @_Z25__spirv_RoundFToTF32INTELf(float noundef) local_unnamed_addr #2
 
 ; Function Attrs: convergent
 declare dso_local spir_func noundef float @_Z28__spirv_VectorExtractDynamicIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm16ELN5__spv9MatrixUseE0ELNS8_12MatrixLayoutE0ELNS8_5Scope4FlagE3EET_PNS8_24__spirv_JointMatrixINTELIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEm(%spirv.JointMatrixINTEL._tf32_8_16_0_3_0 addrspace(4)* noundef, i64 noundef) local_unnamed_addr #2

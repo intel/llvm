@@ -280,7 +280,7 @@ void LinkerDriver::addFile(StringRef path) {
     files.push_back(createObjectFile(mbref));
     break;
   case file_magic::unknown:
-    if (mbref.getBuffer().starts_with("#STUB\n")) {
+    if (mbref.getBuffer().starts_with("#STUB")) {
       files.push_back(make<StubFile>(mbref));
       break;
     }
@@ -874,6 +874,28 @@ static void createOptionalSymbols() {
     WasmSym::tlsBase = createOptionalGlobal("__tls_base", false);
 }
 
+static void processStubLibrariesPreLTO() {
+  log("-- processStubLibrariesPreLTO");
+  for (auto &stub_file : symtab->stubFiles) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "processing stub file: " << stub_file->getName() << "\n");
+    for (auto [name, deps]: stub_file->symbolDependencies) {
+      auto* sym = symtab->find(name);
+      // If the symbol is not present at all (yet), or if it is present but
+      // undefined, then mark the dependent symbols as used by a regular
+      // object so they will be preserved and exported by the LTO process.
+      if (!sym || sym->isUndefined()) {
+        for (const auto dep : deps) {
+          auto* needed = symtab->find(dep);
+          if (needed ) {
+            needed->isUsedInRegularObj = true;
+          }
+        }
+      }
+    }
+  }
+}
+
 static void processStubLibraries() {
   log("-- processStubLibraries");
   for (auto &stub_file : symtab->stubFiles) {
@@ -881,13 +903,14 @@ static void processStubLibraries() {
                << "processing stub file: " << stub_file->getName() << "\n");
     for (auto [name, deps]: stub_file->symbolDependencies) {
       auto* sym = symtab->find(name);
-      if (!sym || !sym->isUndefined() || !sym->isUsedInRegularObj ||
-          sym->forceImport) {
-        LLVM_DEBUG(llvm::dbgs() << "stub not in needed: " << name << "\n");
+      if (!sym || !sym->isUndefined()) {
+        LLVM_DEBUG(llvm::dbgs() << "stub symbol not needed: " << name << "\n");
         continue;
       }
       // The first stub library to define a given symbol sets this and
       // definitions in later stub libraries are ignored.
+      if (sym->forceImport)
+        continue;  // Already handled
       sym->forceImport = true;
       if (sym->traced)
         message(toString(stub_file) + ": importing " + name);
@@ -904,10 +927,13 @@ static void processStubLibraries() {
                 ": undefined symbol: " + toString(*needed) +
                 ". Required by " + toString(*sym));
         } else {
-          LLVM_DEBUG(llvm::dbgs()
-                     << "force export: " << toString(*needed) << "\n");
+          if (needed->traced)
+            message(toString(stub_file) + ": exported " + toString(*needed) +
+                    " due to import of " + name);
+          else
+            LLVM_DEBUG(llvm::dbgs()
+                       << "force export: " << toString(*needed) << "\n");
           needed->forceExport = true;
-          needed->isUsedInRegularObj = true;
           if (auto *lazy = dyn_cast<LazySymbol>(needed)) {
             lazy->fetch();
             if (!config->whyExtract.empty())
@@ -1211,7 +1237,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
-  writeWhyExtract();
+  // We process the stub libraries once beofore LTO to ensure that any possible
+  // required exports are preserved by the LTO process.
+  processStubLibrariesPreLTO();
 
   // Do link-time optimization if given files are LLVM bitcode files.
   // This compiles bitcode files into real object files.
@@ -1219,7 +1247,13 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
+  // The LTO process can generate new undefined symbols, specifically libcall
+  // functions.  Because those symbols might be declared in a stub library we
+  // need the process the stub libraries once again after LTO to handle all
+  // undefined symbols, including ones that didn't exist prior to LTO.
   processStubLibraries();
+
+  writeWhyExtract();
 
   createOptionalSymbols();
 

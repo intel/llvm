@@ -60,6 +60,8 @@
 ! CHECK-NEXT: -fsyntax-only          Run the preprocessor, parser and semantic analysis stages
 ! CHECK-NEXT: -funderscoring         Appends one trailing underscore to external names
 ! CHECK-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
+! CHECK-NEXT: -gline-tables-only     Emit debug line number tables only
+! CHECK-NEXT: -g                     Generate source-level debug information
 ! CHECK-NEXT: -help     Display available options
 ! CHECK-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! CHECK-NEXT: -mllvm=<arg>           Alias for -mllvm
@@ -67,6 +69,9 @@
 ! CHECK-NEXT: -mmlir <value>         Additional arguments to forward to MLIR's option processing
 ! CHECK-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! CHECK-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
+! CHECK-NEXT: --offload-device-only   Only compile for the offloading device.
+! CHECK-NEXT: --offload-host-device   Only compile for the offloading host.
+! CHECK-NEXT: --offload-host-only     Only compile for the offloading host.
 ! CHECK-NEXT: -o <file> Write output to <file>
 ! CHECK-NEXT: -pedantic              Warn on language extensions
 ! CHECK-NEXT: -print-effective-triple Print the effective target triple

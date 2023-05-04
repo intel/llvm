@@ -1161,15 +1161,6 @@ Sema::CheckOverload(Scope *S, FunctionDecl *New, const LookupResult &Old,
             !shouldLinkPossiblyHiddenDecl(*I, New))
           continue;
 
-        // C++20 [temp.friend] p9: A non-template friend declaration with a
-        // requires-clause shall be a definition.  A friend function template
-        // with a constraint that depends on a template parameter from an
-        // enclosing template shall be a definition.  Such a constrained friend
-        // function or function template declaration does not declare the same
-        // function or function template as a declaration in any other scope.
-        if (Context.FriendsDifferByConstraints(OldF, New))
-          continue;
-
         Match = *I;
         return Ovl_Match;
       }
@@ -1284,6 +1275,12 @@ bool Sema::IsOverload(FunctionDecl *New, FunctionDecl *Old,
       (OldType->getNumParams() != NewType->getNumParams() ||
        OldType->isVariadic() != NewType->isVariadic() ||
        !FunctionParamTypesAreEqual(OldType, NewType)))
+    return true;
+
+  // For member-like friends, the enclosing class is part of the signature.
+  if ((New->isMemberLikeConstrainedFriend() ||
+       Old->isMemberLikeConstrainedFriend()) &&
+      !New->getLexicalDeclContext()->Equals(Old->getLexicalDeclContext()))
     return true;
 
   if (NewTemplate) {
@@ -5150,6 +5147,18 @@ TryListConversion(Sema &S, InitListExpr *From, QualType ToType,
   if (!S.isCompleteType(From->getBeginLoc(), InitTy))
     return Result;
 
+  // C++20 [over.ics.list]/2:
+  //   If the initializer list is a designated-initializer-list, a conversion
+  //   is only possible if the parameter has an aggregate type
+  //
+  // FIXME: The exception for reference initialization here is not part of the
+  // language rules, but follow other compilers in adding it as a tentative DR
+  // resolution.
+  bool IsDesignatedInit = From->hasDesignatedInit();
+  if (!ToType->isAggregateType() && !ToType->isReferenceType() &&
+      IsDesignatedInit)
+    return Result;
+
   // Per DR1467:
   //   If the parameter type is a class X and the initializer list has a single
   //   element of type cv U, where U is X or a class derived from X, the
@@ -5160,7 +5169,7 @@ TryListConversion(Sema &S, InitListExpr *From, QualType ToType,
   //   and the initializer list has a single element that is an
   //   appropriately-typed string literal (8.5.2 [dcl.init.string]), the
   //   implicit conversion sequence is the identity conversion.
-  if (From->getNumInits() == 1) {
+  if (From->getNumInits() == 1 && !IsDesignatedInit) {
     if (ToType->isRecordType()) {
       QualType InitType = From->getInit(0)->getType();
       if (S.Context.hasSameUnqualifiedType(InitType, ToType) ||
@@ -5198,7 +5207,7 @@ TryListConversion(Sema &S, InitListExpr *From, QualType ToType,
   //   default-constructible, and if all the elements of the initializer list
   //   can be implicitly converted to X, the implicit conversion sequence is
   //   the worst conversion necessary to convert an element of the list to X.
-  if (AT || S.isStdInitializerList(ToType, &InitTy)) {
+  if ((AT || S.isStdInitializerList(ToType, &InitTy)) && !IsDesignatedInit) {
     unsigned e = From->getNumInits();
     ImplicitConversionSequence DfltElt;
     DfltElt.setBad(BadConversionSequence::no_conversion, QualType(),
@@ -5340,7 +5349,7 @@ TryListConversion(Sema &S, InitListExpr *From, QualType ToType,
 
     // If the initializer list has a single element that is reference-related
     // to the parameter type, we initialize the reference from that.
-    if (From->getNumInits() == 1) {
+    if (From->getNumInits() == 1 && !IsDesignatedInit) {
       Expr *Init = From->getInit(0);
 
       QualType T2 = Init->getType();

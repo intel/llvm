@@ -875,7 +875,7 @@ def Annotate : InheritableParamAttr {
     return AnnotateAttr::Create(Ctx, Annotation, nullptr, 0, CommonInfo);
   }
   static AnnotateAttr *CreateImplicit(ASTContext &Ctx, llvm::StringRef Annotation, \
-              const AttributeCommonInfo &CommonInfo = {SourceRange{}}) {
+              const AttributeCommonInfo &CommonInfo) {
     return AnnotateAttr::CreateImplicit(Ctx, Annotation, nullptr, 0, CommonInfo);
   }
   }];
@@ -2509,6 +2509,17 @@ def SYCLIntelMaxReinvocationDelay : StmtAttr {
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
                         SYCLIntelMaxReinvocationDelay]>;
 
+def SYCLIntelEnableLoopPipelining : StmtAttr {
+  let Spellings = [CXX11<"intel", "enable_loop_pipelining">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                              ErrorDiag, "'for', 'while', and 'do' statements">;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLIntelEnableLoopPipeliningAttrDocs];
+}
+
+def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
+                        SYCLIntelEnableLoopPipelining]>;
+
 def SYCLIntelLocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
@@ -3888,6 +3899,7 @@ def Unavailable : InheritableAttr {
                  "IR_ARCInitReturnsUnrelated",
                  "IR_ARCFieldWithOwnership"], 1, /*fake*/ 1>];
   let Documentation = [Undocumented];
+  let MeaningfulToClassTemplateDefinition = 1;
 }
 
 def DiagnoseIf : InheritableAttr {

@@ -63,6 +63,8 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/ext/intel/experimental/pipe_properties.hpp>
+#include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
@@ -72,8 +74,8 @@
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
-#include <sycl/ext/oneapi/experimental/cluster_group.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>

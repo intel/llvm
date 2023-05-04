@@ -56,8 +56,8 @@ cmake -G Ninja ...
 ninja check-sycl-e2e
 ```
 
-In addition to this standalone configuration one can enable `check-sycl-e2e`
-target for the sycl-toolchain workspace/build by specifying
+In addition to this, in an in-tree configuration one can enable
+`check-sycl-e2e` target for the sycl-toolchain workspace/build by specifying
 `SYCL_TEST_E2E_TARGETS` as part of its cmake configuration. For example, like
 this:
 
@@ -65,6 +65,19 @@ this:
 CC=<> CXX=<> python llvm/buildbot/configure.py -o build ... \
   --cmake-opt=-DSYCL_TEST_E2E_TARGETS="level_zero:gpu;opencl:gpu"
   --cmake-opt=-DSYCL_E2E_TESTS_LIT_FLAGS="--param;dump_ir=True"``
+```
+
+In an in-tree build, individual tests or groups of tests can be conveniently
+run directly from their source paths, using the configured `llvm-lit` script:
+
+```
+# Implicitly uses cmake parameters SYCL_BE and SYCL_TARGET_DEVICES, detailed
+# below
+build/bin/llvm-lit -sv sycl/test-e2e/Basic/aspects.cpp
+
+# Explicitly sets SYCL backend and target device(s), overriding SYCL_BE and
+# SYCL_TARGET_DEVICES
+build/bin/llvm-lit -sv --param sycl_be=level_zero --param target_devices=cpu,gpu sycl/test-e2e/Basic/aspects.cpp
 ```
 
 # Cmake parameters
@@ -168,6 +181,8 @@ unavailable.
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **dump_ir**: - compiler can / cannot dump IR;
+ * **llvm-spirv** - llvm-spirv tool availability;
+ * **llvm-link** - llvm-link tool availability;
 
 ## llvm-lit parameters
 

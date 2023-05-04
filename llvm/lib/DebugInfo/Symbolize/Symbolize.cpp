@@ -363,12 +363,10 @@ ObjectFile *LLVMSymbolizer::lookUpBuildIDObject(const std::string &Path,
                                                 const ELFObjectFileBase *Obj,
                                                 const std::string &ArchName) {
   auto BuildID = getBuildID(Obj);
-  if (!BuildID)
-    return nullptr;
-  if (BuildID->size() < 2)
+  if (BuildID.size() < 2)
     return nullptr;
   std::string DebugBinaryPath;
-  if (!getOrFindDebugBinary(*BuildID, DebugBinaryPath))
+  if (!getOrFindDebugBinary(BuildID, DebugBinaryPath))
     return nullptr;
   auto DbgObjOrErr = getOrCreateObject(DebugBinaryPath, ArchName);
   if (!DbgObjOrErr) {
@@ -634,8 +632,7 @@ LLVMSymbolizer::getOrCreateModuleInfo(ArrayRef<uint8_t> BuildID) {
   std::string Path;
   if (!getOrFindDebugBinary(BuildID, Path)) {
     return createStringError(errc::no_such_file_or_directory,
-                             Twine("could not find build ID '") +
-                                 toHex(BuildID) + "'");
+                             "could not find build ID");
   }
   return getOrCreateModuleInfo(Path);
 }

@@ -74,6 +74,7 @@ public:
     Memset2DUSM = 18,
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
+    ReadWriteHostPipe = 21,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -493,6 +494,36 @@ public:
   size_t getWidth() const { return MWidth; }
   size_t getHeight() const { return MHeight; }
   char getValue() const { return MValue; }
+};
+
+/// "ReadWriteHostPipe" command group class.
+class CGReadWriteHostPipe : public CG {
+  std::string PipeName;
+  bool Blocking;
+  void *HostPtr;
+  size_t TypeSize;
+  bool IsReadOp;
+
+public:
+  CGReadWriteHostPipe(const std::string &Name, bool Block, void *Ptr,
+                      size_t Size, bool Read,
+                      std::vector<std::vector<char>> ArgsStorage,
+                      std::vector<detail::AccessorImplPtr> AccStorage,
+                      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                      std::vector<AccessorImplHost *> Requirements,
+                      std::vector<detail::EventImplPtr> Events,
+                      detail::code_location loc = {})
+      : CG(ReadWriteHostPipe, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
+        IsReadOp(Read) {}
+
+  std::string getPipeName() { return PipeName; }
+  void *getHostPtr() { return HostPtr; }
+  size_t getTypeSize() { return TypeSize; }
+  bool isBlocking() { return Blocking; }
+  bool isReadHostPipe() { return IsReadOp; }
 };
 
 /// "Copy to device_global" command group class.

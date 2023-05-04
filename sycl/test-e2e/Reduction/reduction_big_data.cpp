@@ -49,8 +49,9 @@ int test(queue &Q, T Identity) {
 
   // Initialize.
   BinaryOperation BOp;
-  T CorrectOut;
-  initInputData(InBuf, CorrectOut, BOp, NWorkItems);
+  std::optional<T> CorrectOutOpt;
+  initInputData(InBuf, CorrectOutOpt, BOp, NWorkItems);
+  T CorrectOut = *CorrectOutOpt;
 
   // Compute.
   Q.submit([&](handler &CGH) {

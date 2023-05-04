@@ -47,6 +47,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Support/Regex.h"
 
 #define DEBUG_TYPE "type-scavenger"
 
@@ -192,6 +193,10 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
   } else if (TargetFn->getName() == "__spirv_GetKernelNDrangeSubGroupCount__") {
     ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName().starts_with("__spirv_EnqueueKernel__")) {
+    ArgTys.emplace_back(4, TargetExtType::get(Ctx, "spirv.DeviceEvent"));
+    ArgTys.emplace_back(5, TargetExtType::get(Ctx, "spirv.DeviceEvent"));
+    ArgTys.emplace_back(7, Type::getInt8Ty(Ctx));
   } else
     return false;
 
@@ -224,6 +229,21 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
     Type *Ty = getParamType(F.getAttributes(), Arg->getArgNo());
     if (Ty)
       DeducedTypes[Arg] = Ty;
+  }
+
+  // The first non-sret argument of block_invoke functions is the block capture
+  // struct, which should be passed as an i8*.
+  static const Regex BlockInvokeRegex(
+      "^(__.+)?_block_invoke(_[0-9]+)?(_kernel)?$");
+  if (BlockInvokeRegex.match(F.getName())) {
+    for (Argument *Arg : PointerArgs) {
+      if (!Arg->hasAttribute(Attribute::StructRet)) {
+        DeducedTypes[Arg] = Type::getInt8Ty(F.getContext());
+        LLVM_DEBUG(dbgs() << "Arg " << Arg->getArgNo() << " of " << F.getName()
+                          << " has type i8\n");
+        break;
+      }
+    }
   }
 
   // At this point, anything that we can get definitively correct is going to

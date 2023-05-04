@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include <memory>
 #include <optional>
+#include <sstream>
 
 using namespace llvm;
 using namespace clang;
@@ -112,6 +113,15 @@ private:
   bool Matches;
 };
 
+// Because we're dealing with raw pointers, let's define what we mean by that.
+static auto hasPointerType() {
+    return hasType(hasCanonicalType(pointerType()));
+}
+
+static auto hasArrayType() {
+    return hasType(hasCanonicalType(arrayType()));
+}
+  
 AST_MATCHER_P(Stmt, forEveryDescendant, internal::Matcher<Stmt>, innerMatcher) {
   const DynTypedMatcher &DTM = static_cast<DynTypedMatcher>(innerMatcher);
 
@@ -129,6 +139,11 @@ AST_MATCHER_P(CastExpr, castSubExpr, internal::Matcher<Expr>, innerMatcher) {
   return innerMatcher.matches(*Node.getSubExpr(), Finder, Builder);
 }
 
+// Matches a `UnaryOperator` whose operator is pre-increment:
+AST_MATCHER(UnaryOperator, isPreInc) {
+  return Node.getOpcode() == UnaryOperator::Opcode::UO_PreInc;
+}  
+
 // Returns a matcher that matches any expression 'e' such that `innerMatcher`
 // matches 'e' and 'e' is in an Unspecified Lvalue Context.
 static auto isInUnspecifiedLvalueContext(internal::Matcher<Expr> innerMatcher) {
@@ -145,6 +160,51 @@ static auto isInUnspecifiedLvalueContext(internal::Matcher<Expr> innerMatcher) {
     ));
 // clang-format off
 }
+
+
+// Returns a matcher that matches any expression `e` such that `InnerMatcher`
+// matches `e` and `e` is in an Unspecified Pointer Context (UPC).
+static internal::Matcher<Stmt>
+isInUnspecifiedPointerContext(internal::Matcher<Stmt> InnerMatcher) {
+  // A UPC can be
+  // 1. an argument of a function call (except the callee has [[unsafe_...]]
+  //    attribute), or
+  // 2. the operand of a pointer-to-(integer or bool) cast operation; or
+  // 3. the operand of a comparator operation; or
+  // 4. the operand of a pointer subtraction operation
+  //    (i.e., computing the distance between two pointers); or ...
+
+  auto CallArgMatcher =
+      callExpr(forEachArgumentWithParam(InnerMatcher,
+                  hasPointerType() /* array also decays to pointer type*/),
+          unless(callee(functionDecl(hasAttr(attr::UnsafeBufferUsage)))));
+
+  auto CastOperandMatcher =
+      castExpr(anyOf(hasCastKind(CastKind::CK_PointerToIntegral),
+		     hasCastKind(CastKind::CK_PointerToBoolean)),
+	       castSubExpr(allOf(hasPointerType(), InnerMatcher)));
+
+  auto CompOperandMatcher =
+      binaryOperator(hasAnyOperatorName("!=", "==", "<", "<=", ">", ">="),
+                     eachOf(hasLHS(allOf(hasPointerType(), InnerMatcher)),
+                            hasRHS(allOf(hasPointerType(), InnerMatcher))));
+
+  // A matcher that matches pointer subtractions:
+  auto PtrSubtractionMatcher =
+      binaryOperator(hasOperatorName("-"),
+		     // Note that here we need both LHS and RHS to be
+		     // pointer. Then the inner matcher can match any of
+		     // them:
+		     allOf(hasLHS(hasPointerType()),
+			   hasRHS(hasPointerType())),
+		     eachOf(hasLHS(InnerMatcher),
+			    hasRHS(InnerMatcher)));
+
+  return stmt(anyOf(CallArgMatcher, CastOperandMatcher, CompOperandMatcher,
+		    PtrSubtractionMatcher));
+  // FIXME: any more cases? (UPC excludes the RHS of an assignment.  For now we
+  // don't have to check that.)
+}
 } // namespace clang::ast_matchers
 
 namespace {
@@ -158,15 +218,6 @@ using FixItList = SmallVector<FixItHint, 4>;
 // Defined below.
 class Strategy;
 } // namespace
-
-// Because we're dealing with raw pointers, let's define what we mean by that.
-static auto hasPointerType() {
-    return hasType(hasCanonicalType(pointerType()));
-}
-
-static auto hasArrayType() {
-    return hasType(hasCanonicalType(arrayType()));
-}
 
 namespace {
 /// Gadget is an individual operation in the code that may be of interest to
@@ -464,6 +515,41 @@ public:
   }
 };
 
+// Fixable gadget to handle stand alone pointers of the form `UPC(DRE)` in the
+// unspecified pointer context (isInUnspecifiedPointerContext). The gadget emits
+// fixit of the form `UPC(DRE.data())`.
+class UPCStandalonePointerGadget : public FixableGadget {
+private:
+  static constexpr const char *const DeclRefExprTag = "StandalonePointer";
+  const DeclRefExpr *Node;
+
+public:
+  UPCStandalonePointerGadget(const MatchFinder::MatchResult &Result)
+      : FixableGadget(Kind::UPCStandalonePointer),
+        Node(Result.Nodes.getNodeAs<DeclRefExpr>(DeclRefExprTag)) {
+    assert(Node != nullptr && "Expecting a non-null matching result");
+  }
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::UPCStandalonePointer;
+  }
+
+  static Matcher matcher() {
+    auto ArrayOrPtr = anyOf(hasPointerType(), hasArrayType());
+    auto target = expr(
+        ignoringParenImpCasts(declRefExpr(allOf(ArrayOrPtr, to(varDecl()))).bind(DeclRefExprTag)));
+    return stmt(isInUnspecifiedPointerContext(target));
+  }
+
+  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+
+  virtual const Stmt *getBaseStmt() const override { return Node; }
+
+  virtual DeclUseList getClaimedVarUseSites() const override {
+    return {Node};
+  }
+};
+
 class PointerDereferenceGadget : public FixableGadget {
   static constexpr const char *const BaseDeclRefExprTag = "BaseDRE";
   static constexpr const char *const OperatorTag = "op";
@@ -502,6 +588,46 @@ public:
   virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
 };
 
+// Represents expressions of the form `&DRE[any]` in the Unspecified Pointer
+// Context (see `isInUnspecifiedPointerContext`).
+// Note here `[]` is the built-in subscript operator.
+class UPCAddressofArraySubscriptGadget : public FixableGadget {
+private:
+  static constexpr const char *const UPCAddressofArraySubscriptTag =
+      "AddressofArraySubscriptUnderUPC";
+  const UnaryOperator *Node; // the `&DRE[any]` node
+
+public:
+  UPCAddressofArraySubscriptGadget(const MatchFinder::MatchResult &Result)
+      : FixableGadget(Kind::ULCArraySubscript),
+        Node(Result.Nodes.getNodeAs<UnaryOperator>(
+            UPCAddressofArraySubscriptTag)) {
+    assert(Node != nullptr && "Expecting a non-null matching result");
+  }
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::UPCAddressofArraySubscript;
+  }
+
+  static Matcher matcher() {
+    return expr(isInUnspecifiedPointerContext(expr(ignoringImpCasts(
+        unaryOperator(hasOperatorName("&"),
+                      hasUnaryOperand(arraySubscriptExpr(
+                          hasBase(ignoringParenImpCasts(declRefExpr())))))
+            .bind(UPCAddressofArraySubscriptTag)))));
+  }
+
+  virtual std::optional<FixItList> getFixits(const Strategy &) const override;
+
+  virtual const Stmt *getBaseStmt() const override { return Node; }
+
+  virtual DeclUseList getClaimedVarUseSites() const override {
+    const auto *ArraySubst = cast<ArraySubscriptExpr>(Node->getSubExpr());
+    const auto *DRE =
+        cast<DeclRefExpr>(ArraySubst->getBase()->IgnoreImpCasts());
+    return {DRE};
+  }
+};
 } // namespace
 
 namespace {
@@ -597,6 +723,46 @@ public:
   }
 };
 } // namespace
+
+
+// Representing a pointer type expression of the form `++Ptr` in an Unspecified
+// Pointer Context (UPC):
+class UPCPreIncrementGadget : public FixableGadget {
+private:
+  static constexpr const char *const UPCPreIncrementTag =
+    "PointerPreIncrementUnderUPC";
+  const UnaryOperator *Node; // the `++Ptr` node
+
+public:
+  UPCPreIncrementGadget(const MatchFinder::MatchResult &Result)
+    : FixableGadget(Kind::UPCPreIncrement),
+      Node(Result.Nodes.getNodeAs<UnaryOperator>(UPCPreIncrementTag)) {
+    assert(Node != nullptr && "Expecting a non-null matching result");
+  }
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::UPCPreIncrement;
+  }
+
+  static Matcher matcher() {
+    // Note here we match `++Ptr` for any expression `Ptr` of pointer type.
+    // Although currently we can only provide fix-its when `Ptr` is a DRE, we
+    // can have the matcher be general, so long as `getClaimedVarUseSites` does
+    // things right.
+    return stmt(isInUnspecifiedPointerContext(expr(ignoringImpCasts(
+								    unaryOperator(isPreInc(),
+										  hasUnaryOperand(declRefExpr())
+										  ).bind(UPCPreIncrementTag)))));
+  }
+
+  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+
+  virtual const Stmt *getBaseStmt() const override { return Node; }
+
+  virtual DeclUseList getClaimedVarUseSites() const override {
+    return {dyn_cast<DeclRefExpr>(Node->getSubExpr())};
+  }
+};
 
 // Representing a fixable expression of the form `*(ptr + 123)` or `*(123 +
 // ptr)`:
@@ -710,7 +876,7 @@ findGadgets(const Decl *D, const UnsafeBufferUsageHandler &Handler) {
       // We also should make sure no two `FixableGadget` (resp. `WarningGadget`) matchers
       // match for the same node, so that we can group them
       // in one `anyOf` group (for better performance via short-circuiting).
-      stmt(anyOf(
+      stmt(eachOf(
 #define FIXABLE_GADGET(x)                                                              \
         x ## Gadget::matcher().bind(#x),
 #include "clang/Analysis/Analyses/UnsafeBufferUsageGadgets.def"
@@ -869,6 +1035,26 @@ ULCArraySubscriptGadget::getFixits(const Strategy &S) const {
   return std::nullopt;
 }
 
+static std::optional<FixItList> // forward declaration
+fixUPCAddressofArraySubscriptWithSpan(const UnaryOperator *Node);
+
+std::optional<FixItList>
+UPCAddressofArraySubscriptGadget::getFixits(const Strategy &S) const {
+  auto DREs = getClaimedVarUseSites();
+  const auto *VD = cast<VarDecl>(DREs.front()->getDecl());
+
+  switch (S.lookup(VD)) {
+  case Strategy::Kind::Span:
+    return fixUPCAddressofArraySubscriptWithSpan(Node);
+  case Strategy::Kind::Wontfix:
+  case Strategy::Kind::Iterator:
+  case Strategy::Kind::Array:
+  case Strategy::Kind::Vector:
+    llvm_unreachable("unsupported strategies for FixableGadgets");
+  }
+  return std::nullopt; // something went wrong, no fix-it
+}
+
 // Return the text representation of the given `APInt Val`:
 static std::string getAPIntText(APInt Val) {
   SmallVector<char> Txt;
@@ -882,14 +1068,30 @@ static std::string getAPIntText(APInt Val) {
 template <typename NodeTy>
 static SourceLocation getEndCharLoc(const NodeTy *Node, const SourceManager &SM,
                                     const LangOptions &LangOpts) {
-  return Lexer::getLocForEndOfToken(Node->getEndLoc(), 1, SM, LangOpts);
+  unsigned TkLen = Lexer::MeasureTokenLength(Node->getEndLoc(), SM, LangOpts);
+  SourceLocation Loc = Node->getEndLoc().getLocWithOffset(TkLen - 1);
+
+  // We expect `Loc` to be valid. The location is obtained by moving forward
+  // from the beginning of the token 'len(token)-1' characters. The file ID of
+  // the locations within a token must be consistent.
+  assert(Loc.isValid() && "Expected the source location of the last"
+                          "character of an AST Node to be always valid");
+  return Loc;
 }
 
 // Return the source location just past the last character of the AST `Node`.
 template <typename NodeTy>
 static SourceLocation getPastLoc(const NodeTy *Node, const SourceManager &SM,
                                  const LangOptions &LangOpts) {
-  return Lexer::getLocForEndOfToken(Node->getEndLoc(), 0, SM, LangOpts);
+  SourceLocation Loc =
+      Lexer::getLocForEndOfToken(Node->getEndLoc(), 0, SM, LangOpts);
+
+  // We expect `Loc` to be valid as it is either associated to a file ID or
+  //   it must be the end of a macro expansion. (see
+  //   `Lexer::getLocForEndOfToken`)
+  assert(Loc.isValid() && "Expected the source location just past the last "
+                          "character of an AST Node to be always valid");
+  return Loc;
 }
 
 // Return text representation of an `Expr`.
@@ -985,6 +1187,90 @@ PointerDereferenceGadget::getFixits(const Strategy &S) const {
   return std::nullopt;
 }
 
+// Generates fix-its replacing an expression of the form UPC(DRE) with
+// `DRE.data()`
+std::optional<FixItList> UPCStandalonePointerGadget::getFixits(const Strategy &S)
+      const {
+  const auto VD = cast<VarDecl>(Node->getDecl());
+  switch (S.lookup(VD)) {
+    case Strategy::Kind::Span: {
+      ASTContext &Ctx = VD->getASTContext();
+      SourceManager &SM = Ctx.getSourceManager();
+      // Inserts the .data() after the DRE
+      SourceLocation endOfOperand = getEndCharLoc(Node, SM, Ctx.getLangOpts());
+
+      return FixItList{{FixItHint::CreateInsertion(
+          endOfOperand.getLocWithOffset(1), ".data()")}};
+    }
+    case Strategy::Kind::Wontfix:
+    case Strategy::Kind::Iterator:
+    case Strategy::Kind::Array:
+    case Strategy::Kind::Vector:
+      llvm_unreachable("unsupported strategies for FixableGadgets");
+  }
+
+  return std::nullopt;
+}
+
+// Generates fix-its replacing an expression of the form `&DRE[e]` with
+// `&DRE.data()[e]`:
+static std::optional<FixItList>
+fixUPCAddressofArraySubscriptWithSpan(const UnaryOperator *Node) {
+  const auto *ArraySub = cast<ArraySubscriptExpr>(Node->getSubExpr());
+  const auto *DRE = cast<DeclRefExpr>(ArraySub->getBase()->IgnoreImpCasts());
+  // FIXME: this `getASTContext` call is costly, we should pass the
+  // ASTContext in:
+  const ASTContext &Ctx = DRE->getDecl()->getASTContext();
+  const Expr *Idx = ArraySub->getIdx();
+  const SourceManager &SM = Ctx.getSourceManager();
+  const LangOptions &LangOpts = Ctx.getLangOpts();
+  std::stringstream SS;
+  bool IdxIsLitZero = false;
+
+  if (auto ICE = Idx->getIntegerConstantExpr(Ctx))
+    if ((*ICE).isZero())
+      IdxIsLitZero = true;
+  if (IdxIsLitZero) {
+    // If the index is literal zero, we produce the most concise fix-it:
+    SS << getExprText(DRE, SM, LangOpts).str() << ".data()";
+  } else {
+    SS << "&" << getExprText(DRE, SM, LangOpts).str() << ".data()"
+       << "[" << getExprText(Idx, SM, LangOpts).str() << "]";
+  }
+  return FixItList{
+      FixItHint::CreateReplacement(Node->getSourceRange(), SS.str())};
+}
+
+
+std::optional<FixItList> UPCPreIncrementGadget::getFixits(const Strategy &S) const {
+  DeclUseList DREs = getClaimedVarUseSites();
+
+  if (DREs.size() != 1)
+    return std::nullopt; // In cases of `++Ptr` where `Ptr` is not a DRE, we
+                         // give up
+  if (const VarDecl *VD = dyn_cast<VarDecl>(DREs.front()->getDecl())) {
+    if (S.lookup(VD) == Strategy::Kind::Span) {
+      FixItList Fixes;
+      std::stringstream SS;
+      const Stmt *PreIncNode = getBaseStmt();
+      StringRef varName = VD->getName();
+      const ASTContext &Ctx = VD->getASTContext();
+
+      // To transform UPC(++p) to UPC((p = p.subspan(1)).data()):
+      SS << "(" << varName.data() << " = " << varName.data()
+         << ".subspan(1)).data()";
+      Fixes.push_back(FixItHint::CreateReplacement(
+          SourceRange(PreIncNode->getBeginLoc(),
+                      getEndCharLoc(PreIncNode, Ctx.getSourceManager(),
+                                    Ctx.getLangOpts())),
+          SS.str()));
+      return Fixes;
+    }
+  }
+  return std::nullopt; // Not in the cases that we can handle for now, give up.
+}
+
+
 // For a non-null initializer `Init` of `T *` type, this function returns
 // `FixItHint`s producing a list initializer `{Init,  S}` as a part of a fix-it
 // to output stream.
@@ -1000,9 +1286,25 @@ PointerDereferenceGadget::getFixits(const Strategy &S) const {
 static FixItList
 populateInitializerFixItWithSpan(const Expr *Init, const ASTContext &Ctx,
                                  const StringRef UserFillPlaceHolder) {
-  FixItList FixIts{};
   const SourceManager &SM = Ctx.getSourceManager();
   const LangOptions &LangOpts = Ctx.getLangOpts();
+
+  // If `Init` has a constant value that is (or equivalent to) a
+  // NULL pointer, we use the default constructor to initialize the span
+  // object, i.e., a `std:span` variable declaration with no initializer.
+  // So the fix-it is just to remove the initializer.
+  if (Init->isNullPointerConstant(
+          std::remove_const_t<ASTContext &>(Ctx),
+          // FIXME: Why does this function not ask for `const ASTContext
+          // &`? It should. Maybe worth an NFC patch later.
+          Expr::NullPointerConstantValueDependence::
+              NPC_ValueDependentIsNotNull)) {
+    SourceRange SR(Init->getBeginLoc(), getEndCharLoc(Init, SM, LangOpts));
+
+    return {FixItHint::CreateRemoval(SR)};
+  }
+
+  FixItList FixIts{};
   std::string ExtentText = UserFillPlaceHolder.data();
   StringRef One = "1";
 
@@ -1075,8 +1377,8 @@ static FixItList fixVarDeclWithSpan(const VarDecl *D, const ASTContext &Ctx,
     FixItList InitFixIts =
         populateInitializerFixItWithSpan(Init, Ctx, UserFillPlaceHolder);
 
-    if (InitFixIts.empty())
-      return {}; // Something wrong with fixing initializer, give up
+    assert(!InitFixIts.empty() &&
+           "Unable to fix initializer of unsafe variable declaration");
     // The loc right before the initializer:
     ReplacementLastLoc = Init->getBeginLoc().getLocWithOffset(-1);
     FixIts.insert(FixIts.end(), std::make_move_iterator(InitFixIts.begin()),
@@ -1139,8 +1441,8 @@ static bool overlapWithMacro(const FixItList &FixIts) {
   // FIXME: For now we only check if the range (or the first token) is (part of)
   // a macro expansion.  Ideally, we want to check for all tokens in the range.
   return llvm::any_of(FixIts, [](const FixItHint &Hint) {
-    auto BeginLoc = Hint.RemoveRange.getBegin();
-    if (BeginLoc.isMacroID())
+    auto Range = Hint.RemoveRange;
+    if (Range.getBegin().isMacroID() || Range.getEnd().isMacroID())
       // If the range (or the first token) is (part of) a macro expansion:
       return true;
     return false;

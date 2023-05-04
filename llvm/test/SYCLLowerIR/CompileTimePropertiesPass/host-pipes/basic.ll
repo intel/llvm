@@ -14,7 +14,7 @@ $_ZN4sycl3_V13ext5intel12experimental9host_pipeI9D2HPipeIDiNS1_6oneapi12experime
 @_ZN4sycl3_V13ext5intel12experimental9host_pipeI9D2HPipeIDiNS1_6oneapi12experimental10propertiesISt5tupleIJEEEEE6__pipeE = linkonce_odr dso_local addrspace(1) constant %struct.BasicKernel zeroinitializer, comdat, align 1 #0
 ; CHECK-IR: @_ZN4sycl3_V13ext5intel12experimental9host_pipeI9D2HPipeIDiNS1_6oneapi12experimental10propertiesISt5tupleIJEEEEE6__pipeE = linkonce_odr dso_local addrspace(1) constant %struct.BasicKernel zeroinitializer, comdat, align 1, !spirv.Decorations ![[#MN0:]]
 
-attributes #0 = { "sycl-host-pipe" "sycl-unique-id"="_ZN4sycl3_V13ext5intel12experimental9host_pipeI9H2DPipeIDiNS1_6oneapi12experimental10propertiesISt5tupleIJEEEEE6__pipeE" }
+attributes #0 = { "sycl-host-pipe" "sycl-host-pipe-size"="4" "sycl-unique-id"="_ZN4sycl3_V13ext5intel12experimental9host_pipeI9H2DPipeIDiNS1_6oneapi12experimental10propertiesISt5tupleIJEEEEE6__pipeE" }
 
 ; Ensure that the generated metadata nodes are correct
 ; CHECK-IR-DAG: ![[#MN0]] = !{![[#MN1:]]}

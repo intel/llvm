@@ -152,6 +152,9 @@ namespace format {
    * In 'logic [1:0] x[1:0]', only the first '['. This way we can have space   \
    * before the first bracket but not the second. */                           \
   TYPE(VerilogDimensionedTypeName)                                             \
+  /* list of port connections or parameters in a module instantiation */       \
+  TYPE(VerilogInstancePortComma)                                               \
+  TYPE(VerilogInstancePortLParen)                                              \
   /* for the base in a number literal, not including the quote */              \
   TYPE(VerilogNumberBase)                                                      \
   /* like `(strong1, pull0)` */                                                \
@@ -946,6 +949,7 @@ struct AdditionalKeywords {
     kw_CF_OPTIONS = &IdentTable.get("CF_OPTIONS");
     kw_NS_CLOSED_ENUM = &IdentTable.get("NS_CLOSED_ENUM");
     kw_NS_ENUM = &IdentTable.get("NS_ENUM");
+    kw_NS_ERROR_ENUM = &IdentTable.get("NS_ERROR_ENUM");
     kw_NS_OPTIONS = &IdentTable.get("NS_OPTIONS");
 
     kw_as = &IdentTable.get("as");
@@ -1331,6 +1335,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_CF_OPTIONS;
   IdentifierInfo *kw_NS_CLOSED_ENUM;
   IdentifierInfo *kw_NS_ENUM;
+  IdentifierInfo *kw_NS_ERROR_ENUM;
   IdentifierInfo *kw_NS_OPTIONS;
   IdentifierInfo *kw___except;
   IdentifierInfo *kw___has_include;
@@ -1722,8 +1727,9 @@ struct AdditionalKeywords {
     case tok::kw_while:
       return false;
     case tok::identifier:
-      return VerilogExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
-             VerilogExtraKeywords.end();
+      return isWordLike(Tok) &&
+             VerilogExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
+                 VerilogExtraKeywords.end();
     default:
       // getIdentifierInfo returns non-null for both identifiers and keywords.
       return Tok.Tok.getIdentifierInfo();
