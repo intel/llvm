@@ -3272,8 +3272,7 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
       : host_accessor(other.impl)
 #endif // __SYCL_DEVICE_ONLY__
-  {
-  }
+  {}
 
   // implicit conversion from read_write T accessor to read only T (const)
   // accessor
@@ -3282,12 +3281,10 @@ public:
                 (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
                 std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode_> &other)
-#ifdef __SYCL_DEVICE_ONLY__
-      {}
-#else
-      : host_accessor(other.impl) {
-  }
+#ifndef __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl)
 #endif // __SYCL_DEVICE_ONLY__
+  {}
 
   // host_accessor needs to explicitly define the owner_before member functions
   // as inheriting from OwnerLessBase causes base class conflicts.
