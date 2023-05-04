@@ -74,9 +74,7 @@ struct Wrapper {
 Operation *MemRefDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  if (arith::ConstantOp::isBuildableWith(value, type))
-    return builder.create<arith::ConstantOp>(loc, value, type);
-  return nullptr;
+  return arith::ConstantOp::materialize(builder, value, type, loc);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3236,7 +3234,7 @@ ParseResult TransposeOp::parse(OpAsmParser &parser, OperationState &result) {
 LogicalResult TransposeOp::verify() {
   if (!getPermutation().isPermutation())
     return emitOpError("expected a permutation map");
-  if (getPermutation().getNumDims() != getShapedType().getRank())
+  if (getPermutation().getNumDims() != getIn().getType().getRank())
     return emitOpError("expected a permutation map of same rank as the input");
 
   auto srcType = getIn().getType().cast<MemRefType>();

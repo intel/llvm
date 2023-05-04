@@ -198,12 +198,19 @@ SparseTensorEncodingAttr::getStaticLvlSliceStride(Level lvl) const {
   return getStaticDimSliceStride(toOrigDim(*this, lvl));
 }
 
-const static DimLevelType validDLTs[] = {
-    DimLevelType::Dense,          DimLevelType::Compressed,
-    DimLevelType::CompressedNu,   DimLevelType::CompressedNo,
-    DimLevelType::CompressedNuNo, DimLevelType::Singleton,
-    DimLevelType::SingletonNu,    DimLevelType::SingletonNo,
-    DimLevelType::SingletonNuNo};
+const static DimLevelType validDLTs[] = {DimLevelType::Dense,
+                                         DimLevelType::Compressed,
+                                         DimLevelType::CompressedNu,
+                                         DimLevelType::CompressedNo,
+                                         DimLevelType::CompressedNuNo,
+                                         DimLevelType::Singleton,
+                                         DimLevelType::SingletonNu,
+                                         DimLevelType::SingletonNo,
+                                         DimLevelType::SingletonNuNo,
+                                         DimLevelType::CompressedWithHi,
+                                         DimLevelType::CompressedWithHiNu,
+                                         DimLevelType::CompressedWithHiNo,
+                                         DimLevelType::CompressedWithHiNuNo};
 
 static std::optional<DimLevelType> parseDLT(StringRef str) {
   for (DimLevelType dlt : validDLTs)
@@ -442,11 +449,10 @@ mlir::sparse_tensor::getSparseTensorEncoding(Type type) {
   return nullptr;
 }
 
-/// Returns true iff the given sparse tensor encoding attribute has a trailing
-/// COO region starting at the given level.
-static bool isCOOType(SparseTensorEncodingAttr enc, Level startLvl,
-                      bool isUnique) {
-  if (!enc || !enc.isCompressedLvl(startLvl))
+bool mlir::sparse_tensor::isCOOType(SparseTensorEncodingAttr enc,
+                                    Level startLvl, bool isUnique) {
+  if (!enc ||
+      !(enc.isCompressedLvl(startLvl) || enc.isCompressedWithHiLvl(startLvl)))
     return false;
   const Level lvlRank = enc.getLvlRank();
   for (Level l = startLvl + 1; l < lvlRank; ++l)
@@ -640,43 +646,55 @@ static LogicalResult verifySparsifierGetterSetter(
 static LogicalResult verifyPackUnPack(Operation *op, bool requiresStaticShape,
                                       SparseTensorType tensorTp,
                                       RankedTensorType valuesTp,
-                                      RankedTensorType coordinatesTp) {
+                                      RankedTensorType coordinatesTp,
+                                      IntegerAttr batchedLvls) {
+  unsigned nBatched = batchedLvls ? batchedLvls.getValue().getZExtValue() : 0;
   if (requiresStaticShape && !tensorTp.hasStaticDimShape())
     return op->emitError("the sparse-tensor must have static shape");
   if (!tensorTp.hasEncoding())
     return op->emitError("the sparse-tensor must have an encoding attribute");
   if (!tensorTp.isIdentity())
     return op->emitError("the sparse-tensor must have the identity mapping");
-  if (!isUniqueCOOType(tensorTp))
+  if (!isCOOType(tensorTp.getEncoding(), nBatched, true))
     return op->emitError("the sparse-tensor must have a COO type");
 
-  if (coordinatesTp.getRank() != 2)
-    return op->emitError("coordinates must have rank 2");
+  if (coordinatesTp.getRank() != 2 + nBatched)
+    return op->emitError("coordinates must have rank 2 + batched_lvls");
   if (requiresStaticShape && !coordinatesTp.hasStaticShape())
     return op->emitError("coordinates must have static shape");
   if (coordinatesTp.getElementType() != tensorTp.getCrdType())
     return op->emitError("input/output coordinate-types don't match");
 
-  if (valuesTp.getRank() != 1)
-    return op->emitError("values must have rank 1");
+  if (valuesTp.getRank() != 1 + nBatched)
+    return op->emitError("values must have rank 1 + batched_lvls");
   if (requiresStaticShape && !valuesTp.hasStaticShape())
     return op->emitError("values must have static shape");
   if (valuesTp.getElementType() != tensorTp.getElementType())
     return op->emitError("input/output element-types don't match");
 
-  const auto valuesNSE = valuesTp.getShape()[0];
-  const auto coordsNSE = coordinatesTp.getShape()[0];
+  for (unsigned i = 0; i < nBatched; i++) {
+    const auto valBatch = valuesTp.getShape()[i];
+    const auto crdBatch = coordinatesTp.getShape()[i];
+    if (ShapedType::isDynamic(valBatch) || ShapedType::isDynamic(crdBatch) ||
+        crdBatch != valBatch) {
+      return op->emitError(
+          "values/coordinates batched level sizes don't match statically");
+    }
+  }
+
+  const auto valuesNSE = valuesTp.getShape()[nBatched];
+  const auto coordsNSE = coordinatesTp.getShape()[nBatched];
   if (!ShapedType::isDynamic(valuesNSE) && !ShapedType::isDynamic(coordsNSE) &&
       valuesNSE != coordsNSE)
     return op->emitError("values/coordinates number-of-elements don't match");
 
   // NOTE: We use `getLvlRank` because the `coordinatesTp` is for
   // level-coordinates (cf., the op documentation).
-  const DynSize coordsRank = coordinatesTp.getShape()[1];
+  const DynSize coordsRank = coordinatesTp.getShape()[1 + nBatched];
   const Level tensorRank = tensorTp.getLvlRank();
   // FIXME: replace the `operator!=` with our backported `safelyNE`.
   if (!ShapedType::isDynamic(coordsRank) &&
-      coordsRank != static_cast<DynSize>(tensorRank))
+      coordsRank != static_cast<DynSize>(tensorRank) - nBatched)
     return op->emitError("input/output level-ranks don't match");
 
   return success();
@@ -686,14 +704,24 @@ LogicalResult PackOp::verify() {
   const auto valuesTp = getRankedTensorType(getValues());
   const auto coordinatesTp = getRankedTensorType(getCoordinates());
   const auto resTp = getSparseTensorType(getResult());
-  return verifyPackUnPack(*this, true, resTp, valuesTp, coordinatesTp);
+  return verifyPackUnPack(*this, true, resTp, valuesTp, coordinatesTp,
+                          getBatchedLvlsAttr());
+}
+
+unsigned PackOp::getNumBatchedLvls() {
+  return getBatchedLvls().has_value() ? getBatchedLvls()->getZExtValue() : 0;
 }
 
 LogicalResult UnpackOp::verify() {
   const auto valuesTp = getRankedTensorType(getValues());
   const auto coordinatesTp = getRankedTensorType(getCoordinates());
   const auto srcTp = getSparseTensorType(getTensor());
-  return verifyPackUnPack(*this, false, srcTp, valuesTp, coordinatesTp);
+  return verifyPackUnPack(*this, false, srcTp, valuesTp, coordinatesTp,
+                          getBatchedLvlsAttr());
+}
+
+unsigned UnpackOp::getNumBatchedLvls() {
+  return getBatchedLvls().has_value() ? getBatchedLvls()->getZExtValue() : 0;
 }
 
 LogicalResult ConvertOp::verify() {

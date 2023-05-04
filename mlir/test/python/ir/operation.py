@@ -571,7 +571,7 @@ def testOperationPrint():
 
   # Test roundtrip to bytecode.
   bytecode_stream = io.BytesIO()
-  module.operation.write_bytecode(bytecode_stream)
+  module.operation.write_bytecode(bytecode_stream, desired_version=1)
   bytecode = bytecode_stream.getvalue()
   assert bytecode.startswith(b'ML\xefR'), "Expected bytecode to start with MLïR"
   module_roundtrip = Module.parse(bytecode, ctx)

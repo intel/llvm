@@ -31,14 +31,14 @@ struct _LIBCPP_TYPE_VIS adopt_lock_t {
   explicit adopt_lock_t() = default;
 };
 
-#  if defined(_LIBCPP_BUILDING_LIBRARY)
-extern _LIBCPP_EXPORTED_FROM_ABI const defer_lock_t defer_lock;
-extern _LIBCPP_EXPORTED_FROM_ABI const try_to_lock_t try_to_lock;
-extern _LIBCPP_EXPORTED_FROM_ABI const adopt_lock_t adopt_lock;
+#  if _LIBCPP_STD_VER >= 17
+inline constexpr defer_lock_t defer_lock   = defer_lock_t();
+inline constexpr try_to_lock_t try_to_lock = try_to_lock_t();
+inline constexpr adopt_lock_t adopt_lock   = adopt_lock_t();
 #  elif !defined(_LIBCPP_CXX03_LANG)
-/* inline */ constexpr defer_lock_t defer_lock   = defer_lock_t();
-/* inline */ constexpr try_to_lock_t try_to_lock = try_to_lock_t();
-/* inline */ constexpr adopt_lock_t adopt_lock   = adopt_lock_t();
+constexpr defer_lock_t defer_lock   = defer_lock_t();
+constexpr try_to_lock_t try_to_lock = try_to_lock_t();
+constexpr adopt_lock_t adopt_lock   = adopt_lock_t();
 #  endif
 
 _LIBCPP_END_NAMESPACE_STD

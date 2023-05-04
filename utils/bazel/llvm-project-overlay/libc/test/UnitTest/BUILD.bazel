@@ -23,16 +23,20 @@ cc_library(
 cc_library(
     name = "LibcUnitTest",
     srcs = [
+        "BazelFilePath.cpp",
+        "ExecuteFunctionUnix.cpp",
         "LibcTest.cpp",
         "LibcTestMain.cpp",
     ],
     hdrs = [
+        "ExecuteFunction.h",
         "LibcTest.h",
         "PlatformDefs.h",
         "Test.h",
     ],
     deps = [
         ":test_logger",
+        "//libc:__support_c_string",
         "//libc:__support_cpp_bit",
         "//libc:__support_cpp_bitset",
         "//libc:__support_cpp_span",
@@ -41,7 +45,6 @@ cc_library(
         "//libc:__support_cpp_type_traits",
         "//libc:__support_uint128",
         "//libc:libc_root",
-        "//libc/utils/testutils:libc_test_utils",
         "//llvm:Support",
     ],
 )
@@ -50,11 +53,12 @@ cc_library(
     name = "fp_test_helpers",
     srcs = [
         "FPExceptMatcher.cpp",
-        "FPMatcher.cpp",
+        "RoundingModeUtils.cpp",
     ],
     hdrs = [
         "FPExceptMatcher.h",
         "FPMatcher.h",
+        "RoundingModeUtils.h",
     ],
     deps = [
         ":LibcUnitTest",
@@ -66,7 +70,6 @@ cc_library(
         "//libc:__support_fputil_fenv_impl",
         "//libc:__support_fputil_fp_bits",
         "//libc:libc_root",
-        "//libc/utils/testutils:libc_test_utils",
     ],
 )
 
@@ -109,6 +112,7 @@ cc_library(
         "StringUtils.h",
     ],
     deps = [
+        "//libc:__support_cpp_string",
         "//libc:__support_cpp_type_traits",
     ],
 )

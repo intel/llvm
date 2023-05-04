@@ -475,7 +475,7 @@ struct CollapseShapeRankReducingSliceSimplificationInfo {
   /// The shape of the output of the rank-reducing slice.
   RankedTensorType sliceResultType;
   /// The reassociation indices for the new collapse shape op, if required. If
-  /// `None`, the slice should replace the collapse shape op.
+  /// `std::nullopt`, the slice should replace the collapse shape op.
   std::optional<SmallVector<ReassociationIndices>> newReassociationIndices;
 };
 
@@ -522,6 +522,7 @@ getSimplifyCollapseShapeWithRankReducingSliceInfo(
 
 struct PackingMetadata {
   SmallVector<int64_t> insertPositions;
+  SmallVector<int64_t> outerPositions;
   SmallVector<ReassociationIndices> reassociations;
 };
 

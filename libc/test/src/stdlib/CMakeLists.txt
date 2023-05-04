@@ -1,4 +1,4 @@
-add_libc_testsuite(libc_stdlib_unittests)
+add_custom_target(libc_stdlib_unittests)
 
 add_libc_unittest(
   atof_test
@@ -53,7 +53,7 @@ add_libc_unittest(
     libc.src.stdlib.atoll
 )
 
-add_libc_unittest(
+add_fp_unittest(
   strtod_test
   SUITE
     libc_stdlib_unittests
@@ -64,7 +64,7 @@ add_libc_unittest(
     libc.src.stdlib.strtod
 )
 
-add_libc_unittest(
+add_fp_unittest(
   strtof_test
   SUITE
     libc_stdlib_unittests

@@ -973,6 +973,7 @@ bool RecurrenceDescriptor::isFixedOrderRecurrence(PHINode *Phi, Loop *TheLoop,
   // loop.
   // TODO: Consider extending this sinking to handle memory instructions.
 
+  SmallPtrSet<Value *, 8> Seen;
   BasicBlock *PhiBB = Phi->getParent();
   SmallVector<Instruction *, 8> WorkList;
   auto TryToPushSinkCandidate = [&](Instruction *SinkCandidate) {
@@ -980,6 +981,8 @@ bool RecurrenceDescriptor::isFixedOrderRecurrence(PHINode *Phi, Loop *TheLoop,
     if (Previous == SinkCandidate)
       return false;
 
+    if (!Seen.insert(SinkCandidate).second)
+      return true;
     if (DT->dominates(Previous,
                       SinkCandidate)) // We already are good w/o sinking.
       return true;
@@ -1480,6 +1483,12 @@ bool InductionDescriptor::isInductionPHI(
         dbgs() << "LV: PHI is a recurrence with respect to an outer loop.\n");
     return false;
   }
+
+  // This function assumes that InductionPhi is called only on Phi nodes
+  // present inside loop headers. Check for the same, and throw an assert if
+  // the current Phi is not present inside the loop header.
+  assert(Phi->getParent() == AR->getLoop()->getHeader()
+    && "Invalid Phi node, not present in loop header");
 
   Value *StartValue =
       Phi->getIncomingValueForBlock(AR->getLoop()->getLoopPreheader());

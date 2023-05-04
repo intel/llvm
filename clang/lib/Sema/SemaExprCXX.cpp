@@ -1527,16 +1527,10 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
     Entity = InitializedEntity::InitializeTemporary(TInfo, Ty);
   }
 
-  if (Ty->isDependentType() || CallExpr::hasAnyTypeDependentArguments(Exprs)) {
-    // FIXME: CXXUnresolvedConstructExpr does not model list-initialization
-    // directly. We work around this by dropping the locations of the braces.
-    SourceRange Locs = ListInitialization
-                           ? SourceRange()
-                           : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
-    return CXXUnresolvedConstructExpr::Create(Context, Ty.getNonReferenceType(),
-                                              TInfo, Locs.getBegin(), Exprs,
-                                              Locs.getEnd());
-  }
+  if (Ty->isDependentType() || CallExpr::hasAnyTypeDependentArguments(Exprs))
+    return CXXUnresolvedConstructExpr::Create(
+        Context, Ty.getNonReferenceType(), TInfo, LParenOrBraceLoc, Exprs,
+        RParenOrBraceLoc, ListInitialization);
 
   // C++ [expr.type.conv]p1:
   // If the expression list is a parenthesized single expression, the type
@@ -4580,6 +4574,7 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     break;
 
   case ICK_SVE_Vector_Conversion:
+  case ICK_RVV_Vector_Conversion:
     From = ImpCastExprToType(From, ToType, CK_BitCast, VK_PRValue,
                              /*BasePath=*/nullptr, CCK)
                .get();
@@ -4885,8 +4880,10 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_IsStandardLayout:
   case UTT_IsPOD:
   case UTT_IsLiteral:
-  // By analogy, is_trivially_relocatable imposes the same constraints.
+  // By analogy, is_trivially_relocatable and is_trivially_equality_comparable
+  // impose the same constraints.
   case UTT_IsTriviallyRelocatable:
+  case UTT_IsTriviallyEqualityComparable:
   case UTT_CanPassInRegs:
   // Per the GCC type traits documentation, T shall be a complete type, cv void,
   // or an array of unknown bound. But GCC actually imposes the same constraints
@@ -5381,6 +5378,8 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
       return RD->canPassInRegisters();
     Self.Diag(KeyLoc, diag::err_builtin_pass_in_regs_non_class) << T;
     return false;
+  case UTT_IsTriviallyEqualityComparable:
+    return T.isTriviallyEqualityComparableType(C);
   }
 }
 

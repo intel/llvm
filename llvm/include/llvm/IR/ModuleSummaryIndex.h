@@ -341,7 +341,12 @@ inline raw_ostream &operator<<(raw_ostream &OS, const CallsiteInfo &SNI) {
 // Values should be powers of two so that they can be ORed, in particular to
 // track allocations that have different behavior with different calling
 // contexts.
-enum class AllocationType : uint8_t { None = 0, NotCold = 1, Cold = 2 };
+enum class AllocationType : uint8_t {
+  None = 0,
+  NotCold = 1,
+  Cold = 2,
+  All = 3 // This should always be set to the OR of all values.
+};
 
 /// Summary of a single MIB in a memprof metadata on allocations.
 struct MIBInfo {
@@ -1333,6 +1338,11 @@ private:
 
   // The total number of basic blocks in the module in the per-module summary or
   // the total number of basic blocks in the LTO unit in the combined index.
+  // FIXME: Putting this in the distributed ThinLTO index files breaks LTO
+  // backend caching on any BB change to any linked file. It is currently not
+  // used except in the case of a SamplePGO partial profile, and should be
+  // reevaluated/redesigned to allow more effective incremental builds in that
+  // case.
   uint64_t BlockCount;
 
   // List of unique stack ids (hashes). We use a 4B index of the id in the
@@ -1805,7 +1815,7 @@ public:
   void propagateAttributes(const DenseSet<GlobalValue::GUID> &PreservedSymbols);
 
   /// Checks if we can import global variable from another module.
-  bool canImportGlobalVar(GlobalValueSummary *S, bool AnalyzeRefs) const;
+  bool canImportGlobalVar(const GlobalValueSummary *S, bool AnalyzeRefs) const;
 };
 
 /// GraphTraits definition to build SCC for the index

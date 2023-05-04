@@ -928,29 +928,23 @@ Instruction *InstCombinerImpl::foldIntrinsicIsFPClass(IntrinsicInst &II) {
     return replaceInstUsesWith(II, FCmp);
   }
 
+  KnownFPClass Known = computeKnownFPClass(
+      Src0, DL, Mask, 0, &getTargetLibraryInfo(), &AC, &II, &DT, &ORE);
+
+  // Clear test bits we know must be false from the source value.
   // fp_class (nnan x), qnan|snan|other -> fp_class (nnan x), other
-  if ((Mask & fcNan) && isKnownNeverNaN(Src0, &getTargetLibraryInfo())) {
-    II.setArgOperand(1, ConstantInt::get(Src1->getType(), Mask & ~fcNan));
-    return &II;
-  }
-
-  // fp_class (nnan x), ~(qnan|snan) -> true
-  if (Mask == (~fcNan & fcAllFlags) &&
-      isKnownNeverNaN(Src0, &getTargetLibraryInfo())) {
-    return replaceInstUsesWith(II, ConstantInt::get(II.getType(), true));
-  }
-
   // fp_class (ninf x), ninf|pinf|other -> fp_class (ninf x), other
-  if ((Mask & fcInf) && isKnownNeverInfinity(Src0, &getTargetLibraryInfo())) {
-    II.setArgOperand(1, ConstantInt::get(Src1->getType(), Mask & ~fcInf));
+  if ((Mask & Known.KnownFPClasses) != Mask) {
+    II.setArgOperand(
+        1, ConstantInt::get(Src1->getType(), Mask & Known.KnownFPClasses));
     return &II;
   }
 
+  // If none of the tests which can return false are possible, fold to true.
+  // fp_class (nnan x), ~(qnan|snan) -> true
   // fp_class (ninf x), ~(ninf|pinf) -> true
-  if (Mask == (~fcInf & fcAllFlags) &&
-      isKnownNeverInfinity(Src0, &getTargetLibraryInfo())) {
+  if (Mask == Known.KnownFPClasses)
     return replaceInstUsesWith(II, ConstantInt::get(II.getType(), true));
-  }
 
   return nullptr;
 }
@@ -1305,7 +1299,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   // not a multiple of element size then behavior is undefined.
   if (auto *AMI = dyn_cast<AtomicMemIntrinsic>(II))
     if (ConstantInt *NumBytes = dyn_cast<ConstantInt>(AMI->getLength()))
-      if (NumBytes->getSExtValue() < 0 ||
+      if (NumBytes->isNegative() ||
           (NumBytes->getZExtValue() % AMI->getElementSizeInBytes() != 0)) {
         CreateNonTerminatorUnreachable(AMI);
         assert(AMI->getType()->isVoidTy() &&
@@ -2734,7 +2728,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       for (i = 0; i != SubVecNumElts; ++i)
         WidenMask.push_back(i);
       for (; i != VecNumElts; ++i)
-        WidenMask.push_back(UndefMaskElem);
+        WidenMask.push_back(PoisonMaskElem);
 
       Value *WidenShuffle = Builder.CreateShuffleVector(SubVec, WidenMask);
 
@@ -3029,7 +3023,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     int Sz = Mask.size();
     SmallBitVector UsedIndices(Sz);
     for (int Idx : Mask) {
-      if (Idx == UndefMaskElem || UsedIndices.test(Idx))
+      if (Idx == PoisonMaskElem || UsedIndices.test(Idx))
         break;
       UsedIndices.set(Idx);
     }

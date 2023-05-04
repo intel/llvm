@@ -1,6 +1,5 @@
 algorithm atomic
 algorithm bit
-algorithm chrono
 algorithm climits
 algorithm concepts
 algorithm cstddef
@@ -127,11 +126,13 @@ cmath type_traits
 cmath version
 codecvt atomic
 codecvt cctype
+codecvt clocale
 codecvt concepts
 codecvt cstddef
 codecvt cstdint
 codecvt cstdlib
 codecvt cstring
+codecvt cwchar
 codecvt initializer_list
 codecvt iosfwd
 codecvt limits
@@ -212,6 +213,7 @@ exception cstddef
 exception cstdlib
 exception type_traits
 exception version
+execution cstddef
 execution version
 expected cstddef
 expected initializer_list
@@ -331,7 +333,6 @@ format stdexcept
 format string
 format string_view
 format tuple
-format vector
 format version
 forward_list algorithm
 forward_list atomic
@@ -354,12 +355,14 @@ forward_list typeinfo
 forward_list version
 fstream atomic
 fstream cctype
+fstream clocale
 fstream concepts
 fstream cstddef
 fstream cstdint
 fstream cstdio
 fstream cstdlib
 fstream cstring
+fstream cwchar
 fstream filesystem
 fstream initializer_list
 fstream iosfwd
@@ -420,11 +423,13 @@ iomanip istream
 iomanip version
 ios atomic
 ios cctype
+ios clocale
 ios concepts
 ios cstddef
 ios cstdint
 ios cstdlib
 ios cstring
+ios cwchar
 ios initializer_list
 ios iosfwd
 ios limits
@@ -496,6 +501,7 @@ list version
 locale atomic
 locale cctype
 locale cerrno
+locale clocale
 locale concepts
 locale cstdarg
 locale cstddef
@@ -504,6 +510,7 @@ locale cstdio
 locale cstdlib
 locale cstring
 locale ctime
+locale cwchar
 locale initializer_list
 locale ios
 locale iosfwd
@@ -681,12 +688,14 @@ ratio type_traits
 ratio version
 regex atomic
 regex cctype
+regex clocale
 regex compare
 regex concepts
 regex cstddef
 regex cstdint
 regex cstdlib
 regex cstring
+regex cwchar
 regex deque
 regex initializer_list
 regex iosfwd
@@ -844,6 +853,7 @@ thread chrono
 thread compare
 thread cstddef
 thread cstdint
+thread cstdlib
 thread cstring
 thread ctime
 thread functional
@@ -858,7 +868,6 @@ thread string_view
 thread system_error
 thread tuple
 thread type_traits
-thread vector
 thread version
 tuple compare
 tuple cstddef

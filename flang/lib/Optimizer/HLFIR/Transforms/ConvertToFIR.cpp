@@ -91,12 +91,22 @@ public:
       if (rhsIsValue) {
         // createBox can only be called for fir::ExtendedValue that are
         // already in memory. Place the integer/real/complex/logical scalar
-        // in memory (convert to the LHS type so that i1 are allocated in
-        // a proper Fortran logical storage).
-        mlir::Type lhsValueType = lhs.getFortranElementType();
-        mlir::Value rhsVal =
-            builder.createConvert(loc, lhsValueType, fir::getBase(rhsExv));
-        mlir::Value temp = builder.create<fir::AllocaOp>(loc, lhsValueType);
+        // in memory.
+        // The RHS might be i1, which is not supported for emboxing.
+        // If LHS is not polymorphic, we may cast the RHS to the LHS type
+        // before emboxing. If LHS is polymorphic we have to figure out
+        // the data type for RHS emboxing anyway.
+        // It is probably a good idea to make sure that the data type
+        // of the RHS is always a valid Fortran storage data type.
+        // For the time being, just handle i1 explicitly here.
+        mlir::Type rhsType = rhs.getFortranElementType();
+        mlir::Value rhsVal = fir::getBase(rhsExv);
+        if (rhsType == builder.getI1Type()) {
+          rhsType = fir::LogicalType::get(builder.getContext(), 4);
+          rhsVal = builder.createConvert(loc, rhsType, rhsVal);
+        }
+
+        mlir::Value temp = builder.create<fir::AllocaOp>(loc, rhsType);
         builder.create<fir::StoreOp>(loc, rhsVal, temp);
         rhsExv = temp;
       }
@@ -429,8 +439,19 @@ public:
         triples = genFullSliceTriples(builder, loc, baseEntity);
         sliceFields.push_back(fieldIndex);
         // Add indices in the field path for "array%array_comp(indices)"
-        // case.
-        sliceFields.append(subscripts.begin(), subscripts.end());
+        // case. The indices of components provided to the sliceOp must
+        // be zero based (fir.slice has no knowledge of the component
+        // lower bounds). The component lower bounds are applied here.
+        if (!subscripts.empty()) {
+          llvm::SmallVector<mlir::Value> lbounds = hlfir::genLowerbounds(
+              loc, builder, designate.getComponentShape(), subscripts.size());
+          for (auto [i, lb] : llvm::zip(subscripts, lbounds)) {
+            mlir::Value iIdx = builder.createConvert(loc, idxTy, i);
+            mlir::Value lbIdx = builder.createConvert(loc, idxTy, lb);
+            sliceFields.emplace_back(
+                builder.create<mlir::arith::SubIOp>(loc, iIdx, lbIdx));
+          }
+        }
       } else {
         // Otherwise, this is an array section with triplets.
         auto undef = builder.create<fir::UndefOp>(loc, idxTy);
@@ -633,6 +654,30 @@ public:
   }
 };
 
+class GetExtentOpConversion
+    : public mlir::OpRewritePattern<hlfir::GetExtentOp> {
+public:
+  using mlir::OpRewritePattern<hlfir::GetExtentOp>::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(hlfir::GetExtentOp getExtentOp,
+                  mlir::PatternRewriter &rewriter) const override {
+    mlir::Value shape = getExtentOp.getShape();
+    mlir::Operation *shapeOp = shape.getDefiningOp();
+    // the hlfir.shape_of operation which led to the creation of this get_extent
+    // operation should now have been lowered to a fir.shape operation
+    if (auto s = mlir::dyn_cast_or_null<fir::ShapeOp>(shapeOp)) {
+      fir::ShapeType shapeTy = shape.getType().cast<fir::ShapeType>();
+      llvm::APInt dim = getExtentOp.getDim();
+      uint64_t dimVal = dim.getLimitedValue(shapeTy.getRank());
+      mlir::Value extent = s.getExtents()[dimVal];
+      rewriter.replaceOp(getExtentOp, extent);
+      return mlir::success();
+    }
+    return mlir::failure();
+  }
+};
+
 class ConvertHLFIRtoFIR
     : public hlfir::impl::ConvertHLFIRtoFIRBase<ConvertHLFIRtoFIR> {
 public:
@@ -646,8 +691,8 @@ public:
     mlir::RewritePatternSet patterns(context);
     patterns.insert<AssignOpConversion, CopyInOpConversion, CopyOutOpConversion,
                     DeclareOpConversion, DesignateOpConversion,
-                    NoReassocOpConversion, NullOpConversion,
-                    ParentComponentOpConversion>(context);
+                    GetExtentOpConversion, NoReassocOpConversion,
+                    NullOpConversion, ParentComponentOpConversion>(context);
     mlir::ConversionTarget target(*context);
     target.addIllegalDialect<hlfir::hlfirDialect>();
     target.markUnknownOpDynamicallyLegal(

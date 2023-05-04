@@ -104,6 +104,7 @@ void registerTestCFGLoopInfoPass();
 void registerTestLoopMappingPass();
 void registerTestLoopUnrollingPass();
 void registerTestLowerToLLVM();
+void registerTestMakeIsolatedFromAbovePass();
 void registerTestMatchReductionPass();
 void registerTestMathAlgebraicSimplificationPass();
 void registerTestMathPolynomialApproximationPass();
@@ -218,6 +219,7 @@ void registerTestPasses() {
   mlir::test::registerTestLoopMappingPass();
   mlir::test::registerTestLoopUnrollingPass();
   mlir::test::registerTestLowerToLLVM();
+  mlir::test::registerTestMakeIsolatedFromAbovePass();
   mlir::test::registerTestMatchReductionPass();
   mlir::test::registerTestMathAlgebraicSimplificationPass();
   mlir::test::registerTestMathPolynomialApproximationPass();
@@ -259,6 +261,5 @@ int main(int argc, char **argv) {
   ::test::registerTestDynDialect(registry);
 #endif
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
-                        /*preloadDialectsInContext=*/false));
+      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry));
 }

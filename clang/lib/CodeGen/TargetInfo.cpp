@@ -33,6 +33,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/RISCVTargetParser.h"
 #include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 
@@ -7971,7 +7972,7 @@ bool SystemZTargetCodeGenInfo::isVectorTypeBased(const Type *Ty,
     if (isVectorTypeBased(FT->getReturnType().getTypePtr(), /*IsParam*/true))
       return true;
   if (const FunctionProtoType *Proto = Ty->getAs<FunctionProtoType>())
-    for (auto ParamType : Proto->getParamTypes())
+    for (const auto &ParamType : Proto->getParamTypes())
       if (isVectorTypeBased(ParamType.getTypePtr(), /*IsParam*/true))
         return true;
 
@@ -9654,12 +9655,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
   const bool IsHIPKernel =
       M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
-  const bool IsOpenMPkernel =
-      M.getLangOpts().OpenMPIsDevice &&
-      (F->getCallingConv() == llvm::CallingConv::AMDGPU_KERNEL);
 
   // TODO: This should be moved to language specific attributes instead.
-  if (IsHIPKernel || IsOpenMPkernel)
+  if (IsHIPKernel)
     F->addFnAttr("uniform-work-group-size", "true");
 
   // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
@@ -11328,6 +11326,8 @@ public:
                                                CharUnits Field1Off,
                                                llvm::Type *Field2Ty,
                                                CharUnits Field2Off) const;
+
+  ABIArgInfo coerceVLSVector(QualType Ty) const;
 };
 } // end anonymous namespace
 
@@ -11571,6 +11571,25 @@ ABIArgInfo RISCVABIInfo::coerceAndExpandFPCCEligibleStruct(
   return ABIArgInfo::getCoerceAndExpand(CoerceToType, UnpaddedCoerceToType);
 }
 
+// Fixed-length RVV vectors are represented as scalable vectors in function
+// args/return and must be coerced from fixed vectors.
+ABIArgInfo RISCVABIInfo::coerceVLSVector(QualType Ty) const {
+  assert(Ty->isVectorType() && "expected vector type!");
+
+  const auto *VT = Ty->castAs<VectorType>();
+  assert(VT->getVectorKind() == VectorType::RVVFixedLengthDataVector &&
+         "Unexpected vector kind");
+
+  assert(VT->getElementType()->isBuiltinType() && "expected builtin type!");
+
+  const auto *BT = VT->getElementType()->castAs<BuiltinType>();
+  unsigned EltSize = getContext().getTypeSize(BT);
+  llvm::ScalableVectorType *ResType =
+        llvm::ScalableVectorType::get(CGT.ConvertType(VT->getElementType()),
+                                      llvm::RISCV::RVVBitsPerBlock / EltSize);
+  return ABIArgInfo::getDirect(ResType);
+}
+
 ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
                                               int &ArgGPRsLeft,
                                               int &ArgFPRsLeft) const {
@@ -11666,6 +11685,10 @@ ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
     return ABIArgInfo::getDirect();
   }
 
+  if (const VectorType *VT = Ty->getAs<VectorType>())
+    if (VT->getVectorKind() == VectorType::RVVFixedLengthDataVector)
+      return coerceVLSVector(Ty);
+
   // Aggregates which are <= 2*XLen will be passed in registers if possible,
   // so coerce to integers.
   if (Size <= 2 * XLen) {
@@ -11747,7 +11770,6 @@ public:
 
     const char *Kind;
     switch (Attr->getInterrupt()) {
-    case RISCVInterruptAttr::user: Kind = "user"; break;
     case RISCVInterruptAttr::supervisor: Kind = "supervisor"; break;
     case RISCVInterruptAttr::machine: Kind = "machine"; break;
     }

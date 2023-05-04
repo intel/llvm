@@ -2862,7 +2862,7 @@ void EnqueueVisitor::VisitDesignatedInitExpr(const DesignatedInitExpr *E) {
   for (const DesignatedInitExpr::Designator &D :
        llvm::reverse(E->designators())) {
     if (D.isFieldDesignator()) {
-      if (FieldDecl *Field = D.getField())
+      if (const FieldDecl *Field = D.getFieldDecl())
         AddMemberRef(Field, D.getFieldLoc());
       continue;
     }

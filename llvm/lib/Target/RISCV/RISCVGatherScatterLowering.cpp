@@ -63,8 +63,6 @@ public:
   }
 
 private:
-  bool isLegalTypeAndAlignment(Type *DataType, Value *AlignOp);
-
   bool tryCreateStridedLoadStore(IntrinsicInst *II, Type *DataType, Value *Ptr,
                                  Value *AlignOp);
 
@@ -87,26 +85,11 @@ FunctionPass *llvm::createRISCVGatherScatterLoweringPass() {
   return new RISCVGatherScatterLowering();
 }
 
-bool RISCVGatherScatterLowering::isLegalTypeAndAlignment(Type *DataType,
-                                                         Value *AlignOp) {
-  Type *ScalarType = DataType->getScalarType();
-  if (!TLI->isLegalElementTypeForRVV(ScalarType))
-    return false;
-
-  MaybeAlign MA = cast<ConstantInt>(AlignOp)->getMaybeAlignValue();
-  if (MA && MA->value() < DL->getTypeStoreSize(ScalarType).getFixedValue())
-    return false;
-
-  // FIXME: Let the backend type legalize by splitting/widening?
-  EVT DataVT = TLI->getValueType(*DL, DataType);
-  if (!TLI->isTypeLegal(DataVT))
-    return false;
-
-  return true;
-}
-
 // TODO: Should we consider the mask when looking for a stride?
 static std::pair<Value *, Value *> matchStridedConstant(Constant *StartC) {
+  if (!isa<FixedVectorType>(StartC->getType()))
+    return std::make_pair(nullptr, nullptr);
+
   unsigned NumElts = cast<FixedVectorType>(StartC->getType())->getNumElements();
 
   // Check that the start value is a strided constant.
@@ -461,7 +444,13 @@ bool RISCVGatherScatterLowering::tryCreateStridedLoadStore(IntrinsicInst *II,
                                                            Value *Ptr,
                                                            Value *AlignOp) {
   // Make sure the operation will be supported by the backend.
-  if (!isLegalTypeAndAlignment(DataType, AlignOp))
+  MaybeAlign MA = cast<ConstantInt>(AlignOp)->getMaybeAlignValue();
+  EVT DataTypeVT = TLI->getValueType(*DL, DataType);
+  if (!MA || !TLI->isLegalStridedLoadStore(DataTypeVT, *MA))
+    return false;
+
+  // FIXME: Let the backend type legalize by splitting/widening?
+  if (!TLI->isTypeLegal(DataTypeVT))
     return false;
 
   // Pointer should be a GEP.

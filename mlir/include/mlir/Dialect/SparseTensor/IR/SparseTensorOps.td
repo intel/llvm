@@ -54,8 +54,9 @@ def SparseTensor_NewOp : SparseTensor_Op<"new", [Pure]>,
 }
 
 def SparseTensor_PackOp : SparseTensor_Op<"pack", [Pure]>,
-    Arguments<(ins 1DTensorOf<[AnyType]>:$values,
-                   2DTensorOf<[AnySignlessIntegerOrIndex]>:$coordinates)>,
+    Arguments<(ins TensorOf<[AnyType]>:$values,
+                   TensorOf<[AnySignlessIntegerOrIndex]>:$coordinates,
+                   OptionalAttr<IndexAttr>:$batched_lvls)>,
     Results<(outs AnySparseTensor: $result)> {
   let summary = "Returns a sparse tensor from the given (values, coordinates) pair";
 
@@ -77,6 +78,8 @@ def SparseTensor_PackOp : SparseTensor_Op<"pack", [Pure]>,
       supplies the level-coords for each element in `values`.
     - `values : tensor<NSE x V>`
       supplies the corresponding values for each entry in `coordinates`.
+    - `batched_lvls : optional<index>`
+      supplies the number of leading levels that are batched.
 
     This operation can be used to materialize a sparse tensor from external
     sources; e.g., when passing two numpy arrays from Python.
@@ -92,19 +95,39 @@ def SparseTensor_PackOp : SparseTensor_Op<"pack", [Pure]>,
     //     of 3x4 matrix |0.0, 0.0, 2.2, 3.3|
     //                   |0.0, 0.0, 0.0, 0.0|
     ```
+
+    If `batched_lvls` is provided, the operation materializes a batched sparse tensor.
+    Example:
+
+    ```mlir
+    %values      = arith.constant dense<[[ 1.1,   2.2,   3.3 ],
+                                         [ 1.2,   2.3,   0.0 ]]> : tensor<2x3xf64>
+    %coordinates = arith.constant dense<[[ [0],   [1],   [2] ],
+                                         [ [1],   [2],   [3] ]> : tensor<2x3x1xindex>
+    %st = sparse_tensor.pack %values, %coordinates batched_lvls=1
+        : tensor<2x3xf64>, tensor<2x3x1xindex> to tensor<2x4xf64, #BCOO>
+    // yields BCOO format |1.1, 2.2, 3.3, 0.0|
+    //      of 2x4 matrix |0.0, 1.2, 2.3, 0.0|
+    ```
+  }];
+
+  let extraClassDeclaration = [{
+    /// Returns the number of leading levels that are batched.
+    unsigned getNumBatchedLvls();
   }];
 
   let assemblyFormat =
-    "$values `,` $coordinates attr-dict"
+    "$values `,` $coordinates (`batched_lvls` `=` $batched_lvls^)? attr-dict"
     "`:` type($values) `,` type($coordinates) `to` type($result)";
 
   let hasVerifier = 1;
 }
 
-def SparseTensor_UnpackOp : SparseTensor_Op<"unpack", [Pure]>,
-    Arguments<(ins AnySparseTensor:$tensor)>,
-    Results<(outs 1DTensorOf<[AnyType]>:$values,
-                  2DTensorOf<[AnySignlessIntegerOrIndex]>:$coordinates,
+def SparseTensor_UnpackOp : SparseTensor_Op<"unpack">,
+    Arguments<(ins AnySparseTensor:$tensor,
+                   OptionalAttr<IndexAttr>:$batched_lvls)>,
+    Results<(outs TensorOf<[AnyType]>:$values,
+                  TensorOf<[AnySignlessIntegerOrIndex]>:$coordinates,
                   AnySignlessIntegerOrIndex:$nse)> {
   let summary = "Returns the (values, coordinates) pair unpacked from the input tensor";
 
@@ -137,11 +160,44 @@ def SparseTensor_UnpackOp : SparseTensor_Op<"unpack", [Pure]>,
     // %coordinates = arith.constant dense<[[0,0], [1,2], [1,3]]> : tensor<3x2xindex>
     // %nse = 3
     ```
+
+    If `batched_lvls` is provided, the operation unpacks each batch of the tensors
+    separately. The returned `nse` is the maximum nse of all batches. For a batch with
+    a smaller nse, trailing zeros are appended in the result.
+    Example:
+
+    ```mlir
+    // input BCOO format |1.1, 2.2, 3.3, 0.0|
+    //      of 2x4 matrix |0.0, 1.2, 2.3, 0.0|
+    %values, %coordinates, %nse = sparse_tensor.unpack %st batched_lvls=1
+        : tensor<2x3xf64>, tensor<2x3x1xindex> to tensor<2x4xf64, #BCOO>
+    // %values      = arith.constant dense<[[ 1.1,   2.2,   3.3 ],
+    //                                      [ 1.2,   2.3,   0.0 ]]> : tensor<2x3xf64>
+    // %coordinates = arith.constant dense<[[ [0],   [1],   [2] ],
+    //                                      [ [1],   [2],   [0] ]> : tensor<2x3x1xindex>
+    ```
   }];
 
+  let extraClassDeclaration = [{
+    /// Returns the number of leading levels that are batched.
+    unsigned getNumBatchedLvls();
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Type":$values, "Type":$coordinates, "Type":$nse, "Value": $tensor),
+    [{
+      build($_builder, $_state, values, coordinates, nse, tensor, nullptr);
+    }]>,
+    OpBuilder<(ins "TypeRange":$resultTypes, "Value": $tensor),
+    [{
+      build($_builder, $_state, resultTypes, tensor, nullptr);
+    }]>
+  ];
+
+
   let assemblyFormat =
-    "$tensor attr-dict `:` type($tensor)"
-    "`to` type($values) `,` type($coordinates) `,` type($nse)";
+    "$tensor (`batched_lvls` `=` $batched_lvls^)? attr-dict `:`"
+    "type($tensor) `to` type($values) `,` type($coordinates) `,` type($nse)";
 
   let hasVerifier = 1;
 }

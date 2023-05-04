@@ -424,18 +424,10 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
   if (I->isEHPad())
     return false;
 
-  // We don't want debug info removed by anything this general, unless
-  // debug info is empty.
-  if (DbgDeclareInst *DDI = dyn_cast<DbgDeclareInst>(I)) {
-    if (DDI->getAddress())
-      return false;
-    return true;
-  }
-  if (DbgValueInst *DVI = dyn_cast<DbgValueInst>(I)) {
-    if (DVI->hasArgList() || DVI->getValue(0))
-      return false;
-    return true;
-  }
+  // We don't want debug info removed by anything this general.
+  if (isa<DbgVariableIntrinsic>(I))
+    return false;
+
   if (DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(I)) {
     if (DLI->getLabel())
       return false;
@@ -1948,7 +1940,7 @@ Value *getSalvageOpsForGEP(GetElementPtrInst *GEP, const DataLayout &DL,
     Opcodes.insert(Opcodes.begin(), {dwarf::DW_OP_LLVM_arg, 0});
     CurrentLocOps = 1;
   }
-  for (auto Offset : VariableOffsets) {
+  for (const auto &Offset : VariableOffsets) {
     AdditionalValues.push_back(Offset.first);
     assert(Offset.second.isStrictlyPositive() &&
            "Expected strictly positive multiplier for offset.");
@@ -2701,8 +2693,9 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
         break;
       case LLVMContext::MD_dereferenceable:
       case LLVMContext::MD_dereferenceable_or_null:
-        K->setMetadata(Kind,
-          MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
+        if (DoesKMove)
+          K->setMetadata(Kind,
+            MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
         break;
       case LLVMContext::MD_preserve_access_index:
         // Preserve !preserve.access.index in K.
@@ -2715,6 +2708,10 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
       case LLVMContext::MD_nontemporal:
         // Preserve !nontemporal if it is present on both instructions.
         K->setMetadata(Kind, JMD);
+        break;
+      case LLVMContext::MD_prof:
+        if (DoesKMove)
+          K->setMetadata(Kind, MDNode::getMergedProfMetadata(KMD, JMD, K, J));
         break;
     }
   }
@@ -2744,6 +2741,7 @@ void llvm::combineMetadataForCSE(Instruction *K, const Instruction *J,
                          LLVMContext::MD_dereferenceable_or_null,
                          LLVMContext::MD_access_group,
                          LLVMContext::MD_preserve_access_index,
+                         LLVMContext::MD_prof,
                          LLVMContext::MD_nontemporal,
                          LLVMContext::MD_noundef};
   combineMetadata(K, J, KnownIDs, KDominatesJ);
@@ -2989,7 +2987,7 @@ void llvm::hoistAllInstructionsInto(BasicBlock *DomBlock, Instruction *InsertPt,
 
   for (BasicBlock::iterator II = BB->begin(), IE = BB->end(); II != IE;) {
     Instruction *I = &*II;
-    I->dropUBImplyingAttrsAndUnknownMetadata();
+    I->dropUBImplyingAttrsAndMetadata();
     if (I->isUsedByMetadata())
       dropDebugUsers(*I);
     if (I->isDebugOrPseudoInst()) {

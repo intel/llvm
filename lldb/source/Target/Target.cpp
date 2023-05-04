@@ -293,6 +293,7 @@ void Target::Destroy() {
   m_stop_hooks.clear();
   m_stop_hook_next_id = 0;
   m_suppress_stop_hooks = false;
+  m_repl_map.clear();
   Args signal_args;
   ClearDummySignals(signal_args);
 }
@@ -3157,8 +3158,8 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   // its own hijacking listener or if the process is created by the target
   // manually, without the platform).
   if (!launch_info.GetHijackListener())
-    launch_info.SetHijackListener(
-        Listener::MakeListener("lldb.Target.Launch.hijack"));
+    launch_info.SetHijackListener(Listener::MakeListener(
+        Process::LaunchSynchronousHijackListenerName.data()));
 
   // If we're not already connected to the process, and if we have a platform
   // that can launch a process for debugging, go ahead and do that here.
@@ -3193,6 +3194,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
     // Since we didn't have a platform launch the process, launch it here.
     if (m_process_sp) {
       m_process_sp->HijackProcessEvents(launch_info.GetHijackListener());
+      m_process_sp->SetShadowListener(launch_info.GetShadowListener());
       error = m_process_sp->Launch(launch_info);
     }
   }
@@ -3334,8 +3336,8 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   ListenerSP hijack_listener_sp;
   const bool async = attach_info.GetAsync();
   if (!async) {
-    hijack_listener_sp =
-        Listener::MakeListener("lldb.Target.Attach.attach.hijack");
+    hijack_listener_sp = Listener::MakeListener(
+        Process::AttachSynchronousHijackListenerName.data());
     attach_info.SetHijackListener(hijack_listener_sp);
   }
 
@@ -3367,9 +3369,10 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
     if (async) {
       process_sp->RestoreProcessEvents();
     } else {
-      state = process_sp->WaitForProcessToStop(std::nullopt, nullptr, false,
-                                               attach_info.GetHijackListener(),
-                                               stream);
+      // We are stopping all the way out to the user, so update selected frames.
+      state = process_sp->WaitForProcessToStop(
+          std::nullopt, nullptr, false, attach_info.GetHijackListener(), stream,
+          true, SelectMostRelevantFrame);
       process_sp->RestoreProcessEvents();
 
       if (state != eStateStopped) {
@@ -4088,8 +4091,8 @@ TargetProperties::TargetProperties(Target *target)
         std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
         ConstString(Properties::GetExperimentalSettingsName()),
-        ConstString("Experimental settings - setting these won't produce "
-                    "errors if the setting is not present."),
+        "Experimental settings - setting these won't produce "
+        "errors if the setting is not present.",
         true, m_experimental_properties_up->GetValueProperties());
   } else {
     m_collection_sp =
@@ -4099,12 +4102,12 @@ TargetProperties::TargetProperties(Target *target)
         std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
         ConstString(Properties::GetExperimentalSettingsName()),
-        ConstString("Experimental settings - setting these won't produce "
-                    "errors if the setting is not present."),
+        "Experimental settings - setting these won't produce "
+        "errors if the setting is not present.",
         true, m_experimental_properties_up->GetValueProperties());
     m_collection_sp->AppendProperty(
-        ConstString("process"), ConstString("Settings specific to processes."),
-        true, Process::GetGlobalProperties().GetValueProperties());
+        ConstString("process"), "Settings specific to processes.", true,
+        Process::GetGlobalProperties().GetValueProperties());
     m_collection_sp->SetValueChangedCallback(
         ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
   }

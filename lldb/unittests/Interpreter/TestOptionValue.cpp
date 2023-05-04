@@ -84,11 +84,10 @@ public:
     const bool is_global = false;
 
     auto dict_sp = std::make_shared<OptionValueDictionary>(1 << eTypeUInt64);
-    props_sp->AppendProperty(ConstString("dict"), ConstString(), is_global,
-                             dict_sp);
+    props_sp->AppendProperty(ConstString("dict"), "", is_global, dict_sp);
 
     auto file_list_sp = std::make_shared<OptionValueFileSpecList>();
-    props_sp->AppendProperty(ConstString("file-list"), ConstString(), is_global,
+    props_sp->AppendProperty(ConstString("file-list"), "", is_global,
                              file_list_sp);
     return props_sp;
   }
@@ -147,12 +146,12 @@ TEST(TestProperties, DeepCopy) {
   ASSERT_TRUE(dict_copy_ptr->OptionWasSet());
   ASSERT_EQ(dict_copy_ptr->GetNumValues(), 2U);
 
-  auto value_ptr = dict_copy_ptr->GetValueForKey(ConstString("A"));
+  auto value_ptr = dict_copy_ptr->GetValueForKey("A");
   ASSERT_TRUE(value_ptr);
   ASSERT_EQ(value_ptr->GetParent().get(), dict_copy_ptr);
   ASSERT_EQ(value_ptr->GetUInt64Value(), 1U);
 
-  value_ptr = dict_copy_ptr->GetValueForKey(ConstString("B"));
+  value_ptr = dict_copy_ptr->GetValueForKey("B");
   ASSERT_TRUE(value_ptr);
   ASSERT_EQ(value_ptr->GetParent().get(), dict_copy_ptr);
   ASSERT_EQ(value_ptr->GetUInt64Value(), 2U);

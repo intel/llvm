@@ -372,6 +372,16 @@ bool Debugger::SetUseExternalEditor(bool b) {
   return m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
 }
 
+llvm::StringRef Debugger::GetExternalEditor() const {
+  const uint32_t idx = ePropertyExternalEditor;
+  return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
+}
+
+bool Debugger::SetExternalEditor(llvm::StringRef editor) {
+  const uint32_t idx = ePropertyExternalEditor;
+  return m_collection_sp->SetPropertyAtIndexAsString(nullptr, idx, editor);
+}
+
 bool Debugger::GetUseColor() const {
   const uint32_t idx = ePropertyUseColor;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -607,8 +617,8 @@ LoadPluginCallback(void *baton, llvm::sys::fs::file_type ft,
                    llvm::StringRef path) {
   Status error;
 
-  static ConstString g_dylibext(".dylib");
-  static ConstString g_solibext(".so");
+  static constexpr llvm::StringLiteral g_dylibext(".dylib");
+  static constexpr llvm::StringLiteral g_solibext(".so");
 
   if (!baton)
     return FileSystem::eEnumerateDirectoryResultQuit;
@@ -812,20 +822,19 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
 
   m_collection_sp->Initialize(g_debugger_properties);
   m_collection_sp->AppendProperty(
-      ConstString("target"),
-      ConstString("Settings specify to debugging targets."), true,
+      ConstString("target"), "Settings specify to debugging targets.", true,
       Target::GetGlobalProperties().GetValueProperties());
   m_collection_sp->AppendProperty(
-      ConstString("platform"), ConstString("Platform settings."), true,
+      ConstString("platform"), "Platform settings.", true,
       Platform::GetGlobalPlatformProperties().GetValueProperties());
   m_collection_sp->AppendProperty(
-      ConstString("symbols"), ConstString("Symbol lookup and cache settings."),
-      true, ModuleList::GetGlobalModuleListProperties().GetValueProperties());
+      ConstString("symbols"), "Symbol lookup and cache settings.", true,
+      ModuleList::GetGlobalModuleListProperties().GetValueProperties());
   if (m_command_interpreter_up) {
     m_collection_sp->AppendProperty(
         ConstString("interpreter"),
-        ConstString("Settings specify to the debugger's command interpreter."),
-        true, m_command_interpreter_up->GetValueProperties());
+        "Settings specify to the debugger's command interpreter.", true,
+        m_command_interpreter_up->GetValueProperties());
   }
   OptionValueSInt64 *term_width =
       m_collection_sp->GetPropertyAtIndexAsOptionValueSInt64(
@@ -1680,6 +1689,7 @@ void Debugger::HandleProcessEvent(const EventSP &event_sp) {
     // Display running state changes first before any STDIO
     if (got_state_changed && !state_is_stopped) {
       Process::HandleProcessStateChangedEvent(event_sp, output_stream_sp.get(),
+                                              DoNoSelectMostRelevantFrame,
                                               pop_process_io_handler);
     }
 
@@ -1719,6 +1729,7 @@ void Debugger::HandleProcessEvent(const EventSP &event_sp) {
     // Now display any stopped state changes after any STDIO
     if (got_state_changed && state_is_stopped) {
       Process::HandleProcessStateChangedEvent(event_sp, output_stream_sp.get(),
+                                              DoNoSelectMostRelevantFrame,
                                               pop_process_io_handler);
     }
 

@@ -45,11 +45,9 @@ void OptionValueProperties::SetValueChangedCallback(
 }
 
 void OptionValueProperties::AppendProperty(ConstString name,
-                                           ConstString desc,
-                                           bool is_global,
+                                           llvm::StringRef desc, bool is_global,
                                            const OptionValueSP &value_sp) {
-  Property property(name.GetStringRef(), desc.GetStringRef(), is_global,
-                    value_sp);
+  Property property(name.GetStringRef(), desc, is_global, value_sp);
   m_name_to_index.Append(name, m_properties.size());
   m_properties.push_back(property);
   value_sp->SetParent(shared_from_this());
@@ -299,7 +297,7 @@ bool OptionValueProperties::GetPropertyAtIndexAsBoolean(
   if (property) {
     OptionValue *value = property->GetValue().get();
     if (value)
-      return value->GetBooleanValue(fail_value);
+      return value->GetBooleanValue().value_or(fail_value);
   }
   return fail_value;
 }
@@ -332,7 +330,7 @@ int64_t OptionValueProperties::GetPropertyAtIndexAsEnumeration(
   if (property) {
     OptionValue *value = property->GetValue().get();
     if (value)
-      return value->GetEnumerationValue(fail_value);
+      return value->GetEnumerationValue().value_or(fail_value);
   }
   return fail_value;
 }
@@ -435,7 +433,7 @@ int64_t OptionValueProperties::GetPropertyAtIndexAsSInt64(
   if (property) {
     OptionValue *value = property->GetValue().get();
     if (value)
-      return value->GetSInt64Value(fail_value);
+      return value->GetSInt64Value().value_or(fail_value);
   }
   return fail_value;
 }
@@ -458,7 +456,7 @@ llvm::StringRef OptionValueProperties::GetPropertyAtIndexAsString(
   if (property) {
     OptionValue *value = property->GetValue().get();
     if (value)
-      return value->GetStringValue(fail_value);
+      return value->GetStringValue().value_or(fail_value);
   }
   return fail_value;
 }
@@ -488,7 +486,7 @@ uint64_t OptionValueProperties::GetPropertyAtIndexAsUInt64(
   if (property) {
     OptionValue *value = property->GetValue().get();
     if (value)
-      return value->GetUInt64Value(fail_value);
+      return value->GetUInt64Value().value_or(fail_value);
   }
   return fail_value;
 }

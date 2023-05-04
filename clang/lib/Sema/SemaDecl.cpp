@@ -5085,7 +5085,8 @@ void Sema::setTagNameForLinkagePurposes(TagDecl *TagFromDeclSpec,
   TagFromDeclSpec->setTypedefNameForAnonDecl(NewTD);
 }
 
-static unsigned GetDiagnosticTypeSpecifierID(DeclSpec::TST T) {
+static unsigned GetDiagnosticTypeSpecifierID(const DeclSpec &DS) {
+  DeclSpec::TST T = DS.getTypeSpecType();
   switch (T) {
   case DeclSpec::TST_class:
     return 0;
@@ -5096,12 +5097,17 @@ static unsigned GetDiagnosticTypeSpecifierID(DeclSpec::TST T) {
   case DeclSpec::TST_union:
     return 3;
   case DeclSpec::TST_enum:
+    if (const auto *ED = dyn_cast<EnumDecl>(DS.getRepAsDecl())) {
+      if (ED->isScopedUsingClassTag())
+        return 5;
+      if (ED->isScoped())
+        return 6;
+    }
     return 4;
   default:
     llvm_unreachable("unexpected type specifier");
   }
 }
-
 /// ParsedFreeStandingDeclSpec - This method is invoked when a declspec with
 /// no declarator (e.g. "struct foo;") is parsed. It also accepts template
 /// parameters to cope with template friend declarations.
@@ -5159,7 +5165,7 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
     // the declaration of a function or function template
     if (Tag)
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_tag)
-          << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType())
+          << GetDiagnosticTypeSpecifierID(DS)
           << static_cast<int>(DS.getConstexprSpecifier());
     else
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_wrong_decl_kind)
@@ -5193,7 +5199,7 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
     //
     // Per C++ [dcl.enum]p1, an opaque-enum-declaration can't either.
     Diag(SS.getBeginLoc(), diag::err_standalone_class_nested_name_specifier)
-        << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType()) << SS.getRange();
+        << GetDiagnosticTypeSpecifierID(DS) << SS.getRange();
     return nullptr;
   }
 
@@ -5358,10 +5364,10 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
         TypeSpecType == DeclSpec::TST_enum) {
       for (const ParsedAttr &AL : DS.getAttributes())
         Diag(AL.getLoc(), diag::warn_declspec_attribute_ignored)
-            << AL << GetDiagnosticTypeSpecifierID(TypeSpecType);
+            << AL << GetDiagnosticTypeSpecifierID(DS);
       for (const ParsedAttr &AL : DeclAttrs)
         Diag(AL.getLoc(), diag::warn_declspec_attribute_ignored)
-            << AL << GetDiagnosticTypeSpecifierID(TypeSpecType);
+            << AL << GetDiagnosticTypeSpecifierID(DS);
     }
   }
 
@@ -8795,7 +8801,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   }
 
   // Check that SVE types are only used in functions with SVE available.
-  if (T->isSVESizelessBuiltinType() && CurContext->isFunctionOrMethod()) {
+  if (T->isSVESizelessBuiltinType() && isa<FunctionDecl>(CurContext)) {
     const FunctionDecl *FD = cast<FunctionDecl>(CurContext);
     llvm::StringMap<bool> CallerFeatureMap;
     Context.getFunctionFeatureMap(CallerFeatureMap, FD);
@@ -20035,7 +20041,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   return Sema::DeviceDiagnosticReason::All;
 }
 
-Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
+Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
                                                      bool Final) {
   assert(FD && "Expected non-null FunctionDecl");
 
@@ -20052,7 +20058,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // We have to check the GVA linkage of the function's *definition* -- if we
     // only have a declaration, we don't know whether or not the function will
     // be emitted, because (say) the definition could include "inline".
-    FunctionDecl *Def = FD->getDefinition();
+    const FunctionDecl *Def = FD->getDefinition();
 
     return Def && !isDiscardableGVALinkage(
                       getASTContext().GetGVALinkageForFunction(Def));
@@ -20119,7 +20125,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // We have to check the GVA linkage of the function's *definition* -- if we
     // only have a declaration, we don't know whether or not the function will
     // be emitted, because (say) the definition could include "inline".
-    FunctionDecl *Def = FD->getDefinition();
+    const FunctionDecl *Def = FD->getDefinition();
 
     if (Def &&
         !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))

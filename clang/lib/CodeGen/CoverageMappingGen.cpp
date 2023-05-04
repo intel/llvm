@@ -1634,9 +1634,7 @@ static void dump(llvm::raw_ostream &OS, StringRef FunctionName,
 
 CoverageMappingModuleGen::CoverageMappingModuleGen(
     CodeGenModule &CGM, CoverageSourceInfo &SourceInfo)
-    : CGM(CGM), SourceInfo(SourceInfo) {
-  CoveragePrefixMap = CGM.getCodeGenOpts().CoveragePrefixMap;
-}
+    : CGM(CGM), SourceInfo(SourceInfo) {}
 
 std::string CoverageMappingModuleGen::getCurrentDirname() {
   if (!CGM.getCodeGenOpts().CoverageCompilationDir.empty())
@@ -1650,8 +1648,13 @@ std::string CoverageMappingModuleGen::getCurrentDirname() {
 std::string CoverageMappingModuleGen::normalizeFilename(StringRef Filename) {
   llvm::SmallString<256> Path(Filename);
   llvm::sys::path::remove_dots(Path, /*remove_dot_dot=*/true);
-  for (const auto &Entry : CoveragePrefixMap) {
-    if (llvm::sys::path::replace_path_prefix(Path, Entry.first, Entry.second))
+
+  /// Traverse coverage prefix map in reverse order because prefix replacements
+  /// are applied in reverse order starting from the last one when multiple
+  /// prefix replacement options are provided.
+  for (const auto &[From, To] :
+       llvm::reverse(CGM.getCodeGenOpts().CoveragePrefixMap)) {
+    if (llvm::sys::path::replace_path_prefix(Path, From, To))
       break;
   }
   return Path.str().str();

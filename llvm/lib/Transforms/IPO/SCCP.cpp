@@ -20,7 +20,6 @@
 #include "llvm/Analysis/ValueLattice.h"
 #include "llvm/Analysis/ValueLatticeUtils.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/CommandLine.h"
@@ -367,8 +366,8 @@ static bool runIPSCCP(
     while (!GV->use_empty()) {
       StoreInst *SI = cast<StoreInst>(GV->user_back());
       SI->eraseFromParent();
-      MadeChanges = true;
     }
+    MadeChanges = true;
     M.eraseGlobalVariable(GV);
     ++NumGlobalConst;
   }
