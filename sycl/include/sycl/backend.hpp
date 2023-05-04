@@ -142,23 +142,19 @@ auto get_native(const queue &Obj)->backend_return_t<BackendName, queue> {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-  if constexpr (BackendName == backend::ext_oneapi_level_zero) {
-    int32_t IsImmCmdList;
-    pi_native_handle Handle = Obj.getNative(IsImmCmdList);
-    if (IsImmCmdList) {
-      return backend_return_t<backend::ext_oneapi_level_zero, queue>{
-          std::in_place_index<1>,
-          reinterpret_cast<ze_command_list_handle_t>(Handle)};
-    } else {
-      return backend_return_t<backend::ext_oneapi_level_zero, queue>{
-          std::in_place_index<0>,
-          reinterpret_cast<ze_command_queue_handle_t>(Handle)};
-    }
-  } else {
-    int32_t NativeHandleDesc;
-    return reinterpret_cast<backend_return_t<BackendName, queue>>(
-        Obj.getNative(NativeHandleDesc));
-  }
+  int32_t IsImmCmdList;
+  pi_native_handle Handle = Obj.getNative(IsImmCmdList);
+  backend_return_t<BackendName, queue> RetVal;
+  if constexpr (BackendName == backend::ext_oneapi_level_zero)
+    RetVal = IsImmCmdList
+                 ? backend_return_t<BackendName, queue>{reinterpret_cast<
+                       ze_command_list_handle_t>(Handle)}
+                 : backend_return_t<BackendName, queue>{
+                       reinterpret_cast<ze_command_queue_handle_t>(Handle)};
+  else
+    RetVal = reinterpret_cast<backend_return_t<BackendName, queue>>(Handle);
+
+  return RetVal;
 }
 
 template <backend BackendName, bundle_state State>
@@ -299,24 +295,9 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  if constexpr (Backend == backend::ext_oneapi_level_zero) {
-    bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
-        BackendObject.NativeHandle);
-    pi_native_handle Handle =
-        IsImmCmdList ? reinterpret_cast<pi_native_handle>(
-                           *(std::get_if<ze_command_list_handle_t>(
-                               &BackendObject.NativeHandle)))
-                     : reinterpret_cast<pi_native_handle>(
-                           *(std::get_if<ze_command_queue_handle_t>(
-                               &BackendObject.NativeHandle)));
-    return sycl::detail::make_queue(Handle, IsImmCmdList, TargetContext,
-                                    nullptr, false, BackendObject.Properties,
-                                    Handler, Backend);
-  } else {
-    return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                              false, TargetContext, nullptr, false, {}, Handler,
-                              Backend);
-  }
+  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                            false, TargetContext, nullptr, false, {}, Handler,
+                            Backend);
 }
 
 template <backend Backend>

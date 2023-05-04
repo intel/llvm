@@ -126,15 +126,12 @@ inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
     ->backend_return_t<backend::ext_oneapi_level_zero, queue> {
   int32_t IsImmCmdList;
   pi_native_handle Handle = Obj.getNative(IsImmCmdList);
-  if (IsImmCmdList) {
-    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
-        std::in_place_index<1>,
-        reinterpret_cast<ze_command_list_handle_t>(Handle)};
-  } else {
-    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
-        std::in_place_index<0>,
-        reinterpret_cast<ze_command_queue_handle_t>(Handle)};
-  }
+  return IsImmCmdList
+             ? backend_return_t<
+                   backend::ext_oneapi_level_zero,
+                   queue>{reinterpret_cast<ze_command_list_handle_t>(Handle)}
+             : backend_return_t<backend::ext_oneapi_level_zero, queue>{
+                   reinterpret_cast<ze_command_queue_handle_t>(Handle)};
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.
