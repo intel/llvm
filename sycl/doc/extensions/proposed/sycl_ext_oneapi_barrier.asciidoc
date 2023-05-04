@@ -371,6 +371,33 @@ leader of the group.
 ====
 
 
+=== Device queries
+
+The scopes that can be used with a `barrier` object are device-dependent, and
+can be queried with the `info::device::barrier_scope_capabilities` device
+query.
+
+[%header,cols="1,5,5"]
+|===
+|Device Descriptor
+|Return Type
+|Description
+
+|`sycl::ext::oneapi::experimental::info::device::barrier_scope_capabilities`
+|`std::vector<sycl::memory_scope>`
+|Return the set of memory scopes supported by `barrier` objects on this device.
+ If no scopes are returned, usage of `barrier` objects is not supported.
+|===
+
+[NOTE]
+====
+Safe usage of barriers may also require attention to the results of other
+device queries. For example, using a barrier with system scope across the host
+and multiple devices requires the barrier to be allocated in a form of USM
+that can be accessed concurrently by the host and all devices involved.
+====
+
+
 == Implementation notes
 
 This non-normative section provides information about one possible
