@@ -36,9 +36,12 @@ LogicalResult mlir::sycl::verifySYCLGetComponentTrait(Operation *op) {
   // size_t operator[](int dimension) const;
   // only available if Dimensions == 1
   // size_t operator size_t() const;
+  const unsigned numOperands = op->getNumOperands();
+  assert((numOperands == 1 || numOperands == 2) &&
+         "This operation can only accept one or two operands");
   const auto resultTypes = op->getResultTypes();
   const auto operandTypes = op->getOperandTypes();
-  if (operandTypes.size() == 1) {
+  if (numOperands == 1) {
     Type type = resultTypes[0];
     if (!type.isIntOrIndex())
       return op->emitOpError(
@@ -54,6 +57,9 @@ static LogicalResult
 verifyGetSYCLTyOperation(Operation *op, llvm::StringRef expectedRetTyName) {
   // SYCLTy *() const;
   // size_t *(int dimension) const;
+  const unsigned numOperands = op->getNumOperands();
+  assert((numOperands == 1 || numOperands == 2) &&
+         "This operation can only accept one or two operands");
   const Type retTy = op->getResult(0).getType();
   const bool isI64RetTy = retTy.isInteger(64);
   switch (op->getNumOperands()) {
@@ -79,15 +85,18 @@ LogicalResult mlir::sycl::verifySYCLGetIDTrait(Operation *op) {
   // size_t operator[](int dimension) const;
   // only available if Dimensions == 1
   // operator size_t() const;
+  const unsigned numOperands = op->getNumOperands();
+  assert((numOperands == 1 || numOperands == 2) &&
+         "This operation can only accept one or two operands");
   Type retTy = op->getResultTypes()[0];
   auto operandTypes = op->getOperandTypes();
   if (retTy.isIntOrIndex()) {
-    if (operandTypes.size() == 1 && getDimensions(operandTypes[0]) != 1)
+    if (numOperands == 1 && getDimensions(operandTypes[0]) != 1)
       return op->emitOpError(
           "operand 0 must have a single dimension to be passed as the single "
           "argument to this operation");
   } else if (isa<IDType>(retTy)) {
-    if (operandTypes.size() != 1)
+    if (numOperands != 1)
       return op->emitOpError(
           "must be passed a single argument in order to define an id value");
     return verifyEqualDimensions(op);
