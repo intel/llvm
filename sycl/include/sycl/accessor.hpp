@@ -2038,18 +2038,16 @@ public:
 
   bool empty() const noexcept { return size() == 0; }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == Dimensions && (Dims > 0)>>
   range<Dimensions> get_range() const {
-    return detail::convertToArrayOfN<Dimensions, 1>(getAccessRange());
+    return getRange<Dims>();
   }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == Dimensions && (Dims > 0)>>
   id<Dimensions> get_offset() const {
-    static_assert(
-        !(PropertyListT::template has_property<
-            sycl::ext::oneapi::property::no_offset>()),
-        "Accessor has no_offset property, get_offset() can not be used");
-    return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
+    return getOffset<Dims>();
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
@@ -2241,10 +2239,10 @@ private:
     if constexpr (Dimensions == 0)
       return range<1>{1};
     else
-      return get_range();
+      return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
   }
 
-  template <int Dims, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
   id<Dims> getOffset() const {
     static_assert(
         !(PropertyListT::template has_property<
