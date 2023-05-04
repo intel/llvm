@@ -12,7 +12,7 @@
 using namespace sycl;
 
 template <class OutT, class InputContainer, class InitT, class BinaryOperation>
-void test(queue q, const InputContainer &input, InitT init,
+void test(queue &q, const InputContainer &input, InitT init,
           BinaryOperation binary_op) {
   const int N = input.size();
   buffer b_in(input);
