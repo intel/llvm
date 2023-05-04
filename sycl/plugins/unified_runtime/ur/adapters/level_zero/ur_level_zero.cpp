@@ -1452,44 +1452,6 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   return UR_RESULT_SUCCESS;
 }
 
-#if 0
-void ZeUSMImportExtension::setZeUSMImport(_ur_platform_handle_t *Platform) {
-  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-  // host ptr import during buffer creation.
-  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-  if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
-    return;
-
-  // Check if USM hostptr import feature is available.
-  ze_driver_handle_t DriverHandle = Platform->ZeDriver;
-  if (ZE_CALL_NOCHECK(
-          zeDriverGetExtensionFunctionAddress,
-          (DriverHandle, "zexDriverImportExternalPointer",
-           reinterpret_cast<void **>(&zexDriverImportExternalPointer))) == 0) {
-    ZE_CALL_NOCHECK(
-        zeDriverGetExtensionFunctionAddress,
-        (DriverHandle, "zexDriverReleaseImportedPointer",
-         reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
-    // Hostptr import/release is turned on because it has been requested
-    // by the env var, and this platform supports the APIs.
-    Enabled = true;
-    // Hostptr import is only possible if piMemBufferCreate receives a
-    // hostptr as an argument. The SYCL runtime passes a host ptr
-    // only when SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
-    setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
-  }
-}
-void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
-                                         void *HostPtr, size_t Size) {
-  ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-                  (DriverHandle, HostPtr, Size));
-}
-void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
-                                          void *HostPtr) {
-  ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
-}
-#endif
-
 void ZeUSMImportExtension::setZeUSMImport(_ur_platform_handle_t *Platform) {
   // Check if USM hostptr import feature is available. If yes, save the API
   // pointers. The pointers will be used for both import/release of SYCL buffer
