@@ -222,4 +222,8 @@ static llvm::cl::opt<std::string> McpuOpt("mcpu", llvm::cl::init(""),
                                           llvm::cl::desc("Target CPU"),
                                           llvm::cl::cat(ToolOptions));
 
+llvm::cl::opt<bool>
+    UseOpaquePointers("use-opaque-pointers", llvm::cl::init(false),
+                      llvm::cl::desc("Whether to use opaque pointers in MLIR"));
+
 #endif /* CGEIST_OPTIONS_H_ */

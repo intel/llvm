@@ -279,7 +279,8 @@ private:
   mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
                                     llvm::ArrayRef<int64_t> Shape);
 
-  mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
+  mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T,
+                                      mlir::Type ElemTy) {
     auto &Vec = Bufs[T.getAsOpaquePointer()];
     if (I < Vec.size())
       return Vec[I];
@@ -288,7 +289,7 @@ private:
     Subbuilder.setInsertionPointToStart(AllocationScope);
 
     auto One = Subbuilder.create<mlir::arith::ConstantIntOp>(Loc, 1, 64);
-    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(Loc, T, One, 0);
+    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(Loc, T, ElemTy, One, 0);
     Vec.push_back(Rs);
     return Rs;
   }
@@ -379,6 +380,7 @@ private:
                                                 ValueCategory Src);
   ValueCategory EmitIntegralToPointerConversion(mlir::Location Loc,
                                                 mlir::Type DestTy,
+                                                mlir::Type ElemTy,
                                                 ValueCategory Src);
   ValueCategory EmitVectorInitList(clang::InitListExpr *Expr,
                                    mlir::VectorType VType);
@@ -614,6 +616,7 @@ public:
   ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *Expr);
 
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value ToInit,
+                                                mlir::Type ElemTy,
                                                 clang::Expr *Expr);
 
   ValueCategory VisitInitListExpr(clang::InitListExpr *Expr);
@@ -630,7 +633,8 @@ public:
 
   ValueCategory CommonFieldLookup(clang::QualType OT,
                                   const clang::FieldDecl *FD, mlir::Value Val,
-                                  bool IsLValue);
+                                  mlir::Type ElementType, bool IsLValue,
+                                  mlir::Type BaseType = nullptr);
 
   ValueCategory CommonArrayLookup(ValueCategory Val, mlir::Value Idx,
                                   bool IsImplicitRefResult,

@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
 
 #include <stddef.h>
 
@@ -27,9 +27,9 @@ int *f1(size_t index, int *ptr) {
 }
 
 // CHECK-LABEL:   func.func @f2(
-// CHECK-SAME:                  %[[VAL_0:.*]]: i64) -> !llvm.ptr<i8>
-// CHECK:           %[[PTR_0:.*]] = llvm.inttoptr %[[VAL_0]] : i64 to !llvm.ptr<i8>
-// CHECK:           return %[[PTR_0]] : !llvm.ptr<i8>
+// CHECK-SAME:                  %[[VAL_0:.*]]: i64) -> !llvm.ptr
+// CHECK:           %[[PTR_0:.*]] = llvm.inttoptr %[[VAL_0]] : i64 to !llvm.ptr
+// CHECK:           return %[[PTR_0]] : !llvm.ptr
 // CHECK:         }
 
 void *f2(size_t index) {
@@ -51,10 +51,10 @@ int *f3(int *ptr, size_t index) {
 }
 
 // CHECK-LABEL:   func.func @f4(
-// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr<i8>,
-// CHECK-SAME:                  %[[VAL_1:.*]]: i64) -> !llvm.ptr<i8>
-// CHECK:           %[[ADD:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<i8>, i64) -> !llvm.ptr<i8>
-// CHECK:           return %[[ADD]] : !llvm.ptr<i8>
+// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:.*]]: i64) -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i8
+// CHECK:           return %[[VAL_2]] : !llvm.ptr
 // CHECK:         }
 
 void *f4(void *ptr, size_t index) {
@@ -62,15 +62,12 @@ void *f4(void *ptr, size_t index) {
 }
 
 // CHECK-LABEL:   func.func @f5(
-// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr<func<i32 ()>>,
-// CHECK-SAME:                  %[[VAL_1:.*]]: i64) -> i32
-// CHECK:           %[[VOIDPTR_0:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<func<i32 ()>> to !llvm.ptr<i8>
-// CHECK:           %[[PTR:.*]] = llvm.getelementptr %[[VOIDPTR_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<i8>, i64) -> !llvm.ptr<i8>
-// CHECK:           %[[FUNCPTR:.*]] = llvm.bitcast %[[PTR]] : !llvm.ptr<i8> to !llvm.ptr<func<i32 ()>>
-// CHECK:           %[[RES:.*]] = llvm.call %[[FUNCPTR]]() : !llvm.ptr<func<i32 ()>>, () -> i32
-// CHECK:           return %[[RES]] : i32
+// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:.*]]: i64) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i8
+// CHECK:           %[[VAL_3:.*]] = llvm.call %[[VAL_2]]() : !llvm.ptr, () -> i32
+// CHECK:           return %[[VAL_3]] : i32
 // CHECK:         }
-
 int f5(int (*ptr)(void), size_t index) {
   return (ptr + index)();
 }

@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 -w %s  --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers -O0 -w %s  --function=* -S | FileCheck %s
 
 class D {
   double a;
@@ -14,31 +14,38 @@ QStream ilaunch_kernel(QStream x) {
   return x;
 }
 
-// CHECK:   func @_Z14ilaunch_kernel7QStream(%arg0: !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> !llvm.struct<(struct<(f64, f64)>, i32)> attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(f64, f64)>, i32)> : (i64) -> !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
-// CHECK-NEXT:     call @_ZN7QStreamC1EOS_(%0, %arg0) : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> ()
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
-// CHECK-NEXT:     return %1 : !llvm.struct<(struct<(f64, f64)>, i32)>
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func @_ZN7QStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, %arg1: !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<struct<(f64, f64)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %arg1[0, 0] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<struct<(f64, f64)>>
-// CHECK-NEXT:     call @_ZN1DC1EOS_(%0, %1) : (!llvm.ptr<struct<(f64, f64)>>, !llvm.ptr<struct<(f64, f64)>>) -> ()
-// CHECK-NEXT:     %2 = llvm.getelementptr inbounds %arg1[0, 1] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %3 = llvm.load %2 : !llvm.ptr<i32>
-// CHECK-NEXT:     %4 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %3, %4 : !llvm.ptr<i32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func @_ZN1DC1EOS_(%arg0: !llvm.ptr<struct<(f64, f64)>>, %arg1: !llvm.ptr<struct<(f64, f64)>>)
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg1[0, 0] : (!llvm.ptr<struct<(f64, f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<f64>
-// CHECK-NEXT:     %2 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(f64, f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %1, %2 : !llvm.ptr<f64>
-// CHECK-NEXT:     %3 = llvm.getelementptr inbounds %arg1[0, 1] : (!llvm.ptr<struct<(f64, f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:     %4 = llvm.load %3 : !llvm.ptr<f64>
-// CHECK-NEXT:     %5 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<(f64, f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %4, %5 : !llvm.ptr<f64>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z14ilaunch_kernel7QStream(
+// CHECK-SAME:                                          %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.struct<(struct<(f64, f64)>, i32)> attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(struct<(f64, f64)>, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      call @_ZN7QStreamC1EOS_(%[[VAL_2]], %[[VAL_0]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:      return %[[VAL_3]] : !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN7QStreamC1EOS_(
+// CHECK-SAME:                                 %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                                 %[[VAL_1:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:      call @_ZN1DC1EOS_(%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr -> i32
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_5]], %[[VAL_6]] : i32, !llvm.ptr
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN1DC1EOS_(
+// CHECK-SAME:                           %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                           %[[VAL_1:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(f64, f64)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> f64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(f64, f64)>
+// CHECK-NEXT:      llvm.store %[[VAL_3]], %[[VAL_4]] : f64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(f64, f64)>
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> f64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(f64, f64)>
+// CHECK-NEXT:      llvm.store %[[VAL_6]], %[[VAL_7]] : f64, !llvm.ptr
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

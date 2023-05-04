@@ -27,6 +27,13 @@ using namespace mlir;
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   Decl = Decl->getCanonicalDecl();
   mlir::Type SubType = Glob.getTypes().getMLIRTypeForMem(Decl->getType());
+  std::optional<mlir::Type> ElementTy = std::nullopt;
+  if (const auto *CArrTy = dyn_cast<clang::ArrayType>(
+          Decl->getType()->getUnqualifiedDesugaredType()))
+    ElementTy = Glob.getTypes().getMLIRTypeForMem(CArrTy->getElementType());
+  else
+    ElementTy = SubType;
+
   const unsigned MemType = Decl->hasAttr<clang::CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false, IsArray = false;
 
@@ -65,7 +72,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
         assert(Res.isReference);
         InitExpr = Res;
       } else {
-        InitExpr = ValueCategory(Res.getValue(Builder), /*isRef*/ false);
+        InitExpr = ValueCategory(Res.getValue(Builder), /*isRef*/ false,
+                                 Res.ElementType);
         if (!InitExpr.val) {
           Init->dump();
           assert(false);
@@ -110,11 +118,14 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
     Location VarLoc = getMLIRLocation(Decl->getBeginLoc());
 
     if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
-            Glob.getCGM().getContext().getPointerType(Decl->getType()))))
+            Glob.getCGM().getContext().getPointerType(Decl->getType())))) {
+      auto GSF = Glob.getOrCreateLLVMGlobal(
+          Decl, (Function.getName() + "@static@").str());
       Op = ABuilder.create<LLVM::AddressOfOp>(
-          VarLoc, Glob.getOrCreateLLVMGlobal(
-                      Decl, (Function.getName() + "@static@").str()));
-    else {
+          VarLoc,
+          Glob.getTypes().getPointerType(GSF.getType(), GSF.getAddrSpace()),
+          GSF.getSymName());
+    } else {
       auto GV =
           Glob.getOrCreateGlobal(*Decl, (Function.getName() + "@static@").str(),
                                  FunctionContext::Host);
@@ -123,7 +134,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
       Op = reshapeRanklessGlobal(GV2);
     }
 
-    Params[Decl] = ValueCategory(Op, /*isReference*/ true);
+    Params[Decl] = ValueCategory(Op, /*isReference*/ true, ElementTy);
     if (Decl->getInit()) {
       auto MR = MemRefType::get({}, Builder.getI1Type());
       auto RTT = RankedTensorType::get({}, Builder.getI1Type());
@@ -158,10 +169,11 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
     Op = createAllocOp(SubType, Decl, MemType, IsArray, LLVMABI);
 
   if (InitExpr.val)
-    ValueCategory(Op, /*isReference*/ true).store(Builder, InitExpr, IsArray);
+    ValueCategory(Op, /*isReference*/ true, ElementTy)
+        .store(Builder, InitExpr, IsArray);
   else if (auto *Init = Decl->getInit()) {
     if (isa<clang::InitListExpr>(Init))
-      InitializeValueByInitListExpr(Op, Init);
+      InitializeValueByInitListExpr(Op, ElementTy.value(), Init);
     else if (auto *CE = dyn_cast<clang::CXXConstructExpr>(Init))
       VisitConstructCommon(CE, Decl, MemType, Op);
     else
@@ -171,5 +183,5 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   if (Block)
     Builder.setInsertionPoint(Block, Iter);
 
-  return ValueCategory(Op, /*isReference*/ true);
+  return ValueCategory(Op, /*isReference*/ true, ElementTy);
 }

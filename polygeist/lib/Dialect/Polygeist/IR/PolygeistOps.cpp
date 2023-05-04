@@ -1127,22 +1127,21 @@ public:
       return failure();
 
     Value idx[] = {src.getIndex()};
-    auto PET = cast<LLVM::LLVMPointerType>(op.getType()).getElementType();
-    if (PET != MET) {
-      auto ps = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
-      auto ms = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
-      idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
-      idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
-    }
     idx[0] = rewriter.create<arith::IndexCastOp>(op.getLoc(),
                                                  rewriter.getI64Type(), idx[0]);
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-        op, op.getType(),
-        rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                          src.getSource()),
+
+    auto PtrTy = cast<LLVM::LLVMPointerType>(op.getType());
+    if (!PtrTy.isOpaque())
+      PtrTy = LLVM::LLVMPointerType::get(MET, PtrTy.getAddressSpace());
+
+    Value GEP = rewriter.create<LLVM::GEPOp>(
+        op->getLoc(), PtrTy, MET,
+        rewriter.create<Memref2PointerOp>(op.getLoc(), PtrTy, src.getSource()),
         idx);
+    if (PtrTy != op.getType()) {
+      GEP = rewriter.create<LLVM::BitcastOp>(op->getLoc(), op.getType(), GEP);
+    }
+    rewriter.replaceOp(op, GEP);
     return success();
   }
 };
