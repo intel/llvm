@@ -1499,7 +1499,7 @@ public:
     if (idx) {
       Value idxs[] = {idx};
       val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(),
-                                         src.getType().getElementType(), val,
+                                         mt.getElementType(), val,
                                          idxs);
     }
 

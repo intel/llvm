@@ -81,6 +81,8 @@ namespace {
 //
 struct ParallelLower
     : public mlir::polygeist::impl::ParallelLowerBase<ParallelLower> {
+
+  using ParallelLowerBase<ParallelLower>::ParallelLowerBase;
   void runOnOperation() override;
 };
 
@@ -92,6 +94,11 @@ namespace mlir {
 namespace polygeist {
 std::unique_ptr<Pass> createParallelLowerPass() {
   return std::make_unique<ParallelLower>();
+}
+
+std::unique_ptr<Pass>
+createParallelLowerPass(const ParallelLowerOptions &options) {
+  return std::make_unique<ParallelLower>(options);
 }
 } // namespace polygeist
 } // namespace mlir
