@@ -1,5 +1,10 @@
 // RUN: polygeist-opt -split-input-file -test-reaching-definition %s 2>&1 | FileCheck %s
 
+!sycl_id_1 = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1 = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_2 = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
+
 // COM: Test that the correct definition reaches a load.
 // CHECK-LABEL: test_tag: test1_load1
 // CHECK: operand #0
@@ -40,7 +45,7 @@ func.func @test2(%val: i32, %idx: index) {
 func.func @test3(%val : i32, %idx: index) {
   %alloca = memref.alloca()  : memref<1xi32>
   %cast = memref.cast %alloca : memref<1xi32> to memref<?xi32>
-  %addrspace_cast = memref.memory_space_cast %cast : memref<?xi32> to memref<?xi32, 4>  
+  %addrspace_cast = memref.memory_space_cast %cast : memref<?xi32> to memref<?xi32, 4>
   memref.store %val, %addrspace_cast[%idx] {tag_name = "test3_store1"} : memref<?xi32, 4>
   // The following store kills the previous one because %alloca and %cast are definetely aliased.
   memref.store %val, %alloca[%idx] {tag_name = "test3_store2"} : memref<1xi32>  
@@ -191,5 +196,31 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
   memref.dealloc %arg2 {tag_name = "test11_dealloc1"} : memref<i32>
   %1 = memref.load %arg1[] {tag = "test11_load1"} : memref<i32>  
   %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>      
+  return
+}
+
+// COM: Test that a definition created by a sycl.constructor reaches a load.
+// CHECK-LABEL: test_tag: test12_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods: test12_store1
+// CHECK-NEXT: - pMods:
+func.func @test12(%val: i64) {
+  %alloca = memref.alloca() : memref<1x!sycl_id_1>
+  %addrspace_cast = memref.memory_space_cast %alloca : memref<1x!sycl_id_1> to memref<1x!sycl_id_1, 4>
+  sycl.constructor @id(%addrspace_cast, %val) {MangledFunctionName = @constr, tag_name = "test12_store1"} : (memref<1x!sycl_id_1, 4>, i64)
+  %2 = affine.load %alloca[0] {tag = "test12_load1"} : memref<1x!sycl_id_1>
+  return
+}
+
+// COM: Test that a definition reaches a sycl.accessor.subscript operation.
+// CHECK-LABEL: test_tag: test13_load1
+// CHECK: operand #1
+// CHECK-NEXT: - mods: test13_store1
+// CHECK-NEXT: - pMods:
+func.func @test13(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+  %alloca = memref.alloca() : memref<1x!sycl_id_1>
+  %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>  
+  affine.store %val, %alloca[0] {tag_name = "test13_store1"}: memref<1x!sycl_id_1>
+  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test13_load1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
   return
 }

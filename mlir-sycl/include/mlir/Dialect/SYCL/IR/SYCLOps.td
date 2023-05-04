@@ -266,7 +266,7 @@ def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id"> {
 ////////////////////////////////////////////////////////////////////////////////
 
 def SYCLConstructorOp : SYCL_Op<"constructor",
-    [CallOpInterface, MemoryEffectsOpInterface]> {
+    [MemoryEffectsOpInterface]> {
   let summary = "Generic constructor operation";
   let description = [{
     This operation represent the call to the constructor of a SYCL type.
@@ -281,26 +281,6 @@ def SYCLConstructorOp : SYCL_Op<"constructor",
   let results = (outs);
 
   let extraClassDeclaration = [{
-    operand_iterator arg_operand_begin() { return operand_begin(); }
-    operand_iterator arg_operand_end() { return operand_end(); }
-
-    /// Return the callee of the generic SYCL call operation, this is required by
-    /// the call interface.
-    CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
-    }
-
-    /// Set the callee for this operation.
-    void setCalleeFromCallable(CallInterfaceCallable callee) {
-      (*this)->setAttr(getMangledFunctionNameAttrName(), callee.get<SymbolRefAttr>());
-    }
-
-    /// Get the argument operands to the called function, this is required by the
-    /// call interface.
-    operand_range getArgOperands() {
-      return {arg_operand_begin(), arg_operand_end()};
-    }
-
     /// Return the memory effects associated to each argument.
     ///
     /// The first argument, `this` will have `MemoryEffects::Write` memory
