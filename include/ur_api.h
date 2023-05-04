@@ -3628,12 +3628,13 @@ urKernelSetArgSampler(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
+///         + `NULL == hArgValue`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t hArgValue   ///< [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue   ///< [in] handle of Memory object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
