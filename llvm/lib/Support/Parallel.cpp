@@ -24,11 +24,11 @@ namespace parallel {
 #if LLVM_ENABLE_THREADS
 
 #ifdef _WIN32
-static thread_local unsigned threadIndex;
+static thread_local unsigned threadIndex = UINT_MAX;
 
-unsigned getThreadIndex() { return threadIndex; }
+unsigned getThreadIndex() { GET_THREAD_INDEX_IMPL; }
 #else
-thread_local unsigned threadIndex;
+thread_local unsigned threadIndex = UINT_MAX;
 #endif
 
 namespace detail {
@@ -99,10 +99,8 @@ public:
 
   void add(std::function<void()> F, bool Sequential = false) override {
     {
-      bool UseSequentialQueue =
-          Sequential || parallel::strategy.ThreadsRequested == 1;
       std::lock_guard<std::mutex> Lock(Mutex);
-      if (UseSequentialQueue)
+      if (Sequential)
         WorkQueueSequential.emplace_front(std::move(F));
       else
         WorkQueue.emplace_back(std::move(F));
@@ -182,18 +180,17 @@ Executor *Executor::getDefaultExecutor() {
 } // namespace detail
 #endif
 
-static std::atomic<int> TaskGroupInstances;
-
 // Latch::sync() called by the dtor may cause one thread to block. If is a dead
 // lock if all threads in the default executor are blocked. To prevent the dead
-// lock, only allow the first TaskGroup to run tasks parallelly. In the scenario
+// lock, only allow the root TaskGroup to run tasks parallelly. In the scenario
 // of nested parallel_for_each(), only the outermost one runs parallelly.
-TaskGroup::TaskGroup() : Parallel(TaskGroupInstances++ == 0) {}
+TaskGroup::TaskGroup()
+    : Parallel((parallel::strategy.ThreadsRequested != 1) &&
+               (threadIndex == UINT_MAX)) {}
 TaskGroup::~TaskGroup() {
   // We must ensure that all the workloads have finished before decrementing the
   // instances count.
   L.sync();
-  --TaskGroupInstances;
 }
 
 void TaskGroup::spawn(std::function<void()> F, bool Sequential) {
@@ -217,13 +214,9 @@ void TaskGroup::spawn(std::function<void()> F, bool Sequential) {
 
 void llvm::parallelFor(size_t Begin, size_t End,
                        llvm::function_ref<void(size_t)> Fn) {
-  // If we have zero or one items, then do not incur the overhead of spinning up
-  // a task group.  They are surprisingly expensive, and because they do not
-  // support nested parallelism, a single entry task group can block parallel
-  // execution underneath them.
 #if LLVM_ENABLE_THREADS
-  auto NumItems = End - Begin;
-  if (NumItems > 1 && parallel::strategy.ThreadsRequested != 1) {
+  if (parallel::strategy.ThreadsRequested != 1) {
+    auto NumItems = End - Begin;
     // Limit the number of tasks to MaxTasksPerGroup to limit job scheduling
     // overhead on large inputs.
     auto TaskSize = NumItems / parallel::detail::MaxTasksPerGroup;

@@ -42,8 +42,10 @@ class ArrayBoundCheckerV2 :
   void reportTaintOOB(CheckerContext &C, ProgramStateRef errorState,
                       SVal TaintedSVal) const;
 
+  static bool isFromCtypeMacro(const Stmt *S, ASTContext &AC);
+
 public:
-  void checkLocation(SVal l, bool isLoad, const Stmt*S,
+  void checkLocation(SVal l, bool isLoad, const Stmt *S,
                      CheckerContext &C) const;
 };
 
@@ -51,21 +53,17 @@ public:
 class RegionRawOffsetV2 {
 private:
   const SubRegion *baseRegion;
-  SVal byteOffset;
-
-  RegionRawOffsetV2()
-    : baseRegion(nullptr), byteOffset(UnknownVal()) {}
+  NonLoc byteOffset;
 
 public:
   RegionRawOffsetV2(const SubRegion *base, NonLoc offset)
       : baseRegion(base), byteOffset(offset) { assert(base); }
 
-  NonLoc getByteOffset() const { return byteOffset.castAs<NonLoc>(); }
+  NonLoc getByteOffset() const { return byteOffset; }
   const SubRegion *getRegion() const { return baseRegion; }
 
-  static RegionRawOffsetV2 computeOffset(ProgramStateRef state,
-                                         SValBuilder &svalBuilder,
-                                         SVal location);
+  static std::optional<RegionRawOffsetV2>
+  computeOffset(ProgramStateRef State, SValBuilder &SVB, SVal Location);
 
   void dump() const;
   void dumpToStream(raw_ostream &os) const;
@@ -155,19 +153,28 @@ void ArrayBoundCheckerV2::checkLocation(SVal location, bool isLoad,
   // memory access is within the extent of the base region.  Since we
   // have some flexibility in defining the base region, we can achieve
   // various levels of conservatism in our buffer overflow checking.
+
+  // The header ctype.h (from e.g. glibc) implements the isXXXXX() macros as
+  //   #define isXXXXX(arg) (LOOKUP_TABLE[arg] & BITMASK_FOR_XXXXX)
+  // and incomplete analysis of these leads to false positives. As even
+  // accurate reports would be confusing for the users, just disable reports
+  // from these macros:
+  if (isFromCtypeMacro(LoadS, checkerContext.getASTContext()))
+    return;
+
   ProgramStateRef state = checkerContext.getState();
 
   SValBuilder &svalBuilder = checkerContext.getSValBuilder();
-  const RegionRawOffsetV2 &rawOffset =
-    RegionRawOffsetV2::computeOffset(state, svalBuilder, location);
+  const std::optional<RegionRawOffsetV2> &RawOffset =
+      RegionRawOffsetV2::computeOffset(state, svalBuilder, location);
 
-  if (!rawOffset.getRegion())
+  if (!RawOffset)
     return;
 
-  NonLoc ByteOffset = rawOffset.getByteOffset();
+  NonLoc ByteOffset = RawOffset->getByteOffset();
 
   // CHECK LOWER BOUND
-  const MemSpaceRegion *SR = rawOffset.getRegion()->getMemorySpace();
+  const MemSpaceRegion *SR = RawOffset->getRegion()->getMemorySpace();
   if (!llvm::isa<UnknownSpaceRegion>(SR)) {
     // A pointer to UnknownSpaceRegion may point to the middle of
     // an allocated region.
@@ -188,7 +195,7 @@ void ArrayBoundCheckerV2::checkLocation(SVal location, bool isLoad,
 
   // CHECK UPPER BOUND
   DefinedOrUnknownSVal Size =
-      getDynamicExtent(state, rawOffset.getRegion(), svalBuilder);
+      getDynamicExtent(state, RawOffset->getRegion(), svalBuilder);
   if (auto KnownSize = Size.getAs<NonLoc>()) {
     auto [state_withinUpperBound, state_exceedsUpperBound] =
         compareValueToThreshold(state, ByteOffset, *KnownSize, svalBuilder);
@@ -267,6 +274,25 @@ void ArrayBoundCheckerV2::reportOOB(CheckerContext &checkerContext,
   checkerContext.emitReport(std::move(BR));
 }
 
+bool ArrayBoundCheckerV2::isFromCtypeMacro(const Stmt *S, ASTContext &ACtx) {
+  SourceLocation Loc = S->getBeginLoc();
+  if (!Loc.isMacroID())
+    return false;
+
+  StringRef MacroName = Lexer::getImmediateMacroName(
+      Loc, ACtx.getSourceManager(), ACtx.getLangOpts());
+
+  if (MacroName.size() < 7 || MacroName[0] != 'i' || MacroName[1] != 's')
+    return false;
+
+  return ((MacroName == "isalnum") || (MacroName == "isalpha") ||
+          (MacroName == "isblank") || (MacroName == "isdigit") ||
+          (MacroName == "isgraph") || (MacroName == "islower") ||
+          (MacroName == "isnctrl") || (MacroName == "isprint") ||
+          (MacroName == "ispunct") || (MacroName == "isspace") ||
+          (MacroName == "isupper") || (MacroName == "isxdigit"));
+}
+
 #ifndef NDEBUG
 LLVM_DUMP_METHOD void RegionRawOffsetV2::dump() const {
   dumpToStream(llvm::errs());
@@ -277,84 +303,55 @@ void RegionRawOffsetV2::dumpToStream(raw_ostream &os) const {
 }
 #endif
 
-// Lazily computes a value to be used by 'computeOffset'.  If 'val'
-// is unknown or undefined, we lazily substitute '0'.  Otherwise,
-// return 'val'.
-static inline SVal getValue(SVal val, SValBuilder &svalBuilder) {
-  return val.isUndef() ? svalBuilder.makeZeroArrayIndex() : val;
-}
+/// For a given Location that can be represented as a symbolic expression
+/// Arr[Idx] (or perhaps Arr[Idx1][Idx2] etc.), return the parent memory block
+/// Arr and the distance of Location from the beginning of Arr (expressed in a
+/// NonLoc that specifies the number of CharUnits). Returns nullopt when these
+/// cannot be determined.
+std::optional<RegionRawOffsetV2>
+RegionRawOffsetV2::computeOffset(ProgramStateRef State, SValBuilder &SVB,
+                                 SVal Location) {
+  QualType T = SVB.getArrayIndexType();
+  auto Calc = [&SVB, State, T](BinaryOperatorKind Op, NonLoc LHS, NonLoc RHS) {
+    // We will use this utility to add and multiply values.
+    return SVB.evalBinOpNN(State, Op, LHS, RHS, T).getAs<NonLoc>();
+  };
 
-// Scale a base value by a scaling factor, and return the scaled
-// value as an SVal.  Used by 'computeOffset'.
-static inline SVal scaleValue(ProgramStateRef state,
-                              NonLoc baseVal, CharUnits scaling,
-                              SValBuilder &sb) {
-  return sb.evalBinOpNN(state, BO_Mul, baseVal,
-                        sb.makeArrayIndex(scaling.getQuantity()),
-                        sb.getArrayIndexType());
-}
+  const MemRegion *Region = Location.getAsRegion();
+  NonLoc Offset = SVB.makeZeroArrayIndex();
 
-// Add an SVal to another, treating unknown and undefined values as
-// summing to UnknownVal.  Used by 'computeOffset'.
-static SVal addValue(ProgramStateRef state, SVal x, SVal y,
-                     SValBuilder &svalBuilder) {
-  // We treat UnknownVals and UndefinedVals the same here because we
-  // only care about computing offsets.
-  if (x.isUnknownOrUndef() || y.isUnknownOrUndef())
-    return UnknownVal();
-
-  return svalBuilder.evalBinOpNN(state, BO_Add, x.castAs<NonLoc>(),
-                                 y.castAs<NonLoc>(),
-                                 svalBuilder.getArrayIndexType());
-}
-
-/// Compute a raw byte offset from a base region.  Used for array bounds
-/// checking.
-RegionRawOffsetV2 RegionRawOffsetV2::computeOffset(ProgramStateRef state,
-                                                   SValBuilder &svalBuilder,
-                                                   SVal location)
-{
-  const MemRegion *region = location.getAsRegion();
-  SVal offset = UndefinedVal();
-
-  while (region) {
-    switch (region->getKind()) {
-      default: {
-        if (const SubRegion *subReg = dyn_cast<SubRegion>(region)) {
-          if (auto Offset = getValue(offset, svalBuilder).getAs<NonLoc>())
-            return RegionRawOffsetV2(subReg, *Offset);
-        }
-        return RegionRawOffsetV2();
-      }
-      case MemRegion::ElementRegionKind: {
-        const ElementRegion *elemReg = cast<ElementRegion>(region);
-        SVal index = elemReg->getIndex();
-        if (!isa<NonLoc>(index))
-          return RegionRawOffsetV2();
-        QualType elemType = elemReg->getElementType();
+  while (Region) {
+    if (const auto *ERegion = dyn_cast<ElementRegion>(Region)) {
+      if (const auto Index = ERegion->getIndex().getAs<NonLoc>()) {
+        QualType ElemType = ERegion->getElementType();
         // If the element is an incomplete type, go no further.
-        ASTContext &astContext = svalBuilder.getContext();
-        if (elemType->isIncompleteType())
-          return RegionRawOffsetV2();
+        if (ElemType->isIncompleteType())
+          return std::nullopt;
 
-        // Update the offset.
-        offset = addValue(state,
-                          getValue(offset, svalBuilder),
-                          scaleValue(state,
-                          index.castAs<NonLoc>(),
-                          astContext.getTypeSizeInChars(elemType),
-                          svalBuilder),
-                          svalBuilder);
-
-        if (offset.isUnknownOrUndef())
-          return RegionRawOffsetV2();
-
-        region = elemReg->getSuperRegion();
-        continue;
+        // Perform Offset += Index * sizeof(ElemType); then continue the offset
+        // calculations with SuperRegion:
+        NonLoc Size = SVB.makeArrayIndex(
+            SVB.getContext().getTypeSizeInChars(ElemType).getQuantity());
+        if (auto Delta = Calc(BO_Mul, *Index, Size)) {
+          if (auto NewOffset = Calc(BO_Add, Offset, *Delta)) {
+            Offset = *NewOffset;
+            Region = ERegion->getSuperRegion();
+            continue;
+          }
+        }
       }
+    } else if (const auto *SRegion = dyn_cast<SubRegion>(Region)) {
+      // NOTE: The dyn_cast<>() is expected to succeed, it'd be very surprising
+      // to see a MemSpaceRegion at this point.
+      // FIXME: We may return with {<Region>, 0} even if we didn't handle any
+      // ElementRegion layers. I think that this behavior was introduced
+      // accidentally by 8a4c760c204546aba566e302f299f7ed2e00e287 in 2011, so
+      // it may be useful to review it in the future.
+      return RegionRawOffsetV2(SRegion, Offset);
     }
+    return std::nullopt;
   }
-  return RegionRawOffsetV2();
+  return std::nullopt;
 }
 
 void ento::registerArrayBoundCheckerV2(CheckerManager &mgr) {

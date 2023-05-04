@@ -824,6 +824,20 @@ template<typename T> auto L = []<C<T> U>() {};
 struct Q {
   template<C<int> U> friend constexpr auto decltype(L<int>)::operator()() const;
 };
+
+template <class T>
+concept C1 = false;
+
+struct Foo {
+  template <typename>
+  struct Bar {};
+
+  template <typename T>
+    requires(C1<T>)
+  struct Bar<T>;
+};
+
+Foo::Bar<int> BarInstance;
 } // namespace TemplateInsideNonTemplateClass
 
 namespace GH61959 {
@@ -874,4 +888,29 @@ void bar() {
   Outer<int>::Inner<float> I;
   I.foo<char>();
 }
-}
+} // namespace GH61959
+
+
+namespace TemplateInsideTemplateInsideTemplate {
+template<typename T>
+concept C1 = false;
+
+template <unsigned I0>
+struct W0 {
+  template <unsigned I1>
+  struct W1 {
+    template <typename T>
+    struct F {
+      enum { value = 1 };
+    };
+
+    template <typename T>
+      requires C1<T>
+    struct F<T> {
+      enum { value = 2 };
+    };
+  };
+};
+
+static_assert(W0<0>::W1<1>::F<int>::value == 1);
+} // TemplateInsideTemplateInsideTemplate

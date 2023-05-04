@@ -143,12 +143,6 @@ macro(add_tablegen target project)
   set(${target}_OLD_LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS})
   set(LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS} TableGen)
 
-  # CMake doesn't let compilation units depend on their dependent libraries on some generators.
-  if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT XCODE)
-    # FIXME: It leaks to user, callee of add_tablegen.
-    set(LLVM_ENABLE_OBJLIB ON)
-  endif()
-
   add_llvm_executable(${target} DISABLE_LLVM_LINK_LLVM_DYLIB
     ${ADD_TABLEGEN_UNPARSED_ARGUMENTS})
   set(LLVM_LINK_COMPONENTS ${${target}_OLD_LLVM_LINK_COMPONENTS})
@@ -158,6 +152,13 @@ macro(add_tablegen target project)
     if (EXISTS "${LLVM_NATIVE_TOOL_DIR}/${target}${LLVM_HOST_EXECUTABLE_SUFFIX}")
       set(${project}_TABLEGEN_DEFAULT "${LLVM_NATIVE_TOOL_DIR}/${target}${LLVM_HOST_EXECUTABLE_SUFFIX}")
     endif()
+  endif()
+
+  # FIXME: Quick fix to reflect LLVM_TABLEGEN to llvm-min-tblgen
+  if("${target}" STREQUAL "llvm-min-tblgen"
+      AND NOT "${LLVM_TABLEGEN}" STREQUAL ""
+      AND NOT "${LLVM_TABLEGEN}" STREQUAL "llvm-tblgen")
+    set(${project}_TABLEGEN_DEFAULT "${LLVM_TABLEGEN}")
   endif()
 
   if(ADD_TABLEGEN_EXPORT)

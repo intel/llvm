@@ -119,7 +119,7 @@ define void @store_v6f16(ptr %p, <6 x half> %v) {
 ; RV32-NEXT:    vslide1down.vx v8, v8, a1
 ; RV32-NEXT:    vslide1down.vx v8, v8, a3
 ; RV32-NEXT:    vslide1down.vx v8, v8, a2
-; RV32-NEXT:    vslide1down.vx v8, v8, a0
+; RV32-NEXT:    vslidedown.vi v8, v8, 1
 ; RV32-NEXT:    vsetivli zero, 1, e32, m1, ta, ma
 ; RV32-NEXT:    vse32.v v8, (a0)
 ; RV32-NEXT:    vslidedown.vi v9, v8, 2
@@ -151,9 +151,8 @@ define void @store_v6f16(ptr %p, <6 x half> %v) {
 ; RV64-NEXT:    slli a1, a1, 32
 ; RV64-NEXT:    srli a1, a1, 32
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, ma
-; RV64-NEXT:    vmv.v.x v8, a1
-; RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, ma
-; RV64-NEXT:    vmv.s.x v8, a2
+; RV64-NEXT:    vslide1down.vx v8, v8, a2
+; RV64-NEXT:    vslide1down.vx v8, v8, a1
 ; RV64-NEXT:    vsetivli zero, 1, e64, m1, ta, ma
 ; RV64-NEXT:    vse64.v v8, (a0)
 ; RV64-NEXT:    vslidedown.vi v8, v8, 2
@@ -210,7 +209,7 @@ define void @store_v6i1(ptr %p, <6 x i1> %v) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, ma
 ; CHECK-NEXT:    vfirst.m a1, v0
-; CHECK-NEXT:    seqz a1, a1
+; CHECK-NEXT:    snez a1, a1
 ; CHECK-NEXT:    vmv.x.s a2, v0
 ; CHECK-NEXT:    andi a3, a2, 2
 ; CHECK-NEXT:    or a1, a1, a3

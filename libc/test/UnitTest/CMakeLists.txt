@@ -71,14 +71,10 @@ add_header_library(
 
 add_library(
   LibcFPTestHelpers
-  FPExceptMatcher.cpp
-  FPExceptMatcher.h
   FPMatcher.h
   RoundingModeUtils.cpp
   RoundingModeUtils.h
 )
-target_include_directories(LibcFPTestHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcFPTestHelpers LibcUnitTest)
 add_dependencies(
   LibcFPTestHelpers
   LibcUnitTest
@@ -87,14 +83,23 @@ add_dependencies(
   libc.src.__support.FPUtil.fenv_impl
   libc.test.UnitTest.string_utils
 )
+add_library(
+  LibcFPExceptionHelpers
+  FPExceptMatcher.cpp
+  FPExceptMatcher.h
+)
+add_dependencies(
+  LibcFPExceptionHelpers
+  LibcUnitTest
+  libc.src.__support.FPUtil.fp_bits
+  libc.src.__support.FPUtil.fenv_impl
+)
 
 add_library(
   LibcMemoryHelpers
   MemoryMatcher.h
   MemoryMatcher.cpp
 )
-target_include_directories(LibcMemoryHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcMemoryHelpers LibcUnitTest)
 add_dependencies(
   LibcMemoryHelpers
   LibcUnitTest
@@ -106,8 +111,6 @@ add_library(
   PrintfMatcher.h
   PrintfMatcher.cpp
 )
-target_include_directories(LibcPrintfHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcPrintfHelpers LibcUnitTest)
 add_dependencies(
   LibcPrintfHelpers
   LibcUnitTest
@@ -121,8 +124,6 @@ add_library(
   ScanfMatcher.h
   ScanfMatcher.cpp
 )
-target_include_directories(LibcScanfHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcScanfHelpers LibcUnitTest)
 add_dependencies(
   LibcScanfHelpers
   LibcUnitTest
@@ -130,3 +131,19 @@ add_dependencies(
   libc.src.stdio.scanf_core.core_structs
   libc.test.UnitTest.string_utils
 )
+
+foreach(lib LibcFPTestHelpers LibcFPExceptionHelpers LibcMemoryHelpers 
+            LibcPrintfHelpers LibcScanfHelpers)
+  target_include_directories(${lib} PUBLIC ${LIBC_SOURCE_DIR})
+  target_compile_options(${lib} PRIVATE -fno-exceptions -fno-rtti)
+  target_link_libraries(${lib} LibcUnitTest)
+endforeach()
+
+# The GPU needs these flags applied to override the system triple.
+if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+  foreach(lib LibcMemoryHelpers)
+    target_include_directories(${lib} PRIVATE ${LIBC_BUILD_DIR}/include)
+    target_compile_options(${lib}
+        PRIVATE ${LIBC_HERMETIC_TEST_COMPILE_OPTIONS} -ffreestanding -nostdlib -nostdlib++)
+  endforeach()
+endif()

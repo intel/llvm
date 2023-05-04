@@ -106,6 +106,12 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-multiple-new-in-one-expression
+  <clang-tidy/checks/bugprone/multiple-new-in-one-expression>` check.
+
+  Finds multiple ``new`` operator calls in a single expression, where the allocated
+  memory by the first ``new`` may leak if the second allocation fails and throws exception.
+
 - New :doc:`bugprone-non-zero-enum-to-bool-conversion
   <clang-tidy/checks/bugprone/non-zero-enum-to-bool-conversion>` check.
 
@@ -223,8 +229,9 @@ Changes in existing checks
   to ``std::forward``.
 
 - Improved :doc:`bugprone-use-after-move
-  <clang-tidy/checks/bugprone/use-after-move>` check to also cover constructor
-  initializers.
+  <clang-tidy/checks/bugprone/use-after-move>` check. Detect uses and moves in
+  constructor initializers. Correctly handle constructor arguments as being
+  sequenced when constructor call is written as list-initialization.
 
 - Deprecated :doc:`cert-dcl21-cpp
   <clang-tidy/checks/cert/dcl21-cpp>` check.

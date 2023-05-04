@@ -44,6 +44,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -80,7 +81,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -1001,6 +1001,10 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
 
   setTargetDAGCombine(ISD::CTLZ);
 
+  setTargetDAGCombine(ISD::VECREDUCE_AND);
+  setTargetDAGCombine(ISD::VECREDUCE_OR);
+  setTargetDAGCombine(ISD::VECREDUCE_XOR);
+
   // In case of strict alignment, avoid an excessive number of byte wide stores.
   MaxStoresPerMemsetOptSize = 8;
   MaxStoresPerMemset =
@@ -1165,8 +1169,14 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::VECREDUCE_SMIN, VT, Custom);
       setOperationAction(ISD::VECREDUCE_UMAX, VT, Custom);
       setOperationAction(ISD::VECREDUCE_UMIN, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_AND, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_OR, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_XOR, VT, Custom);
     }
     setOperationAction(ISD::VECREDUCE_ADD, MVT::v2i64, Custom);
+    setOperationAction(ISD::VECREDUCE_AND, MVT::v2i64, Custom);
+    setOperationAction(ISD::VECREDUCE_OR, MVT::v2i64, Custom);
+    setOperationAction(ISD::VECREDUCE_XOR, MVT::v2i64, Custom);
 
     setOperationAction(ISD::ANY_EXTEND, MVT::v4i32, Legal);
     setTruncStoreAction(MVT::v2i32, MVT::v2i16, Expand);
@@ -2139,6 +2149,38 @@ void AArch64TargetLowering::computeKnownBitsForTargetNode(
     }
   }
   }
+}
+
+unsigned AArch64TargetLowering::ComputeNumSignBitsForTargetNode(
+    SDValue Op, const APInt &DemandedElts, const SelectionDAG &DAG,
+    unsigned Depth) const {
+  EVT VT = Op.getValueType();
+  unsigned VTBits = VT.getScalarSizeInBits();
+  unsigned Opcode = Op.getOpcode();
+  switch (Opcode) {
+    case AArch64ISD::CMEQ:
+    case AArch64ISD::CMGE:
+    case AArch64ISD::CMGT:
+    case AArch64ISD::CMHI:
+    case AArch64ISD::CMHS:
+    case AArch64ISD::FCMEQ:
+    case AArch64ISD::FCMGE:
+    case AArch64ISD::FCMGT:
+    case AArch64ISD::CMEQz:
+    case AArch64ISD::CMGEz:
+    case AArch64ISD::CMGTz:
+    case AArch64ISD::CMLEz:
+    case AArch64ISD::CMLTz:
+    case AArch64ISD::FCMEQz:
+    case AArch64ISD::FCMGEz:
+    case AArch64ISD::FCMGTz:
+    case AArch64ISD::FCMLEz:
+    case AArch64ISD::FCMLTz:
+      // Compares return either 0 or all-ones
+      return VTBits;
+  }
+
+  return 1;
 }
 
 MVT AArch64TargetLowering::getScalarShiftAmountTy(const DataLayout &DL,
@@ -13274,6 +13316,106 @@ static SDValue getReductionSDNode(unsigned Op, SDLoc DL, SDValue ScalarOp,
                      DAG.getConstant(0, DL, MVT::i64));
 }
 
+static SDValue getVectorBitwiseReduce(unsigned Opcode, SDValue Vec, EVT VT,
+                                      SDLoc DL, SelectionDAG &DAG) {
+  unsigned ScalarOpcode;
+  switch (Opcode) {
+  case ISD::VECREDUCE_AND:
+    ScalarOpcode = ISD::AND;
+    break;
+  case ISD::VECREDUCE_OR:
+    ScalarOpcode = ISD::OR;
+    break;
+  case ISD::VECREDUCE_XOR:
+    ScalarOpcode = ISD::XOR;
+    break;
+  default:
+    llvm_unreachable("Expected bitwise vector reduction");
+    return SDValue();
+  }
+
+  EVT VecVT = Vec.getValueType();
+  assert(VecVT.isFixedLengthVector() && VecVT.isPow2VectorType() &&
+         "Expected power-of-2 length vector");
+
+  EVT ElemVT = VecVT.getVectorElementType();
+
+  SDValue Result;
+  unsigned NumElems = VecVT.getVectorNumElements();
+
+  // Special case for boolean reductions
+  if (ElemVT == MVT::i1) {
+    // Split large vectors into smaller ones
+    if (NumElems > 16) {
+      SDValue Lo, Hi;
+      std::tie(Lo, Hi) = DAG.SplitVector(Vec, DL);
+      EVT HalfVT = Lo.getValueType();
+      SDValue HalfVec = DAG.getNode(ScalarOpcode, DL, HalfVT, Lo, Hi);
+      return getVectorBitwiseReduce(Opcode, HalfVec, VT, DL, DAG);
+    }
+
+    // Vectors that are less than 64 bits get widened to neatly fit a 64 bit
+    // register, so e.g. <4 x i1> gets lowered to <4 x i16>. Sign extending to
+    // this element size leads to the best codegen, since e.g. setcc results
+    // might need to be truncated otherwise.
+    EVT ExtendedVT = MVT::getIntegerVT(std::max(64u / NumElems, 8u));
+
+    // any_ext doesn't work with umin/umax, so only use it for uadd.
+    unsigned ExtendOp =
+        ScalarOpcode == ISD::XOR ? ISD::ANY_EXTEND : ISD::SIGN_EXTEND;
+    SDValue Extended = DAG.getNode(
+        ExtendOp, DL, VecVT.changeVectorElementType(ExtendedVT), Vec);
+    switch (ScalarOpcode) {
+    case ISD::AND:
+      Result = DAG.getNode(ISD::VECREDUCE_UMIN, DL, ExtendedVT, Extended);
+      break;
+    case ISD::OR:
+      Result = DAG.getNode(ISD::VECREDUCE_UMAX, DL, ExtendedVT, Extended);
+      break;
+    case ISD::XOR:
+      Result = DAG.getNode(ISD::VECREDUCE_ADD, DL, ExtendedVT, Extended);
+      break;
+    default:
+      llvm_unreachable("Unexpected Opcode");
+    }
+
+    Result = DAG.getAnyExtOrTrunc(Result, DL, MVT::i1);
+  } else {
+    // Iteratively split the vector in half and combine using the bitwise
+    // operation until it fits in a 64 bit register.
+    while (VecVT.getSizeInBits() > 64) {
+      SDValue Lo, Hi;
+      std::tie(Lo, Hi) = DAG.SplitVector(Vec, DL);
+      VecVT = Lo.getValueType();
+      NumElems = VecVT.getVectorNumElements();
+      Vec = DAG.getNode(ScalarOpcode, DL, VecVT, Lo, Hi);
+    }
+
+    EVT ScalarVT = EVT::getIntegerVT(*DAG.getContext(), VecVT.getSizeInBits());
+
+    // Do the remaining work on a scalar since it allows the code generator to
+    // combine the shift and bitwise operation into one instruction and since
+    // integer instructions can have higher throughput than vector instructions.
+    SDValue Scalar = DAG.getBitcast(ScalarVT, Vec);
+
+    // Iteratively combine the lower and upper halves of the scalar using the
+    // bitwise operation, halving the relevant region of the scalar in each
+    // iteration, until the relevant region is just one element of the original
+    // vector.
+    for (unsigned Shift = NumElems / 2; Shift > 0; Shift /= 2) {
+      SDValue ShiftAmount =
+          DAG.getConstant(Shift * ElemVT.getSizeInBits(), DL, MVT::i64);
+      SDValue Shifted =
+          DAG.getNode(ISD::SRL, DL, ScalarVT, Scalar, ShiftAmount);
+      Scalar = DAG.getNode(ScalarOpcode, DL, ScalarVT, Scalar, Shifted);
+    }
+
+    Result = DAG.getAnyExtOrTrunc(Scalar, DL, ElemVT);
+  }
+
+  return DAG.getAnyExtOrTrunc(Result, DL, VT);
+}
+
 SDValue AArch64TargetLowering::LowerVECREDUCE(SDValue Op,
                                               SelectionDAG &DAG) const {
   SDValue Src = Op.getOperand(0);
@@ -13325,6 +13467,11 @@ SDValue AArch64TargetLowering::LowerVECREDUCE(SDValue Op,
   // Lower NEON reductions.
   SDLoc dl(Op);
   switch (Op.getOpcode()) {
+  case ISD::VECREDUCE_AND:
+  case ISD::VECREDUCE_OR:
+  case ISD::VECREDUCE_XOR:
+    return getVectorBitwiseReduce(Op.getOpcode(), Op.getOperand(0),
+                                  Op.getValueType(), dl, DAG);
   case ISD::VECREDUCE_ADD:
     return getReductionSDNode(AArch64ISD::UADDV, dl, Op, DAG);
   case ISD::VECREDUCE_SMAX:
@@ -17037,6 +17184,51 @@ static SDValue performConcatVectorsCombine(SDNode *N,
     }
   }
 
+  auto IsRSHRN = [](SDValue Shr) {
+    if (Shr.getOpcode() != AArch64ISD::VLSHR)
+      return false;
+    SDValue Op = Shr.getOperand(0);
+    EVT VT = Op.getValueType();
+    unsigned ShtAmt = Shr.getConstantOperandVal(1);
+    if (ShtAmt > VT.getScalarSizeInBits() / 2 || Op.getOpcode() != ISD::ADD)
+      return false;
+
+    APInt Imm;
+    if (Op.getOperand(1).getOpcode() == AArch64ISD::MOVIshift)
+      Imm = APInt(VT.getScalarSizeInBits(),
+                  Op.getOperand(1).getConstantOperandVal(0)
+                      << Op.getOperand(1).getConstantOperandVal(1));
+    else if (Op.getOperand(1).getOpcode() == AArch64ISD::DUP &&
+             isa<ConstantSDNode>(Op.getOperand(1).getOperand(0)))
+      Imm = APInt(VT.getScalarSizeInBits(),
+                  Op.getOperand(1).getConstantOperandVal(0));
+    else
+      return false;
+
+    if (Imm != 1ULL << (ShtAmt - 1))
+      return false;
+    return true;
+  };
+
+  // concat(rshrn(x), rshrn(y)) -> rshrn(concat(x, y))
+  if (N->getNumOperands() == 2 && IsRSHRN(N0) &&
+      ((IsRSHRN(N1) &&
+        N0.getConstantOperandVal(1) == N1.getConstantOperandVal(1)) ||
+       N1.isUndef())) {
+    SDValue X = N0.getOperand(0).getOperand(0);
+    SDValue Y = N1.isUndef() ? DAG.getUNDEF(X.getValueType())
+                             : N1.getOperand(0).getOperand(0);
+    EVT BVT =
+        X.getValueType().getDoubleNumVectorElementsVT(*DCI.DAG.getContext());
+    SDValue CC = DAG.getNode(ISD::CONCAT_VECTORS, dl, BVT, X, Y);
+    SDValue Add = DAG.getNode(
+        ISD::ADD, dl, BVT, CC,
+        DAG.getConstant(1ULL << (N0.getConstantOperandVal(1) - 1), dl, BVT));
+    SDValue Shr =
+        DAG.getNode(AArch64ISD::VLSHR, dl, BVT, Add, N0.getOperand(1));
+    return Shr;
+  }
+
   // concat(zip1(a, b), zip2(a, b)) is zip1(a, b)
   if (N->getNumOperands() == 2 && N0Opc == AArch64ISD::ZIP1 &&
       N1Opc == AArch64ISD::ZIP2 && N0.getOperand(0) == N1.getOperand(0) &&
@@ -19478,6 +19670,13 @@ static SDValue performVectorShiftCombine(SDNode *N,
   unsigned ShiftImm = N->getConstantOperandVal(1);
   assert(OpScalarSize > ShiftImm && "Invalid shift imm");
 
+  // Remove sign_extend_inreg (ashr(shl(x)) based on the number of sign bits.
+  if (N->getOpcode() == AArch64ISD::VASHR &&
+      Op.getOpcode() == AArch64ISD::VSHL &&
+      N->getOperand(1) == Op.getOperand(1))
+    if (DCI.DAG.ComputeNumSignBits(Op.getOperand(0)) > ShiftImm)
+      return Op.getOperand(0);
+
   APInt ShiftedOutBits = APInt::getLowBitsSet(OpScalarSize, ShiftImm);
   APInt DemandedMask = ~ShiftedOutBits;
 
@@ -20808,6 +21007,22 @@ static SDValue tryToWidenSetCCOperands(SDNode *Op, SelectionDAG &DAG) {
                      Op0ExtV, Op1ExtV, Op->getOperand(2));
 }
 
+static SDValue
+performVecReduceBitwiseCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
+                               SelectionDAG &DAG) {
+  SDValue Vec = N->getOperand(0);
+  if (DCI.isBeforeLegalize() &&
+      Vec.getValueType().getVectorElementType() == MVT::i1 &&
+      Vec.getValueType().isFixedLengthVector() &&
+      Vec.getValueType().isPow2VectorType()) {
+    SDLoc DL(N);
+    return getVectorBitwiseReduce(N->getOpcode(), Vec, N->getValueType(0), DL,
+                                  DAG);
+  }
+
+  return SDValue();
+}
+
 static SDValue performSETCCCombine(SDNode *N,
                                    TargetLowering::DAGCombinerInfo &DCI,
                                    SelectionDAG &DAG) {
@@ -21976,6 +22191,10 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
   default:
     LLVM_DEBUG(dbgs() << "Custom combining: skipping\n");
     break;
+  case ISD::VECREDUCE_AND:
+  case ISD::VECREDUCE_OR:
+  case ISD::VECREDUCE_XOR:
+    return performVecReduceBitwiseCombine(N, DCI, DAG);
   case ISD::ADD:
   case ISD::SUB:
     return performAddSubCombine(N, DCI, DAG);

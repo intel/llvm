@@ -489,6 +489,82 @@ void hlfir::ConcatOp::build(mlir::OpBuilder &builder,
 }
 
 //===----------------------------------------------------------------------===//
+// ReductionOp
+//===----------------------------------------------------------------------===//
+
+template <typename ReductionOp>
+static mlir::LogicalResult verifyReductionOp(ReductionOp reductionOp) {
+  mlir::Operation *op = reductionOp->getOperation();
+
+  auto results = op->getResultTypes();
+  assert(results.size() == 1);
+
+  mlir::Value array = reductionOp->getArray();
+  mlir::Value mask = reductionOp->getMask();
+
+  fir::SequenceType arrayTy =
+      hlfir::getFortranElementOrSequenceType(array.getType())
+          .cast<fir::SequenceType>();
+  mlir::Type numTy = arrayTy.getEleTy();
+  llvm::ArrayRef<int64_t> arrayShape = arrayTy.getShape();
+  hlfir::ExprType resultTy = results[0].cast<hlfir::ExprType>();
+
+  if (mask) {
+    fir::SequenceType maskSeq =
+        hlfir::getFortranElementOrSequenceType(mask.getType())
+            .dyn_cast<fir::SequenceType>();
+    llvm::ArrayRef<int64_t> maskShape;
+
+    if (maskSeq)
+      maskShape = maskSeq.getShape();
+
+    if (!maskShape.empty()) {
+      if (maskShape.size() != arrayShape.size())
+        return reductionOp->emitWarning("MASK must be conformable to ARRAY");
+      static_assert(fir::SequenceType::getUnknownExtent() ==
+                    hlfir::ExprType::getUnknownExtent());
+      constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+      for (std::size_t i = 0; i < arrayShape.size(); ++i) {
+        int64_t arrayExtent = arrayShape[i];
+        int64_t maskExtent = maskShape[i];
+        if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
+            (maskExtent != unknownExtent))
+          return reductionOp->emitWarning("MASK must be conformable to ARRAY");
+      }
+    }
+  }
+
+  if (resultTy.isArray()) {
+    // Result is of the same type as ARRAY
+    if (resultTy.getEleTy() != numTy)
+      return reductionOp->emitOpError(
+          "result must have the same element type as ARRAY argument");
+
+    llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
+
+    // Result has rank n-1
+    if (resultShape.size() != (arrayShape.size() - 1))
+      return reductionOp->emitOpError(
+          "result rank must be one less than ARRAY");
+  } else {
+    // Result is of the same type as ARRAY
+    if (resultTy.getElementType() != numTy)
+      return reductionOp->emitOpError(
+          "result must have the same element type as ARRAY argument");
+  }
+
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// ProductOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::ProductOp::verify() {
+  return verifyReductionOp<hlfir::ProductOp *>(this);
+}
+
+//===----------------------------------------------------------------------===//
 // SetLengthOp
 //===----------------------------------------------------------------------===//
 
@@ -511,65 +587,7 @@ void hlfir::SetLengthOp::build(mlir::OpBuilder &builder,
 //===----------------------------------------------------------------------===//
 
 mlir::LogicalResult hlfir::SumOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  auto results = op->getResultTypes();
-  assert(results.size() == 1);
-
-  mlir::Value array = getArray();
-  mlir::Value mask = getMask();
-
-  fir::SequenceType arrayTy =
-      hlfir::getFortranElementOrSequenceType(array.getType())
-          .cast<fir::SequenceType>();
-  mlir::Type numTy = arrayTy.getEleTy();
-  llvm::ArrayRef<int64_t> arrayShape = arrayTy.getShape();
-  hlfir::ExprType resultTy = results[0].cast<hlfir::ExprType>();
-
-  if (mask) {
-    fir::SequenceType maskSeq =
-        hlfir::getFortranElementOrSequenceType(mask.getType())
-            .dyn_cast<fir::SequenceType>();
-    llvm::ArrayRef<int64_t> maskShape;
-
-    if (maskSeq)
-      maskShape = maskSeq.getShape();
-
-    if (!maskShape.empty()) {
-      if (maskShape.size() != arrayShape.size())
-        return emitWarning("MASK must be conformable to ARRAY");
-      static_assert(fir::SequenceType::getUnknownExtent() ==
-                    hlfir::ExprType::getUnknownExtent());
-      constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
-      for (std::size_t i = 0; i < arrayShape.size(); ++i) {
-        int64_t arrayExtent = arrayShape[i];
-        int64_t maskExtent = maskShape[i];
-        if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
-            (maskExtent != unknownExtent))
-          return emitWarning("MASK must be conformable to ARRAY");
-      }
-    }
-  }
-
-  if (resultTy.isArray()) {
-    // Result is of the same type as ARRAY
-    if (resultTy.getEleTy() != numTy)
-      return emitOpError(
-          "result must have the same element type as ARRAY argument");
-
-    llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
-
-    // Result has rank n-1
-    if (resultShape.size() != (arrayShape.size() - 1))
-      return emitOpError("result rank must be one less than ARRAY");
-  } else {
-    // Result is of the same type as ARRAY
-    if (resultTy.getElementType() != numTy)
-      return emitOpError(
-          "result must have the same element type as ARRAY argument");
-  }
-
-  return mlir::success();
+  return verifyReductionOp<hlfir::SumOp *>(this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -960,5 +978,272 @@ mlir::LogicalResult hlfir::GetExtentOp::verify() {
   return mlir::success();
 }
 
+//===----------------------------------------------------------------------===//
+// RegionAssignOp
+//===----------------------------------------------------------------------===//
+
+/// Add a fir.end terminator to a parsed region if it does not already has a
+/// terminator.
+static void ensureTerminator(mlir::Region &region, mlir::Builder &builder,
+                             mlir::Location loc) {
+  // Borrow YielOp::ensureTerminator MLIR generated implementation to add a
+  // fir.end if there is no terminator. This has nothing to do with YielOp,
+  // other than the fact that yieldOp has the
+  // SingleBlocklicitTerminator<"fir::FirEndOp"> interface that
+  // cannot be added on other HLFIR operations with several regions which are
+  // not all terminated the same way.
+  hlfir::YieldOp::ensureTerminator(region, builder, loc);
+}
+
+mlir::ParseResult hlfir::RegionAssignOp::parse(mlir::OpAsmParser &parser,
+                                               mlir::OperationState &result) {
+  mlir::Region &rhsRegion = *result.addRegion();
+  if (parser.parseRegion(rhsRegion))
+    return mlir::failure();
+  mlir::Region &lhsRegion = *result.addRegion();
+  if (parser.parseKeyword("to") || parser.parseRegion(lhsRegion))
+    return mlir::failure();
+  mlir::Region &userDefinedAssignmentRegion = *result.addRegion();
+  if (succeeded(parser.parseOptionalKeyword("user_defined_assign"))) {
+    mlir::OpAsmParser::Argument rhsArg, lhsArg;
+    if (parser.parseLParen() || parser.parseArgument(rhsArg) ||
+        parser.parseColon() || parser.parseType(rhsArg.type) ||
+        parser.parseRParen() || parser.parseKeyword("to") ||
+        parser.parseLParen() || parser.parseArgument(lhsArg) ||
+        parser.parseColon() || parser.parseType(lhsArg.type) ||
+        parser.parseRParen())
+      return mlir::failure();
+    if (parser.parseRegion(userDefinedAssignmentRegion, {rhsArg, lhsArg}))
+      return mlir::failure();
+    ensureTerminator(userDefinedAssignmentRegion, parser.getBuilder(),
+                     result.location);
+  }
+  return mlir::success();
+}
+
+void hlfir::RegionAssignOp::print(mlir::OpAsmPrinter &p) {
+  p << " ";
+  p.printRegion(getRhsRegion(), /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/true);
+  p << " to ";
+  p.printRegion(getLhsRegion(), /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/true);
+  if (!getUserDefinedAssignment().empty()) {
+    p << " user_defined_assign ";
+    mlir::Value userAssignmentRhs = getUserAssignmentRhs();
+    mlir::Value userAssignmentLhs = getUserAssignmentLhs();
+    p << " (" << userAssignmentRhs << ": " << userAssignmentRhs.getType()
+      << ") to (";
+    p << userAssignmentLhs << ": " << userAssignmentLhs.getType() << ") ";
+    p.printRegion(getUserDefinedAssignment(), /*printEntryBlockArgs=*/false,
+                  /*printBlockTerminators=*/false);
+  }
+}
+
+static mlir::Operation *getTerminator(mlir::Region &region) {
+  if (region.empty() || region.back().empty())
+    return nullptr;
+  return &region.back().back();
+}
+
+mlir::LogicalResult hlfir::RegionAssignOp::verify() {
+  if (!mlir::isa_and_nonnull<hlfir::YieldOp>(getTerminator(getRhsRegion())))
+    return emitOpError(
+        "right-hand side region must be terminated by an hlfir.yield");
+  if (!mlir::isa_and_nonnull<hlfir::YieldOp, hlfir::ElementalAddrOp>(
+          getTerminator(getLhsRegion())))
+    return emitOpError("left-hand side region must be terminated by an "
+                       "hlfir.yield or hlfir.elemental_addr");
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// YieldOp
+//===----------------------------------------------------------------------===//
+
+static mlir::ParseResult parseYieldOpCleanup(mlir::OpAsmParser &parser,
+                                             mlir::Region &cleanup) {
+  if (succeeded(parser.parseOptionalKeyword("cleanup"))) {
+    if (parser.parseRegion(cleanup, /*arguments=*/{},
+                           /*argTypes=*/{}))
+      return mlir::failure();
+    hlfir::YieldOp::ensureTerminator(cleanup, parser.getBuilder(),
+                                     parser.getBuilder().getUnknownLoc());
+  }
+  return mlir::success();
+}
+
+template <typename YieldOp>
+static void printYieldOpCleanup(mlir::OpAsmPrinter &p, YieldOp yieldOp,
+                                mlir::Region &cleanup) {
+  if (!cleanup.empty()) {
+    p << "cleanup ";
+    p.printRegion(cleanup, /*printEntryBlockArgs=*/false,
+                  /*printBlockTerminators=*/false);
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// ElementalAddrOp
+//===----------------------------------------------------------------------===//
+
+void hlfir::ElementalAddrOp::build(mlir::OpBuilder &builder,
+                                   mlir::OperationState &odsState,
+                                   mlir::Value shape) {
+  odsState.addOperands(shape);
+  mlir::Region *bodyRegion = odsState.addRegion();
+  bodyRegion->push_back(new mlir::Block{});
+  if (auto shapeType = shape.getType().dyn_cast<fir::ShapeType>()) {
+    unsigned dim = shapeType.getRank();
+    mlir::Type indexType = builder.getIndexType();
+    for (unsigned d = 0; d < dim; ++d)
+      bodyRegion->front().addArgument(indexType, odsState.location);
+  }
+  // Push cleanUp region.
+  odsState.addRegion();
+}
+
+mlir::LogicalResult hlfir::ElementalAddrOp::verify() {
+  hlfir::YieldOp yieldOp =
+      mlir::dyn_cast_or_null<hlfir::YieldOp>(getTerminator(getBody()));
+  if (!yieldOp)
+    return emitOpError("body region must be terminated by an hlfir.yield");
+  mlir::Type elementAddrType = yieldOp.getEntity().getType();
+  if (!hlfir::isFortranVariableType(elementAddrType) ||
+      hlfir::getFortranElementOrSequenceType(elementAddrType)
+          .isa<fir::SequenceType>())
+    return emitOpError("body must compute the address of a scalar entity");
+  unsigned shapeRank = getShape().getType().cast<fir::ShapeType>().getRank();
+  if (shapeRank != getIndices().size())
+    return emitOpError("body number of indices must match shape rank");
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// OrderedAssignmentTreeOpInterface
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::OrderedAssignmentTreeOpInterface::verifyImpl() {
+  if (mlir::Region *body = getSubTreeRegion())
+    if (!body->empty())
+      for (mlir::Operation &op : body->front())
+        if (!mlir::isa<hlfir::OrderedAssignmentTreeOpInterface, fir::FirEndOp>(
+                op))
+          return emitOpError(
+              "body region must only contain OrderedAssignmentTreeOpInterface "
+              "operations or fir.end");
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// ForallOp
+//===----------------------------------------------------------------------===//
+
+static mlir::ParseResult parseForallOpBody(mlir::OpAsmParser &parser,
+                                           mlir::Region &body) {
+  mlir::OpAsmParser::Argument bodyArg;
+  if (parser.parseLParen() || parser.parseArgument(bodyArg) ||
+      parser.parseColon() || parser.parseType(bodyArg.type) ||
+      parser.parseRParen())
+    return mlir::failure();
+  if (parser.parseRegion(body, {bodyArg}))
+    return mlir::failure();
+  ensureTerminator(body, parser.getBuilder(),
+                   parser.getBuilder().getUnknownLoc());
+  return mlir::success();
+}
+
+static void printForallOpBody(mlir::OpAsmPrinter &p, hlfir::ForallOp forall,
+                              mlir::Region &body) {
+  mlir::Value forallIndex = forall.getForallIndexValue();
+  p << " (" << forallIndex << ": " << forallIndex.getType() << ") ";
+  p.printRegion(body, /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/false);
+}
+
+/// Predicate implementation of YieldIntegerOrEmpty.
+static bool yieldsIntegerOrEmpty(mlir::Region &region) {
+  if (region.empty())
+    return true;
+  auto yield = mlir::dyn_cast_or_null<hlfir::YieldOp>(getTerminator(region));
+  return yield && fir::isa_integer(yield.getEntity().getType());
+}
+
+//===----------------------------------------------------------------------===//
+// ForallMaskOp
+//===----------------------------------------------------------------------===//
+
+static mlir::ParseResult parseAssignmentMaskOpBody(mlir::OpAsmParser &parser,
+                                                   mlir::Region &body) {
+  if (parser.parseRegion(body))
+    return mlir::failure();
+  ensureTerminator(body, parser.getBuilder(),
+                   parser.getBuilder().getUnknownLoc());
+  return mlir::success();
+}
+
+template <typename ConcreteOp>
+static void printAssignmentMaskOpBody(mlir::OpAsmPrinter &p, ConcreteOp,
+                                      mlir::Region &body) {
+  // ElseWhereOp is a WhereOp/ElseWhereOp terminator that should be printed.
+  bool printBlockTerminators =
+      !body.empty() &&
+      mlir::isa_and_nonnull<hlfir::ElseWhereOp>(body.back().getTerminator());
+  p.printRegion(body, /*printEntryBlockArgs=*/false, printBlockTerminators);
+}
+
+static bool yieldsLogical(mlir::Region &region, bool mustBeScalarI1) {
+  if (region.empty())
+    return false;
+  auto yield = mlir::dyn_cast_or_null<hlfir::YieldOp>(getTerminator(region));
+  if (!yield)
+    return false;
+  mlir::Type yieldType = yield.getEntity().getType();
+  if (mustBeScalarI1)
+    return hlfir::isI1Type(yieldType);
+  return hlfir::isMaskArgument(yieldType) &&
+         hlfir::getFortranElementOrSequenceType(yieldType)
+             .isa<fir::SequenceType>();
+}
+
+mlir::LogicalResult hlfir::ForallMaskOp::verify() {
+  if (!yieldsLogical(getMaskRegion(), /*mustBeScalarI1=*/true))
+    return emitOpError("mask region must yield a scalar i1");
+  mlir::Operation *op = getOperation();
+  hlfir::ForallOp forallOp =
+      mlir::dyn_cast_or_null<hlfir::ForallOp>(op->getParentOp());
+  if (!forallOp || op->getParentRegion() != &forallOp.getBody())
+    return emitOpError("must be inside the body region of an hlfir.forall");
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// WhereOp and ElseWhereOp
+//===----------------------------------------------------------------------===//
+
+template <typename ConcreteOp>
+static mlir::LogicalResult verifyWhereAndElseWhereBody(ConcreteOp &concreteOp) {
+  for (mlir::Operation &op : concreteOp.getBody().front())
+    if (mlir::isa<hlfir::ForallOp>(op))
+      return concreteOp.emitOpError(
+          "body region must not contain hlfir.forall");
+  return mlir::success();
+}
+
+mlir::LogicalResult hlfir::WhereOp::verify() {
+  if (!yieldsLogical(getMaskRegion(), /*mustBeScalarI1=*/false))
+    return emitOpError("mask region must yield a logical array");
+  return verifyWhereAndElseWhereBody(*this);
+}
+
+mlir::LogicalResult hlfir::ElseWhereOp::verify() {
+  if (!getMaskRegion().empty())
+    if (!yieldsLogical(getMaskRegion(), /*mustBeScalarI1=*/false))
+      return emitOpError(
+          "mask region must yield a logical array when provided");
+  return verifyWhereAndElseWhereBody(*this);
+}
+
+#include "flang/Optimizer/HLFIR/HLFIROpInterfaces.cpp.inc"
 #define GET_OP_CLASSES
 #include "flang/Optimizer/HLFIR/HLFIROps.cpp.inc"
