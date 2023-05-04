@@ -2803,18 +2803,17 @@ public:
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
 
-  // implicit conversion between const / non-const types for read only accessors
+  // implicit conversion between non-const read-write accessor to const
+  // read-only accessor
 public:
   template <typename DataT_,
             typename = std::enable_if_t<
-                !std::is_same_v<DataT_, DataT> && std::is_const_v<DataT> &&
-                std::is_same_v<std::remove_const_t<DataT_>,
-                               std::remove_const_t<DataT>>>>
+                std::is_const_v<DataT> &&
+                std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   local_accessor(const local_accessor<DataT_, Dimensions> &other) {
     local_acc::impl = other.impl;
   }
 
-public:
   using value_type = DataT;
   using iterator = value_type *;
   using const_iterator = const value_type *;
@@ -3281,8 +3280,7 @@ public:
   template <typename DataT_, access::mode AccessMode_,
             typename = std::enable_if_t<
                 (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
-                std::is_same_v<std::remove_const_t<DataT_>,
-                               std::remove_const_t<DataT>>>>
+                std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode_> &other)
 #ifdef __SYCL_DEVICE_ONLY__
       {}
