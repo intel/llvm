@@ -1,6 +1,7 @@
 // UNSUPPORTED: windows
 // Disabled on windows due to bug VS 2019 missing math builtins
 
+// REQUIRES: aspect-fp64
 // REQUIRES: (cpu || accelerator) && windows
 // RUN: %clangxx -fsycl -c %s -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath-fp64.o -o %t.out
@@ -125,9 +126,7 @@ void device_math_test(s::queue &deviceQueue) {
 
 int main() {
   s::queue deviceQueue;
-  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    device_math_test(deviceQueue);
-    std::cout << "Pass" << std::endl;
-  }
+  device_math_test(deviceQueue);
+  std::cout << "Pass" << std::endl;
   return 0;
 }
