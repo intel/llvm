@@ -1,5 +1,5 @@
-// RUN: cgeist %s -w -O0 --function=* -S | FileCheck %s
-// RUN: cgeist %s -w -O0 --memref-fullrank --function=* -S | FileCheck %s --check-prefix=CHECK-FULLRANK
+// RUN: cgeist --use-opaque-pointers %s -w -O0 --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s -w -O0 --memref-fullrank --function=* -S | FileCheck %s --check-prefix=CHECK-FULLRANK
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -81,10 +81,10 @@ struct foo {
 // CHECK-LABEL:   func.func @struct_get(
 // CHECK-SAME:                          %[[VAL_0:.*]]: !llvm.struct<(i32, i8)>) -> i1
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i32, i8)> : (i64) -> !llvm.ptr<struct<(i32, i8)>>
-// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_2]] : !llvm.ptr<struct<(i32, i8)>>
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr<struct<(i32, i8)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i8>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %c1_i64 x !llvm.struct<(i32, i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_2]] : !llvm.struct<(i32, i8)>, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i8)>
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i8
 // CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_5]] : i1
 // CHECK-NEXT:    }
@@ -93,9 +93,9 @@ bool struct_get(struct foo s) {
 }
 
 // CHECK-LABEL:   func.func @struct_ptr_get(
-// CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr<struct<(i32, i8)>>) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr<struct<(i32, i8)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i8>
+// CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr) -> i1
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i8)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> i8
 // CHECK-NEXT:      %[[VAL_3:.*]] = arith.trunci %[[VAL_2]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_3]] : i1
 // CHECK-NEXT:    }

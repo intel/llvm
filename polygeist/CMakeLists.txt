@@ -1,5 +1,3 @@
-# Copyright (C) Codeplay Software Limited
-
 cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0068)
@@ -98,13 +96,14 @@ include(sanitizers)
 
 add_subdirectory(include)
 add_subdirectory(lib)
-add_subdirectory(tools)
-add_subdirectory(test)
-
-add_custom_target(MLIRPolygeistUnitTests)
-if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
-  add_subdirectory(unittests)
-else()
-  message(WARNING "gtest not found, unittests will not be available")
+if (MLIR_INCLUDE_TESTS)
+  add_definitions(-DMLIR_INCLUDE_TESTS)
+  add_custom_target(MLIRPolygeistUnitTests)
+  if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
+    add_subdirectory(unittests)
+  else()
+    message(WARNING "gtest not found, unittests will not be available")
+  endif()
+  add_subdirectory(test)  
 endif()
-
+add_subdirectory(tools)

@@ -1,5 +1,5 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
-// RUN: cgeist %s --function=* -S -emit-llvm | FileCheck %s --check-prefix=LLVM
+// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S -emit-llvm | FileCheck %s --check-prefix=LLVM
 
 #include <cstddef>
 

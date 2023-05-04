@@ -47,11 +47,26 @@ struct PtrElementModel
     : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
           PtrElementModel<T>, T> {};
 
+namespace mlir {
+namespace test {
+void registerTestReachingDefinitionAnalysisPass();
+} // namespace test
+} // namespace mlir
+
+#ifdef MLIR_INCLUDE_TESTS
+void registerTestPasses() {
+  mlir::test::registerTestReachingDefinitionAnalysisPass();
+}
+#endif
+
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
   registerTransformsPasses();
   registerConversionPasses();
+#ifdef MLIR_INCLUDE_TESTS
+  registerTestPasses();
+#endif
   registerAffinePasses();
   registerAsyncPasses();
   arith::registerArithPasses();
