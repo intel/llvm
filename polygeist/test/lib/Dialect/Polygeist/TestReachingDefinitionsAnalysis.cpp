@@ -27,6 +27,8 @@ struct TestReachingDefinitionAnalysisPass
   StringRef getArgument() const override { return "test-reaching-definition"; }
 
   void runOnOperation() override {
+    using DefinitionPtr = polygeist::ReachingDefinition::DefinitionPtr;
+
     AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
     aliasAnalysis.addAnalysisImplementation(
         sycl::AliasAnalysis(false /* relaxedAliasing*/));
@@ -40,21 +42,26 @@ struct TestReachingDefinitionAnalysisPass
     if (failed(solver.initializeAndRun(op)))
       return signalPassFailure();
 
-    auto printOps = [](std::optional<ArrayRef<Operation *>> ops,
+    auto printOps = [](std::optional<ArrayRef<DefinitionPtr>> defs,
                        StringRef title) {
-      if (!ops) {
+      if (!defs) {
         llvm::errs() << title << "<unknown>\n";
         return;
       }
 
       llvm::errs() << title;
       llvm::interleave(
-          *ops, llvm::errs(),
-          [](Operation *op) {
-            if (auto tagName = op->getAttrOfType<StringAttr>("tag_name"))
+          *defs, llvm::errs(),
+          [](DefinitionPtr def) {
+            if (!def->isOperation()) {
+              llvm::errs() << "'" << *def << "'";
+              return;
+            }
+            if (auto tagName =
+                    def->getOperation()->getAttrOfType<StringAttr>("tag_name"))
               llvm::errs() << tagName.getValue();
             else
-              llvm::errs() << "'" << *op << "'";
+              llvm::errs() << "'" << *def << "'";
           },
           " ");
       llvm::errs() << "\n";
@@ -74,9 +81,9 @@ struct TestReachingDefinitionAnalysisPass
       // Print the reaching definitions for each operand.
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs() << " operand #" << index << "\n";
-        std::optional<ArrayRef<Operation *>> mods =
+        std::optional<ArrayRef<DefinitionPtr>> mods =
             reachingDef->getModifiers(operand);
-        std::optional<ArrayRef<Operation *>> pMods =
+        std::optional<ArrayRef<DefinitionPtr>> pMods =
             reachingDef->getPotentialModifiers(operand);
         printOps(mods, " - mods: ");
         printOps(pMods, " - pMods: ");

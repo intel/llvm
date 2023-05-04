@@ -20,6 +20,35 @@ namespace mlir {
 namespace polygeist {
 
 //===----------------------------------------------------------------------===//
+// Initial Definition
+//===----------------------------------------------------------------------===//
+
+InitialDefinition *InitialDefinition::singleton = nullptr;
+
+InitialDefinition *InitialDefinition::getInstance() {
+  if (singleton == nullptr)
+    singleton = new InitialDefinition();
+  return singleton;
+}
+
+raw_ostream &operator<<(raw_ostream &os, const InitialDefinition &def) {
+  os << "<initial definition>";
+  return os;
+}
+
+//===----------------------------------------------------------------------===//
+// Definition
+//===----------------------------------------------------------------------===//
+
+raw_ostream &operator<<(raw_ostream &os, const Definition &def) {
+  if (def.isOperation())
+    os << *def.getOperation();
+  if (def.isInitialDefinition())
+    os << *def.getInitialDefinition();
+  return os;
+}
+
+//===----------------------------------------------------------------------===//
 // ReachingDefinition
 //===----------------------------------------------------------------------===//
 
@@ -40,8 +69,8 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
           if (valModifiers.empty())
             os.indent(6) << "<none>\n";
           else {
-            for (Operation *op : valModifiers)
-              os.indent(6) << *op << "\n";
+            for (const ReachingDefinition::DefinitionPtr &def : valModifiers)
+              os.indent(6) << *def << "\n";
           }
           os << "\n";
         }
@@ -50,6 +79,22 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
   printMap(lastDef.valueToModifiers, "mods:");
   printMap(lastDef.valueToPotentialModifiers, "pMods:");
   return os;
+}
+
+ReachingDefinition::ReachingDefinition(ProgramPoint p)
+    : AbstractDenseLattice(p) {
+  // Upon creating a new reaching definition at the start of a function, each
+  // memory argument is set to have an unknown initial value.
+  if (auto *block = p.dyn_cast<Block *>()) {
+    if (block->isEntryBlock()) {
+      if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
+        for (Value arg : funcOp.getArguments()) {
+          if (isa<MemRefType>(arg.getType()))
+            setModifier(arg, new Definition());
+        }
+      }
+    }
+  }
 }
 
 ChangeResult ReachingDefinition::join(const AbstractDenseLattice &lattice) {
@@ -84,14 +129,14 @@ ChangeResult ReachingDefinition::reset() {
   return ChangeResult::Change;
 }
 
-ChangeResult ReachingDefinition::setModifier(Value val, Operation *op) {
+ChangeResult ReachingDefinition::setModifier(Value val, DefinitionPtr def) {
   ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
-  assert((mods.size() != 1 || mods.front() != op) &&
+  assert((mods.size() != 1 || mods.front() != def) &&
          "seen this modifier already");
 
   // Set the new modifier and clear out all previous definitions.
   mods.clear();
-  mods.insert(op);
+  mods.insert(def);
   valueToPotentialModifiers[val].clear();
   return ChangeResult::Change;
 }
@@ -107,9 +152,9 @@ ChangeResult ReachingDefinition::removeModifiers(Value val) {
 }
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
-                                                      Operation *op) {
-  return (valueToPotentialModifiers[val].insert(op)) ? ChangeResult::Change
-                                                     : ChangeResult::NoChange;
+                                                      DefinitionPtr def) {
+  return (valueToPotentialModifiers[val].insert(def)) ? ChangeResult::Change
+                                                      : ChangeResult::NoChange;
 }
 
 ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
@@ -122,14 +167,14 @@ ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
   return ChangeResult::NoChange;
 }
 
-std::optional<ArrayRef<Operation *>>
+std::optional<ArrayRef<ReachingDefinition::DefinitionPtr>>
 ReachingDefinition::getModifiers(Value val) const {
   if (valueToModifiers.contains(val))
     return valueToModifiers.at(val).getArrayRef();
   return std::nullopt;
 }
 
-std::optional<ArrayRef<Operation *>>
+std::optional<ArrayRef<ReachingDefinition::DefinitionPtr>>
 ReachingDefinition::getPotentialModifiers(Value val) const {
   if (valueToPotentialModifiers.contains(val))
     return valueToPotentialModifiers.at(val).getArrayRef();
@@ -142,20 +187,21 @@ ReachingDefinition::getPotentialModifiers(Value val) const {
 
 void ReachingDefinitionAnalysis::setToEntryState(ReachingDefinition *lattice) {
   /// Set the initial state (nothing is known about reaching definitions).
-  propagateIfChanged(lattice, lattice->reset());
+  ProgramPoint p = lattice->getPoint();
+  propagateIfChanged(
+      lattice, lattice->join(ReachingDefinition::getUnknownDefinition(p)));
 }
 
 void ReachingDefinitionAnalysis::visitOperation(
     Operation *op, const ReachingDefinition &before,
     ReachingDefinition *after) {
-  LLVM_DEBUG(llvm::dbgs() << "ReachingDefinitionAnalysis - Visit: " << *op
-                          << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Visit: " << *op << "\n");
 
-  // Initialize the alias queries for the current function.
+  // Upon entering a function we need to create the alias oracle for the
+  // current function and transfer the input state.
   if (auto funcOp = dyn_cast<FunctionOpInterface>(op)) {
-    aliasQueriesMap[funcOp] =
-        std::make_unique<AliasQueries>(funcOp, aliasAnalysis);
-    return;
+    aliasOracles[funcOp] = std::make_unique<AliasOracle>(funcOp, aliasAnalysis);
+    return propagateIfChanged(after, after->join(before));
   }
 
   // If an operation has unknown memory effects assume we can't deduce
@@ -170,9 +216,9 @@ void ReachingDefinitionAnalysis::visitOperation(
   ChangeResult result = ChangeResult::NoChange;
   after->join(before);
 
-  // Retrieve the alias utilities for the function this operation belongs to.
+  // Retrieve the alias oracle for the function this operation belongs to.
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
-  AliasQueries &aliasQueries = *aliasQueriesMap[funcOp];
+  AliasOracle &aliasOracle = *aliasOracles[funcOp];
 
   // Analyze the operation's memory effects.
   SmallVector<MemoryEffects::EffectInstance> effects;
@@ -193,18 +239,19 @@ void ReachingDefinitionAnalysis::visitOperation(
     TypeSwitch<MemoryEffects::Effect *>(effect.getEffect())
         .Case<MemoryEffects::Allocate>([&](auto) {
           // An allocate operation creates a definition for the current value.
-          result |= after->setModifier(val, op);
+          result |= after->setModifier(val, new Definition(op));
         })
         .Case<MemoryEffects::Write>([&](auto) {
           // A write operation updates the definition of the current value
           // and the definition of its definitely aliased values. It also
           // updates the potential definitions of values that may alias the
           // current value.
-          result |= after->setModifier(val, op);
-          for (Value aliasedVal : aliasQueries.getMustAlias(val))
-            result |= after->setModifier(aliasedVal, op);
-          for (Value aliasedVal : aliasQueries.getMayAlias(val))
-            result |= after->addPotentialModifier(aliasedVal, op);
+          result |= after->setModifier(val, new Definition(op));
+          for (Value aliasedVal : aliasOracle.getMustAlias(val))
+            result |= after->setModifier(aliasedVal, new Definition(op));
+          for (Value aliasedVal : aliasOracle.getMayAlias(val))
+            result |=
+                after->addPotentialModifier(aliasedVal, new Definition(op));
         })
         .Case<MemoryEffects::Free>([&](auto) {
           // A deallocate operation kills reaching definitions of the
@@ -212,9 +259,9 @@ void ReachingDefinitionAnalysis::visitOperation(
           // kills the potential definitions of values that may alias the
           // current value.
           result |= after->removeModifiers(val);
-          for (Value aliasedVal : aliasQueries.getMustAlias(val))
+          for (Value aliasedVal : aliasOracle.getMustAlias(val))
             result |= after->removeModifiers(aliasedVal);
-          for (Value aliasedVal : aliasQueries.getMayAlias(val))
+          for (Value aliasedVal : aliasOracle.getMayAlias(val))
             result |= after->removePotentialModifiers(aliasedVal);
         });
   }

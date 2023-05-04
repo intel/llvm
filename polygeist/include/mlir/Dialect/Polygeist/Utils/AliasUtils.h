@@ -17,11 +17,11 @@ class AliasAnalysis;
 namespace polygeist {
 
 /// A class to perform queries related to aliased values.
-class AliasQueries {
-  friend raw_ostream &operator<<(raw_ostream &, const AliasQueries &);
+class AliasOracle {
+  friend raw_ostream &operator<<(raw_ostream &, const AliasOracle &);
 
 public:
-  AliasQueries(FunctionOpInterface &funcOp, mlir::AliasAnalysis &aliasAnalysis);
+  AliasOracle(FunctionOpInterface &funcOp, mlir::AliasAnalysis &aliasAnalysis);
 
   /// Return the set of values that are definitely aliased to \p val.
   SetVector<Value> getMustAlias(Value val) const {

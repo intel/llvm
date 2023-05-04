@@ -15,9 +15,63 @@
 
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
-
+#include <variant>
 namespace mlir {
 namespace polygeist {
+
+/// Represents a definition that is unknown.
+class InitialDefinition {
+  friend raw_ostream &operator<<(raw_ostream &, const InitialDefinition &);
+
+public:
+  InitialDefinition(InitialDefinition &) = delete;
+  void operator=(const InitialDefinition &) = delete;
+
+  static InitialDefinition *getInstance();
+
+private:
+  InitialDefinition() = default;
+
+  static InitialDefinition *singleton;
+};
+
+/// Represents an operation that modifies a memory resource, or the initial
+/// definition.
+class Definition {
+  friend raw_ostream &operator<<(raw_ostream &, const Definition &);
+
+public:
+  Definition(Operation *op) : def(op) {}
+  Definition() : def(InitialDefinition::getInstance()) {}
+
+  bool operator==(const Definition &other) const {
+    if (isOperation() && other.isOperation())
+      return getOperation() == other.getOperation();
+    if (isInitialDefinition() && other.isInitialDefinition())
+      return true;
+    return false;
+  }
+
+  bool operator!=(const Definition &other) const { return !(*this == other); }
+
+  bool isOperation() const { return std::holds_alternative<Operation *>(def); }
+  bool isInitialDefinition() const {
+    return std::holds_alternative<InitialDefinition *>(def);
+  }
+
+  Operation *getOperation() const {
+    assert(isOperation() && "expecting operation");
+    return std::get<Operation *>(def);
+  }
+
+  InitialDefinition *getInitialDefinition() const {
+    assert(isInitialDefinition() && "expecting initial definition");
+    return std::get<InitialDefinition *>(def);
+  }
+
+private:
+  std::variant<Operation *, InitialDefinition *> def;
+};
 
 /// This lattice represents the set of operations that might have modified a
 /// memory resource last (in at least one control flow path).
@@ -46,8 +100,17 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ReachingDefinition)
 
   using AbstractDenseLattice::AbstractDenseLattice;
-  using ModifiersTy = SetVector<Operation *, SmallVector<Operation *>,
-                                SmallPtrSet<Operation *, 2>>;
+  using DefinitionPtr = Definition *;
+  using ModifiersTy = SetVector<DefinitionPtr, SmallVector<DefinitionPtr>,
+                                SmallPtrSet<DefinitionPtr, 2>>;
+
+  explicit ReachingDefinition(ProgramPoint p);
+
+  /// Construct an unknown definition. This is to represent the incoming
+  /// definition at an entry point.
+  static ReachingDefinition getUnknownDefinition(ProgramPoint p) {
+    return ReachingDefinition(p);
+  }
 
   /// Union the reaching definitions from \p lattice.
   ChangeResult join(const AbstractDenseLattice &lattice) override;
@@ -55,32 +118,32 @@ public:
   /// Reset the state.
   ChangeResult reset();
 
-  /// Set operation \p op as a definite modifier of value \p val.
-  ChangeResult setModifier(Value val, Operation *op);
+  /// Set definition \p def as a definite modifier of value \p val.
+  ChangeResult setModifier(Value val, DefinitionPtr def);
 
   /// Remove all definite modifiers of value \p val.
   ChangeResult removeModifiers(Value val);
 
-  /// Add operation \p op as a possible modifier of value \p val.
-  ChangeResult addPotentialModifier(Value val, Operation *op);
+  /// Add definition \p def as a possible modifier of value \p val.
+  ChangeResult addPotentialModifier(Value val, DefinitionPtr def);
 
   /// Remove all potential modifiers of value \p val.
   ChangeResult removePotentialModifiers(Value val);
 
-  /// Get the operations that have modified \p val.
-  std::optional<ArrayRef<Operation *>> getModifiers(Value val) const;
+  /// Get the definitions that have modified \p val.
+  std::optional<ArrayRef<DefinitionPtr>> getModifiers(Value val) const;
 
-  /// Get the operations that have possibly modified \p val.
-  std::optional<ArrayRef<Operation *>> getPotentialModifiers(Value val) const;
+  /// Get the definition that have possibly modified \p val.
+  std::optional<ArrayRef<DefinitionPtr>> getPotentialModifiers(Value val) const;
 
   void print(raw_ostream &os) const override { os << *this; }
 
 private:
-  /// A map between a memory resource (Value) and the operations that have
+  /// A map between a memory resource (Value) and the definitions that have
   /// modified the memory resource last.
   DenseMap<Value, ModifiersTy> valueToModifiers;
 
-  /// A map between a memory resource (Value) and the operations that
+  /// A map between a memory resource (Value) and the definitions that
   /// might have modified the memory resource last because of aliasing.
   DenseMap<Value, ModifiersTy> valueToPotentialModifiers;
 };
@@ -109,7 +172,7 @@ public:
   void setToEntryState(ReachingDefinition *lattice) override;
 
 private:
-  DenseMap<FunctionOpInterface, std::unique_ptr<AliasQueries>> aliasQueriesMap;
+  DenseMap<FunctionOpInterface, std::unique_ptr<AliasOracle>> aliasOracles;
   mlir::AliasAnalysis &aliasAnalysis;
 };
 
