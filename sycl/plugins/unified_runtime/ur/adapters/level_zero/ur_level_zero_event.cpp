@@ -813,7 +813,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
         for (auto &MemAlloc : Kernel->MemAllocs) {
           // std::pair<void *const, MemAllocRecord> *, Hash
           USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                        MemAlloc->second.OwnZeMemHandle);
+                        MemAlloc->second.OwnNativeHandle);
         }
         Kernel->MemAllocs.clear();
       }

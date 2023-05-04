@@ -393,17 +393,15 @@ struct _ur_object {
 // for each memory allocation.
 struct MemAllocRecord : _ur_object {
   MemAllocRecord(ur_context_handle_t Context, bool OwnZeMemHandle = true)
-      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
+      : Context(Context) {
+    OwnNativeHandle = OwnZeMemHandle;
+  }
   // Currently kernel can reference memory allocations from different contexts
   // and we need to know the context of a memory allocation when we release it
   // in piKernelRelease.
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   ur_context_handle_t Context;
-
-  // Indicates if we own the native memory handle or it came from interop that
-  // asked to not transfer the ownership to SYCL RT.
-  bool OwnZeMemHandle;
 };
 
 extern usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
