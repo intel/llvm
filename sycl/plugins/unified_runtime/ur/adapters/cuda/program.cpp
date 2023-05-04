@@ -442,3 +442,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     ur_program_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
+    ur_device_handle_t hDevice, ur_program_handle_t hProgram,
+    const char *pFunctionName, void **ppFunctionPointer) {
+  // Check if device passed is the same the device bound to the context
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice == hProgram->get_context()->get_device(),
+            UR_RESULT_ERROR_INVALID_DEVICE);
+  UR_ASSERT(ppFunctionPointer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  CUfunction func;
+  CUresult ret = cuModuleGetFunction(&func, hProgram->get(), pFunctionName);
+  *ppFunctionPointer = func;
+  ur_result_t retError = UR_RESULT_SUCCESS;
+
+  if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
+    retError = UR_CHECK_ERROR(ret);
+  if (ret == CUDA_ERROR_NOT_FOUND) {
+    *ppFunctionPointer = 0;
+    retError = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+  }
+
+  return retError;
+}

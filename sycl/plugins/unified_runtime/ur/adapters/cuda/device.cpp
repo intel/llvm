@@ -1145,3 +1145,28 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
 
   return UR_RESULT_SUCCESS;
 }
+
+/// \return If available, the first binary that is PTX
+///
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
+    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
+    uint32_t NumBinaries, uint32_t *pSelectedBinary) {
+  // Ignore unused parameter
+  (void)hDevice;
+
+  UR_ASSERT(pBinaries, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
+
+  // Look for an image for the NVPTX64 target, and return the first one that is
+  // found
+  for (uint32_t i = 0; i < NumBinaries; i++) {
+    if (strcmp(pBinaries[i].pDeviceTargetSpec,
+               UR_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+      *pSelectedBinary = i;
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // No image can be loaded for the given device
+  return UR_RESULT_ERROR_INVALID_BINARY;
+}

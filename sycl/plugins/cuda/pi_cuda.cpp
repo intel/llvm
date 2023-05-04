@@ -253,58 +253,6 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 
 //-- PI API implementation
 extern "C" {
-/// \return If available, the first binary that is PTX
-///
-pi_result cuda_piextDeviceSelectBinary(pi_device device,
-                                       pi_device_binary *binaries,
-                                       pi_uint32 num_binaries,
-                                       pi_uint32 *selected_binary) {
-  // Ignore unused parameter
-  (void)device;
-
-  if (!binaries) {
-    sycl::detail::pi::die("No list of device images provided");
-  }
-  if (num_binaries < 1) {
-    sycl::detail::pi::die("No binary images in the list");
-  }
-
-  // Look for an image for the NVPTX64 target, and return the first one that is
-  // found
-  for (pi_uint32 i = 0; i < num_binaries; i++) {
-    if (strcmp(binaries[i]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
-      *selected_binary = i;
-      return PI_SUCCESS;
-    }
-  }
-
-  // No image can be loaded for the given device
-  return PI_ERROR_INVALID_BINARY;
-}
-
-pi_result cuda_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
-                                             pi_program program,
-                                             const char *func_name,
-                                             pi_uint64 *func_pointer_ret) {
-  // Check if device passed is the same the device bound to the context
-  assert(device == program->get_context()->get_device());
-  assert(func_pointer_ret != nullptr);
-
-  CUfunction func;
-  CUresult ret = cuModuleGetFunction(&func, program->get(), func_name);
-  *func_pointer_ret = reinterpret_cast<pi_uint64>(func);
-  pi_result retError = PI_SUCCESS;
-
-  if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
-    retError = PI_CHECK_ERROR(ret);
-  if (ret == CUDA_ERROR_NOT_FOUND) {
-    *func_pointer_ret = 0;
-    retError = PI_ERROR_INVALID_KERNEL_NAME;
-  }
-
-  return retError;
-}
 
 /// Host Pipes
 pi_result cuda_piextEnqueueReadHostPipe(
@@ -375,8 +323,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDevicePartition, pi2ur::piDevicePartition)
   _PI_CL(piDeviceRetain, pi2ur::piDeviceRetain)
   _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
-  _PI_CL(piextDeviceSelectBinary, cuda_piextDeviceSelectBinary)
-  _PI_CL(piextGetDeviceFunctionPointer, cuda_piextGetDeviceFunctionPointer)
+  _PI_CL(piextDeviceSelectBinary, pi2ur::piextDeviceSelectBinary)
+  _PI_CL(piextGetDeviceFunctionPointer, pi2ur::piextGetDeviceFunctionPointer)
   _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          pi2ur::piextDeviceCreateWithNativeHandle)
