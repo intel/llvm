@@ -24,8 +24,8 @@ template <class T, int BLOCK_WIDTH, int BLOCK_HEIGHT, int NUM_BLOCKS,
 SYCL_EXTERNAL auto test_load(T *ptr, int width, int height,
                              int pitch) SYCL_ESIMD_FUNCTION {
   return lsc_load_2d<T, BLOCK_WIDTH, BLOCK_HEIGHT, NUM_BLOCKS, TRANSPOSE,
-                    TRANSFORM, L1H, L3H>(ptr, width * sizeof(T) - 1, height - 1,
-                                         pitch * sizeof(T) - 1, 0, 0);
+                     TRANSFORM, L1H, L3H>(
+      ptr, width * sizeof(T) - 1, height - 1, pitch * sizeof(T) - 1, 0, 0);
 }
 
 template <class T, int BLOCK_WIDTH, int BLOCK_HEIGHT, int NUM_BLOCKS,
