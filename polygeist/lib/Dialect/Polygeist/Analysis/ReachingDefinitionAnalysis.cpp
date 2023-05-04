@@ -32,7 +32,8 @@ InitialDefinition *InitialDefinition::getInstance() {
 }
 
 raw_ostream &operator<<(raw_ostream &os, const InitialDefinition &def) {
-  os << "<initial definition>";
+  os << "<initial>"
+     << "(" << &def << ")";
   return os;
 }
 
@@ -46,6 +47,15 @@ raw_ostream &operator<<(raw_ostream &os, const Definition &def) {
   if (def.isInitialDefinition())
     os << *def.getInitialDefinition();
   return os;
+}
+
+bool Definition::operator==(const Definition &other) const {
+  llvm::dbgs() << "at line" << __LINE__ << "\n";
+  if (isOperation() && other.isOperation())
+    return getOperation() == other.getOperation();
+  if (isInitialDefinition() && other.isInitialDefinition())
+    return true;
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -69,7 +79,7 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
           if (valModifiers.empty())
             os.indent(6) << "<none>\n";
           else {
-            for (const ReachingDefinition::DefinitionPtr &def : valModifiers)
+            for (const Definition *def : valModifiers)
               os.indent(6) << *def << "\n";
           }
           os << "\n";
@@ -109,6 +119,7 @@ ChangeResult ReachingDefinition::join(const AbstractDenseLattice &lattice) {
 
       ModifiersTy &currentModifiers = currentMap[val];
       const std::size_t size = currentModifiers.size();
+      // TODO: the <initial> definition is added more than once.
       currentModifiers.insert(newModifiers.begin(), newModifiers.end());
       if (currentModifiers.size() != size)
         result |= ChangeResult::Change;
@@ -129,7 +140,7 @@ ChangeResult ReachingDefinition::reset() {
   return ChangeResult::Change;
 }
 
-ChangeResult ReachingDefinition::setModifier(Value val, DefinitionPtr def) {
+ChangeResult ReachingDefinition::setModifier(Value val, Definition *def) {
   ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
   assert((mods.size() != 1 || mods.front() != def) &&
          "seen this modifier already");
@@ -152,7 +163,7 @@ ChangeResult ReachingDefinition::removeModifiers(Value val) {
 }
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
-                                                      DefinitionPtr def) {
+                                                      Definition *def) {
   return (valueToPotentialModifiers[val].insert(def)) ? ChangeResult::Change
                                                       : ChangeResult::NoChange;
 }
@@ -167,14 +178,14 @@ ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
   return ChangeResult::NoChange;
 }
 
-std::optional<ArrayRef<ReachingDefinition::DefinitionPtr>>
+std::optional<ArrayRef<Definition *>>
 ReachingDefinition::getModifiers(Value val) const {
   if (valueToModifiers.contains(val))
     return valueToModifiers.at(val).getArrayRef();
   return std::nullopt;
 }
 
-std::optional<ArrayRef<ReachingDefinition::DefinitionPtr>>
+std::optional<ArrayRef<Definition *>>
 ReachingDefinition::getPotentialModifiers(Value val) const {
   if (valueToPotentialModifiers.contains(val))
     return valueToPotentialModifiers.at(val).getArrayRef();
@@ -188,8 +199,14 @@ ReachingDefinition::getPotentialModifiers(Value val) const {
 void ReachingDefinitionAnalysis::setToEntryState(ReachingDefinition *lattice) {
   /// Set the initial state (nothing is known about reaching definitions).
   ProgramPoint p = lattice->getPoint();
+
+  llvm::dbgs().indent(2) << "Before:\n";
+  llvm::dbgs() << *lattice;
+
   propagateIfChanged(
       lattice, lattice->join(ReachingDefinition::getUnknownDefinition(p)));
+  llvm::dbgs().indent(2) << "Updated ReachingDef:\n";
+  llvm::dbgs() << *lattice;
 }
 
 void ReachingDefinitionAnalysis::visitOperation(
@@ -201,7 +218,15 @@ void ReachingDefinitionAnalysis::visitOperation(
   // current function and transfer the input state.
   if (auto funcOp = dyn_cast<FunctionOpInterface>(op)) {
     aliasOracles[funcOp] = std::make_unique<AliasOracle>(funcOp, aliasAnalysis);
-    return propagateIfChanged(after, after->join(before));
+    auto result = after->join(before);
+    propagateIfChanged(after, result);
+    LLVM_DEBUG({
+      if (result == ChangeResult::Change) {
+        llvm::dbgs().indent(2) << "Updated ReachingDef:\n";
+        llvm::dbgs() << *after;
+      }
+    });
+    return;
   }
 
   // If an operation has unknown memory effects assume we can't deduce

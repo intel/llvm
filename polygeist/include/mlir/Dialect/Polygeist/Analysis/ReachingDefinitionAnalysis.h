@@ -25,7 +25,10 @@ class InitialDefinition {
 
 public:
   InitialDefinition(InitialDefinition &) = delete;
-  void operator=(const InitialDefinition &) = delete;
+  bool operator=(const InitialDefinition &) = delete;
+  bool operator==(const InitialDefinition &) const { return true; }
+  bool operator!=(const InitialDefinition &) const { return false; }
+  bool operator<(const InitialDefinition &) const { return false; }
 
   static InitialDefinition *getInstance();
 
@@ -44,14 +47,7 @@ public:
   Definition(Operation *op) : def(op) {}
   Definition() : def(InitialDefinition::getInstance()) {}
 
-  bool operator==(const Definition &other) const {
-    if (isOperation() && other.isOperation())
-      return getOperation() == other.getOperation();
-    if (isInitialDefinition() && other.isInitialDefinition())
-      return true;
-    return false;
-  }
-
+  bool operator==(const Definition &other) const;
   bool operator!=(const Definition &other) const { return !(*this == other); }
 
   bool isOperation() const { return std::holds_alternative<Operation *>(def); }
@@ -100,9 +96,8 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ReachingDefinition)
 
   using AbstractDenseLattice::AbstractDenseLattice;
-  using DefinitionPtr = Definition *;
-  using ModifiersTy = SetVector<DefinitionPtr, SmallVector<DefinitionPtr>,
-                                SmallPtrSet<DefinitionPtr, 2>>;
+  using ModifiersTy = SetVector<Definition *, SmallVector<Definition *>,
+                                SmallPtrSet<Definition *, 2>>;
 
   explicit ReachingDefinition(ProgramPoint p);
 
@@ -119,22 +114,22 @@ public:
   ChangeResult reset();
 
   /// Set definition \p def as a definite modifier of value \p val.
-  ChangeResult setModifier(Value val, DefinitionPtr def);
+  ChangeResult setModifier(Value val, Definition *def);
 
   /// Remove all definite modifiers of value \p val.
   ChangeResult removeModifiers(Value val);
 
   /// Add definition \p def as a possible modifier of value \p val.
-  ChangeResult addPotentialModifier(Value val, DefinitionPtr def);
+  ChangeResult addPotentialModifier(Value val, Definition *def);
 
   /// Remove all potential modifiers of value \p val.
   ChangeResult removePotentialModifiers(Value val);
 
   /// Get the definitions that have modified \p val.
-  std::optional<ArrayRef<DefinitionPtr>> getModifiers(Value val) const;
+  std::optional<ArrayRef<Definition *>> getModifiers(Value val) const;
 
   /// Get the definition that have possibly modified \p val.
-  std::optional<ArrayRef<DefinitionPtr>> getPotentialModifiers(Value val) const;
+  std::optional<ArrayRef<Definition *>> getPotentialModifiers(Value val) const;
 
   void print(raw_ostream &os) const override { os << *this; }
 
