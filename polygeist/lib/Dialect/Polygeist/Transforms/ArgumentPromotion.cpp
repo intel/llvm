@@ -62,9 +62,9 @@ static bool isValidMemRefType(Type type) {
   if (!isMemRefWithExpectedShape)
     return false;
 
-  auto structType = dyn_cast<LLVM::LLVMStructType>(mt.getElementType());
+  auto structType = dyn_cast<polygeist::StructType>(mt.getElementType());
   if (!structType || llvm::any_of(structType.getBody(), [](Type memType) {
-        return isa<LLVM::LLVMStructType>(memType);
+        return isa<LLVM::LLVMStructType, polygeist::StructType>(memType);
       }))
     return false;
   return true;
@@ -240,7 +240,7 @@ void CandidateOperand::peel(CallOpInterface callOp,
                             SmallVectorImpl<Value> &membersPeeled) const {
   OpBuilder builder(callOp);
   auto memRefType = cast<MemRefType>(val.getType());
-  auto structType = cast<LLVM::LLVMStructType>(memRefType.getElementType());
+  auto structType = cast<polygeist::StructType>(memRefType.getElementType());
   unsigned numMembers = structType.getBody().size();
 
   // Generate code to peel the struct members.

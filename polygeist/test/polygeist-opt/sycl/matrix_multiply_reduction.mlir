@@ -32,14 +32,14 @@
 
 gpu.module @device_func {
   gpu.func @caller() kernel {
-    %alloca = memref.alloca() : memref<1x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>
-    %cast = memref.cast %alloca : memref<1x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4> to memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>
+    %alloca = memref.alloca() : memref<1x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>
+    %cast = memref.cast %alloca : memref<1x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4> to memref<?x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>
     %i = arith.constant 0 : i32
-    func.call @matrix_multiply_reduction(%cast, %i) : (memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, i32) -> ()
+    func.call @matrix_multiply_reduction(%cast, %i) : (memref<?x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, i32) -> ()
     gpu.return
   }
 
-  func.func private @matrix_multiply_reduction(%arg0: memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, %arg1: i32) {
+  func.func private @matrix_multiply_reduction(%arg0: memref<?x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, %arg1: i32) {
     %c2048 = arith.constant 2048 : index
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -59,7 +59,7 @@ gpu.module @device_func {
     %cast_9 = memref.cast %alloca_8 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
     scf.for %arg2 = %c0 to %c2048 step %c1 {
       %4 = arith.index_cast %arg2 : index to i32
-      %5 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_read_1_, 4>
+      %5 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_read_1_, 4>
       %6 = arith.muli %arg1, %c2048_i32 : i32
       %7 = arith.addi %6, %4 : i32
       %8 = arith.extui %7 : i32 to i64
@@ -69,7 +69,7 @@ gpu.module @device_func {
       affine.store %9, %alloca_6[0] : memref<1x!sycl_id_1_>
       %10 = sycl.accessor.subscript %5[%cast_7] : (memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
       %11 = affine.load %10[0] : memref<?xf32, 4>
-      %12 = "polygeist.subindex"(%arg0, %c2) : (memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_read_1_, 4>
+      %12 = "polygeist.subindex"(%arg0, %c2) : (memref<?x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_read_1_, 4>
       %13 = arith.muli %4, %c2048_i32 : i32
       %14 = arith.addi %13, %arg1 : i32
       %15 = arith.extui %14 : i32 to i64
@@ -80,7 +80,7 @@ gpu.module @device_func {
       %17 = sycl.accessor.subscript %12[%cast_3] : (memref<?x!sycl_accessor_read_1_, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
       %18 = affine.load %17[0] : memref<?xf32, 4>
       %19 = arith.mulf %11, %18 : f32
-      %20 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_write_1_, 4>
+      %20 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!polygeist.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, index) -> memref<?x!sycl_accessor_write_1_, 4>
       %21 = arith.addi %6, %arg1 : i32
       %22 = arith.extui %21 : i32 to i64
       %memspacecast_11 = memref.memory_space_cast %cast_1 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
