@@ -1202,3 +1202,12 @@ inline pi_result mock_piextEnqueueWriteHostPipe(
   *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
+
+inline pi_result mock_piextUSMImport(void *HostPtr, size_t Size,
+                                     pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextUSMRelease(void *HostPtr, pi_context Context) {
+  return PI_SUCCESS;
+}
