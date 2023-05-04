@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S -O0 | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S -O0 | FileCheck %s
 
 #include <cstddef>
 

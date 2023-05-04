@@ -1,4 +1,4 @@
-// RUN: cgeist %s -O0 -w --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s -O0 -w --function=* -S | FileCheck %s
 
 struct Compare {
   bool lt;

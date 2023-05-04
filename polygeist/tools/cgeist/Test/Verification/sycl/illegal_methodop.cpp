@@ -1,4 +1,4 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
 

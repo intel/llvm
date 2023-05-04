@@ -1,4 +1,4 @@
-// RUN: cgeist %s %stdinclude --function=func -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s %stdinclude --function=func -S | FileCheck %s
 
 float hload(const void* data);
 
@@ -16,9 +16,10 @@ float func(struct OperandInfo* op) {
 }
 }
 
-// CHECK:   func @func(%arg0: !llvm.ptr<struct<(i8, ptr<i8>, i8)>>) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %[[i2:.+]] = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<(i8, ptr<i8>, i8)>>) -> !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:     %[[i3:.+]] = llvm.load %[[i2]] : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:     %[[i4:.+]] = call @_Z5hloadPKv(%[[i3]]) : (!llvm.ptr<i8>) -> f32
-// CHECK-NEXT:     return %[[i4]] : f32
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @func(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i8, ptr, i8)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = call @_Z5hloadPKv(%[[VAL_2]]) : (!llvm.ptr) -> f32
+// CHECK-NEXT:      return %[[VAL_3]] : f32
+// CHECK-NEXT:    }

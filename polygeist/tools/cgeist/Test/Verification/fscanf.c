@@ -1,4 +1,4 @@
-// RUN: cgeist %s -O2 %stdinclude --function=alloc -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s -O2 %stdinclude --function=alloc -S --raise-scf-to-affine=false | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,32 +19,34 @@ int* alloc() {
 	return h_graph_nodes;
 }
 
-// CHECK: llvm.mlir.global internal constant @str1("%d\0A\00")
-// CHECK-NEXT: llvm.mlir.global internal constant @str0("%d\00")
-// CHECK-NEXT: llvm.func @__isoc99_scanf(!llvm.ptr<i8>, ...) -> i32
-// CHECK:  func @alloc() -> memref<?xi32>
-// CHECK-DAG:    %c1 = arith.constant 1 : index
-// CHECK-DAG:    %c0 = arith.constant 0 : index
-// CHECK-DAG:    %c4 = arith.constant 4 : index
-// CHECK-DAG:    %c4_i64 = arith.constant 4 : i6
-// CHECK-DAG:    %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:    %0 = llvm.alloca %c1_i64 x i32 : (i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %1 = llvm.mlir.addressof @str0 : !llvm.ptr<array<3 x i8>>
-// CHECK-NEXT:    %2 = llvm.getelementptr inbounds %1[0, 0] : (!llvm.ptr<array<3 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    %3 = llvm.call @__isoc99_scanf(%2, %0) : (!llvm.ptr<i8>, !llvm.ptr<i32>) -> i32
-// CHECK-NEXT:    %4 = llvm.load %0 : !llvm.ptr<i32>
-// CHECK-NEXT:    %5 = arith.extsi %4 : i32 to i64
-// CHECK-NEXT:    %6 = arith.muli %5, %c4_i64 : i64
-// CHECK-NEXT:    %7 = arith.index_cast %6 : i64 to index
-// CHECK-NEXT:    %8 = arith.divui %7, %c4 : index
-// CHECK-NEXT:    %[[i8:.+]] = memref.alloc(%8) : memref<?xi32>
-// CHECK-DAG:     %[[n:.+]] = arith.index_cast %4 : i32 to index
-// CHECK-DAG:     %[[i9:.+]] = llvm.mlir.addressof @str1 : !llvm.ptr<array<4 x i8>>
-// CHECK-DAG:     %[[i10:.+]] = llvm.getelementptr inbounds %[[i9]][0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    scf.for %arg0 = %c0 to %[[n]] step %c1 {
-// CHECK-NEXT:      %[[i13:.+]] = llvm.call @__isoc99_scanf(%[[i10]], %0) : (!llvm.ptr<i8>, !llvm.ptr<i32>) -> i32
-// CHECK-NEXT:      %[[i12:.+]] = llvm.load %0 : !llvm.ptr<i32>
-// CHECK-NEXT:      memref.store %[[i12]], %[[i8]][%arg0] : memref<?xi32>
+// CHECK-LABEL:   llvm.mlir.global internal constant @str1("
+// CHECK-SAME:                                              %d\0A\00") {addr_space = 0 : i32}
+// CHECK-NEXT:    llvm.mlir.global internal constant @str0("%d\00") {addr_space = 0 : i32}
+// CHECK-NEXT:    llvm.func @__isoc99_scanf(!llvm.ptr, ...) -> i32 attributes {sym_visibility = "private"}
+
+// CHECK-LABEL:   func.func @alloc() -> memref<?xi32> attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 0 : index
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : index
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 4 : index
+// CHECK-NEXT:      %[[VAL_3:.*]] = arith.constant 4 : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_4]] x i32 : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_6]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<3 x i8>
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.call @__isoc99_scanf(%[[VAL_7]], %[[VAL_5]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> i32
+// CHECK-NEXT:      %[[VAL_10:.*]] = arith.extsi %[[VAL_9]] : i32 to i64
+// CHECK-NEXT:      %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_3]] : i64
+// CHECK-NEXT:      %[[VAL_12:.*]] = arith.index_cast %[[VAL_11]] : i64 to index
+// CHECK-NEXT:      %[[VAL_13:.*]] = arith.divui %[[VAL_12]], %[[VAL_2]] : index
+// CHECK-NEXT:      %[[VAL_14:.*]] = memref.alloc(%[[VAL_13]]) : memref<?xi32>
+// CHECK-NEXT:      %[[VAL_15:.*]] = llvm.mlir.addressof @str1 : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_16:.*]] = llvm.getelementptr inbounds %[[VAL_15]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i8>
+// CHECK-NEXT:      %[[VAL_17:.*]] = arith.index_cast %[[VAL_9]] : i32 to index
+// CHECK-NEXT:      scf.for %[[VAL_18:.*]] = %[[VAL_0]] to %[[VAL_17]] step %[[VAL_1]] {
+// CHECK-NEXT:        %[[VAL_19:.*]] = llvm.call @__isoc99_scanf(%[[VAL_16]], %[[VAL_5]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK-NEXT:        %[[VAL_20:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> i32
+// CHECK-NEXT:        memref.store %[[VAL_20]], %[[VAL_14]]{{\[}}%[[VAL_18]]] : memref<?xi32>
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return %[[VAL_14]] : memref<?xi32>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    return %[[i8]] : memref<?xi32>
-// CHECK-NEXT:  }

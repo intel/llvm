@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function='*' -S -std=c++14 | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function='*' -S -std=c++14 | FileCheck %s
 struct A {
   using TheType = int[4];
 };
@@ -10,17 +10,19 @@ void testArrayInitExpr()
   };
 }
 
-// CHECK: func.func private @_ZZ17testArrayInitExprvEN3$_0C1EOS_(%arg0: !llvm.ptr<struct<(array<4 x i32>)>>, %arg1: !llvm.ptr<struct<(array<4 x i32>)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(array<4 x i32>)>>) -> !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<array<4 x i32>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %2 = llvm.getelementptr inbounds %arg1[0, 0] : (!llvm.ptr<struct<(array<4 x i32>)>>) -> !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:     %3 = llvm.getelementptr inbounds %2[0, 0] : (!llvm.ptr<array<4 x i32>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     affine.for %arg2 = 0 to 4 {
-// CHECK-NEXT:       %4 = arith.index_cast %arg2 : index to i64
-// CHECK-NEXT:       %5 = llvm.getelementptr %1[%4] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:       %6 = llvm.getelementptr %3[%4] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:       %7 = llvm.load %6 : !llvm.ptr<i32>
-// CHECK-NEXT:       llvm.store %7, %5 : !llvm.ptr<i32>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func private @_ZZ17testArrayInitExprvEN3$_0C1EOS_(
+// CHECK-SAME:                                                           %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                                                           %[[VAL_1:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<internal>} {
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(array<4 x i32>)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(array<4 x i32>)>
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK-NEXT:      affine.for %[[VAL_6:.*]] = 0 to 4 {
+// CHECK-NEXT:        %[[VAL_7:.*]] = arith.index_cast %[[VAL_6]] : index to i64
+// CHECK-NEXT:        %[[VAL_8:.*]] = llvm.getelementptr %[[VAL_3]]{{\[}}%[[VAL_7]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
+// CHECK-NEXT:        %[[VAL_9:.*]] = llvm.getelementptr %[[VAL_5]]{{\[}}%[[VAL_7]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
+// CHECK-NEXT:        %[[VAL_10:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr -> i32
+// CHECK-NEXT:        llvm.store %[[VAL_10]], %[[VAL_8]] : i32, !llvm.ptr
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

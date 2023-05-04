@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 -w %s  --function=ll -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers -O0 -w %s  --function=ll -S | FileCheck %s
 
 struct alignas(2) Half {
   unsigned short x;
@@ -16,12 +16,12 @@ float ll(void* data) {
 
 }
 
-// CHECK:   func @ll(%arg0: !llvm.ptr<i8>) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i16)> : (i64) -> !llvm.ptr<struct<(i16)>>
-// CHECK-NEXT:     %1 = llvm.bitcast %arg0 : !llvm.ptr<i8> to !llvm.ptr<struct<(i16)>>
-// CHECK-NEXT:     call @_ZN4HalfC1ERKS_(%0, %1) : (!llvm.ptr<struct<(i16)>>, !llvm.ptr<struct<(i16)>>) -> ()
-// CHECK-NEXT:     %2 = llvm.load %0 : !llvm.ptr<struct<(i16)>>
-// CHECK-NEXT:     %3 = call @thing(%2) : (!llvm.struct<(i16)>) -> f32
-// CHECK-NEXT:     return %3 : f32
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @ll(
+// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i16)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      call @_ZN4HalfC1ERKS_(%[[VAL_2]], %[[VAL_0]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.struct<(i16)>
+// CHECK-NEXT:      %[[VAL_4:.*]] = call @thing(%[[VAL_3]]) : (!llvm.struct<(i16)>) -> f32
+// CHECK-NEXT:      return %[[VAL_4]] : f32
+// CHECK-NEXT:    }

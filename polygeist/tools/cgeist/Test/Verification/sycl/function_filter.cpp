@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir -Xcgeist -function=match %s -o - | FileCheck %s
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir -Xcgeist -function=match$ %s -o - | FileCheck %s --check-prefix=CHECK-END
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -emit-mlir -Xcgeist -function=match %s -o - | FileCheck %s
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -emit-mlir -Xcgeist -function=match$ %s -o - | FileCheck %s --check-prefix=CHECK-END
 
 // COM: No GPU functions.
 // CHECK-NOT: gpu.func

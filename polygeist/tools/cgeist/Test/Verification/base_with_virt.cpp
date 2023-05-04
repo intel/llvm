@@ -1,4 +1,4 @@
-// RUN: cgeist %s -O2 --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s -O2 --function=* -S | FileCheck %s
 
 class M {
 };
@@ -33,25 +33,31 @@ void a() {
     mbasic_stringbuf a;
 }
 
-// clang-format off
-// CHECK:   func @_Z1av() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)> : (i64) -> !llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>>
-// CHECK-NEXT:     call @_ZN16mbasic_stringbufC1Ev(%0) : (!llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZN16mbasic_stringbufC1Ev(%arg0: !llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>>) -> !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>
-// CHECK-NEXT:     call @_ZN1AC1Ev(%0) : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> ()
-// CHECK:          call @_ZN12_Alloc_hiderC1Ev
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZN1AC1Ev(%arg0: !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %c3_i32, %0 : !llvm.ptr<i32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func @_ZN12_Alloc_hiderC1Ev(%arg0: !llvm.ptr<struct<(ptr<i8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z1av() attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      call @_ZN16mbasic_stringbufC1Ev(%[[VAL_1]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN16mbasic_stringbufC1Ev(
+// CHECK-SAME:                                         %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>
+// CHECK-NEXT:      call @_ZN1AC1Ev(%[[VAL_1]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>
+// CHECK-NEXT:      call @_ZN12_Alloc_hiderC1Ev(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN1AC1Ev(
+// CHECK-SAME:                         %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 3 : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>
+// CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_2]] : i32, !llvm.ptr
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN12_Alloc_hiderC1Ev(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S -o - | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S -o - | FileCheck %s
 
 // COM: Return value of compound assignment differs in C and C++.
 

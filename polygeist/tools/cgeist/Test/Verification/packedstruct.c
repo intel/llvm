@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
 
 struct meta {
     long long a;
@@ -16,12 +16,13 @@ void compute(struct fin f) {
     run(f.f, f.dtype);
 }
 
-// CHECK:   func @compute(%arg0: !llvm.ptr<struct<(struct<(i64, i8)>, i8)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i64, i8)>, i8)>>) -> !llvm.ptr<struct<(i64, i8)>>
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<struct<(i64, i8)>>
-// CHECK-NEXT:     %2 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<(struct<(i64, i8)>, i8)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %3 = llvm.load %2 : !llvm.ptr<i8>
-// CHECK-NEXT:     %4 = call @run(%1, %3) : (!llvm.struct<(i64, i8)>, i8) -> i64
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @compute(
+// CHECK-SAME:                       %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(i64, i8)>, i8)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> !llvm.struct<(i64, i8)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(i64, i8)>, i8)>
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i8
+// CHECK-NEXT:      %[[VAL_5:.*]] = call @run(%[[VAL_2]], %[[VAL_4]]) : (!llvm.struct<(i64, i8)>, i8) -> i64
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
 

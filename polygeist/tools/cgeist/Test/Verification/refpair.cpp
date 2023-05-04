@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers -O0 -w %s --function=* -S | FileCheck %s
 
 extern "C" {
 
@@ -19,21 +19,22 @@ void kernel_deriche() {
 
 }
 
-// CHECK:   func @sub(%arg0: !llvm.ptr<struct<(i32, i32)>>)
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<i32>
-// CHECK-NEXT:     %2 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:     llvm.store %2, %0 : !llvm.ptr<i32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @sub(
+// CHECK-SAME:                   %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> i32
+// CHECK-NEXT:      %[[VAL_4:.*]] = arith.addi %[[VAL_3]], %[[VAL_1]] : i32
+// CHECK-NEXT:      llvm.store %[[VAL_4]], %[[VAL_2]] : i32, !llvm.ptr
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
 
-// CHECK:   func @kernel_deriche()
-// CHECK-DAG:      %c32_i32 = arith.constant 32 : i32
-// CHECK-DAG:      %c1_i64 = arith.constant 1 : i64
-// CHECK:          %0 = llvm.alloca %c1_i64 x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr<struct<(i32, i32)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %c32_i32, %1 : !llvm.ptr<i32>
-// CHECK-NEXT:     call @sub0(%0) : (!llvm.ptr<struct<(i32, i32)>>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @kernel_deriche() attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-DAG:       %[[VAL_0:.*]] = arith.constant 32 : i32
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_3]] : i32, !llvm.ptr
+// CHECK-NEXT:      call @sub0(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

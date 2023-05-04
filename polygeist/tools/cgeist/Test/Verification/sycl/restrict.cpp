@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -8,7 +8,7 @@
 
 extern "C" SYCL_EXTERNAL int test_int(int * __restrict__ a, int * __restrict__ b) {}
 
-// CHECK-MLIR-DAG: func.func @test_struct(%arg0: !llvm.ptr<struct<(i32)>, 4> {{{.*}}llvm.noalias{{.*}}}, %arg1: !llvm.ptr<struct<(i32)>, 4> {{{.*}}llvm.noalias{{.*}}})
+// CHECK-MLIR-DAG: func.func @test_struct(%arg0: !llvm.ptr<4> {{{.*}}llvm.noalias{{.*}}}, %arg1: !llvm.ptr<4> {{{.*}}llvm.noalias{{.*}}})
 // CHECK-LLVM-DAG: define spir_func void @test_struct({ i32 } addrspace(4)* noalias {{.*}}%0, { i32 } addrspace(4)* noalias {{.*}}%1)
 struct S {
   int i;
@@ -19,7 +19,7 @@ extern "C" SYCL_EXTERNAL void test_struct(struct S * __restrict__ a, struct S * 
 // CHECK-LLVM-DAG: define spir_func void @test_vec(%"class.sycl::_V1::vec" addrspace(4)* noalias {{.*}}%0, %"class.sycl::_V1::vec" addrspace(4)* noalias {{.*}}%1)
 extern "C" SYCL_EXTERNAL void test_vec(sycl::vec<sycl::cl_double, 16> * __restrict__ a, const sycl::vec<sycl::cl_double, 16> * __restrict__ b) {}
 
-// CHECK-MLIR-DAG: func.func @_ZN1B10test_classEP1APS_(%arg0: !llvm.ptr<struct<(i8)>, 4> {{.*}}, %arg1: !llvm.ptr<struct<(i8)>, 4> {llvm.noalias{{.*}}}, %arg2: !llvm.ptr<struct<(i8)>, 4> {llvm.noalias{{.*}}})
+// CHECK-MLIR-DAG: func.func @_ZN1B10test_classEP1APS_(%arg0: !llvm.ptr<4> {{.*}}, %arg1: !llvm.ptr<4> {llvm.noalias{{.*}}}, %arg2: !llvm.ptr<4> {llvm.noalias{{.*}}})
 // CHECK-LLVM-DAG: define linkonce_odr spir_func void @_ZN1B10test_classEP1APS_({ i8 } addrspace(4)* {{.*}}%0, { i8 } addrspace(4)* noalias {{.*}}%1, { i8 } addrspace(4)* noalias {{.*}}%2)
 class A {};
 class B {
