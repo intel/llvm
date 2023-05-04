@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp64
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -18,11 +19,6 @@ int main() {
   std::cout << "Running on "
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
-
-  if (!device_queue.get_device().has(sycl::aspect::fp64)) {
-    std::cout << "Test skipped on platform without fp64 support." << std::endl;
-    return 0;
-  }
 
   {
     std::initializer_list<double> input_vals = {
