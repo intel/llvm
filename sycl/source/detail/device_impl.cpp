@@ -116,7 +116,7 @@ typename Param::return_type device_impl::get_info() const {
   if (is_host()) {
     return get_device_info_host<Param>();
   }
-  return get_device_info<Param>(MPlatform->getDeviceImpl(MDevice));
+  return get_device_info<Param>(MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
 }
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
