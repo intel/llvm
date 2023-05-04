@@ -206,8 +206,8 @@ the expected count of the current phase by 1.
 
 This extension provides two convenience functions for `arrive` and `wait` with
 additional convergence requirements, to simplify reasoning about forward
-progress guarantees in common situations. Both of these functions act as
-synchronization points for all work-items in a group.
+progress guarantees in common situations. Both of these functions are
+_group functions_, as defined in Section 4.17.3 of the SYCL specification.
 
 [source,c++]
 ----
