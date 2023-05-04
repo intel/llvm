@@ -89,7 +89,7 @@ mlir::vector::isTranspose2DSlice(vector::TransposeOp op) {
 
   SmallVector<int64_t> transp;
   for (auto attr : op.getTransp())
-    transp.push_back(cast<IntegerAttr>(attr).getInt());
+    transp.push_back(attr.cast<IntegerAttr>().getInt());
 
   // Check whether the two source vector dimensions that are greater than one
   // must be transposed with each other so that we can apply one of the 2-D
