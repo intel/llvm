@@ -2039,20 +2039,17 @@ public:
   bool empty() const noexcept { return size() == 0; }
 
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
-  range<Dims> get_range() const {
-    if constexpr (Dimensions == 0)
-      return range<1>{1};
-    else
-      return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
+  range<Dimensions> get_range() const {
+    return detail::convertToArrayOfN<Dimensions, 1>(getAccessRange());
   }
 
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
-  id<Dims> get_offset() const {
+  id<Dimensions> get_offset() const {
     static_assert(
         !(PropertyListT::template has_property<
             sycl::ext::oneapi::property::no_offset>()),
         "Accessor has no_offset property, get_offset() can not be used");
-    return detail::convertToArrayOfN<Dims, 0>(getOffset());
+    return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
@@ -2204,28 +2201,28 @@ public:
     return iterator::getBegin(
         get_pointer(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
-        get_range<AdjustedDim>(), get_offset<AdjustedDim>());
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   iterator end() const noexcept {
     return iterator::getEnd(
         get_pointer(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
-        get_range<AdjustedDim>(), get_offset<AdjustedDim>());
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cbegin() const noexcept {
     return const_iterator::getBegin(
         get_pointer(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
-        get_range<AdjustedDim>(), get_offset<AdjustedDim>());
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cend() const noexcept {
     return const_iterator::getEnd(
         get_pointer(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
-        get_range<AdjustedDim>(), get_offset<AdjustedDim>());
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
@@ -2239,6 +2236,23 @@ public:
   }
 
 private:
+  template <int Dims, typename = std::enable_if_t<(Dims > 0)>>
+  range<Dims> getRange() const {
+    if constexpr (Dimensions == 0)
+      return range<1>{1};
+    else
+      return get_range();
+  }
+
+  template <int Dims, typename = std::enable_if_t<(Dims > 0)>>
+  id<Dims> getOffset() const {
+    static_assert(
+        !(PropertyListT::template has_property<
+            sycl::ext::oneapi::property::no_offset>()),
+        "Accessor has no_offset property, get_offset() can not be used");
+    return detail::convertToArrayOfN<Dims, 0>(getOffset());
+  }
+
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const noexcept {
     size_t TotalOffset = 0;
