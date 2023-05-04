@@ -2928,6 +2928,11 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> Filenames,
         Act.EndSourceFile();
       }
     }
+    if (Clang->getDiagnostics().hasErrorOccurred()) {
+      llvm::errs() << Clang->getDiagnostics().getNumErrors()
+                   << " error(s) generated\n";
+      return false;
+    }
   }
   return true;
 }
