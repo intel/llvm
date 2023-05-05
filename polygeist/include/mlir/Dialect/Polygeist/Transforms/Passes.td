@@ -24,7 +24,7 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
     For example given:
 
       gpu.func @kernel_parallel_for(%arg0: i32) {
-        func.call @parallel_for(%0, ...) : (memref<?x!llvm.struct<(i32, !sycl.accessor...)
+        func.call @parallel_for(%0, ...) : (memref<?x!polygeist.struct<(i32, !sycl.accessor...)
         gpu.return
       }
 
@@ -33,7 +33,7 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
       gpu.func @kernel_parallel_for(%arg0: i32) {
         %int_arg = <first struct member>
         %new_memref = <memref to struct with first member removed>
-        func.call @parallel_for(%int_arg, %new_memref, ...) : (memref<?xi32>, memref<?x!llvm.struct<(!sycl.accessor...)
+        func.call @parallel_for(%int_arg, %new_memref, ...) : (memref<?xi32>, memref<?x!polygeist.struct<(!sycl.accessor...)
         gpu.return
       }    
   }];

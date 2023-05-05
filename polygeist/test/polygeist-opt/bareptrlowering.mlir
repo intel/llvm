@@ -498,9 +498,9 @@ func.func private @subindexop_memref_struct(%arg0: memref<4x!polygeist.struct<(f
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT:    }
 
-func.func private @subindexop_memref_nested_struct(%arg0: memref<4x!llvm.struct<(struct<(f32)>)>>) -> memref<?xf32> {
+func.func private @subindexop_memref_nested_struct(%arg0: memref<4x!polygeist.struct<(!polygeist.struct<(f32)>)>>) -> memref<?xf32> {
   %c_0 = arith.constant 0 : index
-  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!llvm.struct<(struct<(f32)>)>>, index) -> memref<?xf32>
+  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!polygeist.struct<(!polygeist.struct<(f32)>)>>, index) -> memref<?xf32>
   return %res : memref<?xf32>
 }
 
@@ -514,9 +514,9 @@ func.func private @subindexop_memref_nested_struct(%arg0: memref<4x!llvm.struct<
 // CHECK-NEXT:     llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT: }
 
-func.func private @subindexop_memref_nested_ptr(%arg0: memref<4x!llvm.struct<(ptr)>>) -> memref<?x!llvm.ptr> {
+func.func private @subindexop_memref_nested_ptr(%arg0: memref<4x!polygeist.struct<(!llvm.ptr)>>) -> memref<?x!llvm.ptr> {
   %c_0 = arith.constant 0 : index
-  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!llvm.struct<(ptr)>>, index) -> memref<?x!llvm.ptr>
+  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!polygeist.struct<(!llvm.ptr)>>, index) -> memref<?x!llvm.ptr>
   return %res : memref<?x!llvm.ptr>
 }
 
@@ -530,9 +530,9 @@ func.func private @subindexop_memref_nested_ptr(%arg0: memref<4x!llvm.struct<(pt
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT:    }
 
-func.func private @subindexop_memref_nested_struct_array(%arg0: memref<4x!llvm.struct<(array<4x!llvm.struct<(f32)>>)>>) -> memref<?xf32> {
+func.func private @subindexop_memref_nested_struct_array(%arg0: memref<4x!polygeist.struct<(!llvm.array<4x!polygeist.struct<(f32)>>)>>) -> memref<?xf32> {
   %c_0 = arith.constant 0 : index
-  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!llvm.struct<(array<4x!llvm.struct<(f32)>>)>>, index) -> memref<?xf32>
+  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!polygeist.struct<(!llvm.array<4x!polygeist.struct<(f32)>>)>>, index) -> memref<?xf32>
   return %res : memref<?xf32>
 }
 

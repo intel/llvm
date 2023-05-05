@@ -144,27 +144,27 @@ gpu.module @device_func {
   // CHECK-LABEL: func.func private @callee4(
   // CHECK-SAME:    %arg0: memref<?x!sycl_accessor_1_f32_r_gb>,
   // CHECK-SAME:    %arg1: memref<?x!sycl_accessor_1_f32_w_gb>)
-  // CHECK-LABEL: func.func @caller4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) {
+  // CHECK-LABEL: func.func @caller4(%arg0: memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) {
   // CHECK:         scf.if %{{.*}} {
   // CHECK-NEXT:      func.call @callee4.specialized(%0, %1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
   // CHECK-NEXT:    } else {
   // CHECK-NEXT:      func.call @callee4(%0, %1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
   // CHECK-NEXT:    }
-  // CHECK-LABEL: gpu.func @wrapper4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
+  // CHECK-LABEL: gpu.func @wrapper4(%arg0: memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
   // CHECK-NEXT:    sycl.call @caller4(%arg0)
   func.func private @callee4(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_accessor_1_f32_w_gb>) {
     return
   }
-  func.func @caller4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) {
+  func.func @caller4(%arg0: memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
-    %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>, index) -> memref<?x!sycl_accessor_1_f32_r_gb>
-    %1 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>, index) -> memref<?x!sycl_accessor_1_f32_w_gb>
+    %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>, index) -> memref<?x!sycl_accessor_1_f32_r_gb>
+    %1 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>, index) -> memref<?x!sycl_accessor_1_f32_w_gb>
     func.call @callee4(%0, %1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
     return
   }
-  gpu.func @wrapper4(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
-    sycl.call @caller4(%arg0) {MangledFunctionName = @caller4, TypeName = @RoundedRangeKernel}: (memref<?x!llvm.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) -> ()
+  gpu.func @wrapper4(%arg0: memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) kernel {
+    sycl.call @caller4(%arg0) {MangledFunctionName = @caller4, TypeName = @RoundedRangeKernel}: (memref<?x!polygeist.struct<(!sycl_accessor_1_f32_r_gb, !sycl_accessor_1_f32_w_gb)>>) -> ()
     gpu.return
   }
 
