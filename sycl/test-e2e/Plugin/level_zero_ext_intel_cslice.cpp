@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_intel_device_id
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 
 // RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out > %t.default.log 2>&1
@@ -53,8 +54,6 @@ void test_pvc(device &d) {
   std::cout << "Test PVC Begin" << std::endl;
   // CHECK-PVC: Test PVC Begin
   bool IsPVC = [&]() {
-    if (!d.has(aspect::ext_intel_device_id))
-      return false;
     return (d.get_info<ext::intel::info::device::device_id>() & 0xff0) == 0xbd0;
   }();
   std::cout << "IsPVC: " << std::boolalpha << IsPVC << std::endl;
@@ -156,8 +155,6 @@ void test_pvc(device &d) {
 
 void test_non_pvc(device d) {
   bool IsPVC = [&]() {
-    if (!d.has(aspect::ext_intel_device_id))
-      return false;
     return (d.get_info<ext::intel::info::device::device_id>() & 0xff0) == 0xbd0;
   }();
 

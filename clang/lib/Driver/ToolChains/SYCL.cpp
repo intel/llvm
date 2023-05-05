@@ -228,8 +228,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    if (LinkSYCLDeviceLibs)
+    if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+      // FIXME remove this when opaque pointers are supported for SPIR-V
+      if (!this->getToolChain().getTriple().isSPIR()) {
+        Opts.push_back("-opaque-pointers");
+      }
+    }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {

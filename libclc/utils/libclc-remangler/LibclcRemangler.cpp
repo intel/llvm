@@ -779,7 +779,7 @@ public:
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
     SMDiagnostic Err;
-#if SPIRV_ENABLE_OPAQUE_POINTERS
+#if SPIRV_ENABLE_OPAQUE_POINTERS || !defined(__SPIR__)
     LLVMCtx.setOpaquePointers(true);
 #else
     LLVMCtx.setOpaquePointers(false);

@@ -39,8 +39,6 @@ int main(int argc, char **argv) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
-  if (std::is_same_v<spec_const_t, double> && !dev.has(aspect::fp64))
-    return 0;
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
   std::vector<container_t> etalon = {DEF_VAL, REDEF_VAL};
