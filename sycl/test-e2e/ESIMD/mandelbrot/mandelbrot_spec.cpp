@@ -8,7 +8,7 @@
 
 // TODO enable on Windows
 // REQUIRES: linux && gpu
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: cuda || hip
 // TODO online_compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator

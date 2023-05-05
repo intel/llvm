@@ -149,7 +149,7 @@ public:
   ///
   /// \return true if all of the SYCL devices on this platform have the
   /// given feature.
-  bool has(aspect Aspect) const;
+  bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
 
   /// Return this platform's default context
   ///

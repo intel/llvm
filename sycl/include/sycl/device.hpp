@@ -229,7 +229,7 @@ public:
   /// Provisional Spec.
   ///
   /// \return true if the SYCL device has the given feature.
-  bool has(aspect Aspect) const;
+  bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
 
 private:
   std::shared_ptr<detail::device_impl> impl;

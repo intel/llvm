@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // FIXME: Investigate Windows-specific failures
 // REQUIRES: TEMPORARY_DISABLED
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to outdated __esimd_media_ld
 // XFAIL: esimd_emulator
