@@ -972,10 +972,7 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
-pi_result piextQueueCreate2(pi_context Context, pi_device Device,
-                            pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreate(Context, Device, Properties, Queue);
-}
+
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);

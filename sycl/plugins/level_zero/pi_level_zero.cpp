@@ -2638,11 +2638,6 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
   return piextQueueCreateInternal(Context, Device, Properties, Queue, true);
 }
 
-pi_result piextQueueCreate2(pi_context Context, pi_device Device,
-                            pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreateInternal(Context, Device, Properties, Queue, false);
-}
-
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
                          size_t ParamValueSize, void *ParamValue,
                          size_t *ParamValueSizeRet) {
