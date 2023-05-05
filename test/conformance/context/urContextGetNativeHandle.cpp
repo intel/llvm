@@ -24,8 +24,6 @@ TEST_P(urContextGetNativeHandleTest, Success) {
     uint32_t n_devices = 0;
     ASSERT_SUCCESS(urContextGetInfo(ctx, UR_CONTEXT_INFO_NUM_DEVICES,
                                     sizeof(uint32_t), &n_devices, nullptr));
-
-    ASSERT_SUCCESS(urContextRelease(ctx));
 }
 
 TEST_P(urContextGetNativeHandleTest, InvalidNullHandleContext) {
