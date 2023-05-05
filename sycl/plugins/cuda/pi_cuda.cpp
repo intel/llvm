@@ -54,25 +54,6 @@ pi_result map_error(CUresult result) {
   }
 }
 
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return empty string for cuda.
-// TODO: Determine correct string to be passed.
-pi_result cuda_piPluginGetBackendOption(pi_platform,
-                                        const char *frontend_option,
-                                        const char **backend_option) {
-  using namespace std::literals;
-  if (frontend_option == nullptr)
-    return PI_ERROR_INVALID_VALUE;
-  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
-      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
-      frontend_option == ""sv) {
-    *backend_option = "";
-    return PI_SUCCESS;
-  }
-  return PI_ERROR_INVALID_VALUE;
-}
-
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -457,7 +438,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
   _PI_CL(piTearDown, pi2ur::piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
-  _PI_CL(piPluginGetBackendOption, cuda_piPluginGetBackendOption)
+  _PI_CL(piPluginGetBackendOption, pi2ur::piPluginGetBackendOption)
 
 #undef _PI_CL
 
