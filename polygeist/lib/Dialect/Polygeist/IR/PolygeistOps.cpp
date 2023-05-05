@@ -1468,15 +1468,13 @@ public:
         return failure();
 
     Value val = src.getSource();
-    if (auto PtrTy = dyn_cast<LLVM::LLVMPointerType>(val.getType())) {
-      if (!PtrTy.isOpaque() && PtrTy.getElementType() != mt.getElementType()) {
-        val = rewriter.create<LLVM::BitcastOp>(
-            op.getLoc(),
-            LLVM::LLVMPointerType::get(mt.getElementType(),
-                                       PtrTy.getAddressSpace()),
-            val);
-      }
-    }
+    auto PtrTy = cast<LLVM::LLVMPointerType>(val.getType());
+    if (!PtrTy.isOpaque() && PtrTy.getElementType() != mt.getElementType())
+      val = rewriter.create<LLVM::BitcastOp>(
+          op.getLoc(),
+          LLVM::LLVMPointerType::get(mt.getElementType(),
+                                     PtrTy.getAddressSpace()),
+          val);
 
     Value idx = nullptr;
     auto shape = mt.getShape();

@@ -870,9 +870,9 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                                       rewriter.create<arith::IndexCastOp>(
                                           ao.getLoc(), sz.getType(), idx));
         SmallVector<Value> vec = {idx};
-        if (ao.getElemType()) {
-          u.set(rewriter.create<LLVM::GEPOp>(
-              ao.getLoc(), ao.getType(), ao.getElemType().value(), alloc, idx));
+        if (std::optional<Type> optElemType = ao.getElemType()) {
+          u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(),
+                                             *optElemType, alloc, idx));
         } else {
           u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
                                              idx));

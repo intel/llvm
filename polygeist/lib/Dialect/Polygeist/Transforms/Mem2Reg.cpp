@@ -217,7 +217,7 @@ struct Mem2Reg : public mlir::polygeist::impl::Mem2RegBase<Mem2Reg> {
 
   // return if changed
   bool forwardStoreToLoad(
-      mlir::Value AI, mlir::Type ElemTy, std::vector<Offset> idx,
+      mlir::Value AI, mlir::Type elemTy, std::vector<Offset> idx,
       SmallVectorImpl<Operation *> &loadOpsToErase,
       DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing);
 };
@@ -1087,7 +1087,7 @@ std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
 bool Mem2Reg::forwardStoreToLoad(
-    mlir::Value AI, mlir::Type ElemTy, std::vector<Offset> idx,
+    mlir::Value AI, mlir::Type elemTy, std::vector<Offset> idx,
     SmallVectorImpl<Operation *> &loadOpsToErase,
     DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing) {
   bool changed = false;
@@ -1420,7 +1420,7 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
-  ReplacementHandler metaMap(ElemTy);
+  ReplacementHandler metaMap(elemTy);
 
   // Last value stored in an individual block and the operation which stored it
   BlockMap &valueAtEndOfBlock = metaMap.valueAtEndOfBlock;
@@ -1439,7 +1439,7 @@ bool Mem2Reg::forwardStoreToLoad(
       [&](Value orig, ValueOrPlaceholder *replacement) -> ValueOrPlaceholder * {
     assert(replacement);
     replacement->materialize(/*full*/ false);
-    assert(orig.getType() == ElemTy);
+    assert(orig.getType() == elemTy);
     if (replacement->overwritten) {
       loadOps.erase(orig.getDefiningOp());
       return metaMap.get(orig);
@@ -1447,7 +1447,7 @@ bool Mem2Reg::forwardStoreToLoad(
     if (replacement->val) {
       changed = true;
       assert(orig != replacement->val);
-      assert(replacement->val.getType() == ElemTy);
+      assert(replacement->val.getType() == elemTy);
       assert(orig.getType() == replacement->val.getType() &&
              "mismatched load type");
       LLVM_DEBUG(llvm::dbgs() << " replaced " << orig << " with "
@@ -1719,7 +1719,7 @@ bool Mem2Reg::forwardStoreToLoad(
 
     changed = true;
     assert(pair.first != val);
-    assert(val.getType() == ElemTy);
+    assert(val.getType() == elemTy);
     assert(pair.first.getType() == val.getType() && "mismatched load type");
     LLVM_DEBUG(llvm::dbgs()
                << " replaced " << pair.first << " with " << val << "\n");
@@ -1748,7 +1748,7 @@ bool Mem2Reg::forwardStoreToLoad(
       assert(valueAtEndOfBlock.find(pred)->second);
       mlir::Value pval =
           valueAtEndOfBlock.find(pred)->second->materialize(true);
-      if (!pval || pval.getType() != ElemTy) {
+      if (!pval || pval.getType() != elemTy) {
         AI.getDefiningOp()->getParentOfType<func::FuncOp>().dump();
         pred->dump();
         llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second
@@ -1757,7 +1757,7 @@ bool Mem2Reg::forwardStoreToLoad(
           llvm::errs() << " mat pval: " << pval << "\n";
       }
       assert(pval && "Null last stored");
-      assert(pval.getType() == ElemTy);
+      assert(pval.getType() == elemTy);
       assert(pred->getTerminator());
 
       assert(blockArg.getOwner() == block);
@@ -1815,7 +1815,7 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
-  removeRedundantBlockArgs(AI, ElemTy, blocksWithAddedArgs);
+  removeRedundantBlockArgs(AI, elemTy, blocksWithAddedArgs);
 
   for (auto *loadOp : llvm::make_early_inc_range(loadOps)) {
     assert(loadOp);
@@ -1960,9 +1960,9 @@ void Mem2Reg::runOnOperation() {
     f->walk([&](LLVM::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
-        if (AI.getElemType()) {
+        if (std::optional<Type> optElemTy = AI.getElemType()) {
           // Opaque pointer case.
-          typesToPromote.push_back(AI.getElemType().value());
+          typesToPromote.push_back(*optElemTy);
         } else {
           // Typed pointer case.
           assert(!AI.getType().isOpaque());
