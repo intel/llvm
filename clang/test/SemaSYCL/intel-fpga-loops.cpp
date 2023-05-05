@@ -28,6 +28,8 @@ void foo() {
   [[intel::loop_count(8)]] int m[10];
   // expected-error@+1 {{'max_reinvocation_delay' attribute cannot be applied to a declaration}}
   [[intel::max_reinvocation_delay(1)]] int n[10];
+  // expected-error@+1{{'enable_loop_pipelining' attribute cannot be applied to a declaration}}
+  [[intel::enable_loop_pipelining]] int o[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -126,6 +128,9 @@ void boo() {
       a[i] = 0;
   // expected-error@+1 {{'max_reinvocation_delay' attribute takes one argument}}
   [[intel::max_reinvocation_delay(5, 2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'enable_loop_pipelining' attribute takes no arguments}}
+  [[intel::enable_loop_pipelining(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -227,6 +232,10 @@ void goo() {
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::max_reinvocation_delay("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -350,6 +359,11 @@ void zoo() {
   // expected-error@+1{{duplicate Intel FPGA loop attribute 'max_reinvocation_delay'}}
   [[intel::max_reinvocation_delay(1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::enable_loop_pipelining]]
+  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'enable_loop_pipelining'}}
+  [[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -394,6 +408,13 @@ void loop_attrs_compatibility() {
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::max_reinvocation_delay(1)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // no diagnostics are expected
+  [[intel::enable_loop_pipelining]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'disable_loop_pipelining' and 'enable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::enable_loop_pipelining]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 template<int A, int B, int C>

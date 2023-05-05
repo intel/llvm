@@ -1,3 +1,4 @@
+// UNSUPPORTED: aspect-queue_profiling
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -48,10 +49,6 @@ bool verifyProfiling(event Event) {
 // devices.
 int main() {
   device Dev;
-  if (Dev.has(aspect::queue_profiling)) {
-    std::cout << "Profiling is fully supported, skipping the test" << std::endl;
-    return 0;
-  }
 
   const size_t Size = 10000;
   int Data[Size] = {0};
