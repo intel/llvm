@@ -227,10 +227,10 @@ public:
 // we disable that warning as we make appropriate checks to ensure its
 // existence.
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
-#if !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgcc-compat"
-#endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+#endif // defined(__clang__)
 
   /// Indicates if the SYCL device has the given feature.
   ///
@@ -241,9 +241,9 @@ public:
   bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
-#if !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+#if defined(__clang__)
 #pragma clang diagnostics pop
-#endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+#endif // defined(__clang__)
 
 private:
   std::shared_ptr<detail::device_impl> impl;
