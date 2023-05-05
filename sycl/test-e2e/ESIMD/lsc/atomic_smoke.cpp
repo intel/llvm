@@ -335,8 +335,7 @@ bool test(queue q, const Config &cfg) {
   try {
     buffer<T, 1> buf(arr, range<1>(size));
     auto e = q.submit([&](handler &cgh) {
-      accessor<T, 1, access_mode::read_write, access::target::device> accessor =
-          buf.template get_access<access::mode::read_write>(cgh);
+      auto accessor = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<TestID<T, N, ImplF>>(
           rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
             int i = ii;
@@ -365,7 +364,6 @@ bool test(queue q, const Config &cfg) {
             for (int cnt = 0; cnt < repeat; ++cnt) {
               if constexpr (n_args == 0) {
                 simd<T, N> res = atomic_update<op, T, N>(accessor, offsets, m);
-                res.copy_to(accessor, 0);
               } else if constexpr (n_args == 1) {
                 simd<T, N> v0 = ImplF<T, N>::arg0(i);
                 atomic_update<op, T, N>(accessor, offsets, v0, m);
