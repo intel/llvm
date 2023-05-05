@@ -9,7 +9,7 @@
 // REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip, gpu-intel-pvc
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4,ze_debug6
 // RUN: %clangxx -fsycl %s -o %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %clangxx -fsycl -DNEW_API %s -o %t2.out

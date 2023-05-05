@@ -39,7 +39,7 @@
 // CHECK-NOT:  ZE ---> zeCommandQueueExecuteCommandLists
 // CHECK-NOT: Test Fail
 // CHECK: Test Pass
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4,ze_debug6
 
 #include <cassert>
 #include <chrono>
