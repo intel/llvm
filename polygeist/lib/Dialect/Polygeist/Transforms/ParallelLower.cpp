@@ -160,6 +160,17 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   }
 };
 
+LLVM::LLVMPointerType
+getPointerType(Type elemTy, MLIRContext *ctx, bool useOpaquePointers,
+               std::optional<unsigned> memSpace = std::nullopt) {
+  if (memSpace)
+    return (useOpaquePointers) ? LLVM::LLVMPointerType::get(ctx, *memSpace)
+                               : LLVM::LLVMPointerType::get(elemTy, *memSpace);
+
+  return (useOpaquePointers) ? LLVM::LLVMPointerType::get(ctx)
+                             : LLVM::LLVMPointerType::get(elemTy);
+}
+
 // TODO
 mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module,
                                                  bool useOpaquePointers) {
@@ -173,10 +184,8 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module,
     return fn;
   auto *ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-  auto VoidPtrTy =
-      (useOpaquePointers)
-          ? LLVM::LLVMPointerType::get(ctx)
-          : LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8));
+  LLVM::LLVMPointerType VoidPtrTy =
+      getPointerType(mlir::IntegerType::get(ctx, 8), ctx, useOpaquePointers);
   auto llvmFnType = LLVM::LLVMFunctionType::get(VoidPtrTy, types, false);
 
   LLVM::Linkage lnk = LLVM::Linkage::External;
@@ -195,10 +204,8 @@ mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module,
           symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
     return fn;
   auto *ctx = module->getContext();
-  auto VoidPtrTy =
-      (useOpaquePointers)
-          ? LLVM::LLVMPointerType::get(ctx)
-          : LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8));
+  LLVM::LLVMPointerType VoidPtrTy =
+      getPointerType(mlir::IntegerType::get(ctx, 8), ctx, useOpaquePointers);
   auto llvmFnType = LLVM::LLVMFunctionType::get(
       LLVM::LLVMVoidType::get(ctx), ArrayRef<mlir::Type>(VoidPtrTy), false);
 
@@ -378,10 +385,8 @@ void ParallelLower::runOnOperation() {
       auto PT = cast<LLVM::LLVMPointerType>(alop.getType());
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
-        auto newPtrTy =
-            (useOpaquePointers)
-                ? LLVM::LLVMPointerType::get(alop->getContext(), 0)
-                : LLVM::LLVMPointerType::get(PT.getElementType(), 0);
+        LLVM::LLVMPointerType newPtrTy = getPointerType(
+            PT.getElementType(), alop.getContext(), useOpaquePointers, 0);
         auto elemTy = (alop.getElemType()) ? alop.getElemType().value()
                                            : PT.getElementType();
         auto newAlloca = builder.create<LLVM::AllocaOp>(
