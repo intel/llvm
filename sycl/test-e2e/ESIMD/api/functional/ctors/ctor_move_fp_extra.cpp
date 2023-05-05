@@ -10,8 +10,8 @@
 // TODO Remove the level_zero restriction once the test is supported on other
 // platforms
 // UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 // XFAIL: *
 // TODO Remove XFAIL once the simd vector provides move constructor
 //
