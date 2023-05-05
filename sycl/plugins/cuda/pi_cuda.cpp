@@ -235,43 +235,6 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 //-- PI API implementation
 extern "C" {
 
-/// Host Pipes
-pi_result cuda_piextEnqueueReadHostPipe(
-    pi_queue queue, pi_program program, const char *pipe_symbol,
-    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
-    const pi_event *events_waitlist, pi_event *event) {
-  (void)queue;
-  (void)program;
-  (void)pipe_symbol;
-  (void)blocking;
-  (void)ptr;
-  (void)size;
-  (void)num_events_in_waitlist;
-  (void)events_waitlist;
-  (void)event;
-
-  sycl::detail::pi::die("cuda_piextEnqueueReadHostPipe not implemented");
-  return {};
-}
-
-pi_result cuda_piextEnqueueWriteHostPipe(
-    pi_queue queue, pi_program program, const char *pipe_symbol,
-    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
-    const pi_event *events_waitlist, pi_event *event) {
-  (void)queue;
-  (void)program;
-  (void)pipe_symbol;
-  (void)blocking;
-  (void)ptr;
-  (void)size;
-  (void)num_events_in_waitlist;
-  (void)events_waitlist;
-  (void)event;
-
-  sycl::detail::pi::die("cuda_piextEnqueueWriteHostPipe not implemented");
-  return {};
-}
-
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -430,8 +393,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          pi2ur::piextEnqueueDeviceGlobalVariableRead)
 
   // Host Pipe
-  _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)
-  _PI_CL(piextEnqueueWriteHostPipe, cuda_piextEnqueueWriteHostPipe)
+  _PI_CL(piextEnqueueReadHostPipe, pi2ur::piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, pi2ur::piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, pi2ur::piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, pi2ur::piextKernelSetArgSampler)

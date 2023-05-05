@@ -1693,3 +1693,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   }
   return result;
 }
+
+/// Host Pipes
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
+    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  (void)hQueue;
+  (void)hProgram;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)pDst;
+  (void)size;
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  (void)phEvent;
+
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
+    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  (void)hQueue;
+  (void)hProgram;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)pSrc;
+  (void)size;
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  (void)phEvent;
+
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
