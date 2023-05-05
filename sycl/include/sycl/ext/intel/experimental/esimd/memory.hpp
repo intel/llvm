@@ -1956,21 +1956,26 @@ template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
           bool Transposed, bool Transformed, bool IsStore = false>
 constexpr void check_lsc_block_2d_restrictions() {
   constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
+  static_assert(BlockWidth > 0, "Block width must be positive");
+  static_assert(BlockHeight > 0, "Block height must be positive");
+  // Restrictions based on documentation.
   static_assert(!IsStore || GRFByteSize <= 512,
                 "2D store supports 512 bytes max");
   static_assert(IsStore || GRFByteSize <= 2048,
                 "2D load supports 2048 bytes max");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
+  static_assert((sizeof(T) * BlockWidth) % 4 == 0,
+                "Block width must be aligned by DW");
   if constexpr (Transposed) {
     static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
     static_assert(sizeof(T) == 4 || sizeof(T) == 8,
                   "Transposed load is supported only for data size u32 or u64");
-    static_assert(sizeof(T) == 64 ? BlockHeight == 8
-                                  : BlockHeight >= 1 && BlockHeight <= 32,
+    static_assert(sizeof(T) == 8 ? BlockHeight == 8
+                                 : BlockHeight >= 1 && BlockHeight <= 32,
                   "Unsupported block height");
-    static_assert(sizeof(T) == 64 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
-                                  : BlockWidth >= 1 && BlockWidth <= 8,
+    static_assert(sizeof(T) == 8 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
+                                 : BlockWidth >= 1 && BlockWidth <= 8,
                   "Unsupported block width");
   } else if constexpr (Transformed) {
     static_assert(sizeof(T) == 1 || sizeof(T) == 2,
@@ -1979,15 +1984,17 @@ constexpr void check_lsc_block_2d_restrictions() {
                   "Unsupported number of blocks");
     static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
                   "Unsupported block height");
-    static_assert(BlockWidth * sizeof(T) >= 4 &&
+    static_assert(BlockWidth * sizeof(T) >= 4 && BlockWidth <= 16 &&
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
   } else {
     static_assert(
         __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
         "Unsupported number of blocks");
-    static_assert(BlockHeight >= 1 && BlockHeight <= 32,
-                  "Unsupported block height");
+    if constexpr (IsStore)
+      static_assert(BlockHeight <= 8, "Unsupported block height for store");
+    else
+      static_assert(BlockHeight <= 32, "Unsupported block height for load");
     static_assert(BlockWidth * sizeof(T) >= 4 &&
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");

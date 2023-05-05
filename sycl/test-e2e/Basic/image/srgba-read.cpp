@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_srgb, aspect-image
+// REQUIRES: aspect-ext_oneapi_srgb, aspect-ext_intel_legacy_image
 // RUN: %clangxx -fsycl  -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER

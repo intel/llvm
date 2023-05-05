@@ -1,4 +1,4 @@
-// REQUIRES: aspect-fp16, aspect-image
+// REQUIRES: aspect-fp16, aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip || cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
