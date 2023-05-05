@@ -3,6 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: hip
+
 #include <sycl/sycl.hpp>
 
 #define CHECK_INVALID_REQD_WORK_GROUP_SIZE(Dim, ...)                           \
