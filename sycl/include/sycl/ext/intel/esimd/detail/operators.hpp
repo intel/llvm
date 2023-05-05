@@ -558,13 +558,6 @@ __ESIMD_DEF_SIMD_MASK_BIN_OP(*, __ESIMD_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(/, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
 
-#define __ESIMD_BITWISE_OP_FILTER                                              \
-  std::is_integral_v<T1> &&std::is_integral_v<T2>
-__ESIMD_DEF_SIMD_MASK_BIN_OP(^, __ESIMD_BITWISE_OP_FILTER)
-__ESIMD_DEF_SIMD_MASK_BIN_OP(|, __ESIMD_BITWISE_OP_FILTER)
-__ESIMD_DEF_SIMD_MASK_BIN_OP(&, __ESIMD_BITWISE_OP_FILTER)
-#undef __ESIMD_BITWISE_OP_FILTER
-
 #define __ESIMD_SHIFT_OP_FILTER std::is_integral_v<T1> &&std::is_integral_v<T2>
 __ESIMD_DEF_SIMD_MASK_BIN_OP(%, __ESIMD_SHIFT_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(<<, __ESIMD_SHIFT_OP_FILTER)
@@ -572,6 +565,44 @@ __ESIMD_DEF_SIMD_MASK_BIN_OP(>>, __ESIMD_SHIFT_OP_FILTER)
 #undef __ESIMD_SHIFT_OP_FILTER
 
 #undef __ESIMD_DEF_SIMD_MASK_BIN_OP
+
+#define __ESIMD_DEF_SIMD_MASK_BIN_BIT_OP(BINOP, COND)                          \
+  /* simd BINOP simd_mask */                                                   \
+  template <class SimdT1, class SimdT2,                                        \
+            class T1 = typename SimdT1::element_type,                          \
+            class T2 = typename SimdT2::element_type,                          \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_type_v<SimdT1> &&               \
+                              __ESIMD_DNS::is_simd_mask_type_v<SimdT2> &&      \
+                              (SimdT1::length == SimdT2::length) && COND,      \
+                          SimdTx>                                              \
+  operator BINOP(const SimdT1 &LHS, const SimdT2 &RHS) {                       \
+    return LHS BINOP SimdTx(RHS);                                              \
+  }                                                                            \
+                                                                               \
+  /* simd_mask BINOP simd */                                                   \
+  template <class SimdT1, class SimdT2,                                        \
+            class T1 = typename SimdT1::element_type,                          \
+            class T2 = typename SimdT2::element_type,                          \
+            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
+            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  inline std::enable_if_t<__ESIMD_DNS::is_simd_type_v<SimdT2> &&               \
+                              __ESIMD_DNS::is_simd_mask_type_v<SimdT1> &&      \
+                              (SimdT2::length == SimdT1::length) && COND,      \
+                          SimdTx>                                              \
+  operator BINOP(const SimdT1 &LHS, const SimdT2 &RHS) {                       \
+    return SimdTx(LHS) BINOP RHS;                                              \
+  }
+
+#define __ESIMD_BITWISE_OP_FILTER                                              \
+  std::is_integral_v<T1> &&std::is_integral_v<T2>
+__ESIMD_DEF_SIMD_MASK_BIN_BIT_OP(^, __ESIMD_BITWISE_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_BIT_OP(|, __ESIMD_BITWISE_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_BIT_OP(&, __ESIMD_BITWISE_OP_FILTER)
+#undef __ESIMD_BITWISE_OP_FILTER
+
+#undef __ESIMD_DEF_SIMD_MASK_BIN_BIT_OP
 
 // ========= simd_mask comparison operators
 
@@ -653,12 +684,14 @@ __ESIMD_DEF_SIMD_MASK_CMP_OP(>=, __ESIMD_CMP_OP_FILTER)
 #define __ESIMD_DEF_SIMD_VIEW_MASK_BIN_OP(BINOP, COND)                         \
                                                                                \
   /* simd_mask BINOP simd_view<simd*...> */                                    \
-  template <class SimdT1, class SimdT2, class RegionT2,                        \
-            class T1 = typename SimdT1::element_type,                          \
-            class T2 =                                                         \
-                typename __ESIMD_NS::shape_type<RegionT2>::element_type,       \
-            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
-            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  template <                                                                   \
+      class SimdT1, class SimdT2, class RegionT2,                              \
+      class T1 = typename SimdT1::element_type,                                \
+      class T2 = typename __ESIMD_NS::shape_type<RegionT2>::element_type,      \
+      class Tx =                                                               \
+          std::conditional_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT2>, T1,     \
+                             __ESIMD_DNS::computation_type_t<T1, T2>>,         \
+      class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>                     \
   inline std::enable_if_t<                                                     \
       __ESIMD_DNS::is_simd_obj_impl_derivative_v<SimdT1> &&                    \
           __ESIMD_DNS::is_simd_mask_type_v<SimdT1> &&                          \
@@ -672,12 +705,14 @@ __ESIMD_DEF_SIMD_MASK_CMP_OP(>=, __ESIMD_CMP_OP_FILTER)
   }                                                                            \
                                                                                \
   /* simd_view<simd*...> BINOP simd_mask */                                    \
-  template <class SimdT1, class RegionT1, class SimdT2,                        \
-            class T1 =                                                         \
-                typename __ESIMD_NS::shape_type<RegionT1>::element_type,       \
-            class T2 = typename SimdT2::element_type,                          \
-            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
-            class SimdTx = __ESIMD_NS::simd<Tx, SimdT2::length>>               \
+  template <                                                                   \
+      class SimdT1, class RegionT1, class SimdT2,                              \
+      class T1 = typename __ESIMD_NS::shape_type<RegionT1>::element_type,      \
+      class T2 = typename SimdT2::element_type,                                \
+      class Tx =                                                               \
+          std::conditional_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT1>, T2,     \
+                             __ESIMD_DNS::computation_type_t<T1, T2>>,         \
+      class SimdTx = __ESIMD_NS::simd<Tx, SimdT2::length>>                     \
   inline std::enable_if_t<                                                     \
       __ESIMD_DNS::is_simd_obj_impl_derivative_v<SimdT2> &&                    \
           __ESIMD_DNS::is_simd_type_v<SimdT1> &&                               \
@@ -721,12 +756,14 @@ __ESIMD_DEF_SIMD_VIEW_MASK_BIN_OP(/, __ESIMD_ARITH_OP_FILTER)
 #define __ESIMD_DEF_SIMD_VIEW_MASK_CMP_OP(CMPOP, COND)                         \
                                                                                \
   /* simd_view CMPOP simd_mask */                                              \
-  template <class SimdT1, class RegionT1, class SimdT2,                        \
-            class T1 =                                                         \
-                typename __ESIMD_NS::shape_type<RegionT1>::element_type,       \
-            class T2 = typename SimdT2::element_type,                          \
-            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
-            class SimdTx = __ESIMD_NS::simd<Tx, SimdT2::length>>               \
+  template <                                                                   \
+      class SimdT1, class RegionT1, class SimdT2,                              \
+      class T1 = typename __ESIMD_NS::shape_type<RegionT1>::element_type,      \
+      class T2 = typename SimdT2::element_type,                                \
+      class Tx =                                                               \
+          std::conditional_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT1>, T2,     \
+                             __ESIMD_DNS::computation_type_t<T1, T2>>,         \
+      class SimdTx = __ESIMD_NS::simd<Tx, SimdT2::length>>                     \
   inline std::enable_if_t<                                                     \
       (__ESIMD_NS::shape_type<RegionT1>::length == SimdT2::length) &&          \
           __ESIMD_DNS::is_simd_type_v<SimdT1> &&                               \
@@ -738,12 +775,14 @@ __ESIMD_DEF_SIMD_VIEW_MASK_BIN_OP(/, __ESIMD_ARITH_OP_FILTER)
   }                                                                            \
                                                                                \
   /* simd_mask CMPOP simd_view */                                              \
-  template <class SimdT1, class SimdT2, class RegionT2,                        \
-            class T2 =                                                         \
-                typename __ESIMD_NS::shape_type<RegionT2>::element_type,       \
-            class T1 = typename SimdT1::element_type,                          \
-            class Tx = __ESIMD_DNS::computation_type_t<T1, T2>,                \
-            class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>               \
+  template <                                                                   \
+      class SimdT1, class SimdT2, class RegionT2,                              \
+      class T2 = typename __ESIMD_NS::shape_type<RegionT2>::element_type,      \
+      class T1 = typename SimdT1::element_type,                                \
+      class Tx =                                                               \
+          std::conditional_t<__ESIMD_DNS::is_simd_mask_type_v<SimdT2>, T1,     \
+                             __ESIMD_DNS::computation_type_t<T1, T2>>,         \
+      class SimdTx = __ESIMD_NS::simd<Tx, SimdT1::length>>                     \
   inline std::enable_if_t<(__ESIMD_NS::shape_type<RegionT2>::length ==         \
                            SimdT1::length) &&                                  \
                               __ESIMD_DNS::is_simd_mask_type_v<SimdT1> &&      \
