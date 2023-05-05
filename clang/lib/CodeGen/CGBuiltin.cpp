@@ -21911,23 +21911,23 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     if (!FD->hasAttr<NoBuiltinAttr>()) {
       Name = FD->getName();
       if (Name == "fadd")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fadd;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fadd;
       else if (Name == "fdiv")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fdiv;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fdiv;
       else if (Name == "fmul")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fmul;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fmul;
       else if (Name == "fsub")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fsub;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fsub;
       else if (Name == "frem")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_frem;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_frem;
       else if (Name == "sincos")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_sincos;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_sincos;
       else if (Name == "exp10")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_exp10;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_exp10;
       else if (Name == "rsqrt")
-      FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_rsqrt;
+        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_rsqrt;
       else
-      llvm_unreachable("unexpected fpbuiltin ID");
+        llvm_unreachable("unexpected fpbuiltin ID");
     }
   } else {
     // The function has a clang builtin. Create an attribute for it
