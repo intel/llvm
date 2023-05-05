@@ -286,20 +286,6 @@ int main() {
   TEST_BUILTIN_1(log, sycl::ext::oneapi::bfloat16);
   TEST_BUILTIN_1(log2, sycl::ext::oneapi::bfloat16);
   TEST_BUILTIN_1(log10, sycl::ext::oneapi::bfloat16);
-}
 
-TEST_BUILTIN_1(fabs, bfloat16);
-TEST_BUILTIN_2(fmin);
-TEST_BUILTIN_2(fmax);
-TEST_BUILTIN_3(fma);
-
-float check_nan = 0;
-TEST_BUILTIN_2_NAN(fmin);
-TEST_BUILTIN_2_NAN(fmax);
-
-// Insert NAN value in a to test isnan
-a[0] = a[N - 1] = NAN;
-TEST_BUILTIN_1(isnan, bool);
-
-return 0;
+  return 0;
 }
