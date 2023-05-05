@@ -48,10 +48,6 @@ Max registers per work-group: 65536
 
 - See: [CUDA Toolkit Documentation](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities)
 
-## Implementation
-
-- This query functionality is implemented only for the CUDA and HIP back-ends.
-
 ### Example of returned values
 
 - Not supported if the device is host.
