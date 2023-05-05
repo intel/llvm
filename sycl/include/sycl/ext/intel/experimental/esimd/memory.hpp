@@ -3523,7 +3523,7 @@ public:
   slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
 
   /// @return The allocated chunk's offset in bytes.
-  int get_offset() const { return offset; }
+  ESIMD_INLINE int get_offset() const { return offset; }
 
   /// Releases the SLM chunk allocated in the constructor.
   ~slm_allocator() { __esimd_slm_free(offset); }
