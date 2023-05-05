@@ -32,8 +32,7 @@ InitialDefinition *InitialDefinition::getInstance() {
 }
 
 raw_ostream &operator<<(raw_ostream &os, const InitialDefinition &def) {
-  os << "<initial>"
-     << "(" << &def << ")";
+  os << "<initial>";
   return os;
 }
 
@@ -50,12 +49,19 @@ raw_ostream &operator<<(raw_ostream &os, const Definition &def) {
 }
 
 bool Definition::operator==(const Definition &other) const {
-  llvm::dbgs() << "at line" << __LINE__ << "\n";
   if (isOperation() && other.isOperation())
     return getOperation() == other.getOperation();
   if (isInitialDefinition() && other.isInitialDefinition())
     return true;
   return false;
+}
+
+bool Definition::operator<(const Definition &other) const {
+  if (isOperation() && other.isOperation())
+    return getOperation() < other.getOperation();
+  if (isInitialDefinition() && other.isInitialDefinition())
+    return false; // InitialDefinition is a singleton.
+  return isInitialDefinition();
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,26 +71,25 @@ bool Definition::operator==(const Definition &other) const {
 raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
   if (lastDef.valueToModifiers.empty() &&
       lastDef.valueToPotentialModifiers.empty())
-    return os.indent(4) << "<empty>\n";
+    return os.indent(4) << "<empty>";
 
-  auto printMap =
-      [&os](const DenseMap<Value, ReachingDefinition::ModifiersTy> &map,
-            StringRef title) {
-        for (const auto &entry : map) {
-          Value val = entry.first;
-          const ReachingDefinition::ModifiersTy &valModifiers = entry.second;
+  using ModifiersTy = ReachingDefinition::ModifiersTy;
+  auto printMap = [&os](const DenseMap<Value, ModifiersTy> &map,
+                        StringRef title) {
+    for (const auto &entry : map) {
+      Value val = entry.first;
+      const ModifiersTy &valModifiers = entry.second;
 
-          os.indent(4) << val << "\n";
-          os.indent(4) << title << "\n";
-          if (valModifiers.empty())
-            os.indent(6) << "<none>\n";
-          else {
-            for (const Definition *def : valModifiers)
-              os.indent(6) << *def << "\n";
-          }
-          os << "\n";
-        }
-      };
+      os.indent(4) << val << "\n";
+      os.indent(4) << title << "\n";
+      if (valModifiers.empty())
+        os.indent(6) << "<none>\n";
+      else {
+        for (const Definition *def : valModifiers)
+          os.indent(6) << *def << "\n";
+      }
+    }
+  };
 
   printMap(lastDef.valueToModifiers, "mods:");
   printMap(lastDef.valueToPotentialModifiers, "pMods:");
@@ -119,15 +124,17 @@ ChangeResult ReachingDefinition::join(const AbstractDenseLattice &lattice) {
 
       ModifiersTy &currentModifiers = currentMap[val];
       const std::size_t size = currentModifiers.size();
-      // TODO: the <initial> definition is added more than once.
       currentModifiers.insert(newModifiers.begin(), newModifiers.end());
       if (currentModifiers.size() != size)
         result |= ChangeResult::Change;
     }
   };
 
+  llvm::dbgs() << "Before:\n" << *this << "\n";
   join(valueToModifiers, otherReachingDef.valueToModifiers);
   join(valueToPotentialModifiers, otherReachingDef.valueToPotentialModifiers);
+  llvm::dbgs() << "After:\n" << *this << "\n";
+
   return result;
 }
 
@@ -142,7 +149,7 @@ ChangeResult ReachingDefinition::reset() {
 
 ChangeResult ReachingDefinition::setModifier(Value val, Definition *def) {
   ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
-  assert((mods.size() != 1 || mods.front() != def) &&
+  assert((mods.size() != 1 || *mods.begin() != def) &&
          "seen this modifier already");
 
   // Set the new modifier and clear out all previous definitions.
@@ -164,8 +171,9 @@ ChangeResult ReachingDefinition::removeModifiers(Value val) {
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
                                                       Definition *def) {
-  return (valueToPotentialModifiers[val].insert(def)) ? ChangeResult::Change
-                                                      : ChangeResult::NoChange;
+  return (valueToPotentialModifiers[val].insert(def).second)
+             ? ChangeResult::Change
+             : ChangeResult::NoChange;
 }
 
 ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
@@ -178,17 +186,17 @@ ChangeResult ReachingDefinition::removePotentialModifiers(Value val) {
   return ChangeResult::NoChange;
 }
 
-std::optional<ArrayRef<Definition *>>
+std::optional<ReachingDefinition::ModifiersTy>
 ReachingDefinition::getModifiers(Value val) const {
   if (valueToModifiers.contains(val))
-    return valueToModifiers.at(val).getArrayRef();
+    return valueToModifiers.at(val);
   return std::nullopt;
 }
 
-std::optional<ArrayRef<Definition *>>
+std::optional<ReachingDefinition::ModifiersTy>
 ReachingDefinition::getPotentialModifiers(Value val) const {
   if (valueToPotentialModifiers.contains(val))
-    return valueToPotentialModifiers.at(val).getArrayRef();
+    return valueToPotentialModifiers.at(val);
   return std::nullopt;
 }
 
@@ -199,13 +207,8 @@ ReachingDefinition::getPotentialModifiers(Value val) const {
 void ReachingDefinitionAnalysis::setToEntryState(ReachingDefinition *lattice) {
   /// Set the initial state (nothing is known about reaching definitions).
   ProgramPoint p = lattice->getPoint();
-
-  llvm::dbgs().indent(2) << "Before:\n";
-  llvm::dbgs() << *lattice;
-
   propagateIfChanged(
       lattice, lattice->join(ReachingDefinition::getUnknownDefinition(p)));
-  llvm::dbgs().indent(2) << "Updated ReachingDef:\n";
   llvm::dbgs() << *lattice;
 }
 

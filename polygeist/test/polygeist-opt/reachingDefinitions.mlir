@@ -56,7 +56,7 @@ func.func @test3(%val : i32, %idx: index) {
 // COM: Test that a definition and a potential definition both reach a load.
 // CHECK-LABEL: test_tag: test4_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: test4_store2
+// CHECK-NEXT: - mods: <initial> test4_store2
 // CHECK-NEXT: - pMods: test4_store1
 func.func @test4(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
   scf.if %cond {
@@ -106,10 +106,10 @@ func.func @test6(%arg1: memref<i32>, %arg2: memref<i32>) {
 // COM: Test that a deallocation kills a previous potential definition.
 // CHECK-LABEL: test_tag: test7_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods:
+// CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods: test7_store1
 // CHECK: operand #0
-// CHECK-NEXT: - mods:
+// CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods:
 func.func @test7(%arg1: memref<i32>, %arg2: memref<i32>) {
   %c0 = arith.constant 0 : i32
@@ -137,33 +137,32 @@ func.func @test8(%val: i32, %idx : index) {
   %alloc = memref.alloc() : memref<1xi32>
   %cast = memref.cast %alloc : memref<1xi32> to memref<?xi32>
   memref.store %val, %cast[%idx] {tag_name = "test8_store1"} : memref<?xi32>
-  %1 = memref.load %alloc[%idx] {tag = "test8_load1"} : memref<1xi32>  
+  %1 = memref.load %alloc[%idx] {tag = "test8_load1"} : memref<1xi32>
   memref.dealloc %alloc {tag_name = "test8_dealloc1"} : memref<1xi32>
   %2 = memref.load %alloc[%idx] {tag = "test8_load2"} : memref<1xi32>
-  %3 = memref.load %cast[%idx] {tag = "test8_load3"} : memref<?xi32>  
+  %3 = memref.load %cast[%idx] {tag = "test8_load3"} : memref<?xi32>
   return
 }
 
-// COM: Ensure definitions and potential definitions are unknown if operation 
-//       has stored or allocated a value used by a load.
+// COM: Ensure the initial definition reaches a load.
 // CHECK-LABEL: test_tag: test9_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: <unknown>
-// CHECK-NEXT: - pMods: <unknown>
+// CHECK-NEXT: - mods: <initial>
+// CHECK-NEXT: - pMods:
 func.func @test9(%arg1: memref<i32>) {
   %1 = memref.load %arg1[] {tag = "test9_load1"} : memref<i32>
   return
 }
 
-// COM: Test that a operation with unknown side effects kills a previous definition.
+// COM: Test that an operation with unknown side effects kills a previous definition.
 // CHECK-LABEL: test_tag: test10_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test10_store1
 // CHECK-NEXT: - pMods:
 // CHECK-LABEL: test_tag: test10_load2
 // CHECK: operand #0
-// CHECK-NEXT: - mods: <unknown>
-// CHECK-NEXT: - pMods: <unknown>
+// CHECK-NEXT: - mods:
+// CHECK-NEXT: - pMods:
 func.func private @foo(%arg0: memref<i32>) -> ()
 
 func.func @test10(%val: i32) {
@@ -178,7 +177,7 @@ func.func @test10(%val: i32) {
 // COM: Test effects of a deallocation in the presence of control flow.
 // CHECK-LABEL: test_tag: test11_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: test11_store2 test11_store1
+// CHECK-NEXT: - mods: test11_store1 test11_store2
 // CHECK-NEXT: - pMods:
 // CHECK-LABEL: test_tag: test11_load2
 // CHECK: operand #0
@@ -214,6 +213,9 @@ func.func @test12(%val: i64) {
 
 // COM: Test that a definition reaches a sycl.accessor.subscript operation.
 // CHECK-LABEL: test_tag: test13_load1
+// CHECK: operand #0
+// CHECK-NEXT: - mods: <initial>
+// CHECK-NEXT: - pMods:
 // CHECK: operand #1
 // CHECK-NEXT: - mods: test13_store1
 // CHECK-NEXT: - pMods:

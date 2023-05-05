@@ -15,31 +15,28 @@
 
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
+#include <set>
 #include <variant>
+
 namespace mlir {
 namespace polygeist {
 
-/// Represents a definition that is unknown.
+/// Represents a definition that is unknown (this is a singleton).
 class InitialDefinition {
   friend raw_ostream &operator<<(raw_ostream &, const InitialDefinition &);
 
 public:
   InitialDefinition(InitialDefinition &) = delete;
   bool operator=(const InitialDefinition &) = delete;
-  bool operator==(const InitialDefinition &) const { return true; }
-  bool operator!=(const InitialDefinition &) const { return false; }
-  bool operator<(const InitialDefinition &) const { return false; }
-
   static InitialDefinition *getInstance();
 
 private:
   InitialDefinition() = default;
-
   static InitialDefinition *singleton;
 };
 
-/// Represents an operation that modifies a memory resource, or the initial
-/// definition.
+/// Represents either an operation that modifies a memory resource, or the
+/// initial definition.
 class Definition {
   friend raw_ostream &operator<<(raw_ostream &, const Definition &);
 
@@ -49,6 +46,7 @@ public:
 
   bool operator==(const Definition &other) const;
   bool operator!=(const Definition &other) const { return !(*this == other); }
+  bool operator<(const Definition &other) const;
 
   bool isOperation() const { return std::holds_alternative<Operation *>(def); }
   bool isInitialDefinition() const {
@@ -67,6 +65,13 @@ public:
 
 private:
   std::variant<Operation *, InitialDefinition *> def;
+};
+
+struct DefinitionLess {
+  bool operator()(Definition *lhs, Definition *rhs) const {
+    return (lhs && rhs) ? std::less<Definition>{}(*lhs, *rhs)
+                        : std::less<Definition *>{}(lhs, rhs);
+  }
 };
 
 /// This lattice represents the set of operations that might have modified a
@@ -93,16 +98,20 @@ class ReachingDefinition : public dataflow::AbstractDenseLattice {
   friend raw_ostream &operator<<(raw_ostream &, const ReachingDefinition &);
 
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ReachingDefinition)
+  struct CompareDefinition {
+    bool operator()(Definition *lhs, Definition *rhs) const {
+      return (lhs && rhs) ? std::less<Definition>{}(*lhs, *rhs)
+                          : std::less<Definition *>{}(lhs, rhs);
+    }
+  };
 
+  using ModifiersTy = std::set<Definition *, CompareDefinition>;
   using AbstractDenseLattice::AbstractDenseLattice;
-  using ModifiersTy = SetVector<Definition *, SmallVector<Definition *>,
-                                SmallPtrSet<Definition *, 2>>;
 
   explicit ReachingDefinition(ProgramPoint p);
 
-  /// Construct an unknown definition. This is to represent the incoming
-  /// definition at an entry point.
+  /// Construct an unknown definition (represents the incoming definition at an
+  /// entry point).
   static ReachingDefinition getUnknownDefinition(ProgramPoint p) {
     return ReachingDefinition(p);
   }
@@ -126,10 +135,10 @@ public:
   ChangeResult removePotentialModifiers(Value val);
 
   /// Get the definitions that have modified \p val.
-  std::optional<ArrayRef<Definition *>> getModifiers(Value val) const;
+  std::optional<ModifiersTy> getModifiers(Value val) const;
 
   /// Get the definition that have possibly modified \p val.
-  std::optional<ArrayRef<Definition *>> getPotentialModifiers(Value val) const;
+  std::optional<ModifiersTy> getPotentialModifiers(Value val) const;
 
   void print(raw_ostream &os) const override { os << *this; }
 

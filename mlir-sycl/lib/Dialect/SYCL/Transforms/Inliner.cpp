@@ -767,9 +767,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
     case sycl::InlineMode::Ludicrous:
       return true;
     case sycl::InlineMode::Aggressive:
-      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Op);
     case sycl::InlineMode::Simple:
-      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Op);
     case sycl::InlineMode::AlwaysInline:
       return isa<sycl::SYCLCallOp>(Op);
     }

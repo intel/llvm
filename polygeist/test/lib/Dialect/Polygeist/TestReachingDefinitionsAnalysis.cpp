@@ -28,6 +28,7 @@ struct TestReachingDefinitionAnalysisPass
 
   void runOnOperation() override {
     using Definition = polygeist::Definition;
+    using ModifiersTy = polygeist::ReachingDefinition::ModifiersTy;
 
     AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
     aliasAnalysis.addAnalysisImplementation(
@@ -42,8 +43,7 @@ struct TestReachingDefinitionAnalysisPass
     if (failed(solver.initializeAndRun(op)))
       return signalPassFailure();
 
-    auto printOps = [](std::optional<ArrayRef<Definition *>> defs,
-                       StringRef title) {
+    auto printOps = [](std::optional<ModifiersTy> defs, StringRef title) {
       if (!defs) {
         llvm::errs() << title << "<unknown>\n";
         return;
@@ -54,7 +54,7 @@ struct TestReachingDefinitionAnalysisPass
           *defs, llvm::errs(),
           [](Definition *def) {
             if (!def->isOperation()) {
-              llvm::errs() << "'" << *def << "'";
+              llvm::errs() << *def;
               return;
             }
             if (auto tagName =
@@ -81,10 +81,8 @@ struct TestReachingDefinitionAnalysisPass
       // Print the reaching definitions for each operand.
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs() << " operand #" << index << "\n";
-        std::optional<ArrayRef<Definition *>> mods =
-            reachingDef->getModifiers(operand);
-        std::optional<ArrayRef<Definition *>> pMods =
-            reachingDef->getPotentialModifiers(operand);
+        auto mods = reachingDef->getModifiers(operand);
+        auto pMods = reachingDef->getPotentialModifiers(operand);
         printOps(mods, " - mods: ");
         printOps(pMods, " - pMods: ");
       }
