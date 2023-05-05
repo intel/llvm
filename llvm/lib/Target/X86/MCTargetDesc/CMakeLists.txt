@@ -17,12 +17,13 @@ add_llvm_component_library(LLVMX86Desc
   X86WinCOFFTargetStreamer.cpp
 
   LINK_COMPONENTS
+  BinaryFormat
+  CodeGenTypes
   MC
   MCDisassembler
   Support
   TargetParser
   X86Info
-  BinaryFormat
 
   ADD_TO_COMPONENT
   X86

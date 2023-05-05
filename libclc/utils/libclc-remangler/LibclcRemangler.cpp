@@ -100,7 +100,7 @@ static cl::opt<bool> TestRun("t", cl::desc("Enable test run"), cl::init(false),
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 namespace {
-inline StringRef asRef(StringView S) { return {S.begin(), S.size()}; }
+inline StringRef asRef(std::string_view S) { return {&*S.begin(), S.size()}; }
 class BumpPointerAllocator {
 public:
   BumpPointerAllocator()
@@ -553,7 +553,7 @@ private:
   // Handle undecorated type that can be matched against `QualType`, also
   // returning if variadic.
   std::pair<clang::QualType, bool>
-  handleLeafTypeNode(StringView Name,
+  handleLeafTypeNode(std::string_view Name,
                      SmallVector<NodeKindInfo> &PossibleKinds) {
     return handleLeafTypeNode(asRef(Name), PossibleKinds);
   }

@@ -329,8 +329,8 @@ public:
   /// filename has no extension, ConstString(nullptr) is returned. The dot
   /// ('.') character is the first character in the returned string.
   ///
-  /// \return Returns the extension of the file as a ConstString object.
-  ConstString GetFileNameExtension() const;
+  /// \return Returns the extension of the file as a StringRef.
+  llvm::StringRef GetFileNameExtension() const;
 
   /// Return the filename without the extension part
   ///
@@ -407,8 +407,6 @@ public:
   /// \return
   ///     A boolean value indicating whether the path was updated.
   bool RemoveLastPathComponent();
-
-  ConstString GetLastPathComponent() const;
 
 protected:
   // Convenience method for setting the file without changing the style.
