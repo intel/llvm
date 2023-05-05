@@ -1,5 +1,6 @@
-# Implementation Design for Device Configuration File This design document
-describes the implementation of the DPC++ Device Configuration File.
+# Implementation Design for Device Configuration File
+This design document describes the implementation of the DPC++ Device
+Configuration File.
 
 In summary, there several scenarios where we need to know information about a
 target at compile-time, which is the main purpose of this Device Configuration
@@ -7,11 +8,12 @@ File. Examples are `any_device_has/all_devices_have` which defines macros
 depending on the optional features supported by a target; or conditional AOT
 compilation based on optional features used in kernels and supported by targets.
 
-## Requirements We need a default Device Configuration File embedded in the
-compiler describing the well known targets at the time of building the compiler.
-This embedded knowledge must be extendable, since our AOT toolchain allows
-compiling for targets not known at the time of building the compiler so long as
-the appropriate toolchain --AOT compiler and driver-- support such targets. In
+## Requirements
+We need a default Device Configuration File embedded in the compiler describing
+the well known targets at the time of building the compiler.  This embedded
+knowledge must be extendable, since our AOT toolchain allows compiling for
+targets not known at the time of building the compiler so long as the
+appropriate toolchain --AOT compiler and driver-- support such targets. In
 other words, we need to provide a way for users to add entries for new targets
 at application compile time.
 
@@ -49,19 +51,21 @@ for experimental purposes and when dealing with new HW which may not be
 supported by older compilers. **Question: Why is not enough compile time for new
 HW?**
 
-## High-Level Design The default Device Configuration File is a `.td` file
-located in the compiler source code. `.td` is the file extension for [LLVM
+## High-Level Design
+The default Device Configuration File is a `.td` file located in the compiler
+source code. `.td` is the file extension for [LLVM
 TableGen](https://llvm.org/docs/TableGen/). This default file will include all
-the devices known by the developers at the time of the release. During the build
-process, using a custom TableGen backend, we generate a `.inc` C++ file
+the devices known by the developers at the time of the release. During the
+build process, using a custom TableGen backend, we generate a `.inc` C++ file
 containing a `std::map` with one key/value element for each entry in the `.td`
 file. Using a map we can later update or add new elements if the user provides
-new targets at application compile time. Finally, the tools and compiler modules
-that need information about the targets can simply query the map to get it.
+new targets at application compile time. Finally, the tools and compiler
+modules that need information about the targets can simply query the map to get
+it.
 
-### New `TableGen` backend Note: This
-[guide](https://llvm.org/docs/TableGen/BackGuide.html) details how to implement
-new TableGen backends. Also, the [Search
+### New `TableGen` backend
+Note: This [guide](https://llvm.org/docs/TableGen/BackGuide.html) details how
+to implement new TableGen backends. Also, the [Search
 Indexes](https://llvm.org/docs/TableGen/BackEnds.html#search-indexes) backend
 already does something very similar to what we seek. It generates a table that
 provides a lookup function, but it cannot be extended with new entries. We can
@@ -136,21 +140,23 @@ if (info == DeviceConfigFile::targets.end()) {
 **TODO: extend to explain how we should create a header file declaring the
 namespace and including the .inc file within.**
 
-### Changes to Build Infrastructure We need the information about the targets in
-multiple tools and compiler modules listed in [Requirements](#Requirements).
-Thus, we need to make sure that the generation of the `.inc` file out of the
-`.td` file is done in time for all the consumers. The command we need to run for
-TableGen is `llvm-tblgen -gen-[custom-backend] -I /llvm-root/llvm/include/
-input.td -o output.inc`. Additionally, we need to set dependencies adequately so
-that this command is run before any of the consumers need it.
+### Changes to Build Infrastructure
+We need the information about the targets in multiple tools and compiler
+modules listed in [Requirements](#Requirements).  Thus, we need to make sure
+that the generation of the `.inc` file out of the `.td` file is done in time
+for all the consumers. The command we need to run for TableGen is `llvm-tblgen
+-gen-[custom-backend] -I /llvm-root/llvm/include/ input.td -o output.inc`.
+Additionally, we need to set dependencies adequately so that this command is
+run before any of the consumers need it.
 
 **Question: can we set the flag ourselves? Is there any convention we need to
 follow?**
 
-### Changes to the DPC++ Frontend To allow users to add new targets we provide a
-new flag: `fsycl-device-config-file=/path/to/file.yaml`. Users can pass a
-`.yaml` file describing the targets to be added/updated. An example of how such
-`.yaml` file should look like is shown below.
+### Changes to the DPC++ Frontend
+To allow users to add new targets we provide a new flag:
+`fsycl-device-config-file=/path/to/file.yaml`. Users can pass a `.yaml` file
+describing the targets to be added/updated. An example of how such .yaml` file
+should look like is shown below.
 ```
 intel_gpu_skl:
     aspects: [aspect_name1, aspect_name2]
@@ -171,10 +177,10 @@ From that name, we can infer that `aot-toolchain` is `ocloc` because the name
 starts with `intel_gpu`. Also, we can infer that `ocloc-device` is `skl` just by
 keeping what is left after the prefix `intel_gpu`.
 
-#### Auto-detection Potential Issues/Limitations The auto-detection mechanism is
-a best effort to relieve users from specifying `aot-toolchain` and
-`ocloc-device` from well known devices. However, it has limitations and
-potential issues:
+#### Auto-detection Potential Issues/Limitations
+The auto-detection mechanism is a best effort to relieve users from specifying
+`aot-toolchain` and `ocloc-device` from well known devices. However, it has
+limitations and potential issues:
 - Rules for target names: **TODO: Define rules for names so that they can be
 auto-detected.**
 - Multiple targets with the same name: On the one hand, the compiler emits a
