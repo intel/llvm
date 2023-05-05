@@ -4309,7 +4309,7 @@ public:
   llvm::CallInst *
   EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,
                             const SmallVectorImpl<llvm::Value *> &IRArgs,
-                            llvm::Value *FnPtr, const Decl *TargetDecl);
+                            llvm::Value *FnPtr, const FunctionDecl *FD);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);

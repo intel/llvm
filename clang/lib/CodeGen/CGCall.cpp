@@ -5516,12 +5516,20 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
   // Emit the actual call/invoke instruction.
-  llvm::CallBase *CI;
+  llvm::CallBase *CI = nullptr;
   if (!InvokeDest) {
     if (CGM.getCodeGenOpts().FPAccuracy) {
-      if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl))
-        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr,
-                                       TargetDecl);
+      const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl);
+      assert(FD && "expecting a function");
+      if (!getLangOpts().FPAccuracyVal.empty())
+        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+      if (!getLangOpts().FPAccuracyFuncMap.empty()) {
+        auto FuncMapIt =
+            getLangOpts().FPAccuracyFuncMap.find(FD->getName().str());
+        if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
+          CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+        }
+      }
       if (CI)
         return RValue::get(CI);
     }

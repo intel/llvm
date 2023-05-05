@@ -3621,7 +3621,13 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                   FPAccuracy.equals("sycl") || FPAccuracy.equals("cuda")))
               Diags.Report(diag::err_drv_unsupported_option_argument)
                   << "ffp-accuracy" << FPAccuracy;
-            Opts.FPAccuracyFuncMap.insert({FuncName.str(), FPAccuracy.str()});
+            if (!Opts.FPAccuracyVal.empty())
+              Diags.Report(diag::warn_function_fp_accuracy_already_set)
+                  << Opts.FPAccuracyVal << FuncName.str();
+            // No need to fill the map if the FPaccuracy is 'default'.
+            // The default builtin will be generated.
+            if (!FPAccuracy.equals("default"))
+              Opts.FPAccuracyFuncMap.insert({FuncName.str(), FPAccuracy.str()});
           }
         }
       }
