@@ -242,7 +242,7 @@ public:
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
-#pragma clang diagnostics pop
+#pragma clang diagnostic pop
 #endif // defined(__clang__)
 
 private:
