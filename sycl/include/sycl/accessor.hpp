@@ -1358,7 +1358,9 @@ public:
             typename... PropTypes,
             typename std::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                std::is_same_v<T, DataT> && Dims == 0 &&
+                // VS2019 can't compile sycl/test/regression/bit_cast_win.cpp
+                // if std::is_same_v is used here.
+                std::is_same<T, DataT>::value && Dims == 0 &&
                 (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))> * =
                 nullptr>
   accessor(
@@ -2566,6 +2568,8 @@ protected:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
+  template <typename DataT_, int Dimensions_> friend class local_accessor;
+
 public:
   using value_type = DataT;
   using reference = DataT &;
@@ -2647,20 +2651,23 @@ public:
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 0 && IsAccessAnyWrite>>
+            typename = std::enable_if_t<Dims == 0 &&
+                                        (IsAccessAnyWrite || IsAccessReadOnly)>>
   operator RefType() const {
     return *getQualifiedPtr();
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
+            typename = std::enable_if_t<(Dims > 0) &&
+                                        (IsAccessAnyWrite || IsAccessReadOnly)>>
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 1 && IsAccessAnyWrite>>
+            typename = std::enable_if_t<Dims == 1 &&
+                                        (IsAccessAnyWrite || IsAccessReadOnly)>>
   RefType operator[](size_t Index) const {
     return getQualifiedPtr()[Index];
   }
@@ -2796,7 +2803,17 @@ public:
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
 
+  // implicit conversion between non-const read-write accessor to const
+  // read-only accessor
 public:
+  template <typename DataT_,
+            typename = std::enable_if_t<
+                std::is_const_v<DataT> &&
+                std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
+  local_accessor(const local_accessor<DataT_, Dimensions> &other) {
+    local_acc::impl = other.impl;
+  }
+
   using value_type = DataT;
   using iterator = value_type *;
   using const_iterator = const value_type *;
@@ -2808,6 +2825,16 @@ public:
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
+
+  template <typename DataT_>
+  bool operator==(const local_accessor<DataT_, Dimensions> &Rhs) const {
+    return local_acc::impl == Rhs.impl;
+  }
+
+  template <typename DataT_>
+  bool operator!=(const local_accessor<DataT_, Dimensions> &Rhs) const {
+    return !(*this == Rhs);
+  }
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
@@ -3233,6 +3260,32 @@ public:
   const host_accessor &operator=(typename AccessorT::value_type &&Other) const {
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
+  }
+
+  // implicit conversion between const / non-const types for read only accessors
+  template <typename DataT_,
+            typename = std::enable_if_t<
+                IsAccessReadOnly && !std::is_same_v<DataT_, DataT> &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  host_accessor(const host_accessor<DataT_, Dimensions, AccessMode> &other)
+#ifndef __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl)
+#endif // __SYCL_DEVICE_ONLY__
+  {
+  }
+
+  // implicit conversion from read_write T accessor to read only T (const)
+  // accessor
+  template <typename DataT_, access::mode AccessMode_,
+            typename = std::enable_if_t<
+                (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
+                std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
+  host_accessor(const host_accessor<DataT_, Dimensions, AccessMode_> &other)
+#ifndef __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl)
+#endif // __SYCL_DEVICE_ONLY__
+  {
   }
 
   // host_accessor needs to explicitly define the owner_before member functions
