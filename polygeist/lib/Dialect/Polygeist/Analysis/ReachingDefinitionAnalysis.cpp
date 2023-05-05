@@ -254,7 +254,7 @@ void ReachingDefinitionAnalysis::visitOperation(
       // Memory effect on anything other than a value: conservatively assume we
       // can't deduce anything about reaching definitions.
       LLVM_DEBUG(llvm::dbgs() << "Memory Effect on non-values found\n");
-      return setToEntryState(after);
+      return propagateIfChanged(after, after->reset());
     }
 
     // Read operations do not modify the reaching definitions state.

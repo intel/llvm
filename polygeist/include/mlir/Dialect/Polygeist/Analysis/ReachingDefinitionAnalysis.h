@@ -67,13 +67,6 @@ private:
   std::variant<Operation *, InitialDefinition *> def;
 };
 
-struct DefinitionLess {
-  bool operator()(Definition *lhs, Definition *rhs) const {
-    return (lhs && rhs) ? std::less<Definition>{}(*lhs, *rhs)
-                        : std::less<Definition *>{}(lhs, rhs);
-  }
-};
-
 /// This lattice represents the set of operations that might have modified a
 /// memory resource last (in at least one control flow path).
 /// Note: Two sets of definitions are tracked:
