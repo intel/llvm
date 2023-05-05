@@ -2429,7 +2429,7 @@ public:
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
-                  (Dims == 1 || isImageOrImageArray(AccessTarget))) {
+                  (Dims <= 1 || isImageOrImageArray(AccessTarget))) {
       setType(detail::CG::Fill);
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -2442,17 +2442,16 @@ public:
       MPattern.resize(sizeof(T));
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
+    } else if constexpr (Dims == 0) {
+      // Special case for zero-dim accessors.
+      parallel_for<
+          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+          range<1>(1), [=](id<1> Index) { Dst = Pattern; });
     } else {
-      if constexpr (Dims == 0) {
-        parallel_for<
-            class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-            range<1>(1), [=](id<1> Index) { Dst = Pattern; });
-      } else {
-        range<Dims> Range = Dst.get_range();
-        parallel_for<
-            class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-            Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
-      }
+      range<Dims> Range = Dst.get_range();
+      parallel_for<
+          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+          Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
 
