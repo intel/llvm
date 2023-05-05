@@ -7,7 +7,7 @@
 #include <detail/plugin.hpp>
 
 namespace pi {
-inline const char *GetBackendString(const sycl::detail::plugin &Plugin) {
+inline std::string GetBackendString(const sycl::detail::plugin &Plugin) {
   std::stringstream Str;
   for (sycl::backend Backend :
        {sycl::backend::opencl, sycl::backend::ext_oneapi_level_zero,
@@ -17,6 +17,6 @@ inline const char *GetBackendString(const sycl::detail::plugin &Plugin) {
       Str << Backend;
     }
   }
-  return Str.str().c_str();
+  return Str.str();
 }
 } // namespace pi

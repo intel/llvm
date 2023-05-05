@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
 // Currently the feature isn't supported on FPGA.
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -222,28 +223,27 @@ bool check(bool a, bool b) { return (a != b); }
 int main() {
   queue q;
 
-  if (q.get_device().has(aspect::ext_oneapi_bfloat16_math_functions)) {
-    std::vector<float> a(N), b(N), c(N);
-    int err = 0;
+  std::vector<float> a(N), b(N), c(N);
+  int err = 0;
 
-    for (int i = 0; i < N; i++) {
-      a[i] = (i - N / 2) / (float)N;
-      b[i] = (N / 2 - i) / (float)N;
-      c[i] = (float)(3 * i);
-    }
-
-    TEST_BUILTIN_1(fabs, bfloat16);
-    TEST_BUILTIN_2(fmin);
-    TEST_BUILTIN_2(fmax);
-    TEST_BUILTIN_3(fma);
-
-    float check_nan = 0;
-    TEST_BUILTIN_2_NAN(fmin);
-    TEST_BUILTIN_2_NAN(fmax);
-
-    // Insert NAN value in a to test isnan
-    a[0] = a[N - 1] = NAN;
-    TEST_BUILTIN_1(isnan, bool);
+  for (int i = 0; i < N; i++) {
+    a[i] = (i - N / 2) / (float)N;
+    b[i] = (N / 2 - i) / (float)N;
+    c[i] = (float)(3 * i);
   }
+
+  TEST_BUILTIN_1(fabs, bfloat16);
+  TEST_BUILTIN_2(fmin);
+  TEST_BUILTIN_2(fmax);
+  TEST_BUILTIN_3(fma);
+
+  float check_nan = 0;
+  TEST_BUILTIN_2_NAN(fmin);
+  TEST_BUILTIN_2_NAN(fmax);
+
+  // Insert NAN value in a to test isnan
+  a[0] = a[N - 1] = NAN;
+  TEST_BUILTIN_1(isnan, bool);
+
   return 0;
 }

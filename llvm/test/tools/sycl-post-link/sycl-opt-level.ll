@@ -8,13 +8,18 @@
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-OPT-LEVEL-PROP-0
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-OPT-LEVEL-PROP-1
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM-0
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM-1
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
 ; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
+; CHECK-EMPTY:
 
-; CHECK-OPT-LEVEL-PROP-0: optLevel=1|0
-; CHECK-OPT-LEVEL-PROP-1: optLevel=1|2
+; CHECK-OPT-LEVEL-PROP-0: optLevel=1|2
+; CHECK-OPT-LEVEL-PROP-1: optLevel=1|0
+; CHECK-SYM-0: _Z3fooii
+; CHECK-SYM-1: _Z3booii
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

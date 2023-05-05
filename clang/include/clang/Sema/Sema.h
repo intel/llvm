@@ -14495,7 +14495,7 @@ public:
   ///   immediately.
   /// - If CurLexicalContext is a function and we are compiling
   ///   for the device, but we don't know that this function will be codegen'ed
-  ///   for devive yet, creates a diagnostic which is emitted if and when we
+  ///   for device yet, creates a diagnostic which is emitted if and when we
   ///   realize that the function will be codegen'ed.
   ///
   /// Example usage:

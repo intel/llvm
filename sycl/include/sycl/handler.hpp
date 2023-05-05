@@ -143,6 +143,9 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
+// Checks if a device_global has any registered kernel usage.
+__SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
+
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
 
@@ -360,6 +363,32 @@ private:
                                 "command group. Command group must consist of "
                                 "a single kernel or explicit memory operation.",
                                 PI_ERROR_INVALID_OPERATION);
+  }
+
+  constexpr static int AccessTargetMask = 0x7ff;
+  /// According to section 4.7.6.11. of the SYCL specification, a local accessor
+  /// must not be used in a SYCL kernel function that is invoked via single_task
+  /// or via the simple form of parallel_for that takes a range parameter.
+  template <typename KernelName, typename KernelType>
+  void throwOnLocalAccessorMisuse() const {
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using KI = sycl::detail::KernelInfo<NameT>;
+
+    auto *KernelArgs = &KI::getParamDesc(0);
+
+    for (unsigned I = 0; I < KI::getNumParams(); ++I) {
+      const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
+      const access::target AccTarget =
+          static_cast<access::target>(KernelArgs[I].info & AccessTargetMask);
+      if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
+          (AccTarget == target::local))
+        throw sycl::exception(
+            make_error_code(errc::kernel_argument),
+            "A local accessor must not be used in a SYCL kernel function "
+            "that is invoked via single_task or via the simple form of "
+            "parallel_for that takes a range parameter.");
+    }
   }
 
   /// Extracts and prepares kernel arguments from the lambda using integration
@@ -937,6 +966,7 @@ private:
   void parallel_for_lambda_impl(range<Dims> NumWorkItems, PropertiesT Props,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
+    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
@@ -1432,6 +1462,7 @@ private:
   void single_task_lambda_impl(PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1527,6 +1558,9 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+    if (Acc.empty())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -2723,6 +2757,15 @@ public:
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
+      // If the corresponding device_global isn't used in any kernels, we fall
+      // back to doing the memory operation on host-only.
+      memcpyToHostOnlyDeviceGlobal(&Dest, Src, sizeof(T), IsDeviceImageScoped,
+                                   NumBytes, DestOffset);
+      return;
+    }
+
     memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes, DestOffset);
   }
 
@@ -2746,6 +2789,15 @@ public:
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
         ext::oneapi::experimental::device_image_scope_key>();
+
+    if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
+      // If the corresponding device_global isn't used in any kernels, we fall
+      // back to doing the memory operation on host-only.
+      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, sizeof(T), IsDeviceImageScoped,
+                                     NumBytes, SrcOffset);
+      return;
+    }
+
     memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
                            SrcOffset);
   }
@@ -3063,6 +3115,18 @@ private:
   void memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                               bool IsDeviceImageScoped, size_t NumBytes,
                               size_t Offset);
+
+  // Implementation of memcpy to an unregistered device_global.
+  void memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                    const void *Src, size_t DeviceGlobalTSize,
+                                    bool IsDeviceImageScoped, size_t NumBytes,
+                                    size_t Offset);
+
+  // Implementation of memcpy from an unregistered device_global.
+  void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                      size_t DeviceGlobalTSize,
+                                      bool IsDeviceImageScoped, size_t NumBytes,
+                                      size_t Offset);
 
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
