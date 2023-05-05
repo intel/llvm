@@ -157,8 +157,9 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_fixed_size_group<Group>::value &&
         std::is_integral_v<T>,
     T>
-masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                            const uint32_t MemberMask) {//todo membermask naming?
+masked_reduction_cuda_shfls(
+    Group g, T x, BinaryOperation binary_op,
+    const uint32_t MemberMask) { // todo membermask naming?
 
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     auto tmp = __nvvm_shfl_sync_bfly_i32(MemberMask, x, -1, i);
@@ -167,9 +168,42 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   return x;
 }
 
+//TODO naming conventions are not everywhere consistent, finalize this
+
+template <typename Group, typename T>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<
+    ext::oneapi::experimental::is_user_constructed_group_v<Group>, T>
+non_uniform_shfl_T(const uint32_t MemberMask, T x, int delta) {
+  if constexpr (ext::oneapi::experimental::is_fixed_size_group<Group>::value) {
+    return __nvvm_shfl_sync_up_i32(MemberMask, x, delta, 0);
+  } else {
+    return __nvvm_shfl_sync_idx_i32(MemberMask, x, delta, 31);
+  }
+}
+
+template <typename Group, typename T>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<
+    ext::oneapi::experimental::is_user_constructed_group_v<Group>, T>
+non_uniform_shfl(Group g, const uint32_t MemberMask, T x, int delta) {
+  T res;
+  if constexpr (std::is_same_v<T, double>) {
+    int x_a, x_b;
+    asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
+
+    auto tmp_a = non_uniform_shfl_T<Group>(MemberMask, x_a, delta);
+    auto tmp_b = non_uniform_shfl_T<Group>(MemberMask, x_b, delta);
+    asm volatile("mov.b64 %0,{%1,%2}; \n\t"
+                 : "=l"(res)
+                 : "r"(tmp_a), "r"(tmp_b));
+  } else {
+    auto input = std::is_same_v<T, float> ? __nvvm_bitcast_f2i(x) : x;
+    auto tmp_b32 = non_uniform_shfl_T<Group>(MemberMask, input, delta);
+    res = std::is_same_v<T, float> ? __nvvm_bitcast_i2f(tmp_b32) : tmp_b32;
+  }
+  return res;
+}
+
 // Opportunistic/Ballot group reduction using shfls
-// TODO in some places it might make sense to factor out parts of this big
-// function.
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
@@ -186,25 +220,11 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
     }
     return x;
   }
-  unsigned local_range;
-  // get_local_range()[0] in a more direct way.
-  asm("popc.b32 %0, %1;" : "=r"(local_range) : "r"(MemberMask));
 
-  // position of this lanes set bit with respect to all set bits in mask
-  // local_set_bit = 1 for first set bit in mask.
-  unsigned local_set_bit;
-
-  // get_local_id()[0] directly without duplicating extract mask.
-  asm("popc.b32 %0, %1;"
-      : "=r"(local_set_bit)
-      : "r"(MemberMask & __nvvm_read_ptx_sreg_lanemask_lt()));
-  local_set_bit++;
-  if (local_range < 2) {
-    return x;
-  }
+  unsigned local_set_bit = g.get_local_id()[0] + 1;
 
   // number of elements remaining requiring binary operations
-  auto op_range = local_range;
+  auto op_range = g.get_local_range()[0];
 
   // remainder that won't have a binary partner each pass of while loop
   int remainder;
@@ -215,48 +235,17 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
     // stride between local_ids forming a binary op
     int stride = op_range / 2;
 
-    // position of set bit in mask from shfl src lane.
-    int src_set_bit;
+    // unfolded position of set bit in mask from shfl src lane.
+    int unfolded_src_set_bit = local_set_bit + stride;
+    
+    // __nvvm_fns automatically wraps around to correct bit position
+    // There is no performance impact on src_set_bit position wrt local_set_bit
+    auto tmp = non_uniform_shfl(
+        g, MemberMask, x, __nvvm_fns(MemberMask, 0, unfolded_src_set_bit));
 
-    int unfold = local_set_bit + stride;
-    bool fold_around = unfold > local_range;
-
-    if (remainder != 0) {
-      if (fold_around) {
-        unfold++;
-        src_set_bit = unfold - local_range;
-      } else if (local_set_bit == 1) {
-        src_set_bit = local_set_bit;
-      } else {
-        src_set_bit = unfold;
-      }
-    } else if (fold_around) {
-      src_set_bit = unfold - local_range;
-    } else {
-      src_set_bit = unfold;
+    if (!(local_set_bit == 1 && remainder != 0)) {
+      x = binary_op(x, tmp);
     }
-
-    T tmp;
-    // TODO adsorb these guys into separate functions since we call each form
-    // twice.
-    if (std::is_same_v<T, double>) {
-      int x_a, x_b;
-      asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
-
-      auto tmp_a = __nvvm_shfl_sync_idx_i32(
-          MemberMask, x_a, __nvvm_fns(MemberMask, 0, src_set_bit), 0x1f);
-      auto tmp_b = __nvvm_shfl_sync_idx_i32(
-          MemberMask, x_b, __nvvm_fns(MemberMask, 0, src_set_bit), 0x1f);
-      asm volatile("mov.b64 %0,{%1,%2}; \n\t"
-                   : "=l"(tmp)
-                   : "r"(tmp_a), "r"(tmp_b));
-    } else {
-      auto input = std::is_same_v<T, float> ? __nvvm_bitcast_f2i(x) : x;
-      auto tmp_b32 = __nvvm_shfl_sync_idx_i32(
-          MemberMask, input, __nvvm_fns(MemberMask, 0, src_set_bit), 0x1f);
-      tmp = std::is_same_v<T, float> ? __nvvm_bitcast_i2f(tmp_b32) : tmp_b32;
-    }
-    x = (local_set_bit == 1 && remainder != 0) ? x : binary_op(x, tmp);
 
     op_range = std::ceil((float)op_range / 2.0f);
   }
@@ -266,26 +255,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   asm("brev.b32 %0, %1;" : "=r"(maskRev) : "r"(MemberMask));
   asm("clz.b32 %0, %1;" : "=r"(broadID) : "r"(maskRev));
 
-  T res;
-
-  if (std::is_same_v<T, double>) {
-
-    int x_a, x_b;
-    asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
-
-    auto tmp_a = __nvvm_shfl_sync_idx_i32(MemberMask, x_a, broadID, 0x1f);
-    auto tmp_b = __nvvm_shfl_sync_idx_i32(MemberMask, x_b, broadID, 0x1f);
-    asm volatile("mov.b64 %0,{%1,%2}; \n\t"
-                 : "=l"(res)
-                 : "r"(tmp_a), "r"(tmp_b));
-
-  } else {
-    auto input = std::is_same_v<T, float> ? __nvvm_bitcast_f2i(x) : x;
-    auto tmp_b32 = __nvvm_shfl_sync_idx_i32(MemberMask, input, broadID, 0x1f);
-    res = std::is_same_v<T, float> ? __nvvm_bitcast_i2f(tmp_b32) : tmp_b32;
-  }
-
-  return res;
+  return non_uniform_shfl(g, MemberMask, x, broadID);
 }
 
 // Non Redux types must fall back to shfl based implementations.
@@ -300,6 +270,7 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 ////
 
+// todo these functions not cuda specific..
 template <typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<sycl::detail::IsPlus<T, BinaryOperation>::value ||
@@ -358,57 +329,65 @@ GET_ID(IsMaximum, min)
 
 #undef GET_ID
 
-// Cluster group scan using shfls, std::is_integral_v<T>
-template <__spv::GroupOperation Op, typename Group, typename T, class BinaryOperation>
+// Cluster group scan using shfls
+template <__spv::GroupOperation Op, typename Group, typename T,
+          class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_fixed_size_group<Group>::value,// && //todo decide on final is_instegral cases?
-       // std::is_integral_v<T>,
-    T>
+    ext::oneapi::experimental::is_fixed_size_group<Group>::value, T>
 masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                            const uint32_t MemberMask) {//todo membermask naming?
+                       const uint32_t MemberMask) { // todo membermask naming?
 
-T tmp;
-//todo diff version if 32?
-for (int d=1; d < g.get_local_range()[0]; d*=2) {
-/*
-  if constexpr (std::is_same_v<T, double>) {
+  for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
+    auto tmp =
+        non_uniform_shfl(g, MemberMask, x, i);
+    if (g.get_local_id()[0] >= i)
+      x = binary_op(x, tmp);
+  }
 
-    int x_a, x_b;
-    asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
+  if constexpr (Op == __spv::GroupOperation::ExclusiveScan) {
 
-    auto tmp_a = __nvvm_shfl_sync_up_i32(MemberMask, x_a, d, 0);
-    auto tmp_b = __nvvm_shfl_sync_up_i32(MemberMask, x_b, d, 0);
-    asm volatile("mov.b64 %0,{%1,%2}; \n\t"
-                 : "=l"(tmp)
-                 : "r"(tmp_a), "r"(tmp_b));
-
-  }*/ 
-tmp = __nvvm_shfl_sync_up_i32(MemberMask, x, d, 0);
-if (g.get_local_id()[0] >= d) x = binary_op(x, tmp);
-
-}
-//return x;
-if constexpr (Op == __spv::GroupOperation::ExclusiveScan)
-{
-auto res = __nvvm_shfl_sync_up_i32(MemberMask, x, 1, 0);
-x = g.get_local_id()[0] == 0 ? get_identity<T, BinaryOperation>() : res; 
-}
-return x;
+    x = non_uniform_shfl(g, MemberMask, x, 1);
+    if (g.get_local_id()[0] == 0) {
+      return get_identity<T, BinaryOperation>();
+    }
+  }
+  return x;
 }
 
-template <__spv::GroupOperation Op, typename Group, typename T, class BinaryOperation>
+template <__spv::GroupOperation Op, typename Group, typename T,
+          class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !ext::oneapi::experimental::is_fixed_size_group<Group>::value,// && //todo decide on final is_instegral cases?
-       // std::is_integral_v<T>,
+        !ext::oneapi::experimental::is_fixed_size_group<Group>::value,
     T>
 masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                            const uint32_t MemberMask) {
-                            
-return 5;
-                            }
+                       const uint32_t MemberMask) {
 
-                            
+  // position of this lanes set bit with respect to all set bits in mask
+  // local_set_bit = 1 for first set bit in mask.
+  // todo finalize naming convention
+  int local_id_val = g.get_local_id()[0];
+
+  int local_set_bit = local_id_val + 1;
+
+  for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
+    int unfolded_src_set_bit = local_set_bit - i;
+
+    auto tmp = non_uniform_shfl(
+        g, MemberMask, x, __nvvm_fns(MemberMask, 0, unfolded_src_set_bit));
+    if (local_id_val >= i)
+      x = binary_op(x, tmp);
+  }
+
+  if constexpr (Op == __spv::GroupOperation::ExclusiveScan) {
+    x = non_uniform_shfl(g, MemberMask, x,
+                         __nvvm_fns(MemberMask, 0, local_set_bit - 1));
+    if (g.get_local_id()[0] == 0) {
+      return get_identity<T, BinaryOperation>();
+    }
+  }
+  return x;
+}
 
 #endif
 #endif
