@@ -21,4 +21,4 @@ void matmul(float A[100][200], float B[200][300], float C[100][300]) {
       }
     }
   }
-
+}

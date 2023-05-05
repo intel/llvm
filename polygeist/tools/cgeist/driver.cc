@@ -1043,7 +1043,7 @@ void Options::splitCommandLineOptions(int argc, char **argv) {
 }
 
 // Fill the module with the MLIR in the inputFile.
-static void loadMLIR(const std::string &InputFile,
+static bool loadMLIR(const std::string &InputFile,
                      mlir::OwningOpRef<ModuleOp> &Module,
                      mlir::MLIRContext &Ctx) {
   assert(InputFile.substr(InputFile.find_last_of(".") + 1) == "mlir" &&
@@ -1054,7 +1054,7 @@ static void loadMLIR(const std::string &InputFile,
       mlir::openInputFile(InputFile, &ErrorMsg);
   if (!Input) {
     llvm::errs() << ErrorMsg << "\n";
-    exit(1);
+    return false;
   }
 
   // Parse the input mlir.
@@ -1064,12 +1064,13 @@ static void loadMLIR(const std::string &InputFile,
   Module = mlir::parseSourceFile<ModuleOp>(SourceMgr, &Ctx);
   if (!Module) {
     llvm::errs() << "Error can't load file " << InputFile << "\n";
-    exit(1);
+    return false;
   }
+  return true;
 }
 
 // Generate MLIR for the input files.
-static void
+static bool
 processInputFiles(const llvm::cl::list<std::string> &InputFiles,
                   const llvm::cl::list<std::string> &InputCommandArgs,
                   mlir::MLIRContext &Ctx, mlir::OwningOpRef<ModuleOp> &Module,
@@ -1083,7 +1084,7 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
     std::ifstream Ifs(InputFile);
     if (!Ifs.good()) {
       llvm::errs() << "Not able to open file: " << InputFile << "\n";
-      exit(-1);
+      return false;
     }
     Files.push_back(InputFile);
   }
@@ -1106,16 +1107,15 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
       llvm::errs()
           << "More than one input file has been provided. Only a single "
              "input MLIR file can be processed\n";
-      exit(-1);
+      return false;
     }
-    loadMLIR(Files[0], Module, Ctx);
-    return;
+    return loadMLIR(Files[0], Module, Ctx);
   }
 
   // Generate MLIR for the C/C++ files.
   std::string Fn = (!options.getSYCLIsDevice()) ? Cfunction.getValue() : "";
-  parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
-            Commands);
+  return parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
+                   Commands);
 }
 
 static bool containsFunctions(mlir::gpu::GPUModuleOp DeviceModule) {
@@ -1214,8 +1214,10 @@ int main(int argc, char **argv) {
 
   llvm::DataLayout DL("");
   llvm::Triple Triple;
-  processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL, Triple,
-                    argv[0], options.getCgeistOpts());
+  if (!processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL,
+                         Triple, argv[0], options.getCgeistOpts())) {
+    return -1;
+  }
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
