@@ -12,6 +12,7 @@
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMInterfaces.td"
 include "mlir/Dialect/Polygeist/IR/PolygeistBase.td"
+include "mlir/Dialect/Polygeist/IR/PolygeistTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 

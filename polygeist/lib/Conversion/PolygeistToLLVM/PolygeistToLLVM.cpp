@@ -457,7 +457,7 @@ protected:
         indices.push_back(zero);
 
         TypeSwitch<Type>(currType)
-            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
+            .Case<LLVM::LLVMStructType, polygeist::StructType>([&](auto t) {
               assert(t.getBody().size() == 1 && "Expecting single member type");
               currType = t.getBody()[0];
             })
@@ -845,10 +845,25 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
   }
 };
 
+static void
+populatePolygeistToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
+  typeConverter.addConversion(
+      [&](polygeist::StructType type) -> Optional<Type> {
+        llvm::ArrayRef<Type> body = type.getBody();
+        SmallVector<Type> convertedElemTypes;
+        convertedElemTypes.reserve(body.size());
+        if (failed(typeConverter.convertTypes(body, convertedElemTypes)))
+          return std::nullopt;
+        return LLVM::LLVMStructType::getLiteral(&typeConverter.getContext(),
+                                                convertedElemTypes);
+      });
+}
+
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   assert(converter.getOptions().useBarePtrCallConv &&
          "These patterns only work with bare pointer calling convention");
+  populatePolygeistToLLVMTypeConversion(converter);
 
   if (converter.useOpaquePointers()) {
     patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,

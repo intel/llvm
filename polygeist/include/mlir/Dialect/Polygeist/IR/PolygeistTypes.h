@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_IR_POLYGEISTTYPES_H
 #define MLIR_DIALECT_POLYGEIST_IR_POLYGEISTTYPES_H
 
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistDialect.h"
 
 #define GET_TYPEDEF_CLASSES
