@@ -21,8 +21,6 @@ TEST_F(urDeviceGetNativeHandleTest, Success) {
         uint32_t dev_id = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(dev, UR_DEVICE_INFO_DEVICE_ID,
                                        sizeof(uint32_t), &dev_id, nullptr));
-
-        ASSERT_SUCCESS(urDeviceRelease(dev));
     }
 }
 

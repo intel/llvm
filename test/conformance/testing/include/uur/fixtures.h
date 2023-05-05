@@ -61,6 +61,14 @@ struct urAllDevicesTest : urPlatformTest {
         }
         devices = std::move(devicesPair.second);
     }
+
+    void TearDown() override {
+        for (auto &device : devices) {
+            EXPECT_SUCCESS(urDeviceRelease(device));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+    }
+
     std::vector<ur_device_handle_t> devices;
 };
 
@@ -70,6 +78,11 @@ struct urDeviceTest : urPlatformTest,
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         device = GetParam();
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urDeviceRelease(device));
+        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
     }
 
     ur_device_handle_t device;
