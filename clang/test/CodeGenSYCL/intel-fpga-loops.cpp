@@ -23,6 +23,9 @@
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MRD:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MRD_2:[0-9]+]]
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_MRD_3:[0-9]+]]
+// CHECK: br label %for.cond, !llvm.loop ![[MD_FP:[0-9]+]]
+// CHECK: br label %while.cond, !llvm.loop ![[MD_FP_1:[0-9]+]]
+// CHECK: br i1 %cmp5, label %do.body, label %do.end, !llvm.loop ![[MD_FP_2:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -171,6 +174,27 @@ void max_reinvocation_delay() {
       a[i] = 0;
 }
 
+// Add codeGen tests for loop attribute: [[intel::enable_loop_pipelining]].
+void fpga_enable_loop_pipelining() {
+  int a[10];
+  // CHECK: ![[MD_FP]] = distinct !{![[MD_FP]], ![[MP]], ![[MD_fpga_pipeline:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_fpga_pipeline]] = !{!"llvm.loop.intel.pipelining.enable", i32 1}
+  [[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // CHECK: ![[MD_FP_1]] = distinct !{![[MD_FP_1]], ![[MP]], ![[MD_fpga_pipeline]]}
+  int j = 0;
+  [[intel::enable_loop_pipelining]] while (j < 10) {
+    a[j++] = 3;
+  }
+
+  // CHECK: ![[MD_FP_2]] = distinct !{![[MD_FP_2]], ![[MP]], ![[MD_fpga_pipeline]]}
+  int b = 10;
+  [[intel::enable_loop_pipelining]] do {
+    b = b + 1;
+  } while (b < 20);
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
@@ -187,6 +211,7 @@ int main() {
     speculated_iterations<4, 0>();
     loop_count_control<12>();
     max_reinvocation_delay<3, 1>();
+    fpga_enable_loop_pipelining();
   });
   return 0;
 }
