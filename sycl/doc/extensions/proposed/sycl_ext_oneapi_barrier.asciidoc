@@ -159,6 +159,13 @@ by any `barrier` with the specified `Scope` and `CompletionFunction`.
 ----
 constexpr explicit barrier(ptrdiff_t expected, CompletionFunction f = CompletionFunction());
 ----
+_Preconditions_: If `Scope` is `memory_scope::work_group`, the calling thread
+of execution must be a work-item belonging to the work-group that will use the
+barrier. If `Scope` is `memory_scope::device`, the calling thread of execution
+must be executing on the device where the barrier will be used. If `Scope` is
+`memory_scope::system`, the calling thread of execution can be any host or
+device thread.
+
 _Effects_: Initializes the barrier with the given expected count and completion
 function, and begins the first phase of the barrier.
 
