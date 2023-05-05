@@ -352,6 +352,8 @@ _Returns_: A `group_arrival_token` that can be passed to `group_wait`.
 Implementations may decrease the expected count via a call to `arrive(1)` from
 each work-item in the group, or via a single call to
 `arrive(g.get_group_linear_range())` from the elected leader of the group.
+Since `group_arrive` is a group function, implementations may call
+`group_barrier` before and after the call to `arrive` in the latter case.
 ====
 
 [source,c++]
@@ -367,7 +369,9 @@ phase associated with `b` and `arrival`.
 ====
 Implementations may block the work-items in group `g` via a call to `wait` from
 each work-item in the group, or via a single call to `wait` from the elected
-leader of the group.
+leader of the group. Since `group_wait` is a group function, implementations
+may call `group_barrier` before and after the call to `wait` in the latter
+case.
 ====
 
 
