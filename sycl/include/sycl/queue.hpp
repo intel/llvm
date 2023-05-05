@@ -88,8 +88,6 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \ingroup sycl_api
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
-
-public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
   ///
@@ -246,7 +244,6 @@ public:
   /// \param PropList is a list of properties for queue construction.
   queue(const context &SyclContext, const device &SyclDevice,
         const async_handler &AsyncHandler, const property_list &PropList = {});
-
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
@@ -1916,7 +1913,7 @@ public:
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
 
-  pi_native_handle getNative(int32_t& NativeHandleDesc) const;
+  pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
 private:
   std::shared_ptr<detail::queue_impl> impl;

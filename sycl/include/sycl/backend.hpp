@@ -136,7 +136,7 @@ auto get_native(const SyclObjectT &Obj)
 }
 
 template <backend BackendName>
-auto get_native(const queue &Obj)->backend_return_t<BackendName, queue> {
+auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
