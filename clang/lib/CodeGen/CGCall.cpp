@@ -1856,12 +1856,8 @@ llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracy) {
 void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
     const llvm::Type *FuncType) {
-  if (!getLangOpts().FPAccuracyVal.empty()) {
-    StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-        ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
-    assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
-    FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-  }
+  // First check that a specific accuracy hasn't been requested for this
+  // function.
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
@@ -1870,6 +1866,18 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
     }
+  }
+  if (!getLangOpts().FPAccuracyVal.empty()) {
+    StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+        ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
+    assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+    if (FuncAttrs.attrs().size() == 0)
+      // No specific accuracy has been requested for this function.
+      // Add the general accuracy value to the attribute list.
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+    else
+      assert(FuncAttrs.attrs().size() == 1 &&
+             "Expected an attribute has already been mapped to the function");
   }
 }
 
@@ -5521,15 +5529,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (CGM.getCodeGenOpts().FPAccuracy) {
       const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl);
       assert(FD && "expecting a function");
-      if (!getLangOpts().FPAccuracyVal.empty())
-        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
-      if (!getLangOpts().FPAccuracyFuncMap.empty()) {
-        auto FuncMapIt =
-            getLangOpts().FPAccuracyFuncMap.find(FD->getName().str());
-        if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
-          CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
-        }
-      }
+      CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
       if (CI)
         return RValue::get(CI);
     }

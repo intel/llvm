@@ -33,7 +33,7 @@ static bool isFPBuiltinIntrinsic(Intrinsic::ID IID) {
   }
 }
 
-static StringRef LookupSyclFloatAccuracy(Intrinsic::ID IID) {
+static StringRef lookupSyclFloatAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SYCL_FLOAT_ACCURACY, SDA, CFA, CDA)             \
   case Intrinsic::INTRINSIC:                                                   \
@@ -44,7 +44,7 @@ static StringRef LookupSyclFloatAccuracy(Intrinsic::ID IID) {
   }
 }
 
-static StringRef LookupSyclDoubleAccuracy(Intrinsic::ID IID) {
+static StringRef lookupSyclDoubleAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SFA, SYCL_DOUBLE_ACCURACY, CFA, CDA)            \
   case Intrinsic::INTRINSIC:                                                   \
@@ -55,7 +55,7 @@ static StringRef LookupSyclDoubleAccuracy(Intrinsic::ID IID) {
   }
 }
 
-static StringRef LookupCudaFloatAccuracy(Intrinsic::ID IID) {
+static StringRef lookupCudaFloatAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SFA, SDA, CUDA_FLOAT_ACCURACY, CDA)             \
   case Intrinsic::INTRINSIC:                                                   \
@@ -66,7 +66,7 @@ static StringRef LookupCudaFloatAccuracy(Intrinsic::ID IID) {
   }
 }
 
-static StringRef LookupCudaDoubleAccuracy(Intrinsic::ID IID) {
+static StringRef lookupCudaDoubleAccuracy(Intrinsic::ID IID) {
   switch (IID) {
 #define FP_ACCURACY(INTRINSIC, SFA, SDA, CFA, CUDA_DOUBLE_ACCURACY)            \
   case Intrinsic::INTRINSIC:                                                   \
@@ -116,15 +116,15 @@ StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID, const Type *Ty,
 
   if (Ty->isFloatTy()) {
     if (AccuracyLevel == fp::FPAccuracy::SYCL)
-      return LookupSyclFloatAccuracy(IID);
+      return lookupSyclFloatAccuracy(IID);
     if (AccuracyLevel == fp::FPAccuracy::CUDA)
-      return LookupCudaFloatAccuracy(IID);
+      return lookupCudaFloatAccuracy(IID);
     llvm_unreachable("Unexpected FPAccuracy level");
   } else if (Ty->isDoubleTy()) {
     if (AccuracyLevel == fp::FPAccuracy::SYCL)
-      return LookupSyclDoubleAccuracy(IID);
+      return lookupSyclDoubleAccuracy(IID);
     if (AccuracyLevel == fp::FPAccuracy::CUDA)
-      return LookupCudaDoubleAccuracy(IID);
+      return lookupCudaDoubleAccuracy(IID);
     llvm_unreachable("Unexpected FPAccuracy level");
   } else {
     // This is here for error detection if the logic above is changed.

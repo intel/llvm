@@ -10,11 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// This customization is only in xmain for review purposes.
-// When approved, it will go into the intel/llvm repository.
-
 #ifndef FP_ACCURACY
-#define FP_ACCURACY(IID,SF,SD,CF,CD
+#define FP_ACCURACY(IID,SF,SD,CF,CD)
 #endif
 
 // Each entry below maps an fpbuiltin intrinsic ID to the required accuracy

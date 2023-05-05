@@ -77,41 +77,40 @@ double rsqrt(double);
 // CHECK: call double @llvm.fpbuiltin.tanh.f64(double {{.*}}) #[[ATTR_HIGH]]
 
 // CHECK-F1-LABEL: define dso_local void @f1
-// CHECK-F1: call double @acos(double noundef {{.*}})
-// CHECK-F1: call double @acosh(double noundef {{.*}})
-// CHECK-F1: call double @asin(double noundef {{.*}})
-// CHECK-F1: call double @asinh(double noundef {{.*}})
-// CHECK-F1: call double @atan(double noundef {{.*}})
-// CHECK-F1: call double @atan2(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call double @atanh(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.acos.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.acosh.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.asin.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.asinh.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.atan.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.atan2.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.atanh.f64(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F1_HIGH:[0-9]+]]
-// CHECK-F1: call double @cosh(double noundef {{.*}})
-// CHECK-F1: call double @erf(double noundef {{.*}})
-// CHECK-F1: call double @erfc(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.cosh.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.erf.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.erfc.f64(double {{.*}})
 // CHECK-F1: call double @llvm.exp.f64(double {{.*}})
-// CHECK-F1: call i32 (double, ...) @exp10(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.exp10.f64(double {{.*}})
 // CHECK-F1: call double @llvm.exp2.f64(double {{.*}})
-// CHECK-F1: call double @expm1(double noundef {{.*}})
-// CHECK-F1: call i32 (double, double, ...) @fadd(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call i32 (double, double, ...) @fdiv(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call i32 (double, double, ...) @fmul(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call i32 (double, double, ...) @frem(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call i32 (double, double, ...) @fsub(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call double @hypot(double noundef {{.*}}, double noundef {{.*}})
-// CHECK-F1: call double @ldexp(double noundef {{.*}}, i32 noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.expm1.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.fadd.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.fdiv.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.fmul.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.frem.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.fsub.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.hypot.f64(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.ldexp.f64(double {{.*}}, i32 {{.*}})
 // CHECK-F1: call double @llvm.log.f64(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F1_MEDIUM:[0-9]+]]
-// CHECK-F1: call double @log1p(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.log1p.f64(double {{.*}})
 // CHECK-F1: call double @llvm.log2.f64(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F1_HIGH]]
-// CHECK-F1: call i32 (double, ...) @rsqrt(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}})
 // CHECK-F1: call double @llvm.sin.f64(double {{.*}})
-
 // CHECK-F1: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F1_MEDIUM]]
-// CHECK-F1: call double @sinh(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.sinh.f64(double {{.*}})
 // CHECK-F1: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F1_LOW:[0-9]+]]
-// CHECK-F1: call double @tanh(double noundef {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.tanh.f64(double {{.*}})
 //
 // CHECK-F2-LABEL: define dso_local void @f1
 // CHECK-F2: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_F2_MEDIUM:[0-9]+]]

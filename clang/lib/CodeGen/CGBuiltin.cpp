@@ -505,6 +505,14 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   return CI;
 }
 
+Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
+                       unsigned FPIntrinsicID, unsigned IntrinsicID,
+                       bool HasAccuracyRequirement) {
+  return HasAccuracyRequirement
+             ? CGF.CGM.getIntrinsic(FPIntrinsicID, Src0->getType())
+             : CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+}
+
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
 // or an fpbuiltin floating-point intrinsic.
@@ -530,10 +538,8 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
             break;
           }
       }
-      if (HasAccuracyRequirement)
-        Func = CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Src0->getType());
-      else
-        Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+      Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
+                          HasAccuracyRequirement);
       return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0},
                                        FPAccuracyIntrinsicID);
     }
@@ -2308,7 +2314,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       getContext().BuiltinInfo.isConstWithoutErrnoAndExceptions(BuiltinID);
   bool ConstWithoutExceptions =
       getContext().BuiltinInfo.isConstWithoutExceptions(BuiltinID);
-  unsigned MathErrno = getLangOpts().MathErrno;
   if (FD->hasAttr<ConstAttr>() ||
       ((ConstWithoutErrnoAndExceptions || ConstWithoutExceptions) &&
        (!ConstWithoutErrnoAndExceptions || (!getLangOpts().MathErrno)))) {
@@ -21955,6 +21960,9 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       break;
     case Builtin::BIacosh:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acosh;
+      break;
+    case Builtin::BIsin:
+      FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sin;
       break;
     case Builtin::BIsinh:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sinh;

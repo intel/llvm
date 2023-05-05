@@ -15,11 +15,6 @@
 #ifndef LLVM_IR_FPACCURACY_H
 #define LLVM_IR_FPACCURACY_H
 
-// This customization is only in xmain for review purposes.
-// When approved, it will go into the intel/llvm repository.
-
-#include <optional>
-
 namespace llvm {
 
 class StringRef;
