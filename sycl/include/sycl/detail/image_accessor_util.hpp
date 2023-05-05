@@ -58,13 +58,13 @@ UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
 // Non-valid coordinates are written as 0.
 template <typename T>
 std::enable_if_t<IsValidCoordType<T>::value, float4> convertToFloat4(T Coords) {
-  return {static_cast<float>(Coords), 0.5f, 0.5f, 0.f};
+  return {static_cast<float>(Coords), 0.0f, 0.0f, 0.f};
 }
 
 template <typename T>
 std::enable_if_t<IsValidCoordType<T>::value, float4>
 convertToFloat4(vec<T, 2> Coords) {
-  return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.5f,
+  return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.0f,
           0.f};
 }
 
@@ -958,14 +958,14 @@ DataT ReadPixelDataLinearFiltMode(const int8 CoordValues, const float4 abc,
   float b = abc.y();
   float c = abc.z();
 
-  Ci0j0k0 = (1 - a) * (1 - b) * (1 - c) * Ci0j0k0;
-  Ci1j0k0 = a * (1 - b) * (1 - c) * Ci1j0k0;
-  Ci0j1k0 = (1 - a) * b * (1 - c) * Ci0j1k0;
-  Ci1j1k0 = a * b * (1 - c) * Ci1j1k0;
-  Ci0j0k1 = (1 - a) * (1 - b) * c * Ci0j0k1;
-  Ci1j0k1 = a * (1 - b) * c * Ci1j0k1;
-  Ci0j1k1 = (1 - a) * b * c * Ci0j1k1;
-  Ci1j1k1 = a * b * c * Ci1j1k1;
+  Ci0j0k0 = a * b * c * Ci0j0k0;
+  Ci0j0k1 = a * b * (1 - c) * Ci0j0k1;
+  Ci0j1k0 = a * (1 - b) * c * Ci0j1k0;
+  Ci1j0k0 = (1 - a) * b * c * Ci1j0k0;
+  Ci0j1k1 = a * (1 - b) * (1 - c) * Ci0j1k1;
+  Ci1j1k0 = (1 - a) * (1 - b) * c * Ci1j1k0;
+  Ci1j0k1 = (1 - a) * b * (1 - c) * Ci1j0k1;
+  Ci1j1k1 = (1 - a) * (1 - b) * (1 - c) * Ci1j1k1;
 
   float4 RetData = Ci0j0k0 + Ci1j0k0 + Ci0j1k0 + Ci1j1k0 + Ci0j0k1 + Ci1j0k1 +
                    Ci0j1k1 + Ci1j1k1;

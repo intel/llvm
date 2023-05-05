@@ -94,7 +94,8 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
   int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   int4 Ci0j0k0(0);
   int4 Ci1j1k1(0);
-  int4 Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+  int4 Int_prev = sycl::floor(Coorduvw).convert<cl_int>();
+  int4 Int_next = sycl::ceil(Coorduvw).convert<cl_int>();
 
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
@@ -102,10 +103,11 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
     Temp = (sycl::rint(Coorduvw * 0.5f)) * 2.0f;
     Temp = sycl::fabs(Coorduvw - Temp);
     Coorduvw = Temp * Rangewhd.convert<cl_float>();
-    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+    Int_prev = sycl::floor(Coorduvw).convert<cl_int>();
+    Int_next = sycl::ceil(Coorduvw).convert<cl_int>();
 
-    Ci0j0k0 = Int_uvwsubhalf;
-    Ci1j1k1 = Ci0j0k0 + 1;
+    Ci0j0k0 = Int_prev;
+    Ci1j1k1 = Int_next;
 
     Ci0j0k0 = sycl::max(Ci0j0k0, 0);
     Ci1j1k1 = sycl::min(Ci1j1k1, (Rangewhd - 1));
@@ -114,32 +116,33 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
 
     Coorduvw =
         (Coorduvw - sycl::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
-    Int_uvwsubhalf = sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
+    Int_prev = sycl::floor(Coorduvw).convert<cl_int>();
+    Int_next = sycl::ceil(Coorduvw).convert<cl_int>();
 
-    Ci0j0k0 = Int_uvwsubhalf;
-    Ci1j1k1 = Ci0j0k0 + 1;
+    Ci0j0k0 = Int_prev;
+    Ci1j1k1 = Int_next;
 
     Ci0j0k0 = sycl::select(Ci0j0k0, (Ci0j0k0 + Rangewhd), Ci0j0k0 < int4(0));
     Ci1j1k1 = sycl::select(Ci1j1k1, (Ci1j1k1 - Rangewhd), Ci1j1k1 >= Rangewhd);
 
   } break;
   case addressing_mode::clamp_to_edge: {
-    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, int4(0), (Rangewhd - 1));
-    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), int4(0), (Rangewhd - 1));
+    Ci0j0k0 = sycl::clamp(Int_prev, int4(0), (Rangewhd - 1));
+    Ci1j1k1 = sycl::clamp(Int_next, int4(0), (Rangewhd - 1));
     break;
   }
   case addressing_mode::clamp: {
-    Ci0j0k0 = sycl::clamp(Int_uvwsubhalf, int4(-1), Rangewhd);
-    Ci1j1k1 = sycl::clamp((Int_uvwsubhalf + 1), int4(-1), Rangewhd);
+    Ci0j0k0 = sycl::clamp(Int_prev, int4(-1), Rangewhd);
+    Ci1j1k1 = sycl::clamp(Int_next, int4(-1), Rangewhd);
     break;
   }
   case addressing_mode::none: {
-    Ci0j0k0 = Int_uvwsubhalf;
-    Ci1j1k1 = Ci0j0k0 + 1;
+    Ci0j0k0 = Int_prev;
+    Ci1j1k1 = Int_next;
     break;
   }
   }
-  Retabc = (Coorduvw - 0.5f) - (Int_uvwsubhalf.convert<cl_float>());
+  Retabc = Coorduvw - Int_prev.convert<cl_float>();
   Retabc.w() = 0.0f;
   return int8(Ci0j0k0, Ci1j1k1);
 }
