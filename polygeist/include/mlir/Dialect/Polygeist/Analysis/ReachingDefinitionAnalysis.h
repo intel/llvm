@@ -98,15 +98,16 @@ class ReachingDefinition : public dataflow::AbstractDenseLattice {
   friend raw_ostream &operator<<(raw_ostream &, const ReachingDefinition &);
 
 public:
+  using AbstractDenseLattice::AbstractDenseLattice;
+  using DefinitionPtr = std::shared_ptr<Definition>;
+
   struct CompareDefinition {
-    bool operator()(Definition *lhs, Definition *rhs) const {
+    bool operator()(DefinitionPtr lhs, DefinitionPtr rhs) const {
       return (lhs && rhs) ? std::less<Definition>{}(*lhs, *rhs)
-                          : std::less<Definition *>{}(lhs, rhs);
+                          : std::less<DefinitionPtr>{}(lhs, rhs);
     }
   };
-
-  using ModifiersTy = std::set<Definition *, CompareDefinition>;
-  using AbstractDenseLattice::AbstractDenseLattice;
+  using ModifiersTy = std::set<DefinitionPtr, CompareDefinition>;
 
   explicit ReachingDefinition(ProgramPoint p);
 
@@ -123,13 +124,13 @@ public:
   ChangeResult reset();
 
   /// Set definition \p def as a definite modifier of value \p val.
-  ChangeResult setModifier(Value val, Definition *def);
+  ChangeResult setModifier(Value val, DefinitionPtr def);
 
   /// Remove all definite modifiers of value \p val.
   ChangeResult removeModifiers(Value val);
 
   /// Add definition \p def as a possible modifier of value \p val.
-  ChangeResult addPotentialModifier(Value val, Definition *def);
+  ChangeResult addPotentialModifier(Value val, DefinitionPtr def);
 
   /// Remove all potential modifiers of value \p val.
   ChangeResult removePotentialModifiers(Value val);

@@ -13,6 +13,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
 
 #define DEBUG_TYPE "reaching-definition-analysis"
 
@@ -85,7 +86,7 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
       if (valModifiers.empty())
         os.indent(6) << "<none>\n";
       else {
-        for (const Definition *def : valModifiers)
+        for (const std::shared_ptr<Definition> &def : valModifiers)
           os.indent(6) << *def << "\n";
       }
     }
@@ -101,12 +102,12 @@ ReachingDefinition::ReachingDefinition(ProgramPoint p)
   // Upon creating a new reaching definition at the start of a function, each
   // memory argument is set to have an unknown initial value.
   if (auto *block = p.dyn_cast<Block *>()) {
-    if (block->isEntryBlock()) {
-      if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
-        for (Value arg : funcOp.getArguments()) {
-          if (isa<MemRefType>(arg.getType()))
-            setModifier(arg, new Definition());
-        }
+    if (!block->isEntryBlock())
+      return;
+    if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
+      for (Value arg : funcOp.getArguments()) {
+        if (isa<MemRefType>(arg.getType()))
+          setModifier(arg, std::make_shared<Definition>());
       }
     }
   }
@@ -130,11 +131,8 @@ ChangeResult ReachingDefinition::join(const AbstractDenseLattice &lattice) {
     }
   };
 
-  llvm::dbgs() << "Before:\n" << *this << "\n";
   join(valueToModifiers, otherReachingDef.valueToModifiers);
   join(valueToPotentialModifiers, otherReachingDef.valueToPotentialModifiers);
-  llvm::dbgs() << "After:\n" << *this << "\n";
-
   return result;
 }
 
@@ -147,7 +145,7 @@ ChangeResult ReachingDefinition::reset() {
   return ChangeResult::Change;
 }
 
-ChangeResult ReachingDefinition::setModifier(Value val, Definition *def) {
+ChangeResult ReachingDefinition::setModifier(Value val, DefinitionPtr def) {
   ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
   assert((mods.size() != 1 || *mods.begin() != def) &&
          "seen this modifier already");
@@ -170,7 +168,7 @@ ChangeResult ReachingDefinition::removeModifiers(Value val) {
 }
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
-                                                      Definition *def) {
+                                                      DefinitionPtr def) {
   return (valueToPotentialModifiers[val].insert(def).second)
              ? ChangeResult::Change
              : ChangeResult::NoChange;
@@ -209,7 +207,6 @@ void ReachingDefinitionAnalysis::setToEntryState(ReachingDefinition *lattice) {
   ProgramPoint p = lattice->getPoint();
   propagateIfChanged(
       lattice, lattice->join(ReachingDefinition::getUnknownDefinition(p)));
-  llvm::dbgs() << *lattice;
 }
 
 void ReachingDefinitionAnalysis::visitOperation(
@@ -267,19 +264,20 @@ void ReachingDefinitionAnalysis::visitOperation(
     TypeSwitch<MemoryEffects::Effect *>(effect.getEffect())
         .Case<MemoryEffects::Allocate>([&](auto) {
           // An allocate operation creates a definition for the current value.
-          result |= after->setModifier(val, new Definition(op));
+          result |= after->setModifier(val, std::make_shared<Definition>(op));
         })
         .Case<MemoryEffects::Write>([&](auto) {
           // A write operation updates the definition of the current value
           // and the definition of its definitely aliased values. It also
           // updates the potential definitions of values that may alias the
           // current value.
-          result |= after->setModifier(val, new Definition(op));
+          result |= after->setModifier(val, std::make_shared<Definition>(op));
           for (Value aliasedVal : aliasOracle.getMustAlias(val))
-            result |= after->setModifier(aliasedVal, new Definition(op));
+            result |= after->setModifier(aliasedVal,
+                                         std::make_shared<Definition>(op));
           for (Value aliasedVal : aliasOracle.getMayAlias(val))
-            result |=
-                after->addPotentialModifier(aliasedVal, new Definition(op));
+            result |= after->addPotentialModifier(
+                aliasedVal, std::make_shared<Definition>(op));
         })
         .Case<MemoryEffects::Free>([&](auto) {
           // A deallocate operation kills reaching definitions of the

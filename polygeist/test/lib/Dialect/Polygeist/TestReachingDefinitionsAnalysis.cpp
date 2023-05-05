@@ -27,7 +27,7 @@ struct TestReachingDefinitionAnalysisPass
   StringRef getArgument() const override { return "test-reaching-definition"; }
 
   void runOnOperation() override {
-    using Definition = polygeist::Definition;
+    using DefinitionPtr = polygeist::ReachingDefinition::DefinitionPtr;
     using ModifiersTy = polygeist::ReachingDefinition::ModifiersTy;
 
     AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
@@ -52,7 +52,7 @@ struct TestReachingDefinitionAnalysisPass
       llvm::errs() << title;
       llvm::interleave(
           *defs, llvm::errs(),
-          [](Definition *def) {
+          [](DefinitionPtr def) {
             if (!def->isOperation()) {
               llvm::errs() << *def;
               return;
