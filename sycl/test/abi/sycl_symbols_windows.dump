@@ -747,6 +747,7 @@
 ??_Dexception@_V1@sycl@@QEAAXXZ
 ??_Fcontext@_V1@sycl@@QEAAXXZ
 ??_Fqueue@_V1@sycl@@QEAAXXZ
+?AccessTargetMask@handler@_V1@sycl@@0HB
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
