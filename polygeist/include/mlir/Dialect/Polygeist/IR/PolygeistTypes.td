@@ -29,7 +29,7 @@ def Polygeist_StructType :
     Polygeist_Type<"Struct", "struct"> {
   let summary = "Polygeist Struct";
   let description = [{
-    Structure type that allowed to be the element type of MemRef and LLVM
+    Structure type that is allowed to be the element type of MemRef and LLVM
     Pointer.
   }];
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
