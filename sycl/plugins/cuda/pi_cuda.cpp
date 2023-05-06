@@ -2633,10 +2633,12 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue *queue) {
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *queue) {
   (void)NativeHandleDesc;
   (void)device;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(ownNativeHandle == false);
 
   unsigned int flags;
