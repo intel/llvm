@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip, cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -151,24 +152,19 @@ void test_normalized_mirrored_linear_sampler(image_channel_order ChanOrder,
 int main() {
 
   queue Q;
-  device D = Q.get_device();
 
-  if (D.has(aspect::image)) {
-    // the _int8 channels are one byte per channel, or four bytes per pixel (for
-    // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
-    // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
-    // channel, or sixteen bytes per pixel (for RGBA).
+  // the _int8 channels are one byte per channel, or four bytes per pixel (for
+  // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
+  // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
+  // channel, or sixteen bytes per pixel (for RGBA).
 
-    std::cout << "fp32 -------------" << std::endl;
-    test_normalized_mirrored_linear_sampler(image_channel_order::rgba,
-                                            image_channel_type::fp32);
+  std::cout << "fp32 -------------" << std::endl;
+  test_normalized_mirrored_linear_sampler(image_channel_order::rgba,
+                                          image_channel_type::fp32);
 
-    std::cout << "unorm_int8 -------" << std::endl;
-    test_normalized_mirrored_linear_sampler(image_channel_order::rgba,
-                                            image_channel_type::unorm_int8);
-  } else {
-    std::cout << "device does not support image operations" << std::endl;
-  }
+  std::cout << "unorm_int8 -------" << std::endl;
+  test_normalized_mirrored_linear_sampler(image_channel_order::rgba,
+                                          image_channel_type::unorm_int8);
 
   return 0;
 }

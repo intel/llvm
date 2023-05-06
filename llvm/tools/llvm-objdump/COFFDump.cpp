@@ -559,9 +559,9 @@ static void printExportTable(const COFFObjectFile *Obj) {
       // Export table entries can be used to re-export symbols that
       // this COFF file is imported from some DLLs. This is rare.
       // In most cases IsForwarder is false.
-      outs() << format("    % 4d         ", Ordinal);
+      outs() << format("   %5d         ", Ordinal);
     } else {
-      outs() << format("    % 4d %# 8x", Ordinal, RVA);
+      outs() << format("   %5d %# 8x", Ordinal, RVA);
     }
 
     StringRef Name;
@@ -849,8 +849,7 @@ void objdump::printCOFFSymbolTable(const COFFObjectFile &coff) {
            << Name;
     if (Demangle && Name.startswith("?")) {
       int Status = -1;
-      char *DemangledSymbol =
-          microsoftDemangle(Name.data(), nullptr, nullptr, nullptr, &Status);
+      char *DemangledSymbol = microsoftDemangle(Name.data(), nullptr, &Status);
 
       if (Status == 0 && DemangledSymbol) {
         outs() << " (" << StringRef(DemangledSymbol) << ")";

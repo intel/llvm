@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp16
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -238,11 +239,6 @@ int main() {
   constexpr_verify_div();
 
   device dev{default_selector_v};
-  if (!dev.has(sycl::aspect::fp16)) {
-    std::cout << "This device doesn't support the extension cl_khr_fp16"
-              << std::endl;
-    return 0;
-  }
 
   std::vector<half> vec_a(N, 5.0);
   std::vector<half> vec_b(N, 2.0);
