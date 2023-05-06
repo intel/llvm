@@ -449,7 +449,7 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_legacy_image: {
     pi_bool legacy_image_support = PI_FALSE;
     bool call_successful =
-        getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
             &legacy_image_support, nullptr) == PI_SUCCESS;
     return call_successful && legacy_image_support;
