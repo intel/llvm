@@ -48,7 +48,7 @@ pi_native_handle interop_handle::getNativeContext() const {
 }
 
 pi_native_handle
-interop_handle::getNativeQueue(int32_t & NativeHandleDesc) const {
+interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
