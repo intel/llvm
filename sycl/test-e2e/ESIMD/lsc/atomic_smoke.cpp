@@ -763,11 +763,10 @@ bool test_fp_types(queue q, const Config &cfg) {
 template <template <class, int> class Op, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
-#ifndef USE_DWORD_ATOMICS
+
   passed &= test_int_types<1, Op, SignMask>(q, cfg);
   passed &= test_int_types<2, Op, SignMask>(q, cfg);
   passed &= test_int_types<4, Op, SignMask>(q, cfg);
-#endif // !USE_DWORD_ATOMICS
 
   passed &= test_int_types<8, Op, SignMask>(q, cfg);
 
@@ -782,11 +781,10 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
 template <template <class, int> class Op>
 bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
-#ifndef USE_DWORD_ATOMICS
+
   passed &= test_fp_types<1, Op>(q, cfg);
   passed &= test_fp_types<2, Op>(q, cfg);
   passed &= test_fp_types<4, Op>(q, cfg);
-#endif // !USE_DWORD_ATOMICS
   passed &= test_fp_types<8, Op>(q, cfg);
 #ifndef USE_DWORD_ATOMICS
   passed &= test_fp_types<16, Op>(q, cfg);
