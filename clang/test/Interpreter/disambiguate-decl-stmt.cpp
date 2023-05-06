@@ -26,6 +26,13 @@ I x = 10;
 x.I::~I();
 x = 20;
 
+struct Dtor1 {~Dtor1();};
+Dtor1::~Dtor1() { printf("Dtor1\n"); }
+Dtor1 d1;
+
+struct ANestedDtor { struct A1 { struct A2 { ~A2(); }; }; };
+ANestedDtor::A1::A2::~A2() { printf("Dtor A::A1::A2::~A2\n"); }
+
 // Ctors
 
 // Deduction guide

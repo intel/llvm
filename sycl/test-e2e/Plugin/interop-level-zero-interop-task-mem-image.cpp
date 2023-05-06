@@ -1,4 +1,4 @@
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

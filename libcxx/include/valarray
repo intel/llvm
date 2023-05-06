@@ -1328,7 +1328,6 @@ private:
         {}
 
     template <class> friend class valarray;
-    template <class> friend class sliceExpr;
 };
 
 template <class _Tp>
@@ -4938,6 +4937,7 @@ _LIBCPP_POP_MACROS
 #  include <cstdlib>
 #  include <cstring>
 #  include <functional>
+#  include <stdexcept>
 #  include <type_traits>
 #endif
 

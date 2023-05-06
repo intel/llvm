@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/AssignmentTrackingAnalysis.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/SwitchLoweringUtils.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -30,7 +31,6 @@
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -119,25 +119,25 @@ class SelectionDAGBuilder {
         : Info(VarLoc), SDNodeOrder(SDNO) {}
 
     DILocalVariable *getVariable(const FunctionVarLocs *Locs) const {
-      if (Info.is<VarLocTy>())
-        return Locs->getDILocalVariable(Info.get<VarLocTy>()->VariableID);
-      return Info.get<DbgValTy>()->getVariable();
+      if (isa<VarLocTy>(Info))
+        return Locs->getDILocalVariable(cast<VarLocTy>(Info)->VariableID);
+      return cast<DbgValTy>(Info)->getVariable();
     }
     DIExpression *getExpression() const {
-      if (Info.is<VarLocTy>())
-        return Info.get<VarLocTy>()->Expr;
-      return Info.get<DbgValTy>()->getExpression();
+      if (isa<VarLocTy>(Info))
+        return cast<VarLocTy>(Info)->Expr;
+      return cast<DbgValTy>(Info)->getExpression();
     }
     Value *getVariableLocationOp(unsigned Idx) const {
       assert(Idx == 0 && "Dangling variadic debug values not supported yet");
-      if (Info.is<VarLocTy>())
-        return Info.get<VarLocTy>()->Values.getVariableLocationOp(Idx);
-      return Info.get<DbgValTy>()->getVariableLocationOp(Idx);
+      if (isa<VarLocTy>(Info))
+        return cast<VarLocTy>(Info)->Values.getVariableLocationOp(Idx);
+      return cast<DbgValTy>(Info)->getVariableLocationOp(Idx);
     }
     DebugLoc getDebugLoc() const {
-      if (Info.is<VarLocTy>())
-        return Info.get<VarLocTy>()->DL;
-      return Info.get<DbgValTy>()->getDebugLoc();
+      if (isa<VarLocTy>(Info))
+        return cast<VarLocTy>(Info)->DL;
+      return cast<DbgValTy>(Info)->getDebugLoc();
     }
     unsigned getSDNodeOrder() const { return SDNodeOrder; }
 
@@ -247,7 +247,7 @@ public:
   SelectionDAG &DAG;
   AAResults *AA = nullptr;
   AssumptionCache *AC = nullptr;
-  const TargetLibraryInfo *LibInfo;
+  const TargetLibraryInfo *LibInfo = nullptr;
 
   class SDAGSwitchLowering : public SwitchCG::SwitchLowering {
   public:
@@ -261,7 +261,7 @@ public:
     }
 
   private:
-    SelectionDAGBuilder *SDB;
+    SelectionDAGBuilder *SDB = nullptr;
   };
 
   // Data related to deferred switch lowerings. Used to construct additional
@@ -283,7 +283,7 @@ public:
   SwiftErrorValueTracking &SwiftError;
 
   /// Garbage collection metadata for the function.
-  GCFunctionInfo *GFI;
+  GCFunctionInfo *GFI = nullptr;
 
   /// Map a landing pad to the call site indexes.
   DenseMap<MachineBasicBlock *, SmallVector<unsigned, 4>> LPadToCallSiteMap;
@@ -292,7 +292,7 @@ public:
   /// a tail call. In this case, no subsequent DAG nodes should be created.
   bool HasTailCall = false;
 
-  LLVMContext *Context;
+  LLVMContext *Context = nullptr;
 
   SelectionDAGBuilder(SelectionDAG &dag, FunctionLoweringInfo &funcinfo,
                       SwiftErrorValueTracking &swifterror, CodeGenOpt::Level ol)
@@ -375,6 +375,10 @@ public:
   bool handleDebugValue(ArrayRef<const Value *> Values, DILocalVariable *Var,
                         DIExpression *Expr, DebugLoc DbgLoc, unsigned Order,
                         bool IsVariadic);
+
+  /// Create a record for a kill location debug intrinsic.
+  void handleKillDebugValue(DILocalVariable *Var, DIExpression *Expr,
+                            DebugLoc DbgLoc, unsigned Order);
 
   /// Evict any dangling debug information, attempting to salvage it first.
   void resolveOrClearDbgInfo();

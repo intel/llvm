@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar.h"
-#include "llvm-c/Initialization.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
@@ -28,8 +27,6 @@ using namespace llvm;
 /// initializeScalarOptsPasses - Initialize all passes linked into the
 /// ScalarOpts library.
 void llvm::initializeScalarOpts(PassRegistry &Registry) {
-  initializeBDCELegacyPassPass(Registry);
-  initializeAlignmentFromAssumptionsPass(Registry);
   initializeCallSiteSplittingLegacyPassPass(Registry);
   initializeConstantHoistingLegacyPassPass(Registry);
   initializeDCELegacyPassPass(Registry);
@@ -41,7 +38,6 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeEarlyCSEMemSSALegacyPassPass(Registry);
   initializeMakeGuardsExplicitLegacyPassPass(Registry);
   initializeFlattenCFGLegacyPassPass(Registry);
-  initializeIRCELegacyPassPass(Registry);
   initializeInferAddressSpacesPass(Registry);
   initializeInstSimplifyLegacyPassPass(Registry);
   initializeLegacyLICMPassPass(Registry);
@@ -82,8 +78,4 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializePlaceBackedgeSafepointsLegacyPassPass(Registry);
   initializePlaceSafepointsLegacyPassPass(Registry);
   initializeLoopSimplifyCFGLegacyPassPass(Registry);
-}
-
-void LLVMInitializeScalarOpts(LLVMPassRegistryRef R) {
-  initializeScalarOpts(*unwrap(R));
 }

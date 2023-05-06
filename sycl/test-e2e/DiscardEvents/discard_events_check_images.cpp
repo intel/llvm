@@ -1,5 +1,5 @@
 // UNSUPPORTED: hip
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
