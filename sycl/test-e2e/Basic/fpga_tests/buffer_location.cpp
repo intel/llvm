@@ -1,3 +1,4 @@
+// REQUIRES: accelerator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

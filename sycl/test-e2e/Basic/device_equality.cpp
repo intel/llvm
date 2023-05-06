@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t1.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 //==------- device_equality.cpp - SYCL device equality test ----------------==//
