@@ -8,6 +8,7 @@
 // CHECK-PI-NEXT:      	Version  : 1.3
 // CHECK-PI-NEXT:      	Name     : Intel(R) Level-Zero
 
+// CHECK-UR:        libpi_unified_runtime.so
 // CHECK-UR: 		Platforms: 1
 // CHECK-UR-NEXT:	Platform [#1]:
 // CHECK-UR-NEXT:      	Version  : 1.3
