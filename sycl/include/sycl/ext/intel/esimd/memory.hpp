@@ -1256,6 +1256,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, src0, mask);
 #else
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   detail::check_atomic<Op, Tx, N, 1>();
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
@@ -1379,7 +1380,7 @@ __ESIMD_API
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, mask);
 #else
-
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   if constexpr (Op == atomic_op::load) {
     if constexpr (std::is_integral_v<Tx>) {
       return atomic_update<atomic_op::bit_or, Tx, N>(acc, offset,
@@ -1489,6 +1490,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
                                   offset, src0, src1, mask);
 #else
   detail::check_atomic<Op, Tx, N, 2>();
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
