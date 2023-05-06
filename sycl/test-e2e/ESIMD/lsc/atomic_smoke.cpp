@@ -782,12 +782,16 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
 template <template <class, int> class Op>
 bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
+#ifndef USE_DWORD_ATOMICS
   passed &= test_fp_types<1, Op>(q, cfg);
   passed &= test_fp_types<2, Op>(q, cfg);
   passed &= test_fp_types<4, Op>(q, cfg);
+#endif // !USE_DWORD_ATOMICS
   passed &= test_fp_types<8, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
   passed &= test_fp_types<16, Op>(q, cfg);
   passed &= test_fp_types<32, Op>(q, cfg);
+#endif // !USE_DWORD_ATOMICS
   return passed;
 }
 
