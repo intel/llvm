@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 // RUN: env ONEAPI_DEVICE_SELECTOR="ext_oneapi_level_zero:*" sycl-ls --verbose 2>&1 | FileCheck --check-prefixes=CHECK-PI %s
 // RUN: env SYCL_PREFER_UR=0 ONEAPI_DEVICE_SELECTOR="ext_oneapi_level_zero:*" sycl-ls --verbose 2>&1 | FileCheck --check-prefixes=CHECK-PI %s
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR="ext_oneapi_level_zero:*" sycl-ls --verbose 2>&1 | FileCheck --check-prefixes=CHECK-UR %s
+// RUN: env SYCL_PI_TRACE=-1 SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR="ext_oneapi_level_zero:*" sycl-ls --verbose 2>&1 | FileCheck --check-prefixes=CHECK-UR %s
 
 // CHECK-PI: 		Platforms: 1
 // CHECK-PI-NEXT:	Platform [#1]:
