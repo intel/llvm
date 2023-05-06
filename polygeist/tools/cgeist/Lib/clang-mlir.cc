@@ -899,8 +899,8 @@ bool hasAffineArith(Operation *Op, AffineExpr &Expr, Value &AffineForIndVar) {
           return false;
         Value IndexCastOperand = MaybeIndexCast->getOperand(0);
         if (auto BlockArg = dyn_cast<BlockArgument>(IndexCastOperand)) {
-          if (auto AffineFor =
-                  dyn_cast<AffineForOp>(BlockArg.getOwner()->getParentOp()))
+          if (auto AffineFor = dyn_cast<affine::AffineForOp>(
+                  BlockArg.getOwner()->getParentOp()))
             AffineForIndVar = AffineFor.getInductionVar();
           else
             return false;
@@ -2239,10 +2239,10 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   const clang::CodeGen::CGFunctionInfo &FI = getOrCreateCGFunctionInfo(&FD);
   FunctionType FuncTy = getTypes().getFunctionType(FI, FD);
 
-  FunctionOpInterface Function =
+  FunctionOpInterface Function = cast<FunctionOpInterface>(
       FD.hasAttr<clang::SYCLKernelAttr>()
           ? Builder.create<gpu::GPUFuncOp>(Loc, MangledName, FuncTy)
-          : Builder.create<func::FuncOp>(Loc, MangledName, FuncTy);
+          : Builder.create<func::FuncOp>(Loc, MangledName, FuncTy));
 
   setMLIRFunctionVisibility(Function, FTE);
   setMLIRFunctionAttributes(Function, FTE);

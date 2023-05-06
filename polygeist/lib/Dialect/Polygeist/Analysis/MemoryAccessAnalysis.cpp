@@ -644,8 +644,8 @@ MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
 namespace mlir {
 namespace polygeist {
 
-template class MemoryAccess<AffineLoadOp>;
-template class MemoryAccess<AffineStoreOp>;
+template class MemoryAccess<affine::AffineLoadOp>;
+template class MemoryAccess<affine::AffineStoreOp>;
 
 } // namespace polygeist
 } // namespace mlir

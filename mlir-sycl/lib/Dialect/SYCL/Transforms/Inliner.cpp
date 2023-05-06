@@ -46,7 +46,7 @@ static constexpr StringLiteral InlineHintAttrName{"inlinehint"};
 static FunctionOpInterface getFunction(const CallGraphNode &CGN) {
   if (CGN.isExternal())
     return nullptr;
-  return CGN.getCallableRegion()->getParentOp();
+  return cast<FunctionOpInterface>(CGN.getCallableRegion()->getParentOp());
 }
 
 /// Return the function called by \p Call.
@@ -54,7 +54,8 @@ static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
   if (SymbolRefAttr SymAttr = const_cast<CallOpInterface &>(Call)
                                   .getCallableForCallee()
                                   .dyn_cast<SymbolRefAttr>())
-    return SymbolTable::lookupNearestSymbolFrom(Call, SymAttr);
+    return cast<FunctionOpInterface>(
+        SymbolTable::lookupNearestSymbolFrom(Call, SymAttr));
   return nullptr;
 }
 

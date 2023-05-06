@@ -7,6 +7,9 @@
 // getting undefined symbols for a handful of __spirv__ * functions.
 // XFAIL: hip
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+// UNSUPPORTED: gpu
+
 #include "support.h"
 #include <algorithm>
 #include <cassert>

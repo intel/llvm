@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --polygeist-mem2reg --split-input-file %s | FileCheck %s
 
 module {
   func.func @_Z26__device_stub__hotspotOpt1PfS_S_fiiifffffff(%arg0: f32, %arg1 : i1, %arg2 : i1, %arg3 : f32) -> f32 {

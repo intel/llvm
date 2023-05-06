@@ -15,6 +15,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#error FIXME: Test times-out
+
 #include "shuffle.hpp"
 #include <iostream>
 

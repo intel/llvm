@@ -552,8 +552,8 @@ func.func private @ptr2memref(%arg0: !llvm.ptr) -> memref<?xf32> {
 // CHECK-SAME:                                      %[[VAL_1:.*]]: i64) -> i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.extractvalue %[[VAL_0]][1] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)> 
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(-1 : index) : i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.add %[[VAL_3]], %[[VAL_1]]  : i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_2]][%[[VAL_4]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_2]][%[[VAL_3]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_4]][%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr
 // CHECK-NEXT:      llvm.return %[[VAL_6]] : i64
 // CHECK-NEXT:    }
