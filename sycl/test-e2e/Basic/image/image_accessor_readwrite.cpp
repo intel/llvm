@@ -1,4 +1,4 @@
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: cuda || hip
 // CUDA cannot support SYCL 1.2.1 images.
 //

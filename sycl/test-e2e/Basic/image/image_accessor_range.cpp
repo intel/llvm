@@ -1,4 +1,4 @@
-// REQUIRES: aspect-image
+// REQUIRES: aspect-ext_intel_legacy_image
 // FIXME: Investigate OS-agnostic failures
 // REQUIRES: TEMPORARY_DISABLED
 

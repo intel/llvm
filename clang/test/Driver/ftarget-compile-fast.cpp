@@ -8,4 +8,4 @@
 // RUN:   | FileCheck -check-prefix=TARGET_COMPILE_FAST_GEN %s
 
 // TARGET_COMPILE_FAST_GEN: ocloc{{.*}} "-output"
-// TARGET_COMPILE_FAST_GEN: "-options" "{{.*}}-igc_opts PartitionUnit=1,SubroutineThreshold=50000{{.*}}"
+// TARGET_COMPILE_FAST_GEN: "-options" "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'"

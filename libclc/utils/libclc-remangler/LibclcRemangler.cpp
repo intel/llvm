@@ -100,7 +100,7 @@ static cl::opt<bool> TestRun("t", cl::desc("Enable test run"), cl::init(false),
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 namespace {
-inline StringRef asRef(std::string_view S) { return {S.begin(), S.size()}; }
+inline StringRef asRef(std::string_view S) { return {&*S.begin(), S.size()}; }
 class BumpPointerAllocator {
 public:
   BumpPointerAllocator()
@@ -779,7 +779,7 @@ public:
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
     SMDiagnostic Err;
-#if SPIRV_ENABLE_OPAQUE_POINTERS
+#if SPIRV_ENABLE_OPAQUE_POINTERS || !defined(__SPIR__)
     LLVMCtx.setOpaquePointers(true);
 #else
     LLVMCtx.setOpaquePointers(false);
