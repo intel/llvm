@@ -886,16 +886,12 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 namespace detail {
 /// Check the legality of an atomic call in terms of size and type.
 ///
-template <__ESIMD_NS::atomic_op Op, typename T, int N, unsigned NumSrc,
-          bool IsAccessor = true>
+template <__ESIMD_NS::atomic_op Op, typename T, int N, unsigned NumSrc>
 constexpr void check_atomic() {
-  if constexpr (IsAccessor) {
-    static_assert((detail::isPowerOf2(N, 32)),
-                  "Execution size 1, 2, 4, 8, 16, 32 are supported");
-  } else {
-    static_assert((detail::isPowerOf2(N, 8)),
-                  "Execution size 1, 2, 4, 8 are supported");
-  }
+
+  static_assert((detail::isPowerOf2(N, 32)),
+                "Execution size 1, 2, 4, 8, 16, 32 are supported");
+
   static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
                 "wrong number of operands");
   constexpr bool IsInt2BytePlus =
@@ -987,7 +983,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
       return Res.template bit_cast_view<Tx>();
     }
   } else {
-    detail::check_atomic<Op, Tx, N, 1, false>();
+    detail::check_atomic<Op, Tx, N, 1>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
@@ -1086,7 +1082,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
       return Res.template bit_cast_view<Tx>();
     }
   } else {
-    detail::check_atomic<Op, Tx, N, 0, false>();
+    detail::check_atomic<Op, Tx, N, 0>();
 
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
@@ -1167,7 +1163,7 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
                                                                 src1, mask);
   } else {
-    detail::check_atomic<Op, Tx, N, 2, false>();
+    detail::check_atomic<Op, Tx, N, 2>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
