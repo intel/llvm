@@ -440,11 +440,7 @@ def SYCLAccessorGetPointerOp
     Returns a pointer to the start of this accessor's memory.
   }];
 
-  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc);
 
   let hasVerifier = 1;
 
@@ -464,11 +460,7 @@ def SYCLAccessorGetRangeOp
     that this accessor may access.
   }];
 
-  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc);
 
   let hasVerifier = 1;
 
@@ -488,11 +480,7 @@ def SYCLAccessorSizeOp
     access.
   }];
 
-  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc);
 
   let results = (outs IndexType:$Res);
 }
@@ -512,11 +500,7 @@ def SYCLAccessorSubscriptOp
   }];
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
-                       Arg<SYCLAccessorSubscriptIndex, "The offset", [MemRead]>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Arg<SYCLAccessorSubscriptIndex, "The offset", [MemRead]>:$Index);
 
   let results = (outs AnyType:$Res);
 
@@ -541,11 +525,7 @@ def SYCLRangeGetOp
   }];
 
   let arguments = (ins Arg<RangeMemRef, "The input range", [MemRead]>:$Range,
-                       I32:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       I32:$Index);
 
   let results = (outs SYCLGetResult:$Res);
 
@@ -566,11 +546,7 @@ def SYCLRangeSizeOp
     This operation represents a call to the range::size[] function.
   }];
 
-  let arguments = (ins Arg<RangeMemRef, "The input range", [MemRead]>:$Range,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<RangeMemRef, "The input range", [MemRead]>:$Range);
 
   let results = (outs I64:$Res);
 }
@@ -587,11 +563,7 @@ def SYCLNdRangeGetGlobalRange
     This operation represents a call to the nd_range::get_global_range function.
   }];
 
-  let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND);
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -608,11 +580,7 @@ def SYCLNdRangeGetLocalRange
     This operation represents a call to the nd_range::get_local_range function.
   }];
 
-  let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND);
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -629,11 +597,7 @@ def SYCLNdRangeGetGroupRange
     This operation represents a call to the nd_range::get_group_range function.
   }];
 
-  let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND);
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -652,11 +616,7 @@ def SYCLIDGetOp
   }];
 
   let arguments = (ins Arg<IDMemRef, "The input ID", [MemRead]>:$ID,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetResult:$Res);
 
@@ -679,11 +639,7 @@ def SYCLItemGetIDOp
   }];
 
   let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetIDResult:$Res);
 }
@@ -702,11 +658,7 @@ def SYCLItemGetRangeOp
   }];
 
   let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -723,11 +675,7 @@ def SYCLItemGetLinearIDOp
     This operation represents a call to the item::get_linear_id function.
   }];
 
-  let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item);
 
   let results = (outs I64:$Res);
 }
@@ -746,11 +694,7 @@ def SYCLNDItemGetGlobalIDOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetIDResult:$Res);
 }
@@ -767,11 +711,7 @@ def SYCLNDItemGetGlobalLinearIDOp
     This operation represents a call to the nd_item::get_global_linear_id function.
   }];
 
-  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
 
   let results = (outs I64:$Res);
 }
@@ -790,11 +730,7 @@ def SYCLNDItemGetLocalIDOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetIDResult:$Res);
 }
@@ -811,11 +747,7 @@ def SYCLNDItemGetLocalLinearIDOp
     This operation represents a call to the nd_item::get_local_linear_id function.
   }];
 
-  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
 
   let results = (outs I64:$Res);
 }
@@ -834,11 +766,7 @@ def SYCLNDItemGetGroupOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs AnyTypeOf<[I64, SYCL_GroupType]>:$Res);
 }
@@ -855,11 +783,7 @@ def SYCLNDItemGetGroupLinearIDOp
     This operation represents a call to the nd_item::get_group_linear_id function.
   }];
 
-  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
 
   let results = (outs I64:$Res);
 }
@@ -878,11 +802,7 @@ def SYCLNDItemGetGroupRangeOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -901,11 +821,7 @@ def SYCLNDItemGetGlobalRangeOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -924,11 +840,7 @@ def SYCLNDItemGetLocalRangeOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -945,11 +857,7 @@ def SYCLNDItemGetNdRangeOp
     This operation represents a call to the nd_item::get_nd_range function.
   }];
 
-  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
 
   let results = (outs SYCL_NdRangeType:$Res);
 }
@@ -968,11 +876,7 @@ def SYCLGroupGetGroupIDOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetIDResult:$Res);
 }
@@ -991,11 +895,7 @@ def SYCLGroupGetLocalIDOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetIDResult:$Res);
 }
@@ -1014,11 +914,7 @@ def SYCLGroupGetLocalRangeOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -1037,11 +933,7 @@ def SYCLGroupGetGroupRangeOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       Optional<I32>:$Index,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+                       Optional<I32>:$Index);
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -1058,11 +950,7 @@ def SYCLGroupGetMaxLocalRangeOp
     This operation represents a call to the group::get_max_local_range function.
   }];
 
-  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -1079,11 +967,7 @@ def SYCLGroupGetGroupLinearIDOp
     This operation represents a call to the group::get_group_linear_id function.
   }];
 
-  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
   let results = (outs I64:$Res);
 }
@@ -1100,11 +984,7 @@ def SYCLGroupGetLocalLinearIDOp
     This operation represents a call to the group::get_local_linear_id function.
   }];
 
-  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
   let results = (outs I64:$Res);
 }
@@ -1121,11 +1001,7 @@ def SYCLGroupGetLocalLinearIDOp
     This operation represents a call to the group::get_group_linear_range function.
   }];
 
-  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
   let results = (outs I64:$Res);
 }
@@ -1142,11 +1018,7 @@ def SYCLGroupGetLocalLinearRangeOp
     This operation represents a call to the group::get_local_linear_range function.
   }];
 
-  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
-                       TypeArrayAttr:$ArgumentTypes,
-                       FlatSymbolRefAttr:$FunctionName,
-                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
-                       FlatSymbolRefAttr:$TypeName);
+  let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
   let results = (outs I64:$Res);
 }

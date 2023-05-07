@@ -14,7 +14,7 @@
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:    }
 func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> i64 {
-  %0 = sycl.range.get %range[%idx] { ArgumentTypes = [memref<?x!sycl_range_3_>, i32], FunctionName = @"get", MangledFunctionName = @"get", TypeName = @"range" }  : (memref<?x!sycl_range_3_>, i32) -> i64
+  %0 = sycl.range.get %range[%idx] : (memref<?x!sycl_range_3_>, i32) -> i64
   return %0 : i64
 }
 
@@ -33,7 +33,7 @@ func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_2]] : !llvm.ptr<i64>
 // CHECK-NEXT:    }
 func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64> {
-  %0 = sycl.range.get %range[%idx] { ArgumentTypes = [memref<?x!sycl_range_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"range" }  : (memref<?x!sycl_range_3_>, i32) -> memref<?xi64>
+  %0 = sycl.range.get %range[%idx] : (memref<?x!sycl_range_3_>, i32) -> memref<?xi64>
   return %0 : memref<?xi64>
 }
 
@@ -56,7 +56,7 @@ func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64> {
 // CHECK-NEXT:      llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:    }
 func.func @test_1(%range: memref<?x!sycl_range_1_>) -> i64 {
-  %0 = sycl.range.size(%range) { ArgumentTypes = [memref<?x!sycl_range_1_>], FunctionName = @"size", MangledFunctionName = @"size", TypeName = @"range" }  : (memref<?x!sycl_range_1_>) -> i64
+  %0 = sycl.range.size(%range) : (memref<?x!sycl_range_1_>) -> i64
   return %0 : i64
 }
 
@@ -72,7 +72,7 @@ func.func @test_1(%range: memref<?x!sycl_range_1_>) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_7]] : i64
 // CHECK-NEXT:    }
 func.func @test_2(%range: memref<?x!sycl_range_2_>) -> i64 {
-  %0 = sycl.range.size(%range) { ArgumentTypes = [memref<?x!sycl_range_2_>], FunctionName = @"size", MangledFunctionName = @"size", TypeName = @"range" }  : (memref<?x!sycl_range_2_>) -> i64
+  %0 = sycl.range.size(%range) : (memref<?x!sycl_range_2_>) -> i64
   return %0 : i64
 }
 
@@ -91,7 +91,7 @@ func.func @test_2(%range: memref<?x!sycl_range_2_>) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:    }
 func.func @test_3(%range: memref<?x!sycl_range_3_>) -> i64 {
-  %0 = sycl.range.size(%range) { ArgumentTypes = [memref<?x!sycl_range_3_>], FunctionName = @"size", MangledFunctionName = @"size", TypeName = @"range" }  : (memref<?x!sycl_range_3_>) -> i64
+  %0 = sycl.range.size(%range) : (memref<?x!sycl_range_3_>) -> i64
   return %0 : i64
 }
 
@@ -111,7 +111,7 @@ func.func @test_3(%range: memref<?x!sycl_range_3_>) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:    }
 func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> i64 {
-  %0 = sycl.id.get %id[%idx] { ArgumentTypes = [memref<?x!sycl_id_3_>, i32], FunctionName = @"get", MangledFunctionName = @"get", TypeName = @"id" }  : (memref<?x!sycl_id_3_>, i32) -> i64
+  %0 = sycl.id.get %id[%idx] : (memref<?x!sycl_id_3_>, i32) -> i64
   return %0 : i64
 }
 
@@ -131,7 +131,7 @@ func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:    }
 func.func @test(%id: memref<?x!sycl_id_1_>) -> i64 {
-  %0 = sycl.id.get %id[] { ArgumentTypes = [memref<?x!sycl_id_1_>], FunctionName = @"operator unsigned long", MangledFunctionName = @"operator unsigned long", TypeName = @"id" }  : (memref<?x!sycl_id_1_>) -> i64
+  %0 = sycl.id.get %id[] : (memref<?x!sycl_id_1_>) -> i64
   return %0 : i64
 }
 
@@ -150,7 +150,7 @@ func.func @test(%id: memref<?x!sycl_id_1_>) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_2]] : !llvm.ptr<i64>
 // CHECK-NEXT:    }
 func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> memref<?xi64> {
-  %0 = sycl.id.get %id[%idx] { ArgumentTypes = [memref<?x!sycl_id_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_id_3_>, i32) -> memref<?xi64>
+  %0 = sycl.id.get %id[%idx] : (memref<?x!sycl_id_3_>, i32) -> memref<?xi64>
   return %0 : memref<?xi64>
 }
 
@@ -182,7 +182,7 @@ func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> memref<?xi64> {
 // CHECK-NEXT:      llvm.return %[[VAL_12]] : !llvm.ptr<i32, 1>
 // CHECK-NEXT:    }
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.get_pointer(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>], FunctionName = @"get_pointer", MangledFunctionName = @"get_pointer", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?xi32, 1>
+  %0 = sycl.accessor.get_pointer(%acc) : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
@@ -204,7 +204,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?xi32, 1> 
 // CHECK-NEXT:      llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
 // CHECK-NEXT:    }
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_1_ {
-  %0 = sycl.accessor.get_range(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_1_
+  %0 = sycl.accessor.get_range(%acc) : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -228,7 +228,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_1_ {
 // CHECK-NEXT:      llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:    }
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> i64 {
-  %0 = sycl.accessor.size(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>], FunctionName = @"size", MangledFunctionName = @"size", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> i64
+  %0 = sycl.accessor.size(%acc) : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> i64
   return %0 : i64
 }
 
@@ -252,7 +252,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_4]] : !llvm.ptr<i32, 1>
 // CHECK-NEXT:    }
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: i64) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>, i64], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>, i64) -> memref<?xi32, 1>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_1_i32_rw_gb>, i64) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
@@ -284,7 +284,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: i64) -> memref
 // CHECK-NEXT:      llvm.return %[[VAL_6]] : !llvm.[[ACCESSORSUBS2]]
 // CHECK-NEXT:    }
 func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: i64) -> !sycl_accessor_subscript_2_ {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb>, i64], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_2_i32_rw_gb>, i64) -> !sycl_accessor_subscript_2_
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_2_i32_rw_gb>, i64) -> !sycl_accessor_subscript_2_
   return %0 : !sycl_accessor_subscript_2_
 }
 
@@ -299,7 +299,7 @@ func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: i64) -> !syc
 // CHECK-NEXT:      llvm.return %[[VAL_7]] : !llvm.[[ACCESSORSUBS3]]
 // CHECK-NEXT:    }
 func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: i64) -> !sycl_accessor_subscript_3_ {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_3_i32_rw_gb>, i64], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_3_i32_rw_gb>, i64) -> !sycl_accessor_subscript_3_
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_3_i32_rw_gb>, i64) -> !sycl_accessor_subscript_3_
   return %0 : !sycl_accessor_subscript_3_
 }
 
@@ -340,7 +340,7 @@ func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: i64) -> !syc
 // CHECK-NEXT:      llvm.return %[[VAL_11]] : !llvm.ptr<i32, 1>
 // CHECK-NEXT:    }
 func.func @test_1(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: memref<?x!sycl_id_1_>) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>) -> memref<?xi32, 1>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
@@ -366,7 +366,7 @@ func.func @test_1(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-NEXT:      llvm.return %[[VAL_17]] : !llvm.ptr<i32, 1>
 // CHECK-NEXT:    }
 func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: memref<?x!sycl_id_2_>) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>) -> memref<?xi32, 1>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
@@ -398,7 +398,7 @@ func.func @test_2(%acc: memref<?x!sycl_accessor_2_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-NEXT:      llvm.return %[[VAL_23]] : !llvm.ptr<i32, 1>
 // CHECK-NEXT:    }
 func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: memref<?x!sycl_id_3_>) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>) -> memref<?xi32, 1>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_3_i32_rw_gb>, memref<?x!sycl_id_3_>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
@@ -417,7 +417,7 @@ func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: memref<?x!sy
 // CHECK-NEXT:      llvm.return %[[VAL_11]] : !llvm.ptr<struct<(i32, f32)>, 1>
 // CHECK-NEXT:    }
 func.func @test_struct(%acc: memref<?x!sycl_accessor_1_struct_rw_gb>, %idx: memref<?x!sycl_id_1_>) -> !llvm.ptr<struct<(i32, f32)>, 1> {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_struct_rw_gb>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_struct_rw_gb>, memref<?x!sycl_id_1_>) -> !llvm.ptr<struct<(i32, f32)>, 1>
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_1_struct_rw_gb>, memref<?x!sycl_id_1_>) -> !llvm.ptr<struct<(i32, f32)>, 1>
   return %0 : !llvm.ptr<struct<(i32, f32)>, 1>
 }
 
@@ -451,7 +451,7 @@ func.func @test_struct(%acc: memref<?x!sycl_accessor_1_struct_rw_gb>, %idx: memr
 // CHECK:           %[[VAL_13:.*]] = llvm.insertvalue %[[VAL_12]], %[[VAL_2]][0] : !llvm.[[ATOM1]]
 // CHECK:           llvm.return %[[VAL_13]] : !llvm.[[ATOM1]]
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_ato_gb>, %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_glo {
-  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_glo
+  %0 = sycl.accessor.subscript %acc[%idx] : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_glo
   return %0 : !sycl_atomic_i32_glo
 }
 
@@ -468,7 +468,7 @@ func.func @test(%acc: memref<?x!sycl_accessor_1_i32_ato_gb>, %idx: memref<?x!syc
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
-  %0 = sycl.nd_range.get_global_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_range_1_>], FunctionName = @"get_global_range", MangledFunctionName = @"get_global_range", TypeName = @"nd_range" }  : (memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_
+  %0 = sycl.nd_range.get_global_range(%nd) : (memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -485,7 +485,7 @@ func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
-  %0 = sycl.nd_range.get_local_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_range_1_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"nd_range" }  : (memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_
+  %0 = sycl.nd_range.get_local_range(%nd) : (memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -524,7 +524,7 @@ func.func @test(%nd: memref<?x!sycl_nd_range_1_>) -> !sycl_range_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_21]] : !llvm.[[RANGE3]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_range_3_>) -> !sycl_range_3_ {
-  %0 = sycl.nd_range.get_group_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_range_3_>], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"nd_range" }  : (memref<?x!sycl_nd_range_3_>) -> !sycl_range_3_
+  %0 = sycl.nd_range.get_group_range(%nd) : (memref<?x!sycl_nd_range_3_>) -> !sycl_range_3_
   return %0 : !sycl_range_3_
 }
 
@@ -542,7 +542,7 @@ func.func @test(%nd: memref<?x!sycl_nd_range_3_>) -> !sycl_range_3_ {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
 // CHECK-NEXT:     }
 func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_id_1_ {
-  %0 = sycl.item.get_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_id", MangledFunctionName = @"get_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> !sycl_id_1_
+  %0 = sycl.item.get_id(%item) : (memref<?x!sycl_item_1_>) -> !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
@@ -561,7 +561,7 @@ func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_id_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.item.get_id(%item, %i) { ArgumentTypes = [memref<?x!sycl_item_1_>, i32], FunctionName = @"get_id", MangledFunctionName = @"get_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>, i32) -> i64
+  %0 = sycl.item.get_id(%item, %i) : (memref<?x!sycl_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -580,7 +580,7 @@ func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%item: memref<?x!sycl_item_1_>) -> i64 {
-  %0 = sycl.item.get_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"operator unsigned long", MangledFunctionName = @"operator unsigned long", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> i64
+  %0 = sycl.item.get_id(%item) : (memref<?x!sycl_item_1_>) -> i64
   return %0 : i64
 }
 
@@ -598,7 +598,7 @@ func.func @test(%item: memref<?x!sycl_item_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
 // CHECK-NEXT:     }
 func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_range_1_ {
-  %0 = sycl.item.get_range(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> !sycl_range_1_
+  %0 = sycl.item.get_range(%item) : (memref<?x!sycl_item_1_>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -617,7 +617,7 @@ func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_range_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.item.get_range(%item, %i) { ArgumentTypes = [memref<?x!sycl_item_1_>, i32], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"item" }  : (memref<?x!sycl_item_1_>, i32) -> i64
+  %0 = sycl.item.get_range(%item, %i) : (memref<?x!sycl_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -643,7 +643,7 @@ func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
-  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> i64
+  %0 = sycl.item.get_linear_id(%item) : (memref<?x!sycl_item_1_>) -> i64
   return %0 : i64
 }
 
@@ -660,7 +660,7 @@ func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
-  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_2_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_2_>) -> i64
+  %0 = sycl.item.get_linear_id(%item) : (memref<?x!sycl_item_2_>) -> i64
   return %0 : i64
 }
 
@@ -684,7 +684,7 @@ func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
-  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_3_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_3_>) -> i64
+  %0 = sycl.item.get_linear_id(%item) : (memref<?x!sycl_item_3_>) -> i64
   return %0 : i64
 }
 
@@ -713,7 +713,7 @@ func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_5]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
-  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> i64
+  %0 = sycl.item.get_linear_id(%item) : (memref<?x!sycl_item_1_>) -> i64
   return %0 : i64
 }
 
@@ -736,7 +736,7 @@ func.func @test_1(%item: memref<?x!sycl_item_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_14]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
-  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_2_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_2_>) -> i64
+  %0 = sycl.item.get_linear_id(%item) : (memref<?x!sycl_item_2_>) -> i64
   return %0 : i64
 }
 
@@ -769,7 +769,7 @@ func.func @test_2(%item: memref<?x!sycl_item_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_24]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
-  %0 = sycl.item.get_linear_id(%item) { ArgumentTypes = [memref<?x!sycl_item_3_>], FunctionName = @"get_linear_id", MangledFunctionName = @"get_linear_id", TypeName = @"item" }  : (memref<?x!sycl_item_3_>) -> i64
+  %0 = sycl.item.get_linear_id(%item) : (memref<?x!sycl_item_3_>) -> i64
   return %0 : i64
 }
 
@@ -791,7 +791,7 @@ func.func @test_3(%item: memref<?x!sycl_item_3_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_ {
-  %0 = sycl.nd_item.get_global_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_global_id", MangledFunctionName = @"get_global_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_
+  %0 = sycl.nd_item.get_global_id(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
@@ -814,7 +814,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.nd_item.get_global_id(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_global_id", MangledFunctionName = @"get_global_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  %0 = sycl.nd_item.get_global_id(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -852,7 +852,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
-  %0 = sycl.nd_item.get_global_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_global_linear_id", MangledFunctionName = @"get_global_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> i64
+  %0 = sycl.nd_item.get_global_linear_id(%nd) : (memref<?x!sycl_nd_item_1_>) -> i64
   return %0 : i64
 }
 
@@ -869,7 +869,7 @@ func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
-  %0 = sycl.nd_item.get_global_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_2_>], FunctionName = @"get_global_linear_id", MangledFunctionName = @"get_global_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_2_>) -> i64
+  %0 = sycl.nd_item.get_global_linear_id(%nd) : (memref<?x!sycl_nd_item_2_>) -> i64
   return %0 : i64
 }
 
@@ -893,7 +893,7 @@ func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
-  %0 = sycl.nd_item.get_global_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_3_>], FunctionName = @"get_global_linear_id", MangledFunctionName = @"get_global_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_3_>) -> i64
+  %0 = sycl.nd_item.get_global_linear_id(%nd) : (memref<?x!sycl_nd_item_3_>) -> i64
   return %0 : i64
 }
 
@@ -915,7 +915,7 @@ func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_ {
-  %0 = sycl.nd_item.get_local_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_
+  %0 = sycl.nd_item.get_local_id(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
@@ -938,7 +938,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_id_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.nd_item.get_local_id(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  %0 = sycl.nd_item.get_local_id(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -976,7 +976,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
-  %0 = sycl.nd_item.get_local_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> i64
+  %0 = sycl.nd_item.get_local_linear_id(%nd) : (memref<?x!sycl_nd_item_1_>) -> i64
   return %0 : i64
 }
 
@@ -993,7 +993,7 @@ func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
-  %0 = sycl.nd_item.get_local_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_2_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_2_>) -> i64
+  %0 = sycl.nd_item.get_local_linear_id(%nd) : (memref<?x!sycl_nd_item_2_>) -> i64
   return %0 : i64
 }
 
@@ -1017,7 +1017,7 @@ func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
-  %0 = sycl.nd_item.get_local_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_3_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_3_>) -> i64
+  %0 = sycl.nd_item.get_local_linear_id(%nd) : (memref<?x!sycl_nd_item_3_>) -> i64
   return %0 : i64
 }
 
@@ -1056,7 +1056,7 @@ func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
 // CHECK:           llvm.return %[[VAL_4]] : i64
 // CHECK:         }
 func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
-  %0 = sycl.nd_item.get_group_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> i64
+  %0 = sycl.nd_item.get_group_linear_id(%nd) : (memref<?x!sycl_nd_item_1_>) -> i64
   return %0 : i64
 }
 
@@ -1074,7 +1074,7 @@ func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
 // CHECK:           llvm.return %[[VAL_10]] : i64
 // CHECK:         }
 func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
-  %0 = sycl.nd_item.get_group_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_2_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_2_>) -> i64
+  %0 = sycl.nd_item.get_group_linear_id(%nd) : (memref<?x!sycl_nd_item_2_>) -> i64
   return %0 : i64
 }
 
@@ -1099,7 +1099,7 @@ func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
 // CHECK:           llvm.return %[[VAL_17]] : i64
 // CHECK:         }
 func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
-  %0 = sycl.nd_item.get_group_linear_id(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_3_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_3_>) -> i64
+  %0 = sycl.nd_item.get_group_linear_id(%nd) : (memref<?x!sycl_nd_item_3_>) -> i64
   return %0 : i64
 }
 
@@ -1121,7 +1121,7 @@ func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
 // CHECK-NEXT:      llvm.return %[[VAL_2]] : !llvm.struct<"class.sycl::_V1::range.1", {{.*}}>
 // CHECK-NEXT:    }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
-  %0 = sycl.nd_item.get_global_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_global_range", MangledFunctionName = @"get_global_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
+  %0 = sycl.nd_item.get_global_range(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -1144,7 +1144,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:    }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.nd_item.get_global_range(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_global_range", MangledFunctionName = @"get_global_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  %0 = sycl.nd_item.get_global_range(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -1166,7 +1166,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[GROUP1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_group_1_ {
-  %0 = sycl.nd_item.get_group(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_group", MangledFunctionName = @"get_group", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_group_1_
+  %0 = sycl.nd_item.get_group(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_group_1_
   return %0 : !sycl_group_1_
 }
 
@@ -1189,7 +1189,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_group_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.nd_item.get_group(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_group", MangledFunctionName = @"get_group", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  %0 = sycl.nd_item.get_group(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -1211,7 +1211,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
-  %0 = sycl.nd_item.get_group_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
+  %0 = sycl.nd_item.get_group_range(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -1234,7 +1234,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.nd_item.get_group_range(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_group_range", MangledFunctionName = @"get_group_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  %0 = sycl.nd_item.get_group_range(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -1256,7 +1256,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
-  %0 = sycl.nd_item.get_local_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
+  %0 = sycl.nd_item.get_local_range(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
@@ -1279,7 +1279,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_range_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
-  %0 = sycl.nd_item.get_local_range(%nd, %i) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>, i32], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>, i32) -> i64
+  %0 = sycl.nd_item.get_local_range(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -1315,7 +1315,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_12]] : !llvm.[[NDRANGE1]]
 // CHECK-NEXT:     }
 func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_nd_range_1_ {
-  %0 = sycl.nd_item.get_nd_range(%nd) { ArgumentTypes = [memref<?x!sycl_nd_item_1_>], FunctionName = @"get_nd_range", MangledFunctionName = @"get_nd_range", TypeName = @"nd_item" }  : (memref<?x!sycl_nd_item_1_>) -> !sycl_nd_range_1_
+  %0 = sycl.nd_item.get_nd_range(%nd) : (memref<?x!sycl_nd_item_1_>) -> !sycl_nd_range_1_
   return %0 : !sycl_nd_range_1_
 }
 
@@ -1332,7 +1332,7 @@ func.func @test(%nd: memref<?x!sycl_nd_item_1_>) -> !sycl_nd_range_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[ID1]]
 // CHECK-NEXT:     }
 func.func @test(%group: memref<?x!sycl_group_1_>) -> !sycl_id_1_ {
-  %0 = sycl.group.get_group_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_id", MangledFunctionName = @"get_group_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> !sycl_id_1_
+  %0 = sycl.group.get_group_id(%group) : (memref<?x!sycl_group_1_>) -> !sycl_id_1_
   return %0 : !sycl_id_1_
 }
 
@@ -1350,7 +1350,7 @@ func.func @test(%group: memref<?x!sycl_group_1_>) -> !sycl_id_1_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
-  %0 = sycl.group.get_group_id(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_group_id", MangledFunctionName = @"get_group_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  %0 = sycl.group.get_group_id(%group, %i) : (memref<?x!sycl_group_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -1395,7 +1395,7 @@ module attributes {gpu.container} {
 // CHECK:             llvm.return %[[VAL_25]] : !llvm.[[ID3]]
 // CHECK-NEXT:     }
     func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_id_3_ {
-      %0 = sycl.group.get_local_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_id_3_
+      %0 = sycl.group.get_local_id(%group) : (memref<?x!sycl_group_3_>) -> !sycl_id_3_
       return %0 : !sycl_id_3_
     }
   }
@@ -1440,7 +1440,7 @@ module attributes {gpu.container} {
 // CHECK:             llvm.return %[[VAL_23]] : i64
 // CHECK-NEXT:     }
     func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
-      %0 = sycl.group.get_local_id(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_id", MangledFunctionName = @"get_local_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+      %0 = sycl.group.get_local_id(%group, %i) : (memref<?x!sycl_group_1_>, i32) -> i64
       return %0 : i64
     }
   }
@@ -1459,7 +1459,7 @@ module attributes {gpu.container} {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE3]]
 // CHECK-NEXT:     }
 func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_range_3_ {
-  %0 = sycl.group.get_local_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_range_3_
+  %0 = sycl.group.get_local_range(%group) : (memref<?x!sycl_group_3_>) -> !sycl_range_3_
   return %0 : !sycl_range_3_
 }
 
@@ -1477,7 +1477,7 @@ func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_range_3_ {
 // CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
 // CHECK-NEXT:     }
 func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
-  %0 = sycl.group.get_local_range(%group, %i) { ArgumentTypes = [memref<?x!sycl_group_1_>, i32], FunctionName = @"get_local_range", MangledFunctionName = @"get_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>, i32) -> i64
+  %0 = sycl.group.get_local_range(%group, %i) : (memref<?x!sycl_group_1_>, i32) -> i64
   return %0 : i64
 }
 
@@ -1494,7 +1494,7 @@ func.func @test(%group: memref<?x!sycl_group_1_>, %i: i32) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : !llvm.[[RANGE3]]
 // CHECK-NEXT:     }
 func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_range_3_ {
-  %0 = sycl.group.get_max_local_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_max_local_range", MangledFunctionName = @"get_max_local_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> !sycl_range_3_
+  %0 = sycl.group.get_max_local_range(%group) : (memref<?x!sycl_group_3_>) -> !sycl_range_3_
   return %0 : !sycl_range_3_
 }
 
@@ -1517,7 +1517,7 @@ func.func @test(%group: memref<?x!sycl_group_3_>) -> !sycl_range_3_ {
 // CHECK-NEXT:       llvm.return %[[VAL_2]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
-  %0 = sycl.group.get_group_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  %0 = sycl.group.get_group_linear_id(%group) : (memref<?x!sycl_group_1_>) -> i64
   return %0 : i64
 }
 
@@ -1534,7 +1534,7 @@ func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_8]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
-  %0 = sycl.group.get_group_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  %0 = sycl.group.get_group_linear_id(%group) : (memref<?x!sycl_group_2_>) -> i64
   return %0 : i64
 }
 
@@ -1558,7 +1558,7 @@ func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_15]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
-  %0 = sycl.group.get_group_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_group_linear_id", MangledFunctionName = @"get_group_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  %0 = sycl.group.get_group_linear_id(%group) : (memref<?x!sycl_group_3_>) -> i64
   return %0 : i64
 }
 
@@ -1606,7 +1606,7 @@ module attributes {gpu.container} {
 // CHECK:             llvm.return %[[VAL_23]] : i64
 // CHECK-NEXT:     }
     func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
-      %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+      %0 = sycl.group.get_local_linear_id(%group) : (memref<?x!sycl_group_1_>) -> i64
       return %0 : i64
     }
 
@@ -1653,7 +1653,7 @@ module attributes {gpu.container} {
 // CHECK:             llvm.return %[[VAL_59]] : i64
 // CHECK-NEXT:     }
     func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
-      %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+      %0 = sycl.group.get_local_linear_id(%group) : (memref<?x!sycl_group_2_>) -> i64
       return %0 : i64
     }
 
@@ -1714,7 +1714,7 @@ module attributes {gpu.container} {
 // CHECK:             llvm.return %[[VAL_108]] : i64
 // CHECK-NEXT:     }
     func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
-      %0 = sycl.group.get_local_linear_id(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_id", MangledFunctionName = @"get_local_linear_id", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+      %0 = sycl.group.get_local_linear_id(%group) : (memref<?x!sycl_group_3_>) -> i64
       return %0 : i64
     }
   }
@@ -1741,7 +1741,7 @@ module attributes {gpu.container} {
 // CHECK-NEXT:       llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
-  %0 = sycl.group.get_group_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  %0 = sycl.group.get_group_linear_range(%group) : (memref<?x!sycl_group_1_>) -> i64
   return %0 : i64
 }
 
@@ -1757,7 +1757,7 @@ func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_7]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
-  %0 = sycl.group.get_group_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  %0 = sycl.group.get_group_linear_range(%group) : (memref<?x!sycl_group_2_>) -> i64
   return %0 : i64
 }
 
@@ -1776,7 +1776,7 @@ func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
-  %0 = sycl.group.get_group_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_group_linear_range", MangledFunctionName = @"get_group_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  %0 = sycl.group.get_group_linear_range(%group) : (memref<?x!sycl_group_3_>) -> i64
   return %0 : i64
 }
 
@@ -1801,7 +1801,7 @@ func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_4]] : i64
 // CHECK-NEXT:     }
 func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
-  %0 = sycl.group.get_local_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_1_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_1_>) -> i64
+  %0 = sycl.group.get_local_linear_range(%group) : (memref<?x!sycl_group_1_>) -> i64
   return %0 : i64
 }
 
@@ -1817,7 +1817,7 @@ func.func @test_1(%group: memref<?x!sycl_group_1_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_7]] : i64
 // CHECK-NEXT:     }
 func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
-  %0 = sycl.group.get_local_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_2_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_2_>) -> i64
+  %0 = sycl.group.get_local_linear_range(%group) : (memref<?x!sycl_group_2_>) -> i64
   return %0 : i64
 }
 
@@ -1836,6 +1836,6 @@ func.func @test_2(%group: memref<?x!sycl_group_2_>) -> i64 {
 // CHECK-NEXT:       llvm.return %[[VAL_10]] : i64
 // CHECK-NEXT:     }
 func.func @test_3(%group: memref<?x!sycl_group_3_>) -> i64 {
-  %0 = sycl.group.get_local_linear_range(%group) { ArgumentTypes = [memref<?x!sycl_group_3_>], FunctionName = @"get_local_linear_range", MangledFunctionName = @"get_local_linear_range", TypeName = @"group" }  : (memref<?x!sycl_group_3_>) -> i64
+  %0 = sycl.group.get_local_linear_range(%group) : (memref<?x!sycl_group_3_>) -> i64
   return %0 : i64
 }
