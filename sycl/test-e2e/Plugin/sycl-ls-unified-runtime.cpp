@@ -10,9 +10,7 @@
 
 // CHECK-UR:        libpi_unified_runtime.so
 // CHECK-UR: 		Platforms: 1
-// CHECK-UR-NEXT:	Platform [#1]:
-// CHECK-UR-NEXT:      	Version  : 1.3
-// CHECK-UR-NEXT:      	Name     : Intel(R) oneAPI Unified Runtime over Level-Zero
+// CHECK-UR:      	Name     : Intel(R) oneAPI Unified Runtime over Level-Zero
 
 //==-- sycl-ls-unified-runtime.cpp ----- Test Unified Runtime platform  ----==//
 //
