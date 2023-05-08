@@ -89,9 +89,10 @@
 // 12.28 Added piextMemImageCreateWithNativeHandle for creating images from
 // native handles.
 // 12.29 Support PI_EXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
+// 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 28
+#define _PI_H_VERSION_MINOR 30
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -348,6 +349,7 @@ typedef enum {
   PI_EXT_CODEPLAY_DEVICE_INFO_SUPPORTS_FUSION = 0x20005,
   PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 0x20006,
   PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 0x20007,
+  PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 0x20008,
 } _pi_device_info;
 
 typedef enum {

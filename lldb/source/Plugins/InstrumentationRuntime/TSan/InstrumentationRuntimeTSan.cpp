@@ -94,7 +94,7 @@ const char *thread_sanitizer_retrieve_report_data_command = R"(
 const int REPORT_TRACE_SIZE = 128;
 const int REPORT_ARRAY_SIZE = 4;
 
-struct data {
+struct {
     void *report;
     const char *description;
     int report_count;
@@ -303,7 +303,8 @@ StructuredData::ObjectSP InstrumentationRuntimeTSan::RetrieveReportData(
     return StructuredData::ObjectSP();
 
   ThreadSP thread_sp = exe_ctx_ref.GetThreadSP();
-  StackFrameSP frame_sp = thread_sp->GetSelectedFrame();
+  StackFrameSP frame_sp =
+      thread_sp->GetSelectedFrame(DoNoSelectMostRelevantFrame);
 
   if (!frame_sp)
     return StructuredData::ObjectSP();

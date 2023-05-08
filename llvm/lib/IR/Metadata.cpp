@@ -195,9 +195,9 @@ SmallVector<Metadata *> ReplaceableMetadataImpl::getAllArgListUsers() {
   SmallVector<std::pair<OwnerTy, uint64_t> *> MDUsersWithID;
   for (auto Pair : UseMap) {
     OwnerTy Owner = Pair.second.first;
-    if (!Owner.is<Metadata *>())
+    if (!isa<Metadata *>(Owner))
       continue;
-    Metadata *OwnerMD = Owner.get<Metadata *>();
+    Metadata *OwnerMD = cast<Metadata *>(Owner);
     if (OwnerMD->getMetadataID() == Metadata::DIArgListKind)
       MDUsersWithID.push_back(&UseMap[Pair.first]);
   }
@@ -206,7 +206,7 @@ SmallVector<Metadata *> ReplaceableMetadataImpl::getAllArgListUsers() {
   });
   SmallVector<Metadata *> MDUsers;
   for (auto *UserWithID : MDUsersWithID)
-    MDUsers.push_back(UserWithID->first.get<Metadata *>());
+    MDUsers.push_back(cast<Metadata *>(UserWithID->first));
   return MDUsers;
 }
 
@@ -263,9 +263,9 @@ void ReplaceableMetadataImpl::SalvageDebugInfo(const Constant &C) {
     MetadataTracking::OwnerTy Owner = Pair.second.first;
     if (!Owner)
       continue;
-    if (!Owner.is<Metadata *>())
+    if (!isa<Metadata *>(Owner))
       continue;
-    auto *OwnerMD = dyn_cast<MDNode>(Owner.get<Metadata *>());
+    auto *OwnerMD = dyn_cast_if_present<MDNode>(cast<Metadata *>(Owner));
     if (!OwnerMD)
       continue;
     if (isa<DINode>(OwnerMD)) {
@@ -301,13 +301,13 @@ void ReplaceableMetadataImpl::replaceAllUsesWith(Metadata *MD) {
     }
 
     // Check for MetadataAsValue.
-    if (Owner.is<MetadataAsValue *>()) {
-      Owner.get<MetadataAsValue *>()->handleChangedMetadata(MD);
+    if (isa<MetadataAsValue *>(Owner)) {
+      cast<MetadataAsValue *>(Owner)->handleChangedMetadata(MD);
       continue;
     }
 
     // There's a Metadata owner -- dispatch.
-    Metadata *OwnerMD = Owner.get<Metadata *>();
+    Metadata *OwnerMD = cast<Metadata *>(Owner);
     switch (OwnerMD->getMetadataID()) {
 #define HANDLE_METADATA_LEAF(CLASS)                                            \
   case Metadata::CLASS##Kind:                                                  \
@@ -341,11 +341,11 @@ void ReplaceableMetadataImpl::resolveAllUses(bool ResolveUsers) {
     auto Owner = Pair.second.first;
     if (!Owner)
       continue;
-    if (Owner.is<MetadataAsValue *>())
+    if (isa<MetadataAsValue *>(Owner))
       continue;
 
     // Resolve MDNodes that point at this.
-    auto *OwnerMD = dyn_cast<MDNode>(Owner.get<Metadata *>());
+    auto *OwnerMD = dyn_cast_if_present<MDNode>(cast<Metadata *>(Owner));
     if (!OwnerMD)
       continue;
     if (OwnerMD->isResolved())
@@ -1070,6 +1070,70 @@ MDNode *MDNode::getMostGenericFPMath(MDNode *A, MDNode *B) {
   if (AVal < BVal)
     return A;
   return B;
+}
+
+// Call instructions with branch weights are only used in SamplePGO as
+// documented in
+/// https://llvm.org/docs/BranchWeightMetadata.html#callinst).
+MDNode *MDNode::mergeDirectCallProfMetadata(MDNode *A, MDNode *B,
+                                            const Instruction *AInstr,
+                                            const Instruction *BInstr) {
+  assert(A && B && AInstr && BInstr && "Caller should guarantee");
+  auto &Ctx = AInstr->getContext();
+  MDBuilder MDHelper(Ctx);
+
+  // LLVM IR verifier verifies !prof metadata has at least 2 operands.
+  assert(A->getNumOperands() >= 2 && B->getNumOperands() >= 2 &&
+         "!prof annotations should have no less than 2 operands");
+  MDString *AMDS = dyn_cast<MDString>(A->getOperand(0));
+  MDString *BMDS = dyn_cast<MDString>(B->getOperand(0));
+  // LLVM IR verfier verifies first operand is MDString.
+  assert(AMDS != nullptr && BMDS != nullptr &&
+         "first operand should be a non-null MDString");
+  StringRef AProfName = AMDS->getString();
+  StringRef BProfName = BMDS->getString();
+  if (AProfName.equals("branch_weights") &&
+      BProfName.equals("branch_weights")) {
+    ConstantInt *AInstrWeight =
+        mdconst::dyn_extract<ConstantInt>(A->getOperand(1));
+    ConstantInt *BInstrWeight =
+        mdconst::dyn_extract<ConstantInt>(B->getOperand(1));
+    assert(AInstrWeight && BInstrWeight && "verified by LLVM verifier");
+    return MDNode::get(Ctx,
+                       {MDHelper.createString("branch_weights"),
+                        MDHelper.createConstant(ConstantInt::get(
+                            Type::getInt64Ty(Ctx),
+                            SaturatingAdd(AInstrWeight->getZExtValue(),
+                                          BInstrWeight->getZExtValue())))});
+  }
+  return nullptr;
+}
+
+// Pass in both instructions and nodes. Instruction information (e.g.,
+// instruction type) helps interpret profiles and make implementation clearer.
+MDNode *MDNode::getMergedProfMetadata(MDNode *A, MDNode *B,
+                                      const Instruction *AInstr,
+                                      const Instruction *BInstr) {
+  if (!(A && B)) {
+    return A ? A : B;
+  }
+
+  assert(AInstr->getMetadata(LLVMContext::MD_prof) == A &&
+         "Caller should guarantee");
+  assert(BInstr->getMetadata(LLVMContext::MD_prof) == B &&
+         "Caller should guarantee");
+
+  const CallInst *ACall = dyn_cast<CallInst>(AInstr);
+  const CallInst *BCall = dyn_cast<CallInst>(BInstr);
+
+  // Both ACall and BCall are direct callsites.
+  if (ACall && BCall && ACall->getCalledFunction() &&
+      BCall->getCalledFunction())
+    return mergeDirectCallProfMetadata(A, B, AInstr, BInstr);
+
+  // The rest of the cases are not implemented but could be added
+  // when there are use cases.
+  return nullptr;
 }
 
 static bool isContiguous(const ConstantRange &A, const ConstantRange &B) {

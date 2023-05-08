@@ -1043,6 +1043,8 @@ def Tosa_LogOp : Tosa_Op<"log", [
   let results = (outs
     Tosa_Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1441,8 +1443,7 @@ def Tosa_ReduceSumOp : Tosa_Op<"reduce_sum", [
 // Operator: concat
 //===----------------------------------------------------------------------===//
 def Tosa_ConcatOp : Tosa_Op<"concat", [
-                              InferTensorType,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Concatenates tensors along one dimension.";
 
   let description = [{
@@ -1503,9 +1504,7 @@ def Tosa_PadOp : Tosa_Op<"pad", [
 // Operator: reshape
 //===----------------------------------------------------------------------===//
 def Tosa_ReshapeOp: Tosa_Op<"reshape", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+  InferTensorType, Pure]> {
   let summary = "Reshape operator";
 
   let description = [{
@@ -1526,6 +1525,12 @@ def Tosa_ReshapeOp: Tosa_Op<"reshape", [
   let results = (outs
     Tosa_RankedTensor:$output
   );
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//

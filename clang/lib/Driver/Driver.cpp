@@ -11,6 +11,7 @@
 #include "ToolChains/AMDGPUOpenMP.h"
 #include "ToolChains/AVR.h"
 #include "ToolChains/Ananas.h"
+#include "ToolChains/Arch/RISCV.h"
 #include "ToolChains/BareMetal.h"
 #include "ToolChains/CSKYToolChain.h"
 #include "ToolChains/Clang.h"
@@ -721,8 +722,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
   // If target is RISC-V adjust the target triple according to
   // provided architecture name
   if (Target.isRISCV()) {
-    if ((A = Args.getLastArg(options::OPT_march_EQ))) {
-      StringRef ArchName = A->getValue();
+    if (Args.hasArg(options::OPT_march_EQ) ||
+        Args.hasArg(options::OPT_mcpu_EQ)) {
+      StringRef ArchName = tools::riscv::getRISCVArch(Args, Target);
       if (ArchName.startswith_insensitive("rv32"))
         Target.setArch(llvm::Triple::riscv32);
       else if (ArchName.startswith_insensitive("rv64"))
@@ -2188,9 +2190,6 @@ void Driver::generateCompilationDiagnostics(
           << "(choose the .crash file that corresponds to your crash)";
     }
   }
-
-  for (const auto &A : C.getArgs().filtered(options::OPT_frewrite_map_file_EQ))
-    Diag(clang::diag::note_drv_command_failed_diag_msg) << A->getValue();
 
   Diag(clang::diag::note_drv_command_failed_diag_msg)
       << "\n\n********************";
@@ -6713,8 +6712,7 @@ public:
     return C.MakeAction<OffloadAction>(HDep, DDeps);
   }
 
-  void unbundleStaticArchives(Compilation &C, DerivedArgList &Args,
-                              DeviceActionBuilder::PhasesTy &PL) {
+  void unbundleStaticArchives(Compilation &C, DerivedArgList &Args) {
     if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
       return;
 
@@ -6727,6 +6725,7 @@ public:
       Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       addHostDependenceToDeviceActions(Current, InputArg, Args);
+      auto PL = types::getCompilationPhases(T);
       addDeviceDependencesToHostAction(Current, InputArg, phases::Link,
                                        PL.back(), PL);
     };
@@ -7085,16 +7084,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       Current = NewCurrent;
 
-      // Use the current host action in any of the offloading actions, if
-      // required.
-      if (!UseNewOffloadingDriver)
-        if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
-          break;
-
       // Try to build the offloading actions and add the result as a dependency
       // to the host.
       if (UseNewOffloadingDriver)
         Current = BuildOffloadingActions(C, Args, I, Current);
+      // Use the current host action in any of the offloading actions, if
+      // required.
+      else if (OffloadBuilder->addHostDependenceToDeviceActions(Current,
+                                                                InputArg,
+                                                                Args))
+        break;
 
       if (Current->getType() == types::TY_Nothing)
         break;
@@ -7120,7 +7119,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
       OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
 
-    OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+    OffloadBuilder->unbundleStaticArchives(C, Args);
   }
 
   // For an FPGA archive, we add the unbundling step above to take care of

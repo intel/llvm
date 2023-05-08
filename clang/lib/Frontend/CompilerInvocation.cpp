@@ -1543,8 +1543,8 @@ void CompilerInvocation::GenerateCodeGenArgs(
                 F.Filename, SA);
   }
 
-  GenerateArg(
-      Args, Opts.EmulatedTLS ? OPT_femulated_tls : OPT_fno_emulated_tls, SA);
+  if (Opts.EmulatedTLS)
+    GenerateArg(Args, OPT_femulated_tls, SA);
 
   if (Opts.FPDenormalMode != llvm::DenormalMode::getIEEE())
     GenerateArg(Args, OPT_fdenormal_fp_math_EQ, Opts.FPDenormalMode.str(), SA);
@@ -1703,14 +1703,12 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fdebug_prefix_map_EQ)) {
     auto Split = StringRef(Arg).split('=');
-    Opts.DebugPrefixMap.insert(
-        {std::string(Split.first), std::string(Split.second)});
+    Opts.DebugPrefixMap.emplace_back(Split.first, Split.second);
   }
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fcoverage_prefix_map_EQ)) {
     auto Split = StringRef(Arg).split('=');
-    Opts.CoveragePrefixMap.insert(
-        {std::string(Split.first), std::string(Split.second)});
+    Opts.CoveragePrefixMap.emplace_back(Split.first, Split.second);
   }
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -1897,11 +1895,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.LinkBitcodeFiles.push_back(F);
   }
 
-  if (!Args.getLastArg(OPT_femulated_tls) &&
-      !Args.getLastArg(OPT_fno_emulated_tls)) {
-    Opts.EmulatedTLS = T.hasDefaultEmulatedTLS();
-  }
-
   if (Arg *A = Args.getLastArg(OPT_ftlsmodel_EQ)) {
     if (T.isOSAIX()) {
       StringRef Name = A->getValue();
@@ -1945,16 +1938,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
              O.matches(OPT_msvr4_struct_return));
       Opts.setStructReturnConvention(CodeGenOptions::SRCK_InRegs);
     }
-  }
-
-  if (Arg *A =
-          Args.getLastArg(OPT_mabi_EQ_vec_default, OPT_mabi_EQ_vec_extabi)) {
-    if (!T.isOSAIX())
-      Diags.Report(diag::err_drv_unsupported_opt_for_target)
-          << A->getSpelling() << T.str();
-
-    const Option &O = A->getOption();
-    Opts.EnableAIXExtendedAltivecABI = O.matches(OPT_mabi_EQ_vec_extabi);
   }
 
   if (Arg *A = Args.getLastArg(OPT_fsycl_instrument_device_code)) {
@@ -3825,9 +3808,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.Blocks = Args.hasArg(OPT_fblocks) || (Opts.OpenCL
     && Opts.OpenCLVersion == 200);
 
-  Opts.ConvergentFunctions = Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) ||
-                             Opts.SYCLIsDevice ||
-                             Args.hasArg(OPT_fconvergent_functions);
+  Opts.ConvergentFunctions = Args.hasArg(OPT_fconvergent_functions) ||
+                             Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) ||
+                             Opts.SYCLIsDevice;
 
   Opts.NoBuiltin = Args.hasArg(OPT_fno_builtin) || Opts.Freestanding;
   if (!Opts.NoBuiltin)

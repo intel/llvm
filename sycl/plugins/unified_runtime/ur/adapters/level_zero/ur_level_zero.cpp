@@ -1013,6 +1013,10 @@ ur_result_t urDeviceGetInfo(
         UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
     return ReturnValue(capabilities);
   }
+  case UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    return ReturnValue(pi_bool{false});
+  case UR_DEVICE_INFO_IMAGE_SRGB:
+    return ReturnValue(pi_bool{false});
 
   // TODO: Implement.
   default:
