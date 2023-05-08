@@ -149,6 +149,11 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L2, void> prefetch_hint
 inline constexpr prefetch_hint_key::value_t<cache_level::L3, void> prefetch_hint_L3;
 inline constexpr prefetch_hint_key::value_t<cache_level::L4, void> prefetch_hint_L4;
 
+inline constexpr prefetch_hint_key::value_t<cache_level::L1, nontemporal> prefetch_hint_L1_NT;
+inline constexpr prefetch_hint_key::value_t<cache_level::L2, nontemporal> prefetch_hint_L2_NT;
+inline constexpr prefetch_hint_key::value_t<cache_level::L3, nontemporal> prefetch_hint_L3_NT;
+inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal> prefetch_hint_L4_NT;
+
 } // namespace sycl::ext::oneapi::experimental
 ----
 
