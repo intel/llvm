@@ -15,12 +15,6 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-#ifdef USE_64_BIT_OFFSET
-using TOffset = uint64_t;
-#else
-using TOffset = uint32_t;
-#endif
-
 using namespace sycl;
 
 template <typename T>
@@ -32,7 +26,7 @@ template <typename T> struct Kernel {
 
   void operator()(id<1> i) const SYCL_ESIMD_KERNEL {
     using namespace sycl::ext::intel::esimd;
-    TOffset ii = static_cast<TOffset>(i.get(0));
+    uint32_t ii = static_cast<uint32_t>(i.get(0));
     T v = scalar_load<T>(acc, ii * sizeof(T));
     v += ii;
     scalar_store<T>(acc, ii * sizeof(T), v);
