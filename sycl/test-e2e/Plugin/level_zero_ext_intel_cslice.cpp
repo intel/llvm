@@ -1,3 +1,4 @@
+// REQUIRES: level_zero
 // REQUIRES: aspect-ext_intel_device_id
 // RUN: %{build} %level_zero_options -o %t.out
 
@@ -12,8 +13,6 @@
 
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
 // RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC,CHECK-PVC-AFFINITY
-
-// REQUIRES: level_zero
 
 #include <sycl/sycl.hpp>
 

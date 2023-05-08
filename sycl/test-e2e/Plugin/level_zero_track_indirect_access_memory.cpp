@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options %threads_lib -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK: pass
 //

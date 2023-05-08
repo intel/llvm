@@ -1,7 +1,7 @@
 // REQUIRES: linux, gpu-intel-pvc, level_zero, level_zero_dev_kit
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: zeCommandListCreate(
 // CHECK: zeCommandListCreateImmediate(
