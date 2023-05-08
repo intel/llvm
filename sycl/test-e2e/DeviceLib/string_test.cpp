@@ -1,6 +1,5 @@
 // UNSUPPORTED: hip
 // RUN: %{build} -fno-builtin -o %t.out
-// RUN: %{run} %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
