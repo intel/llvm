@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -o %t.ext.out
-// RUN: %{run} %t.ext.out
 
 //==-- kernel_name_class.cpp - SYCL kernel naming variants test ------------==//
 //
