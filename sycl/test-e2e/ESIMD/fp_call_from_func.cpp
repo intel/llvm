@@ -8,8 +8,8 @@
 // REQUIRES: gpu
 // Issue #163 Test timeouts on Windows and Linux
 // REQUIRES: TEMPORARY_DISABLED
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: %{run} %t.out
 // UNSUPPORTED: cuda || hip
 //
 // The test hangs after driver update to 21.23.20043
