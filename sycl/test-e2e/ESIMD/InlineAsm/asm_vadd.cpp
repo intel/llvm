@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
