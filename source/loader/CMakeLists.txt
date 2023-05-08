@@ -117,12 +117,13 @@ if(WIN32)
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
-
+            ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_location.cpp
     )
 else()
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_location.cpp
     )
 endif()

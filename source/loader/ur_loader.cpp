@@ -13,10 +13,13 @@ context_t *context;
 
 ///////////////////////////////////////////////////////////////////////////////
 ur_result_t context_t::init() {
-    for (const auto &name : adapter_registry) {
-        auto handle = LibLoader::loadAdapterLibrary(name.c_str());
-        if (handle) {
-            platforms.emplace_back(std::move(handle));
+    for (const auto &adapterPaths : adapter_registry) {
+        for (const auto &path : adapterPaths) {
+            auto handle = LibLoader::loadAdapterLibrary(path.string().c_str());
+            if (handle) {
+                platforms.emplace_back(std::move(handle));
+                break;
+            }
         }
     }
 
