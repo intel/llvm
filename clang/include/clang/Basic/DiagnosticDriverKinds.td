@@ -145,7 +145,8 @@ def err_drv_invalid_unwindlib_name : Error<
 def err_drv_incompatible_unwindlib : Error<
   "--rtlib=libgcc requires --unwindlib=libgcc">;
 def err_drv_incompatible_options : Error<
-  "The combination of '%0' and '%1' is incompatible">;
+  "fp-accuracy requirements cannot be guaranteed when math-errno is enabled. "
+  "Use -fno-math-errno to enable fp-accuracy control.">;
 def err_drv_invalid_stdlib_name : Error<
   "invalid library name in argument '%0'">;
 def err_drv_invalid_output_with_multiple_archs : Error<
