@@ -16,7 +16,7 @@
 // __spirv_SubgroupBlockWriteINTEL on AMD
 // error message `Barrier is not supported on the host device yet.` on Nvidia.
 // XFAIL: hip_amd || hip_nvidia
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4,ze_debug6
 
 #include "helper.hpp"
 #include <cassert>

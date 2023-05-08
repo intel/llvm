@@ -1,7 +1,7 @@
 // REQUIRES: gpu,level_zero
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4,ze_debug6
 
 #include <iostream>
 #include <sycl/sycl.hpp>

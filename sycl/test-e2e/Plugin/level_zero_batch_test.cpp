@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.ooo.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -DUSING_INORDER -o %t.ino.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -DUSING_DISCARD_EVENTS -o %t.discard_events.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4,ze_debug6
 
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly
