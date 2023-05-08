@@ -53,7 +53,7 @@ ${th.make_func_name(n, tags, obj)}(
     ${line}
     %endfor
     )
-{
+try {
 %if re.match("Init", obj['name']):
     static ${x}_result_t result = ${X}_RESULT_SUCCESS;
     std::call_once(${x}_lib::context->initOnce, [device_flags]() {
@@ -69,7 +69,7 @@ ${th.make_func_name(n, tags, obj)}(
         return ${X}_RESULT_ERROR_UNINITIALIZED;
 
     return ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
-}
+} catch(...) { return exceptionToResult(std::current_exception()); }
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}
 %endif

@@ -15,7 +15,7 @@ namespace driver {
 __urdlllocal ur_result_t UR_APICALL urInit(
     ur_device_init_flags_t device_flags ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -27,13 +27,15 @@ __urdlllocal ur_result_t UR_APICALL urInit(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urTearDown
 __urdlllocal ur_result_t UR_APICALL urTearDown(
     void *pParams ///< [in] pointer to tear down parameters
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -45,6 +47,8 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,7 +65,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     ///< ::urPlatformGet shall only retrieve that number of platforms.
     uint32_t *
         pNumPlatforms ///< [out][optional] returns the total number of platforms available.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -77,6 +81,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,7 +99,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     ///< returned and pPlatformInfo is not used.
     size_t *
         pSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -106,6 +112,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -113,7 +121,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
 __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t hDriver, ///< [in] handle of the platform
     ur_api_version_t *pVersion    ///< [out] api version
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -125,6 +133,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -133,7 +143,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform.
     ur_native_handle_t *
         phNativePlatform ///< [out] a pointer to the native handle of the platform.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -147,6 +157,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -156,7 +168,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         hNativePlatform, ///< [in] the native handle of the platform.
     ur_platform_handle_t *
         phPlatform ///< [out] pointer to the handle of the platform object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -170,6 +182,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -181,7 +195,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char **
         ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
                          ///< the frontend option.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -195,6 +209,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -204,7 +220,7 @@ __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     const char **
         ppMessage ///< [out] pointer to a string containing adapter specific result in string
                   ///< representation.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -216,6 +232,8 @@ __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -234,7 +252,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     ///< platform shall only retrieve that number of devices.
     uint32_t *pNumDevices ///< [out][optional] pointer to the number of devices.
     ///< pNumDevices will be updated with the total number of devices available.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -251,6 +269,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -268,7 +288,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -281,6 +301,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -288,7 +310,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
         hDevice ///< [in] handle of the device to get a reference of.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -300,13 +322,15 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceRelease
 __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     ur_device_handle_t hDevice ///< [in] handle of the device to release.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -318,6 +342,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -334,7 +360,7 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     uint32_t *
         pNumDevicesRet ///< [out][optional] pointer to the number of sub-devices the device can be
     ///< partitioned into according to the partitioning property.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -351,6 +377,8 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -366,7 +394,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     uint32_t *
         pSelectedBinary ///< [out] the index of the selected binary in the input array of binaries.
     ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -379,6 +407,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -387,7 +417,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ///< [in] handle of the device.
     ur_native_handle_t
         *phNativeDevice ///< [out] a pointer to the native handle of the device.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -400,6 +430,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -409,7 +441,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
     ur_device_handle_t
         *phDevice ///< [out] pointer to the handle of the device object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -423,6 +455,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -435,7 +469,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     uint64_t *
         pHostTimestamp ///< [out][optional] pointer to the Host's global timestamp that
                        ///< correlates with the Device's global timestamp value
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -449,6 +483,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -461,7 +497,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
         pProperties, ///< [in][optional] pointer to context creation properties.
     ur_context_handle_t
         *phContext ///< [out] pointer to handle of context object created
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -474,6 +510,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -481,7 +519,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
         hContext ///< [in] handle of the context to get a reference of.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -493,13 +531,15 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t hContext ///< [in] handle of the context to release.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -511,6 +551,8 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -529,7 +571,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -542,6 +584,8 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -550,7 +594,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context.
     ur_native_handle_t *
         phNativeContext ///< [out] a pointer to the native handle of the context.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -564,6 +608,8 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -578,7 +624,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
         phContext ///< [out] pointer to the handle of the context object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -593,6 +639,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -603,7 +651,7 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         pfnDeleter, ///< [in] Function pointer to extended deleter.
     void *
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -616,6 +664,8 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -628,7 +678,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     void *pHost,           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem ///< [out] pointer to handle of image object created
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -642,6 +692,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -654,7 +706,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
         *pProperties, ///< [in][optional] pointer to buffer creation properties
     ur_mem_handle_t
         *phBuffer ///< [out] pointer to handle of the memory buffer created
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -667,13 +719,15 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRetain
 __urdlllocal ur_result_t UR_APICALL urMemRetain(
     ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -685,13 +739,15 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRelease
 __urdlllocal ur_result_t UR_APICALL urMemRelease(
     ur_mem_handle_t hMem ///< [in] handle of the memory object to release
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -703,6 +759,8 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -716,7 +774,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
         *pRegion, ///< [in] pointer to buffer create region information
     ur_mem_handle_t
         *phMem ///< [out] pointer to the handle of sub buffer created
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -730,6 +788,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -738,7 +798,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -751,6 +811,8 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -762,7 +824,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
         *phMem ///< [out] pointer to handle of buffer memory object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -777,6 +839,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -791,7 +855,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
         *phMem ///< [out] pointer to handle of image memory object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -806,6 +870,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -824,7 +890,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -837,6 +903,8 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -854,7 +922,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -867,6 +935,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -876,7 +946,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     const ur_sampler_desc_t *pDesc, ///< [in] pointer to the sampler description
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -889,6 +959,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -896,7 +968,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
 __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
         hSampler ///< [in] handle of the sampler object to get access
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -908,6 +980,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -915,7 +989,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
         hSampler ///< [in] handle of the sampler object to release
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -927,6 +1001,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -940,7 +1016,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
         pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
     size_t *
         pPropSizeRet ///< [out] size in bytes returned in sampler property value
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -953,6 +1029,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -961,7 +1039,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler.
     ur_native_handle_t *
         phNativeSampler ///< [out] a pointer to the native handle of the sampler.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -975,6 +1053,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -985,7 +1065,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_sampler_handle_t *
         phSampler ///< [out] pointer to the handle of the sampler object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -999,6 +1079,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1012,7 +1094,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1024,6 +1106,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1038,7 +1122,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1050,6 +1134,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1064,7 +1150,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1076,6 +1162,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1083,7 +1171,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 __urdlllocal ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1095,6 +1183,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1111,7 +1201,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
                     ///< allocation property
     size_t *
         pPropSizeRet ///< [out][optional] bytes returned in USM allocation property
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1124,6 +1214,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1134,7 +1226,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
         pPoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
                    ///< ::ur_usm_pool_limits_desc_t
     ur_usm_pool_handle_t *ppPool ///< [out] pointer to USM memory pool
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1147,6 +1239,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1154,7 +1248,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1166,6 +1260,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1178,7 +1274,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1191,6 +1287,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1205,7 +1303,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of Program object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1219,6 +1317,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1228,7 +1328,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1240,6 +1340,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1250,7 +1352,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
         hProgram, ///< [in][out] handle of the program to compile.
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1262,6 +1364,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1275,7 +1379,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         pOptions, ///< [in][optional] pointer to linker options null-terminated string.
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1288,13 +1392,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRetain
 __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     ur_program_handle_t hProgram ///< [in] handle for the Program to retain
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1306,13 +1412,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRelease
 __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     ur_program_handle_t hProgram ///< [in] handle for the Program to release
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1324,6 +1432,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1339,7 +1449,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         pFunctionName, ///< [in] A null-terminates string denoting the mangled function name.
     void **
         ppFunctionPointer ///< [out] Returns the pointer to the function if it is found in the program.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1353,6 +1463,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1370,7 +1482,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1383,6 +1495,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1402,7 +1516,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1415,6 +1529,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1425,7 +1541,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     const ur_specialization_constant_info_t *
         pSpecConstants ///< [in][range(0, count)] array of specialization constant value
                        ///< descriptions
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1438,6 +1554,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1446,7 +1564,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ///< [in] handle of the program.
     ur_native_handle_t *
         phNativeProgram ///< [out] a pointer to the native handle of the program.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1460,6 +1578,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1470,7 +1590,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     ur_program_handle_t *
         phProgram ///< [out] pointer to the handle of the program object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1484,6 +1604,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1493,7 +1615,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     const char *pKernelName,      ///< [in] pointer to null-terminated string.
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to handle of kernel object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1506,6 +1628,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1516,7 +1640,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     size_t argSize,    ///< [in] size of argument type
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1528,6 +1652,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1537,7 +1663,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t
         argSize ///< [in] size of the local buffer to be allocated by the runtime
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1549,6 +1675,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1567,7 +1695,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1580,6 +1708,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1596,7 +1726,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1609,6 +1739,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1625,7 +1757,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1638,13 +1770,15 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1656,13 +1790,15 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRelease
 __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1674,6 +1810,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1684,7 +1822,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     const void *
         pArgValue ///< [in][optional] SVM pointer to memory location holding the argument
                   ///< value. If null then argument value is considered null.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1696,6 +1834,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1707,7 +1847,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     const void *
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1719,6 +1859,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1727,7 +1869,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1739,6 +1881,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1747,7 +1891,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     ur_mem_handle_t hArgValue ///< [in] handle of Memory object.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1759,6 +1903,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1768,7 +1914,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     uint32_t count, ///< [in] the number of elements in the pSpecConstants array
     const ur_specialization_constant_info_t *
         pSpecConstants ///< [in] array of specialization constant value descriptions
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1781,6 +1927,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1789,7 +1937,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
     ur_native_handle_t
         *phNativeKernel ///< [out] a pointer to the native handle of the kernel.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1802,6 +1950,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1815,7 +1965,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1830,6 +1980,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1844,7 +1996,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
                     ///< property
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in queue property value
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1857,6 +2009,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1868,7 +2022,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
         *pProperties, ///< [in][optional] pointer to queue creation properties.
     ur_queue_handle_t
         *phQueue ///< [out] pointer to handle of queue object created
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1881,13 +2035,15 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRetain
 __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1899,13 +2055,15 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueRelease
 __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1917,6 +2075,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1925,7 +2085,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1938,6 +2098,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1950,7 +2112,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
         *phQueue ///< [out] pointer to the handle of the queue object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1965,13 +2127,15 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueFinish
 __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be finished.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -1983,13 +2147,15 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueFlush
 __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be flushed.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2001,6 +2167,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2013,7 +2181,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
         pPropValue, ///< [out][optional][typename(propName, propSize)] value of the event
                     ///< property
     size_t *pPropSizeRet ///< [out][optional] bytes returned in event property
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2026,6 +2194,8 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2041,7 +2211,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes returned in
                      ///< propValue
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2054,6 +2224,8 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2063,7 +2235,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     const ur_event_handle_t *
         phEventWaitList ///< [in][range(0, numEvents)] pointer to a list of events to wait for
                         ///< completion
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2075,13 +2247,15 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRetain
 __urdlllocal ur_result_t UR_APICALL urEventRetain(
     ur_event_handle_t hEvent ///< [in] handle of the event object
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2093,13 +2267,15 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventRelease
 __urdlllocal ur_result_t UR_APICALL urEventRelease(
     ur_event_handle_t hEvent ///< [in] handle of the event object
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2111,6 +2287,8 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2119,7 +2297,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ///< [in] handle of the event.
     ur_native_handle_t
         *phNativeEvent ///< [out] a pointer to the native handle of the event.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2132,6 +2310,8 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2143,7 +2323,7 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
         *phEvent ///< [out] pointer to the handle of the event object created.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2158,6 +2338,8 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2168,7 +2350,7 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     ur_event_callback_t pfnNotify,  ///< [in] execution status of the event
     void *
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2180,6 +2362,8 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2212,7 +2396,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2229,6 +2413,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2245,7 +2431,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2261,6 +2447,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2277,7 +2465,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2294,6 +2482,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2314,7 +2504,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2331,6 +2521,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2353,7 +2545,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2370,6 +2562,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2402,7 +2596,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2421,6 +2615,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2456,7 +2652,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2475,6 +2671,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2495,7 +2693,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2512,6 +2710,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2541,7 +2741,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2560,6 +2760,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2580,7 +2782,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2597,6 +2799,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2622,7 +2826,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2639,6 +2843,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2665,7 +2871,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2682,6 +2888,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2708,7 +2916,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2725,6 +2933,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2747,7 +2957,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
                  ///< command instance.
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2764,6 +2974,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2782,7 +2994,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2798,6 +3010,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2821,7 +3035,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2837,6 +3051,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2856,7 +3072,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2872,6 +3088,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2890,7 +3108,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2906,6 +3124,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2918,7 +3138,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2933,6 +3153,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2960,7 +3182,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -2977,6 +3199,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3001,7 +3225,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -3018,6 +3242,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3042,7 +3268,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -3060,6 +3286,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3084,7 +3312,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -3102,6 +3330,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3130,7 +3360,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
         phEvent ///< [out][optional] returns an event object that identifies this read
                 ///< command
     ///< and can be used to query or queue a wait for this command to complete.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -3147,6 +3377,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3175,7 +3407,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_event_handle_t *
         phEvent ///< [out] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
-) {
+    ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
@@ -3190,6 +3422,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     }
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 } // namespace driver
@@ -3210,7 +3444,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_global_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3228,6 +3462,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     pDdiTable->pfnTearDown = driver::urTearDown;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3242,7 +3478,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_context_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3269,6 +3505,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     pDdiTable->pfnSetExtendedDeleter = driver::urContextSetExtendedDeleter;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3283,7 +3521,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_enqueue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3348,6 +3586,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     pDdiTable->pfnWriteHostPipe = driver::urEnqueueWriteHostPipe;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3362,7 +3602,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_event_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3391,6 +3631,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     pDdiTable->pfnSetCallback = driver::urEventSetCallback;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3405,7 +3647,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_kernel_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3449,6 +3691,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
         driver::urKernelSetSpecializationConstants;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3463,7 +3707,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3497,6 +3741,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     pDdiTable->pfnImageGetInfo = driver::urMemImageGetInfo;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3511,7 +3757,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_platform_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3536,6 +3782,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     pDdiTable->pfnGetBackendOption = driver::urPlatformGetBackendOption;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3550,7 +3798,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_program_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3590,6 +3838,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
         driver::urProgramCreateWithNativeHandle;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3604,7 +3854,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_queue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3633,6 +3883,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     pDdiTable->pfnFlush = driver::urQueueFlush;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3647,7 +3899,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_sampler_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3672,6 +3924,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
         driver::urSamplerCreateWithNativeHandle;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3686,7 +3940,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_usm_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3712,6 +3966,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     pDdiTable->pfnPoolDestroy = driver::urUSMPoolDestroy;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3726,7 +3982,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_device_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ) try {
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -3757,6 +4013,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     pDdiTable->pfnGetGlobalTimestamps = driver::urDeviceGetGlobalTimestamps;
 
     return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 #if defined(__cplusplus)
