@@ -1071,8 +1071,6 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
 ///         + `NULL == phMem`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
     ur_context_handle_t hContext,  ///< [in] handle of the context object.
