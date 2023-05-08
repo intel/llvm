@@ -116,7 +116,8 @@ int main() {
   TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
         EXPECTED(int, 0, 0, 0), 0.0001, ma6, ma3);
   TEST3(sycl::nan, float, 3, ma7);
-  TEST3(sycl::nan, double, 3, ma8);
+  if (deviceQueue.get_device().has(sycl::aspect::fp64))
+    TEST3(sycl::nan, double, 3, ma8);
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        ma1);
 
