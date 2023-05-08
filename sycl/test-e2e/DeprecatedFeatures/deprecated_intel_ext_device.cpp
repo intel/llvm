@@ -1,9 +1,8 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out
-//
 // REQUIRES: gpu
-// UNSUPPORTED: hip
+// REQUIRES: opencl || level_zero
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+//
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
 
