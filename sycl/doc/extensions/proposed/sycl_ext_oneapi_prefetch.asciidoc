@@ -152,6 +152,18 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L4, void> prefetch_hint
 } // namespace sycl::ext::oneapi::experimental
 ----
 
+If the `nontemporal` type is used as the value of the `Hint` template
+parameter, this acts as a hint that the data being prefetched will not be
+reused.
+
+[NOTE]
+====
+The implementation of `nontemporal` is device-specific, owing to differences in
+cache hierarchies and replacement policies. On some devices non-temporal data
+may be evicted earlier than temporal data, while on other devices non-temporal
+data may not be stored in certain levels of cache at all.
+====
+
 
 === Work-item prefetches
 
