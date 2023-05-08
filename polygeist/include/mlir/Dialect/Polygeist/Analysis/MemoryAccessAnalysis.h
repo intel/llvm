@@ -1,4 +1,4 @@
-//===- MemoryAccessAnalysis.h - SYCL Memory Access Analysis -----*- C++ -*-===//
+//===- MemoryAccessAnalysis.h - Memory Access Analysis ----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,27 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains a memory access analysis for the SYCL dialect.
+// This file contains an analysis that attempts to classify affine memory
+// accesses.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
-#define MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
+#ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
+#define MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 
 namespace mlir {
 
-class AffineLoadOp;
-class AffineStoreOp;
 class DataFlowSolver;
 
-namespace sycl {
+namespace polygeist {
 
 /// Classify array access patterns.
 enum MemoryAccessPattern : uint32_t {
@@ -434,7 +432,7 @@ inline raw_ostream &operator<<(raw_ostream &os,
   return os;
 }
 
-} // namespace sycl
+} // namespace polygeist
 } // namespace mlir
 
-#endif // MLIR_DIALECT_SYCL_ANALYSIS_MEMORYACCESSANALYSIS_H
+#endif // MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H

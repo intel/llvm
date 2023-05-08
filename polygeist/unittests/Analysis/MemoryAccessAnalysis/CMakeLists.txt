@@ -3,7 +3,7 @@ add_mlir_unittest(MLIRMemoryAccessAnalysisTests
 )
 
 target_link_libraries(MLIRMemoryAccessAnalysisTests
-  PRIVATE MLIRSYCLAnalysis
+  PRIVATE MLIRPolygeistAnalysis
   MLIRArithDialect
   MLIRParser
   )
