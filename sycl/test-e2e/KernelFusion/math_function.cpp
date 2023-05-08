@@ -1,11 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-embed-ir -O2 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-embed-ir %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: hip
 // REQUIRES: fusion
 
-// Test complete fusion with private internalization specified on the
-// buffer.
+// Test fusion of a kernel using a math function.
 
 #include <sycl/sycl.hpp>
 
@@ -13,12 +12,11 @@ using namespace sycl;
 
 int main() {
   constexpr size_t dataSize = 512;
-  int in1[dataSize], in2[dataSize], in3[dataSize], tmp[dataSize], out[dataSize];
+  float in1[dataSize], in2[dataSize], tmp[dataSize], out[dataSize];
 
   for (size_t i = 0; i < dataSize; ++i) {
-    in1[i] = i * 2;
+    in1[i] = 1;
     in2[i] = i * 3;
-    in3[i] = i * 4;
     tmp[i] = -1;
     out[i] = -1;
   }
@@ -26,14 +24,10 @@ int main() {
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
 
   {
-    buffer<int> bIn1{in1, range{dataSize}};
-    buffer<int> bIn2{in2, range{dataSize}};
-    buffer<int> bIn3{in3, range{dataSize}};
-    buffer<int> bTmp{
-        tmp,
-        range{dataSize},
-        {sycl::ext::codeplay::experimental::property::promote_private{}}};
-    buffer<int> bOut{out, range{dataSize}};
+    buffer<float> bIn1{in1, range{dataSize}};
+    buffer<float> bIn2{in2, range{dataSize}};
+    buffer<float> bTmp{tmp, range{dataSize}};
+    buffer<float> bOut{out, range{dataSize}};
 
     ext::codeplay::experimental::fusion_wrapper fw{q};
     fw.start_fusion();
@@ -42,18 +36,17 @@ int main() {
 
     q.submit([&](handler &cgh) {
       auto accIn1 = bIn1.get_access(cgh);
-      auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(cgh);
       cgh.parallel_for<class KernelOne>(
-          dataSize, [=](id<1> i) { accTmp[i] = accIn1[i] + accIn2[i]; });
+          dataSize, [=](id<1> i) { accTmp[i] = sycl::cospi(accIn1[i]); });
     });
 
     q.submit([&](handler &cgh) {
       auto accTmp = bTmp.get_access(cgh);
-      auto accIn3 = bIn3.get_access(cgh);
+      auto accIn2 = bIn2.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
-          dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
+          dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn2[i]; });
     });
 
     fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
@@ -64,8 +57,7 @@ int main() {
 
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out[i] == (20 * i * i) && "Computation error");
-    assert(tmp[i] == -1 && "Not internalized");
+    assert(out[i] == (-1.0 * static_cast<float>(i * 3)) && "Computation error");
   }
 
   return 0;
