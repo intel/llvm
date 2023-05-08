@@ -112,7 +112,7 @@ encouraged to map these constants to the closest level of cache available.
 When multiple cache levels are specified, the lowest level takes precedence
 (e.g. a request to prefetch into L1 and L4 is treated as a request to prefetch
 into L1). When no cache levels are specified, the default behavior is to
-prefetch into the highest level cache supported by the device.
+prefetch into the lowest level cache (i.e. L1).
 
 [NOTE]
 ====
@@ -400,9 +400,11 @@ users, since that level typically has the highest capacity and may contain
 data from all other levels -- naive usage of prefetches in this case would be
 less likely to cause thrashing across multiple levels of cache.
 
-The current draft of this extension sets the default as the highest level.
-Developers who want to prefetch data into the closest level instead can simply
-override the behavior by specifying `prefetch_hint_L1`.
+The current draft of this extension sets the default as the lowest level,
+consistent with the behavior of the `prefetch` pragmas proposed for OpenMP.
+Developers who want to prefetch data into specific levels of cache can simply
+override this behavior, and can prefetch into the last level of cache by
+specifing `prefetch_hint_L4`.
 --
 
 . How should multi-dimensional prefetches be handled?
