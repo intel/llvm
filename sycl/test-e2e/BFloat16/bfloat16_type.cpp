@@ -1,6 +1,6 @@
-// RUN: %if cuda %{%clangxx -fsycl -fsycl-targets=%sycl_triple -DUSE_CUDA_SM80=1 -Xsycl-target-backend --cuda-gpu-arch=sm_80 %s -o %t.out %}
+// RUN: %if cuda %{%{build} -DUSE_CUDA_SM80=1 -Xsycl-target-backend --cuda-gpu-arch=sm_80 -o %t.out %}
 // RUN: %if cuda %{%GPU_RUN_PLACEHOLDER %t.out %}
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 // TODO currently the feature isn't supported on FPGA.
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
