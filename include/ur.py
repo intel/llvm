@@ -883,7 +883,7 @@ class ur_image_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_IMAGE_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("type", ur_mem_type_t),                                        ## [in] memory object type
+        ("type", ur_mem_type_t),                                        ## [in][nocheck] memory object type
         ("width", c_size_t),                                            ## [in] image width
         ("height", c_size_t),                                           ## [in] image height
         ("depth", c_size_t),                                            ## [in] image depth
