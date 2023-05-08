@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp64
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -162,9 +163,7 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
 
 int main() {
   s::queue deviceQueue;
-  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    device_cmath_test<double>(deviceQueue);
-    std::cout << "Pass" << std::endl;
-  }
+  device_cmath_test<double>(deviceQueue);
+  std::cout << "Pass" << std::endl;
   return 0;
 }

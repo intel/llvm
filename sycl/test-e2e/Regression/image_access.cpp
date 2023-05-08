@@ -1,10 +1,10 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // No execution of FPGA because it does not support images
 //
-// PVC doesn't support images.
-// UNSUPPORTED: hip, gpu-intel-pvc
+// UNSUPPORTED: hip
 // CUDA doesn't fully support OpenCL spec conform images.
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//

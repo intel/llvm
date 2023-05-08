@@ -137,6 +137,9 @@ struct LoopAttributes {
   // Value for llvm.loop.intel.max_reinvocation_delay metadata.
   llvm::Optional<unsigned> SYCLMaxReinvocationDelayNCycles;
 
+  /// Flag for llvm.loop.intel.pipelining.enable, i32 1 metadata.
+  bool SYCLLoopPipeliningEnable;
+
   /// llvm.unroll.
   unsigned UnrollCount;
 
@@ -416,6 +419,11 @@ public:
   /// Set value of max reinvocation delay for the next loop pushed.
   void setSYCLMaxReinvocationDelayNCycles(unsigned C) {
     StagedAttrs.SYCLMaxReinvocationDelayNCycles = C;
+  }
+
+  /// Set flag of enable_loop_pipelining for the next loop pushed.
+  void setSYCLLoopPipeliningEnable() {
+    StagedAttrs.SYCLLoopPipeliningEnable = true;
   }
 
 private:

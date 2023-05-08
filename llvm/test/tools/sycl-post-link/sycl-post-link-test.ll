@@ -251,7 +251,7 @@ entry:
   store i64 %0, i64 addrspace(1)* %_arg_DoNotOptimize, align 8
   ret void
 }
-; CHECK: %0 = call i64 addrspace(1)* @llvm.genx.address.convert.p1i64.p1i8(i8 addrspace(1)* %_arg_DoNotOptimize)
+; CHECK: %0 = bitcast i8 addrspace(1)* %_arg_DoNotOptimize to i64 addrspace(1)*
 ; CHECK: %Res.llvm.genx.group.id.x = call i32 @llvm.genx.group.id.x()
 ; CHECK: %Res.llvm.genx.group.id.x.cast.ty = zext i32 %Res.llvm.genx.group.id.x to i64
 ; CHECK: store i64 %Res.llvm.genx.group.id.x.cast.ty, i64 addrspace(1)* %0, align 8

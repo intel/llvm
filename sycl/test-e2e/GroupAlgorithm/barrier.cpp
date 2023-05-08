@@ -5,6 +5,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// REQUIRES: aspect-ext_oneapi_cuda_async_barrier
 // REQUIRES: cuda
 
 #include "CL/sycl.hpp"
@@ -145,11 +146,6 @@ void interface() {
 
 int main() {
   queue q;
-  if (!q.get_device().has(aspect::ext_oneapi_cuda_async_barrier)) {
-    std::cout << "Barrier is not supported by the device. Skipping test."
-              << std::endl;
-    return 0;
-  }
   basic();
   interface();
 

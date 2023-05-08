@@ -598,10 +598,9 @@ def SI_CALL : SPseudoInstSI <
   let isConvergent = 1;
 }
 
-// Tail call handling pseudo
-def SI_TCRETURN : SPseudoInstSI <(outs),
-  (ins CCR_SGPR_64:$src0, unknown:$callee, i32imm:$fpdiff),
-  [(AMDGPUtc_return i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
+class SI_TCRETURN_Pseudo<RegisterClass rc, SDNode sd> : SPseudoInstSI <(outs),
+  (ins rc:$src0, unknown:$callee, i32imm:$fpdiff),
+  [(sd i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
   let Size = 4;
   let FixedSize = 1;
   let isCall = 1;
@@ -614,10 +613,20 @@ def SI_TCRETURN : SPseudoInstSI <(outs),
   let isConvergent = 1;
 }
 
+// Tail call handling pseudo
+def SI_TCRETURN :     SI_TCRETURN_Pseudo<CCR_SGPR_64, AMDGPUtc_return>;
+def SI_TCRETURN_GFX : SI_TCRETURN_Pseudo<Gfx_CCR_SGPR_64, AMDGPUtc_return_gfx>;
+
 // Handle selecting indirect tail calls
 def : GCNPat<
   (AMDGPUtc_return i64:$src0, (i64 0), (i32 timm:$fpdiff)),
   (SI_TCRETURN CCR_SGPR_64:$src0, (i64 0), i32imm:$fpdiff)
+>;
+
+// Handle selecting indirect tail calls for AMDGPU_gfx
+def : GCNPat<
+  (AMDGPUtc_return_gfx i64:$src0, (i64 0), (i32 timm:$fpdiff)),
+  (SI_TCRETURN_GFX Gfx_CCR_SGPR_64:$src0, (i64 0), i32imm:$fpdiff)
 >;
 
 def ADJCALLSTACKUP : SPseudoInstSI<
@@ -3637,15 +3646,6 @@ def G_FPTRUNC_ROUND_DOWNWARD : AMDGPUGenericInstruction {
 //============================================================================//
 // Dummy Instructions
 //============================================================================//
-
-def V_ILLEGAL_gfx6_gfx7_gfx8_gfx9 : Enc32, InstSI<(outs), (ins), "v_illegal"> {
-  let Inst{31-0} = 0xFFFFFFFF;
-  let FixedSize = 1;
-  let Size = 4;
-  let Uses = [EXEC];
-  let hasSideEffects = 1;
-  let SubtargetPredicate = isGFX6GFX7GFX8GFX9;
-}
 
 def V_ILLEGAL : Enc32, InstSI<(outs), (ins), "v_illegal"> {
   let Inst{31-0} = 0x00000000;

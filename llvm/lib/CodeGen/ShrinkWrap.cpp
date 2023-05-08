@@ -53,6 +53,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CFG.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineDominators.h"
@@ -110,44 +111,44 @@ namespace {
 class ShrinkWrap : public MachineFunctionPass {
   /// Hold callee-saved information.
   RegisterClassInfo RCI;
-  MachineDominatorTree *MDT;
-  MachinePostDominatorTree *MPDT;
+  MachineDominatorTree *MDT = nullptr;
+  MachinePostDominatorTree *MPDT = nullptr;
 
   /// Current safe point found for the prologue.
   /// The prologue will be inserted before the first instruction
   /// in this basic block.
-  MachineBasicBlock *Save;
+  MachineBasicBlock *Save = nullptr;
 
   /// Current safe point found for the epilogue.
   /// The epilogue will be inserted before the first terminator instruction
   /// in this basic block.
-  MachineBasicBlock *Restore;
+  MachineBasicBlock *Restore = nullptr;
 
   /// Hold the information of the basic block frequency.
   /// Use to check the profitability of the new points.
-  MachineBlockFrequencyInfo *MBFI;
+  MachineBlockFrequencyInfo *MBFI = nullptr;
 
   /// Hold the loop information. Used to determine if Save and Restore
   /// are in the same loop.
-  MachineLoopInfo *MLI;
+  MachineLoopInfo *MLI = nullptr;
 
   // Emit remarks.
   MachineOptimizationRemarkEmitter *ORE = nullptr;
 
   /// Frequency of the Entry block.
-  uint64_t EntryFreq;
+  uint64_t EntryFreq = 0;
 
   /// Current opcode for frame setup.
-  unsigned FrameSetupOpcode;
+  unsigned FrameSetupOpcode = ~0u;
 
   /// Current opcode for frame destroy.
-  unsigned FrameDestroyOpcode;
+  unsigned FrameDestroyOpcode = ~0u;
 
   /// Stack pointer register, used by llvm.{savestack,restorestack}
   Register SP;
 
   /// Entry block.
-  const MachineBasicBlock *Entry;
+  const MachineBasicBlock *Entry = nullptr;
 
   using SetOfRegs = SmallSetVector<unsigned, 16>;
 
@@ -155,7 +156,7 @@ class ShrinkWrap : public MachineFunctionPass {
   mutable SetOfRegs CurrentCSRs;
 
   /// Current MachineFunction.
-  MachineFunction *MachineFunc;
+  MachineFunction *MachineFunc = nullptr;
 
   /// Check if \p MI uses or defines a callee-saved register or
   /// a frame index. If this is the case, this means \p MI must happen
@@ -259,13 +260,30 @@ INITIALIZE_PASS_END(ShrinkWrap, DEBUG_TYPE, "Shrink Wrap Pass", false, false)
 
 bool ShrinkWrap::useOrDefCSROrFI(const MachineInstr &MI,
                                  RegScavenger *RS) const {
+  /// Check if \p Op is known to access an address not on the function's stack .
+  /// At the moment, accesses where the underlying object is a global or a
+  /// function argument are considered non-stack accesses. Note that the
+  /// caller's stack may get accessed when passing an argument via the stack,
+  /// but not the stack of the current function.
+  ///
+  auto IsKnownNonStackPtr = [](MachineMemOperand *Op) {
+    if (Op->getValue()) {
+      const Value *UO = getUnderlyingObject(Op->getValue());
+      if (!UO)
+        return false;
+      if (auto *Arg = dyn_cast<Argument>(UO))
+        return !Arg->hasPassPointeeByValueCopyAttr();
+      return isa<GlobalValue>(UO);
+    }
+    return false;
+  };
   // This prevents premature stack popping when occurs a indirect stack
-  // access. It is overly aggressive for the moment.
-  // TODO: - Obvious non-stack loads and store, such as global values,
-  //         are known to not access the stack.
+  // access.  It is overly aggressive for the moment.
+  // TODO:
   //       - Further, data dependency and alias analysis can validate
   //         that load and stores never derive from the stack pointer.
-  if (MI.mayLoadOrStore())
+  if (MI.mayLoadOrStore() && (MI.isCall() || MI.hasUnmodeledSideEffects() ||
+                              !all_of(MI.memoperands(), IsKnownNonStackPtr)))
     return true;
 
   if (MI.getOpcode() == FrameSetupOpcode ||

@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp64
 // UNSUPPORTED: hip
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
@@ -13,8 +14,7 @@
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device()) ||
-      !Queue.get_device().has(sycl::aspect::fp64)) {
+  if (!core_sg_supported(Queue.get_device())) {
     std::cout << "Skipping test\n";
     return 0;
   }
