@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env SYCL_DEVICE_FILTER='*' %t.out &> %t.log
 // RUN: FileCheck %s < %t.log
 //

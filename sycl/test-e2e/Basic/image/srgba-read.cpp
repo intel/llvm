@@ -1,10 +1,7 @@
+// REQUIRES: aspect-ext_oneapi_srgb, aspect-ext_intel_legacy_image
 // RUN: %clangxx -fsycl  -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-
-// XFAIL: level_zero
-// UNSUPPORTED: cuda
-// UNSUPPORTED: hip
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -93,30 +90,20 @@ int main() {
   queue Q;
   device D = Q.get_device();
 
-  // test aspect
-  if (D.has(aspect::ext_oneapi_srgb))
-    std::cout << "aspect::ext_oneapi_srgb detected" << std::endl;
+  // RGBA -- (normal, non-linearized)
+  std::cout << "rgba -------" << std::endl;
+  test_rd(image_channel_order::rgba, image_channel_type::unorm_int8);
 
-  if (D.has(aspect::image)) {
-    // RGBA -- (normal, non-linearized)
-    std::cout << "rgba -------" << std::endl;
-    test_rd(image_channel_order::rgba, image_channel_type::unorm_int8);
-
-    // sRGBA -- (linearized reads)
-    std::cout << "srgba -------" << std::endl;
-    test_rd(image_channel_order::ext_oneapi_srgba,
-            image_channel_type::unorm_int8);
-  } else {
-    std::cout << "device does not support image operations" << std::endl;
-  }
+  // sRGBA -- (linearized reads)
+  std::cout << "srgba -------" << std::endl;
+  test_rd(image_channel_order::ext_oneapi_srgba,
+          image_channel_type::unorm_int8);
 
   return 0;
 }
 
 // clang-format off
 // CHECK: SYCL_EXT_ONEAPI_SRGB defined
-// CHECK: aspect::ext_oneapi_srgb detected
-
 // CHECK: rgba -------
 // CHECK-NEXT: read four pixels, no sampler
 //   these next four reads should all be close to 0.5

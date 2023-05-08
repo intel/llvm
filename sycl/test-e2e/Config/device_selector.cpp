@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %BE_RUN_PLACEHOLDER %t.out
 //
 // Checks that no device is selected when no device of desired type is

@@ -113,16 +113,15 @@ public:
 
   bool GetLoadKexts() const {
     const uint32_t idx = ePropertyLoadKexts;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(
-        nullptr, idx,
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
         g_dynamicloaderdarwinkernel_properties[idx].default_uint_value != 0);
   }
 
   KASLRScanType GetScanType() const {
     const uint32_t idx = ePropertyScanType;
-    return (KASLRScanType)m_collection_sp->GetPropertyAtIndexAsEnumeration(
-        nullptr, idx,
-        g_dynamicloaderdarwinkernel_properties[idx].default_uint_value);
+    return (KASLRScanType)m_collection_sp->GetPropertyAtIndexAsEnumeration(idx)
+        .value_or(
+            g_dynamicloaderdarwinkernel_properties[idx].default_uint_value);
   }
 };
 
@@ -1608,7 +1607,7 @@ void DynamicLoaderDarwinKernel::DebuggerInitialize(
     const bool is_global_setting = true;
     PluginManager::CreateSettingForDynamicLoaderPlugin(
         debugger, GetGlobalProperties().GetValueProperties(),
-        ConstString("Properties for the DynamicLoaderDarwinKernel plug-in."),
+        "Properties for the DynamicLoaderDarwinKernel plug-in.",
         is_global_setting);
   }
 }

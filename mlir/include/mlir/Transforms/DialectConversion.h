@@ -223,6 +223,14 @@ public:
   /// the type to convert to on success, and a null type on failure.
   Type convertType(Type t);
 
+  /// Attempts a 1-1 type conversion, expecting the result type to be
+  /// `TargetType`. Returns the converted type cast to `TargetType` on success,
+  /// and a null type on conversion or cast failure.
+  template <typename TargetType>
+  TargetType convertType(Type t) {
+    return dyn_cast_or_null<TargetType>(convertType(t));
+  }
+
   /// Convert the given set of types, filling 'results' as necessary. This
   /// returns failure if the conversion of any of the types fails, success
   /// otherwise.
@@ -518,9 +526,14 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    return matchAndRewrite(cast<SourceOp>(op),
-                           OpAdaptor(operands, op->getAttrDictionary()),
-                           rewriter);
+    auto sourceOp = cast<SourceOp>(op);
+    if constexpr (SourceOp::hasProperties())
+      return matchAndRewrite(sourceOp,
+                             OpAdaptor(operands, op->getAttrDictionary(),
+                                       sourceOp.getProperties()),
+                             rewriter);
+    return matchAndRewrite(
+        sourceOp, OpAdaptor(operands, op->getAttrDictionary()), rewriter);
   }
 
   /// Rewrite and Match methods that operate on the SourceOp type. These must be

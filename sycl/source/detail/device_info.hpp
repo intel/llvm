@@ -762,19 +762,6 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
   }
 };
 
-// Specialization for memory channel query
-template <>
-struct get_device_info_impl<bool, info::device::ext_intel_mem_channel> {
-  static bool get(const DeviceImplPtr &Dev) {
-    pi_mem_properties caps;
-    pi_result Err = Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::ext_intel_mem_channel>::value,
-        sizeof(pi_mem_properties), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
-  }
-};
-
 // Specialization for kernel fusion support
 template <>
 struct get_device_info_impl<
@@ -784,7 +771,8 @@ struct get_device_info_impl<
     // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
     // and LevelZero.
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
-           (Dev->getBackend() == backend::opencl);
+           (Dev->getBackend() == backend::opencl) ||
+           (Dev->getBackend() == backend::ext_oneapi_cuda);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;
