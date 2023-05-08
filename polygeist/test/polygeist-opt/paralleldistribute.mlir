@@ -12,14 +12,14 @@ module {
     %c5 = arith.constant 5 : index
     %c2 = arith.constant 2 : index
     scf.parallel (%arg2) = (%c0) to (%c5) step (%c1) {
-      %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr<i8>
+      %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr
       scf.parallel (%arg3) = (%c0) to (%c2) step (%c1) {
         %4 = scf.while (%arg4 = %c1_i8) : (i8) -> i8 {
           %6 = arith.cmpi ne, %arg4, %c0_i8 : i8
           scf.condition(%6) %arg4 : i8
         } do {
         ^bb0(%arg4: i8):  // no predecessors
-          llvm.store %c0_i8, %0 : !llvm.ptr<i8>
+          llvm.store %c0_i8, %0 : i8, !llvm.ptr
           "polygeist.barrier"(%arg3) : (index) -> ()
           scf.yield %c0_i8 : i8
         }
@@ -56,7 +56,7 @@ module {
 // CHECK-DAG:     %c5 = arith.constant 5 : index
 // CHECK-DAG:     %c2 = arith.constant 2 : index
 // CHECK-DAG:     scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
-// CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr
 // CHECK-DAG:       %[[i1:.+]] = memref.alloca() : memref<2xi8>
 // CHECK-DAG:       %[[i2:.+]] = memref.alloca() : memref<2xi8>
 // CHECK-NEXT:       scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
@@ -82,7 +82,7 @@ module {
 // CHECK-NEXT:         scf.condition(%1)
 // CHECK-NEXT:       } do {
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:           llvm.store %c0_i8, %0 : !llvm.ptr<i8>
+// CHECK-NEXT:           llvm.store %c0_i8, %0 : i8, !llvm.ptr
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {

@@ -44,10 +44,13 @@ bool isRecursiveStruct(Type *T, Type *Meta, SmallPtrSetImpl<Type *> &Seen) {
 }
 
 Type *anonymize(Type *T) {
-  if (auto *PT = dyn_cast<PointerType>(T))
-    // TODO: Change this to complete move to opaque pointers.
-    return PointerType::get(anonymize(PT->getPointerElementType()),
+  if (auto *PT = dyn_cast<PointerType>(T)) {
+    if (PT->isOpaque())
+      return PT;
+    return PointerType::get(anonymize(PT->getNonOpaquePointerElementType()),
                             PT->getAddressSpace());
+  }
+
   if (auto *AT = dyn_cast<ArrayType>(T))
     return ArrayType::get(anonymize(AT->getElementType()),
                           AT->getNumElements());

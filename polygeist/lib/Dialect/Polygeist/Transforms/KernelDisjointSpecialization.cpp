@@ -148,7 +148,7 @@ private:
       CallOpInterface call,
       std::set<sycl::AccessorPtrPair> &accessorPairs) const;
   /// Version \p call.
-  void versionCall(CallOpInterface call) const;
+  void versionCall(CallOpInterface call, bool useOpaquePointers) const;
 };
 
 } // namespace
@@ -176,7 +176,7 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 
     for (Operation *op : userMap.getUsers(func)) {
       auto call = cast<CallOpInterface>(op);
-      versionCall(call);
+      versionCall(call, useOpaquePointers);
 
       /// Update the callee of call to clonedFunc.
       call.setCalleeFromCallable(
@@ -235,7 +235,8 @@ void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
         accessorPairs.insert({*i, *j});
 }
 
-void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
+void KernelDisjointSpecializationPass::versionCall(
+    CallOpInterface call, bool useOpaquePointers) const {
   std::set<sycl::AccessorPtrPair> accessorPairs;
   collectMayOverlapAccessorPairs(call, accessorPairs);
   if (accessorPairs.empty())
@@ -243,7 +244,7 @@ void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
   OpBuilder builder(call);
   std::unique_ptr<polygeist::VersionCondition> condition =
       polygeist::VersionConditionBuilder(accessorPairs, builder, call->getLoc())
-          .createCondition();
+          .createCondition(useOpaquePointers);
   polygeist::VersionBuilder(call).version(*condition);
 }
 

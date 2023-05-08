@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --kernel-disjoint-specialization="relaxed-aliasing=false" %s | FileCheck %s
+// RUN: polygeist-opt --kernel-disjoint-specialization="relaxed-aliasing=false use-opaque-pointers=1" %s | FileCheck %s
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
@@ -51,14 +51,14 @@ gpu.module @device_func {
   // CHECK-NEXT:    [[ACC1_END:%.*]] = sycl.accessor.subscript %arg0[%alloca_2] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
 
   // COM: Version with condition: [[ACC1_END]] <= [[ACC2_BEGIN]] || [[ACC1_BEGIN]] >= [[ACC2_END]].
-  // CHECK:         [[ACC2_BEGIN:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_f32_w_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
+  // CHECK:         [[ACC2_BEGIN:%.*]] = sycl.accessor.subscript %arg1[{{.*}}]  : (memref<?x!sycl_accessor_1_f32_w_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
   // CHECK:         [[ACC2_END:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_f32_w_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
-  // CHECK-DAG:     [[ACC1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ACC2_BEGIN_PTR:%.*]]  = "polygeist.memref2pointer"([[ACC2_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-NEXT:    %14 = llvm.icmp "ule" [[ACC1_END_PTR]], [[ACC2_BEGIN_PTR]] : !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ACC1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ACC2_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC2_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-NEXT:    %17 = llvm.icmp "uge" [[ACC1_BEGIN_PTR]], [[ACC2_END_PTR]] : !llvm.ptr<f32, 1>
+  // CHECK-DAG:     [[ACC1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-DAG:     [[ACC2_BEGIN_PTR:%.*]]  = "polygeist.memref2pointer"([[ACC2_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-NEXT:    %14 = llvm.icmp "ule" [[ACC1_END_PTR]], [[ACC2_BEGIN_PTR]] : !llvm.ptr<1>
+  // CHECK-DAG:     [[ACC1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-DAG:     [[ACC2_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC2_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-NEXT:    %17 = llvm.icmp "uge" [[ACC1_BEGIN_PTR]], [[ACC2_END_PTR]] : !llvm.ptr<1>
   // CHECK-NEXT:    %18 = arith.ori %14, %17 : i1
   // CHECK-NEXT:    scf.if %18 {
   // CHECK-NEXT:      func.call @callee1.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_accessor_1_f32_w_gb>) -> ()
@@ -135,12 +135,12 @@ gpu.module @device_func {
   // COM: Version with condition: [[ACC1_END]] <= [[ACC2_BEGIN]] || [[ACC1_BEGIN]] >= [[ACC2_END]].
   // CHECK:         [[ACC2_BEGIN:%.*]] = sycl.accessor.subscript %arg1[%alloca_7] : (memref<?x!sycl_accessor_2_f32_w_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
   // CHECK:         [[ACC2_END:%.*]] = sycl.accessor.subscript %arg1[%alloca_13] : (memref<?x!sycl_accessor_2_f32_w_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
-  // CHECK-DAG:     [[ACC1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ACC2_BEGIN_PTR:%.*]]  = "polygeist.memref2pointer"([[ACC2_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-NEXT:    %22 = llvm.icmp "ule" [[ACC1_END_PTR]], [[ACC2_BEGIN_PTR]] : !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ACC1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ACC2_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC2_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-NEXT:    %25 = llvm.icmp "uge" [[ACC1_BEGIN_PTR]], [[ACC2_END_PTR]] : !llvm.ptr<f32, 1>
+  // CHECK-DAG:     [[ACC1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-DAG:     [[ACC2_BEGIN_PTR:%.*]]  = "polygeist.memref2pointer"([[ACC2_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-NEXT:    %22 = llvm.icmp "ule" [[ACC1_END_PTR]], [[ACC2_BEGIN_PTR]] : !llvm.ptr<1>
+  // CHECK-DAG:     [[ACC1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ACC1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-DAG:     [[ACC2_END_PTR:%.*]] = "polygeist.memref2pointer"([[ACC2_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-NEXT:    %25 = llvm.icmp "uge" [[ACC1_BEGIN_PTR]], [[ACC2_END_PTR]] : !llvm.ptr<1>
   // CHECK-NEXT:    %26 = arith.ori %22, %25 : i1
   // CHECK-NEXT:    scf.if %26 {
   // CHECK-NEXT:      func.call @callee3.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_accessor_2_f32_w_gb>) -> ()
@@ -202,12 +202,12 @@ gpu.module @device_func {
   // CHECK-NEXT:    %4 = sycl.accessor.get_pointer(%arg1) : (memref<?x!sycl_accessor_0_f32_w_gb>) -> memref<?xf32, 1>
   // CHECK-NEXT:    %c1_0 = arith.constant 1 : index
   // CHECK-NEXT:    [[ARG1_END:%.*]] = "polygeist.subindex"(%4, %c1_0) : (memref<?xf32, 1>, index) -> memref<?xf32, 1>
-  // CHECK-DAG:     [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-NEXT:    %8 = llvm.icmp "ule" [[ARG0_END_PTR]], [[ARG1_BEGIN_PTR]] : !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-DAG:     [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<f32, 1>
-  // CHECK-NEXT:    %11 = llvm.icmp "uge" [[ARG0_BEGIN_PTR]], [[ARG1_END_PTR]] : !llvm.ptr<f32, 1>
+  // CHECK-DAG:     [[ARG0_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-DAG:     [[ARG1_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-NEXT:    %8 = llvm.icmp "ule" [[ARG0_END_PTR]], [[ARG1_BEGIN_PTR]] : !llvm.ptr<1>
+  // CHECK-DAG:     [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-DAG:     [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xf32, 1>) -> !llvm.ptr<1>
+  // CHECK-NEXT:    %11 = llvm.icmp "uge" [[ARG0_BEGIN_PTR]], [[ARG1_END_PTR]] : !llvm.ptr<1>
   // CHECK-NEXT:    %12 = arith.ori %8, %11 : i1
   // CHECK-NEXT:    scf.if %12 {
   // CHECK-NEXT:      func.call @callee5.specialized(%arg0, %arg1) : (memref<?x!sycl_accessor_0_f32_r_gb>, memref<?x!sycl_accessor_0_f32_w_gb>) -> ()
