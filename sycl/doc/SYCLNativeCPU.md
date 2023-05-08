@@ -27,8 +27,7 @@ clang++ <device-ir> -o <device-o>
 #link
 clang++ -L<sycl-lib-path> -lsycl <device-o> <host-o> -o <output>
 ```
-
-Our implementation currently piggybacks on the original (library-only) SYCL Host Device, therefore in order to run an application compiled with `-fsycl-native-cpu`, you need to set the environment variable `ONEAPI_DEVICE_SELECTOR=host:*` to make sure that the SYCL runtime chooses the host device to execute the application.
+In order to execute kernels compiles with `-fsycl-native-cpu`, we provide a PI Plugin. The plugin needs to be enabled when configuring DPC++ (e.g. `python buildbot/configure.py --enable-plugin native_cpu`) and needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
 # Supported features and limitations
 
