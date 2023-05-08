@@ -1,8 +1,5 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// TODO: Re-enable this test on Windows after fixing the following issue:
-// https://github.com/intel/llvm/issues/8975
-// UNSUPPORTED: windows
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
