@@ -40,7 +40,7 @@ extern "C" {
 ur_result_t UR_APICALL urInit(
     ur_device_init_flags_t device_flags ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-) {
+    ) try {
     static ur_result_t result = UR_RESULT_SUCCESS;
     std::call_once(ur_lib::context->initOnce, [device_flags]() {
         result = ur_lib::context->Init(device_flags);
@@ -56,6 +56,8 @@ ur_result_t UR_APICALL urInit(
     }
 
     return pfnInit(device_flags);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -70,13 +72,15 @@ ur_result_t UR_APICALL urInit(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urTearDown(
     void *pParams ///< [in] pointer to tear down parameters
-) {
+    ) try {
     auto pfnTearDown = ur_lib::context->urDdiTable.Global.pfnTearDown;
     if (nullptr == pfnTearDown) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnTearDown(pParams);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -109,13 +113,15 @@ ur_result_t UR_APICALL urPlatformGet(
     ///< ::urPlatformGet shall only retrieve that number of platforms.
     uint32_t *
         pNumPlatforms ///< [out][optional] returns the total number of platforms available.
-) {
+    ) try {
     auto pfnGet = ur_lib::context->urDdiTable.Platform.pfnGet;
     if (nullptr == pfnGet) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -149,13 +155,15 @@ ur_result_t UR_APICALL urPlatformGetInfo(
     ///< returned and pPlatformInfo is not used.
     size_t *
         pSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Platform.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hPlatform, propName, propSize, pPropValue, pSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -176,7 +184,7 @@ ur_result_t UR_APICALL urPlatformGetInfo(
 ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t hDriver, ///< [in] handle of the platform
     ur_api_version_t *pVersion    ///< [out] api version
-) {
+    ) try {
     auto pfnGetApiVersion =
         ur_lib::context->urDdiTable.Platform.pfnGetApiVersion;
     if (nullptr == pfnGetApiVersion) {
@@ -184,6 +192,8 @@ ur_result_t UR_APICALL urPlatformGetApiVersion(
     }
 
     return pfnGetApiVersion(hDriver, pVersion);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -210,7 +220,7 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform.
     ur_native_handle_t *
         phNativePlatform ///< [out] a pointer to the native handle of the platform.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Platform.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -218,6 +228,8 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hPlatform, phNativePlatform);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -242,7 +254,7 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         hNativePlatform, ///< [in] the native handle of the platform.
     ur_platform_handle_t *
         phPlatform ///< [out] pointer to the handle of the platform object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Platform.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -250,6 +262,8 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     }
 
     return pfnCreateWithNativeHandle(hNativePlatform, phPlatform);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -283,7 +297,7 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char **
         ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
                          ///< the frontend option.
-) {
+    ) try {
     auto pfnGetBackendOption =
         ur_lib::context->urDdiTable.Platform.pfnGetBackendOption;
     if (nullptr == pfnGetBackendOption) {
@@ -291,6 +305,8 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
     }
 
     return pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -324,13 +340,15 @@ ur_result_t UR_APICALL urGetLastResult(
     const char **
         ppMessage ///< [out] pointer to a string containing adapter specific result in string
                   ///< representation.
-) {
+    ) try {
     auto pfnGetLastResult = ur_lib::context->urDdiTable.Global.pfnGetLastResult;
     if (nullptr == pfnGetLastResult) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetLastResult(hPlatform, ppMessage);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -374,13 +392,15 @@ ur_result_t UR_APICALL urDeviceGet(
     ///< platform shall only retrieve that number of devices.
     uint32_t *pNumDevices ///< [out][optional] pointer to the number of devices.
     ///< pNumDevices will be updated with the total number of devices available.
-) {
+    ) try {
     auto pfnGet = ur_lib::context->urDdiTable.Device.pfnGet;
     if (nullptr == pfnGet) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -416,13 +436,15 @@ ur_result_t UR_APICALL urDeviceGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Device.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -449,13 +471,15 @@ ur_result_t UR_APICALL urDeviceGetInfo(
 ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t
         hDevice ///< [in] handle of the device to get a reference of.
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Device.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hDevice);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -478,13 +502,15 @@ ur_result_t UR_APICALL urDeviceRetain(
 ///         + `NULL == hDevice`
 ur_result_t UR_APICALL urDeviceRelease(
     ur_device_handle_t hDevice ///< [in] handle of the device to release.
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Device.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hDevice);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -525,7 +551,7 @@ ur_result_t UR_APICALL urDevicePartition(
     uint32_t *
         pNumDevicesRet ///< [out][optional] pointer to the number of sub-devices the device can be
     ///< partitioned into according to the partitioning property.
-) {
+    ) try {
     auto pfnPartition = ur_lib::context->urDdiTable.Device.pfnPartition;
     if (nullptr == pfnPartition) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -533,6 +559,8 @@ ur_result_t UR_APICALL urDevicePartition(
 
     return pfnPartition(hDevice, pProperties, NumDevices, phSubDevices,
                         pNumDevicesRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -571,13 +599,15 @@ ur_result_t UR_APICALL urDeviceSelectBinary(
     uint32_t *
         pSelectedBinary ///< [out] the index of the selected binary in the input array of binaries.
     ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
-) {
+    ) try {
     auto pfnSelectBinary = ur_lib::context->urDdiTable.Device.pfnSelectBinary;
     if (nullptr == pfnSelectBinary) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -604,7 +634,7 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ///< [in] handle of the device.
     ur_native_handle_t
         *phNativeDevice ///< [out] a pointer to the native handle of the device.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Device.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -612,6 +642,8 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hDevice, phNativeDevice);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -637,7 +669,7 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
     ur_device_handle_t
         *phDevice ///< [out] pointer to the handle of the device object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Device.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -645,6 +677,8 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     return pfnCreateWithNativeHandle(hNativeDevice, hPlatform, phDevice);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -673,7 +707,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     uint64_t *
         pHostTimestamp ///< [out][optional] pointer to the Host's global timestamp that
                        ///< correlates with the Device's global timestamp value
-) {
+    ) try {
     auto pfnGetGlobalTimestamps =
         ur_lib::context->urDdiTable.Device.pfnGetGlobalTimestamps;
     if (nullptr == pfnGetGlobalTimestamps) {
@@ -681,6 +715,8 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     }
 
     return pfnGetGlobalTimestamps(hDevice, pDeviceTimestamp, pHostTimestamp);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -718,13 +754,15 @@ ur_result_t UR_APICALL urContextCreate(
         pProperties, ///< [in][optional] pointer to context creation properties.
     ur_context_handle_t
         *phContext ///< [out] pointer to handle of context object created
-) {
+    ) try {
     auto pfnCreate = ur_lib::context->urDdiTable.Context.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnCreate(DeviceCount, phDevices, pProperties, phContext);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -751,13 +789,15 @@ ur_result_t UR_APICALL urContextCreate(
 ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t
         hContext ///< [in] handle of the context to get a reference of.
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Context.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hContext);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -780,13 +820,15 @@ ur_result_t UR_APICALL urContextRetain(
 ///         + `NULL == hContext`
 ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t hContext ///< [in] handle of the context to release.
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Context.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hContext);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -822,13 +864,15 @@ ur_result_t UR_APICALL urContextGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Context.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -855,7 +899,7 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context.
     ur_native_handle_t *
         phNativeContext ///< [out] a pointer to the native handle of the context.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Context.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -863,6 +907,8 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hContext, phNativeContext);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -893,7 +939,7 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
         phContext ///< [out] pointer to the handle of the context object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Context.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -902,6 +948,8 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     return pfnCreateWithNativeHandle(hNativeContext, numDevices, phDevices,
                                      pProperties, phContext);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -931,7 +979,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
         pfnDeleter, ///< [in] Function pointer to extended deleter.
     void *
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
-) {
+    ) try {
     auto pfnSetExtendedDeleter =
         ur_lib::context->urDdiTable.Context.pfnSetExtendedDeleter;
     if (nullptr == pfnSetExtendedDeleter) {
@@ -939,6 +987,8 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
     }
 
     return pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -979,7 +1029,7 @@ ur_result_t UR_APICALL urMemImageCreate(
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     void *pHost,           ///< [in][optional] pointer to the buffer data
     ur_mem_handle_t *phMem ///< [out] pointer to handle of image object created
-) {
+    ) try {
     auto pfnImageCreate = ur_lib::context->urDdiTable.Mem.pfnImageCreate;
     if (nullptr == pfnImageCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -987,6 +1037,8 @@ ur_result_t UR_APICALL urMemImageCreate(
 
     return pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost,
                           phMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1027,13 +1079,15 @@ ur_result_t UR_APICALL urMemBufferCreate(
         *pProperties, ///< [in][optional] pointer to buffer creation properties
     ur_mem_handle_t
         *phBuffer ///< [out] pointer to handle of the memory buffer created
-) {
+    ) try {
     auto pfnBufferCreate = ur_lib::context->urDdiTable.Mem.pfnBufferCreate;
     if (nullptr == pfnBufferCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1059,13 +1113,15 @@ ur_result_t UR_APICALL urMemBufferCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urMemRetain(
     ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Mem.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1086,13 +1142,15 @@ ur_result_t UR_APICALL urMemRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urMemRelease(
     ur_mem_handle_t hMem ///< [in] handle of the memory object to release
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Mem.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1130,7 +1188,7 @@ ur_result_t UR_APICALL urMemBufferPartition(
         *pRegion, ///< [in] pointer to buffer create region information
     ur_mem_handle_t
         *phMem ///< [out] pointer to the handle of sub buffer created
-) {
+    ) try {
     auto pfnBufferPartition =
         ur_lib::context->urDdiTable.Mem.pfnBufferPartition;
     if (nullptr == pfnBufferPartition) {
@@ -1138,6 +1196,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
     }
 
     return pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion, phMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1164,7 +1224,7 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Mem.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -1172,6 +1232,8 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hMem, phNativeMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1198,7 +1260,7 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
         *phMem ///< [out] pointer to handle of buffer memory object created.
-) {
+    ) try {
     auto pfnBufferCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
     if (nullptr == pfnBufferCreateWithNativeHandle) {
@@ -1207,6 +1269,8 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 
     return pfnBufferCreateWithNativeHandle(hNativeMem, hContext, pProperties,
                                            phMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1238,7 +1302,7 @@ ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
         *phMem ///< [out] pointer to handle of image memory object created.
-) {
+    ) try {
     auto pfnImageCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Mem.pfnImageCreateWithNativeHandle;
     if (nullptr == pfnImageCreateWithNativeHandle) {
@@ -1247,6 +1311,8 @@ ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 
     return pfnImageCreateWithNativeHandle(hNativeMem, hContext, pImageFormat,
                                           pImageDesc, pProperties, phMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1281,13 +1347,15 @@ ur_result_t UR_APICALL urMemGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Mem.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1321,7 +1389,7 @@ ur_result_t UR_APICALL urMemImageGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     auto pfnImageGetInfo = ur_lib::context->urDdiTable.Mem.pfnImageGetInfo;
     if (nullptr == pfnImageGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -1329,6 +1397,8 @@ ur_result_t UR_APICALL urMemImageGetInfo(
 
     return pfnImageGetInfo(hMemory, propName, propSize, pPropValue,
                            pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1366,13 +1436,15 @@ ur_result_t UR_APICALL urSamplerCreate(
     const ur_sampler_desc_t *pDesc, ///< [in] pointer to the sampler description
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
-) {
+    ) try {
     auto pfnCreate = ur_lib::context->urDdiTable.Sampler.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnCreate(hContext, pDesc, phSampler);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1395,13 +1467,15 @@ ur_result_t UR_APICALL urSamplerCreate(
 ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t
         hSampler ///< [in] handle of the sampler object to get access
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Sampler.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hSampler);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1424,13 +1498,15 @@ ur_result_t UR_APICALL urSamplerRetain(
 ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t
         hSampler ///< [in] handle of the sampler object to release
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Sampler.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hSampler);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1464,13 +1540,15 @@ ur_result_t UR_APICALL urSamplerGetInfo(
         pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
     size_t *
         pPropSizeRet ///< [out] size in bytes returned in sampler property value
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Sampler.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1497,7 +1575,7 @@ ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler.
     ur_native_handle_t *
         phNativeSampler ///< [out] a pointer to the native handle of the sampler.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Sampler.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -1505,6 +1583,8 @@ ur_result_t UR_APICALL urSamplerGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hSampler, phNativeSampler);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1531,7 +1611,7 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_sampler_handle_t *
         phSampler ///< [out] pointer to the handle of the sampler object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Sampler.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -1539,6 +1619,8 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     }
 
     return pfnCreateWithNativeHandle(hNativeSampler, hContext, phSampler);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1583,13 +1665,15 @@ ur_result_t UR_APICALL urUSMHostAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
-) {
+    ) try {
     auto pfnHostAlloc = ur_lib::context->urDdiTable.USM.pfnHostAlloc;
     if (nullptr == pfnHostAlloc) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1636,13 +1720,15 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
-) {
+    ) try {
     auto pfnDeviceAlloc = ur_lib::context->urDdiTable.USM.pfnDeviceAlloc;
     if (nullptr == pfnDeviceAlloc) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1690,13 +1776,15 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
-) {
+    ) try {
     auto pfnSharedAlloc = ur_lib::context->urDdiTable.USM.pfnSharedAlloc;
     if (nullptr == pfnSharedAlloc) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1715,13 +1803,15 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
 ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
-) {
+    ) try {
     auto pfnFree = ur_lib::context->urDdiTable.USM.pfnFree;
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnFree(hContext, pMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1753,7 +1843,7 @@ ur_result_t UR_APICALL urUSMGetMemAllocInfo(
                     ///< allocation property
     size_t *
         pPropSizeRet ///< [out][optional] bytes returned in USM allocation property
-) {
+    ) try {
     auto pfnGetMemAllocInfo =
         ur_lib::context->urDdiTable.USM.pfnGetMemAllocInfo;
     if (nullptr == pfnGetMemAllocInfo) {
@@ -1762,6 +1852,8 @@ ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 
     return pfnGetMemAllocInfo(hContext, pMem, propName, propSize, pPropValue,
                               pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1791,13 +1883,15 @@ ur_result_t UR_APICALL urUSMPoolCreate(
         pPoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
                    ///< ::ur_usm_pool_limits_desc_t
     ur_usm_pool_handle_t *ppPool ///< [out] pointer to USM memory pool
-) {
+    ) try {
     auto pfnPoolCreate = ur_lib::context->urDdiTable.USM.pfnPoolCreate;
     if (nullptr == pfnPoolCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnPoolCreate(hContext, pPoolDesc, ppPool);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1819,13 +1913,15 @@ ur_result_t UR_APICALL urUSMPoolCreate(
 ur_result_t UR_APICALL urUSMPoolDestroy(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
-) {
+    ) try {
     auto pfnPoolDestroy = ur_lib::context->urDdiTable.USM.pfnPoolDestroy;
     if (nullptr == pfnPoolDestroy) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnPoolDestroy(hContext, pPool);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1862,13 +1958,15 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
-) {
+    ) try {
     auto pfnCreateWithIL = ur_lib::context->urDdiTable.Program.pfnCreateWithIL;
     if (nullptr == pfnCreateWithIL) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1906,7 +2004,7 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of Program object created.
-) {
+    ) try {
     auto pfnCreateWithBinary =
         ur_lib::context->urDdiTable.Program.pfnCreateWithBinary;
     if (nullptr == pfnCreateWithBinary) {
@@ -1915,6 +2013,8 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
 
     return pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties,
                                phProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1947,13 +2047,15 @@ ur_result_t UR_APICALL urProgramBuild(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
-) {
+    ) try {
     auto pfnBuild = ur_lib::context->urDdiTable.Program.pfnBuild;
     if (nullptr == pfnBuild) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnBuild(hContext, hProgram, pOptions);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1986,13 +2088,15 @@ ur_result_t UR_APICALL urProgramCompile(
         hProgram, ///< [in][out] handle of the program to compile.
     const char *
         pOptions ///< [in][optional] pointer to build options null-terminated string.
-) {
+    ) try {
     auto pfnCompile = ur_lib::context->urDdiTable.Program.pfnCompile;
     if (nullptr == pfnCompile) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnCompile(hContext, hProgram, pOptions);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2033,13 +2137,15 @@ ur_result_t UR_APICALL urProgramLink(
         pOptions, ///< [in][optional] pointer to linker options null-terminated string.
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
-) {
+    ) try {
     auto pfnLink = ur_lib::context->urDdiTable.Program.pfnLink;
     if (nullptr == pfnLink) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnLink(hContext, count, phPrograms, pOptions, phProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2063,13 +2169,15 @@ ur_result_t UR_APICALL urProgramLink(
 ///         + `NULL == hProgram`
 ur_result_t UR_APICALL urProgramRetain(
     ur_program_handle_t hProgram ///< [in] handle for the Program to retain
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Program.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2093,13 +2201,15 @@ ur_result_t UR_APICALL urProgramRetain(
 ///         + `NULL == hProgram`
 ur_result_t UR_APICALL urProgramRelease(
     ur_program_handle_t hProgram ///< [in] handle for the Program to release
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Program.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2139,7 +2249,7 @@ ur_result_t UR_APICALL urProgramGetFunctionPointer(
         pFunctionName, ///< [in] A null-terminates string denoting the mangled function name.
     void **
         ppFunctionPointer ///< [out] Returns the pointer to the function if it is found in the program.
-) {
+    ) try {
     auto pfnGetFunctionPointer =
         ur_lib::context->urDdiTable.Program.pfnGetFunctionPointer;
     if (nullptr == pfnGetFunctionPointer) {
@@ -2148,6 +2258,8 @@ ur_result_t UR_APICALL urProgramGetFunctionPointer(
 
     return pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
                                  ppFunctionPointer);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2178,13 +2290,15 @@ ur_result_t UR_APICALL urProgramGetInfo(
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Program.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2218,7 +2332,7 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     auto pfnGetBuildInfo = ur_lib::context->urDdiTable.Program.pfnGetBuildInfo;
     if (nullptr == pfnGetBuildInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -2226,6 +2340,8 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 
     return pfnGetBuildInfo(hProgram, hDevice, propName, propSize, pPropValue,
                            pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2256,7 +2372,7 @@ ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     const ur_specialization_constant_info_t *
         pSpecConstants ///< [in][range(0, count)] array of specialization constant value
                        ///< descriptions
-) {
+    ) try {
     auto pfnSetSpecializationConstants =
         ur_lib::context->urDdiTable.Program.pfnSetSpecializationConstants;
     if (nullptr == pfnSetSpecializationConstants) {
@@ -2264,6 +2380,8 @@ ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     }
 
     return pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2290,7 +2408,7 @@ ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ///< [in] handle of the program.
     ur_native_handle_t *
         phNativeProgram ///< [out] a pointer to the native handle of the program.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Program.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -2298,6 +2416,8 @@ ur_result_t UR_APICALL urProgramGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hProgram, phNativeProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2324,7 +2444,7 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     ur_program_handle_t *
         phProgram ///< [out] pointer to the handle of the program object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Program.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -2332,6 +2452,8 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     }
 
     return pfnCreateWithNativeHandle(hNativeProgram, hContext, phProgram);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2359,13 +2481,15 @@ ur_result_t UR_APICALL urKernelCreate(
     const char *pKernelName,      ///< [in] pointer to null-terminated string.
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to handle of kernel object created.
-) {
+    ) try {
     auto pfnCreate = ur_lib::context->urDdiTable.Kernel.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnCreate(hProgram, pKernelName, phKernel);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2392,13 +2516,15 @@ ur_result_t UR_APICALL urKernelSetArgValue(
     size_t argSize,    ///< [in] size of argument type
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
-) {
+    ) try {
     auto pfnSetArgValue = ur_lib::context->urDdiTable.Kernel.pfnSetArgValue;
     if (nullptr == pfnSetArgValue) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetArgValue(hKernel, argIndex, argSize, pArgValue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2422,13 +2548,15 @@ ur_result_t UR_APICALL urKernelSetArgLocal(
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     size_t
         argSize ///< [in] size of the local buffer to be allocated by the runtime
-) {
+    ) try {
     auto pfnSetArgLocal = ur_lib::context->urDdiTable.Kernel.pfnSetArgLocal;
     if (nullptr == pfnSetArgLocal) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetArgLocal(hKernel, argIndex, argSize);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2460,13 +2588,15 @@ ur_result_t UR_APICALL urKernelGetInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Kernel.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2497,7 +2627,7 @@ ur_result_t UR_APICALL urKernelGetGroupInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     auto pfnGetGroupInfo = ur_lib::context->urDdiTable.Kernel.pfnGetGroupInfo;
     if (nullptr == pfnGetGroupInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -2505,6 +2635,8 @@ ur_result_t UR_APICALL urKernelGetGroupInfo(
 
     return pfnGetGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
                            pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2531,7 +2663,7 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
-) {
+    ) try {
     auto pfnGetSubGroupInfo =
         ur_lib::context->urDdiTable.Kernel.pfnGetSubGroupInfo;
     if (nullptr == pfnGetSubGroupInfo) {
@@ -2540,6 +2672,8 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 
     return pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
                               pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2563,13 +2697,15 @@ ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 ///         + `NULL == hKernel`
 ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Kernel.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hKernel);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2593,13 +2729,15 @@ ur_result_t UR_APICALL urKernelRetain(
 ///         + `NULL == hKernel`
 ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Kernel.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hKernel);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2628,13 +2766,15 @@ ur_result_t UR_APICALL urKernelSetArgPointer(
     const void *
         pArgValue ///< [in][optional] SVM pointer to memory location holding the argument
                   ///< value. If null then argument value is considered null.
-) {
+    ) try {
     auto pfnSetArgPointer = ur_lib::context->urDdiTable.Kernel.pfnSetArgPointer;
     if (nullptr == pfnSetArgPointer) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetArgPointer(hKernel, argIndex, pArgValue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2666,13 +2806,15 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
     const void *
         pPropValue ///< [in][typename(propName, propSize)] pointer to memory location holding
                    ///< the property value.
-) {
+    ) try {
     auto pfnSetExecInfo = ur_lib::context->urDdiTable.Kernel.pfnSetExecInfo;
     if (nullptr == pfnSetExecInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetExecInfo(hKernel, propName, propSize, pPropValue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2695,13 +2837,15 @@ ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     ur_sampler_handle_t hArgValue ///< [in] handle of Sampler object.
-) {
+    ) try {
     auto pfnSetArgSampler = ur_lib::context->urDdiTable.Kernel.pfnSetArgSampler;
     if (nullptr == pfnSetArgSampler) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetArgSampler(hKernel, argIndex, hArgValue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2724,13 +2868,15 @@ ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     ur_mem_handle_t hArgValue ///< [in] handle of Memory object.
-) {
+    ) try {
     auto pfnSetArgMemObj = ur_lib::context->urDdiTable.Kernel.pfnSetArgMemObj;
     if (nullptr == pfnSetArgMemObj) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2767,7 +2913,7 @@ ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     uint32_t count, ///< [in] the number of elements in the pSpecConstants array
     const ur_specialization_constant_info_t *
         pSpecConstants ///< [in] array of specialization constant value descriptions
-) {
+    ) try {
     auto pfnSetSpecializationConstants =
         ur_lib::context->urDdiTable.Kernel.pfnSetSpecializationConstants;
     if (nullptr == pfnSetSpecializationConstants) {
@@ -2775,6 +2921,8 @@ ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     }
 
     return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2801,7 +2949,7 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
     ur_native_handle_t
         *phNativeKernel ///< [out] a pointer to the native handle of the kernel.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Kernel.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -2809,6 +2957,8 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hKernel, phNativeKernel);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2839,7 +2989,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Kernel.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -2848,6 +2998,8 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 
     return pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
                                      pProperties, phKernel);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2879,13 +3031,15 @@ ur_result_t UR_APICALL urQueueGetInfo(
                     ///< property
     size_t *
         pPropSizeRet ///< [out][optional] size in bytes returned in queue property value
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Queue.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hQueue, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2920,13 +3074,15 @@ ur_result_t UR_APICALL urQueueCreate(
         *pProperties, ///< [in][optional] pointer to queue creation properties.
     ur_queue_handle_t
         *phQueue ///< [out] pointer to handle of queue object created
-) {
+    ) try {
     auto pfnCreate = ur_lib::context->urDdiTable.Queue.pfnCreate;
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnCreate(hContext, hDevice, pProperties, phQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2952,13 +3108,15 @@ ur_result_t UR_APICALL urQueueCreate(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urQueueRetain(
     ur_queue_handle_t hQueue ///< [in] handle of the queue object to get access
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Queue.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2986,13 +3144,15 @@ ur_result_t UR_APICALL urQueueRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urQueueRelease(
     ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Queue.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3019,7 +3179,7 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Queue.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -3027,6 +3187,8 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hQueue, phNativeQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3056,7 +3218,7 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
         *phQueue ///< [out] pointer to the handle of the queue object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Queue.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -3065,6 +3227,8 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
     return pfnCreateWithNativeHandle(hNativeQueue, hContext, hDevice,
                                      pProperties, phQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3092,13 +3256,15 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urQueueFinish(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be finished.
-) {
+    ) try {
     auto pfnFinish = ur_lib::context->urDdiTable.Queue.pfnFinish;
     if (nullptr == pfnFinish) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnFinish(hQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3125,13 +3291,15 @@ ur_result_t UR_APICALL urQueueFinish(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be flushed.
-) {
+    ) try {
     auto pfnFlush = ur_lib::context->urDdiTable.Queue.pfnFlush;
     if (nullptr == pfnFlush) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnFlush(hQueue);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3162,13 +3330,15 @@ ur_result_t UR_APICALL urEventGetInfo(
         pPropValue, ///< [out][optional][typename(propName, propSize)] value of the event
                     ///< property
     size_t *pPropSizeRet ///< [out][optional] bytes returned in event property
-) {
+    ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Event.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3203,7 +3373,7 @@ ur_result_t UR_APICALL urEventGetProfilingInfo(
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes returned in
                      ///< propValue
-) {
+    ) try {
     auto pfnGetProfilingInfo =
         ur_lib::context->urDdiTable.Event.pfnGetProfilingInfo;
     if (nullptr == pfnGetProfilingInfo) {
@@ -3212,6 +3382,8 @@ ur_result_t UR_APICALL urEventGetProfilingInfo(
 
     return pfnGetProfilingInfo(hEvent, propName, propSize, pPropValue,
                                pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3238,13 +3410,15 @@ ur_result_t UR_APICALL urEventWait(
     const ur_event_handle_t *
         phEventWaitList ///< [in][range(0, numEvents)] pointer to a list of events to wait for
                         ///< completion
-) {
+    ) try {
     auto pfnWait = ur_lib::context->urDdiTable.Event.pfnWait;
     if (nullptr == pfnWait) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnWait(numEvents, phEventWaitList);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3266,13 +3440,15 @@ ur_result_t UR_APICALL urEventWait(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urEventRetain(
     ur_event_handle_t hEvent ///< [in] handle of the event object
-) {
+    ) try {
     auto pfnRetain = ur_lib::context->urDdiTable.Event.pfnRetain;
     if (nullptr == pfnRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRetain(hEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3294,13 +3470,15 @@ ur_result_t UR_APICALL urEventRetain(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urEventRelease(
     ur_event_handle_t hEvent ///< [in] handle of the event object
-) {
+    ) try {
     auto pfnRelease = ur_lib::context->urDdiTable.Event.pfnRelease;
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnRelease(hEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3327,7 +3505,7 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ///< [in] handle of the event.
     ur_native_handle_t
         *phNativeEvent ///< [out] a pointer to the native handle of the event.
-) {
+    ) try {
     auto pfnGetNativeHandle =
         ur_lib::context->urDdiTable.Event.pfnGetNativeHandle;
     if (nullptr == pfnGetNativeHandle) {
@@ -3335,6 +3513,8 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
     }
 
     return pfnGetNativeHandle(hEvent, phNativeEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3362,7 +3542,7 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
         *phEvent ///< [out] pointer to the handle of the event object created.
-) {
+    ) try {
     auto pfnCreateWithNativeHandle =
         ur_lib::context->urDdiTable.Event.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
@@ -3371,6 +3551,8 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
     return pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties,
                                      phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3401,13 +3583,15 @@ ur_result_t UR_APICALL urEventSetCallback(
     ur_event_callback_t pfnNotify,  ///< [in] execution status of the event
     void *
         pUserData ///< [in][out][optional] pointer to data to be passed to callback.
-) {
+    ) try {
     auto pfnSetCallback = ur_lib::context->urDdiTable.Event.pfnSetCallback;
     if (nullptr == pfnSetCallback) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3467,7 +3651,7 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     auto pfnKernelLaunch = ur_lib::context->urDdiTable.Enqueue.pfnKernelLaunch;
     if (nullptr == pfnKernelLaunch) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -3476,6 +3660,8 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
                            pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
                            phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3518,13 +3704,15 @@ ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnEventsWait = ur_lib::context->urDdiTable.Enqueue.pfnEventsWait;
     if (nullptr == pfnEventsWait) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3569,7 +3757,7 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnEventsWaitWithBarrier =
         ur_lib::context->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
     if (nullptr == pfnEventsWaitWithBarrier) {
@@ -3578,6 +3766,8 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
     return pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                     phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3627,7 +3817,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferRead =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferRead;
     if (nullptr == pfnMemBufferRead) {
@@ -3636,6 +3826,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
     return pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
                             numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3687,7 +3879,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferWrite =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWrite;
     if (nullptr == pfnMemBufferWrite) {
@@ -3696,6 +3888,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
     return pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
                              numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3767,7 +3961,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferReadRect =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferReadRect;
     if (nullptr == pfnMemBufferReadRect) {
@@ -3778,6 +3972,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3852,7 +4048,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferWriteRect =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWriteRect;
     if (nullptr == pfnMemBufferWriteRect) {
@@ -3863,6 +4059,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3908,7 +4106,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferCopy =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopy;
     if (nullptr == pfnMemBufferCopy) {
@@ -3918,6 +4116,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     return pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
                             dstOffset, size, numEventsInWaitList,
                             phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3980,7 +4180,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferCopyRect =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopyRect;
     if (nullptr == pfnMemBufferCopyRect) {
@@ -3991,6 +4191,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
                                 dstOrigin, region, srcRowPitch, srcSlicePitch,
                                 dstRowPitch, dstSlicePitch, numEventsInWaitList,
                                 phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4037,7 +4239,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemBufferFill =
         ur_lib::context->urDdiTable.Enqueue.pfnMemBufferFill;
     if (nullptr == pfnMemBufferFill) {
@@ -4047,6 +4249,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferFill(
     return pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
                             size, numEventsInWaitList, phEventWaitList,
                             phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4100,7 +4304,7 @@ ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemImageRead = ur_lib::context->urDdiTable.Enqueue.pfnMemImageRead;
     if (nullptr == pfnMemImageRead) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4109,6 +4313,8 @@ ur_result_t UR_APICALL urEnqueueMemImageRead(
     return pfnMemImageRead(hQueue, hImage, blockingRead, origin, region,
                            rowPitch, slicePitch, pDst, numEventsInWaitList,
                            phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4163,7 +4369,7 @@ ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemImageWrite =
         ur_lib::context->urDdiTable.Enqueue.pfnMemImageWrite;
     if (nullptr == pfnMemImageWrite) {
@@ -4173,6 +4379,8 @@ ur_result_t UR_APICALL urEnqueueMemImageWrite(
     return pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region,
                             rowPitch, slicePitch, pSrc, numEventsInWaitList,
                             phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4221,7 +4429,7 @@ ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemImageCopy = ur_lib::context->urDdiTable.Enqueue.pfnMemImageCopy;
     if (nullptr == pfnMemImageCopy) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4230,6 +4438,8 @@ ur_result_t UR_APICALL urEnqueueMemImageCopy(
     return pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
                            region, numEventsInWaitList, phEventWaitList,
                            phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4287,7 +4497,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferMap(
                  ///< command instance.
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
-) {
+    ) try {
     auto pfnMemBufferMap = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferMap;
     if (nullptr == pfnMemBufferMap) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4296,6 +4506,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferMap(
     return pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset, size,
                            numEventsInWaitList, phEventWaitList, phEvent,
                            ppRetMap);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4338,7 +4550,7 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnMemUnmap = ur_lib::context->urDdiTable.Enqueue.pfnMemUnmap;
     if (nullptr == pfnMemUnmap) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4346,6 +4558,8 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     return pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
                        phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4395,7 +4609,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnUSMFill = ur_lib::context->urDdiTable.Enqueue.pfnUSMFill;
     if (nullptr == pfnUSMFill) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4403,6 +4617,8 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
 
     return pfnUSMFill(hQueue, ptr, patternSize, pPattern, size,
                       numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4444,7 +4660,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnUSMMemcpy = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy;
     if (nullptr == pfnUSMMemcpy) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4452,6 +4668,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
     return pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                         phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4493,7 +4711,7 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnUSMPrefetch = ur_lib::context->urDdiTable.Enqueue.pfnUSMPrefetch;
     if (nullptr == pfnUSMPrefetch) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4501,6 +4719,8 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
     return pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
                           phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4532,13 +4752,15 @@ ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
-) {
+    ) try {
     auto pfnUSMAdvise = ur_lib::context->urDdiTable.Enqueue.pfnUSMAdvise;
     if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4594,7 +4816,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     auto pfnUSMFill2D = ur_lib::context->urDdiTable.Enqueue.pfnUSMFill2D;
     if (nullptr == pfnUSMFill2D) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4602,6 +4824,8 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
 
     return pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width,
                         height, numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4652,7 +4876,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     auto pfnUSMMemcpy2D = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy2D;
     if (nullptr == pfnUSMMemcpy2D) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4661,6 +4885,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     return pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch,
                           width, height, numEventsInWaitList, phEventWaitList,
                           phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4701,7 +4927,7 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     auto pfnDeviceGlobalVariableWrite =
         ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
     if (nullptr == pfnDeviceGlobalVariableWrite) {
@@ -4711,6 +4937,8 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     return pfnDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4751,7 +4979,7 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
-) {
+    ) try {
     auto pfnDeviceGlobalVariableRead =
         ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
     if (nullptr == pfnDeviceGlobalVariableRead) {
@@ -4761,6 +4989,8 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     return pfnDeviceGlobalVariableRead(hQueue, hProgram, name, blockingRead,
                                        count, offset, pDst, numEventsInWaitList,
                                        phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4804,7 +5034,7 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
         phEvent ///< [out][optional] returns an event object that identifies this read
                 ///< command
     ///< and can be used to query or queue a wait for this command to complete.
-) {
+    ) try {
     auto pfnReadHostPipe = ur_lib::context->urDdiTable.Enqueue.pfnReadHostPipe;
     if (nullptr == pfnReadHostPipe) {
         return UR_RESULT_ERROR_UNINITIALIZED;
@@ -4812,6 +5042,8 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
 
     return pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
                            numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4856,7 +5088,7 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_event_handle_t *
         phEvent ///< [out] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
-) {
+    ) try {
     auto pfnWriteHostPipe =
         ur_lib::context->urDdiTable.Enqueue.pfnWriteHostPipe;
     if (nullptr == pfnWriteHostPipe) {
@@ -4865,6 +5097,8 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
     return pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                             numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
 }
 
 } // extern "C"

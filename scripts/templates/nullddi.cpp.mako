@@ -34,7 +34,7 @@ namespace driver
         ${line}
         %endfor
         )
-    {
+    try {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
         // if the driver has created a custom function, then call it instead of using the generic path
@@ -62,7 +62,7 @@ namespace driver
         }
 
         return result;
-    }
+    } catch(...) { return exceptionToResult(std::current_exception()); }
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
@@ -89,7 +89,7 @@ ${tbl['export']['name']}(
     ${line}
     %endfor
     )
-{
+try {
     if( nullptr == pDdiTable )
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -111,7 +111,7 @@ ${tbl['export']['name']}(
 
     %endfor
     return result;
-}
+} catch(...) { return exceptionToResult(std::current_exception()); }
 
 %endfor
 #if defined(__cplusplus)
