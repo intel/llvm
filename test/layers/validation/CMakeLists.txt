@@ -21,7 +21,7 @@ function(add_validation_test name)
         "UR_ENABLE_VALIDATION_LAYER=1"
         "UR_ENABLE_PARAMETER_VALIDATION=1"
         "UR_ENABLE_LEAK_CHECKING=1"
-        "UR_ADAPTERS_FORCE_LOAD=$<TARGET_FILE:ur_adapter_null>"
+        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\""
         "UR_LOG_VALIDATION=level:debug\;flush:debug\;output:stdout")
 endfunction()
 
