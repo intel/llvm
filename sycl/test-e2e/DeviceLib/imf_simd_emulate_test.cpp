@@ -1837,4 +1837,5 @@ int main(int, char **) {
   run_veqne_2_4_test(device_queue);
   run_vgelt_2_4_test(device_queue);
   run_vgtle_2_4_test(device_queue);
+  run_vavgs_2_4_test(device_queue);
 }

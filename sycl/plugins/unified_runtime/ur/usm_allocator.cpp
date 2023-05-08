@@ -840,7 +840,7 @@ USMAllocContext::~USMAllocContext() {
         std::cout << "Current Pool Size "
                   << pImpl->getParams().limits->TotalSize.load() << std::endl;
         const char *Label = MT;
-        std::cout << "Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;"
+        std::cout << "Suggested Setting: UR_L0_LEVEL_ZERO_USM_ALLOCATOR=;"
                   << std::string(1, tolower(*Label)) << std::string(Label + 1)
                   << ":" << HighBucketSize << "," << HighPeakSlabsInUse
                   << ",64K" << std::endl;

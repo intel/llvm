@@ -9,8 +9,8 @@
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies support of ext::intel::experimental::esimd::wait().
 // The function is basically a NOP. It creates explicit scoreboard dependency

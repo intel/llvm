@@ -1,10 +1,8 @@
 // This test checks dp4a support with vec<> arguments
 // For now we only check fallback support because DG1 hardware is not widespread
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <memory>

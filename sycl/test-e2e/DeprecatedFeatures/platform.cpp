@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_INTERNAL_API %s -o %t.out
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
 // RUN: %BE_RUN_PLACEHOLDER %t.out
 //==--------------- platform.cpp - SYCL platform test ----------------------==//
 //
