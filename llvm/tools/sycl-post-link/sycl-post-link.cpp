@@ -884,9 +884,7 @@ processInputModule(std::unique_ptr<Module> M) {
 
     // FIXME: Modified |= SplitByESIMD;
 
-    // FIXME: SplitByESIMD
-    bool SplitOccurred =
-        SplitByScope || /*SplitByESIMD ||*/ SplitByOptionalFeatures;
+    // FIXME: SplitOccured |= SplitByESIMD
 
     if (IROutputOnly) {
       if (SplitOccurred) {
