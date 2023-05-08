@@ -111,7 +111,8 @@ private:
 
 /// Version \p Loop, if candidate in \p Candidates require versioning.
 static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
-                                ArrayRef<ReductionOp> Candidates) {
+                                ArrayRef<ReductionOp> Candidates,
+                                bool useOpaquePointers) {
   for (const ReductionOp &Candidate : Candidates) {
     const std::set<sycl::AccessorPtrPair> &accessorPairs =
         Candidate.getRequireNoOverlapAccessorPairs();
@@ -121,7 +122,7 @@ static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
     std::unique_ptr<polygeist::VersionCondition> condition =
         polygeist::VersionConditionBuilder(accessorPairs, builder,
                                            Loop->getLoc())
-            .createCondition();
+            .createCondition(useOpaquePointers);
     polygeist::VersionBuilder(Loop).version(*condition);
   }
 }
@@ -137,9 +138,9 @@ protected:
   Pass::Statistic &numReductionsDetected;
 
   LoopReductionIter(Pass::Statistic &numReductionsDetected,
-                    AliasAnalysis &aliasAnalysis)
+                    AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
       : numReductionsDetected(numReductionsDetected),
-        aliasAnalysis(aliasAnalysis) {}
+        aliasAnalysis(aliasAnalysis), opaquePointers(useOpaquePointers) {}
   virtual ~LoopReductionIter() = default;
 
   Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
@@ -181,7 +182,7 @@ protected:
       llvm::dbgs() << "\n";
     });
 
-    versionLoopIfNeeded(Loop, ReductionOps);
+    versionLoopIfNeeded(Loop, ReductionOps, opaquePointers);
 
     // Move the load outside the loop (recall that the load is loop invariant).
     // The load result is passed to the new loop as an iter argument.
@@ -520,6 +521,8 @@ private:
   }
 
   AliasAnalysis &aliasAnalysis;
+
+  bool opaquePointers;
 };
 
 class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
@@ -527,9 +530,10 @@ class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
 public:
   SCFForReductionIter(MLIRContext *context,
                       Pass::Statistic &numReductionsDetected,
-                      AliasAnalysis &aliasAnalysis)
+                      AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
       : OpRewritePattern<scf::ForOp>(context),
-        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis,
+                          useOpaquePointers) {}
 
   LogicalResult matchAndRewrite(scf::ForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -563,9 +567,10 @@ class AffineForReductionIter : public OpRewritePattern<AffineForOp>,
 public:
   AffineForReductionIter(MLIRContext *context,
                          Pass::Statistic &numReductionsDetected,
-                         AliasAnalysis &aliasAnalysis)
+                         AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
       : OpRewritePattern<AffineForOp>(context),
-        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis,
+                          useOpaquePointers) {}
 
   LogicalResult matchAndRewrite(AffineForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -602,8 +607,8 @@ void DetectReductionPass::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
   RewritePatternSet RPS(ctx);
-  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions,
-                                                       aliasAnalysis);
+  RPS.add<AffineForReductionIter, SCFForReductionIter>(
+      ctx, numReductions, aliasAnalysis, useOpaquePointers);
   GreedyRewriteConfig Config;
   // Only apply patterns on the original list of LoopLikeOpInterface, to avoid
   // reevaluating loops created within the patterns (e.g., from loop

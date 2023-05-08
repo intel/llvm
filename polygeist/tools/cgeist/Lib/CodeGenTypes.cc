@@ -1784,9 +1784,9 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
 #define PLACEHOLDER_TYPE(Id, SingletonId) case BuiltinType::Id:
 #include "clang/AST/BuiltinTypes.def"
     llvm_unreachable("Unexpected placeholder builtin type!");
+  default:
+    llvm_unreachable("Unexpected builtin type!");
   }
-
-  llvm_unreachable("Unexpected builtin type!");
 }
 
 // Note: In principle we should always create a memref here because we want to

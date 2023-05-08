@@ -948,51 +948,47 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
   if (CtorDecl->isTrivial() && CtorDecl->isDefaultConstructor())
     return ValueCategory(Op, /*isReference*/ true, SubType);
 
-  mlir::Block::iterator OldPoint;
-  mlir::Block *OldBlock;
-  ValueCategory EndObj(Op, /*isReference*/ true, SubType);
+  {
+    OpBuilder::InsertionGuard InsGuard(Builder);
+    ValueCategory EndObj(Op, /*isReference*/ true, SubType);
 
-  ValueCategory Obj(Op, /*isReference*/ true, SubType);
-  QualType InnerType = Cons->getType();
-  if (const auto *ArrayType =
-          Glob.getCGM().getContext().getAsArrayType(Cons->getType())) {
-    InnerType = ArrayType->getElementType();
-    mlir::Value Size;
-    if (Count)
-      Size = Count;
-    else {
-      const auto *CAT = cast<clang::ConstantArrayType>(ArrayType);
-      Size = getConstantIndex(CAT->getSize().getLimitedValue());
+    ValueCategory Obj(Op, /*isReference*/ true, SubType);
+    QualType InnerType = Cons->getType();
+    if (const auto *ArrayType =
+            Glob.getCGM().getContext().getAsArrayType(Cons->getType())) {
+      InnerType = ArrayType->getElementType();
+      mlir::Value Size;
+      if (Count)
+        Size = Count;
+      else {
+        const auto *CAT = cast<clang::ConstantArrayType>(ArrayType);
+        Size = getConstantIndex(CAT->getSize().getLimitedValue());
+      }
+      auto ForOp = Builder.create<scf::ForOp>(Loc, getConstantIndex(0), Size,
+                                              getConstantIndex(1));
+
+      Builder.setInsertionPointToStart(&ForOp.getLoopBody().front());
+      assert(Obj.isReference);
+      Obj = CommonArrayToPointer(Obj);
+      Obj = CommonArrayLookup(Obj, ForOp.getInductionVar(),
+                              /*isImplicitRef*/ false, /*removeIndex*/ false);
+      assert(Obj.isReference);
     }
-    auto ForOp = Builder.create<scf::ForOp>(Loc, getConstantIndex(0), Size,
-                                            getConstantIndex(1));
-    OldPoint = Builder.getInsertionPoint();
-    OldBlock = Builder.getInsertionBlock();
 
-    Builder.setInsertionPointToStart(&ForOp.getLoopBody().front());
-    assert(Obj.isReference);
-    Obj = CommonArrayToPointer(Obj);
-    Obj = CommonArrayLookup(Obj, ForOp.getInductionVar(),
-                            /*isImplicitRef*/ false, /*removeIndex*/ false);
-    assert(Obj.isReference);
+    FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
+    auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
+
+    SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{Obj, nullptr}};
+    Args.reserve(Cons->getNumArgs() + 1);
+    for (auto *A : Cons->arguments())
+      Args.emplace_back(Visit(A), A);
+
+    callHelper(ToCall, InnerType, Args,
+               /*retType*/ Glob.getCGM().getContext().VoidTy, false, Cons,
+               *CtorDecl);
+
+    return EndObj;
   }
-
-  FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
-  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
-
-  SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{Obj, nullptr}};
-  Args.reserve(Cons->getNumArgs() + 1);
-  for (auto *A : Cons->arguments())
-    Args.emplace_back(Visit(A), A);
-
-  callHelper(ToCall, InnerType, Args,
-             /*retType*/ Glob.getCGM().getContext().VoidTy, false, Cons,
-             *CtorDecl);
-
-  if (Glob.getCGM().getContext().getAsArrayType(Cons->getType()))
-    Builder.setInsertionPoint(OldBlock, OldPoint);
-
-  return EndObj;
 }
 
 ValueCategory
@@ -1084,21 +1080,6 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
   return nullptr;
 }
 
-static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
-                                          TypeRange ArgumentTypes,
-                                          llvm::StringRef TypeName,
-                                          llvm::StringRef FunctionName,
-                                          llvm::StringRef MangledFunctionName) {
-  NamedAttrList Attrs;
-  Attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
-            Builder.getTypeArrayAttr(ArgumentTypes));
-  Attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
-            FlatSymbolRefAttr::get(Builder.getStringAttr(FunctionName)));
-  Attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
-            FlatSymbolRefAttr::get(Builder.getStringAttr(TypeName)));
-  return Attrs;
-}
-
 static Operation *
 tryToCreateOperation(OpBuilder &builder, Location loc, StringAttr opName,
                      ValueRange operands, TypeRange types = {},
@@ -1115,10 +1096,10 @@ tryToCreateOperation(OpBuilder &builder, Location loc, StringAttr opName,
   return op;
 }
 
-llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
-    llvm::StringRef TypeName, llvm::StringRef FunctionName,
-    mlir::ValueRange Operands, llvm::Optional<mlir::Type> ReturnType,
-    llvm::StringRef MangledFunctionName) {
+llvm::Optional<sycl::SYCLMethodOpInterface>
+MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
+                                mlir::ValueRange Operands,
+                                llvm::Optional<mlir::Type> ReturnType) {
   // Expecting a MemRef as the first argument, as the first operand to a method
   // call should be a pointer to `this`.
   if (Operands.empty() || !isa<MemRefType>(Operands[0].getType()))
@@ -1150,9 +1131,7 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
 
   Operation *op = tryToCreateOperation(
       Builder, Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
-      ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{},
-      getSYCLMethodOpAttrs(Builder, Operands.getTypes(), TypeName, FunctionName,
-                           MangledFunctionName));
+      ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{});
   if (!op)
     return std::nullopt;
   return op;
@@ -1260,8 +1239,7 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
       // generic SYCLCallOp.
       std::string Name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
       if (OptFuncType)
-        Op = createSYCLMethodOp(*OptFuncType, Func->getNameAsString(), Args,
-                                OptRetType, Name)
+        Op = createSYCLMethodOp(Func->getNameAsString(), Args, OptRetType)
                  .value_or(nullptr);
       if (!Op)
         Op = Builder.create<mlir::sycl::SYCLCallOp>(

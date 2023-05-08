@@ -41,54 +41,54 @@ module {
 // ----
 
 module {
-  func.func private @gen() -> (!llvm.ptr<i8>)
+  func.func private @gen() -> (!llvm.ptr)
 
-func.func @_Z3runiPPc(%arg2: i1) -> !llvm.ptr<i8> {
+func.func @_Z3runiPPc(%arg2: i1) -> !llvm.ptr {
   %c1_i64 = arith.constant 1 : i64
-  %0 = llvm.alloca %c1_i64 x !llvm.ptr<i8> : (i64) -> !llvm.ptr<ptr<i8>>
-  %2 = llvm.mlir.null : !llvm.ptr<i8>
+  %0 = llvm.alloca %c1_i64 x !llvm.ptr : (i64) -> !llvm.ptr
+  %2 = llvm.mlir.null : !llvm.ptr
   scf.if %arg2 {
-    %5 = llvm.load %0 : !llvm.ptr<ptr<i8>>
-    %6 = llvm.icmp "eq" %5, %2 : !llvm.ptr<i8>
-    %7 = scf.if %6 -> (!llvm.ptr<i8>) {
-      %8 = scf.if %arg2 -> (!llvm.ptr<i8>) {
-        %9 = func.call @gen() : () -> !llvm.ptr<i8>
-        llvm.store %9, %0 : !llvm.ptr<ptr<i8>>
-        scf.yield %9 : !llvm.ptr<i8>
+    %5 = llvm.load %0 : !llvm.ptr -> !llvm.ptr
+    %6 = llvm.icmp "eq" %5, %2 : !llvm.ptr
+    %7 = scf.if %6 -> (!llvm.ptr) {
+      %8 = scf.if %arg2 -> (!llvm.ptr) {
+        %9 = func.call @gen() : () -> !llvm.ptr
+        llvm.store %9, %0 : !llvm.ptr, !llvm.ptr
+        scf.yield %9 : !llvm.ptr
       } else {
-        scf.yield %5 : !llvm.ptr<i8>
+        scf.yield %5 : !llvm.ptr
       }
-      scf.yield %8 : !llvm.ptr<i8>
+      scf.yield %8 : !llvm.ptr
     } else {
-      scf.yield %5 : !llvm.ptr<i8>
+      scf.yield %5 : !llvm.ptr
     }
   }
-  %4 = llvm.load %0 : !llvm.ptr<ptr<i8>>
-  return %4 : !llvm.ptr<i8>
+  %4 = llvm.load %0 : !llvm.ptr -> !llvm.ptr
+  return %4 : !llvm.ptr
 }
 
 }
 
-// CHECK:     func.func @_Z3runiPPc(%arg0: i1) -> !llvm.ptr<i8> {
+// CHECK:     func.func @_Z3runiPPc(%arg0: i1) -> !llvm.ptr {
 // CHECK-NEXT:       %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x !llvm.ptr<i8> : (i64) -> !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:       %1 = llvm.mlir.null : !llvm.ptr<i8>
+// CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x !llvm.ptr : (i64) -> !llvm.ptr
+// CHECK-NEXT:       %1 = llvm.mlir.null : !llvm.ptr
 // CHECK-NEXT:       scf.if %arg0 {
-// CHECK-NEXT:         %3 = llvm.load %0 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:         %4 = llvm.icmp "eq" %3, %1 : !llvm.ptr<i8>
-// CHECK-NEXT:         %5 = scf.if %4 -> (!llvm.ptr<i8>) {
-// CHECK-NEXT:           %6 = scf.if %arg0 -> (!llvm.ptr<i8>) {
-// CHECK-NEXT:             %7 = func.call @gen() : () -> !llvm.ptr<i8>
-// CHECK-NEXT:             llvm.store %7, %0 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:             scf.yield %7 : !llvm.ptr<i8>
+// CHECK-NEXT:         %3 = llvm.load %0 : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:         %4 = llvm.icmp "eq" %3, %1 : !llvm.ptr
+// CHECK-NEXT:         %5 = scf.if %4 -> (!llvm.ptr) {
+// CHECK-NEXT:           %6 = scf.if %arg0 -> (!llvm.ptr) {
+// CHECK-NEXT:             %7 = func.call @gen() : () -> !llvm.ptr
+// CHECK-NEXT:             llvm.store %7, %0 : !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:             scf.yield %7 : !llvm.ptr
 // CHECK-NEXT:           } else {
-// CHECK-NEXT:             scf.yield %3 : !llvm.ptr<i8>
+// CHECK-NEXT:             scf.yield %3 : !llvm.ptr
 // CHECK-NEXT:           }
-// CHECK-NEXT:           scf.yield %6 : !llvm.ptr<i8>
+// CHECK-NEXT:           scf.yield %6 : !llvm.ptr
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           scf.yield %3 : !llvm.ptr<i8>
+// CHECK-NEXT:           scf.yield %3 : !llvm.ptr
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %2 = llvm.load %0 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:       return %2 : !llvm.ptr<i8>
+// CHECK-NEXT:       %2 = llvm.load %0 : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:       return %2 : !llvm.ptr
 

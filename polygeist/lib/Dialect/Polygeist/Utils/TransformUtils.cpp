@@ -521,31 +521,13 @@ void LoopTools::versionLoop(LoopLikeOpInterface loop,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-template <typename OpTy>
-static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
-                           ValueRange arguments, StringRef functionName,
-                           StringRef typeName) {
-  NamedAttrList attrs;
-  SmallVector<Type> argumentTypes;
-  for (Value argument : arguments)
-    argumentTypes.push_back(argument.getType());
-  attrs.set(sycl::SYCLDialect::getArgumentTypesAttrName(),
-            builder.getTypeArrayAttr(argumentTypes));
-  attrs.set(sycl::SYCLDialect::getFunctionNameAttrName(),
-            FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
-  attrs.set(sycl::SYCLDialect::getTypeNameAttrName(),
-            FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
-  return builder.create<OpTy>(loc, resTy, ValueRange(arguments), attrs);
-}
-
 static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
                                            unsigned index, OpBuilder builder,
                                            Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
   const auto resTy = builder.getIndexType();
-  return createMethodOp<sycl::SYCLIDGetOp>(
-      builder, loc, MemRefType::get(ShapedType::kDynamic, resTy), {id, indexOp},
-      "operator[]", "id");
+  return builder.create<sycl::SYCLIDGetOp>(
+      loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
 }
 
 static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
@@ -554,8 +536,7 @@ static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
                                                  Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
   const auto resTy = builder.getIndexType();
-  return createMethodOp<sycl::SYCLRangeGetOp>(builder, loc, resTy,
-                                              {range, indexOp}, "get", "range");
+  return builder.create<sycl::SYCLRangeGetOp>(loc, resTy, range, indexOp);
 }
 
 static sycl::SYCLAccessorGetRangeOp
@@ -564,8 +545,7 @@ createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
   const sycl::AccessorType accTy = accessor.getAccessorType();
   const auto rangeTy = cast<sycl::RangeType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
-  return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
-      builder, loc, rangeTy, accessor, "get_range", "accessor");
+  return builder.create<sycl::SYCLAccessorGetRangeOp>(loc, rangeTy, accessor);
 }
 
 static sycl::SYCLAccessorSubscriptOp
@@ -577,8 +557,7 @@ createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
   const auto MT = MemRefType::get(
       ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
-  return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
-      builder, loc, MT, {accessor, id}, "operator[]", "accessor");
+  return builder.create<sycl::SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
 }
 
 static sycl::SYCLAccessorGetPointerOp
@@ -588,8 +567,7 @@ createSYCLAccessorGetPointerOp(sycl::AccessorPtrValue accessor,
   const auto MT = MemRefType::get(
       ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
-  return createMethodOp<sycl::SYCLAccessorGetPointerOp>(
-      builder, loc, MT, accessor, "get_pointer", "accessor");
+  return builder.create<sycl::SYCLAccessorGetPointerOp>(loc, MT, accessor);
 }
 
 static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
@@ -649,15 +627,16 @@ VersionConditionBuilder::VersionConditionBuilder(
 }
 
 VersionConditionBuilder::SCFCondition
-VersionConditionBuilder::createSCFCondition(OpBuilder builder,
-                                            Location loc) const {
+VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
+                                            bool useOpaquePointers) const {
   auto GetMemref2PointerOp = [&](Value op) {
     auto MT = cast<MemRefType>(op.getType());
-    return builder.create<polygeist::Memref2PointerOp>(
-        loc,
-        LLVM::LLVMPointerType::get(MT.getElementType(),
-                                   MT.getMemorySpaceAsInt()),
-        op);
+    auto PtrTy = (useOpaquePointers)
+                     ? LLVM::LLVMPointerType::get(MT.getContext(),
+                                                  MT.getMemorySpaceAsInt())
+                     : LLVM::LLVMPointerType::get(MT.getElementType(),
+                                                  MT.getMemorySpaceAsInt());
+    return builder.create<polygeist::Memref2PointerOp>(loc, PtrTy, op);
   };
 
   Value condition;

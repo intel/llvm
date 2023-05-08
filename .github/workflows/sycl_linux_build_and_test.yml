@@ -109,6 +109,14 @@ jobs:
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+    - name: mlir-sycl-doc
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target mlir-sycl-doc
+    - name: polygeist-doc
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target polygeist-doc
     # TODO allow to optionally disable in-tree checks
     - name: check-mlir-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}

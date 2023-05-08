@@ -50,8 +50,11 @@ def DetectReduction : Pass<"detect-reduction"> {
      "scf::SCFDialect", "sycl::SYCLDialect"];
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
-           /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+            /*default=*/"false", 
+            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
   ];
   let statistics = [
     Statistic<"numReductions", "num-reductions", "Number of reductions detected">
@@ -70,8 +73,11 @@ def KernelDisjointSpecialization : Pass<"kernel-disjoint-specialization", "mlir:
   let constructor = "mlir::polygeist::createKernelDisjointSpecializationPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
-           /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+            /*default=*/"false", 
+            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
   ];
   let statistics = [
     Statistic<"numFunctionSpecialized", "num-function-specialized", "Number of function specialized">
@@ -90,6 +96,11 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
       ["memref::MemRefDialect", "polygeist::PolygeistDialect",
        "LLVM::LLVMDialect", "scf::SCFDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
+  let options = [
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
+  ];
 }
 
 def SCFCPUify : Pass<"cpuify"> {
@@ -143,8 +154,11 @@ def LICM : Pass<"licm"> {
   let constructor = "mlir::polygeist::createLICMPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
-           /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+            /*default=*/"false", 
+            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
   ];
   let statistics = [
     Statistic<"numOpHoisted", "num-operations-hoisted", "Number of operations hoisted">

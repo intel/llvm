@@ -101,8 +101,7 @@ static Value getBuiltinVariableValue(Operation *op, spirv::BuiltIn builtin,
 /// Returns the result of creating an operation to get a reference to an element
 /// of a sycl::id or sycl::range.
 Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
-                  Value index, ArrayAttr argumentTypes,
-                  FlatSymbolRefAttr functionName) {
+                  Value index) {
   return TypeSwitch<Type, Value>(
              cast<MemRefType>(res.getType()).getElementType())
       .Case<IDType, RangeType>([&](auto arg) {
@@ -111,9 +110,7 @@ Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
         // Operation type depending on ArgTy
         using OpTy = std::conditional_t<std::is_same_v<ArgTy, IDType>,
                                         SYCLIDGetOp, SYCLRangeGetOp>;
-        return builder.create<OpTy>(
-            loc, dimMtTy, res, index, argumentTypes, functionName, functionName,
-            builder.getAttr<FlatSymbolRefAttr>(ArgTy::getMnemonic()));
+        return builder.create<OpTy>(loc, dimMtTy, res, index);
       });
 }
 
@@ -187,9 +184,6 @@ void rewriteND(Operation *op, spirv::BuiltIn builtin,
       rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, resTy));
   // Load
   const Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  const auto argumentTypes =
-      rewriter.getTypeArrayAttr({MemRefType::get(1, resTy), getIndexTy});
-  const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
   auto mirrorer = getMirror(dimensions);
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {
@@ -199,8 +193,7 @@ void rewriteND(Operation *op, spirv::BuiltIn builtin,
         rewriter, loc, getDimension(rewriter, loc, values, mirrorer(i)),
         targetIndexType,
         /*isUnsignedCast*/ false);
-    const auto ptr = createGetOp(rewriter, loc, dimMtTy, res, index,
-                                 argumentTypes, functionName);
+    const auto ptr = createGetOp(rewriter, loc, dimMtTy, res, index);
     rewriter.create<memref::StoreOp>(loc, val, ptr, zero);
   }
   rewriter.replaceOpWithNewOp<memref::LoadOp>(op, res, zero);

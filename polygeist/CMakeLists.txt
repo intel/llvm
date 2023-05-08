@@ -94,6 +94,8 @@ set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 include(sanitizers)
 
+include(AddPolygeist)
+
 add_subdirectory(include)
 add_subdirectory(lib)
 if (MLIR_INCLUDE_TESTS)

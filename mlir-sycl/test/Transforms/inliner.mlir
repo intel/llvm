@@ -181,7 +181,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // ALWAYS-INLINE:           %[[VAL_1:.*]] = arith.constant 1 : i32
 // ALWAYS-INLINE:           %[[VAL_2:.*]] = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
 // ALWAYS-INLINE:           sycl.constructor @id(%[[VAL_0]], %[[VAL_1]]) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
-// ALWAYS-INLINE:           %[[VAL_3:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+// ALWAYS-INLINE:           %[[VAL_3:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] : (memref<?x!sycl_id_1_>, i32) -> i64
 // ALWAYS-INLINE:           return %[[VAL_2]], %[[VAL_3]] : i32, i64
 // ALWAYS-INLINE:         }
 
@@ -192,7 +192,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // INLINE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // INLINE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
 // INLINE:           sycl.constructor @id(%[[VAL_0]], %[[VAL_1]]) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
-// INLINE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+// INLINE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] : (memref<?x!sycl_id_1_>, i32) -> i64
 // INLINE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
 // INLINE:         }
 
@@ -206,7 +206,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // AGGRESSIVE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // AGGRESSIVE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
 // AGGRESSIVE:           sycl.constructor @id(%[[VAL_0]], %[[VAL_1]]) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
-// AGGRESSIVE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+// AGGRESSIVE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] : (memref<?x!sycl_id_1_>, i32) -> i64
 // AGGRESSIVE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
 // AGGRESSIVE:         }
 
@@ -243,6 +243,6 @@ func.func @main(%id: memref<?x!sycl_id_1_>) -> (i32, i64) {
   %c1_i32 = arith.constant 1 : i32
   %res1 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
   sycl.constructor @id(%id, %c1_i32) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
-  %res2 = sycl.id.get %id[%c1_i32] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+  %res2 = sycl.id.get %id[%c1_i32] : (memref<?x!sycl_id_1_>, i32) -> i64
   return %res1, %res2 : i32, i64
 }

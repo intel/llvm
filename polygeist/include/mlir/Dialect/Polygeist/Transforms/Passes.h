@@ -51,6 +51,8 @@ std::unique_ptr<Pass> createLoopRestructurePass();
 std::unique_ptr<Pass> createMem2RegPass();
 std::unique_ptr<Pass> createOpenMPOptPass();
 std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass>
+createParallelLowerPass(const ParallelLowerOptions &options);
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createReplaceAffineCFGPass();
