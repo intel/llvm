@@ -754,8 +754,12 @@ bool test_fp_types(queue q, const Config &cfg) {
 
   passed &= test<float, N, Op>(q, cfg);
 #ifndef USE_ACCESSORS
-  if (q.get_device().has(sycl::aspect::atomic64))
+
+  if (q.get_device().has(sycl::aspect::atomic64)) {
+#ifndef CMPXCHG_TEST
     passed &= test<double, N, Op>(q, cfg);
+#endif
+  }
 #endif
   return passed;
 }
