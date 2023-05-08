@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
@@ -106,6 +106,6 @@ if (MLIR_INCLUDE_TESTS)
   else()
     message(WARNING "gtest not found, unittests will not be available")
   endif()
-  add_subdirectory(test)  
+  add_subdirectory(test)
 endif()
 add_subdirectory(tools)
