@@ -10,8 +10,8 @@
 // UNSUPPORTED: cuda || hip
 // esimd_emulator does not support online-compiler that invokes 'piProgramBuild'
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include "esimd_test_utils.hpp"
 

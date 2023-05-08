@@ -9,8 +9,8 @@
 
 // REQUIRES: gpu, aspect-fp64
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

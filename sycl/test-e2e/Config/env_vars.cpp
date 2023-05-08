@@ -1,7 +1,7 @@
 // REQUIRES: opencl
 // Env vars are used to pass OpenCL-specific flags to PI compiling/linking.
 //
-// RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -O0 -o %t.out
 //
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %CPU_RUN_PLACEHOLDER %t.out
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %GPU_RUN_PLACEHOLDER %t.out

@@ -3333,10 +3333,6 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
     LLT Ty = MRI.getType(Res);
 
     // Lower (G_FSUB LHS, RHS) to (G_FADD LHS, (G_FNEG RHS)).
-    // First, check if G_FNEG is marked as Lower. If so, we may
-    // end up with an infinite loop as G_FSUB is used to legalize G_FNEG.
-    if (LI.getAction({G_FNEG, {Ty}}).Action == Lower)
-      return UnableToLegalize;
     auto Neg = MIRBuilder.buildFNeg(Ty, RHS);
 
     if (MI.getOpcode() == TargetOpcode::G_STRICT_FSUB)
@@ -4839,6 +4835,7 @@ LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
     Observer.changedInstr(MI);
     return Legalized;
   }
+  case TargetOpcode::G_EXTRACT_VECTOR_ELT:
   case TargetOpcode::G_EXTRACT:
     if (TypeIdx != 1)
       return UnableToLegalize;
@@ -4847,6 +4844,7 @@ LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
     Observer.changedInstr(MI);
     return Legalized;
   case TargetOpcode::G_INSERT:
+  case TargetOpcode::G_INSERT_VECTOR_ELT:
   case TargetOpcode::G_FREEZE:
   case TargetOpcode::G_FNEG:
   case TargetOpcode::G_FABS:

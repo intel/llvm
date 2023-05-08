@@ -18,12 +18,6 @@ from lit.llvm.subst import ToolSubst, FindTool
 # name: The name of this test suite.
 config.name = 'SYCL'
 
-# testFormat: The test format to use to interpret tests.
-#
-# For now we require '&&' between commands, until they get globally killed and
-# the test runner updated.
-config.test_format = lit.formats.ShTest()
-
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp']
 

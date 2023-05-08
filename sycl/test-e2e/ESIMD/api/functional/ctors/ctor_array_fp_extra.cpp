@@ -12,8 +12,8 @@
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in
 // "XREQUIRES".
 // UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 // Test for simd constructor from an array.
 // This test uses extra fp data types, sizes and different simd constructor

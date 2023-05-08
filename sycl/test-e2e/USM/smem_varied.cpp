@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out -DTEST_SHARED
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER  %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out -DTEST_SHARED
+// RUN: %{run} %t1.out
 
 // This test is expected to reliably work with USM allocator which is
 // currently enabled only on level zero.

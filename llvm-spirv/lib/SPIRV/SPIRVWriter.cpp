@@ -354,7 +354,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   }
 
   if (auto *VecTy = dyn_cast<FixedVectorType>(T)) {
-    if (VecTy->getElementType()->isPointerTy()) {
+    if (VecTy->getElementType()->isPointerTy() ||
+        isa<TypedPointerType>(VecTy->getElementType())) {
       // SPV_INTEL_masked_gather_scatter extension changes 2.16.1. Universal
       // Validation Rules:
       // Vector types must be parameterized only with numerical types,
@@ -385,12 +386,21 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
       OS << *T;
       SPIRVCK(T->getArrayNumElements() >= 1, InvalidArraySize, OS.str());
     }
-    return mapType(T, BM->addArrayType(
-                          transType(T->getArrayElementType()),
-                          static_cast<SPIRVConstant *>(transValue(
-                              ConstantInt::get(getSizetType(),
-                                               T->getArrayNumElements(), false),
-                              nullptr))));
+    Type *ElTy = T->getArrayElementType();
+    SPIRVType *TransType = BM->addArrayType(
+        transType(ElTy),
+        static_cast<SPIRVConstant *>(transValue(
+            ConstantInt::get(getSizetType(), T->getArrayNumElements(), false),
+            nullptr)));
+    mapType(T, TransType);
+    if (ElTy->isOpaquePointerTy()) {
+      mapType(
+          ArrayType::get(TypedPointerType::get(Type::getInt8Ty(*Ctx),
+                                               ElTy->getPointerAddressSpace()),
+                         T->getArrayNumElements()),
+          TransType);
+    }
+    return TransType;
   }
 
   if (T->isStructTy() && !T->isSized()) {
@@ -789,22 +799,17 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(StringRef STName,
 }
 
 SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
-  Type *Ty = V->getType();
-  if (!Ty->isPointerTy())
-    return transType(Ty);
-
   if (auto *F = dyn_cast<Function>(V)) {
-    SPIRVType *RT = transType(F->getReturnType());
+    FunctionType *FnTy = F->getType()->isOpaquePointerTy()
+                             ? Scavenger->getFunctionType(F)
+                             : F->getFunctionType();
+    SPIRVType *RT = transType(FnTy->getReturnType());
     std::vector<SPIRVType *> PT;
     for (Argument &Arg : F->args()) {
       assert(OCLTypeToSPIRVPtr);
       Type *Ty = OCLTypeToSPIRVPtr->getAdaptedArgumentType(F, Arg.getArgNo());
       if (!Ty) {
-        Ty = Arg.getType();
-        if (Ty->isPointerTy())
-          Ty = TypedPointerType::get(
-              Scavenger->getArgumentPointerElementType(F, Arg.getArgNo()),
-              Ty->getPointerAddressSpace());
+        Ty = FnTy->getParamType(Arg.getArgNo());
       }
       PT.push_back(transType(Ty));
     }
@@ -812,12 +817,7 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
     return getSPIRVFunctionType(RT, PT);
   }
 
-  auto PointeeTy = Scavenger->getPointerElementType(V);
-  auto AddrSpace = Ty->getPointerAddressSpace();
-  if (auto *AsTy = dyn_cast<Type *>(PointeeTy))
-    return transPointerType(AsTy, AddrSpace);
-  return transPointerType(transScavengedType(cast<Value *>(PointeeTy)),
-                          AddrSpace);
+  return transType(Scavenger->getScavengedType(V));
 }
 
 SPIRVType *
@@ -1219,12 +1219,12 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   }
 }
 
-SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C) {
+SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
+                                              SPIRVType *ExpectedType) {
   // Constant expressions expect their pointer types to be i8* in opaque pointer
   // mode, but the value may have a different "natural" type. If that is the
   // case, we need to adjust the type of the constant.
   SPIRVValue *Trans = transValue(C, nullptr, true, FuncTransMode::Pointer);
-  SPIRVType *ExpectedType = transType(C->getType());
   if (Trans->getType() == ExpectedType || Trans->getType()->isTypePipeStorage())
     return Trans;
 
@@ -1246,12 +1246,12 @@ SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C) {
 }
 
 SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
-  if (auto CPNull = dyn_cast<ConstantPointerNull>(V))
-    return BM->addNullConstant(
-        bcast<SPIRVTypePointer>(transType(CPNull->getType())));
+  SPIRVType *ExpectedType = transScavengedType(V);
+  if (isa<ConstantPointerNull>(V))
+    return BM->addNullConstant(bcast<SPIRVTypePointer>(ExpectedType));
 
   if (isa<ConstantTargetNone>(V))
-    return BM->addNullConstant(transType(V->getType()));
+    return BM->addNullConstant(ExpectedType);
 
   if (auto CAZero = dyn_cast<ConstantAggregateZero>(V)) {
     Type *AggType = CAZero->getType();
@@ -1270,43 +1270,47 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
           BM->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_arbitrary_precision_integers),
           SPIRVEC_InvalidBitWidth, std::to_string(BitWidth));
-      return BM->addConstant(transType(V->getType()), ConstI->getValue());
+      return BM->addConstant(ExpectedType, ConstI->getValue());
     }
-    return BM->addConstant(transType(V->getType()), ConstI->getZExtValue());
+    return BM->addConstant(ExpectedType, ConstI->getZExtValue());
   }
 
   if (auto ConstFP = dyn_cast<ConstantFP>(V)) {
-    auto BT = static_cast<SPIRVType *>(transType(V->getType()));
+    auto *BT = static_cast<SPIRVType *>(ExpectedType);
     return BM->addConstant(
         BT, ConstFP->getValueAPF().bitcastToAPInt().getZExtValue());
   }
 
   if (auto ConstDA = dyn_cast<ConstantDataArray>(V)) {
+    SPIRVType *InnerTy = ExpectedType->getArrayElementType();
     std::vector<SPIRVValue *> BV;
     for (unsigned I = 0, E = ConstDA->getNumElements(); I != E; ++I)
-      BV.push_back(transConstantUse(ConstDA->getElementAsConstant(I)));
-    return BM->addCompositeConstant(transType(V->getType()), BV);
+      BV.push_back(transConstantUse(ConstDA->getElementAsConstant(I), InnerTy));
+    return BM->addCompositeConstant(ExpectedType, BV);
   }
 
   if (auto ConstA = dyn_cast<ConstantArray>(V)) {
+    SPIRVType *InnerTy = ExpectedType->getArrayElementType();
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstA->op_begin(), E = ConstA->op_end(); I != E; ++I)
-      BV.push_back(transConstantUse(cast<Constant>(*I)));
-    return BM->addCompositeConstant(transType(V->getType()), BV);
+      BV.push_back(transConstantUse(cast<Constant>(*I), InnerTy));
+    return BM->addCompositeConstant(ExpectedType, BV);
   }
 
   if (auto ConstDV = dyn_cast<ConstantDataVector>(V)) {
+    SPIRVType *InnerTy = ExpectedType->getScalarType();
     std::vector<SPIRVValue *> BV;
     for (unsigned I = 0, E = ConstDV->getNumElements(); I != E; ++I)
-      BV.push_back(transConstantUse(ConstDV->getElementAsConstant(I)));
-    return BM->addCompositeConstant(transType(V->getType()), BV);
+      BV.push_back(transConstantUse(ConstDV->getElementAsConstant(I), InnerTy));
+    return BM->addCompositeConstant(ExpectedType, BV);
   }
 
   if (auto ConstV = dyn_cast<ConstantVector>(V)) {
+    SPIRVType *InnerTy = ExpectedType->getScalarType();
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transConstantUse(cast<Constant>(*I)));
-    return BM->addCompositeConstant(transType(V->getType()), BV);
+      BV.push_back(transConstantUse(cast<Constant>(*I), InnerTy));
+    return BM->addCompositeConstant(ExpectedType, BV);
   }
 
   if (const auto *ConstV = dyn_cast<ConstantStruct>(V)) {
@@ -1344,9 +1348,11 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
                                         Capacity);
     }
     std::vector<SPIRVValue *> BV;
-    for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transConstantUse(cast<Constant>(*I)));
-    return BM->addCompositeConstant(transType(V->getType()), BV);
+    for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I) {
+      SPIRVType *InnerTy = ExpectedType->getStructMemberType(BV.size());
+      BV.push_back(transConstantUse(cast<Constant>(*I), InnerTy));
+    }
+    return BM->addCompositeConstant(ExpectedType, BV);
   }
 
   if (auto ConstUE = dyn_cast<ConstantExpr>(V)) {
@@ -1367,7 +1373,7 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (isa<UndefValue>(V)) {
-    return BM->addUndef(transType(V->getType()));
+    return BM->addUndef(ExpectedType);
   }
 
   return nullptr;
@@ -1875,12 +1881,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                             SPIRVEC_FunctionPointers, toString(V)))
       return nullptr;
     return BM->addConstantFunctionPointerINTEL(
-        transPointerType(F->getFunctionType(), F->getAddressSpace()),
+        transPointerType(transScavengedType(F), F->getAddressSpace()),
         static_cast<SPIRVFunction *>(transValue(F, nullptr)));
   }
 
   if (auto GV = dyn_cast<GlobalVariable>(V)) {
-    llvm::Type *Ty = GV->getValueType();
+    llvm::Type *Ty = Scavenger->getScavengedType(GV);
     // Though variables with common linkage type are initialized by 0,
     // they can be represented in SPIR-V as uninitialized variables with
     // 'Export' linkage type, just as tentative definitions look in C
@@ -1897,7 +1903,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       Value *SpecialInit = unwrapSpecialTypeInitializer(ConstUE);
       if (auto *SpecialGV = dyn_cast_or_null<GlobalValue>(SpecialInit)) {
         Init = SpecialGV;
-        Ty = SpecialGV->getValueType();
+        Ty = Scavenger->getScavengedType(SpecialGV);
       }
       BVarInit = transValue(Init, nullptr);
     } else if (ST && isa<UndefValue>(Init)) {
@@ -1960,7 +1966,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       StorageClass = SPIRSPIRVAddrSpaceMap::map(AddressSpace);
     }
 
-    SPIRVType *TranslatedTy = transPointerType(Ty, GV->getAddressSpace());
+    SPIRVType *TranslatedTy = transType(Ty);
     auto BVar = static_cast<SPIRVVariable *>(
         BM->addVariable(TranslatedTy, GV->isConstant(), transLinkageType(GV),
                         BVarInit, GV->getName().str(), StorageClass, nullptr));
@@ -2155,8 +2161,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
             BB));
 
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
-    SPIRVType *TranslatedTy =
-        transPointerType(Alc->getAllocatedType(), Alc->getAddressSpace());
+    SPIRVType *TranslatedTy = transScavengedType(V);
     if (Alc->isArrayAllocation()) {
       if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
                               SPIRVEC_InvalidInstruction,
@@ -2349,27 +2354,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     }
     // GEP can return a vector of pointers, in this case GEP will calculate
     // addresses for each pointer in the vector
-    SPIRVType *TranslatedTy = nullptr;
-    if (auto *VecPtrTy = dyn_cast<VectorType>(GEP->getType())) {
-      if (!VecPtrTy->getElementType()->isOpaquePointerTy()) {
-        TranslatedTy = transType(GEP->getType());
-      } else {
-        // Re-create vector type from GEP's result element type in opaque
-        // pointers mode
-        llvm::VectorType *GEPReturn = VectorType::get(
-            TypedPointerType::get(GEP->getResultElementType(),
-                                  VecPtrTy->getPointerAddressSpace()),
-            VecPtrTy->getElementCount());
-        TranslatedTy = transType(GEPReturn);
-        // Align Base with the return type
-        if (!GEP->getResultElementType()->isVoidTy())
-          TransPointerOperand = BM->addUnaryInst(OpBitcast, TranslatedTy,
-                                                 TransPointerOperand, BB);
-      }
-    } else {
-      TranslatedTy = transPointerType(GEP->getResultElementType(),
-                                      GEP->getType()->getPointerAddressSpace());
-    }
+    SPIRVType *TranslatedTy = transScavengedType(GEP);
     return mapValue(V,
                     BM->addPtrAccessChainInst(TranslatedTy, TransPointerOperand,
                                               Indices, BB, GEP->isInBounds()));
@@ -3648,6 +3633,8 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
   case Intrinsic::arithmetic_fence:
+  case Intrinsic::masked_gather:
+  case Intrinsic::masked_scatter:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4710,10 +4697,9 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       }
     }
 
-    // TODO: Check for opaque pointer requirements.
     return addDecorations(
         BM->addExtInst(
-            transType(CI->getType()), BM->getExtInstSetId(ExtSetKind), ExtOp,
+            transScavengedType(CI), BM->getExtInstSetId(ExtSetKind), ExtOp,
             transArguments(CI, BB,
                            SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
             BB),
@@ -4746,9 +4732,8 @@ SPIRVValue *LLVMToSPIRVBase::transIndirectCallInst(CallInst *CI,
   if (BM->getErrorLog().checkError(
           BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_function_pointers),
           SPIRVEC_FunctionPointers, CI)) {
-    // TODO: Check for opaque pointer requirements.
     return BM->addIndirectCallInst(
-        transValue(CI->getCalledOperand(), BB), transType(CI->getType()),
+        transValue(CI->getCalledOperand(), BB), transScavengedType(CI),
         transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
         BB);
   }
@@ -5203,12 +5188,12 @@ bool LLVMToSPIRVBase::translate() {
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
 
-  // Use the type scavenger to recover pointer element types.
-  Scavenger = std::make_unique<SPIRVTypeScavenger>(*M);
-
   // Transform SPV-IR builtin calls to builtin variables.
   if (!transWorkItemBuiltinCallsToVariables())
     return false;
+
+  // Use the type scavenger to recover pointer element types.
+  Scavenger = std::make_unique<SPIRVTypeScavenger>(*M);
 
   if (!transSourceLanguage())
     return false;
@@ -5985,7 +5970,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       Type *RetTy = CI->getType();
       auto F = CI->getCalledFunction();
       if (!RetTy->isVoidTy()) {
-        SPRetTy = transType(RetTy);
+        SPRetTy = transScavengedType(CI);
       } else if (Args.size() > 0 && F->arg_begin()->hasStructRetAttr()) {
         SPRetTy = transType(F->getParamStructRetType(0));
         Args.erase(Args.begin());
