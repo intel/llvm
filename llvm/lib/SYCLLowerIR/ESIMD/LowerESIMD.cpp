@@ -1655,14 +1655,17 @@ void generateKernelMetadata(Module &M) {
           bool IsLocalAcc = false;
 
           if (KernelArgAccPtrs) {
-            auto *AccMD = cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
-            llvm::esimd::assert_and_diag(AccMD,
-                               "Malformed IR: cannot find accessor arguments info");
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            llvm::esimd::assert_and_diag(
+                AccMD, "Malformed IR: cannot find accessor arguments info");
             auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
             IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
 
             constexpr unsigned LocalAS{3};
-            IsLocalAcc = IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
+            IsLocalAcc =
+                IsAcc &&
+                cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
           }
 
           if (IsLocalAcc) {
