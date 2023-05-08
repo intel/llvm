@@ -125,26 +125,29 @@ of those new hints.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-enum class prefetch_hint_enum {
+enum class cache_level {
   L1,
   L2,
   L3,
   L4,
 };
 
-template <prefetch_hint_enum Hint>
+struct nontemporal;
+
 struct prefetch_hint_key {
+  template <cache_level Level, typename Hint>
   using value_t = property_value<prefetch_hint_key,
-                                 std::integral_constant<prefetch_hint_enum, Hint>>;
+                                 std::integral_constant<cache_level, Level>,
+                                 Hint>
 };
 
-template <prefetch_hint_enum Hint>
-inline constexpr prefetch_hint_key::value_t<Hint> prefetch_hint;
+template <cache_level Level, typename Hint>
+inline constexpr prefetch_hint_key::value_t<Level, Hint> prefetch_hint;
 
-inline constexpr prefetch_hint_key::value_t<prefetch_hint_enum::L1> prefetch_hint_L1;
-inline constexpr prefetch_hint_key::value_t<prefetch_hint_enum::L2> prefetch_hint_L2;
-inline constexpr prefetch_hint_key::value_t<prefetch_hint_enum::L3> prefetch_hint_L3;
-inline constexpr prefetch_hint_key::value_t<prefetch_hint_enum::L4> prefetch_hint_L4;
+inline constexpr prefetch_hint_key::value_t<cache_level::L1, void> prefetch_hint_L1;
+inline constexpr prefetch_hint_key::value_t<cache_level::L2, void> prefetch_hint_L2;
+inline constexpr prefetch_hint_key::value_t<cache_level::L3, void> prefetch_hint_L3;
+inline constexpr prefetch_hint_key::value_t<cache_level::L4, void> prefetch_hint_L4;
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -240,6 +243,18 @@ q.parallel_for(N, [=](auto i) {
   for (int j = 0; j < M; ++j) {
     syclex::prefetch(&data[j + 10], syclex::properties{syclex::prefetch_hint_L1});
     syclex::prefetch(&data[j + 100], syclex::properties{syclex::prefetch_hint_L3});
+    foo(data[j]);
+  }
+});
+----
+
+[source,c++]
+----
+using syclex = sycl::ext::oneapi::experimental;
+
+q.parallel_for(N, [=](auto i) {
+  for (int j = 0; j < M; ++j) {
+    syclex::prefetch(&data[j + 10], syclex::properties{syclex::prefetch_hint<syclex::cache_level::L1, syclex::nontemporal>});
     foo(data[j]);
   }
 });
