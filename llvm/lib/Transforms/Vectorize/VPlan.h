@@ -959,6 +959,44 @@ public:
 #endif
 };
 
+/// VPWidenCastRecipe is a recipe to create vector cast instructions.
+class VPWidenCastRecipe : public VPRecipeBase, public VPValue {
+  /// Cast instruction opcode.
+  Instruction::CastOps Opcode;
+
+  /// Result type for the cast.
+  Type *ResultTy;
+
+public:
+  VPWidenCastRecipe(Instruction::CastOps Opcode, VPValue *Op, Type *ResultTy,
+                    CastInst *UI = nullptr)
+      : VPRecipeBase(VPDef::VPWidenCastSC, Op), VPValue(this, UI),
+        Opcode(Opcode), ResultTy(ResultTy) {
+    assert((!UI || UI->getOpcode() == Opcode) &&
+           "opcode of underlying cast doesn't match");
+    assert((!UI || UI->getType() == ResultTy) &&
+           "result type of underlying cast doesn't match");
+  }
+
+  ~VPWidenCastRecipe() override = default;
+
+  VP_CLASSOF_IMPL(VPDef::VPWidenCastSC)
+
+  /// Produce widened copies of the cast.
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+
+  Instruction::CastOps getOpcode() const { return Opcode; }
+
+  /// Returns the result type of the cast.
+  Type *getResultType() const { return ResultTy; }
+};
+
 /// A recipe for widening Call instructions.
 class VPWidenCallRecipe : public VPRecipeBase, public VPValue {
   /// ID of the vector intrinsic to call when widening the call. If set the
@@ -2218,6 +2256,11 @@ class VPlan {
   /// preheader of the vector loop.
   VPBasicBlock *Entry;
 
+  /// VPBasicBlock corresponding to the original preheader. Used to place
+  /// VPExpandSCEV recipes for expressions used during skeleton creation and the
+  /// rest of VPlan execution.
+  VPBasicBlock *Preheader;
+
   /// Holds the VFs applicable to this VPlan.
   SmallSetVector<ElementCount, 2> VFs;
 
@@ -2260,12 +2303,34 @@ class VPlan {
   DenseMap<const SCEV *, VPValue *> SCEVToExpansion;
 
 public:
-  VPlan(VPBasicBlock *Entry = nullptr) : Entry(Entry) {
-    if (Entry)
-      Entry->setPlan(this);
+  /// Construct a VPlan with original preheader \p Preheader, trip count \p TC
+  /// and \p Entry to the plan. At the moment, \p Preheader and \p Entry need to
+  /// be disconnected, as the bypass blocks between them are not yet modeled in
+  /// VPlan.
+  VPlan(VPBasicBlock *Preheader, VPValue *TC, VPBasicBlock *Entry)
+      : VPlan(Preheader, Entry) {
+    TripCount = TC;
+  }
+
+  /// Construct a VPlan with original preheader \p Preheader and \p Entry to
+  /// the plan. At the moment, \p Preheader and \p Entry need to be
+  /// disconnected, as the bypass blocks between them are not yet modeled in
+  /// VPlan.
+  VPlan(VPBasicBlock *Preheader, VPBasicBlock *Entry)
+      : Entry(Entry), Preheader(Preheader) {
+    Entry->setPlan(this);
+    Preheader->setPlan(this);
+    assert(Preheader->getNumSuccessors() == 0 &&
+           Preheader->getNumPredecessors() == 0 &&
+           "preheader must be disconnected");
   }
 
   ~VPlan();
+
+  /// Create an initial VPlan with preheader and entry blocks. Creates a
+  /// VPExpandSCEVRecipe for \p TripCount and uses it as plan's trip count.
+  static VPlanPtr createInitialVPlan(const SCEV *TripCount,
+                                     ScalarEvolution &PSE);
 
   /// Prepare the plan for execution, setting up the required live-in values.
   void prepareToExecute(Value *TripCount, Value *VectorTripCount,
@@ -2278,16 +2343,9 @@ public:
   VPBasicBlock *getEntry() { return Entry; }
   const VPBasicBlock *getEntry() const { return Entry; }
 
-  VPBasicBlock *setEntry(VPBasicBlock *Block) {
-    Entry = Block;
-    Block->setPlan(this);
-    return Entry;
-  }
-
   /// The trip count of the original loop.
-  VPValue *getOrCreateTripCount() {
-    if (!TripCount)
-      TripCount = new VPValue();
+  VPValue *getTripCount() const {
+    assert(TripCount && "trip count needs to be set before accessing it");
     return TripCount;
   }
 
@@ -2430,10 +2488,13 @@ public:
   }
 
   void addSCEVExpansion(const SCEV *S, VPValue *V) {
-    assert(SCEVToExpansion.find(S) == SCEVToExpansion.end() &&
-           "SCEV already expanded");
+    assert(!SCEVToExpansion.contains(S) && "SCEV already expanded");
     SCEVToExpansion[S] = V;
   }
+
+  /// \return The block corresponding to the original preheader.
+  VPBasicBlock *getPreheader() { return Preheader; }
+  const VPBasicBlock *getPreheader() const { return Preheader; }
 
 private:
   /// Add to the given dominator tree the header block and every new basic block
