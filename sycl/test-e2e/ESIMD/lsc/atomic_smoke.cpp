@@ -754,7 +754,7 @@ bool test_fp_types(queue q, const Config &cfg) {
 
   passed &= test<float, N, Op>(q, cfg);
 #ifndef USE_ACCESSORS
-  if (q.get_device().has(sycl::aspect::fp64))
+  if (q.get_device().has(sycl::aspect::atomic64))
     passed &= test<double, N, Op>(q, cfg);
 #endif
   return passed;
@@ -785,6 +785,7 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   passed &= test_fp_types<1, Op>(q, cfg);
   passed &= test_fp_types<2, Op>(q, cfg);
   passed &= test_fp_types<4, Op>(q, cfg);
+
   passed &= test_fp_types<8, Op>(q, cfg);
 #ifndef USE_DWORD_ATOMICS
   passed &= test_fp_types<16, Op>(q, cfg);
@@ -841,7 +842,7 @@ int main(void) {
   passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q, cfg);
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
-
+#ifndef CMPXCHG_TEST
   // Check load/store operations
   passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
   passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
@@ -851,7 +852,7 @@ int main(void) {
     passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
   }
 #endif
-
+#endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }
