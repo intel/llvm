@@ -1,9 +1,9 @@
 // REQUIRES: xptifw, opencl
 // RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
-// RUN: %clangxx -fsycl -O2 %s -o %t.opt.out
-// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.opt.out | FileCheck %s --check-prefixes=CHECK,CHECK-OPT
-// RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization %s -o %t.noopt.out
-// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.noopt.out | FileCheck %s --check-prefixes=CHECK,CHECK-NOOPT
+// RUN: %{build} -O2 -o %t.opt.out
+// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.opt.out | FileCheck %s --check-prefixes=CHECK,CHECK-OPT
+// RUN: %{build} -fno-sycl-dead-args-optimization -o %t.noopt.out
+// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.noopt.out | FileCheck %s --check-prefixes=CHECK,CHECK-NOOPT
 
 #ifdef XPTI_COLLECTOR
 
