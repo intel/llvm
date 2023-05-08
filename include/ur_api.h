@@ -1698,7 +1698,7 @@ typedef struct ur_image_format_t {
 typedef struct ur_image_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_IMAGE_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
-    ur_mem_type_t type;        ///< [in] memory object type
+    ur_mem_type_t type;        ///< [in][nocheck] memory object type
     size_t width;              ///< [in] image width
     size_t height;             ///< [in] image height
     size_t depth;              ///< [in] image depth
@@ -1725,7 +1725,6 @@ typedef struct ur_image_desc_t {
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_FLAGS_MASK & flags`
-///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -1733,6 +1732,7 @@ typedef struct ur_image_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR

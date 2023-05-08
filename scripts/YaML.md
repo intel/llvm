@@ -460,10 +460,11 @@ class ur_name_flags_v(IntEnum):
 * A struct|union requires the following sequence of mappings: {`members`}
   - A member requires the following scalar fields: {`desc`, `type`, `name`}
     + `desc` will be used as the members's description comment
-    + `desc` must begin with one the following annotations: {`"[in]"`, `"[out]"`, `"[in,out]"`} 
+    + `desc` must begin with one the following annotations: {`"[in]"`, `"[out]"`, `"[in,out]"`, `"[nocheck]"`} 
       - `in` is used for members that are read-only; if the member is a pointer, then the memory being pointed to is also read-only
       - `out` is used for members that are write-only; if the member is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for members that are both read and write; typically this is used for pointers to other data structures that contain both read and write members
+      - `nocheck` is used to specify that no additional validation checks will be generated.
     + `desc` may include one the following annotations: {`"[optional]"`, `"[typename(typeVarName, sizeVarName)]"`}
       - `optional` is used for members that are pointers where it is legal for the value to be `nullptr`
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
@@ -599,10 +600,11 @@ class ur_name_t(Structure):
 * A function requires the following sequence of mappings: {`params`}
   - A param requires the following scalar fields: {`desc`, `type`, `name`}
     + `desc` will be used as the params's description comment
-    + `desc` must begin with one the following annotations: {`"[in]"`, `"[out]"`, `"[in,out]"`} 
+    + `desc` must begin with one the following annotations: {`"[in]"`, `"[out]"`, `"[in,out]"`, `"[nocheck]"`} 
       - `in` is used for params that are read-only; if the param is a pointer, then the memory being pointed to is also read-only
       - `out` is used for params that are write-only; if the param is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for params that are both read and write; typically this is used for pointers to other data structures that contain both read and write params
+      - `nocheck` is used to specify that no additional validation checks will be generated.
     + `desc` may include one the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[release]"`, `"[typename(typeVarName)]"`}
       - `optional` is used for params that are handles or pointers where it is legal for the value to be `nullptr`
       - `range` is used for params that are array pointers to specify the valid range that the is valid to read

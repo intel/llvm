@@ -856,8 +856,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
         if (pHost == NULL &&

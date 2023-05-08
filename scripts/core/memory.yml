@@ -178,7 +178,7 @@ base: $x_base_desc_t
 members:
     - type: $x_mem_type_t
       name: type
-      desc: "[in] memory object type"
+      desc: "[in][nocheck] memory object type"
     - type: size_t
       name: width
       desc: "[in] image width"
@@ -233,7 +233,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
