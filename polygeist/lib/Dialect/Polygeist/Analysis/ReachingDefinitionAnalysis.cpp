@@ -212,6 +212,7 @@ void ReachingDefinitionAnalysis::visitOperation(
           // kills the potential definitions of values that may alias the
           // current value.
           result |= after->removeModifiers(val);
+          result |= after->removePotentialModifiers(val);
           for (Value aliasedVal : aliasQueries.getMustAlias(val))
             result |= after->removeModifiers(aliasedVal);
           for (Value aliasedVal : aliasQueries.getMayAlias(val))

@@ -57,6 +57,8 @@ struct TestReachingDefinitionAnalysisPass
               llvm::errs() << "'" << *op << "'";
           },
           " ");
+      if (ops->empty())
+        llvm::errs() << "<none>";
       llvm::errs() << "\n";
     };
 
