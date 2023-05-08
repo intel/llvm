@@ -60,6 +60,9 @@ def err_incompatible_fp_eval_method_options : Error<
     "option 'ffp-eval-method' cannot be used with option "
     "%select{'fapprox-func'|'mreassociate'|'freciprocal'}0">;
 
+def err_incompatible_fp_accuracy_options : Error<
+    "option 'ffp-accuracy' cannot be used with option 'fmath-errno'">;
+
 def remark_fe_backend_optimization_remark : Remark<"%0">, BackendInfo,
     InGroup<BackendOptimizationRemark>;
 def remark_fe_backend_optimization_remark_missed : Remark<"%0">, BackendInfo,

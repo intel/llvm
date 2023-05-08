@@ -3584,50 +3584,56 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
 void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                                              DiagnosticsEngine &Diags) {
   for (StringRef Values : Args.getAllArgValues(OPT_ffp_builtin_accuracy_EQ)) {
-    SmallVector<StringRef, 8> ValuesArr;
-    Values.split(ValuesArr, ' ');
-    for (const auto &Val : ValuesArr) {
-      SmallVector<StringRef, 3> ValElement;
-      Val.split(ValElement, ':');
-      // The option is of the form -ffp-accuracy=value.
-      if (ValElement.size() == 1) {
-        StringRef FPAccuracy = ValElement[0];
-        if (!(FPAccuracy.equals("default") || FPAccuracy.equals("high") ||
-              FPAccuracy.equals("low") || FPAccuracy.equals("medium") ||
-              FPAccuracy.equals("sycl") || FPAccuracy.equals("cuda")))
-          Diags.Report(diag::err_drv_unsupported_option_argument)
-              << "ffp-accuracy" << FPAccuracy;
-        Opts.FPAccuracyVal = ValElement[0].str();
-      }
-      // The option is of the form -ffp-accuracy=value:[f1, ... fn].
-      if (ValElement.size() == 2) {
-        SmallVector<StringRef, 30> FuncList;
-        ValElement[1].split(FuncList, ',');
-        for (StringRef FuncName : FuncList) {
-          if (FuncName.front() == '[')
-            FuncName = FuncName.drop_front(1);
-          if (FuncName.back() == ']')
-            FuncName = FuncName.drop_back(1);
-          auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
-          if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
-            if (!FuncMap->second.empty()) {
-              Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                  << FuncMap->second << FuncName.str();
+    if (Opts.MathErrno) {
+      Diags.Report(diag::err_drv_incompatible_options) << "ffp-accuracy"
+                                                       << "-fmath-errno";
+    } else {
+      SmallVector<StringRef, 8> ValuesArr;
+      Values.split(ValuesArr, ' ');
+      for (const auto &Val : ValuesArr) {
+        SmallVector<StringRef, 3> ValElement;
+        Val.split(ValElement, ':');
+        // The option is of the form -ffp-accuracy=value.
+        if (ValElement.size() == 1) {
+          StringRef FPAccuracy = ValElement[0];
+          if (!(FPAccuracy.equals("default") || FPAccuracy.equals("high") ||
+                FPAccuracy.equals("low") || FPAccuracy.equals("medium") ||
+                FPAccuracy.equals("sycl") || FPAccuracy.equals("cuda")))
+            Diags.Report(diag::err_drv_unsupported_option_argument)
+                << "ffp-accuracy" << FPAccuracy;
+          Opts.FPAccuracyVal = ValElement[0].str();
+        }
+        // The option is of the form -ffp-accuracy=value:[f1, ... fn].
+        if (ValElement.size() == 2) {
+          SmallVector<StringRef, 30> FuncList;
+          ValElement[1].split(FuncList, ',');
+          for (StringRef FuncName : FuncList) {
+            if (FuncName.front() == '[')
+              FuncName = FuncName.drop_front(1);
+            if (FuncName.back() == ']')
+              FuncName = FuncName.drop_back(1);
+            auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
+            if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
+              if (!FuncMap->second.empty()) {
+                Diags.Report(diag::warn_function_fp_accuracy_already_set)
+                    << FuncMap->second << FuncName.str();
+              }
+            } else {
+              StringRef FPAccuracy = ValElement[0];
+              if (!(FPAccuracy.equals("default") || FPAccuracy.equals("high") ||
+                    FPAccuracy.equals("low") || FPAccuracy.equals("medium") ||
+                    FPAccuracy.equals("sycl") || FPAccuracy.equals("cuda")))
+                Diags.Report(diag::err_drv_unsupported_option_argument)
+                    << "ffp-accuracy" << FPAccuracy;
+              if (!Opts.FPAccuracyVal.empty())
+                Diags.Report(diag::warn_function_fp_accuracy_already_set)
+                    << Opts.FPAccuracyVal << FuncName.str();
+              // No need to fill the map if the FPaccuracy is 'default'.
+              // The default builtin will be generated.
+              if (!FPAccuracy.equals("default"))
+                Opts.FPAccuracyFuncMap.insert(
+                    {FuncName.str(), FPAccuracy.str()});
             }
-          } else {
-            StringRef FPAccuracy = ValElement[0];
-            if (!(FPAccuracy.equals("default") || FPAccuracy.equals("high") ||
-                  FPAccuracy.equals("low") || FPAccuracy.equals("medium") ||
-                  FPAccuracy.equals("sycl") || FPAccuracy.equals("cuda")))
-              Diags.Report(diag::err_drv_unsupported_option_argument)
-                  << "ffp-accuracy" << FPAccuracy;
-            if (!Opts.FPAccuracyVal.empty())
-              Diags.Report(diag::warn_function_fp_accuracy_already_set)
-                  << Opts.FPAccuracyVal << FuncName.str();
-            // No need to fill the map if the FPaccuracy is 'default'.
-            // The default builtin will be generated.
-            if (!FPAccuracy.equals("default"))
-              Opts.FPAccuracyFuncMap.insert({FuncName.str(), FPAccuracy.str()});
           }
         }
       }
