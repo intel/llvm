@@ -1647,7 +1647,8 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
 
   auto RT = TypeTranslator.translateType(
       mlirclang::anonymize(mlirclang::getLLVMType(FD->getReturnType(), CGM)));
-  if (auto RTPtrTy = dyn_cast<LLVM::LLVMPointerType>(RT)) {
+  if (auto RTPtrTy = dyn_cast<LLVM::LLVMPointerType>(RT);
+      RTPtrTy && !RTPtrTy.isOpaque()) {
     // Temporary workaround until the translation to LLVM/MLIR types from Clang
     // types completes migration to opaque pointers.
     RT = getTypes().getPointerType(RTPtrTy.getElementType(),
@@ -2671,11 +2672,17 @@ public:
   }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI, StringRef InFile) override {
+    // To make opaque vs. typed pointer configurable, we have to set the
+    // opaque/typed pointer mode on the context before passing it to the
+    // contructor of MLIRASTConsumer, to avoid the pointer mode to be set to the
+    // default, which is configured through CMake.
+    auto LCtx = std::make_unique<llvm::LLVMContext>();
+    LCtx->setOpaquePointers(UseOpaquePointers);
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
         EmitIfFound, Done, LLVMStringGlobals, Globals, Functions,
         DeviceFunctions, LLVMGlobals, LLVMFunctions, CI.getPreprocessor(),
-        CI.getASTContext(), Module, CI.getSourceManager(), CI.getCodeGenOpts(),
-        ModuleId));
+        CI.getASTContext(), Module, CI.getSourceManager(), std::move(LCtx),
+        CI.getCodeGenOpts(), ModuleId));
   }
 };
 
