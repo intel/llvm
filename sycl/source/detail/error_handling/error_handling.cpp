@@ -75,8 +75,8 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   size_t MaxWGSize = 0;
   Plugin->call<PiApiKind::piDeviceGetInfo>(Device,
-                                          PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                                          sizeof(size_t), &MaxWGSize, nullptr);
+                                           PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                           sizeof(size_t), &MaxWGSize, nullptr);
   if (CompileWGSize[0] != 0) {
     if (CompileWGSize[0] > MaxWGSize || CompileWGSize[1] > MaxWGSize ||
         CompileWGSize[2] > MaxWGSize)
