@@ -34,7 +34,6 @@ namespace id = itanium_demangle;
 static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::accessor<.+>::accessor",
     "^sycl::_V1::accessor<.+>::~accessor",
-    //"^sycl::_V1::accessor<.+>::getNativeImageObj",
     "^sycl::_V1::accessor<.+>::getQualifiedPtr",
     "^sycl::_V1::accessor<.+>::__init_esimd",
     "^sycl::_V1::local_accessor<.+>::local_accessor",
