@@ -28,7 +28,6 @@
 
 # Nested build directory
 /build*
-/sycl/test-e2e/build*
 !buildbot
 
 #==============================================================================#
