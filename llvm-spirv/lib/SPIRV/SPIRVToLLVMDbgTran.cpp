@@ -138,6 +138,8 @@ const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
 const std::string
 SPIRVToLLVMDbgTran::getStringContinued(const SPIRVId Id,
                                        SPIRVExtInst *DebugInst) {
+  if (getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
+    return "";
   std::string Str = BM->get<SPIRVString>(Id)->getStr();
   using namespace SPIRVDebug::Operand::SourceContinued;
   for (auto *I : DebugInst->getContinuedInstructions()) {
