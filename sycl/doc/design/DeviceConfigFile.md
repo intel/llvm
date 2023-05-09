@@ -69,10 +69,60 @@ use _Search Indexes_ backend as inspiration for ours.
 Our backend should generate a map where the key is the target name and the value
 is an object of a custom class/struct including all the information required. 
 
-The original `.td` file should look like the one below: **Question: investigate
-if we can have enums in .td files. Thus we can have list<int> rather than
-list<string> for aspects.** 
+The original `.td` file should look like the one below: 
 ``` 
+include "llvm/TableGen/SearchableTable.td"
+// AspectEnum, AspectEntry, and all the aspects definitions could be outlined
+// to another .td file that could be included into this file
+def AspectEnum : GenericEnum {
+  let FilterClass = "AspectEntry";
+  let NameField = "Name";
+  let ValueField = "Encoding";
+}
+
+class AspectEntry<bits<16> enc> {
+  string Name = NAME;
+  bits<16> Encoding = enc;
+}
+
+def AspectCpu : AspectEntry<1>;
+def AspectGpu : AspectEntry<2>;
+def AspectAccelerator : AspectEntry<3>;
+def AspectCustom : AspectEntry<4>;
+def AspectFp16 : AspectEntry<5>;
+def AspectFp64 : AspectEntry<6>;
+def AspectImage : AspectEntry<9>;
+def AspectOnline_compiler : AspectEntry<10>;
+def AspectOnline_linker : AspectEntry<11>;
+def AspectQueue_profiling : AspectEntry<12>;
+def AspectUsm_device_allocations : AspectEntry<13>;
+def AspectUsm_host_allocations : AspectEntry<14>;
+def AspectUsm_shared_allocations : AspectEntry<15>;
+def AspectUsm_system_allocations : AspectEntry<17>;
+def AspectExt_intel_pci_address : AspectEntry<18>;
+def AspectExt_intel_gpu_eu_count : AspectEntry<19>;
+def AspectExt_intel_gpu_eu_simd_width : AspectEntry<20>;
+def AspectExt_intel_gpu_slices : AspectEntry<21>;
+def AspectExt_intel_gpu_subslices_per_slice : AspectEntry<22>;
+def AspectExt_intel_gpu_eu_count_per_subslice : AspectEntry<23>;
+def AspectExt_intel_max_mem_bandwidth : AspectEntry<24>;
+def AspectExt_intel_mem_channel : AspectEntry<25>;
+def AspectUsm_atomic_host_allocations : AspectEntry<26>;
+def AspectUsm_atomic_shared_allocations : AspectEntry<27>;
+def AspectAtomic64 : AspectEntry<28>;
+def AspectExt_intel_device_info_uuid : AspectEntry<29>;
+def AspectExt_oneapi_srgb : AspectEntry<30>;
+def AspectExt_oneapi_native_assert : AspectEntry<31>;
+def AspectHost_debuggable : AspectEntry<32>;
+def AspectExt_intel_gpu_hw_threads_per_eu : AspectEntry<33>;
+def AspectExt_oneapi_cuda_async_barrier : AspectEntry<34>;
+def AspectExt_oneapi_bfloat16_math_functions : AspectEntry<35>;
+def AspectExt_intel_free_memory : AspectEntry<36>;
+def AspectExt_intel_device_id : AspectEntry<37>;
+def AspectExt_intel_memory_clock_rate : AspectEntry<38>;
+def AspectExt_intel_memory_bus_width : AspectEntry<39>;
+def AspectEmulated : AspectEntry<40>;
+    
 def TargetTable : DynamicTable { 
     let FilterClass = "TargetInfo";
     let Fields = ["TargetName", "aspects", "maySupportOtherAspects",
@@ -80,41 +130,105 @@ def TargetTable : DynamicTable {
     let PrimaryKey = ["TargetName"];
 }
 
-class TargetInfo <string tgtName, list<string> listAspects, bit otherAspects,
+class TargetInfo <string tgtName, list<AspectEntry> listAspects, bit otherAspects,
                   list<int> listSubGroupSizes, string toolchain, string device>
 {
-          list<string> aspects = listAspects;
-          bits<1> maySupportOtherAspects = otherAspects;
-          list<int> subGroupSizes = listSubGroupSizes;
-          string aotToolchain = toolchain;
-          string oclocDevice = device;
+    list<AspectEntry> aspects = listAspects;
+    bits<1> maySupportOtherAspects = otherAspects;
+    list<int> subGroupSizes = listSubGroupSizes;
+    string aotToolchain = toolchain;
+    string oclocDevice = device;
 }
 
-def : TargetInfo<"TargetA", {"aspect_name_1", "aspect_name_2"}, 
-                                  0, {8, 16}, "ocloc", "tgtA">; 
-def : TargetInfo<"TargetB", {"aspect_name_4", "aspect_name_8"},
-                                  0, {8, 16}, "ocloc", "tgtB">;
-def : TargetInfo<"TargetC", {"aspect_name_6", "aspect_name_11"},
-                                   0, {8, 32}, "ocloc", "tgtC">;
+def : TargetInfo<"TargetA", [AspectCpu, AspectAtomic64], 
+                                  0, [8, 16], "ocloc", "tgtA">; 
+def : TargetInfo<"TargetB", [AspectGpu, AspectFp16],
+                                  0, [8, 16], "ocloc", "tgtB">;
+def : TargetInfo<"TargetC", [AspectEmulated, AspectImage],
+                                   0, [8, 32], "ocloc", "tgtC">;
 ```
+Note: backends tested don't allow lists within `TargetInfo` class. I
+_think_ this is a backend limitation, rather than a TableGen limitation.
+Thus, we should be able to lift this limitation in our own backend.
 
 The generated `.inc` file should look like the example below: 
 ```c++
+enum AspectEnum {
+  AspectAccelerator = 3,
+  AspectAtomic64 = 28,
+  AspectCpu = 1,
+  AspectCustom = 4,
+  AspectEmulated = 40,
+  AspectExt_intel_device_id = 37,
+  AspectExt_intel_device_info_uuid = 29,
+  AspectExt_intel_free_memory = 36,
+  AspectExt_intel_gpu_eu_count = 19,
+  AspectExt_intel_gpu_eu_count_per_subslice = 23,
+  AspectExt_intel_gpu_eu_simd_width = 20,
+  AspectExt_intel_gpu_hw_threads_per_eu = 33,
+  AspectExt_intel_gpu_slices = 21,
+  AspectExt_intel_gpu_subslices_per_slice = 22,
+  AspectExt_intel_max_mem_bandwidth = 24,
+  AspectExt_intel_mem_channel = 25,
+  AspectExt_intel_memory_bus_width = 39,
+  AspectExt_intel_memory_clock_rate = 38,
+  AspectExt_intel_pci_address = 18,
+  AspectExt_oneapi_bfloat16_math_functions = 35,
+  AspectExt_oneapi_cuda_async_barrier = 34,
+  AspectExt_oneapi_native_assert = 31,
+  AspectExt_oneapi_srgb = 30,
+  AspectFp16 = 5,
+  AspectFp64 = 6,
+  AspectGpu = 2,
+  AspectHost_debuggable = 32,
+  AspectImage = 9,
+  AspectOnline_compiler = 10,
+  AspectOnline_linker = 11,
+  AspectQueue_profiling = 12,
+  AspectUsm_atomic_host_allocations = 26,
+  AspectUsm_atomic_shared_allocations = 27,
+  AspectUsm_device_allocations = 13,
+  AspectUsm_host_allocations = 14,
+  AspectUsm_shared_allocations = 15,
+  AspectUsm_system_allocations = 17,
+};
+    
 struct TargetInfo {
   bool maySupportOtherAspects;
-  std::vector<std::string> aspects;
-  std::vector<int> subGroupSizes;
+  std::vector<unsigned> aspects;
+  std::vector<unsigned> subGroupSizes;
   std::string aotToolchain;
   std::string oclocDevice;
 };
 
 std::map<std::string, TargetInfo> targets = {
     {"TargetA",
-     {{"aspect_name_1", "aspect_name_2"}, 0, {8, 16}, "ocloc", "tgtA"}},
+     {{AspectCpu, AspectAtomic64}, 0, {8, 16}, "ocloc", "tgtA"}},
     {"TargetB",
-     {{"aspect_name_4", "aspect_name_8"}, 0, {8, 16}, "ocloc", "tgtB"}},
+     {{AspectGpu, AspectFp16}, 0, {8, 16}, "ocloc", "tgtB"}},
     {"TargetC",
-     {{"aspect_name_6", "aspect_name_11"}, 0, {8, 32}, "ocloc", "tgtC"}}};
+     {{AspectEmulated, AspectImage}, 0, {8, 32}, "ocloc", "tgtC"}}};
+```
+
+We also need a header file that includes the `.inc` file generated by the
+TableGen backend. Other backends don't generate the definition of `struct
+TargetInfo`. This might be a limitation of the backends, or a limitation of
+TableGen. In case it cannot be autogenerated by the backend, a possible
+workaround is simply to define the struct in this header file. This header
+file should look like the code below:
+```c++
+namespace DeviceConfigFile {
+// In case the backend cannot generate a definition for TargetInfo
+struct TargetInfo {
+  bool maySupportOtherAspects;
+  std::vector<unsigned> aspects;
+  std::vector<unsigned> subGroupSizes;
+  std::string aotToolchain;
+  std::string oclocDevice;
+};
+
+#include "device_config_file.inc"
+}; // namespace DeviceConfigFile
 ```
 
 Other modules can query the map to get the information like in the example
@@ -132,20 +246,14 @@ if (info == DeviceConfigFile::targets.end()) {
 }
 ```
 
-**TODO: extend to explain how we should create a header file declaring the
-namespace and including the .inc file within.**
-
 ### Changes to Build Infrastructure
 We need the information about the targets in multiple tools and compiler
 modules listed in [Requirements](#Requirements).  Thus, we need to make sure
 that the generation of the `.inc` file out of the `.td` file is done in time
 for all the consumers. The command we need to run for TableGen is `llvm-tblgen
--gen-[custom-backend] -I /llvm-root/llvm/include/ input.td -o output.inc`.
+-gen-dynamic-tables -I /llvm-root/llvm/include/ input.td -o output.inc`.
 Additionally, we need to set dependencies adequately so that this command is
 run before any of the consumers need it.
-
-**Question: can we set the flag ourselves? Is there any convention we need to
-follow?**
 
 ### Changes to the DPC++ Frontend
 To allow users to add new targets we provide a new flag:
