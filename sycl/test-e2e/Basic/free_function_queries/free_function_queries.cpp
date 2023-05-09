@@ -1,9 +1,7 @@
 // FIXME: Investigate OS-agnostic failures
 // REQUIRES: TEMPORARY_DISABLED
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // UNSUPPORTED: windows
 // The failure is caused by intel/llvm#5213

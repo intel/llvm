@@ -8,8 +8,8 @@
 // REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // The test checks that it's possible to write through the simd subscript
 // operator. E.g.:

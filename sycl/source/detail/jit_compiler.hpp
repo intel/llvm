@@ -12,9 +12,13 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
+#include <unordered_map>
+
 namespace jit_compiler {
+enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
+struct SYCLKernelAttribute;
 using ArgUsageMask = std::vector<unsigned char>;
 } // namespace jit_compiler
 
@@ -46,13 +50,19 @@ private:
   jit_compiler &operator=(const jit_compiler &&) = delete;
 
   pi_device_binaries
-  createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo);
+  createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
+                       ::jit_compiler::BinaryFormat Format);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
 
+  std::vector<uint8_t> encodeReqdWorkGroupSize(
+      const ::jit_compiler::SYCLKernelAttribute &Attr) const;
+
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  std::unordered_map<std::string, OSModuleHandle> CachedModules;
 
   std::unique_ptr<::jit_compiler::JITContext> MJITContext;
 };
