@@ -76,3 +76,9 @@ function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
         WORKING_DIRECTORY ${content-build-dir})
     FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
 endfunction()
+
+# Escape a string to be able to be processed by REGEX
+function(EscapeRegex IN_OUT_STR)
+    string(REGEX REPLACE "([][+.*()^])" "\\\\\\1" ${IN_OUT_STR} "${${IN_OUT_STR}}")
+    set(${IN_OUT_STR} "${${IN_OUT_STR}}" PARENT_SCOPE)
+endfunction()

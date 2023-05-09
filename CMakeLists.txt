@@ -157,8 +157,10 @@ file(GLOB_RECURSE format_src
     "*.cpp"
 )
 
+set(UR_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}.")
+EscapeRegex(UR_BINARY_DIR)
 # Exclude files from build directory to ensure they're not passed to the formatter
-list(FILTER format_src EXCLUDE REGEX "${CMAKE_CURRENT_BINARY_DIR}.")
+list(FILTER format_src EXCLUDE REGEX ${UR_BINARY_DIR})
 
 # Add code formatter target
 add_custom_target(cppformat)
