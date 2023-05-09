@@ -3,7 +3,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
+// UNSUPPORTED: accelerator
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
