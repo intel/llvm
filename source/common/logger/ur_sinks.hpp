@@ -8,14 +8,7 @@
 #include <iostream>
 #include <sstream>
 
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace filesystem = std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace filesystem = std::experimental::filesystem;
-#endif
-
+#include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
 
 namespace logger {
