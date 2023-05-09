@@ -29,8 +29,7 @@ def Polygeist_StructType :
     Polygeist_Type<"Struct", "struct"> {
   let summary = "Polygeist Struct";
   let description = [{
-    Structure type that is allowed to be the element type of MemRef and LLVM
-    Pointer.
+    Type used to represent a collection of data members together in memory.
   }];
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
