@@ -1,6 +1,6 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s
