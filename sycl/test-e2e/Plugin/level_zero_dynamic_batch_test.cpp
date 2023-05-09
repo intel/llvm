@@ -1,13 +1,13 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.ooo.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -DUSING_INORDER -o %t.ino.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -DUSING_DISCARD_EVENTS -o %t.discard_events.out
+// RUN: %{build} -o %t.ooo.out
+// RUN: %{build} -DUSING_INORDER -o %t.ino.out
+// RUN: %{build} -DUSING_DISCARD_EVENTS -o %t.discard_events.out
 
 // Check that dynamic batching raises/lowers batch size
-// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
-// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
-// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
 
 // level_zero_dynamic_batch_test.cpp
 //

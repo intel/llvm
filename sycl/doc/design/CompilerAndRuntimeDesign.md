@@ -758,6 +758,29 @@ entry:
 
 Note: Kernel naming is not fully stable for now.
 
+##### Kernel Fusion Support
+
+The [experimental kernel fusion
+extension](../extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
+also supports the CUDA backend. However, as neither CUBIN nor PTX are a suitable
+input format for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
+suitable IR has to be added as an additional device binary.
+
+Therefore, in case kernel fusion should be performed for the CUDA backend, the
+user needs to specify the additional flag `-fsycl-embed-ir` during compilation,
+to add LLVM IR as an additional device binary. When the flag `-fsycl-embed-ir`
+is specified, the LLVM IR produced by Clang for the CUDA backend device
+compilation is added to the fat binary file. To this end, the resulting
+file-table from `sycl-post-link` is additionally passed to the
+`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`.
+
+This device binary in LLVM IR format can be retrieved by the SYCL runtime and
+used by the kernel fusion JIT compiler. The resulting fused kernel is compiled
+to PTX assembly by the kernel fusion JIT compiler at runtime.
+
+Note that the device binary in LLVM IR does not replace the device binary in
+CUBIN/PTX format, but is embed in addition to it.
+
 ### Integration with SPIR-V format
 
 This section explains how to generate SPIR-V specific types and operations from

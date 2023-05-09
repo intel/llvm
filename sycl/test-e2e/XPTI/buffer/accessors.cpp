@@ -1,7 +1,7 @@
 // REQUIRES: xptifw, opencl
 // RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.out | FileCheck %s 2>&1
+// RUN: %{build} -o %t.out
+// RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
 #ifdef XPTI_COLLECTOR
 
@@ -21,6 +21,7 @@ int main() {
   sycl::buffer<int, 1> Buf(3);
 
   sycl::range<1> Range{Buf.size()};
+  sycl::nd_range<1> NDRange(Buf.size(), Buf.size());
 
   Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2015|1024|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
@@ -35,7 +36,7 @@ int main() {
     auto A5 = Buf.get_access<mode::discard_read_write, target::device>(cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID6:.*]]|2014|1029|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
     auto A6 = Buf.get_access<mode::atomic>(cgh);
-    cgh.parallel_for<class FillBuffer>(Range, [=](sycl::id<1> WIid) {
+    cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::id<1> WIid) {
       (void)A1;
       (void)A2;
       (void)A3;

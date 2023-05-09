@@ -141,6 +141,15 @@ public:
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
 
+// Clang may warn about the use of diagnose_if in __SYCL_WARN_IMAGE_ASPECT, so
+// we disable that warning as we make appropriate checks to ensure its
+// existence.
+// TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgcc-compat"
+#endif // defined(__clang__)
+
   /// Indicates if all of the SYCL devices on this platform have the
   /// given feature.
   ///
@@ -149,7 +158,12 @@ public:
   ///
   /// \return true if all of the SYCL devices on this platform have the
   /// given feature.
-  bool has(aspect Aspect) const;
+  bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
+
+// TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif // defined(__clang__)
 
   /// Return this platform's default context
   ///

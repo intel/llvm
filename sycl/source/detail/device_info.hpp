@@ -771,7 +771,8 @@ struct get_device_info_impl<
     // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
     // and LevelZero.
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
-           (Dev->getBackend() == backend::opencl);
+           (Dev->getBackend() == backend::opencl) ||
+           (Dev->getBackend() == backend::ext_oneapi_cuda);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;

@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 // FIXME: Investigate Windows-specific failures
 // REQUIRES: TEMPORARY_DISABLED
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to outdated __esimd_media_ld
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks matrix transpose implementation with media block read/write
 

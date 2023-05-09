@@ -1,12 +1,13 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ %s -o %t.out
+// REQUIRES: gpu
+// RUN: %{build} -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ -o %t.out
 
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-DISABLED
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-DISABLED
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -sycl-std=2017 %s -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-DISABLED
+// RUN: %{build} -sycl-std=2017 -o %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-DISABLED
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -sycl-std=2020 %s -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-ENABLED
+// RUN: %{build} -sycl-std=2020 -o %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-ENABLED
 
 #include <iostream>
 #include <sycl/sycl.hpp>

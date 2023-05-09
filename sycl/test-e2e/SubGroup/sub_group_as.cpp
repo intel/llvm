@@ -1,14 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// Sub-groups are not suported on Host
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DUSE_DEPRECATED_LOCAL_ACC %s -o %t.out
-// Sub-groups are not suported on Host
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out
+// RUN: %{run} %t.out
 //
 // Missing __spirv_GenericCastToPtrExplicit_ToLocal,
 // __spirv_SubgroupInvocationId, __spirv_GenericCastToPtrExplicit_ToGlobal,

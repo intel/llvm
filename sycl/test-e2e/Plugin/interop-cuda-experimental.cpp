@@ -1,7 +1,7 @@
 // REQUIRES: cuda && cuda_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %cuda_options %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %cuda_options -o %t.out
+// RUN: %{run} %t.out
 
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
