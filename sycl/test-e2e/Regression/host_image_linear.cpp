@@ -87,7 +87,7 @@ int test3D(coordinate_normalization_mode NormMode, addressing_mode AddrMode) {
 
   for (size_t X = 0; X < IMG_WIDTH - 1; ++X) {
     for (size_t Y = 0; Y < IMG_HEIGHT - 1; ++Y) {
-      for (size_t Z = 0; Z < IMG_HEIGHT - 1; ++Z) {
+      for (size_t Z = 0; Z < IMG_DEPTH - 1; ++Z) {
         for (float OffsetX : {0.0f, 0.25f, 0.50f, 0.75f}) {
           for (float OffsetY : {0.0f, 0.25f, 0.50f, 0.75f}) {
             for (float OffsetZ : {0.0f, 0.25f, 0.50f, 0.75f}) {
