@@ -58,6 +58,8 @@ new targets at application compile time. Finally, the tools and compiler
 modules that need information about the targets can simply query the map to get
 it.
 
+Further information about TableGen can be found in [TableGenFundamentals](https://releases.llvm.org/1.9/docs/TableGenFundamentals.html).
+
 ### New `TableGen` backend
 Note: This [guide](https://llvm.org/docs/TableGen/BackGuide.html) details how
 to implement new TableGen backends. Also, the [Search
