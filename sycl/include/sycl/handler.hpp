@@ -1558,6 +1558,9 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+    if (Acc.empty())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -2429,7 +2432,7 @@ public:
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
-                  (Dims == 1 || isImageOrImageArray(AccessTarget))) {
+                  (Dims <= 1 || isImageOrImageArray(AccessTarget))) {
       setType(detail::CG::Fill);
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -2442,6 +2445,11 @@ public:
       MPattern.resize(sizeof(T));
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
+    } else if constexpr (Dims == 0) {
+      // Special case for zero-dim accessors.
+      parallel_for<
+          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+          range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       range<Dims> Range = Dst.get_range();
       parallel_for<

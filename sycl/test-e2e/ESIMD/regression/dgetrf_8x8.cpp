@@ -8,8 +8,8 @@
 // REQUIRES: gpu, aspect-fp64
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 1
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out 1
 //
 // Reduced version of dgetrf.cpp - M = 8, N = 8, single batch.
 //

@@ -183,6 +183,7 @@ unavailable.
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;
+ * **fusion**: - Runtime supports kernel fusion;
 
 ## llvm-lit parameters
 
