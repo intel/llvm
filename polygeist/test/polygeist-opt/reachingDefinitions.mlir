@@ -193,3 +193,26 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
   %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>      
   return
 }
+
+// COM: Test load after load in the presence of control flow.
+// CHECK-LABEL: test_tag: test12_load1:
+// CHECK-NEXT:  operand #0
+// CHECK-NEXT:  - mods: test12_store2
+// CHECK-NEXT:  - pMods:
+// CHECK-LABEL: test_tag: test12_load2:
+// CHECK-NEXT:  operand #0
+// CHECK-NEXT:  - mods: <unknown>
+// CHECK-NEXT:  - pMods: test12_store2
+func.func @test12(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
+  scf.if %cond {
+    %val = arith.constant 0 : i32
+    memref.store %val, %arg1[] {tag_name = "test12_store2"}: memref<i32>
+    scf.yield
+  }
+  else {
+    scf.yield
+  }
+  %1 = memref.load %arg1[] {tag = "test12_load1"} : memref<i32>
+  %2 = memref.load %arg2[] {tag = "test12_load2"} : memref<i32>
+  return
+}

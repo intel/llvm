@@ -168,7 +168,7 @@ void ReachingDefinitionAnalysis::visitOperation(
 
   // Transfer the input state.
   ChangeResult result = ChangeResult::NoChange;
-  after->join(before);
+  propagateIfChanged(after, after->join(before));
 
   // Retrieve the alias utilities for the function this operation belongs to.
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
