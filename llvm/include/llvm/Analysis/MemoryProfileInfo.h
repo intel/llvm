@@ -24,8 +24,8 @@ namespace llvm {
 namespace memprof {
 
 /// Return the allocation type for a given set of memory profile values.
-AllocationType getAllocType(uint64_t MaxAccessCount, uint64_t MinSize,
-                            uint64_t MinLifetime);
+AllocationType getAllocType(uint64_t TotalLifetimeAccessDensity,
+                            uint64_t AllocCount, uint64_t TotalLifetime);
 
 /// Build callstack metadata from the provided list of call stack ids. Returns
 /// the resulting metadata node.
@@ -58,9 +58,9 @@ private:
   };
 
   // The node for the allocation at the root.
-  CallStackTrieNode *Alloc;
+  CallStackTrieNode *Alloc = nullptr;
   // The allocation's leaf stack id.
-  uint64_t AllocStackId;
+  uint64_t AllocStackId = 0;
 
   void deleteTrieNode(CallStackTrieNode *Node) {
     if (!Node)
@@ -77,7 +77,7 @@ private:
                      bool CalleeHasAmbiguousCallerContext);
 
 public:
-  CallStackTrie() : Alloc(nullptr), AllocStackId(0) {}
+  CallStackTrie() = default;
   ~CallStackTrie() { deleteTrieNode(Alloc); }
 
   bool empty() const { return Alloc == nullptr; }

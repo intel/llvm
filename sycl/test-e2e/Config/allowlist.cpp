@@ -1,5 +1,5 @@
 // REQUIRES: cpu
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 //
 // RUN: env PRINT_DEVICE_INFO=1 %t.out > %t1.conf
 // RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t1.conf %t.out

@@ -135,6 +135,9 @@ struct all_devices_have<aspect::ext_intel_memory_bus_width>
 template <>
 struct all_devices_have<aspect::emulated>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_40__> {};
+template <>
+struct all_devices_have<aspect::ext_intel_legacy_image>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_41__> {};
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
@@ -264,6 +267,9 @@ struct any_device_has<aspect::ext_intel_memory_bus_width>
 template <>
 struct any_device_has<aspect::emulated>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_40__> {};
+template <>
+struct any_device_has<aspect::ext_intel_legacy_image>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_41__> {};
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 
 template <aspect Aspect>

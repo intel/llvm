@@ -1,5 +1,5 @@
 // REQUIRES: opencl, cpu
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.out 1 &> tmp.txt
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*,cpu" cat tmp.txt | %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:cpu,cpu" cat tmp.txt | %t.out

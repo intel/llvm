@@ -1,16 +1,15 @@
 // REQUIRES: opencl
 // Env vars are used to pass OpenCL-specific flags to PI compiling/linking.
 //
-// RUN: %clangxx -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -O0 -o %t.out
 //
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %{run} %t.out
 //
 // Now test for invalid options to make sure they are really passed to
 // a device compiler. Intel GPU runtime doesn't give an error for
 // invalid options, so we don't test it here.
 //
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %if cpu %{ env SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %{run} %t.out %}
 
 #include <cassert>
 #include <memory>

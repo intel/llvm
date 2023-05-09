@@ -6,7 +6,7 @@
 
 // open question on whether this will work with CUDA or Hip.
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 
 // select sub-devices
 //   ONEAPI_DEVICE_SELECTOR=(any backend):(any

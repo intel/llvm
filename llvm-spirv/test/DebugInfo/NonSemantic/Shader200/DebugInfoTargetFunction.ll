@@ -12,7 +12,7 @@
 ; CHECK-SPIRV-DAG: String [[#TargetFunc:]] "_Z3foov"
 
 ; CHECK-SPIRV-DAG: ExtInst [[#]] [[#DebugNone:]] [[#]] DebugInfoNone
-; CHECK-SPIRV-DAG: ExtInst [[#]] [[#]] [[#]] DebugFunction [[#Func]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#DebugNone]] [[#TargetFunc]]
+; CHECK-SPIRV-DAG: ExtInst [[#]] [[#]] [[#]] DebugFunction [[#Func]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#DebugNone]] [[#TargetFunc]]
 
 ; CHECK-LLVM: define spir_func void @_Z11foo_wrapperv() {{.*}} !dbg ![[#DbgSubProg:]] {
 ; CHECK-LLVM: ![[#DbgSubProg]] = distinct !DISubprogram(name: "foo_wrapper", linkageName: "_Z11foo_wrapperv", scope: null, file: ![[#]], line: 3, type: ![[#]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: ![[#]], templateParams: ![[#]], retainedNodes: ![[#]], targetFuncName: "_Z3foov")

@@ -3,8 +3,8 @@
 // UNSUPPORTED: gpu-intel-gen9, gpu-intel-gen12
 // The query of free memory is not supported on integrated devices
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZES_ENABLE_SYSMAN=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env ZES_ENABLE_SYSMAN=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // The test is to check that the free device memory is reported by Level Zero
 // backend

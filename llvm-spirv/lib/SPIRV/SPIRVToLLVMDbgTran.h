@@ -103,7 +103,9 @@ private:
 
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
 
-  DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst);
+  DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst,
+                                      const std::string CompilerVersion = "",
+                                      const std::string Flags = "");
 
   DIBasicType *transTypeBasic(const SPIRVExtInst *DebugInst);
 
@@ -141,9 +143,14 @@ private:
   DINode *transLexicalBlock(const SPIRVExtInst *DebugInst);
   DINode *transLexicalBlockDiscriminator(const SPIRVExtInst *DebugInst);
 
-  DINode *transFunction(const SPIRVExtInst *DebugInst);
+  DINode *transFunction(const SPIRVExtInst *DebugInst,
+                        bool IsMainSubprogram = false);
+  DINode *transFunctionDefinition(const SPIRVExtInst *DebugInst);
+  void transFunctionBody(DISubprogram *DIS, SPIRVId FuncId);
 
   DINode *transFunctionDecl(const SPIRVExtInst *DebugInst);
+
+  MDNode *transEntryPoint(const SPIRVExtInst *DebugInst);
 
   MDNode *transGlobalVariable(const SPIRVExtInst *DebugInst);
 
@@ -161,7 +168,7 @@ private:
 
   SPIRVModule *BM;
   Module *M;
-  DIBuilder Builder;
+  std::unordered_map<SPIRVId, std::unique_ptr<DIBuilder>> BuilderMap;
   SPIRVToLLVM *SPIRVReader;
   bool Enable;
   std::unordered_map<std::string, DIFile *> FileMap;
@@ -176,6 +183,8 @@ private:
 
   DIScope *getScope(const SPIRVEntry *ScopeInst);
   SPIRVExtInst *getDbgInst(const SPIRVId Id);
+
+  DIBuilder &getDIBuilder(const SPIRVExtInst *DebugInst);
 
   template <SPIRVWord OpCode> SPIRVExtInst *getDbgInst(const SPIRVId Id) {
     if (SPIRVExtInst *DI = getDbgInst(Id)) {

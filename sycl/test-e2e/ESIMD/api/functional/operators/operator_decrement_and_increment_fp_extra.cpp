@@ -13,8 +13,8 @@
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in
 // "XREQUIRES".
 // UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 // TODO simd<sycl::half, N> vector filled with unexpected value in case current
 // value is equal to -nan. The ESIMD_TESTS_RUN_WITH_HALF macros must be enabled
