@@ -1,5 +1,5 @@
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || esimd_emulator
 // UNSUPPORTED: gpu-intel-gen9 && windows
 //
 // RUN: %clangxx -fsycl -fsycl-esimd-force-stateless-mem %s -o %t.out

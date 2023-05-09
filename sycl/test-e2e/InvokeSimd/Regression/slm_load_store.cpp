@@ -22,7 +22,7 @@
 
 // TODO: When gpu driver can pass/accept accessor by value,
 // the work-around undef #ifdef US_ACC_PTR should be removed.
-// #define USE_ACC_PTR
+#define USE_ACC_PTR
 
 /* Subgroup size attribute is optional
  * In case it is absent compiler decides what subgroup size to use
