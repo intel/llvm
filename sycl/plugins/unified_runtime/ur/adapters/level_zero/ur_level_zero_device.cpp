@@ -792,7 +792,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
+// UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
 // Here, the indices point to copy engines in a list of all available copy
 // engines.
@@ -802,7 +802,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 // available copy engines can be used.
 const std::pair<int, int>
 getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
-  static const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  static const char *EnvVar = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   // If the environment variable is not set, no copy engines are used when
   // immediate commandlists are being used. For standard commandlists all are
   // used.
@@ -825,7 +827,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    urPrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+    urPrint("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
             "default set.\n");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
@@ -843,16 +845,20 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 // The default is standard commandlists. Setting 1 or 2 specifies use of
 // immediate commandlists. Note: when immediate commandlists are used then
 // device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
-// (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
+// (See env var UR_L0_DEVICE_SCOPE_EVENTS).
 
 // Get value of immediate commandlists env var setting or -1 if unset
 ur_device_handle_t_::ImmCmdlistMode
 ur_device_handle_t_::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
   // default.
+  // TODO: confirm this is good once make_queue revert is added
   static const int ImmediateCommandlistsSetting = [] {
-    const char *ImmediateCommandlistsSettingStr =
+    const char *UrRet = std::getenv("UR_L0_USE_IMMEDIATE_COMMANDLISTS");
+    const char *PiRet =
         std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+    const char *ImmediateCommandlistsSettingStr =
+        UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
     return std::stoi(ImmediateCommandlistsSettingStr);
@@ -1122,7 +1128,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 
     // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
     // However, if
-    // SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
+    // UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
     // still expose CSlices in partitioning by affinity domain for compatibility
     // reasons.
     if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&

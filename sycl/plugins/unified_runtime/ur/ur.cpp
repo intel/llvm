@@ -15,7 +15,6 @@ bool PrintTrace = [] {
   const char *UrRet = std::getenv("UR_L0_TRACE");
   const char *PiRet = std::getenv("SYCL_PI_TRACE");
   const char *Trace = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-
   const int TraceValue = Trace ? std::stoi(Trace) : 0;
   if (TraceValue == -1 || TraceValue == 2) { // Means print all traces
     return true;

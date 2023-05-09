@@ -73,8 +73,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
 // Due to a bug with 2D memory copy to and from non-USM pointers, this option is
 // disabled by default.
 static const bool UseMemcpy2DOperations = [] {
+  const char *UrRet = std::getenv("UR_L0_USE_NATIVE_USM_MEMCPY2D");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D");
   const char *UseMemcpy2DOperationsFlag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D");
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!UseMemcpy2DOperationsFlag)
     return false;
   return std::stoi(UseMemcpy2DOperationsFlag) > 0;
@@ -409,8 +411,10 @@ ur_result_t ur_context_handle_t_::finalize() {
 // here. Setting it to 256 gave best possible performance for several
 // benchmarks.
 static const pi_uint32 MaxNumEventsPerPool = [] {
-  const auto MaxNumEventsPerPoolEnv =
-      std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
+  const char *UrRet = std::getenv("UR_L0_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
+  const char *PiRet = std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
+  const char *MaxNumEventsPerPoolEnv =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   uint32_t Result =
       MaxNumEventsPerPoolEnv ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
   if (Result <= 0)
@@ -531,8 +535,12 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 // If number of events in the immediate command list exceeds this threshold then
 // cleanup process for those events is executed.
 static const size_t ImmCmdListsEventCleanupThreshold = [] {
-  const char *ImmCmdListsEventCleanupThresholdStr = std::getenv(
+  const char *UrRet =
+      std::getenv("UR_L0_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
+  const char *PiRet = std::getenv(
       "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
+  const char *ImmCmdListsEventCleanupThresholdStr =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   static constexpr int Default = 1000;
   if (!ImmCmdListsEventCleanupThresholdStr)
     return Default;
@@ -549,8 +557,11 @@ static const size_t ImmCmdListsEventCleanupThreshold = [] {
 // Get value of the threshold for number of active command lists allowed before
 // we start heuristically cleaning them up.
 static const size_t CmdListsCleanupThreshold = [] {
-  const char *CmdListsCleanupThresholdStr =
+  const char *UrRet = std::getenv("UR_L0_COMMANDLISTS_CLEANUP_THRESHOLD");
+  const char *PiRet =
       std::getenv("SYCL_PI_LEVEL_ZERO_COMMANDLISTS_CLEANUP_THRESHOLD");
+  const char *CmdListsCleanupThresholdStr =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   static constexpr int Default = 20;
   if (!CmdListsCleanupThresholdStr)
     return Default;

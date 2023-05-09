@@ -28,8 +28,11 @@ void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
 // This is an experimental option that allows the use of multiple command lists
 // when submitting barriers. The default is 0.
 static const bool UseMultipleCmdlistBarriers = [] {
-  const char *UseMultipleCmdlistBarriersFlag =
+  const char *UrRet = std::getenv("UR_L0_USE_MULTIPLE_COMMANDLIST_BARRIERS");
+  const char *PiRet =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS");
+  const char *UseMultipleCmdlistBarriersFlag =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!UseMultipleCmdlistBarriersFlag)
     return true;
   return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
@@ -162,7 +165,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   // If we have a list of events to make the barrier from, then we can create a
   // barrier on these and use the resulting event as our future barrier.
   // We use the same approach if
-  // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS is not set to a
+  // UR_L0_USE_MULTIPLE_COMMANDLIST_BARRIERS is not set to a
   // positive value.
   // We use the same approach if we have in-order queue because every command
   // depends on previous one, so we don't need to insert barrier to multiple

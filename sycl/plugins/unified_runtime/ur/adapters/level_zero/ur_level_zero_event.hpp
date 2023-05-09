@@ -35,8 +35,10 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
 // This is an experimental option that allows to disable caching of events in
 // the context.
 const bool DisableEventsCaching = [] {
+  const char *UrRet = std::getenv("UR_L0_DISABLE_EVENTS_CACHING");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING");
   const char *DisableEventsCachingFlag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING");
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!DisableEventsCachingFlag)
     return false;
   return std::stoi(DisableEventsCachingFlag) != 0;
@@ -45,8 +47,10 @@ const bool DisableEventsCaching = [] {
 // This is an experimental option that allows reset and reuse of uncompleted
 // events in the in-order queue with discard_events property.
 const bool ReuseDiscardedEvents = [] {
+  const char *UrRet = std::getenv("UR_L0_REUSE_DISCARDED_EVENTS");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_REUSE_DISCARDED_EVENTS");
   const char *ReuseDiscardedEventsFlag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_REUSE_DISCARDED_EVENTS");
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!ReuseDiscardedEventsFlag)
     return true;
   return std::stoi(ReuseDiscardedEventsFlag) > 0;
@@ -236,8 +240,10 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event,
 
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {
+  char *UrRet = std::getenv("UR_L0_DEVICE_SCOPE_EVENTS");
+  char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
   const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (DeviceEventsSettingStr) {
     // Override the default if user has explicitly chosen the events scope.
     switch (std::stoi(DeviceEventsSettingStr)) {

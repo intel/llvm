@@ -18,8 +18,10 @@
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
 static bool PreferCopyEngine = [] {
-  const char *Env = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
-  return Env ? std::stoi(Env) != 0 : false;
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE_FOR_FILL");
+  const char *PiRet =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  return (UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0));
 }();
 
 // Helper function to check if a pointer is a device pointer.
@@ -2433,7 +2435,9 @@ enum class USMAllocationForceResidencyType {
 
 // Returns the desired USM residency setting
 static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
-  const auto Str = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
+  const char *UrRet = std::getenv("UR_L0_USM_RESIDENT");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
+  const char *Str = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!Str)
     return USMAllocationForceResidencyType::P2PDevices;
   switch (std::atoi(Str)) {
@@ -2861,8 +2865,11 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
   // cross-tile traffic.
   //
   static const bool SingleRootDeviceBufferMigration = [] {
-    const char *EnvStr =
+    const char *UrRet =
+        std::getenv("UR_L0_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION");
+    const char *PiRet =
         std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION");
+    const char *EnvStr = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (EnvStr)
       return (std::stoi(EnvStr) != 0);
     // The default is to migrate normally, which may not always be the

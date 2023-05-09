@@ -260,7 +260,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
 // paths be less likely affected.
 //
 static bool doEagerInit = [] {
-  const char *EagerInit = std::getenv("SYCL_EAGER_INIT");
+  const char *UrRet = std::getenv("UR_L0_EAGER_INIT");
+  const char *PiRet = std::getenv("SYCL_EAGER_INIT");
+  const char *EagerInit = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   return EagerInit ? std::atoi(EagerInit) != 0 : false;
 }();
 
@@ -549,8 +551,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
     // TODO: this currently exhibits some issues in the driver, so
     // we control this with an env var. Remove this control when
     // we settle one way or the other.
+    const char *UrRet = std::getenv("UR_L0_QUEUE_FINISH_HOLD_LOCK");
+    const char *PiRet =
+        std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK");
     static bool HoldLock =
-        std::getenv("SYCL_PI_LEVEL_ZERO_QUEUE_FINISH_HOLD_LOCK") != nullptr;
+        UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0);
     if (!HoldLock) {
       Lock.unlock();
     }
@@ -623,9 +628,16 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
   zeCommandListBatchConfig Config{}; // default initialize
 
   // Default value of 0. This specifies to use dynamic batch size adjustment.
-  const auto BatchSizeStr =
-      (IsCopy) ? std::getenv("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE")
-               : std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
+  const char *UrRet = nullptr;
+  const char *PiRet = nullptr;
+  if (IsCopy) {
+    UrRet = std::getenv("UR_L0_COPY_BATCH_SIZE");
+    PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE");
+  } else {
+    UrRet = std::getenv("UR_L0_BATCH_SIZE");
+    PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
+  }
+  const char *BatchSizeStr = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
     // Level Zero may only support a limted number of commands per command
@@ -658,10 +670,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            urPrint(
-                "SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: failed to parse value\n");
+            urPrint("UR_L0_COPY_BATCH_SIZE: failed to parse value\n");
           else
-            urPrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: failed to parse value\n");
+            urPrint("UR_L0_BATCH_SIZE: failed to parse value\n");
           break;
         }
         switch (Ord) {
@@ -684,27 +695,26 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          urPrint("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: dynamic batch param "
+          urPrint("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
                   "#%d: %d\n",
                   (int)Ord, (int)Val);
         else
-          urPrint(
-              "SYCL_PI_LEVEL_ZERO_BATCH_SIZE: dynamic batch param #%d: %d\n",
-              (int)Ord, (int)Val);
+          urPrint("UR_L0_BATCH_SIZE: dynamic batch param #%d: %d\n", (int)Ord,
+                  (int)Val);
       };
 
     } else {
       // Negative batch sizes are silently ignored.
       if (IsCopy)
-        urPrint("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: ignored negative value\n");
+        urPrint("UR_L0_COPY_BATCH_SIZE: ignored negative value\n");
       else
-        urPrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: ignored negative value\n");
+        urPrint("UR_L0_BATCH_SIZE: ignored negative value\n");
     }
   }
   return Config;
 }
 
-// SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE can be set to an integer (>=0) in
+// UR_L0_LEVEL_ZERO_USE_COMPUTE_ENGINE can be set to an integer (>=0) in
 // which case all compute commands will be submitted to the command-queue
 // with the given index in the compute command group. If it is instead set
 // to negative then all available compute engines may be used.
@@ -712,8 +722,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
 // The default value is "0".
 //
 static const std::pair<int, int> getRangeOfAllowedComputeEngines() {
-  static const char *EnvVar =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
+  const char *UrRet = std::getenv("UR_L0_USE_COMPUTE_ENGINE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
+  const char *EnvVar = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   // If the environment variable is not set only use "0" CCS for now.
   // TODO: allow all CCSs when HW support is complete.
   if (!EnvVar)
@@ -1769,8 +1780,11 @@ ur_result_t ur_queue_handle_t_::insertStartBarrierIfDiscardEventsMode(
 // available in the device, in Level Zero plugin for copy operations submitted
 // to an in-order queue. The default is 1.
 static const bool UseCopyEngineForInOrderQueue = [] {
-  const char *CopyEngineForInOrderQueue =
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE_FOR_IN_ORDER_QUEUE");
+  const char *PiRet =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_IN_ORDER_QUEUE");
+  const char *CopyEngineForInOrderQueue =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   return (!CopyEngineForInOrderQueue ||
           (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();

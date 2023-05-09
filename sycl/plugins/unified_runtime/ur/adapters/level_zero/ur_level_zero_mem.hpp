@@ -31,8 +31,10 @@ bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr);
 // This is an experimental option to test performance of device to device copy
 // operations on copy engines (versus compute engine)
 const bool UseCopyEngineForD2DCopy = [] {
-  const char *CopyEngineForD2DCopy =
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE_FOR_D2D_COPY");
+  const char *PiRet =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY");
+  const char *CopyEngineForD2DCopy = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
 }();
 
