@@ -24,12 +24,9 @@ namespace polygeist {
 // Initial Definition
 //===----------------------------------------------------------------------===//
 
-InitialDefinition *InitialDefinition::singleton = nullptr;
-
-InitialDefinition *InitialDefinition::getInstance() {
-  if (singleton == nullptr)
-    singleton = new InitialDefinition();
-  return singleton;
+InitialDefinition *InitialDefinition::get() {
+  static std::shared_ptr<InitialDefinition> instance(new InitialDefinition());
+  return instance.get();
 }
 
 raw_ostream &operator<<(raw_ostream &os, const InitialDefinition &def) {
@@ -52,9 +49,7 @@ raw_ostream &operator<<(raw_ostream &os, const Definition &def) {
 bool Definition::operator==(const Definition &other) const {
   if (isOperation() && other.isOperation())
     return getOperation() == other.getOperation();
-  if (isInitialDefinition() && other.isInitialDefinition())
-    return true;
-  return false;
+  return (isInitialDefinition() && other.isInitialDefinition());
 }
 
 bool Definition::operator<(const Definition &other) const {

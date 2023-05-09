@@ -15,24 +15,26 @@
 
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
+#include <memory>
 #include <set>
 #include <variant>
 
 namespace mlir {
 namespace polygeist {
 
-/// Represents a definition that is unknown (this is a singleton).
+/// Represents the inital definition of a memory resource.
 class InitialDefinition {
   friend raw_ostream &operator<<(raw_ostream &, const InitialDefinition &);
 
 public:
   InitialDefinition(InitialDefinition &) = delete;
-  bool operator=(const InitialDefinition &) = delete;
-  static InitialDefinition *getInstance();
+  InitialDefinition operator=(const InitialDefinition &) = delete;
+  InitialDefinition(InitialDefinition &&) = delete;
+  InitialDefinition operator=(InitialDefinition &&) = delete;
+  static InitialDefinition *get();
 
 private:
   InitialDefinition() = default;
-  static InitialDefinition *singleton;
 };
 
 /// Represents either an operation that modifies a memory resource, or the
@@ -42,7 +44,7 @@ class Definition {
 
 public:
   Definition(Operation *op) : def(op) {}
-  Definition() : def(InitialDefinition::getInstance()) {}
+  Definition() : def(InitialDefinition::get()) {}
 
   bool operator==(const Definition &other) const;
   bool operator!=(const Definition &other) const { return !(*this == other); }
