@@ -9,11 +9,11 @@
 // CHECK-LABEL: test_tag: test1_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test1_store1
-// CHECK-NEXT: - pMods: 
+// CHECK-NEXT: - pMods: <none>
 // CHECK-LABEL: test_tag: test1_load2
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test1_store2
-// CHECK-NEXT: - pMods: 
+// CHECK-NEXT: - pMods: <none>
 func.func @test1(%val: i32, %idx: index) {
   %alloca = memref.alloca() : memref<1xi32>
   %alloca_0 = memref.alloca() : memref<1xi32>
@@ -28,7 +28,7 @@ func.func @test1(%val: i32, %idx: index) {
 // CHECK-LABEL: test_tag: test2_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test2_store1
-// CHECK-NEXT: - pMods: 
+// CHECK-NEXT: - pMods: <none>
 func.func @test2(%val: i32, %idx: index) {
   %alloca = memref.alloca() : memref<1xi32>
   %cast = memref.cast %alloca : memref<1xi32> to memref<?xi32>
@@ -41,7 +41,7 @@ func.func @test2(%val: i32, %idx: index) {
 // CHECK-LABEL: test_tag: test3_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test3_store2
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test3(%val : i32, %idx: index) {
   %alloca = memref.alloca()  : memref<1xi32>
   %cast = memref.cast %alloca : memref<1xi32> to memref<?xi32>
@@ -94,7 +94,7 @@ func.func @test5(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
 // CHECK-LABEL: test_tag: test6_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test6_store2
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test6(%arg1: memref<i32>, %arg2: memref<i32>) {
   %c0 = arith.constant 0 : i32
   memref.store %c0, %arg2[] {tag_name = "test6_store1"}: memref<i32>
@@ -108,9 +108,10 @@ func.func @test6(%arg1: memref<i32>, %arg2: memref<i32>) {
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods: test7_store1
+// CHECK-LABEL: test_tag: test7_load2
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test7(%arg1: memref<i32>, %arg2: memref<i32>) {
   %c0 = arith.constant 0 : i32
   memref.store %c0, %arg2[] {tag_name = "test7_store1"} : memref<i32>
@@ -124,15 +125,15 @@ func.func @test7(%arg1: memref<i32>, %arg2: memref<i32>) {
 // CHECK-LABEL: test_tag: test8_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test8_store1
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 // CHECK-LABEL: test_tag: test8_load2
 // CHECK: operand #0
-// CHECK-NEXT: - mods:
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - mods: <none>
+// CHECK-NEXT: - pMods: <none>
 // CHECK-LABEL: test_tag: test8_load3
 // CHECK: operand #0
-// CHECK-NEXT: - mods:
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - mods: <none>
+// CHECK-NEXT: - pMods: <none>
 func.func @test8(%val: i32, %idx : index) {
   %alloc = memref.alloc() : memref<1xi32>
   %cast = memref.cast %alloc : memref<1xi32> to memref<?xi32>
@@ -148,7 +149,7 @@ func.func @test8(%val: i32, %idx : index) {
 // CHECK-LABEL: test_tag: test9_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test9(%arg1: memref<i32>) {
   %1 = memref.load %arg1[] {tag = "test9_load1"} : memref<i32>
   return
@@ -158,11 +159,11 @@ func.func @test9(%arg1: memref<i32>) {
 // CHECK-LABEL: test_tag: test10_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test10_store1
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 // CHECK-LABEL: test_tag: test10_load2
 // CHECK: operand #0
-// CHECK-NEXT: - mods:
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - mods: <unknown>
+// CHECK-NEXT: - pMods: <unknown>
 func.func private @foo(%arg0: memref<i32>) -> ()
 
 func.func @test10(%val: i32) {
@@ -178,11 +179,11 @@ func.func @test10(%val: i32) {
 // CHECK-LABEL: test_tag: test11_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test11_store1 test11_store2
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 // CHECK-LABEL: test_tag: test11_load2
 // CHECK: operand #0
-// CHECK-NEXT: - mods:
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - mods: <none>
+// CHECK-NEXT: - pMods: <none>
 func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) {
   memref.store %val, %arg1[] {tag_name = "test11_store1"} : memref<i32>
   scf.if %cond {
@@ -198,31 +199,54 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
   return
 }
 
+// COM: Test load after load in the presence of control flow.
+// CHECK-LABEL: test_tag: test12_load1:
+// CHECK-NEXT:  operand #0
+// CHECK-NEXT:  - mods: <initial> test12_store1
+// CHECK-NEXT:  - pMods: <none>
+// CHECK-LABEL: test_tag: test12_load2:
+// CHECK-NEXT:  operand #0
+// CHECK-NEXT:  - mods: <initial>
+// CHECK-NEXT:  - pMods: test12_store1
+func.func @test12(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
+  scf.if %cond {
+    %val = arith.constant 0 : i32
+    memref.store %val, %arg1[] {tag_name = "test12_store1"}: memref<i32>
+    scf.yield
+  }
+  else {
+    scf.yield
+  }
+  %1 = memref.load %arg1[] {tag = "test12_load1"} : memref<i32>
+  %2 = memref.load %arg2[] {tag = "test12_load2"} : memref<i32>
+  return
+}
+
 // COM: Test that a definition created by a sycl.constructor reaches a load.
-// CHECK-LABEL: test_tag: test12_load1
+// CHECK-LABEL: test_tag: test13_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: test12_store1
-// CHECK-NEXT: - pMods:
-func.func @test12(%val: i64) {
+// CHECK-NEXT: - mods: test13_store1
+// CHECK-NEXT: - pMods: <none>
+func.func @test13(%val: i64) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %addrspace_cast = memref.memory_space_cast %alloca : memref<1x!sycl_id_1> to memref<1x!sycl_id_1, 4>
-  sycl.constructor @id(%addrspace_cast, %val) {MangledFunctionName = @constr, tag_name = "test12_store1"} : (memref<1x!sycl_id_1, 4>, i64)
-  %2 = affine.load %alloca[0] {tag = "test12_load1"} : memref<1x!sycl_id_1>
+  sycl.constructor @id(%addrspace_cast, %val) {MangledFunctionName = @constr, tag_name = "test13_store1"} : (memref<1x!sycl_id_1, 4>, i64)
+  %2 = affine.load %alloca[0] {tag = "test13_load1"} : memref<1x!sycl_id_1>
   return
 }
 
 // COM: Test that a definition reaches a sycl.accessor.subscript operation.
-// CHECK-LABEL: test_tag: test13_load1
+// CHECK-LABEL: test_tag: test14_sub1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 // CHECK: operand #1
-// CHECK-NEXT: - mods: test13_store1
-// CHECK-NEXT: - pMods:
-func.func @test13(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+// CHECK-NEXT: - mods: test14_store1
+// CHECK-NEXT: - pMods: <none>
+func.func @test14(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>  
-  affine.store %val, %alloca[0] {tag_name = "test13_store1"}: memref<1x!sycl_id_1>
-  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test13_load1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
+  affine.store %val, %alloca[0] {tag_name = "test14_store1"}: memref<1x!sycl_id_1>
+  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test14_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
   return
 }

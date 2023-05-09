@@ -46,7 +46,7 @@ def DetectReduction : Pass<"detect-reduction"> {
   let summary = "Detect array reduction operations in a loop";
   let constructor = "mlir::polygeist::createDetectReductionPass()";
   let dependentDialects =
-    ["AffineDialect", "polygeist::PolygeistDialect",
+    ["affine::AffineDialect", "polygeist::PolygeistDialect",
      "scf::SCFDialect", "sycl::SYCLDialect"];
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
@@ -84,7 +84,7 @@ def KernelDisjointSpecialization : Pass<"kernel-disjoint-specialization", "mlir:
   ];
 }
 
-def Mem2Reg : Pass<"mem2reg"> {
+def Mem2Reg : Pass<"polygeist-mem2reg"> {
   let summary = "Represent allocated values in SSA form.";
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
@@ -133,7 +133,7 @@ def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation"
 def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
   let summary = "Raise SCF to affine";
   let constructor = "mlir::polygeist::createRaiseSCFToAffinePass()";
-  let dependentDialects = ["AffineDialect"];
+  let dependentDialects = ["affine::AffineDialect"];
 }
 
 def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
@@ -149,7 +149,7 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
 def LICM : Pass<"licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
   let dependentDialects =
-    ["AffineDialect", "polygeist::PolygeistDialect",
+    ["affine::AffineDialect", "polygeist::PolygeistDialect",
      "scf::SCFDialect", "sycl::SYCLDialect"];
   let constructor = "mlir::polygeist::createLICMPass()";
   let options = [

@@ -1,8 +1,9 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // Temporarily disable test on Windows due to regressions in GPU driver.
-// UNSUPPORTED: hip, windows, gpu-intel-pvc
+// UNSUPPORTED: hip, windows
 
 #include <sycl/sycl.hpp>
 

@@ -142,7 +142,9 @@ public:
   }
 
   CallOpInterface getCallOp() { return callOp; }
-  CallableOpInterface getCallableOp() { return callOp.resolveCallable(); }
+  CallableOpInterface getCallableOp() {
+    return cast<CallableOpInterface>(callOp.resolveCallable());
+  }
   CandidateOperands &getCandidateOperands() { return candidateOps; }
 
   StringRef getParentFunctionName() {
@@ -223,7 +225,7 @@ private:
   // Return true if all candidate operands in \p candidateOperandMap have the
   // same position and false otherwise.
   bool haveSameCandidateOperands(
-      const std::map<Operation *, Candidate::CandidateOperands>
+      const std::map<CallOpInterface, Candidate::CandidateOperands>
           &candidateOperandMap) const;
 };
 
@@ -292,7 +294,8 @@ void Candidate::modifyCall() {
 }
 
 void Candidate::modifyCallee() {
-  CallableOpInterface callableOp = callOp.resolveCallable();
+  CallableOpInterface callableOp =
+      cast<CallableOpInterface>(callOp.resolveCallable());
   Region &callableRgn = *callableOp.getCallableRegion();
   auto funcOp = callableRgn.getParentOfType<FunctionOpInterface>();
   const ArrayAttr origArgAttrs = funcOp.getAllArgAttrs();
@@ -443,7 +446,13 @@ void ArgumentPromotionPass::collectCandidates(
                             << gpuFuncOp.getNameAttr() << ":\n");
 
     gpuFuncOp->walk([&](CallOpInterface callOp) {
-      CallableOpInterface callableOp = callOp.resolveCallable();
+      Operation *op = callOp.resolveCallable();
+      auto callableOp = dyn_cast_or_null<CallableOpInterface>(op);
+      if (!callableOp) {
+        LLVM_DEBUG(llvm::dbgs().indent(4)
+                   << callOp << " does not resolve to a callable\n");
+        return;
+      }
       [[maybe_unused]] StringRef callableName =
           cast<SymbolOpInterface>(callableOp.getOperation()).getName();
       LLVM_DEBUG({
@@ -457,15 +466,20 @@ void ArgumentPromotionPass::collectCandidates(
         return;
 
       // Perform basic checks to ensure all calls to the callable are OK.
-      if (llvm::any_of(userMap.getUsers(callableOp),
-                       [this](CallOpInterface callOp) {
-                         return !isCandidateCall(callOp);
-                       }))
+      if (llvm::any_of(userMap.getUsers(callableOp), [this](Operation *op) {
+            if (CallOpInterface callOp = dyn_cast<CallOpInterface>(op))
+              return !isCandidateCall(callOp);
+            return true;
+          }))
         return;
 
       // Collect candidate operands for each call site.
-      std::map<Operation *, Candidate::CandidateOperands> candidateOperandMap;
-      for (Operation *callOp : userMap.getUsers(callableOp)) {
+      std::map<CallOpInterface, Candidate::CandidateOperands>
+          candidateOperandMap;
+      for (Operation *op : userMap.getUsers(callableOp)) {
+        auto callOp = dyn_cast<CallOpInterface>(op);
+        if (!callOp)
+          continue;
         LLVM_DEBUG(llvm::dbgs().indent(2)
                    << "analyzing operand(s) of: " << *callOp << "\n");
         Candidate::CandidateOperands candidateOps;
@@ -488,7 +502,7 @@ void ArgumentPromotionPass::collectCandidates(
 
       // Create the candidate.
       for (const auto &entry : candidateOperandMap) {
-        CallOpInterface callOp = entry.first;
+        CallOpInterface callOp = cast<CallOpInterface>(entry.first);
         Candidate::CandidateOperands candidateOps = entry.second;
         LLVM_DEBUG(llvm::dbgs().indent(2)
                    << "Found candidate: " << callOp << "\n");
@@ -536,7 +550,8 @@ bool ArgumentPromotionPass::isCandidateOperand(
 
   // The corresponding callee operand must only be used by polygeist subIndex
   // operations.
-  CallableOpInterface callableOp = callOp.resolveCallable();
+  CallableOpInterface callableOp =
+      cast<CallableOpInterface>(callOp.resolveCallable());
   BlockArgument arg = callableOp.getCallableRegion()->getArgument(pos);
   if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
         return !isa<polygeist::SubIndexOp>(use.getOwner());
@@ -595,7 +610,7 @@ bool ArgumentPromotionPass::isCandidateCallable(
 // operands for all call sites to increase the potential opportunity for
 // peeling.
 bool ArgumentPromotionPass::haveSameCandidateOperands(
-    const std::map<Operation *, Candidate::CandidateOperands>
+    const std::map<CallOpInterface, Candidate::CandidateOperands>
         &candidateOperandMap) const {
   assert(!candidateOperandMap.empty() && "Expecting a nonempty map");
 

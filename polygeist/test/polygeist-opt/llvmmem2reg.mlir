@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --polygeist-mem2reg --split-input-file %s | FileCheck %s
 
 module {
   func.func @ll(%arg0: !llvm.ptr) -> !llvm.ptr {

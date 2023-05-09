@@ -32,6 +32,7 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::affine;
 using namespace mlir::arith;
 using namespace polygeist;
 
@@ -236,10 +237,11 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
       bounds.push_back(AffineMap::get(
           /*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
           builder.getAffineSymbolExpr(i)));
-    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-        loop.getLoc(), loop.getResultTypes(), reductions, bounds,
-        loop.getLowerBound(), bounds, loop.getUpperBound(),
-        steps); //, loop.getInitVals());
+    affine::AffineParallelOp affineLoop =
+        rewriter.create<affine::AffineParallelOp>(
+            loop.getLoc(), loop.getResultTypes(), reductions, bounds,
+            loop.getLowerBound(), bounds, loop.getUpperBound(),
+            steps); //, loop.getInitVals());
 
     canonicalizeLoopBounds(rewriter, affineLoop);
 

@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
 #ifdef MLIR_INCLUDE_TESTS
   registerTestPasses();
 #endif
-  registerAffinePasses();
+  affine::registerAffinePasses();
   registerAsyncPasses();
   arith::registerArithPasses();
   func::registerFuncPasses();
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
   sycl::registerConversionPasses();
 
   // Register MLIR stuff
-  registry.insert<AffineDialect, func::FuncDialect, LLVM::LLVMDialect,
+  registry.insert<affine::AffineDialect, func::FuncDialect, LLVM::LLVMDialect,
                   memref::MemRefDialect, async::AsyncDialect, func::FuncDialect,
                   arith::ArithDialect, scf::SCFDialect, gpu::GPUDialect,
                   NVVM::NVVMDialect, omp::OpenMPDialect, math::MathDialect,
