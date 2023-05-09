@@ -94,15 +94,15 @@ struct sub_group_mask {
   bool none() const { return count() == 0; }
   uint32_t count() const {
     unsigned int count = 0;
-    #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     asm("popc.b32 %0, %1;" : "=r"(count) : "r"(Bits));
-    #else
+#else
     auto word = (Bits & valuable_bits(bits_num));
     while (word) {
       word &= (word - 1);
       count++;
     }
-    #endif
+#endif
     return count;
   }
   uint32_t size() const { return bits_num; }

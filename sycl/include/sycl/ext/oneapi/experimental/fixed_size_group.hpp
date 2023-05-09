@@ -113,12 +113,12 @@ public:
 
 protected:
 
-#if defined (__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sub_group_mask Mask;
 #endif
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  fixed_size_group(ext::oneapi::sub_group_mask mask):Mask(mask) {}
+  fixed_size_group(ext::oneapi::sub_group_mask mask) : Mask(mask) {}
 #else
   fixed_size_group() {}
 #endif
