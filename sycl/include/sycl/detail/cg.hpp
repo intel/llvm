@@ -75,6 +75,7 @@ public:
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
+    ExecCommandBuffer = 22,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -592,6 +593,15 @@ public:
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
   detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
+};
+class CGExecCommandBuffer : public CG {
+public:
+  RT::PiExtCommandBuffer MCommandBuffer;
+
+  CGExecCommandBuffer(RT::PiExtCommandBuffer CommandBuffer,
+                      std::vector<AccessorImplHost *> Requirements)
+      : CG(CGTYPE::ExecCommandBuffer, {}, {}, {}, Requirements, {}),
+        MCommandBuffer(CommandBuffer) {}
 };
 
 } // namespace detail

@@ -255,6 +255,13 @@ public:
     ensureContextInitialized();
     return MContext;
   }
+  
+  // Sets a sync point which is used when this event represents an enqueue to a
+  // RT::PiExtCommandBuffer.
+  void setSyncPoint(RT::PiExtSyncPoint SyncPoint) { MSyncPoint = SyncPoint; }
+
+  // Get the sync point associated with this event.
+  RT::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -301,6 +308,10 @@ protected:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  // If this event represents a submission to a RT::PiExtCommandBuffer
+  // the sync point for that submission is stored here.
+  RT::PiExtSyncPoint MSyncPoint;
 
   friend std::vector<RT::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

@@ -109,10 +109,14 @@ public:
     UPDATE_REQUIREMENT,
     EMPTY_TASK,
     HOST_TASK,
-    FUSION
+    FUSION,
+    ENQUEUE_TO_CMD_BUFFER,
+    EXEC_CMD_BUFFER,
   };
 
-  Command(CommandType Type, QueueImplPtr Queue);
+  Command(CommandType Type, QueueImplPtr Queue,
+          RT::PiExtCommandBuffer CommandBuffer = nullptr,
+          const std::vector<RT::PiExtSyncPoint> &SyncPoints = {});
 
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
@@ -371,6 +375,16 @@ public:
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
+
+protected:
+  /// Gets the command buffer (if any) associated with this command.
+  RT::PiExtCommandBuffer getCommandBuffer() const { return MCommandBuffer; }
+
+  /// CommandBuffer which will be used to submit to instead of the queue, if
+  /// set.
+  RT::PiExtCommandBuffer MCommandBuffer;
+  /// List of sync points for submissions to a command buffer.
+  std::vector<RT::PiExtSyncPoint> MSyncPointDeps;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -606,7 +620,9 @@ class KernelFusionCommand;
 /// operation.
 class ExecCGCommand : public Command {
 public:
-  ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
+  ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+                RT::PiExtCommandBuffer CommandBuffer = nullptr,
+                const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -636,6 +652,8 @@ public:
 
 private:
   pi_int32 enqueueImp() final;
+  pi_int32 enqueueImpCommandBuffer();
+  pi_int32 enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -697,6 +715,17 @@ private:
 
   FusionStatus MStatus;
 };
+
+// Enqueues a given kernel to a RT::PiExtCommandBuffer
+pi_int32 enqueueImpCommandBufferKernel(
+    context Ctx, DeviceImplPtr DeviceImpl, RT::PiExtCommandBuffer CommandBuffer,
+    NDRDescT NDRDesc, std::vector<ArgDesc> Args,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
+    std::vector<RT::PiExtSyncPoint> &SyncPoints,
+    RT::PiExtSyncPoint *OutSyncPoint,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
 // Sets arguments for a given kernel and device based on the argument type.
 // Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs

@@ -367,9 +367,15 @@ public:
   /// It's called by SYCL's queue.submit.
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
+  /// \param CommandBuffer Optional command buffer to enqueue to instead of
+  /// directly to the queue.
+  /// \param Dependencies Optional list of dependency
+  /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
   EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     const QueueImplPtr &Queue);
+                     const QueueImplPtr &Queue,
+                     RT::PiExtCommandBuffer CommandBuffer = nullptr,
+                     const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -526,13 +532,18 @@ protected:
     /// Registers \ref CG "command group" and adds it to the dependency graph.
     ///
     /// \sa queue::submit, Scheduler::addCG
+    /// \param CommandBuffer Optional command buffer to enqueue to instead of
+    /// directly to the queue.
+    /// \param Dependencies Optional list of dependency
+    /// sync points when enqueuing to a command buffer.
     ///
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(std::unique_ptr<detail::CG> CommandGroup,
-                           const QueueImplPtr &Queue,
-                           std::vector<Command *> &ToEnqueue);
+    GraphBuildResult addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+                   std::vector<Command *> &ToEnqueue,
+                   RT::PiExtCommandBuffer CommandBuffer = nullptr,
+                   const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
