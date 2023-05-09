@@ -72,9 +72,6 @@ option(SYCL_ENABLE_XPTI_TRACING "Enable tracing of SYCL constructs" OFF)
 # Create a soft option for enabling or disabling the experimental support
 # for SYCl Graph
 option(SYCL_ENABLE_GRAPH "Enable experimental SYCL Graph support" OFF)
-if (SYCL_ENABLE_GRAPH)
-  set(SYCL_BUILD_SYCL_GRAPH ON)
-endif()
 
 if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
