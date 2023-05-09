@@ -4,9 +4,9 @@
 // RUN: env --unset=SYCL_DEVICE_FILTER  --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
 
-// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}Level-Zero
+// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}{{Level-Zero|CUDA}}
 // clang-format off
-// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}Level-Zero
+// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}{{Level-Zero|CUDA}}
 // clang-format on
 
 //==--------------------- sycl-ls-gpu-default-any.cpp ----------------------==//
@@ -21,6 +21,6 @@
 // is present.
 // The test crashed on CUDA CI machines with the latest OpenCL GPU RT
 // (21.19.19792).
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
