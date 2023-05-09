@@ -694,9 +694,16 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
       CmdArgs.push_back(
           Args.MakeArgString(Twine(PluginOptPrefix) + "-strict-dwarf=true"));
 
-    if (Args.getLastArg(options::OPT_mabi_EQ_vec_extabi))
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine(PluginOptPrefix) + "-vec-extabi"));
+    for (const Arg *A : Args.filtered_reverse(options::OPT_mabi_EQ)) {
+      StringRef V = A->getValue();
+      if (V == "vec-default")
+        break;
+      if (V == "vec-extabi") {
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine(PluginOptPrefix) + "-vec-extabi"));
+        break;
+      }
+    }
   }
 
   bool UseSeparateSections =
@@ -775,11 +782,10 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
       D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
   }
 
-  if (Arg *A = Args.getLastArg(options::OPT_femulated_tls,
-                               options::OPT_fno_emulated_tls)) {
-    bool Enable = A->getOption().getID() == options::OPT_femulated_tls;
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine(PluginOptPrefix) + "-emulated-tls=" + (Enable ? "1" : "0")));
+  if (Args.hasFlag(options::OPT_femulated_tls, options::OPT_fno_emulated_tls,
+                   ToolChain.getTriple().hasDefaultEmulatedTLS())) {
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine(PluginOptPrefix) + "-emulated-tls"));
   }
 
   if (Args.hasFlag(options::OPT_fstack_size_section,

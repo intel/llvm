@@ -5318,10 +5318,8 @@ void TargetLowering::LowerAsmOperandForConstraint(SDValue Op,
   }
 }
 
-void TargetLowering::CollectTargetIntrinsicOperands(const CallInst &I,
-                                           SmallVectorImpl<SDValue> &Ops,
-                                           SelectionDAG &DAG) const {
-  return;
+void TargetLowering::CollectTargetIntrinsicOperands(
+    const CallInst &I, SmallVectorImpl<SDValue> &Ops, SelectionDAG &DAG) const {
 }
 
 std::pair<unsigned, const TargetRegisterClass *>
@@ -6705,9 +6703,9 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
   // NOTE: we avoid letting illegal types through even if we're before legalize
   // ops – legalization has a hard time producing good code for the code that
   // follows.
-  if (!isOperationLegalOrCustom(ISD::SETEQ, VT) ||
+  if (!isOperationLegalOrCustom(ISD::SETCC, SETCCVT) ||
       !isOperationLegalOrCustom(ISD::AND, VT) ||
-      !isOperationLegalOrCustom(Cond, VT) ||
+      !isCondCodeLegalOrCustom(Cond, VT.getSimpleVT()) ||
       !isOperationLegalOrCustom(ISD::VSELECT, SETCCVT))
     return SDValue();
 
@@ -6757,20 +6755,23 @@ SDValue TargetLowering::getSqrtInputTest(SDValue Op, SelectionDAG &DAG,
   EVT VT = Op.getValueType();
   EVT CCVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
   SDValue FPZero = DAG.getConstantFP(0.0, DL, VT);
-  // Testing it with denormal inputs to avoid wrong estimate.
-  if (Mode.Input == DenormalMode::IEEE) {
-    // This is specifically a check for the handling of denormal inputs,
-    // not the result.
 
-    // Test = fabs(X) < SmallestNormal
-    const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(VT);
-    APFloat SmallestNorm = APFloat::getSmallestNormalized(FltSem);
-    SDValue NormC = DAG.getConstantFP(SmallestNorm, DL, VT);
-    SDValue Fabs = DAG.getNode(ISD::FABS, DL, VT, Op);
-    return DAG.getSetCC(DL, CCVT, Fabs, NormC, ISD::SETLT);
+  // This is specifically a check for the handling of denormal inputs, not the
+  // result.
+  if (Mode.Input == DenormalMode::PreserveSign ||
+      Mode.Input == DenormalMode::PositiveZero) {
+    // Test = X == 0.0
+    return DAG.getSetCC(DL, CCVT, Op, FPZero, ISD::SETEQ);
   }
-  // Test = X == 0.0
-  return DAG.getSetCC(DL, CCVT, Op, FPZero, ISD::SETEQ);
+
+  // Testing it with denormal inputs to avoid wrong estimate.
+  //
+  // Test = fabs(X) < SmallestNormal
+  const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(VT);
+  APFloat SmallestNorm = APFloat::getSmallestNormalized(FltSem);
+  SDValue NormC = DAG.getConstantFP(SmallestNorm, DL, VT);
+  SDValue Fabs = DAG.getNode(ISD::FABS, DL, VT, Op);
+  return DAG.getSetCC(DL, CCVT, Fabs, NormC, ISD::SETLT);
 }
 
 SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
@@ -7221,7 +7222,7 @@ bool TargetLowering::expandMUL_LOHI(unsigned Opcode, EVT VT, const SDLoc &dl,
     Next = DAG.getNode(ISD::ADDC, dl, DAG.getVTList(VT, MVT::Glue), Next,
                        Merge(Lo, Hi));
   else
-    Next = DAG.getNode(ISD::ADDCARRY, dl, DAG.getVTList(VT, BoolType), Next,
+    Next = DAG.getNode(ISD::UADDO_CARRY, dl, DAG.getVTList(VT, BoolType), Next,
                        Merge(Lo, Hi), DAG.getConstant(0, dl, BoolType));
 
   SDValue Carry = Next.getValue(1);
@@ -7235,7 +7236,7 @@ bool TargetLowering::expandMUL_LOHI(unsigned Opcode, EVT VT, const SDLoc &dl,
     Hi = DAG.getNode(ISD::ADDE, dl, DAG.getVTList(HiLoVT, MVT::Glue), Hi, Zero,
                      Carry);
   else
-    Hi = DAG.getNode(ISD::ADDCARRY, dl, DAG.getVTList(HiLoVT, BoolType), Hi,
+    Hi = DAG.getNode(ISD::UADDO_CARRY, dl, DAG.getVTList(HiLoVT, BoolType), Hi,
                      Zero, Carry);
 
   Next = DAG.getNode(ISD::ADD, dl, VT, Next, Merge(Lo, Hi));
@@ -7377,13 +7378,13 @@ bool TargetLowering::expandDIVREMByConstant(SDNode *N,
                        DAG.getShiftAmountConstant(TrailingZeros, HiLoVT, dl));
     }
 
-    // Use addcarry if we can, otherwise use a compare to detect overflow.
+    // Use uaddo_carry if we can, otherwise use a compare to detect overflow.
     EVT SetCCType =
         getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), HiLoVT);
-    if (isOperationLegalOrCustom(ISD::ADDCARRY, HiLoVT)) {
+    if (isOperationLegalOrCustom(ISD::UADDO_CARRY, HiLoVT)) {
       SDVTList VTList = DAG.getVTList(HiLoVT, SetCCType);
       Sum = DAG.getNode(ISD::UADDO, dl, VTList, LL, LH);
-      Sum = DAG.getNode(ISD::ADDCARRY, dl, VTList, Sum,
+      Sum = DAG.getNode(ISD::UADDO_CARRY, dl, VTList, Sum,
                         DAG.getConstant(0, dl, HiLoVT), Sum.getValue(1));
     } else {
       Sum = DAG.getNode(ISD::ADD, dl, HiLoVT, LL, LH);
@@ -9934,8 +9935,8 @@ void TargetLowering::expandUADDSUBO(
   SDValue RHS = Node->getOperand(1);
   bool IsAdd = Node->getOpcode() == ISD::UADDO;
 
-  // If ADD/SUBCARRY is legal, use that instead.
-  unsigned OpcCarry = IsAdd ? ISD::ADDCARRY : ISD::SUBCARRY;
+  // If UADDO_CARRY/SUBO_CARRY is legal, use that instead.
+  unsigned OpcCarry = IsAdd ? ISD::UADDO_CARRY : ISD::USUBO_CARRY;
   if (isOperationLegalOrCustom(OpcCarry, Node->getValueType(0))) {
     SDValue CarryIn = DAG.getConstant(0, dl, Node->getValueType(1));
     SDValue NodeCarry = DAG.getNode(OpcCarry, dl, Node->getVTList(),
@@ -10318,8 +10319,10 @@ SDValue TargetLowering::expandFP_TO_INT_SAT(SDNode *Node,
 
     // Otherwise, select 0 if Src is NaN.
     SDValue ZeroInt = DAG.getConstant(0, dl, DstVT);
-    return DAG.getSelectCC(dl, Src, Src, ZeroInt, FpToInt,
-                           ISD::CondCode::SETUO);
+    EVT SetCCVT =
+        getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), SrcVT);
+    SDValue IsNan = DAG.getSetCC(dl, SetCCVT, Src, Src, ISD::CondCode::SETUO);
+    return DAG.getSelect(dl, DstVT, IsNan, ZeroInt, FpToInt);
   }
 
   SDValue MinIntNode = DAG.getConstant(MinInt, dl, DstVT);
@@ -10333,13 +10336,16 @@ SDValue TargetLowering::expandFP_TO_INT_SAT(SDNode *Node,
 
   SDValue Select = FpToInt;
 
+  EVT SetCCVT =
+      getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), SrcVT);
+
   // If Src ULT MinFloat, select MinInt. In particular, this also selects
   // MinInt if Src is NaN.
-  Select = DAG.getSelectCC(dl, Src, MinFloatNode, MinIntNode, Select,
-                           ISD::CondCode::SETULT);
+  SDValue ULT = DAG.getSetCC(dl, SetCCVT, Src, MinFloatNode, ISD::SETULT);
+  Select = DAG.getSelect(dl, DstVT, ULT, MinIntNode, Select);
   // If Src OGT MaxFloat, select MaxInt.
-  Select = DAG.getSelectCC(dl, Src, MaxFloatNode, MaxIntNode, Select,
-                           ISD::CondCode::SETOGT);
+  SDValue OGT = DAG.getSetCC(dl, SetCCVT, Src, MaxFloatNode, ISD::SETOGT);
+  Select = DAG.getSelect(dl, DstVT, OGT, MaxIntNode, Select);
 
   // In the unsigned case we are done, because we mapped NaN to MinInt, which
   // is already zero.
@@ -10348,7 +10354,8 @@ SDValue TargetLowering::expandFP_TO_INT_SAT(SDNode *Node,
 
   // Otherwise, select 0 if Src is NaN.
   SDValue ZeroInt = DAG.getConstant(0, dl, DstVT);
-  return DAG.getSelectCC(dl, Src, Src, ZeroInt, Select, ISD::CondCode::SETUO);
+  SDValue IsNan = DAG.getSetCC(dl, SetCCVT, Src, Src, ISD::CondCode::SETUO);
+  return DAG.getSelect(dl, DstVT, IsNan, ZeroInt, Select);
 }
 
 SDValue TargetLowering::expandVectorSplice(SDNode *Node,

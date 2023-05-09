@@ -116,7 +116,7 @@ typename Param::return_type device_impl::get_info() const {
   if (is_host()) {
     return get_device_info_host<Param>();
   }
-  return get_device_info<Param>(MPlatform->getDeviceImpl(MDevice));
+  return get_device_info<Param>(MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
 }
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -443,6 +443,14 @@ bool device_impl::has(aspect Aspect) const {
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER, sizeof(int),
             &async_barrier_supported, nullptr) == PI_SUCCESS;
     return call_successful && async_barrier_supported;
+  }
+  case aspect::ext_intel_legacy_image: {
+    pi_bool legacy_image_support = PI_FALSE;
+    bool call_successful =
+        getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
+            &legacy_image_support, nullptr) == PI_SUCCESS;
+    return call_successful && legacy_image_support;
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",

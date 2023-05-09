@@ -221,7 +221,7 @@ emitBinary(const char *Argv0, const char *Filename,
 // Load MLIR Dialects.
 static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
   Ctx.disableMultithreading();
-  Ctx.getOrLoadDialect<mlir::AffineDialect>();
+  Ctx.getOrLoadDialect<affine::AffineDialect>();
   Ctx.getOrLoadDialect<func::FuncDialect>();
   Ctx.getOrLoadDialect<mlir::DLTIDialect>();
   Ctx.getOrLoadDialect<mlir::scf::SCFDialect>();
@@ -335,7 +335,7 @@ static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     if (ScalarReplacement)
-      addFunctionPass(createAffineScalarReplacementPass);
+      addFunctionPass(affine::createAffineScalarReplacementPass);
   }
 
   if (mlir::failed(PM.run(Module.get()))) {
@@ -481,7 +481,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createReplaceAffineCFGPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (LoopUnroll)
-      NOptPM2.addPass(mlir::createLoopUnrollPass(UnrollSize, false, true));
+      NOptPM2.addPass(affine::createLoopUnrollPass(UnrollSize, false, true));
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     NOptPM2.addPass(mlir::createCSEPass());
     NOptPM2.addPass(polygeist::createMem2RegPass());
@@ -496,7 +496,8 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createReplaceAffineCFGPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(
+          affine::createAffineScalarReplacementPass());
   }
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Optimize CUDA failed. Module: ***\n";
@@ -549,7 +550,8 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(
+          affine::createAffineScalarReplacementPass());
   }
   if (ToCPU == "continuation") {
     OptPM.addPass(polygeist::createBarrierRemovalContinuation());
@@ -575,7 +577,7 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (LoopUnroll)
-      OptPM.addPass(mlir::createLoopUnrollPass(UnrollSize, false, true));
+      OptPM.addPass(affine::createLoopUnrollPass(UnrollSize, false, true));
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
     OptPM.addPass(polygeist::createMem2RegPass());
@@ -590,7 +592,8 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(
+          affine::createAffineScalarReplacementPass());
   }
 
   return success();

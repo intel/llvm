@@ -41,7 +41,7 @@ struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
   LogicalResult matchAndRewrite(scf::ParallelOp nextParallel,
                                 PatternRewriter &rewriter) const override {
     if (!(nextParallel->getParentOfType<scf::ParallelOp>()
-          // || nextParallel->getParentOfType<AffineParallelOp>()
+          // || nextParallel->getParentOfType<affine::AffineParallelOp>()
           ))
       return failure();
 

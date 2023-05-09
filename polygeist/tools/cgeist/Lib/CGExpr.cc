@@ -560,7 +560,8 @@ ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *Expr,
   std::vector<mlir::Value> Sizes = {
       getConstantIndex(CAT->getSize().getLimitedValue())};
   AffineMap Map = Builder.getSymbolIdentityMap();
-  auto AffineOp = Builder.create<AffineForOp>(Loc, Start, Map, Sizes, Map);
+  auto AffineOp =
+      Builder.create<affine::AffineForOp>(Loc, Start, Map, Sizes, Map);
 
   Block::iterator OldPoint = Builder.getInsertionPoint();
   Block *OldBlock = Builder.getInsertionBlock();
@@ -1134,7 +1135,7 @@ MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
       ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{});
   if (!op)
     return std::nullopt;
-  return op;
+  return cast<sycl::SYCLMethodOpInterface>(op);
 }
 
 Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,

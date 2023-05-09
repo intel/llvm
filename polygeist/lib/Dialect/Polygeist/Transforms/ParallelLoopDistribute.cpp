@@ -352,7 +352,8 @@ static void findValuesUsedBelow(polygeist::BarrierOp op,
               origUser->hasTrait<OpTrait::IsTerminator>()) {
             preserveAllocas.insert(current.second);
           }
-          if (!isa<LLVM::LoadOp, memref::LoadOp, AffineLoadOp>(origUser)) {
+          if (!isa<LLVM::LoadOp, memref::LoadOp, affine::AffineLoadOp>(
+                  origUser)) {
             for (auto res : origUser->getResults()) {
               if (crossing.contains(res)) {
                 preserveAllocas.insert(current.second);
@@ -385,7 +386,7 @@ static bool hasNestedBarrier(Operation *op, SmallVector<BlockArgument> &vals) {
                 dyn_cast<scf::ParallelOp>(ba.getOwner()->getParentOp())) {
           if (parallel->isAncestor(op))
             vals.push_back(ba);
-        } else if (auto parallel = dyn_cast<AffineParallelOp>(
+        } else if (auto parallel = dyn_cast<affine::AffineParallelOp>(
                        ba.getOwner()->getParentOp())) {
           if (parallel->isAncestor(op))
             vals.push_back(ba);
@@ -418,7 +419,7 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp op,
                                 PatternRewriter &rewriter) const override {
-    if (isNormalized(op) || !isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+    if (isNormalized(op) || !isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
       LLVM_DEBUG(DBGS() << "[normalize-loop] loop already normalized\n");
       return failure();
     }
@@ -469,7 +470,7 @@ static bool isNormalized(scf::ParallelOp op) {
   return llvm::all_of(op.getLowerBound(), isZero) &&
          llvm::all_of(op.getStep(), isOne);
 }
-static bool isNormalized(AffineParallelOp op) {
+static bool isNormalized(affine::AffineParallelOp op) {
   auto isZero = [](AffineExpr v) {
     if (auto ce = v.dyn_cast<AffineConstantExpr>())
       return ce.getValue() == 0;
@@ -585,12 +586,11 @@ LogicalResult splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter,
   return success();
 }
 
-LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
-                           BarrierOp barrier, SmallVector<Value> &iterCounts,
-                           AffineParallelOp &preLoop,
-                           AffineParallelOp &postLoop, Block *&outerBlock,
-                           AffineParallelOp &outerLoop,
-                           memref::AllocaScopeOp &outerEx) {
+LogicalResult splitSubLoop(
+    affine::AffineParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
+    SmallVector<Value> &iterCounts, affine::AffineParallelOp &preLoop,
+    affine::AffineParallelOp &postLoop, Block *&outerBlock,
+    affine::AffineParallelOp &outerLoop, memref::AllocaScopeOp &outerEx) {
 
   SmallVector<AffineMap> outerLower;
   SmallVector<AffineMap> outerUpper;
@@ -619,7 +619,7 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
   if (!innerLower.size())
     return failure();
   if (outerLower.size()) {
-    outerLoop = rewriter.create<AffineParallelOp>(
+    outerLoop = rewriter.create<affine::AffineParallelOp>(
         op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), outerLower,
         op.getLowerBoundsOperands(), outerUpper, op.getUpperBoundsOperands(),
         outerStep);
@@ -661,15 +661,15 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
     }
     SmallVector<Value> ops = dims;
     ops.append(symbols);
-    iterCounts.push_back(rewriter.create<AffineApplyOp>(
+    iterCounts.push_back(rewriter.create<affine::AffineApplyOp>(
         op.getLoc(), AffineMap::get(dims.size(), symbols.size(), expr), ops));
   }
-  preLoop = rewriter.create<AffineParallelOp>(
+  preLoop = rewriter.create<affine::AffineParallelOp>(
       op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,
       op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
       innerStep);
   rewriter.eraseOp(&preLoop.getBody()->back());
-  postLoop = rewriter.create<AffineParallelOp>(
+  postLoop = rewriter.create<affine::AffineParallelOp>(
       op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,
       op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
       innerStep);
@@ -720,7 +720,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
 
       // We always have to recalculate operands of yields, otherwise check if we
       // don't already have the results
-      if (!isa<scf::YieldOp, AffineYieldOp>(op) &&
+      if (!isa<scf::YieldOp, affine::AffineYieldOp>(op) &&
           llvm::all_of(op->getResults(),
                        [&mapping](Value v) { return mapping.contains(v); }))
         return;
@@ -925,8 +925,8 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
     if (isa<scf::ParallelOp>(outerLoop))
       rewriter.create<scf::YieldOp>(op.getLoc());
     else {
-      assert(isa<AffineParallelOp>(outerLoop));
-      rewriter.create<AffineYieldOp>(op.getLoc());
+      assert(isa<affine::AffineParallelOp>(outerLoop));
+      rewriter.create<affine::AffineYieldOp>(op.getLoc());
     }
   } else {
     rewriter.create<memref::AllocaScopeReturnOp>(op.getLoc());
@@ -996,7 +996,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 /// necessary but insufficient condition.
 static LogicalResult canWrapWithBarriers(Operation *op,
                                          SmallVector<BlockArgument> &vals) {
-  if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+  if (!isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
     LLVM_DEBUG(DBGS() << "[wrap] not nested in a pfor\n");
     return failure();
   }
@@ -1097,7 +1097,8 @@ static LogicalResult wrapAndDistribute(T op, bool singleExecution,
     return failure();
 
   bool recomputable = arePreceedingOpsFullyRecomputable(op, singleExecution);
-  if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+  if (recomputable &&
+      isa<scf::YieldOp, affine::AffineYieldOp>(op->getNextNode())) {
     return failure();
   }
 
@@ -1114,7 +1115,8 @@ static LogicalResult wrapAndDistribute(T op, bool singleExecution,
   // only one of them is necessary
   auto pop = op->getParentOp();
   (void)distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, rewriter);
-  (void)distributeAfterWrap<AffineParallelOp, UseMinCut>(pop, before, rewriter);
+  (void)distributeAfterWrap<affine::AffineParallelOp, UseMinCut>(pop, before,
+                                                                 rewriter);
 
   return success();
 }
@@ -1150,13 +1152,13 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
 };
 
 template <bool UseMinCut>
-struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
+struct WrapAffineForWithBarrier : public OpRewritePattern<affine::AffineForOp> {
   WrapAffineForWithBarrier(MLIRContext *ctx)
-      : OpRewritePattern<AffineForOp>(ctx) {}
+      : OpRewritePattern<affine::AffineForOp>(ctx) {}
 
-  LogicalResult matchAndRewrite(AffineForOp op,
+  LogicalResult matchAndRewrite(affine::AffineForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute<AffineForOp, UseMinCut>(
+    return wrapAndDistribute<affine::AffineForOp, UseMinCut>(
         op, /* singleExecution */ false, rewriter);
   }
 };
@@ -1268,13 +1270,13 @@ mlir::OperandRange getLowerBounds(scf::ParallelOp op,
                                   PatternRewriter &rewriter) {
   return op.getLowerBound();
 }
-SmallVector<Value> getLowerBounds(AffineParallelOp op,
+SmallVector<Value> getLowerBounds(affine::AffineParallelOp op,
                                   PatternRewriter &rewriter) {
   SmallVector<Value> vals;
   for (AffineExpr expr : op.getLowerBoundsMap().getResults()) {
     vals.push_back(rewriter
-                       .create<AffineApplyOp>(op.getLoc(), expr,
-                                              op.getLowerBoundsOperands())
+                       .create<affine::AffineApplyOp>(
+                           op.getLoc(), expr, op.getLowerBoundsOperands())
                        .getResult());
   }
   return vals;
@@ -1326,7 +1328,7 @@ static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
 }
 template <typename ParallelOpType>
 static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
-                       AffineIfOp forIf, AffineIfOp newForIf) {
+                       affine::AffineIfOp forIf, affine::AffineIfOp newForIf) {
   moveBodiesIf(rewriter, op, forIf, newForIf);
 }
 template <typename ParallelOpType>
@@ -1336,7 +1338,8 @@ static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
 }
 template <typename ParallelOpType>
 static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
-                       AffineForOp forIf, AffineForOp newForIf) {
+                       affine::AffineForOp forIf,
+                       affine::AffineForOp newForIf) {
   moveBodiesFor(rewriter, op, forIf, newForIf);
 }
 
@@ -1389,7 +1392,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     }
 
     if (!arePreceedingOpsFullyRecomputable(
-            lastOp, /* singleExecution */ isa<scf::IfOp, AffineIfOp>(
+            lastOp, /* singleExecution */ isa<scf::IfOp, affine::AffineIfOp>(
                 (Operation *)lastOp))) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
@@ -1614,7 +1617,7 @@ struct Reg2MemFor : public OpRewritePattern<T> {
     if (op.getNumResults() == 0 || !hasNestedBarrier(op, args))
       return failure();
 
-    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+    if (!isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
       return failure();
     }
 
@@ -1705,7 +1708,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
     if (!op.getResults().size() || !hasNestedBarrier(op, args))
       return failure();
 
-    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+    if (!isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
       return failure();
     }
 
@@ -1876,8 +1879,8 @@ struct Reg2MemIf : public OpRewritePattern<T> {
       }
     }
     rewriter.setInsertionPoint(thenYield);
-    if (isa<AffineIfOp>(op))
-      rewriter.replaceOpWithNewOp<AffineYieldOp>(thenYield);
+    if (isa<affine::AffineIfOp>(op))
+      rewriter.replaceOpWithNewOp<affine::AffineYieldOp>(thenYield);
     else
       rewriter.replaceOpWithNewOp<scf::YieldOp>(thenYield);
 
@@ -1935,8 +1938,8 @@ struct Reg2MemIf : public OpRewritePattern<T> {
       }
     }
     rewriter.setInsertionPoint(elseYield);
-    if (isa<AffineIfOp>(op))
-      rewriter.replaceOpWithNewOp<AffineYieldOp>(elseYield);
+    if (isa<affine::AffineIfOp>(op))
+      rewriter.replaceOpWithNewOp<affine::AffineYieldOp>(elseYield);
     else
       rewriter.replaceOpWithNewOp<scf::YieldOp>(elseYield);
 
@@ -2075,45 +2078,50 @@ struct CPUifyPass : public mlir::polygeist::impl::SCFCPUifyBase<CPUifyPass> {
 
         if (method.contains("mincut")) {
           patterns.insert<
-              Reg2MemFor<scf::ForOp, true>, Reg2MemFor<AffineForOp, true>,
-              Reg2MemIf<scf::IfOp, true>, Reg2MemIf<AffineIfOp, true>,
-              WrapForWithBarrier<true>, WrapAffineForWithBarrier<true>,
+              Reg2MemFor<scf::ForOp, true>,
+              Reg2MemFor<affine::AffineForOp, true>, Reg2MemIf<scf::IfOp, true>,
+              Reg2MemIf<affine::AffineIfOp, true>, WrapForWithBarrier<true>,
+              WrapAffineForWithBarrier<true>,
               WrapIfWithBarrier<scf::IfOp, true>,
-              WrapIfWithBarrier<AffineIfOp, true>, WrapWhileWithBarrier<true>>(
-              &getContext());
+              WrapIfWithBarrier<affine::AffineIfOp, true>,
+              WrapWhileWithBarrier<true>>(&getContext());
         } else {
           patterns.insert<
-              Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
-              Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>,
+              Reg2MemFor<scf::ForOp, false>,
+              Reg2MemFor<affine::AffineForOp, false>,
+              Reg2MemIf<scf::IfOp, false>, Reg2MemIf<affine::AffineIfOp, false>,
               WrapForWithBarrier<false>, WrapAffineForWithBarrier<false>,
               WrapIfWithBarrier<scf::IfOp, false>,
-              WrapIfWithBarrier<AffineIfOp, false>,
+              WrapIfWithBarrier<affine::AffineIfOp, false>,
               WrapWhileWithBarrier<false>>(&getContext());
         }
 
-        patterns.insert<InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
-                        InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
-                        InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
-                        InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
-                        InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
-                        InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
-                        InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-                        InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
+        patterns.insert<
+            InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+            InterchangeForIfPFor<affine::AffineParallelOp, scf::ForOp>,
+            InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
+            InterchangeForIfPFor<affine::AffineParallelOp, scf::IfOp>,
+            InterchangeForIfPFor<scf::ParallelOp, affine::AffineForOp>,
+            InterchangeForIfPFor<affine::AffineParallelOp, affine::AffineForOp>,
+            InterchangeForIfPFor<scf::ParallelOp, affine::AffineIfOp>,
+            InterchangeForIfPFor<affine::AffineParallelOp, affine::AffineIfOp>,
 
-                        InterchangeWhilePFor<scf::ParallelOp>,
-                        InterchangeWhilePFor<AffineParallelOp>,
-                        // NormalizeLoop,
-                        NormalizeParallel
-                        // RotateWhile,
-                        >(&getContext());
+            InterchangeWhilePFor<scf::ParallelOp>,
+            InterchangeWhilePFor<affine::AffineParallelOp>,
+            // NormalizeLoop,
+            NormalizeParallel
+            // RotateWhile,
+            >(&getContext());
         if (method.contains("mincut")) {
-          patterns.insert<DistributeAroundBarrier<scf::ParallelOp, true>,
-                          DistributeAroundBarrier<AffineParallelOp, true>>(
-              &getContext());
+          patterns
+              .insert<DistributeAroundBarrier<scf::ParallelOp, true>,
+                      DistributeAroundBarrier<affine::AffineParallelOp, true>>(
+                  &getContext());
         } else {
-          patterns.insert<DistributeAroundBarrier<scf::ParallelOp, false>,
-                          DistributeAroundBarrier<AffineParallelOp, false>>(
-              &getContext());
+          patterns
+              .insert<DistributeAroundBarrier<scf::ParallelOp, false>,
+                      DistributeAroundBarrier<affine::AffineParallelOp, false>>(
+                  &getContext());
         }
         GreedyRewriteConfig config;
         config.maxIterations = 142;

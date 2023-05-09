@@ -79,7 +79,7 @@ entry:
 ; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
 ; CHECK-LLVM: %[[BITCAST_CALL1:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
 ; CHECK-LLVM: %[[BITCAST_CALL2:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[BITCAST_CALL1]] to ptr addrspace(4)
-; CHECK-LLVM: store ptr addrspace(4) %4, ptr addrspace(4) %[[BITCAST_CALL2]], align 8
+; CHECK-LLVM: store ptr addrspace(4) %[[#]], ptr addrspace(4) %[[BITCAST_CALL2]], align 8
   %this.addr.ascast.i = addrspacecast ptr %this.addr.i to ptr addrspace(4)
   store ptr addrspace(4) %MyIP.ascast, ptr addrspace(4) %this.addr.ascast.i, align 8
   %this1.i = load ptr addrspace(4), ptr addrspace(4) %this.addr.ascast.i, align 8

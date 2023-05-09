@@ -1,10 +1,8 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// LevelZero has a bug wherein it always returns the first pixel value.
-// Will re-enable once fixed.
 
 /*
     This file sets up an image, initializes it with data,
@@ -125,20 +123,15 @@ void test_normalized_clamp_nearest_sampler(image_channel_order ChanOrder,
 int main() {
 
   queue Q;
-  device D = Q.get_device();
 
-  if (D.has(aspect::image)) {
-    // the _int8 channels are one byte per channel, or four bytes per pixel (for
-    // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
-    // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
-    // channel, or sixteen bytes per pixel (for RGBA).
-    // CUDA has limited support for image_channel_type, so the tests use
-    // unsigned_int32
-    test_normalized_clamp_nearest_sampler(image_channel_order::rgba,
-                                          image_channel_type::unsigned_int32);
-  } else {
-    std::cout << "device does not support image operations" << std::endl;
-  }
+  // the _int8 channels are one byte per channel, or four bytes per pixel (for
+  // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
+  // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
+  // channel, or sixteen bytes per pixel (for RGBA).
+  // CUDA has limited support for image_channel_type, so the tests use
+  // unsigned_int32
+  test_normalized_clamp_nearest_sampler(image_channel_order::rgba,
+                                        image_channel_type::unsigned_int32);
 
   return 0;
 }

@@ -5,6 +5,7 @@ static_library("CodeGen") {
     "//llvm/include/llvm/Config:llvm-config",
   ]
   deps = [
+    "//llvm/include/llvm/CodeGen:GenVT",
     "//llvm/lib/Analysis",
     "//llvm/lib/Bitcode/Reader",
     "//llvm/lib/Bitcode/Writer",
@@ -99,6 +100,7 @@ static_library("CodeGen") {
     "LocalStackSlotAllocation.cpp",
     "LoopTraversal.cpp",
     "LowLevelType.cpp",
+    "LowLevelTypeUtils.cpp",
     "LowerEmuTLS.cpp",
     "MBFIWrapper.cpp",
     "MIRCanonicalizerPass.cpp",

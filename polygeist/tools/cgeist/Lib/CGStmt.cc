@@ -162,7 +162,7 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *Fors,
 void MLIRScanner::buildAffineLoopImpl(
     clang::ForStmt *Fors, Location Loc, Value Lb, Value Ub,
     const mlirclang::AffineLoopDescriptor &Descr) {
-  auto AffineOp = Builder.create<AffineForOp>(
+  auto AffineOp = Builder.create<affine::AffineForOp>(
       Loc, Lb, Builder.getSymbolIdentityMap(), Ub,
       Builder.getSymbolIdentityMap(), Descr.getStep(),
       /*iterArgs=*/std::nullopt);
@@ -197,7 +197,7 @@ void MLIRScanner::buildAffineLoopImpl(
   Visit(Fors->getBody());
 
   Builder.setInsertionPointToEnd(&Reg.front());
-  Builder.create<AffineYieldOp>(Loc);
+  Builder.create<affine::AffineYieldOp>(Loc);
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
