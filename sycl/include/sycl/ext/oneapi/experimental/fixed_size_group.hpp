@@ -112,7 +112,6 @@ public:
   }
 
 protected:
-
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sub_group_mask Mask;
 #endif
