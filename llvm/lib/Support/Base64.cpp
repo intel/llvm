@@ -241,7 +241,7 @@ public:
     Expected<size_t> Res = decode(Src, Dst.get(), SrcSize);
     if (!Res)
       return Res.takeError();
-    return Dst;
+    return Expected<std::unique_ptr<byte[]>>(std::move(Dst));
   }
 };
 
