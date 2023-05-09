@@ -2236,11 +2236,13 @@ void Sema::PushFunctionScope() {
 void Sema::PushBlockScope(Scope *BlockScope, BlockDecl *Block) {
   FunctionScopes.push_back(new BlockScopeInfo(getDiagnostics(),
                                               BlockScope, Block));
+  CapturingFunctionScopes++;
 }
 
 LambdaScopeInfo *Sema::PushLambdaScope() {
   LambdaScopeInfo *const LSI = new LambdaScopeInfo(getDiagnostics());
   FunctionScopes.push_back(LSI);
+  CapturingFunctionScopes++;
   return LSI;
 }
 
@@ -2362,6 +2364,8 @@ Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
 
 void Sema::PoppedFunctionScopeDeleter::
 operator()(sema::FunctionScopeInfo *Scope) const {
+  if (!Scope->isPlainFunction())
+    Self->CapturingFunctionScopes--;
   // Stash the function scope for later reuse if it's for a normal function.
   if (Scope->isPlainFunction() && !Self->CachedFunctionScope)
     Self->CachedFunctionScope.reset(Scope);
@@ -2792,6 +2796,7 @@ void Sema::PushCapturedRegionScope(Scope *S, CapturedDecl *CD, RecordDecl *RD,
       OpenMPCaptureLevel);
   CSI->ReturnType = Context.VoidTy;
   FunctionScopes.push_back(CSI);
+  CapturingFunctionScopes++;
 }
 
 CapturedRegionScopeInfo *Sema::getCurCapturedRegion() {

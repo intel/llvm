@@ -1073,11 +1073,17 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
         continue;
 
       // This recipe contributes to the address computation of a widen
-      // load/store. Collect recipe if its underlying instruction has
-      // poison-generating flags.
+      // load/store. If the underlying instruction has poison-generating flags,
+      // either drop them directly if the recipe already models the flags or
+      // collect them in a set.
+      // TODO: Migrate all relevant recipes to hold their own flags.
       Instruction *Instr = CurRec->getUnderlyingInstr();
-      if (Instr && Instr->hasPoisonGeneratingFlags())
-        State.MayGeneratePoisonRecipes.insert(CurRec);
+      if (Instr && Instr->hasPoisonGeneratingFlags()) {
+        if (auto *RecWithFlags = dyn_cast<VPRecipeWithIRFlags>(CurRec))
+          RecWithFlags->dropPoisonGeneratingFlags();
+        else
+          State.MayGeneratePoisonRecipes.insert(CurRec);
+      }
 
       // Add new definitions to the worklist.
       for (VPValue *operand : CurRec->operands())
@@ -9045,14 +9051,13 @@ std::optional<VPlanPtr> LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(
     unsigned J = 0;
     for (unsigned i = 0; i < IG->getFactor(); ++i)
       if (Instruction *Member = IG->getMember(i)) {
+        VPRecipeBase *MemberR = RecipeBuilder.getRecipe(Member);
         if (!Member->getType()->isVoidTy()) {
-          VPValue *OriginalV = Plan->getVPValue(Member);
-          Plan->removeVPValueFor(Member);
-          Plan->addVPValue(Member, VPIG->getVPValue(J));
+          VPValue *OriginalV = MemberR->getVPSingleValue();
           OriginalV->replaceAllUsesWith(VPIG->getVPValue(J));
           J++;
         }
-        RecipeBuilder.getRecipe(Member)->eraseFromParent();
+        MemberR->eraseFromParent();
       }
   }
 
