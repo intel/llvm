@@ -133,12 +133,14 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 /// \return PI_SUCCESS if \param result was CUDA_SUCCESS.
 /// \throw pi_error exception (integer) if input was not success.
 ///
+//TODO this needs some thought!
 pi_result check_error(CUresult result, const char *function, int line,
                       const char *file) {
   if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return PI_SUCCESS;
   }
 
+// can't throw cuda errors from UR!!
   /*if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *errorString = nullptr;
     const char *errorName = nullptr;
@@ -5600,7 +5602,8 @@ pi_result cuda_piextEnablePeerAccess(pi_device command_device,
     auto curesult = cuCtxEnablePeerAccess(peer_device->get_context(), 0);
     if (curesult != CUDA_SUCCESS) {
       const char *errorString = nullptr;
-      unused atm const char *errorName = nullptr;
+      //unused atm
+      const char *errorName = nullptr;
       cuGetErrorName(curesult, &errorName);
       cuGetErrorString(curesult, &errorString);
 
