@@ -11,41 +11,48 @@
 #include <array>
 
 #include "logger/ur_logger.hpp"
+#include "ur_loader_location.hpp"
 #include "ur_util.hpp"
+
+namespace fs = std::filesystem;
 
 namespace ur_loader {
 
 class AdapterRegistry {
   public:
     AdapterRegistry() {
-        std::optional<std::string> altPlatforms;
-
-        // UR_ADAPTERS_FORCE_LOAD  is for development/debug only
+        std::optional<std::vector<std::string>> forceLoadedAdaptersOpt;
         try {
-            altPlatforms = ur_getenv("UR_ADAPTERS_FORCE_LOAD");
+            forceLoadedAdaptersOpt = getenv_to_vec("UR_ADAPTERS_FORCE_LOAD");
         } catch (const std::invalid_argument &e) {
             logger::error(e.what());
         }
-        if (!altPlatforms) {
-            discoverKnownAdapters();
-        } else {
-            std::stringstream ss(*altPlatforms);
-            while (ss.good()) {
-                std::string substr;
-                getline(ss, substr, ',');
-                discovered_adapters.emplace_back(substr);
+
+        if (forceLoadedAdaptersOpt.has_value()) {
+            for (const auto &s : forceLoadedAdaptersOpt.value()) {
+                auto path = fs::path(s);
+                if (fs::exists(path)) {
+                    adaptersLoadPaths.emplace_back(std::vector{path});
+                } else {
+                    logger::warning(
+                        "Detected nonexistent path {} in environmental "
+                        "variable UR_ADAPTERS_FORCE_LOAD",
+                        s);
+                }
             }
+        } else {
+            discoverKnownAdapters();
         }
     }
 
     struct Iterator {
-        using value_type = const std::string;
+        using value_type = const std::vector<fs::path>;
         using pointer = value_type *;
 
-        Iterator(pointer ptr) noexcept : current_adapter(ptr) {}
+        Iterator(pointer ptr) noexcept : currentAdapterPaths(ptr) {}
 
         Iterator &operator++() noexcept {
-            current_adapter++;
+            currentAdapterPaths++;
             return *this;
         }
 
@@ -56,41 +63,101 @@ class AdapterRegistry {
         }
 
         bool operator!=(const Iterator &other) const noexcept {
-            return this->current_adapter != other.current_adapter;
+            return this->currentAdapterPaths != other.currentAdapterPaths;
         }
 
-        const value_type operator*() const { return *this->current_adapter; }
+        const value_type operator*() const {
+            return *this->currentAdapterPaths;
+        }
 
       private:
-        pointer current_adapter;
+        pointer currentAdapterPaths;
     };
 
-    const std::string &operator[](size_t i) const {
-        return discovered_adapters[i];
+    const std::vector<fs::path> &operator[](size_t i) const {
+        return adaptersLoadPaths[i];
     }
 
-    bool empty() const noexcept { return discovered_adapters.size() == 0; }
+    bool empty() const noexcept { return adaptersLoadPaths.size() == 0; }
 
-    size_t size() const noexcept { return discovered_adapters.size(); }
+    size_t size() const noexcept { return adaptersLoadPaths.size(); }
 
-    const Iterator begin() const noexcept {
-        return Iterator(&(*discovered_adapters.cbegin()));
+    std::vector<std::vector<fs::path>>::const_iterator begin() const noexcept {
+        return adaptersLoadPaths.begin();
     }
 
-    const Iterator end() const noexcept {
-        return Iterator(&(*discovered_adapters.cbegin()) +
-                        discovered_adapters.size());
+    std::vector<std::vector<fs::path>>::const_iterator end() const noexcept {
+        return adaptersLoadPaths.end();
+    }
+
+    std::vector<std::vector<fs::path>>::const_iterator cbegin() const noexcept {
+        return adaptersLoadPaths.cbegin();
+    }
+
+    std::vector<std::vector<fs::path>>::const_iterator cend() const noexcept {
+        return adaptersLoadPaths.cend();
     }
 
   private:
-    std::vector<std::string> discovered_adapters;
+    // Each outer vector entry corresponds to a different adapter type.
+    // Inner vector entries are sorted candidate paths used when attempting
+    // to load the adapter.
+    std::vector<std::vector<fs::path>> adaptersLoadPaths;
 
-    static constexpr std::array<const char *, 1> knownPlatformNames{
+    static constexpr std::array<const char *, 1> knownAdapterNames{
         MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0")};
 
+    std::optional<std::vector<fs::path>> getEnvAdapterSearchPaths() {
+        std::optional<std::vector<std::string>> pathStringsOpt;
+        try {
+            pathStringsOpt = getenv_to_vec("UR_ADAPTERS_SEARCH_PATH");
+        } catch (const std::invalid_argument &e) {
+            logger::error(e.what());
+            return std::nullopt;
+        }
+
+        std::vector<fs::path> paths;
+        if (pathStringsOpt.has_value()) {
+            for (const auto &s : pathStringsOpt.value()) {
+                auto path = fs::path(s);
+                if (fs::exists(path)) {
+                    paths.emplace_back(path);
+                } else {
+                    logger::warning(
+                        "Detected nonexistent path {} in environmental "
+                        "variable UR_ADAPTERS_SEARCH_PATH",
+                        s);
+                }
+            }
+        }
+
+        return paths.empty() ? std::nullopt : std::optional(paths);
+    }
+
     void discoverKnownAdapters() {
-        for (const auto &path : knownPlatformNames) {
-            discovered_adapters.emplace_back(path);
+        auto searchPathsEnvOpt = getEnvAdapterSearchPaths();
+        auto loaderLibPathOpt = getLoaderLibPath();
+        for (const auto &adapterName : knownAdapterNames) {
+            std::vector<fs::path> loadPaths;
+
+            // Adapter search order:
+            // 1. Every path from UR_ADAPTERS_SEARCH_PATH.
+            // 2. OS search paths.
+            // 3. Loader library directory.
+            if (searchPathsEnvOpt.has_value()) {
+                for (const auto &p : searchPathsEnvOpt.value()) {
+                    loadPaths.emplace_back(p / adapterName);
+                }
+            }
+
+            loadPaths.emplace_back(fs::path(adapterName));
+
+            if (loaderLibPathOpt.has_value()) {
+                auto loaderLibPath = loaderLibPathOpt.value();
+                loadPaths.emplace_back(loaderLibPath / adapterName);
+            }
+
+            adaptersLoadPaths.emplace_back(loadPaths);
         }
     }
 };

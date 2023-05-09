@@ -111,14 +111,14 @@ if args.null:
     null_adapter = find_library(args.libpath, null_lib, args.recursive)
     if null_adapter is None:
         sys.exit("unable to find the null adapter - " + null_lib)
-    force_load = null_adapter
+    force_load = "\"" + null_adapter + "\""
 
 for adapter in args.adapter:
     adapter_path = find_library(args.libpath, adapter, args.recursive) if is_filename(adapter) else adapter
     if adapter_path is None:
         sys.exit("adapter does not specify a valid file " + args.adapter)
     if force_load is not None:
-        force_load += "," + adapter_path
+        force_load += ",\"" + adapter_path + "\""
     else:
         force_load = adapter_path
 
