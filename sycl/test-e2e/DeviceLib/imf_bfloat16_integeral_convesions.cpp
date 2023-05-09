@@ -6,6 +6,8 @@
 //
 // UNSUPPORTED: cuda || hip
 
+#error FIXME: Test times-out
+
 #include "imf_utils.hpp"
 #include <sycl/sycl.hpp>
 

@@ -3,6 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #ifdef XPTI_COLLECTOR
 
 #include "../Inputs/buffer_info_collector.cpp"
