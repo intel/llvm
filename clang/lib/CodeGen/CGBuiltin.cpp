@@ -512,6 +512,18 @@ Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
              : CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
 }
 
+bool hasAccuracyRequirement(CodeGenFunction &CGF, StringRef Name) {
+  bool HasRequirement = false;
+  if (!CGF.getLangOpts().FPAccuracyVal.empty())
+    HasRequirement = true;
+  if (!CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
+    auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
+    if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
+      HasRequirement = true;
+  }
+  return HasRequirement;
+}
+
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
 // or an fpbuiltin floating-point intrinsic.
@@ -531,17 +543,7 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
         StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
         Function *Func;
         // Use fpbuiltin intrinsic only when needed.
-        bool HasAccuracyRequirement = false;
-        if (!CGF.getLangOpts().FPAccuracyVal.empty())
-          HasAccuracyRequirement = true;
-        for (auto F : CGF.getLangOpts().FPAccuracyFuncMap) {
-          auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
-          if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
-            if (FuncMapIt->first == Name) {
-              HasAccuracyRequirement = true;
-              break;
-            }
-        }
+        bool HasAccuracyRequirement = hasAccuracyRequirement(CGF, Name);
         Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
                             HasAccuracyRequirement);
         return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0},
@@ -572,21 +574,9 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
     StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
     Function *Func;
     // Use fpbuiltin intrinsic only when needed.
-    bool HasAccuracyRequirement = false;
-    if (!CGF.getLangOpts().FPAccuracyVal.empty())
-      HasAccuracyRequirement = true;
-    for (auto F : CGF.getLangOpts().FPAccuracyFuncMap) {
-      auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
-      if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
-        if (FuncMapIt->first == Name) {
-          HasAccuracyRequirement = true;
-          break;
-        }
-    }
-    if (HasAccuracyRequirement)
-      Func = CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Src0->getType());
-    else
-      Func = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
+    bool HasAccuracyRequirement = hasAccuracyRequirement(CGF, Name);
+    Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
+                        HasAccuracyRequirement);
     return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0, Src1},
                                      FPAccuracyIntrinsicID);
   }
