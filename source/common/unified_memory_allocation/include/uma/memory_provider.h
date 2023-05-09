@@ -19,40 +19,41 @@ extern "C" {
 typedef struct uma_memory_provider_t *uma_memory_provider_handle_t;
 
 ///
-/// \brief Creates new memory provider
+/// \brief Creates new memory provider.
 /// \param ops instance of uma_memory_provider_ops_t
 /// \param params pointer to provider-specific parameters
-/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
+/// \param hProvider [out] pointer to the newly created memory provider
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
 ///
 enum uma_result_t
 umaMemoryProviderCreate(struct uma_memory_provider_ops_t *ops, void *params,
                         uma_memory_provider_handle_t *hProvider);
 
 ///
-/// \brief Destroys memory provider
+/// \brief Destroys memory provider.
 /// \param hPool handle to the memory provider
 ///
 void umaMemoryProviderDestroy(uma_memory_provider_handle_t hProvider);
 
 ///
 /// \brief Allocates size bytes of uninitialized storage from memory provider
-/// with
-///        specified alignment
+///        with specified alignment.
 /// \param hProvider handle to the memory provider
 /// \param size number of bytes to allocate
 /// \param alignment alignment of the allocation
-/// \param ptr will be updated with pointer to the allocated memory
-/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
+/// \param ptr [out] pointer to the allocated memory
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
 ///
 enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider,
                                          size_t size, size_t alignment,
                                          void **ptr);
 
 ///
-/// \brief Frees the memory space pointed by ptr from the memory provider
+/// \brief Frees the memory space pointed by ptr from the memory provider.
 /// \param hProvider handle to the memory provider
 /// \param ptr pointer to the allocated memory
 /// \param size size of the allocation
+/// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
 ///
 enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
                                         void *ptr, size_t size);
@@ -74,7 +75,7 @@ enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
 ///
 /// \param hProvider handle to the memory provider
 /// \param ppMessage [out] pointer to a string containing provider specific
-///        result in string representation.
+///        result in string representation
 /// \return UMA_RESULT_SUCCESS if the result being reported is to be considered
 ///         a warning. Any other result code returned indicates that the
 ///         adapter specific result is an error.
@@ -86,14 +87,14 @@ umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
 /// \brief Retrieve recommended page size for a given allocation size.
 /// \param hProvider handle to the memory provider
 /// \param size allocation size
-/// \param pageSize [out] will be updated with recommended page size.
+/// \param pageSize [out] will be updated with recommended page size
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
 enum uma_result_t
 umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
                                         size_t size, size_t *pageSize);
 
 ///
-/// \brief Retrieve minumum possible page size used by memory region referenced by given ptr
+/// \brief Retrieve minumum possible page size used by memory region referenced by given ptr.
 /// \param hProvider handle to the memory provider
 /// \param ptr pointer to memory allocated by this memory provider
 /// \param pageSize [out] will be updated with page size value.
