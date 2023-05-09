@@ -162,11 +162,20 @@ The metadata is attached to a function that will become the fused kernel:
 
 ### Support for non SPIR-V targets
 
-Non SPIR-V targets (NVPTX / AMDGCN) are not supported at the moment as they cannot ingest a SPIR-V module. However, we are looking into adding support for these targets once the initial SPIR-V based path is operational.
+Fusion is currently supported for the NVPTX/CUDA backend. 
 
-In this scenario, two options are possible to add JIT support:
+As this backend cannot ingest a SPIR-V module, additional changes to the
+compilation flow are necessary. During static compilation the LLVM module for
+this backend is stored in addition to the finalized binary. 
 
- - During static compilation we store the LLVM module on top of the finalized binary. This behavior could be controlled by a flag to avoid a too important binary inflation. Then, during the fusion process, the JIT will load that LLVM IR and finalize the fused kernel to the final target as driven by the PI plugin.
- - SPIR-V ingestion support is added for these targets. The module to be loaded could then be the generic SPIR-V module. This path would however exclude target specific optimizations written in user's code. The current state of the SPIR-V translator does not allow this at the moment and significant work is needed to add this support.
+This behavior is controlled by the `-fsycl-embed-ir` flag to avoid binary
+inflation in case kernel fusion is not used. If users want to use kernel fusion
+at runtime on the NVPTX/CUDA backend, they need to pass the `-fsycl-embed-ir`
+flag during static compilation. 
 
-In these cases, PI will need to be extended to allow to somehow drive the JIT process, so it is tailored to the plugin target needs.
+During the fusion process at runtime, the JIT will load the LLVM IR and
+finalize the fused kernel to the final target. More information is available
+[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support). 
+
+Support for the AMD GPU/HIP/AMDGCN backend is not yet implemented, but could
+follow an approach similar to the NVPTX/CUDA backend.

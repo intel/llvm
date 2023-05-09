@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------- device_equality.cpp - SYCL device equality test ----------------==//
 //

@@ -1,7 +1,7 @@
 // No JITing for host devices.
 // REQUIRES: opencl || level_zero
 // RUN: rm -rf %t/cache_dir
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -DTARGET_IMAGE=INC100
+// RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100
 // Build program and add item to cache
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %BE_RUN_PLACEHOLDER %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // Ignore caching because image size is less than threshold

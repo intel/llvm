@@ -11,8 +11,8 @@
 // TODO gpu and level_zero in REQUIRES due to only this platforms supported yet.
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in
 // "XREQUIRES".
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 // XFAIL: *
 // TODO Remove XFAIL once the simd vector provides move assignment operator
 //

@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
 // REQUIRES: linux && gpu-intel-dg1
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
 

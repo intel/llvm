@@ -5522,6 +5522,8 @@ class OffloadingActionBuilder final {
         //   s - device code split requested
         //   r - relocatable device code is requested
         //   f - link object output type is TY_Tempfilelist (fat archive)
+        //   e - Embedded IR for fusion (-fsycl-embed-ir) was requested
+        //       and target is NVPTX.
         //   * - "all other cases"
         //     - no condition means output/input is "always" present
         // First symbol indicates output/input type
@@ -5541,58 +5543,58 @@ class OffloadingActionBuilder final {
         //                |             |
         //                |             |
         //         .---------------------------------------.
-        //         |               PostLink                |
-        //         .---------------------------------------.
-        //                           [+*]                [+]
-        //                             |                  |
-        //                             |                  |
-        //                             |---------         |
-        //                             |        |         |
-        //                             |        |         |
-        //                             |      [+!rf]      |
-        //                             |  .-------------. |
-        //                             |  | llvm-foreach| |
-        //                             |  .-------------. |
-        //                             |        |         |
-        //                            [+*]    [+!rf]      |
-        //                      .-----------------.       |
-        //                      | FileTableTform  |       |
-        //                      | (extract "Code")|       |
-        //                      .-----------------.       |
-        //                              [-]               |-----------
-        //           --------------------|                           |
-        //           |                   |                           |
-        //           |                   |-----------------          |
-        //           |                   |                |          |
-        //           |                   |               [-!rf]      |
-        //           |                   |         .--------------.  |
-        //           |                   |         |FileTableTform|  |
-        //           |                   |         |   (merge)    |  |
-        //           |                   |         .--------------.  |
-        //           |                   |               [-]         |-------
-        //           |                   |                |          |      |
-        //           |                   |                |    ------|      |
-        //           |                   |        --------|    |            |
-        //          [.]                 [-*]   [-!rf]        [+!rf]         |
-        //   .---------------.  .-------------------. .--------------.      |
-        //   | finalizeNVPTX  | |  SPIRVTranslator  | |FileTableTform|      |
-        //   | finalizeAMDGCN | |                   | |   (merge)    |      |
-        //   .---------------.  .-------------------. . -------------.      |
-        //          [.]             [-as]      [-!a]         |              |
-        //           |                |          |           |              |
-        //           |              [-s]         |           |              |
-        //           |       .----------------.  |           |              |
-        //           |       | BackendCompile |  |           |              |
-        //           |       .----------------.  |     ------|              |
-        //           |              [-s]         |     |                    |
-        //           |                |          |     |                    |
-        //           |              [-a]      [-!a]  [-!rf]                 |
-        //           |              .--------------------.                  |
-        //           -----------[-n]|   FileTableTform   |[+*]--------------|
-        //                          |  (replace "Code")  |
-        //                          .--------------------.
-        //                                      |
-        //                                    [+*]
+        //         |               PostLink                |[+e]----------------
+        //         .---------------------------------------.                   |
+        //                           [+*]                [+]                   |
+        //                             |                  |                    |
+        //                             |                  |                    |
+        //                             |---------         |                    |
+        //                             |        |         |                    |
+        //                             |        |         |                    |
+        //                             |      [+!rf]      |                    |
+        //                             |  .-------------. |                    |
+        //                             |  | llvm-foreach| |                    |
+        //                             |  .-------------. |                    |
+        //                             |        |         |                    |
+        //                            [+*]    [+!rf]      |                    |
+        //                      .-----------------.       |                    |
+        //                      | FileTableTform  |       |                    |
+        //                      | (extract "Code")|       |                    |
+        //                      .-----------------.       |                    |
+        //                              [-]               |-----------         |
+        //           --------------------|                           |         |
+        //           |                   |                           |         |
+        //           |                   |-----------------          |         |
+        //           |                   |                |          |         |
+        //           |                   |               [-!rf]      |         |
+        //           |                   |         .--------------.  |         |
+        //           |                   |         |FileTableTform|  |         |
+        //           |                   |         |   (merge)    |  |         |
+        //           |                   |         .--------------.  |         |
+        //           |                   |               [-]         |-------  |
+        //           |                   |                |          |      |  |
+        //           |                   |                |    ------|      |  |
+        //           |                   |        --------|    |            |  |
+        //          [.]                 [-*]   [-!rf]        [+!rf]         |  |
+        //   .---------------.  .-------------------. .--------------.      |  |
+        //   | finalizeNVPTX  | |  SPIRVTranslator  | |FileTableTform|      |  |
+        //   | finalizeAMDGCN | |                   | |   (merge)    |      |  |
+        //   .---------------.  .-------------------. . -------------.      |  |
+        //          [.]             [-as]      [-!a]         |              |  |
+        //           |                |          |           |              |  |
+        //           |              [-s]         |           |              |  |
+        //           |       .----------------.  |           |              |  |
+        //           |       | BackendCompile |  |           |              |  |
+        //           |       .----------------.  |     ------|              |  |
+        //           |              [-s]         |     |                    |  |
+        //           |                |          |     |                    |  |
+        //           |              [-a]      [-!a]  [-!rf]                 |  |
+        //           |              .--------------------.                  |  |
+        //           -----------[-n]|   FileTableTform   |[+*]--------------|  |
+        //                          |  (replace "Code")  |                     |
+        //                          .--------------------.                     |
+        //                                      |      -------------------------
+        //                                    [+*]     | [+e]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -5699,6 +5701,16 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
+          if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
+            // When compiling for Nvidia/CUDA devices and the user requested the
+            // IR to be embedded in the application (via option), run the output
+            // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+            // through the offload wrapper and link the resulting object to the
+            // application.
+            auto *WrapBitcodeAction = C.MakeAction<OffloadWrapperJobAction>(
+                PostLinkAction, types::TY_Object, true);
+            DA.add(*WrapBitcodeAction, *TC, BoundArch, Action::OFK_SYCL);
+          }
           bool NoRDCFatStaticArchive =
               !IsRDC &&
               FullDeviceLinkAction->getType() == types::TY_Tempfilelist;
