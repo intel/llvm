@@ -1,6 +1,9 @@
 // RUN: %{build} -std=c++17 -o %t.run
 // RUN: %{run} %t.run
 
+// Variant of group_asymc_copy.cpp using legacy multi_ptr and the corresponding
+// deprecated async_work_group_copy interfaces.
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 #include <typeinfo>
@@ -107,7 +110,10 @@ template <typename T> int test(size_t Stride) {
   initOutputBuffer(OutBuf);
 
   Q.submit([&](handler &CGH) {
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     // In must be read_write for legacy multi_ptr as it would otherwise produce
+     // a const multi_ptr which was not a valid source argument to
+     // async_work_group_copy in SYCL 1.2.1.
+     auto In = InBuf.template get_access<access::mode::read_write>(CGH);
      auto Out = OutBuf.template get_access<access::mode::write>(CGH);
      local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
@@ -120,28 +126,28 @@ template <typename T> int test(size_t Stride) {
        size_t Offset = GrId * WorkGroupSize;
        if (Stride == 1) { // Check the version without stride arg.
          auto E = NDId.async_work_group_copy(
-             Local.template get_multi_ptr<access::decorated::yes>(),
-             In.template get_multi_ptr<access::decorated::yes>() + Offset,
+             Local.template get_multi_ptr<access::decorated::legacy>(),
+             In.template get_multi_ptr<access::decorated::legacy>() + Offset,
              NElemsToCopy);
          E.wait();
        } else {
          auto E = NDId.async_work_group_copy(
-             Local.template get_multi_ptr<access::decorated::yes>(),
-             In.template get_multi_ptr<access::decorated::yes>() + Offset,
+             Local.template get_multi_ptr<access::decorated::legacy>(),
+             In.template get_multi_ptr<access::decorated::legacy>() + Offset,
              NElemsToCopy, Stride);
          E.wait();
        }
 
        if (Stride == 1) { // Check the version without stride arg.
          auto E = Group.async_work_group_copy(
-             Out.template get_multi_ptr<access::decorated::yes>() + Offset,
-             Local.template get_multi_ptr<access::decorated::yes>(),
+             Out.template get_multi_ptr<access::decorated::legacy>() + Offset,
+             Local.template get_multi_ptr<access::decorated::legacy>(),
              NElemsToCopy);
          Group.wait_for(E);
        } else {
          auto E = Group.async_work_group_copy(
-             Out.template get_multi_ptr<access::decorated::yes>() + Offset,
-             Local.template get_multi_ptr<access::decorated::yes>(),
+             Out.template get_multi_ptr<access::decorated::legacy>() + Offset,
+             Local.template get_multi_ptr<access::decorated::legacy>(),
              NElemsToCopy, Stride);
          Group.wait_for(E);
        }
