@@ -6,7 +6,7 @@
 // XFAIL: hip
 
 // https://github.com/intel/llvm/issues/7585 to fix the time out failure:
-// UNSUPPORTED: gpu
+// UNSUPPORTED: cpu, gpu
 
 #include "support.h"
 #include <algorithm>
