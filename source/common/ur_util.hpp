@@ -100,10 +100,13 @@ inline bool getenv_tobool(const char *name) {
     return env.has_value();
 }
 
-static void throw_wrong_format_vec(const char *env_var_name) {
+static void throw_wrong_format_vec(const char *env_var_name,
+                                   std::string env_var_value) {
     std::stringstream ex_ss;
-    ex_ss << "Wrong format of the " << env_var_name << " environment variable!"
-          << " Proper format is: ENV_VAR=\"value_1,value_2,value_3\"";
+    ex_ss << "Wrong format of the " << env_var_name
+          << " environment variable value: '" << env_var_value << "'\n"
+          << "Proper format is: "
+             "ENV_VAR=\"value_1\",\"value_2\",\"value_3\"";
     throw std::invalid_argument(ex_ss.str());
 }
 
@@ -119,8 +122,8 @@ static void throw_wrong_format_map(const char *env_var_name,
 
 /// @brief Get a vector of values from an environment variable \p env_var_name
 ///        A comma is a delimiter for extracting values from env var string.
-///        Colons and semicolons are not allowed to align with the similar
-///        getenv_to_map() util function and avoid confusion.
+///        Colons and semicolons are allowed only inside quotes to align with
+///        the similar getenv_to_map() util function and avoid confusion.
 ///        A vector with a single value is allowed.
 ///        Env var must consist of strings separated by commas, ie.:
 ///        ENV_VAR=1,4K,2M
@@ -137,22 +140,35 @@ getenv_to_vec(const char *env_var_name) {
         return std::nullopt;
     }
 
-    if (env_var->find(':') == std::string::npos &&
-        env_var->find(';') == std::string::npos) {
-        std::stringstream values_ss(*env_var);
-        std::string value;
-        std::vector<std::string> values_vec;
-        while (std::getline(values_ss, value, values_delim)) {
-            if (value.empty()) {
-                throw_wrong_format_vec(env_var_name);
-            }
-            values_vec.push_back(value);
+    auto is_quoted = [](std::string &str) {
+        return (str.front() == '\'' && str.back() == '\'') ||
+               (str.front() == '"' && str.back() == '"');
+    };
+    auto has_colon = [](std::string &str) {
+        return str.find(':') != std::string::npos;
+    };
+    auto has_semicolon = [](std::string &str) {
+        return str.find(';') != std::string::npos;
+    };
+
+    std::vector<std::string> values_vec;
+    std::stringstream ss(*env_var);
+    std::string value;
+    while (std::getline(ss, value, values_delim)) {
+        if (value.empty() ||
+            (!is_quoted(value) && (has_colon(value) || has_semicolon(value)))) {
+            throw_wrong_format_vec(env_var_name, *env_var);
         }
-        return values_vec;
-    } else {
-        throw_wrong_format_vec(env_var_name);
+
+        if (is_quoted(value)) {
+            value.erase(value.cbegin());
+            value.erase(value.cend() - 1);
+        }
+
+        values_vec.push_back(value);
     }
-    return std::nullopt;
+
+    return values_vec;
 }
 
 using EnvVarMap = std::map<std::string, std::vector<std::string>>;

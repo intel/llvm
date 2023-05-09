@@ -4,13 +4,7 @@
 #include <cstring>
 #include <fstream>
 
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace filesystem = std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace filesystem = std::experimental::filesystem;
-#endif
+#include "ur_filesystem_resolved.hpp"
 
 #include <uur/environment.h>
 #include <uur/utils.h>
