@@ -481,6 +481,11 @@ static Attr * handleSYCLIntelMaxReinvocationDelayAttr(Sema &S, Stmt *St,
   return S.BuildSYCLIntelMaxReinvocationDelayAttr(A, E);
 }
 
+static Attr *handleSYCLIntelEnableLoopPipeliningAttr(Sema &S, Stmt *,
+                                                     const ParsedAttr &A) {
+  return new (S.Context) SYCLIntelEnableLoopPipeliningAttr(S.Context, A);
+}
+
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange) {
   IdentifierLoc *PragmaNameLoc = A.getArgAsIdent(0);
@@ -650,7 +655,7 @@ static bool CheckStmtInlineAttr(Sema &SemaRef, const Stmt *OrigSt,
            << A;
   }
 
-  for (auto Tup :
+  for (const auto &Tup :
        llvm::zip_longest(OrigCEF.getCallExprs(), CEF.getCallExprs())) {
     // If the original call expression already had a callee, we already
     // diagnosed this, so skip it here. We can't skip if there isn't a 1:1
@@ -895,6 +900,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelNofusionAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelMaxReinvocationDelayAttr>(
       S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelEnableLoopPipeliningAttr>(
+      S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -1042,6 +1049,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleIntelNofusionAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelMaxReinvocationDelay:
     return handleSYCLIntelMaxReinvocationDelayAttr(S, St, A);
+  case ParsedAttr::AT_SYCLIntelEnableLoopPipelining:
+    return handleSYCLIntelEnableLoopPipeliningAttr(S, St, A);
   default:
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
     // declaration attribute is not written on a statement, but this code is

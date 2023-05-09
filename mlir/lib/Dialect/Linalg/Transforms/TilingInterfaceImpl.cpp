@@ -37,7 +37,7 @@ static SmallVector<Value> getIndicesForAccess(OpBuilder &b, Location loc,
   for (auto result : indexingMap.getResults()) {
     AffineMap m = AffineMap::get(indexingMap.getNumDims(),
                                  indexingMap.getNumSymbols(), result);
-    Value v = b.create<AffineApplyOp>(loc, m, ivs);
+    Value v = b.create<affine::AffineApplyOp>(loc, m, ivs);
     indices.push_back(v);
   }
   return indices;
@@ -104,8 +104,8 @@ struct LinalgOpTilingInterface
 
     return llvm::to_vector(
         llvm::map_range(map.getResults(), [&](AffineExpr loopExpr) {
-          OpFoldResult ofr =
-              makeComposedFoldedAffineApply(b, loc, loopExpr, allShapesSizes);
+          OpFoldResult ofr = affine::makeComposedFoldedAffineApply(
+              b, loc, loopExpr, allShapesSizes);
           return Range{b.getIndexAttr(0), ofr, b.getIndexAttr(1)};
         }));
   }
@@ -147,7 +147,7 @@ struct LinalgOpTilingInterface
     bindDims(b.getContext(), d0);
     SmallVector<OpFoldResult> subShapeSizes =
         llvm::to_vector(llvm::map_range(sizes, [&](OpFoldResult ofr) {
-          return makeComposedFoldedAffineApply(b, loc, d0 - 1, ofr);
+          return affine::makeComposedFoldedAffineApply(b, loc, d0 - 1, ofr);
         }));
 
     OpOperand *outOperand = linalgOp.getDpsInitOperand(resultNumber);
@@ -271,7 +271,7 @@ struct LinalgOpPartialReductionInterface
       return op->emitOpError("Failed to anaysis the reduction operation.");
 
     Operation *reductionOp = combinerOps[0];
-    std::optional<Attribute> identity = getNeutralElement(reductionOp);
+    std::optional<TypedAttr> identity = getNeutralElement(reductionOp);
     if (!identity.has_value())
       return op->emitOpError(
           "Failed to get an identity value for the reduction operation.");
@@ -328,8 +328,8 @@ struct LinalgOpPartialReductionInterface
 
     // Step 1: Extract a slice of the input operands.
     SmallVector<Value> valuesToTile = linalgOp.getDpsInputOperands();
-    SmallVector<Value, 4> tiledOperands =
-        makeTiledShapes(b, loc, op, valuesToTile, offsets, sizes, {}, true);
+    SmallVector<Value, 4> tiledOperands = makeTiledShapes(
+        b, loc, linalgOp, valuesToTile, offsets, sizes, {}, true);
 
     // Step 2: Extract the accumulator operands
     SmallVector<OpFoldResult> strides(offsets.size(), b.getIndexAttr(1));

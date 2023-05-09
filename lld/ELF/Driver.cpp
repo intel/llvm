@@ -1077,6 +1077,25 @@ static bool isValidReportString(StringRef arg) {
   return arg == "none" || arg == "warning" || arg == "error";
 }
 
+// Process a remap pattern 'from-glob=to-file'.
+static bool remapInputs(StringRef line, const Twine &location) {
+  SmallVector<StringRef, 0> fields;
+  line.split(fields, '=');
+  if (fields.size() != 2 || fields[1].empty()) {
+    error(location + ": parse error, not 'from-glob=to-file'");
+    return true;
+  }
+  if (!hasWildcard(fields[0]))
+    config->remapInputs[fields[0]] = fields[1];
+  else if (Expected<GlobPattern> pat = GlobPattern::create(fields[0]))
+    config->remapInputsWildcards.emplace_back(std::move(*pat), fields[1]);
+  else {
+    error(location + ": " + toString(pat.takeError()));
+    return true;
+  }
+  return false;
+}
+
 // Initializes Config members by the command line options.
 static void readConfigs(opt::InputArgList &args) {
   errorHandler().verbose = args.hasArg(OPT_verbose);
@@ -1337,6 +1356,21 @@ static void readConfigs(opt::InputArgList &args) {
       config->optEL = true;
   }
 
+  for (opt::Arg *arg : args.filtered(OPT_remap_inputs)) {
+    StringRef value(arg->getValue());
+    remapInputs(value, arg->getSpelling());
+  }
+  for (opt::Arg *arg : args.filtered(OPT_remap_inputs_file)) {
+    StringRef filename(arg->getValue());
+    std::optional<MemoryBufferRef> buffer = readFile(filename);
+    if (!buffer)
+      continue;
+    // Parse 'from-glob=to-file' lines, ignoring #-led comments.
+    for (auto [lineno, line] : llvm::enumerate(args::getLines(*buffer)))
+      if (remapInputs(line, filename + ":" + Twine(lineno + 1)))
+        break;
+  }
+
   for (opt::Arg *arg : args.filtered(OPT_shuffle_sections)) {
     constexpr StringRef errPrefix = "--shuffle-sections=: ";
     std::pair<StringRef, StringRef> kv = StringRef(arg->getValue()).split('=');
@@ -1422,8 +1456,6 @@ static void readConfigs(opt::InputArgList &args) {
     config->mllvmOpts.emplace_back(arg->getValue());
   }
 
-  config->threadCount = parallel::strategy.compute_thread_count();
-
   // --threads= takes a positive integer and provides the default value for
   // --thinlto-jobs=. If unspecified, cap the number of threads since
   // overhead outweighs optimization for used parallel algorithms for the
@@ -1436,12 +1468,13 @@ static void readConfigs(opt::InputArgList &args) {
             arg->getValue() + "'");
     parallel::strategy = hardware_concurrency(threads);
     config->thinLTOJobs = v;
-  } else if (config->threadCount > 16) {
+  } else if (parallel::strategy.compute_thread_count() > 16) {
     log("set maximum concurrency to 16, specify --threads= to change");
     parallel::strategy = hardware_concurrency(16);
   }
   if (auto *arg = args.getLastArg(OPT_thinlto_jobs_eq))
     config->thinLTOJobs = arg->getValue();
+  config->threadCount = parallel::strategy.compute_thread_count();
 
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");

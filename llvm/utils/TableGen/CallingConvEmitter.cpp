@@ -15,14 +15,16 @@
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
+#include <deque>
+
 using namespace llvm;
 
 namespace {
 class CallingConvEmitter {
   RecordKeeper &Records;
-  unsigned Counter;
+  unsigned Counter = 0u;
   std::string CurrentAction;
-  bool SwiftAction;
+  bool SwiftAction = false;
 
   std::map<std::string, std::set<std::string>> AssignedRegsMap;
   std::map<std::string, std::set<std::string>> AssignedSwiftRegsMap;

@@ -403,6 +403,18 @@ public:
       Env.setValue(Loc, NullPointerVal);
       break;
     }
+    case CK_FunctionToPointerDecay: {
+      StorageLocation *PointeeLoc =
+          Env.getStorageLocation(*SubExpr, SkipPast::Reference);
+      if (PointeeLoc == nullptr)
+        break;
+
+      auto &PointerLoc = Env.createStorageLocation(*S);
+      auto &PointerVal = Env.create<PointerValue>(*PointeeLoc);
+      Env.setStorageLocation(*S, PointerLoc);
+      Env.setValue(PointerLoc, PointerVal);
+      break;
+    }
     default:
       break;
     }
@@ -469,8 +481,22 @@ public:
     Env.setValue(Loc, Env.create<PointerValue>(*ThisPointeeLoc));
   }
 
+  void VisitCXXNewExpr(const CXXNewExpr *S) {
+    auto &Loc = Env.createStorageLocation(*S);
+    Env.setStorageLocation(*S, Loc);
+    if (Value *Val = Env.createValue(S->getType()))
+      Env.setValue(Loc, *Val);
+  }
+
+  void VisitCXXDeleteExpr(const CXXDeleteExpr *S) {
+    // Empty method.
+    // We consciously don't do anything on deletes.  Diagnosing double deletes
+    // (for example) should be done by a specific analysis, not by the
+    // framework.
+  }
+
   void VisitReturnStmt(const ReturnStmt *S) {
-    if (!Env.getAnalysisOptions().ContextSensitiveOpts)
+    if (!Env.getDataflowAnalysisContext().getOptions().ContextSensitiveOpts)
       return;
 
     auto *Ret = S->getRetValue();
@@ -620,9 +646,12 @@ public:
       assert(Arg1 != nullptr);
 
       // Evaluate only copy and move assignment operators.
-      auto *Arg0Type = Arg0->getType()->getUnqualifiedDesugaredType();
-      auto *Arg1Type = Arg1->getType()->getUnqualifiedDesugaredType();
-      if (Arg0Type != Arg1Type)
+      const auto *Method =
+          dyn_cast_or_null<CXXMethodDecl>(S->getDirectCallee());
+      if (!Method)
+        return;
+      if (!Method->isCopyAssignmentOperator() &&
+          !Method->isMoveAssignmentOperator())
         return;
 
       auto *ObjectLoc = Env.getStorageLocation(*Arg0, SkipPast::Reference);
@@ -834,12 +863,13 @@ private:
   // `F` of `S`. The type `E` must be either `CallExpr` or `CXXConstructExpr`.
   template <typename E>
   void transferInlineCall(const E *S, const FunctionDecl *F) {
-    const auto &Options = Env.getAnalysisOptions();
+    const auto &Options = Env.getDataflowAnalysisContext().getOptions();
     if (!(Options.ContextSensitiveOpts &&
           Env.canDescend(Options.ContextSensitiveOpts->Depth, F)))
       return;
 
-    const ControlFlowContext *CFCtx = Env.getControlFlowContext(F);
+    const ControlFlowContext *CFCtx =
+        Env.getDataflowAnalysisContext().getControlFlowContext(F);
     if (!CFCtx)
       return;
 

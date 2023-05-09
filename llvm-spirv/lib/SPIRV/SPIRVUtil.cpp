@@ -658,8 +658,7 @@ public:
 } // unnamed namespace
 
 static StringRef stringify(const itanium_demangle::NameType *Node) {
-  const itanium_demangle::StringView Str = Node->getName();
-  return StringRef(Str.begin(), Str.size());
+  return Node->getName();
 }
 
 /// Convert a mangled name that represents a basic integer, floating-point,
@@ -730,7 +729,7 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
     while (true) {
       if (auto *VendorTy = dyn_cast<VendorExtQualType>(Pointee)) {
         Pointee = VendorTy->getTy();
-        StringRef Qualifier(VendorTy->getExt().begin(),
+        StringRef Qualifier(&*VendorTy->getExt().begin(),
                             VendorTy->getExt().size());
         if (Qualifier.consume_front("AS")) {
           Qualifier.getAsInteger(10, AS);
@@ -821,11 +820,12 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       assert(!HasSret && &Arg == F->getArg(0) &&
              "sret parameter should only appear on the first argument");
       HasSret = true;
+      unsigned AS = Arg.getType()->getPointerAddressSpace();
       if (auto *STy = dyn_cast<StructType>(Ty))
         ArgTys.push_back(
-            TypedPointerType::get(GetStructType(STy->getName()), 0));
+            TypedPointerType::get(GetStructType(STy->getName()), AS));
       else
-        ArgTys.push_back(TypedPointerType::get(Ty, 0));
+        ArgTys.push_back(TypedPointerType::get(Ty, AS));
     } else {
       ArgTys.push_back(Arg.getType());
     }
@@ -896,6 +896,11 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       DemangledSuccessfully = false;
     } else if (ArgTy->isTargetExtTy() || !DemangledTy)
       DemangledTy = ArgTy;
+    if (auto *TPT = dyn_cast<TypedPointerType>(DemangledTy))
+      if (ArgTy->isPointerTy() &&
+          TPT->getAddressSpace() != ArgTy->getPointerAddressSpace())
+        DemangledTy = TypedPointerType::get(TPT->getElementType(),
+                                            ArgTy->getPointerAddressSpace());
     *ArgIter++ = DemangledTy;
   }
   return DemangledSuccessfully;

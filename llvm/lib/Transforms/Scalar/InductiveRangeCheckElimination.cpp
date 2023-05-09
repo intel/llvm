@@ -72,8 +72,6 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -81,7 +79,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -249,39 +246,7 @@ public:
   bool run(Loop *L, function_ref<void(Loop *, bool)> LPMAddNewLoop);
 };
 
-class IRCELegacyPass : public FunctionPass {
-public:
-  static char ID;
-
-  IRCELegacyPass() : FunctionPass(ID) {
-    initializeIRCELegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<BranchProbabilityInfoWrapperPass>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addRequired<LoopInfoWrapperPass>();
-    AU.addPreserved<LoopInfoWrapperPass>();
-    AU.addRequired<ScalarEvolutionWrapperPass>();
-    AU.addPreserved<ScalarEvolutionWrapperPass>();
-  }
-
-  bool runOnFunction(Function &F) override;
-};
-
 } // end anonymous namespace
-
-char IRCELegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(IRCELegacyPass, "irce",
-                      "Inductive range check elimination", false, false)
-INITIALIZE_PASS_DEPENDENCY(BranchProbabilityInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_END(IRCELegacyPass, "irce", "Inductive range check elimination",
-                    false, false)
 
 /// Parse a single ICmp instruction, `ICI`, into a range check.  If `ICI` cannot
 /// be interpreted as a range check, return false and set `Index` and `End`
@@ -299,44 +264,47 @@ bool InductiveRangeCheck::parseRangeCheckICmp(Loop *L, ICmpInst *ICI,
   Value *LHS = ICI->getOperand(0);
   Value *RHS = ICI->getOperand(1);
 
+  // Canonicalize to the `Index Pred Invariant` comparison
+  if (IsLoopInvariant(LHS)) {
+    std::swap(LHS, RHS);
+    Pred = CmpInst::getSwappedPredicate(Pred);
+  } else if (!IsLoopInvariant(RHS))
+    // Both LHS and RHS are loop variant
+    return false;
+
   switch (Pred) {
   default:
     return false;
 
-  case ICmpInst::ICMP_SLE:
-    std::swap(LHS, RHS);
-    [[fallthrough]];
   case ICmpInst::ICMP_SGE:
     if (match(RHS, m_ConstantInt<0>())) {
       Index = SE.getSCEV(LHS);
-      return true; // Lower.
+      return true;
+    }
+    return false;
+
+  case ICmpInst::ICMP_SGT:
+    if (match(RHS, m_ConstantInt<-1>())) {
+      Index = SE.getSCEV(LHS);
+      return true;
     }
     return false;
 
   case ICmpInst::ICMP_SLT:
-    std::swap(LHS, RHS);
-    [[fallthrough]];
-  case ICmpInst::ICMP_SGT:
-    if (match(RHS, m_ConstantInt<-1>())) {
-      Index = SE.getSCEV(LHS);
-      return true; // Lower.
-    }
-
-    if (IsLoopInvariant(LHS)) {
-      Index = SE.getSCEV(RHS);
-      End = SE.getSCEV(LHS);
-      return true; // Upper.
-    }
-    return false;
-
   case ICmpInst::ICMP_ULT:
-    std::swap(LHS, RHS);
-    [[fallthrough]];
-  case ICmpInst::ICMP_UGT:
-    if (IsLoopInvariant(LHS)) {
-      Index = SE.getSCEV(RHS);
-      End = SE.getSCEV(LHS);
-      return true; // Both lower and upper.
+    Index = SE.getSCEV(LHS);
+    End = SE.getSCEV(RHS);
+    return true;
+
+  case ICmpInst::ICMP_SLE:
+  case ICmpInst::ICMP_ULE:
+    const SCEV *One = SE.getOne(RHS->getType());
+    const SCEV *RHSS = SE.getSCEV(RHS);
+    bool Signed = Pred == ICmpInst::ICMP_SLE;
+    if (SE.willNotOverflow(Instruction::BinaryOps::Add, Signed, RHSS, One)) {
+      Index = SE.getSCEV(LHS);
+      End = SE.getAddExpr(RHSS, One);
+      return true;
     }
     return false;
   }
@@ -1562,7 +1530,7 @@ bool LoopConstrainer::run() {
 
   // This function canonicalizes the loop into Loop-Simplify and LCSSA forms.
   auto CanonicalizeLoop = [&] (Loop *L, bool IsOriginalLoop) {
-    formLCSSARecursively(*L, DT, &LI, &SE);
+    formLCSSARecursively(*L, DT, &LI);
     simplifyLoop(L, &DT, &LI, &SE, nullptr, nullptr, true);
     // Pre/post loops are slow paths, we do not need to perform any loop
     // optimizations on them.
@@ -1791,7 +1759,7 @@ PreservedAnalyses IRCEPass::run(Function &F, FunctionAnalysisManager &AM) {
     for (const auto &L : LI) {
       CFGChanged |= simplifyLoop(L, &DT, &LI, &SE, nullptr, nullptr,
                                  /*PreserveLCSSA=*/false);
-      Changed |= formLCSSARecursively(*L, DT, &LI, &SE);
+      Changed |= formLCSSARecursively(*L, DT, &LI);
     }
     Changed |= CFGChanged;
 
@@ -1824,39 +1792,6 @@ PreservedAnalyses IRCEPass::run(Function &F, FunctionAnalysisManager &AM) {
   if (!Changed)
     return PreservedAnalyses::all();
   return getLoopPassPreservedAnalyses();
-}
-
-bool IRCELegacyPass::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-  BranchProbabilityInfo &BPI =
-      getAnalysis<BranchProbabilityInfoWrapperPass>().getBPI();
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  InductiveRangeCheckElimination IRCE(SE, &BPI, DT, LI);
-
-  bool Changed = false;
-
-  for (const auto &L : LI) {
-    Changed |= simplifyLoop(L, &DT, &LI, &SE, nullptr, nullptr,
-                            /*PreserveLCSSA=*/false);
-    Changed |= formLCSSARecursively(*L, DT, &LI, &SE);
-  }
-
-  SmallPriorityWorklist<Loop *, 4> Worklist;
-  appendLoopsToWorklist(LI, Worklist);
-  auto LPMAddNewLoop = [&](Loop *NL, bool IsSubloop) {
-    if (!IsSubloop)
-      appendLoopsToWorklist(*NL, Worklist);
-  };
-
-  while (!Worklist.empty()) {
-    Loop *L = Worklist.pop_back_val();
-    Changed |= IRCE.run(L, LPMAddNewLoop);
-  }
-  return Changed;
 }
 
 bool
@@ -1997,8 +1932,4 @@ bool InductiveRangeCheckElimination::run(
   }
 
   return Changed;
-}
-
-Pass *llvm::createInductiveRangeCheckEliminationPass() {
-  return new IRCELegacyPass();
 }

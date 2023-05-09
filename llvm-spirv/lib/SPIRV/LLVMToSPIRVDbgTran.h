@@ -134,6 +134,9 @@ private:
   SPIRVEntry *transDbgGlobalVariable(const DIGlobalVariable *GV);
   SPIRVEntry *transDbgFunction(const DISubprogram *Func);
 
+  SPIRVEntry *transDbgFuncDefinition(SPIRVValue *SPVFunc, SPIRVEntry *DbgFunc);
+  SPIRVEntry *transDbgEntryPoint(const DISubprogram *Func, SPIRVEntry *DbgFunc);
+
   // Location information
   SPIRVEntry *transDbgScope(const DIScope *S);
   SPIRVEntry *transDebugLoc(const DebugLoc &Loc, SPIRVBasicBlock *BB,
@@ -164,7 +167,7 @@ private:
   SPIRVType *VoidT = nullptr;
   SPIRVType *Int32T = nullptr;
   SPIRVEntry *DebugInfoNone;
-  SPIRVExtInst *SPIRVCU = nullptr;
+  std::unordered_map<const DICompileUnit *, SPIRVExtInst *> SPIRVCUMap;
   std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
   std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
 }; // class LLVMToSPIRVDbgTran

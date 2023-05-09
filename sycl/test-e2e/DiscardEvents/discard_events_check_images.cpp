@@ -1,12 +1,10 @@
 // UNSUPPORTED: hip
+// REQUIRES: aspect-ext_intel_legacy_image
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 //
-// RUN: %CPU_RUN_PLACEHOLDER %t.out image
-// RUN: %GPU_RUN_PLACEHOLDER %t.out image
-//
-// RUN: %CPU_RUN_PLACEHOLDER %t.out mixed
-// RUN: %GPU_RUN_PLACEHOLDER %t.out mixed
+// RUN: %{run} %t.out image
+// RUN: %{run} %t.out mixed
 //
 // Note that the tests use image functionality and if you have problems with
 // the tests, please check if they pass without the discard_events property, if
@@ -175,18 +173,14 @@ int main(int Argc, const char *Argv[]) {
   sycl::queue Q(props);
 
   auto dev = Q.get_device();
-  if (dev.has(aspect::image)) {
-    if (TestType == "image") {
-      std::cerr << "RunTest_ImageTest" << std::endl;
-      RunTest_ImageTest(Q);
-    } else if (TestType == "mixed") {
-      std::cerr << "RunTest_ImageTest_Mixed" << std::endl;
-      RunTest_ImageTest_Mixed(Q);
-    } else {
-      assert(0 && "Unsupported test type!");
-    }
+  if (TestType == "image") {
+    std::cerr << "RunTest_ImageTest" << std::endl;
+    RunTest_ImageTest(Q);
+  } else if (TestType == "mixed") {
+    std::cerr << "RunTest_ImageTest_Mixed" << std::endl;
+    RunTest_ImageTest_Mixed(Q);
   } else {
-    std::cout << "device does not support image operations" << std::endl;
+    assert(0 && "Unsupported test type!");
   }
 
   std::cout << "The test passed." << std::endl;

@@ -13,6 +13,8 @@ static const std::string ChecksumKindPrefx = {"//__CSK_"};
 
 // clang-format off
 
+// Need to update hasDbgInstParentScopeIdx each time we add new instruction
+// with ParentScopeIdx
 enum Instruction {
   DebugInfoNone                 = 0,
   CompilationUnit               = 1,
@@ -52,6 +54,8 @@ enum Instruction {
   Source                        = 35,
   ModuleINTEL                   = 36,
   InstCount                     = 37,
+  FunctionDefinition            = 101,
+  EntryPoint                    = 107,
   Module                        = 200,
   TypeSubrange                  = 201,
   TypeArrayDynamic              = 202,
@@ -59,25 +63,26 @@ enum Instruction {
 };
 
 enum Flag {
-  FlagIsProtected         = 1 << 0,
-  FlagIsPrivate           = 1 << 1,
-  FlagIsPublic            = FlagIsPrivate | FlagIsProtected,
-  FlagAccess              = FlagIsPublic,
-  FlagIsLocal             = 1 << 2,
-  FlagIsDefinition        = 1 << 3,
-  FlagIsFwdDecl           = 1 << 4,
-  FlagIsArtificial        = 1 << 5,
-  FlagIsExplicit          = 1 << 6,
-  FlagIsPrototyped        = 1 << 7,
-  FlagIsObjectPointer     = 1 << 8,
-  FlagIsStaticMember      = 1 << 9,
-  FlagIsIndirectVariable  = 1 << 10,
-  FlagIsLValueReference   = 1 << 11,
-  FlagIsRValueReference   = 1 << 12,
-  FlagIsOptimized         = 1 << 13,
-  FlagIsEnumClass         = 1 << 14,
-  FlagTypePassByValue     = 1 << 15,
-  FlagTypePassByReference = 1 << 16,
+  FlagIsProtected            = 1 << 0,
+  FlagIsPrivate              = 1 << 1,
+  FlagIsPublic               = FlagIsPrivate | FlagIsProtected,
+  FlagAccess                 = FlagIsPublic,
+  FlagIsLocal                = 1 << 2,
+  FlagIsDefinition           = 1 << 3,
+  FlagIsFwdDecl              = 1 << 4,
+  FlagIsArtificial           = 1 << 5,
+  FlagIsExplicit             = 1 << 6,
+  FlagIsPrototyped           = 1 << 7,
+  FlagIsObjectPointer        = 1 << 8,
+  FlagIsStaticMember         = 1 << 9,
+  FlagIsIndirectVariable     = 1 << 10,
+  FlagIsLValueReference      = 1 << 11,
+  FlagIsRValueReference      = 1 << 12,
+  FlagIsOptimized            = 1 << 13,
+  FlagIsEnumClass            = 1 << 14,
+  FlagTypePassByValue        = 1 << 15,
+  FlagTypePassByReference    = 1 << 16,
+  FlagUnknownPhysicalLayout  = 1 << 17,
 };
 
 enum EncodingTag {
@@ -255,23 +260,25 @@ enum ExpressionOpCode {
   DerefSize  = 146,
   XderefSize = 147,
   Nop        = 148,
-  PushObjectAddress = 149,
-  Call2             = 150,
-  Call4             = 151,
-  CallRef           = 152,
-  FormTlsAddress    = 153,
-  CallFrameCfa      = 154,
-  ImplicitValue     = 155,
-  ImplicitPointer   = 156,
-  Addrx             = 157,
-  Constx            = 158,
-  EntryValue        = 159,
-  ConstTypeOp       = 160,
-  RegvalType        = 161,
-  DerefType         = 162,
-  XderefType        = 163,
-  Reinterpret       = 164,
-  LLVMArg           = 165,
+  PushObjectAddress  = 149,
+  Call2              = 150,
+  Call4              = 151,
+  CallRef            = 152,
+  FormTlsAddress     = 153,
+  CallFrameCfa       = 154,
+  ImplicitValue      = 155,
+  ImplicitPointer    = 156,
+  Addrx              = 157,
+  Constx             = 158,
+  EntryValue         = 159,
+  ConstTypeOp        = 160,
+  RegvalType         = 161,
+  DerefType          = 162,
+  XderefType         = 163,
+  Reinterpret        = 164,
+  LLVMArg            = 165,
+  ImplicitPointerTag = 166,
+  TagOffset          = 167,
 };
 
 enum ImportedEntityTag {
@@ -287,7 +294,9 @@ enum {
   DWARFVersionIdx          = 1,
   SourceIdx                = 2,
   LanguageIdx              = 3,
-  OperandCount             = 4
+  // For NonSemantic.Shader.DebugInfo.200
+  ProducerIdx              = 4,
+  MinOperandCount          = 4
 };
 }
 
@@ -301,10 +310,13 @@ enum {
 
 namespace TypeBasic {
 enum {
-  NameIdx      = 0,
-  SizeIdx      = 1,
-  EncodingIdx  = 2,
-  OperandCount = 3
+  NameIdx                 = 0,
+  SizeIdx                 = 1,
+  EncodingIdx             = 2,
+  // For NonSemantic Specs
+  FlagsIdx                = 3,
+  OperandCountOCL         = 3,
+  OperandCountNonSemantic = 4
 };
 }
 
@@ -449,7 +461,7 @@ enum {
 };
 }
 
-namespace PtrToMember {
+namespace TypePtrToMember {
 enum {
   MemberTypeIdx = 0,
   ParentIdx     = 1,
@@ -531,30 +543,55 @@ enum {
 
 namespace Function {
 enum {
-  NameIdx         = 0,
-  TypeIdx         = 1,
-  SourceIdx       = 2,
-  LineIdx         = 3,
-  ColumnIdx       = 4,
-  ParentIdx       = 5,
-  LinkageNameIdx  = 6,
-  FlagsIdx        = 7,
-  ScopeLineIdx    = 8,
-  FunctionIdIdx   = 9,
-  DeclarationIdx  = 10,
-  TargetFunctionNameIdx  = 11,
-  MinOperandCount = 10
+  NameIdx               = 0,
+  TypeIdx               = 1,
+  SourceIdx             = 2,
+  LineIdx               = 3,
+  ColumnIdx             = 4,
+  ParentIdx             = 5,
+  LinkageNameIdx        = 6,
+  FlagsIdx              = 7,
+  ScopeLineIdx          = 8,
+  FunctionIdIdx         = 9,
+  DeclarationIdx        = 10,
+  MinOperandCount       = 10,
+
+// Only for NonSemantic.Shader.DebugInfo.*
+// No operand FunctionId
+  DeclarationNonSemIdx  = 9,
+  MinOperandCountNonSem = 9,
+  // Only for NonSemantic.Shader.DebugInfo.200
+  TargetFunctionNameIdx = 10,
+};
+}
+
+namespace FunctionDefinition {
+enum {
+  FunctionIdx     = 0,
+  DefinitionIdx   = 1,
+  OperandCount    = 2
+};
+}
+
+namespace EntryPoint {
+enum {
+  EntryPointIdx        = 0,
+  CompilationUnitIdx   = 1,
+  CompilerSignatureIdx = 2,
+  CommandLineArgsIdx   = 3,
+  OperandCount         = 4
 };
 }
 
 namespace LexicalBlock {
 enum {
-  SourceIdx       = 0,
-  LineIdx         = 1,
-  ColumnIdx       = 2,
-  ParentIdx       = 3,
-  NameIdx         = 4,
-  MinOperandCount = 4
+  SourceIdx          = 0,
+  LineIdx            = 1,
+  ColumnIdx          = 2,
+  ParentIdx          = 3,
+  MinOperandCount    = 4,
+  NameIdx            = 4,
+  InlineNamespaceIdx = 5,
 };
 }
 
@@ -645,15 +682,15 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
   { Constu,             2 },
   { Fragment,           3 },
   { Convert,            3 },
-  // { Addr,               2 }, /* not implemented */
-  // { Const1u,            2 },
-  // { Const1s,            2 },
-  // { Const2u,            2 },
-  // { Const2s,            2 },
-  // { Const4u,            2 },
-  // { Const4s,            2 },
-  // { Const8u,            2 },
-  // { Const8s,            2 },
+  { Addr,               2 },
+  { Const1u,            2 },
+  { Const1s,            2 },
+  { Const2u,            2 },
+  { Const2s,            2 },
+  { Const4u,            2 },
+  { Const4s,            2 },
+  { Const8u,            2 },
+  { Const8s,            2 },
   { Consts,             2 },
   { Dup,                1 },
   { Drop,               1 },
@@ -672,14 +709,14 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
   { Shr,                1 },
   { Shra,               1 },
   { Xor,                1 },
-  // { Bra,                2 }, /* not implemented */
+  { Bra,                2 },
   { Eq,                 1 },
   { Ge,                 1 },
   { Gt,                 1 },
   { Le,                 1 },
   { Lt,                 1 },
   { Ne,                 1 },
-  // { Skip,               2 }, /* not implemented */
+  { Skip,               2 },
   { Lit0,               1 },
   { Lit1,               1 },
   { Lit2,               1 },
@@ -777,33 +814,38 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
   { Breg30,             2 },
   { Breg31,             2 },
   { Regx,               2 },
-  // { Fbreg,              1 }, /* not implemented */
+  { Fbreg,              1 },
   { Bregx,              3 },
-  // { Piece,              2 }, /* not implemented */
+  { Piece,              2 },
   { DerefSize,          2 },
   { XderefSize,         2 },
   { Nop,                1 },
   { PushObjectAddress,  1 },
-  // { Call2,              2 }, /* not implemented */
-  // { Call4,              2 },
-  // { CallRef,            2 },
-  // { FormTlsAddress,     1 },
-  // { CallFrameCfa,       1 },
-  // { ImplicitValue,      3 },
-  // { ImplicitPointer,    3 },
-  // { Addrx,              2 },
-  // { Constx,             2 },
-  // { EntryValue,         3 },
-  // { ConstTypeOp,        4 },
-  // { RegvalType,         3 },
-  // { DerefType,          3 },
-  // { XderefType,         3 },
-  // { Reinterpret,        2 },
+  { Call2,              2 },
+  { Call4,              2 },
+  { CallRef,            2 },
+  { FormTlsAddress,     1 },
+  { CallFrameCfa,       1 },
+  { ImplicitValue,      3 },
+  { ImplicitPointer,    3 },
+  { Addrx,              2 },
+  { Constx,             2 },
+  { EntryValue,         3 },
+  { ConstTypeOp,        4 },
+  { RegvalType,         3 },
+  { DerefType,          3 },
+  { XderefType,         3 },
+  { Reinterpret,        2 },
   { LLVMArg,            2 },
+  { ImplicitPointerTag, 2 },
+  { TagOffset,          2 },
 };
 }
 
 namespace ImportedEntity {
+inline namespace OpenCL {
+// it's bugged version, note 2nd index is missing
+// FIXME: need to remove it after some graceful period
 enum {
   NameIdx      = 0,
   TagIdx       = 1,
@@ -814,7 +856,20 @@ enum {
   ParentIdx    = 7,
   OperandCount = 8
 };
-}
+} // namespace OpenCL
+namespace NonSemantic {
+enum {
+  NameIdx      = 0,
+  TagIdx       = 1,
+  SourceIdx    = 2,
+  EntityIdx    = 3,
+  LineIdx      = 4,
+  ColumnIdx    = 5,
+  ParentIdx    = 6,
+  OperandCount = 7
+};
+} // namespace NonSemantic
+} // namespace ImportedEntity
 
 namespace ModuleINTEL {
 enum {
@@ -828,6 +883,61 @@ enum {
   IsDeclIdx       = 7,
   OperandCount    = 8
 };
+}
+
+// helper function to get parent scope of debug instruction, to be used
+// to determine with which compile unit the particular instruction relates
+inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
+                                     uint32_t &ParentScopeIdx) {
+  switch (Kind) {
+  case SPIRVDebug::Typedef:
+    ParentScopeIdx = Typedef::ParentIdx;
+    return true;
+  case SPIRVDebug::TypeEnum:
+    ParentScopeIdx = TypeEnum::ParentIdx;
+    return true;
+  case SPIRVDebug::TypeComposite:
+    ParentScopeIdx = TypeMember::ParentIdx;
+    return true;
+  case SPIRVDebug::TypeInheritance:
+    ParentScopeIdx = TypeInheritance::ParentIdx;
+    return true;
+  case SPIRVDebug::TypePtrToMember:
+    ParentScopeIdx = TypePtrToMember::ParentIdx;
+    return true;
+  case SPIRVDebug::Function:
+    ParentScopeIdx = Function::ParentIdx;
+    return true;
+  case SPIRVDebug::EntryPoint:
+    ParentScopeIdx = EntryPoint::CompilationUnitIdx;
+    return true;
+  case SPIRVDebug::LexicalBlock:
+    ParentScopeIdx = LexicalBlock::ParentIdx;
+    return true;
+  case SPIRVDebug::LexicalBlockDiscriminator:
+    ParentScopeIdx = LexicalBlockDiscriminator::ParentIdx;
+    return true;
+  case SPIRVDebug::Scope:
+    ParentScopeIdx = Scope::ScopeIdx;
+    return true;
+  case SPIRVDebug::InlinedAt:
+    ParentScopeIdx = InlinedAt::ScopeIdx;
+    return true;
+  case SPIRVDebug::LocalVariable:
+    ParentScopeIdx = LocalVariable::ParentIdx;
+    return true;
+  case SPIRVDebug::ImportedEntity:
+    ParentScopeIdx = ImportedEntity::ParentIdx;
+    return true;
+  case SPIRVDebug::ModuleINTEL:
+    ParentScopeIdx = ModuleINTEL::ParentIdx;
+    return true;
+  case SPIRVDebug::Module:
+    ParentScopeIdx = ModuleINTEL::ParentIdx;
+    return true;
+  default:
+    return false;
+  }
 }
 
 } // namespace Operand
@@ -848,6 +958,23 @@ inline spv::SourceLanguage convertDWARFSourceLangToSPIRV(dwarf::SourceLanguage D
     return spv::SourceLanguage::SourceLanguageOpenCL_C;
   default:
     return spv::SourceLanguage::SourceLanguageUnknown;
+  }
+}
+
+inline bool isSPIRVSourceLangValid(unsigned SourceLang) {
+  switch (SourceLang) {
+  // When updating this function, make sure to also
+  // update convertSPIRVSourceLangToDWARF()
+  case spv::SourceLanguage::SourceLanguageOpenCL_CPP:
+  case spv::SourceLanguage::SourceLanguageCPP_for_OpenCL:
+  case spv::SourceLanguage::SourceLanguageOpenCL_C:
+  case spv::SourceLanguage::SourceLanguageESSL:
+  case spv::SourceLanguage::SourceLanguageGLSL:
+  case spv::SourceLanguage::SourceLanguageHLSL:
+  case spv::SourceLanguage::SourceLanguageUnknown:
+    return true;
+  default:
+    return false;
   }
 }
 
@@ -1036,6 +1163,15 @@ inline void DbgExpressionOpCodeMap::init() {
   add(dwarf::DW_OP_constu,              SPIRVDebug::Constu);
   add(dwarf::DW_OP_LLVM_fragment,       SPIRVDebug::Fragment);
   add(dwarf::DW_OP_LLVM_convert,        SPIRVDebug::Convert);
+  add(dwarf::DW_OP_addr,                SPIRVDebug::Addr);
+  add(dwarf::DW_OP_const1u,             SPIRVDebug::Const1u);
+  add(dwarf::DW_OP_const1s,             SPIRVDebug::Const1s);
+  add(dwarf::DW_OP_const2u,             SPIRVDebug::Const2u);
+  add(dwarf::DW_OP_const2s,             SPIRVDebug::Const2s);
+  add(dwarf::DW_OP_const4u,             SPIRVDebug::Const4u);
+  add(dwarf::DW_OP_const4s,             SPIRVDebug::Const4s);
+  add(dwarf::DW_OP_const8u,             SPIRVDebug::Const8u);
+  add(dwarf::DW_OP_const8s,             SPIRVDebug::Const8s);
   add(dwarf::DW_OP_consts,              SPIRVDebug::Consts);
   add(dwarf::DW_OP_dup,                 SPIRVDebug::Dup);
   add(dwarf::DW_OP_drop,                SPIRVDebug::Drop);
@@ -1061,6 +1197,7 @@ inline void DbgExpressionOpCodeMap::init() {
   add(dwarf::DW_OP_le,                  SPIRVDebug::Le);
   add(dwarf::DW_OP_lt,                  SPIRVDebug::Lt);
   add(dwarf::DW_OP_ne,                  SPIRVDebug::Ne);
+  add(dwarf::DW_OP_skip,                SPIRVDebug::Skip);
   add(dwarf::DW_OP_lit0,                SPIRVDebug::Lit0);
   add(dwarf::DW_OP_lit1,                SPIRVDebug::Lit1);
   add(dwarf::DW_OP_lit2,                SPIRVDebug::Lit2);
@@ -1159,11 +1296,31 @@ inline void DbgExpressionOpCodeMap::init() {
   add(dwarf::DW_OP_breg31,              SPIRVDebug::Breg31);
   add(dwarf::DW_OP_regx,                SPIRVDebug::Regx);
   add(dwarf::DW_OP_bregx,               SPIRVDebug::Bregx);
+  add(dwarf::DW_OP_piece,               SPIRVDebug::Piece);
   add(dwarf::DW_OP_deref_size,          SPIRVDebug::DerefSize );
   add(dwarf::DW_OP_xderef_size,         SPIRVDebug::XderefSize );
   add(dwarf::DW_OP_nop,                 SPIRVDebug::Nop);
   add(dwarf::DW_OP_push_object_address, SPIRVDebug::PushObjectAddress );
-  add(dwarf::DW_OP_LLVM_arg,            SPIRVDebug::LLVMArg);
+
+
+  add(dwarf::DW_OP_call2,                 SPIRVDebug::Call2);
+  add(dwarf::DW_OP_call4,                 SPIRVDebug::Call4);
+  add(dwarf::DW_OP_call_ref,              SPIRVDebug::CallRef);
+  add(dwarf::DW_OP_form_tls_address,      SPIRVDebug::FormTlsAddress);
+  add(dwarf::DW_OP_call_frame_cfa,        SPIRVDebug::CallFrameCfa);
+  add(dwarf::DW_OP_implicit_value,        SPIRVDebug::ImplicitValue);
+  add(dwarf::DW_OP_implicit_pointer,      SPIRVDebug::ImplicitPointer);
+  add(dwarf::DW_OP_addrx,                 SPIRVDebug::Addrx);
+  add(dwarf::DW_OP_constx,                SPIRVDebug::Constx);
+  add(dwarf::DW_OP_entry_value,           SPIRVDebug::EntryValue);
+  add(dwarf::DW_OP_const_type,            SPIRVDebug::ConstTypeOp);
+  add(dwarf::DW_OP_regval_type,           SPIRVDebug::RegvalType);
+  add(dwarf::DW_OP_deref_type,            SPIRVDebug::DerefType);
+  add(dwarf::DW_OP_xderef_type,           SPIRVDebug::XderefType);
+  add(dwarf::DW_OP_reinterpret,           SPIRVDebug::Reinterpret);
+  add(dwarf::DW_OP_LLVM_arg,              SPIRVDebug::LLVMArg);
+  add(dwarf::DW_OP_LLVM_implicit_pointer, SPIRVDebug::ImplicitPointerTag);
+  add(dwarf::DW_OP_LLVM_tag_offset,       SPIRVDebug::TagOffset);
 }
 
 typedef SPIRVMap<dwarf::Tag, SPIRVDebug::ImportedEntityTag>
