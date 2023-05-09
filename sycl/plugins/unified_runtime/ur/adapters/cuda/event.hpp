@@ -80,7 +80,6 @@ public:
   static ur_event_handle_t
   make_native(ur_command_t type, ur_queue_handle_t queue, CUstream stream,
               uint32_t stream_token = std::numeric_limits<uint32_t>::max()) {
-    // TODO(ur): Remove cast when pi_event is ported to UR
     return new ur_event_handle_t_(type, queue->get_context(), queue, stream,
                                   stream_token);
   }

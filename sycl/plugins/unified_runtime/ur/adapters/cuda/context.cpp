@@ -133,10 +133,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   (void)hNativeContext;
   (void)phContext;
 
-  // TODO(ur): Needed for the conformance test to pass, but it may be valid
-  // to have a null CUDA context
-  UR_ASSERT(hNativeContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 

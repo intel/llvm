@@ -1067,9 +1067,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
     ur_device_handle_t *phDevice) {
-  // TODO(ur): This is neede for the UR CTS, but it might be valid to to have a
-  // null native handle
-  UR_ASSERT(hNativeDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits

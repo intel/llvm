@@ -1220,7 +1220,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   return ret_err;
 }
 
-/// TODO(ur): Add support for the offset.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
