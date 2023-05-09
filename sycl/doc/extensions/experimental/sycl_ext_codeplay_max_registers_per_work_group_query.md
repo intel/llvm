@@ -47,9 +47,3 @@ Max registers per work-group: 65536
 ```
 
 - See: [CUDA Toolkit Documentation](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities)
-
-### Example of returned values
-
-- Not supported if the device is host.
-- CUDA: Back-end query using `CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK`.
-- HIP: Back-end query using `hipDeviceAttributeMaxRegistersPerBlock`.
