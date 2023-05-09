@@ -14,6 +14,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
         substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%sycl_triple %s'))
+        substitutions.append(('%{run-unfiltered-devices}', test.config.run_launcher))
 
         devices_for_test = ['{}:{}'.format(test.config.sycl_be, dev)
                             for dev in test.config.target_devices.split(',')]
