@@ -1,9 +1,10 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: accelerator
+// UNSUPPORTED: gpu
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
