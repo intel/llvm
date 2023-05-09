@@ -9,13 +9,7 @@
 #ifndef UR_LOADER_LOCATION_HPP
 #define UR_LOADER_LOCATION_HPP 1
 
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace filesystem = std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace filesystem = std::experimental::filesystem;
-#endif
+#include "ur_filesystem_resolved.hpp"
 
 namespace fs = std::filesystem;
 

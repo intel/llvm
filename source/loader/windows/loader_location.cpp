@@ -11,14 +11,7 @@
 
 #include <Libloaderapi.h>
 
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace filesystem = std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace filesystem = std::experimental::filesystem;
-#endif #include < filesystem>
-
+#include "ur_filesystem_resolved.hpp"
 #include "ur_loader.hpp"
 
 #define MAX_PATH_LEN_WIN 32767
