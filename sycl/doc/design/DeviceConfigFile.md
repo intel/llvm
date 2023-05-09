@@ -46,11 +46,6 @@ Finally, overhead should be minimal. Particularly, users should not pay for what
 they do not use. This motivates our decision to embed the default Device
 Configuration File rather than releasing it as a separate file. 
 
-**Experimental**: the Device Config File should be extendable even at runtime
-for experimental purposes and when dealing with new HW which may not be
-supported by older compilers. **Question: Why is not enough compile time for new
-HW?**
-
 ## High-Level Design
 The default Device Configuration File is a `.td` file located in the compiler
 source code. `.td` is the file extension for [LLVM
