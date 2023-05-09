@@ -5,13 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
-
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
 // This test is for element wise operations when matrix size does not multiply
 // SG size. This corner case only applies to AMX. Also, it tests bf16 type.
 // only run this on AMX
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+// REQUIRES: matrix
+
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
