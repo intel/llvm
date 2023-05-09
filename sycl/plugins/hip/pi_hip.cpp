@@ -28,73 +28,6 @@
 #include <string_view>
 
 namespace {
-// Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
-// indexed, but on NVidia it is an opaque type and needs to go through
-// cuArrayGetDescriptor so implement a utility function to get the array
-// properties
-inline void getArrayDesc(hipArray *array, hipArray_Format &format,
-                         size_t &channels) {
-#if defined(__HIP_PLATFORM_AMD__)
-  format = array->Format;
-  channels = array->NumChannels;
-#elif defined(__HIP_PLATFORM_NVIDIA__)
-  CUDA_ARRAY_DESCRIPTOR arrayDesc;
-  cuArrayGetDescriptor(&arrayDesc, (CUarray)array);
-
-  format = arrayDesc.Format;
-  channels = arrayDesc.NumChannels;
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
-}
-
-// NVidia HIP headers guard hipArray3DCreate behind __CUDACC__, this does not
-// seem to be required and we're not using nvcc to build the HIP PI plugin so
-// add the translation function here
-#if defined(__HIP_PLATFORM_NVIDIA__) && !defined(__CUDACC__)
-inline static hipError_t
-hipArray3DCreate(hiparray *pHandle,
-                 const HIP_ARRAY3D_DESCRIPTOR *pAllocateArray) {
-  return hipCUResultTohipError(cuArray3DCreate(pHandle, pAllocateArray));
-}
-#endif
-
-// hipArray gets turned into cudaArray when using the HIP NVIDIA platform, and
-// some CUDA APIs use cudaArray* and others use CUarray, these two represent the
-// same type, however when building cudaArray appears as an opaque type, so it
-// needs to be explicitly casted to CUarray. In order for this to work for both
-// AMD and NVidia we introduce an second hipArray type that will be CUarray for
-// NVIDIA and hipArray* for AMD so that we can place the explicit casts when
-// necessary for NVIDIA and they will be no-ops for AMD.
-#if defined(__HIP_PLATFORM_NVIDIA__)
-typedef CUarray hipCUarray;
-#elif defined(__HIP_PLATFORM_AMD__)
-typedef hipArray *hipCUarray;
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
-
-// Add missing HIP to CUDA defines
-#if defined(__HIP_PLATFORM_NVIDIA__)
-#define hipMemoryType CUmemorytype
-#define hipMemoryTypeHost CU_MEMORYTYPE_HOST
-#define hipMemoryTypeDevice CU_MEMORYTYPE_DEVICE
-#define hipMemoryTypeArray CU_MEMORYTYPE_ARRAY
-#define hipMemoryTypeUnified CU_MEMORYTYPE_UNIFIED
-#endif
-
-std::string getHipVersionString() {
-  int driver_version = 0;
-  if (hipDriverGetVersion(&driver_version) != hipSuccess) {
-    return "";
-  }
-  // The version is returned as (1000 major + 10 minor).
-  std::stringstream stream;
-  stream << "HIP " << driver_version / 1000 << "."
-         << driver_version % 1000 / 10;
-  return stream.str();
-}
-
 pi_result map_error(hipError_t result) {
   switch (result) {
   case hipSuccess:
@@ -235,49 +168,6 @@ pi_result check_error(hipError_t result, const char *function, int line,
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
 
-/// RAII type to guarantee recovering original HIP context
-/// Scoped context is used across all PI HIP plugin implementation
-/// to activate the PI Context on the current thread, matching the
-/// HIP driver semantics where the context used for the HIP Driver
-/// API is the one active on the thread.
-/// The implementation tries to avoid replacing the hipCtx_t if it cans
-class ScopedContext {
-  pi_context placedContext_;
-  hipCtx_t original_;
-  bool needToRecover_;
-
-public:
-  ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
-
-    if (!placedContext_) {
-      throw PI_ERROR_INVALID_CONTEXT;
-    }
-
-    hipCtx_t desired = placedContext_->get();
-    PI_CHECK_ERROR(hipCtxGetCurrent(&original_));
-    if (original_ != desired) {
-      // Sets the desired context as the active one for the thread
-      PI_CHECK_ERROR(hipCtxSetCurrent(desired));
-      if (original_ == nullptr) {
-        // No context is installed on the current thread
-        // This is the most common case. We can activate the context in the
-        // thread and leave it there until all the PI context referring to the
-        // same underlying HIP context are destroyed. This emulates
-        // the behaviour of the HIP runtime api, and avoids costly context
-        // switches. No action is required on this side of the if.
-      } else {
-        needToRecover_ = true;
-      }
-    }
-  }
-
-  ~ScopedContext() {
-    if (needToRecover_) {
-      PI_CHECK_ERROR(hipCtxSetCurrent(original_));
-    }
-  }
-};
-
 /// \cond NODOXY
 template <typename T, typename Assign>
 pi_result getInfoImpl(size_t param_value_size, void *param_value,
@@ -334,11 +224,28 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                       param_value_size_ret, value);
 }
 
-int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
-  int value;
-  sycl::detail::pi::assertion(
-      hipDeviceGetAttribute(&value, attribute, device->get()) == hipSuccess);
-  return value;
+ScopedContext::ScopedContext(pi_context ctxt)
+    : placedContext_{ctxt}, needToRecover_{false} {
+  if (!placedContext_) {
+    throw PI_ERROR_INVALID_CONTEXT;
+  }
+
+  hipCtx_t desired = placedContext_->get();
+  PI_CHECK_ERROR(hipCtxGetCurrent(&original_));
+  if (original_ != desired) {
+    // Sets the desired context as the active one for the thread
+    PI_CHECK_ERROR(hipCtxSetCurrent(desired));
+    if (original_ == nullptr) {
+      // No context is installed on the current thread
+      // This is the most common case. We can activate the context in the
+      // thread and leave it there until all the PI context referring to the
+      // same underlying HIP context are destroyed. This emulates
+      // the behaviour of the HIP runtime api, and avoids costly context
+      // switches. No action is required on this side of the if.
+    } else {
+      needToRecover_ = true;
+    }
+  }
 }
 /// \endcond
 
@@ -567,14 +474,14 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
   if (queue_ != nullptr) {
     hip_piQueueRetain(queue_);
   }
-  hip_piContextRetain(context_);
+  pi2ur::piContextRetain(context_);
 }
 
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
     hip_piQueueRelease(queue_);
   }
-  hip_piContextRelease(context_);
+  pi2ur::piContextRelease(context_);
 }
 
 pi_result _pi_event::start() {
@@ -719,12 +626,12 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
-      context_{ctxt} {
-  hip_piContextRetain(context_);
+    : module_{nullptr}, binary_{},
+      binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
+  pi2ur::piContextRetain(context_);
 }
 
-_pi_program::~_pi_program() { hip_piContextRelease(context_); }
+_pi_program::~_pi_program() { pi2ur::piContextRelease(context_); }
 
 pi_result _pi_program::set_binary(const char *source, size_t length) {
   assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
@@ -789,11 +696,11 @@ private:
   T Captive;
 
   static pi_result callRelease(pi_device Captive) {
-    return hip_piDeviceRelease(Captive);
+    return pi2ur::piDeviceRelease(Captive);
   }
 
   static pi_result callRelease(pi_context Captive) {
-    return hip_piContextRelease(Captive);
+    return pi2ur::piContextRelease(Captive);
   }
 
   static pi_result callRelease(pi_mem Captive) {
@@ -858,240 +765,6 @@ public:
 //-- PI API implementation
 extern "C" {
 
-/// Obtains the HIP platform.
-/// There is only one HIP platform, and contains all devices on the system.
-/// Triggers the HIP Driver initialization (hipInit) the first time, so this
-/// must be the first PI API called.
-///
-/// However because multiple devices in a context is not currently supported,
-/// place each device in a separate platform.
-///
-pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
-                             pi_uint32 *num_platforms) {
-
-  try {
-    static std::once_flag initFlag;
-    static pi_uint32 numPlatforms = 1;
-    static std::vector<_pi_platform> platformIds;
-
-    if (num_entries == 0 and platforms != nullptr) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-    if (platforms == nullptr and num_platforms == nullptr) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    pi_result err = PI_SUCCESS;
-
-    std::call_once(
-        initFlag,
-        [](pi_result &err) {
-          if (hipInit(0) != hipSuccess) {
-            numPlatforms = 0;
-            return;
-          }
-          int numDevices = 0;
-          hipError_t hipErrorCode = hipGetDeviceCount(&numDevices);
-          if (hipErrorCode == hipErrorNoDevice) {
-            numPlatforms = 0;
-            return;
-          }
-          err = PI_CHECK_ERROR(hipErrorCode);
-          if (numDevices == 0) {
-            numPlatforms = 0;
-            return;
-          }
-          try {
-            numPlatforms = numDevices;
-            platformIds.resize(numDevices);
-
-            for (int i = 0; i < numDevices; ++i) {
-              hipDevice_t device;
-              err = PI_CHECK_ERROR(hipDeviceGet(&device, i));
-              platformIds[i].devices_.emplace_back(
-                  new _pi_device{device, &platformIds[i]});
-            }
-          } catch (const std::bad_alloc &) {
-            // Signal out-of-memory situation
-            for (int i = 0; i < numDevices; ++i) {
-              platformIds[i].devices_.clear();
-            }
-            platformIds.clear();
-            err = PI_ERROR_OUT_OF_HOST_MEMORY;
-          } catch (...) {
-            // Clear and rethrow to allow retry
-            for (int i = 0; i < numDevices; ++i) {
-              platformIds[i].devices_.clear();
-            }
-            platformIds.clear();
-            throw;
-          }
-        },
-        err);
-
-    if (num_platforms != nullptr) {
-      *num_platforms = numPlatforms;
-    }
-
-    if (platforms != nullptr) {
-      for (unsigned i = 0; i < std::min(num_entries, numPlatforms); ++i) {
-        platforms[i] = &platformIds[i];
-      }
-    }
-
-    return err;
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
-}
-
-pi_result hip_piPlatformGetInfo([[maybe_unused]] pi_platform platform,
-                                pi_platform_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  assert(platform != nullptr);
-
-  switch (param_name) {
-  case PI_PLATFORM_INFO_NAME:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "AMD HIP BACKEND");
-  case PI_PLATFORM_INFO_VENDOR:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "AMD Corporation");
-  case PI_PLATFORM_INFO_PROFILE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "FULL PROFILE");
-  case PI_PLATFORM_INFO_VERSION: {
-    auto version = getHipVersionString();
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   version.c_str());
-  }
-  case PI_PLATFORM_INFO_EXTENSIONS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
-  }
-  case PI_EXT_PLATFORM_INFO_BACKEND: {
-    return getInfo<pi_platform_backend>(param_value_size, param_value,
-                                        param_value_size_ret,
-                                        PI_EXT_PLATFORM_BACKEND_HIP);
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Platform info request not implemented");
-  return {};
-}
-
-/// \param devices List of devices available on the system
-/// \param num_devices Number of elements in the list of devices
-/// Requesting a non-GPU device triggers an error, all PI HIP devices
-/// are GPUs.
-///
-pi_result hip_piDevicesGet(pi_platform platform, pi_device_type device_type,
-                           pi_uint32 num_entries, pi_device *devices,
-                           pi_uint32 *num_devices) {
-
-  pi_result err = PI_SUCCESS;
-  const bool askingForDefault = device_type == PI_DEVICE_TYPE_DEFAULT;
-  const bool askingForGPU = device_type & PI_DEVICE_TYPE_GPU;
-  const bool returnDevices = askingForDefault || askingForGPU;
-
-  size_t numDevices = returnDevices ? platform->devices_.size() : 0;
-
-  try {
-    if (num_devices) {
-      *num_devices = numDevices;
-    }
-
-    if (returnDevices && devices) {
-      for (size_t i = 0; i < std::min(size_t(num_entries), numDevices); ++i) {
-        devices[i] = platform->devices_[i].get();
-      }
-    }
-
-    return err;
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
-}
-
-/// \return PI_SUCCESS if the function is exehipted successfully
-/// HIP devices are always root devices so retain always returns success.
-pi_result hip_piDeviceRetain(pi_device device) {
-  (void)device;
-  return PI_SUCCESS;
-}
-
-pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret) {
-
-  switch (param_name) {
-  case PI_CONTEXT_INFO_NUM_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1);
-  case PI_CONTEXT_INFO_DEVICES:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   context->get_device());
-  case PI_CONTEXT_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   context->get_reference_count());
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            true);
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
-    // 2D USM operations currently not supported.
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            false);
-  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    // These queries should be dealt with in context_impl.cpp by calling the
-    // queries of each device separately and building the intersection set.
-    setErrorMessage("These queries should have never come here.",
-                    PI_ERROR_INVALID_ARG_VALUE);
-    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-
-  return PI_ERROR_OUT_OF_RESOURCES;
-}
-
-pi_result hip_piContextRetain(pi_context context) {
-  assert(context != nullptr);
-  assert(context->get_reference_count() > 0);
-
-  context->increment_reference_count();
-  return PI_SUCCESS;
-}
-
-pi_result hip_piextContextSetExtendedDeleter(
-    pi_context context, pi_context_extended_deleter function, void *user_data) {
-  context->set_extended_deleter(function, user_data);
-  return PI_SUCCESS;
-}
-
-/// Not applicable to HIP, devices cannot be partitioned.
-///
-pi_result hip_piDevicePartition(pi_device device,
-                                const pi_device_partition_property *properties,
-                                pi_uint32 num_devices, pi_device *out_devices,
-                                pi_uint32 *out_num_devices) {
-  (void)device;
-  (void)properties;
-  (void)num_devices;
-  (void)out_devices;
-  (void)out_num_devices;
-
-  return PI_ERROR_INVALID_OPERATION;
-}
-
 /// \return If available, the first binary that is PTX
 ///
 pi_result hip_piextDeviceSelectBinary(pi_device device,
@@ -1148,1110 +821,6 @@ pi_result hip_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
   }
 
   return retError;
-}
-
-/// \return PI_SUCCESS always since HIP devices are always root devices.
-///
-pi_result hip_piDeviceRelease(pi_device device) {
-  (void)device;
-  return PI_SUCCESS;
-}
-
-pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
-                              size_t param_value_size, void *param_value,
-                              size_t *param_value_size_ret) {
-
-  static constexpr pi_uint32 max_work_item_dimensions = 3u;
-
-  assert(device != nullptr);
-
-  switch (param_name) {
-  case PI_DEVICE_INFO_TYPE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_DEVICE_TYPE_GPU);
-  }
-  case PI_DEVICE_INFO_VENDOR_ID: {
-#if defined(__HIP_PLATFORM_AMD__)
-    pi_uint32 vendor_id = 4098u;
-#elif defined(__HIP_PLATFORM_NVIDIA__)
-    pi_uint32 vendor_id = 4318u;
-#else
-    pi_uint32 vendor_id = 0u;
-#endif
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   vendor_id);
-  }
-  case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
-    int compute_units = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&compute_units,
-                              hipDeviceAttributeMultiprocessorCount,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(compute_units >= 0);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint32(compute_units));
-  }
-  case PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   max_work_item_dimensions);
-  }
-  case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
-    size_t return_sizes[max_work_item_dimensions];
-
-    int max_x = 0, max_y = 0, max_z = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxBlockDimX,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(max_x >= 0);
-
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxBlockDimY,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(max_y >= 0);
-
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxBlockDimZ,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(max_z >= 0);
-
-    return_sizes[0] = size_t(max_x);
-    return_sizes[1] = size_t(max_y);
-    return_sizes[2] = size_t(max_z);
-    return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
-                        param_value_size_ret, return_sizes);
-  }
-
-  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
-    size_t return_sizes[max_work_item_dimensions];
-    int max_x = 0, max_y = 0, max_z = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxGridDimX,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(max_x >= 0);
-
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxGridDimY,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(max_y >= 0);
-
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxGridDimZ,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(max_z >= 0);
-
-    return_sizes[0] = size_t(max_x);
-    return_sizes[1] = size_t(max_y);
-    return_sizes[2] = size_t(max_z);
-    return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
-                        param_value_size_ret, return_sizes);
-  }
-
-  case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
-    int max_work_group_size = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_work_group_size,
-                              hipDeviceAttributeMaxThreadsPerBlock,
-                              device->get()) == hipSuccess);
-
-    sycl::detail::pi::assertion(max_work_group_size >= 0);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(max_work_group_size));
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
-  }
-  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
-  }
-  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
-    // Number of sub-groups = max block size / warp size + possible remainder
-    int max_threads = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_threads,
-                              hipDeviceAttributeMaxThreadsPerBlock,
-                              device->get()) == hipSuccess);
-    int warpSize = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                              device->get()) == hipSuccess);
-    int maxWarps = (max_threads + warpSize - 1) / warpSize;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<uint32_t>(maxWarps));
-  }
-  case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
-    // Volta provides independent thread scheduling
-    // TODO: Revisit for previous generation GPUs
-    int major = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor,
-                              device->get()) == hipSuccess);
-    bool ifp = (major >= 7);
-    return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
-  }
-  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    int warpSize = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                              device->get()) == hipSuccess);
-    size_t sizes[1] = {static_cast<size_t>(warpSize)};
-    return getInfoArray<size_t>(1, param_value_size, param_value,
-                                param_value_size_ret, sizes);
-  }
-  case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
-    int clock_freq = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&clock_freq, hipDeviceAttributeClockRate,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(clock_freq >= 0);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint32(clock_freq) / 1000u);
-  }
-  case PI_DEVICE_INFO_ADDRESS_BITS: {
-    auto bits = pi_uint32{std::numeric_limits<uintptr_t>::digits};
-    return getInfo(param_value_size, param_value, param_value_size_ret, bits);
-  }
-  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    // Max size of memory object allocation in bytes.
-    // The minimum value is max(min(1024 × 1024 ×
-    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
-    // 32 × 1024 × 1024) for devices that are not of type
-    // CL_DEVICE_TYPE_HIPSTOM.
-
-    size_t global = 0;
-    sycl::detail::pi::assertion(hipDeviceTotalMem(&global, device->get()) ==
-                                hipSuccess);
-
-    auto quarter_global = static_cast<pi_uint32>(global / 4u);
-
-    auto max_alloc = std::max(std::min(1024u * 1024u * 1024u, quarter_global),
-                              32u * 1024u * 1024u);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64{max_alloc});
-  }
-  case PI_DEVICE_INFO_IMAGE_SUPPORT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
-    // This call doesn't match to HIP as it doesn't have images, but instead
-    // surfaces and textures. No clear call in the HIP API to determine this,
-    // but some searching found as of SM 2.x 128 are supported.
-    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
-  }
-  case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS: {
-    // This call doesn't match to HIP as it doesn't have images, but instead
-    // surfaces and textures. No clear call in the HIP API to determine this,
-    // but some searching found as of SM 2.x 128 are supported.
-    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
-  }
-
-  case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
-    // Take the smaller of maximum surface and maximum texture height.
-    int tex_height = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture2DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(tex_height >= 0);
-    int surf_height = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_height,
-                              hipDeviceAttributeMaxTexture2DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(surf_height >= 0);
-
-    int min = std::min(tex_height, surf_height);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret, min);
-  }
-  case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
-    // Take the smaller of maximum surface and maximum texture width.
-    int tex_width = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture2DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(tex_width >= 0);
-    int surf_width = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture2DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(surf_width >= 0);
-
-    int min = std::min(tex_width, surf_width);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret, min);
-  }
-  case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
-    // Take the smaller of maximum surface and maximum texture height.
-    int tex_height = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture3DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(tex_height >= 0);
-    int surf_height = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_height,
-                              hipDeviceAttributeMaxTexture3DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(surf_height >= 0);
-
-    int min = std::min(tex_height, surf_height);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret, min);
-  }
-  case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
-    // Take the smaller of maximum surface and maximum texture width.
-    int tex_width = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture3DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(tex_width >= 0);
-    int surf_width = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture3DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(surf_width >= 0);
-
-    int min = std::min(tex_width, surf_width);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret, min);
-  }
-  case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
-    // Take the smaller of maximum surface and maximum texture depth.
-    int tex_depth = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_depth, hipDeviceAttributeMaxTexture3DDepth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(tex_depth >= 0);
-    int surf_depth = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_depth, hipDeviceAttributeMaxTexture3DDepth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(surf_depth >= 0);
-
-    int min = std::min(tex_depth, surf_depth);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret, min);
-  }
-  case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
-    // Take the smaller of maximum surface and maximum texture width.
-    int tex_width = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture1DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(tex_width >= 0);
-    int surf_width = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture1DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(surf_width >= 0);
-
-    int min = std::min(tex_width, surf_width);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret, min);
-  }
-  case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
-  }
-  case PI_DEVICE_INFO_MAX_SAMPLERS: {
-    // This call is kind of meaningless for HIP, as samplers don't exist.
-    // Closest thing is textures, which is 128.
-    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
-  }
-  case PI_DEVICE_INFO_MAX_PARAMETER_SIZE: {
-    // __global__ function parameters are passed to the device via constant
-    // memory and are limited to 4 KB.
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t{4000u});
-  }
-  case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
-    int mem_base_addr_align = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&mem_base_addr_align,
-                              hipDeviceAttributeTextureAlignment,
-                              device->get()) == hipSuccess);
-    // Multiply by 8 as clGetDeviceInfo returns this value in bits
-    mem_base_addr_align *= 8;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   mem_base_addr_align);
-  }
-  case PI_DEVICE_INFO_HALF_FP_CONFIG: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
-  }
-  case PI_DEVICE_INFO_SINGLE_FP_CONFIG: {
-    auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
-                  PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA |
-                  PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT;
-    return getInfo(param_value_size, param_value, param_value_size_ret, config);
-  }
-  case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    auto config = PI_FP_DENORM | PI_FP_INF_NAN | PI_FP_ROUND_TO_NEAREST |
-                  PI_FP_ROUND_TO_ZERO | PI_FP_ROUND_TO_INF | PI_FP_FMA;
-    return getInfo(param_value_size, param_value, param_value_size_ret, config);
-  }
-  case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
-  }
-  case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE: {
-    // The value is dohipmented for all existing GPUs in the HIP programming
-    // guidelines, section "H.3.2. Global Memory".
-    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
-  }
-  case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
-    int cache_size = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&cache_size, hipDeviceAttributeL2CacheSize,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(cache_size >= 0);
-    // The L2 cache is global to the GPU.
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64(cache_size));
-  }
-  case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
-    size_t bytes = 0;
-    // Runtime API has easy access to this value, driver API info is scarse.
-    sycl::detail::pi::assertion(hipDeviceTotalMem(&bytes, device->get()) ==
-                                hipSuccess);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64{bytes});
-  }
-  case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
-    unsigned int constant_memory = 0;
-
-    // hipDeviceGetAttribute takes a int*, however the size of the constant
-    // memory on AMD GPU may be larger than what can fit in the positive part
-    // of a signed integer, so use an unsigned integer and cast the pointer to
-    // int*.
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(reinterpret_cast<int *>(&constant_memory),
-                              hipDeviceAttributeTotalConstantMemory,
-                              device->get()) == hipSuccess);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64(constant_memory));
-  }
-  case PI_DEVICE_INFO_MAX_CONSTANT_ARGS: {
-    // TODO: is there a way to retrieve this from HIP driver API?
-    // Hard coded to value returned by clinfo for OpenCL 1.2 HIP | GeForce GTX
-    // 1060 3GB
-    return getInfo(param_value_size, param_value, param_value_size_ret, 9u);
-  }
-  case PI_DEVICE_INFO_LOCAL_MEM_TYPE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_DEVICE_LOCAL_MEM_TYPE_LOCAL);
-  }
-  case PI_DEVICE_INFO_LOCAL_MEM_SIZE: {
-    // OpenCL's "local memory" maps most closely to HIP's "shared memory".
-    // HIP has its own definition of "local memory", which maps to OpenCL's
-    // "private memory".
-    int local_mem_size = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&local_mem_size,
-                              hipDeviceAttributeMaxSharedMemoryPerBlock,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(local_mem_size >= 0);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64(local_mem_size));
-  }
-  case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
-    int ecc_enabled = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&ecc_enabled, hipDeviceAttributeEccEnabled,
-                              device->get()) == hipSuccess);
-
-    sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
-    auto result = static_cast<pi_bool>(ecc_enabled);
-    return getInfo(param_value_size, param_value, param_value_size_ret, result);
-  }
-  case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
-    int is_integrated = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&is_integrated, hipDeviceAttributeIntegrated,
-                              device->get()) == hipSuccess);
-
-    sycl::detail::pi::assertion((is_integrated == 0) | (is_integrated == 1));
-    auto result = static_cast<pi_bool>(is_integrated);
-    return getInfo(param_value_size, param_value, param_value_size_ret, result);
-  }
-  case PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
-    // Hard coded to value returned by clinfo for OpenCL 1.2 HIP | GeForce GTX
-    // 1060 3GB
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t{1000u});
-  }
-  case PI_DEVICE_INFO_ENDIAN_LITTLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_LINKER_AVAILABLE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_EXECUTION_CAPABILITIES: {
-    auto capability = PI_DEVICE_EXEC_CAPABILITIES_KERNEL;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capability);
-  }
-  case PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
-    // The mandated minimum capability:
-    auto capability = PI_QUEUE_FLAG_PROFILING_ENABLE |
-                      PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capability);
-  }
-  case PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    // The mandated minimum capability:
-    auto capability = PI_QUEUE_FLAG_PROFILING_ENABLE;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capability);
-  }
-  case PI_DEVICE_INFO_BUILT_IN_KERNELS: {
-    // An empty string is returned if no built-in kernels are supported by the
-    // device.
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
-  }
-  case PI_DEVICE_INFO_PLATFORM: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   device->get_platform());
-  }
-  case PI_DEVICE_INFO_NAME: {
-    static constexpr size_t MAX_DEVICE_NAME_LENGTH = 256u;
-    char name[MAX_DEVICE_NAME_LENGTH];
-    sycl::detail::pi::assertion(hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH,
-                                                 device->get()) == hipSuccess);
-
-    // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
-    // name instead, this is also what AMD OpenCL devices return.
-    if (strlen(name) == 0) {
-      hipDeviceProp_t props;
-      sycl::detail::pi::assertion(
-          hipGetDeviceProperties(&props, device->get()) == hipSuccess);
-
-      return getInfoArray(strlen(props.gcnArchName) + 1, param_value_size,
-                          param_value, param_value_size_ret, props.gcnArchName);
-    }
-    return getInfoArray(strlen(name) + 1, param_value_size, param_value,
-                        param_value_size_ret, name);
-  }
-  case PI_DEVICE_INFO_VENDOR: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "AMD Corporation");
-  }
-  case PI_DEVICE_INFO_DRIVER_VERSION: {
-    auto version = getHipVersionString();
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   version.c_str());
-  }
-  case PI_DEVICE_INFO_PROFILE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "HIP");
-  }
-  case PI_DEVICE_INFO_REFERENCE_COUNT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   device->get_reference_count());
-  }
-  case PI_DEVICE_INFO_VERSION: {
-    std::stringstream s;
-
-    hipDeviceProp_t props;
-    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
-                                hipSuccess);
-#if defined(__HIP_PLATFORM_NVIDIA__)
-    s << props.major << "." << props.minor;
-#elif defined(__HIP_PLATFORM_AMD__)
-    s << props.gcnArchName;
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   s.str().c_str());
-  }
-  case PI_DEVICE_INFO_OPENCL_C_VERSION: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
-  }
-  case PI_DEVICE_INFO_BACKEND_VERSION: {
-    // TODO: return some meaningful for backend_version below
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
-  }
-  case PI_DEVICE_INFO_EXTENSIONS: {
-    // TODO: Remove comment when HIP support native asserts.
-    // DEVICELIB_ASSERT extension is set so fallback assert
-    // postprocessing is NOP. HIP 4.3 docs indicate support for
-    // native asserts are in progress
-    std::string SupportedExtensions = "";
-    SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
-    SupportedExtensions += " ";
-
-    hipDeviceProp_t props;
-    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
-                                hipSuccess);
-    if (props.arch.hasDoubles) {
-      SupportedExtensions += "cl_khr_fp64 ";
-    }
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   SupportedExtensions.c_str());
-  }
-  case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
-    // The minimum value for the FULL profile is 1 MB.
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t{1024u});
-  }
-  case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
-  }
-  case PI_DEVICE_INFO_PARENT_DEVICE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   nullptr);
-  }
-  case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
-  }
-  case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<pi_device_partition_property>(0u));
-  }
-  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
-  }
-  case PI_DEVICE_INFO_PARTITION_TYPE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<pi_device_partition_property>(0u));
-  }
-
-    // Intel USM extensions
-
-  case PI_DEVICE_INFO_USM_HOST_SUPPORT: {
-    // from cl_intel_unified_shared_memory: "The host memory access capabilities
-    // apply to any host allocation."
-    //
-    // query if/how the device can access page-locked host memory, possibly
-    // through PCIe, using the same pointer as the host
-    pi_bitfield value = {};
-    // if (getAttribute(device, HIP_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING)) {
-    // the device shares a unified address space with the host
-    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
-      // compute capability 6.x introduces operations that are atomic with
-      // respect to other CPUs and GPUs in the system
-      value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS | PI_USM_CONCURRENT_ACCESS |
-              PI_USM_CONCURRENT_ATOMIC_ACCESS;
-    } else {
-      // on GPU architectures with compute capability lower than 6.x, atomic
-      // operations from the GPU to CPU memory will not be atomic with respect
-      // to CPU initiated atomic operations
-      value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
-    }
-    //}
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-  case PI_DEVICE_INFO_USM_DEVICE_SUPPORT: {
-    // from cl_intel_unified_shared_memory:
-    // "The device memory access capabilities apply to any device allocation
-    // associated with this device."
-    //
-    // query how the device can access memory allocated on the device itself (?)
-    pi_bitfield value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
-                        PI_USM_CONCURRENT_ACCESS |
-                        PI_USM_CONCURRENT_ATOMIC_ACCESS;
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
-    // from cl_intel_unified_shared_memory:
-    // "The single device shared memory access capabilities apply to any shared
-    // allocation associated with this device."
-    //
-    // query if/how the device can access managed memory associated to it
-    pi_bitfield value = {};
-    if (getAttribute(device, hipDeviceAttributeManagedMemory)) {
-      // the device can allocate managed memory on this system
-      value = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS;
-    }
-    if (getAttribute(device, hipDeviceAttributeConcurrentManagedAccess)) {
-      // the device can coherently access managed memory concurrently with the
-      // CPU
-      value |= PI_USM_CONCURRENT_ACCESS;
-      if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
-        // compute capability 6.x introduces operations that are atomic with
-        // respect to other CPUs and GPUs in the system
-        value |= PI_USM_CONCURRENT_ATOMIC_ACCESS;
-      }
-    }
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
-    // from cl_intel_unified_shared_memory:
-    // "The cross-device shared memory access capabilities apply to any shared
-    // allocation associated with this device, or to any shared memory
-    // allocation on another device that also supports the same cross-device
-    // shared memory access capability."
-    //
-    // query if/how the device can access managed memory associated to other
-    // devices
-    pi_bitfield value = {};
-    if (getAttribute(device, hipDeviceAttributeManagedMemory)) {
-      // the device can allocate managed memory on this system
-      value |= PI_USM_ACCESS;
-    }
-    if (getAttribute(device, hipDeviceAttributeConcurrentManagedAccess)) {
-      // all devices with the CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS
-      // attribute can coherently access managed memory concurrently with the
-      // CPU
-      value |= PI_USM_CONCURRENT_ACCESS;
-    }
-    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
-      // compute capability 6.x introduces operations that are atomic with
-      // respect to other CPUs and GPUs in the system
-      if (value & PI_USM_ACCESS)
-        value |= PI_USM_ATOMIC_ACCESS;
-      if (value & PI_USM_CONCURRENT_ACCESS)
-        value |= PI_USM_CONCURRENT_ATOMIC_ACCESS;
-    }
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    // from cl_intel_unified_shared_memory:
-    // "The shared system memory access capabilities apply to any allocations
-    // made by a system allocator, such as malloc or new."
-    //
-    // query if/how the device can access pageable host memory allocated by the
-    // system allocator
-    pi_bitfield value = {};
-    if (getAttribute(device, hipDeviceAttributePageableMemoryAccess)) {
-      // the link between the device and the host does not support native
-      // atomic operations
-      value = PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS;
-    }
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-
-  case PI_DEVICE_INFO_ATOMIC_64: {
-    // TODO: Reconsider it when AMD supports SYCL_USE_NATIVE_FP_ATOMICS.
-    hipDeviceProp_t props;
-    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
-                                hipSuccess);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   props.arch.hasGlobalInt64Atomics &&
-                       props.arch.hasSharedInt64Atomics);
-  }
-
-  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
-    size_t FreeMemory = 0;
-    size_t TotalMemory = 0;
-    sycl::detail::pi::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
-                                    hipSuccess,
-                                "failed hipMemGetInfo() API.");
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   FreeMemory);
-  }
-
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
-    int value = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryClockRate,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(value >= 0);
-    // Convert kilohertz to megahertz when returning.
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   value / 1000);
-  }
-
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
-    int value = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryBusWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(value >= 0);
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_int32{1});
-  }
-
-  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED |
-                                                PI_MEMORY_ORDER_ACQUIRE |
-                                                PI_MEMORY_ORDER_RELEASE;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capabilities);
-  }
-  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    // SYCL2020 4.6.4.2 minimum mandated capabilities for
-    // atomic_fence/memory_scope_capabilities.
-    // Because scopes are hierarchical, wider scopes support all narrower
-    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
-    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
-    pi_memory_scope_capabilities capabilities = PI_MEMORY_SCOPE_WORK_ITEM |
-                                                PI_MEMORY_SCOPE_SUB_GROUP |
-                                                PI_MEMORY_SCOPE_WORK_GROUP;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capabilities);
-  }
-  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
-    // SYCL2020 4.6.4.2 minimum mandated capabilities for
-    // atomic_fence_order_capabilities.
-    pi_memory_order_capabilities capabilities =
-        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capabilities);
-  }
-
-  case PI_DEVICE_INFO_DEVICE_ID: {
-    int value = 0;
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&value, hipDeviceAttributePciDeviceId,
-                              device->get()) == hipSuccess);
-    sycl::detail::pi::assertion(value >= 0);
-    return getInfo(param_value_size, param_value, param_value_size_ret, value);
-  }
-
-  case PI_DEVICE_INFO_UUID: {
-#if ((HIP_VERSION_MAJOR == 5 && HIP_VERSION_MINOR >= 2) ||                     \
-     HIP_VERSION_MAJOR > 5)
-    hipUUID uuid = {};
-    // Supported since 5.2+
-    sycl::detail::pi::assertion(hipDeviceGetUuid(&uuid, device->get()) ==
-                                hipSuccess);
-    std::array<unsigned char, 16> name;
-    std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
-    return getInfoArray(16, param_value_size, param_value, param_value_size_ret,
-                        name.data());
-#endif
-    return PI_ERROR_INVALID_VALUE;
-  }
-  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
-    // The mem-channel buffer property is not supported on HIP devices.
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            false);
-  }
-  case PI_DEVICE_INFO_IMAGE_SRGB: {
-    // The sRGB images are not supported on HIP device.
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            false);
-  }
-
-  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
-    // Maximum number of 32-bit registers available to a thread block.
-    // Note: This number is shared by all thread blocks simultaneously resident
-    // on a multiprocessor.
-    int max_registers{-1};
-    sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&max_registers,
-                              hipDeviceAttributeMaxRegistersPerBlock,
-                              device->get()) == hipSuccess);
-
-    sycl::detail::pi::assertion(max_registers >= 0);
-
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<uint32_t>(max_registers));
-  }
-
-  case PI_DEVICE_INFO_PCI_ADDRESS: {
-    constexpr size_t AddressBufferSize = 13;
-    char AddressBuffer[AddressBufferSize];
-    sycl::detail::pi::assertion(
-        hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
-        hipSuccess);
-    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API is not
-    // guaranteed to use this format. In practice, it uses this format, at least
-    // in 5.3-5.5. To be on the safe side, we make sure the terminating \0 is set.
-    AddressBuffer[AddressBufferSize - 1] = '\0';
-    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
-    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
-                        param_value_size, param_value, param_value_size_ret,
-                        AddressBuffer);
-  }
-  // TODO: Investigate if this information is available on HIP.
-  case PI_DEVICE_INFO_GPU_EU_COUNT:
-  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
-  case PI_DEVICE_INFO_GPU_SLICES:
-  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
-  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
-  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
-  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
-    setErrorMessage("HIP backend does not support this query",
-                    PI_ERROR_INVALID_ARG_VALUE);
-    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Device info request not implemented");
-  return {};
-}
-
-/// Gets the native HIP handle of a PI device object
-///
-/// \param[in] device The PI device to get the native HIP object of.
-/// \param[out] nativeHandle Set to the native handle of the PI device object.
-///
-/// \return PI_SUCCESS
-pi_result hip_piextDeviceGetNativeHandle(pi_device device,
-                                         pi_native_handle *nativeHandle) {
-  *nativeHandle = static_cast<pi_native_handle>(device->get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI device object from a HIP device handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI device object from.
-/// \param[in] platform is the PI platform of the device.
-/// \param[out] device Set to the PI device object created from native handle.
-///
-/// \return TBD
-pi_result hip_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_platform platform,
-                                                pi_device *device) {
-  (void)nativeHandle;
-  (void)platform;
-  (void)device;
-  sycl::detail::pi::die(
-      "Creation of PI device from native handle not implemented");
-  return {};
-}
-
-/* Context APIs */
-
-/// Create a PI HIP context.
-///
-/// By default creates a scoped context and keeps the last active HIP context
-/// on top of the HIP context stack.
-/// With the __SYCL_PI_CONTEXT_PROPERTIES_HIP_PRIMARY key/id and a value of
-/// PI_TRUE creates a primary HIP context and activates it on the HIP context
-/// stack.
-///
-/// \param[in] properties 0 terminated array of key/id-value combinations. Can
-/// be nullptr. Only accepts property key/id
-/// __SYCL_PI_CONTEXT_PROPERTIES_HIP_PRIMARY with a pi_bool value.
-/// \param[in] num_devices Number of devices to create the context for.
-/// \param[in] devices Devices to create the context for.
-/// \param[in] pfn_notify Callback, currently unused.
-/// \param[in] user_data User data for callback.
-/// \param[out] retcontext Set to created context on success.
-///
-/// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result hip_piContextCreate(
-    const pi_context_properties *properties,
-    [[maybe_unused]] pi_uint32 num_devices, const pi_device *devices,
-    [[maybe_unused]] void (*pfn_notify)(const char *errinfo,
-                                        const void *private_info, size_t cb,
-                                        [[maybe_unused]] void *user_data),
-    [[maybe_unused]] void *user_data, pi_context *retcontext) {
-
-  assert(devices != nullptr);
-  // TODO: How to implement context callback?
-  assert(pfn_notify == nullptr);
-  assert(user_data == nullptr);
-  assert(num_devices == 1);
-  // Need input context
-  assert(retcontext != nullptr);
-  pi_result errcode_ret = PI_SUCCESS;
-
-  // Parse properties.
-  bool property_hip_primary = false;
-  while (properties && (0 != *properties)) {
-    // Consume property ID.
-    pi_context_properties id = *properties;
-    ++properties;
-    // Consume property value.
-    pi_context_properties value = *properties;
-    ++properties;
-    switch (id) {
-    case __SYCL_PI_CONTEXT_PROPERTIES_HIP_PRIMARY:
-      assert(value == PI_FALSE || value == PI_TRUE);
-      property_hip_primary = static_cast<bool>(value);
-      break;
-    default:
-      // Unknown property.
-      sycl::detail::pi::die(
-          "Unknown piContextCreate property in property list");
-      return PI_ERROR_INVALID_VALUE;
-    }
-  }
-
-  std::unique_ptr<_pi_context> piContextPtr{nullptr};
-  try {
-    hipCtx_t current = nullptr;
-
-    if (property_hip_primary) {
-      // Use the HIP primary context and assume that we want to use it
-      // immediately as we want to forge context switches.
-      hipCtx_t Ctxt;
-      errcode_ret =
-          PI_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Ctxt, devices[0]->get()));
-      piContextPtr = std::unique_ptr<_pi_context>(
-          new _pi_context{_pi_context::kind::primary, Ctxt, *devices});
-      errcode_ret = PI_CHECK_ERROR(hipCtxPushCurrent(Ctxt));
-    } else {
-      // Create a scoped context.
-      hipCtx_t newContext;
-      PI_CHECK_ERROR(hipCtxGetCurrent(&current));
-      errcode_ret = PI_CHECK_ERROR(
-          hipCtxCreate(&newContext, hipDeviceMapHost, devices[0]->get()));
-      piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
-          _pi_context::kind::user_defined, newContext, *devices});
-    }
-
-    static std::once_flag initFlag;
-    std::call_once(
-        initFlag,
-        [](pi_result &) {
-          // Use default stream to record base event counter
-          PI_CHECK_ERROR(
-              hipEventCreateWithFlags(&_pi_platform::evBase_, hipEventDefault));
-          PI_CHECK_ERROR(hipEventRecord(_pi_platform::evBase_, 0));
-        },
-        errcode_ret);
-
-    // For non-primary scoped contexts keep the last active on top of the stack
-    // as `cuCtxCreate` replaces it implicitly otherwise.
-    // Primary contexts are kept on top of the stack, so the previous context
-    // is not queried and therefore not recovered.
-    if (current != nullptr) {
-      PI_CHECK_ERROR(hipCtxSetCurrent(current));
-    }
-
-    *retcontext = piContextPtr.release();
-  } catch (pi_result err) {
-    errcode_ret = err;
-  } catch (...) {
-    errcode_ret = PI_ERROR_OUT_OF_RESOURCES;
-  }
-  return errcode_ret;
-}
-
-pi_result hip_piContextRelease(pi_context ctxt) {
-
-  assert(ctxt != nullptr);
-
-  if (ctxt->decrement_reference_count() > 0) {
-    return PI_SUCCESS;
-  }
-  ctxt->invoke_extended_deleters();
-
-  std::unique_ptr<_pi_context> context{ctxt};
-
-  if (!ctxt->is_primary()) {
-    hipCtx_t hipCtxt = ctxt->get();
-    // hipCtxSynchronize is not supported for AMD platform so we can just
-    // destroy the context, for NVIDIA make sure it's synchronized.
-#if defined(__HIP_PLATFORM_NVIDIA__)
-    hipCtx_t current = nullptr;
-    PI_CHECK_ERROR(hipCtxGetCurrent(&current));
-    if (hipCtxt != current) {
-      PI_CHECK_ERROR(hipCtxPushCurrent(hipCtxt));
-    }
-    PI_CHECK_ERROR(hipCtxSynchronize());
-    PI_CHECK_ERROR(hipCtxGetCurrent(&current));
-    if (hipCtxt == current) {
-      PI_CHECK_ERROR(hipCtxPopCurrent(&current));
-    }
-#endif
-    return PI_CHECK_ERROR(hipCtxDestroy(hipCtxt));
-  } else {
-    // Primary context is not destroyed, but released
-    hipDevice_t hipDev = ctxt->get_device()->get();
-    hipCtx_t current;
-    PI_CHECK_ERROR(hipCtxPopCurrent(&current));
-    return PI_CHECK_ERROR(hipDevicePrimaryCtxRelease(hipDev));
-  }
-
-  hipCtx_t hipCtxt = ctxt->get();
-  return PI_CHECK_ERROR(hipCtxDestroy(hipCtxt));
-}
-
-/// Gets the native HIP handle of a PI context object
-///
-/// \param[in] context The PI context to get the native HIP object of.
-/// \param[out] nativeHandle Set to the native handle of the PI context object.
-///
-/// \return PI_SUCCESS
-pi_result hip_piextContextGetNativeHandle(pi_context context,
-                                          pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI context object from a HIP context handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI context object from.
-/// \param[out] context Set to the PI context object created from native handle.
-///
-/// \return TBD
-pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                 pi_uint32 num_devices,
-                                                 const pi_device *devices,
-                                                 bool ownNativeHandle,
-                                                 pi_context *context) {
-  (void)nativeHandle;
-  (void)num_devices;
-  (void)devices;
-  (void)ownNativeHandle;
-  (void)context;
-  sycl::detail::pi::die(
-      "Creation of PI context from native handle not implemented");
-  return {};
 }
 
 /// Creates a PI Memory object using a HIP memory allocation.
@@ -3046,13 +1615,13 @@ pi_result hip_piEnqueueKernelLaunch(
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
 
   {
-    pi_result retError = hip_piDeviceGetInfo(
+    pi_result retError = pi2ur::piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
         sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
     assert(retError == PI_SUCCESS);
     (void)retError;
 
-    retError = hip_piDeviceGetInfo(
+    retError = pi2ur::piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
         sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
     assert(retError == PI_SUCCESS);
@@ -5497,10 +4066,11 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       // the same index
       std::vector<pi_platform> platforms;
       platforms.resize(device_idx + 1);
-      result = hip_piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
+      result = pi2ur::piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
 
       // get the device from the platform
-      pi_device device = platforms[device_idx]->devices_[0].get();
+      pi_device device =
+          reinterpret_cast<pi_device>(platforms[device_idx]->devices_[0].get());
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }
@@ -5591,18 +4161,6 @@ pi_result hip_piextEnqueueWriteHostPipe(
   return {};
 }
 
-// This API is called by Sycl RT to notify the end of the plugin lifetime.
-// Windows: dynamically loaded plugins might have been unloaded already
-// when this is called. Sycl RT holds onto the PI plugin so it can be
-// called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded.
-// TODO: add a global variable lifetime management code here (see
-// pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result hip_piTearDown(void *PluginParameter) {
-  (void)PluginParameter;
-  return PI_SUCCESS;
-}
-
 pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                       uint64_t *HostTime) {
   if (!DeviceTime && !HostTime)
@@ -5627,8 +4185,8 @@ pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
     PI_CHECK_ERROR(hipEventSynchronize(event));
 
     float elapsedTime = 0.0f;
-    PI_CHECK_ERROR(
-        hipEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
+    PI_CHECK_ERROR(hipEventElapsedTime(&elapsedTime,
+                                       ur_platform_handle_t_::evBase_, event));
     *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
   }
   return PI_SUCCESS;
@@ -5656,28 +4214,28 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&hip_api);
 
   // Platform
-  _PI_CL(piPlatformsGet, hip_piPlatformsGet)
-  _PI_CL(piPlatformGetInfo, hip_piPlatformGetInfo)
+  _PI_CL(piPlatformsGet, pi2ur::piPlatformsGet)
+  _PI_CL(piPlatformGetInfo, pi2ur::piPlatformGetInfo)
   // Device
-  _PI_CL(piDevicesGet, hip_piDevicesGet)
-  _PI_CL(piDeviceGetInfo, hip_piDeviceGetInfo)
-  _PI_CL(piDevicePartition, hip_piDevicePartition)
-  _PI_CL(piDeviceRetain, hip_piDeviceRetain)
-  _PI_CL(piDeviceRelease, hip_piDeviceRelease)
+  _PI_CL(piDevicesGet, pi2ur::piDevicesGet)
+  _PI_CL(piDeviceGetInfo, pi2ur::piDeviceGetInfo)
+  _PI_CL(piDevicePartition, pi2ur::piDevicePartition)
+  _PI_CL(piDeviceRetain, pi2ur::piDeviceRetain)
+  _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
   _PI_CL(piextDeviceSelectBinary, hip_piextDeviceSelectBinary)
   _PI_CL(piextGetDeviceFunctionPointer, hip_piextGetDeviceFunctionPointer)
-  _PI_CL(piextDeviceGetNativeHandle, hip_piextDeviceGetNativeHandle)
+  _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
-         hip_piextDeviceCreateWithNativeHandle)
+         pi2ur::piextDeviceCreateWithNativeHandle)
   // Context
-  _PI_CL(piextContextSetExtendedDeleter, hip_piextContextSetExtendedDeleter)
-  _PI_CL(piContextCreate, hip_piContextCreate)
-  _PI_CL(piContextGetInfo, hip_piContextGetInfo)
-  _PI_CL(piContextRetain, hip_piContextRetain)
-  _PI_CL(piContextRelease, hip_piContextRelease)
-  _PI_CL(piextContextGetNativeHandle, hip_piextContextGetNativeHandle)
+  _PI_CL(piextContextSetExtendedDeleter, pi2ur::piextContextSetExtendedDeleter)
+  _PI_CL(piContextCreate, pi2ur::piContextCreate)
+  _PI_CL(piContextGetInfo, pi2ur::piContextGetInfo)
+  _PI_CL(piContextRetain, pi2ur::piContextRetain)
+  _PI_CL(piContextRelease, pi2ur::piContextRelease)
+  _PI_CL(piextContextGetNativeHandle, pi2ur::piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle,
-         hip_piextContextCreateWithNativeHandle)
+         pi2ur::piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piextQueueCreate, hip_piextQueueCreate)
@@ -5784,7 +4342,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
-  _PI_CL(piTearDown, hip_piTearDown)
+  _PI_CL(piTearDown, pi2ur::piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
   _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
 
@@ -5800,5 +4358,3 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #endif
 
 } // extern "C"
-
-hipEvent_t _pi_platform::evBase_{nullptr};

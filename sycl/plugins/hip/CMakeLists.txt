@@ -87,12 +87,29 @@ set(HIP_HEADERS "${PI_HIP_INCLUDE_DIR};${PI_HIP_HSA_INCLUDE_DIR}")
 # Create pi_hip library
 add_sycl_plugin(hip
   SOURCES
+    # Some code is shared with the UR adapter
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/hip/common.cpp"
+    "../unified_runtime/ur/adapters/hip/common.hpp"
+    "../unified_runtime/ur/adapters/hip/context.cpp"
+    "../unified_runtime/ur/adapters/hip/context.hpp"
+    "../unified_runtime/ur/adapters/hip/device.cpp"
+    "../unified_runtime/ur/adapters/hip/device.hpp"
+    "../unified_runtime/ur/adapters/hip/platform.cpp"
+    "../unified_runtime/ur/adapters/hip/platform.hpp"
+    "../unified_runtime/ur/adapters/hip/ur_interface_loader.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_hip.hpp"
     "pi_hip.cpp"
   INCLUDE_DIRS
     ${sycl_plugin_dir}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
+  LIBRARIES
+    UnifiedRuntime-Headers
   HEADER
     ${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp
 )

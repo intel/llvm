@@ -39,13 +39,15 @@
 #include <string>
 #include <vector>
 
+#include <ur/adapters/hip/context.hpp>
+#include <ur/adapters/hip/device.hpp>
+#include <ur/adapters/hip/platform.hpp>
+
+#include "pi2ur.hpp"
+
 extern "C" {
 
 /// \cond INGORE_BLOCK_IN_DOXYGEN
-pi_result hip_piContextRetain(pi_context);
-pi_result hip_piContextRelease(pi_context);
-pi_result hip_piDeviceRelease(pi_device);
-pi_result hip_piDeviceRetain(pi_device);
 pi_result hip_piProgramRetain(pi_program);
 pi_result hip_piProgramRelease(pi_program);
 pi_result hip_piQueueRelease(pi_queue);
@@ -64,9 +66,8 @@ using _pi_stream_guard = std::unique_lock<std::mutex>;
 ///  available devices since initialization is done
 ///  when devices are used.
 ///
-struct _pi_platform {
-  static hipEvent_t evBase_; // HIP event used as base counter
-  std::vector<std::unique_ptr<_pi_device>> devices_;
+struct _pi_platform : ur_platform_handle_t_ {
+  using ur_platform_handle_t_::ur_platform_handle_t_;
 };
 
 /// PI device mapping to a hipDevice_t.
@@ -74,28 +75,8 @@ struct _pi_platform {
 /// and implements the reference counting semantics since
 /// HIP objects are not refcounted.
 ///
-struct _pi_device {
-private:
-  using native_type = hipDevice_t;
-
-  native_type cuDevice_;
-  std::atomic_uint32_t refCount_;
-  pi_platform platform_;
-  pi_context context_;
-
-public:
-  _pi_device(native_type cuDevice, pi_platform platform)
-      : cuDevice_(cuDevice), refCount_{1}, platform_(platform) {}
-
-  native_type get() const noexcept { return cuDevice_; };
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  pi_platform get_platform() const noexcept { return platform_; };
-
-  void set_context(pi_context ctx) { context_ = ctx; };
-
-  pi_context get_context() { return context_; };
+struct _pi_device : ur_device_handle_t_ {
+  using ur_device_handle_t_::ur_device_handle_t_;
 };
 
 /// PI context mapping to a HIP context object.
@@ -136,58 +117,8 @@ public:
 ///  called upon destruction of the PI Context.
 ///  See proposal for details.
 ///
-struct _pi_context {
-
-  struct deleter_data {
-    pi_context_extended_deleter function;
-    void *user_data;
-
-    void operator()() { function(user_data); }
-  };
-
-  using native_type = hipCtx_t;
-
-  enum class kind { primary, user_defined } kind_;
-  native_type hipContext_;
-  _pi_device *deviceId_;
-  std::atomic_uint32_t refCount_;
-
-  _pi_context(kind k, hipCtx_t ctxt, _pi_device *devId)
-      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1} {
-    deviceId_->set_context(this);
-    hip_piDeviceRetain(deviceId_);
-  };
-
-  ~_pi_context() { hip_piDeviceRelease(deviceId_); }
-
-  void invoke_extended_deleters() {
-    std::lock_guard<std::mutex> guard(mutex_);
-    for (auto &deleter : extended_deleters_) {
-      deleter();
-    }
-  }
-
-  void set_extended_deleter(pi_context_extended_deleter function,
-                            void *user_data) {
-    std::lock_guard<std::mutex> guard(mutex_);
-    extended_deleters_.emplace_back(deleter_data{function, user_data});
-  }
-
-  pi_device get_device() const noexcept { return deviceId_; }
-
-  native_type get() const noexcept { return hipContext_; }
-
-  bool is_primary() const noexcept { return kind_ == kind::primary; }
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-private:
-  std::mutex mutex_;
-  std::vector<deleter_data> extended_deleters_;
+struct _pi_context : ur_context_handle_t_ {
+  using ur_context_handle_t_::ur_context_handle_t_;
 };
 
 /// PI Mem mapping to HIP memory allocations, both data and texture/surface.
@@ -329,7 +260,7 @@ struct _pi_mem {
     if (is_sub_buffer()) {
       hip_piMemRetain(mem_.buffer_mem_.parent_);
     } else {
-      hip_piContextRetain(context_);
+      pi2ur::piContextRetain(context_);
     }
   };
 
@@ -341,7 +272,7 @@ struct _pi_mem {
     mem_.surface_mem_.array_ = array;
     mem_.surface_mem_.imageType_ = image_type;
     mem_.surface_mem_.surfObj_ = surf;
-    hip_piContextRetain(context_);
+    pi2ur::piContextRetain(context_);
   }
 
   ~_pi_mem() {
@@ -351,7 +282,7 @@ struct _pi_mem {
         return;
       }
     }
-    hip_piContextRelease(context_);
+    pi2ur::piContextRelease(context_);
   }
 
   // TODO: Move as many shared funcs up as possible
@@ -425,13 +356,13 @@ struct _pi_queue {
         num_compute_streams_{0}, num_transfer_streams_{0},
         last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
         flags_(flags) {
-    hip_piContextRetain(context_);
-    hip_piDeviceRetain(device_);
+    pi2ur::piContextRetain(context_);
+    pi2ur::piDeviceRetain(device_);
   }
 
   ~_pi_queue() {
-    hip_piContextRelease(context_);
-    hip_piDeviceRelease(device_);
+    pi2ur::piContextRelease(context_);
+    pi2ur::piDeviceRelease(device_);
   }
 
   void compute_stream_wait_for_barrier_if_needed(hipStream_t stream,
@@ -873,7 +804,7 @@ struct _pi_kernel {
       : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
         name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     hip_piProgramRetain(program_);
-    hip_piContextRetain(context_);
+    pi2ur::piContextRetain(context_);
   }
 
   _pi_kernel(hipFunction_t func, const char *name, pi_program program,
@@ -882,7 +813,7 @@ struct _pi_kernel {
 
   ~_pi_kernel() {
     hip_piProgramRelease(program_);
-    hip_piContextRelease(context_);
+    pi2ur::piContextRelease(context_);
   }
 
   pi_program get_program() const noexcept { return program_; }
