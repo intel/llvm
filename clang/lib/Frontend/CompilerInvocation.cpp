@@ -3585,8 +3585,7 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                                              DiagnosticsEngine &Diags) {
   for (StringRef Values : Args.getAllArgValues(OPT_ffp_builtin_accuracy_EQ)) {
     if (Opts.MathErrno) {
-      Diags.Report(diag::err_drv_incompatible_options) << "ffp-accuracy"
-                                                       << "-fmath-errno";
+      Diags.Report(diag::err_drv_incompatible_fp_accuracy_options);
     } else {
       SmallVector<StringRef, 8> ValuesArr;
       Values.split(ValuesArr, ' ');
