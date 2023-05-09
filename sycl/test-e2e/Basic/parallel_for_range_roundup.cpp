@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// REQUIRES: gpu
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 #include <sycl/sycl.hpp>

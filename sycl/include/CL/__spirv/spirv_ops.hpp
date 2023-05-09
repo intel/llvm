@@ -140,19 +140,19 @@ extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
 #else
-template <typename T, std::size_t R, std::size_t C,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S> *
 __spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
                              __spv::MatrixLayout Layout = L,
                              __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
-template <typename T, std::size_t R, std::size_t C,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *Object,
+    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S> *Object,
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
 

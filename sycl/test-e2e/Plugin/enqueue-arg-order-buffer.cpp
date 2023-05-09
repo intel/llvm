@@ -1,7 +1,7 @@
 // UNSUPPORTED: hip_nvidia
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// UNSUPPORTED: accelerator
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 #include <sycl/accessor.hpp>

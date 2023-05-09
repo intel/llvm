@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda || hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // 64 bit offset variant of the test - uses 64 bit offsets.
 

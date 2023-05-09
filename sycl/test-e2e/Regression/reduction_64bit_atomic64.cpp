@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// REQUIRES: aspect-atomic64
+// RUN: %{build} -o %t.out
 //
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 // Tests that a previously known case for reduction doesn't cause a requirement
 // for atomic64.
@@ -19,13 +18,6 @@ using namespace sycl;
 
 int main() {
   queue Q;
-
-  if (Q.get_device().has(aspect::atomic64)) {
-    std::cout << "Device supports aspect::atomic64 so we do not need to run "
-                 "the test."
-              << std::endl;
-    return 0;
-  }
 
   long long *Out = malloc_shared<long long>(1, Q);
 

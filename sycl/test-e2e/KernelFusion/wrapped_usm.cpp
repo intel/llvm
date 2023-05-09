@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-embed-ir %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// UNSUPPORTED: hip
+// REQUIRES: fusion, aspect-usm_shared_allocations
 
 // Test complete fusion using an wrapped USM pointer as kernel functor argument.
 
@@ -24,10 +24,6 @@ int main() {
   constexpr size_t dataSize = 512;
 
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  if (!q.get_device().has(sycl::aspect::usm_shared_allocations)) {
-    return 0;
-  }
 
   wrapper<int> in1{dataSize, q};
   wrapper<int> in2{dataSize, q};

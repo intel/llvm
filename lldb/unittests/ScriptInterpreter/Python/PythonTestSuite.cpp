@@ -107,6 +107,14 @@ bool lldb_private::LLDBSWIGPythonCallThreadPlan(void *implementor,
   return false;
 }
 
+bool 
+lldb_private::LLDBSWIGPythonCallThreadPlan(void *implementor,
+                                                const char *method_name,
+                                                Stream *event_sp,
+                                                bool &got_error) {
+  return false;
+}
+
 python::PythonObject
 lldb_private::LLDBSwigPythonCreateScriptedBreakpointResolver(
     const char *python_class_name, const char *session_dictionary_name,
@@ -136,6 +144,10 @@ int lldb_private::LLDBSwigPython_GetIndexOfChildWithName(
 }
 
 void *lldb_private::LLDBSWIGPython_CastPyObjectToSBData(PyObject *data) {
+  return nullptr;
+}
+
+void *lldb_private::LLDBSWIGPython_CastPyObjectToSBBreakpoint(PyObject *data) {
   return nullptr;
 }
 

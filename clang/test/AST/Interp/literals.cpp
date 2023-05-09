@@ -80,6 +80,12 @@ static_assert(~255 == -256, "");
 static_assert(~INT_MIN == INT_MAX, "");
 static_assert(~INT_MAX == INT_MIN, "");
 
+static_assert(-(1 << 31), ""); // expected-error {{not an integral constant expression}} \
+                               // expected-note {{outside the range of representable values}} \
+                               // ref-error {{not an integral constant expression}} \
+                               // ref-note {{outside the range of representable values}} \
+
+
 enum E {};
 constexpr E e = static_cast<E>(0);
 static_assert(~e == -1, "");
@@ -100,6 +106,19 @@ constexpr int gimme(int k) {
   return k;
 }
 static_assert(gimme(5) == 5, "");
+
+namespace PointerToBool {
+
+  constexpr void *N = nullptr;
+  constexpr bool B = N;
+  static_assert(!B, "");
+  static_assert(!N, "");
+
+  constexpr float F = 1.0;
+  constexpr const float *FP = &F;
+  static_assert(FP, "");
+  static_assert(!!FP, "");
+}
 
 namespace SizeOf {
   constexpr int soint = sizeof(int);
@@ -706,6 +725,23 @@ namespace IncDec {
              // ref-note {{cannot refer to element -1 of array of 3 elements}}
     return *p;
   }
+
+  /// This used to leave a 0 on the stack instead of the previous
+  /// value of a.
+  constexpr int bug1Inc() {
+    int a = 3;
+    int b = a++;
+    return b;
+  }
+  static_assert(bug1Inc() == 3);
+
+  constexpr int bug1Dec() {
+    int a = 3;
+    int b = a--;
+    return b;
+  }
+  static_assert(bug1Dec() == 3);
+
 };
 #endif
 
@@ -778,4 +814,18 @@ constexpr int ignoredDecls() {
   return F{12}.a;
 }
 static_assert(ignoredDecls() == 12, "");
+
+struct A{};
+constexpr int ignoredExprs() {
+  (void)(1 / 2);
+  A a;
+  a; // expected-warning {{unused}} \
+     // ref-warning {{unused}}
+  (void)a;
+  (a); // expected-warning {{unused}} \
+       // ref-warning {{unused}}
+
+  return 0;
+}
+
 #endif

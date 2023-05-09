@@ -10,16 +10,6 @@
 //  Subregister declarations
 //===----------------------------------------------------------------------===//
 
-class Indexes<int N> {
-  list<int> all = [0,   1,  2,  3,  4,  5,  6 , 7,
-                   8,   9, 10, 11, 12, 13, 14, 15,
-                   16, 17, 18, 19, 20, 21, 22, 23,
-                   24, 25, 26, 27, 28, 29, 30, 31];
-
-  // Returns list of indexes [0..N)
-  list<int> slice = !filter(i, all, !lt(i, N));
-}
-
 let Namespace = "AMDGPU" in {
 
 def lo16 : SubRegIndex<16, 0>;
@@ -35,13 +25,11 @@ foreach Index = 1...31 in {
 }
 
 foreach Size = {2...6,8,16} in {
-  foreach Index = Indexes<!sub(33, Size)>.slice in {
-    def !interleave(!foreach(cur, Indexes<Size>.slice, "sub"#!add(cur, Index)),
-                    "_") :
+  foreach Index = !range(!sub(33, Size)) in {
+    def !interleave(!foreach(cur, !range(Size), "sub"#!add(cur, Index)), "_") :
       SubRegIndex<!mul(Size, 32), !shl(Index, 5)> {
       let CoveringSubRegIndices =
-        !foreach(cur, Indexes<Size>.slice,
-                 !cast<SubRegIndex>(sub#!add(cur, Index)));
+        !foreach(cur, !range(Size), !cast<SubRegIndex>(sub#!add(cur, Index)));
     }
   }
 }
@@ -817,12 +805,19 @@ def SGPR_64 : SIRegisterClass<"AMDGPU", [v2i32, i64, v2f32, f64, v4i16, v4f16], 
   let HasSGPR = 1;
 }
 
-// CCR (call clobbered registers) SGPR 64-bit registers, currently used for tail call
-// return address only.
-def CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32, (add (trunc SGPR_64, 16))> {
+// CCR (call clobbered registers) SGPR 64-bit registers
+def CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32, (add (trunc SGPR_64, 15))> {
   let CopyCost = SGPR_64.CopyCost;
   let AllocationPriority = SGPR_64.AllocationPriority;
-  let HasSGPR = SGPR_64.HasSGPR;
+  let HasSGPR = 1;
+}
+
+// Call clobbered 64-bit SGPRs for AMDGPU_Gfx CC
+def Gfx_CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32,
+                                (add (trunc (shl SGPR_64, 18), 14))> { // s[36:37]-s[s62:63]
+  let CopyCost = SGPR_64.CopyCost;
+  let AllocationPriority = SGPR_64.AllocationPriority;
+  let HasSGPR = 1;
 }
 
 def TTMP_64 : SIRegisterClass<"AMDGPU", [v2i32, i64, f64, v4i16, v4f16], 32,
