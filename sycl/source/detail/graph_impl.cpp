@@ -23,16 +23,12 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
-void exec_graph_impl::schedule() {
-  if (MSchedule.empty()) {
-    for (auto Node : MGraphImpl->MRoots) {
-      Node->topology_sort(Node, MSchedule);
-    }
-  }
-}
+namespace {
 
-// Recursively check if a given node is an exit node and add the new nodes as
-// successors if so.
+/// Recursively check if a given node is an exit node, and add the new nodes as
+/// successors if so.
+/// @param[in] CurrentNode Node to check as exit node.
+/// @param[in] NewInputs Noes to add as successors.
 void connect_to_exit_nodes(
     std::shared_ptr<node_impl> CurrentNode,
     const std::vector<std::shared_ptr<node_impl>> &NewInputs) {
@@ -44,6 +40,39 @@ void connect_to_exit_nodes(
   } else {
     for (auto Input : NewInputs) {
       CurrentNode->register_successor(Input, CurrentNode);
+    }
+  }
+}
+
+/// Recursive check if a graph node or its successors contains a given kernel
+/// argument.
+/// @param[in] Arg The kernel argument to check for.
+/// @param[in] CurrentNode The current graph node being checked.
+/// @param[in,out] Deps The unique list of dependencies which have been
+/// identified for this arg.
+/// @return True if a dependency was added in this node or any of its
+/// successors.
+bool check_for_arg(const sycl::detail::ArgDesc &Arg,
+                   const std::shared_ptr<node_impl> &CurrentNode,
+                   std::set<std::shared_ptr<node_impl>> &Deps) {
+  bool SuccessorAddedDep = false;
+  for (auto &Successor : CurrentNode->MSuccessors) {
+    SuccessorAddedDep |= check_for_arg(Arg, Successor, Deps);
+  }
+
+  if (Deps.find(CurrentNode) == Deps.end() && CurrentNode->has_arg(Arg) &&
+      !SuccessorAddedDep) {
+    Deps.insert(CurrentNode);
+    return true;
+  }
+  return SuccessorAddedDep;
+}
+} // anonymous namespace
+
+void exec_graph_impl::schedule() {
+  if (MSchedule.empty()) {
+    for (auto Node : MGraphImpl->MRoots) {
+      Node->topology_sort(Node, MSchedule);
     }
   }
 }
@@ -87,32 +116,6 @@ void graph_impl::add_root(const std::shared_ptr<node_impl> &Root) {
 
 void graph_impl::remove_root(const std::shared_ptr<node_impl> &Root) {
   MRoots.erase(Root);
-}
-
-// Recursive check if a graph node or its successors contains a given kernel
-// argument.
-//
-// @param[in] Arg The kernel argument to check for.
-// @param[in] CurrentNode The current graph node being checked.
-// @param[in,out] Deps The unique list of dependencies which have been
-// identified for this arg.
-//
-// @returns True if a dependency was added in this node of any of its
-// successors.
-bool check_for_arg(const sycl::detail::ArgDesc &Arg,
-                   const std::shared_ptr<node_impl> &CurrentNode,
-                   std::set<std::shared_ptr<node_impl>> &Deps) {
-  bool SuccessorAddedDep = false;
-  for (auto &Successor : CurrentNode->MSuccessors) {
-    SuccessorAddedDep |= check_for_arg(Arg, Successor, Deps);
-  }
-
-  if (Deps.find(CurrentNode) == Deps.end() && CurrentNode->has_arg(Arg) &&
-      !SuccessorAddedDep) {
-    Deps.insert(CurrentNode);
-    return true;
-  }
-  return SuccessorAddedDep;
 }
 
 std::shared_ptr<node_impl>
@@ -244,8 +247,6 @@ void exec_graph_impl::find_real_deps(std::vector<RT::PiExtSyncPoint> &Deps,
   }
 }
 
-// Enqueue a node directly to the command buffer without going through the
-// scheduler.
 RT::PiExtSyncPoint exec_graph_impl::enqueue_node_direct(
     sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
     RT::PiExtCommandBuffer CommandBuffer, std::shared_ptr<node_impl> Node) {
@@ -463,9 +464,9 @@ sycl::event exec_graph_impl::enqueue(
 
 template <>
 command_graph<graph_state::modifiable>::command_graph(
-    const sycl::context &syclContext, const sycl::device &syclDevice,
+    const sycl::context &SyclContext, const sycl::device &SyclDevice,
     const sycl::property_list &)
-    : impl(std::make_shared<detail::graph_impl>(syclContext, syclDevice)) {}
+    : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice)) {}
 
 template <>
 node command_graph<graph_state::modifiable>::add_impl(
@@ -493,12 +494,11 @@ node command_graph<graph_state::modifiable>::add_impl(
 }
 
 template <>
-void command_graph<graph_state::modifiable>::make_edge(node Sender,
-                                                       node Receiver) {
+void command_graph<graph_state::modifiable>::make_edge(node &Src, node &Dest) {
   std::shared_ptr<detail::node_impl> SenderImpl =
-      sycl::detail::getSyclObjImpl(Sender);
+      sycl::detail::getSyclObjImpl(Src);
   std::shared_ptr<detail::node_impl> ReceiverImpl =
-      sycl::detail::getSyclObjImpl(Receiver);
+      sycl::detail::getSyclObjImpl(Dest);
 
   SenderImpl->register_successor(ReceiverImpl,
                                  SenderImpl); // register successor
@@ -515,7 +515,7 @@ command_graph<graph_state::modifiable>::finalize(
 
 template <>
 bool command_graph<graph_state::modifiable>::begin_recording(
-    queue RecordingQueue) {
+    queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl->getCommandGraph() == nullptr) {
     QueueImpl->setCommandGraph(impl);
@@ -535,7 +535,7 @@ template <>
 bool command_graph<graph_state::modifiable>::begin_recording(
     const std::vector<queue> &RecordingQueues) {
   bool QueueStateChanged = false;
-  for (auto &Queue : RecordingQueues) {
+  for (queue Queue : RecordingQueues) {
     QueueStateChanged |= this->begin_recording(Queue);
   }
   return QueueStateChanged;
@@ -547,7 +547,7 @@ template <> bool command_graph<graph_state::modifiable>::end_recording() {
 
 template <>
 bool command_graph<graph_state::modifiable>::end_recording(
-    queue RecordingQueue) {
+    queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
@@ -567,7 +567,7 @@ template <>
 bool command_graph<graph_state::modifiable>::end_recording(
     const std::vector<queue> &RecordingQueues) {
   bool QueueStateChanged = false;
-  for (auto &Queue : RecordingQueues) {
+  for (queue Queue : RecordingQueues) {
     QueueStateChanged |= this->end_recording(Queue);
   }
   return QueueStateChanged;
@@ -588,6 +588,13 @@ void command_graph<graph_state::executable>::finalize_impl() {
     impl->create_pi_command_buffers(device);
   }
 #endif
+}
+
+void command_graph<graph_state::executable>::update(
+    const command_graph<graph_state::modifiable> &Graph) {
+  (void)Graph;
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Method not yet implemented");
 }
 
 } // namespace experimental
