@@ -1,6 +1,5 @@
 add_mlir_conversion_library(MLIRSYCLToLLVM
   DialectBuilder.cpp
-  SYCLFuncRegistry.cpp
   SYCLToLLVM.cpp
 
   ADDITIONAL_HEADER_DIRS
