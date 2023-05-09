@@ -1,11 +1,10 @@
 // REQUIRES: aspect-fp64
-// RUN: %clangxx -fsycl  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: gpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
 
 #include <array>
 #include <cassert>

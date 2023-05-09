@@ -48,7 +48,7 @@ protected:
     std::tie(normalizedCoords_, filterMode_, addressMode_) = GetParam();
 
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
+    ASSERT_EQ(plugin->hasBackend(backend::ext_oneapi_cuda), PI_SUCCESS);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
