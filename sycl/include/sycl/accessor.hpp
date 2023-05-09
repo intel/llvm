@@ -1123,9 +1123,6 @@ protected:
     ConcreteASPtrType MData;
   };
 
-  // TODO replace usages with getQualifiedPtr
-  const ConcreteASPtrType getNativeImageObj() const { return MData; }
-
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
@@ -1144,9 +1141,18 @@ protected:
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
   // range and offset are not supported.
-  void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
+  void __init_esimd(ConcreteASPtrType Ptr) {
+    MData = Ptr;
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+    detail::loop<AdjustedDim>([&, this](size_t I) {
+      getOffset()[I] = 0;
+      getAccessRange()[I] = 0;
+      getMemoryRange()[I] = 0;
+    });
+#endif
+  }
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
 
@@ -1255,9 +1261,9 @@ public:
       std::conditional_t<AccessTarget == access::target::device,
                          global_ptr<value_type, IsDecorated>, value_type *>;
 
-  using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
+  using iterator = typename detail::accessor_iterator<value_type, AdjustedDim>;
   using const_iterator =
-      typename detail::accessor_iterator<const value_type, Dimensions>;
+      typename detail::accessor_iterator<const value_type, AdjustedDim>;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
@@ -2035,18 +2041,16 @@ public:
 
   bool empty() const noexcept { return size() == 0; }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == Dimensions && (Dims > 0)>>
   range<Dimensions> get_range() const {
-    return detail::convertToArrayOfN<Dimensions, 1>(getAccessRange());
+    return getRange<Dims>();
   }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == Dimensions && (Dims > 0)>>
   id<Dimensions> get_offset() const {
-    static_assert(
-        !(PropertyListT::template has_property<
-            sycl::ext::oneapi::property::no_offset>()),
-        "Accessor has no_offset property, get_offset() can not be used");
-    return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
+    return getOffset<Dims>();
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
@@ -2197,29 +2201,29 @@ public:
   iterator begin() const noexcept {
     return iterator::getBegin(
         get_pointer(),
-        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
-        get_offset());
+        detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   iterator end() const noexcept {
     return iterator::getEnd(
         get_pointer(),
-        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
-        get_offset());
+        detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cbegin() const noexcept {
     return const_iterator::getBegin(
         get_pointer(),
-        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
-        get_offset());
+        detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cend() const noexcept {
     return const_iterator::getEnd(
         get_pointer(),
-        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
-        get_offset());
+        detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
+        getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
@@ -2233,6 +2237,23 @@ public:
   }
 
 private:
+  template <int Dims, typename = std::enable_if_t<(Dims > 0)>>
+  range<Dims> getRange() const {
+    if constexpr (Dimensions == 0)
+      return range<1>{1};
+    else
+      return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
+  }
+
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  id<Dims> getOffset() const {
+    static_assert(
+        !(PropertyListT::template has_property<
+            sycl::ext::oneapi::property::no_offset>()),
+        "Accessor has no_offset property, get_offset() can not be used");
+    return detail::convertToArrayOfN<Dims, 0>(getOffset());
+  }
+
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const noexcept {
     size_t TotalOffset = 0;
@@ -2503,6 +2524,14 @@ protected:
         [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(ConcreteASPtrType Ptr) {
+    MData = Ptr;
+    detail::loop<AdjustedDim>([&, this](size_t I) { getSize()[I] = 0; });
+  }
+
 public:
   // Default constructor for objects later initialized with __init member.
   local_accessor_base()
@@ -2746,6 +2775,13 @@ public:
     local_acc::__init(Ptr, AccessRange, range, id);
   }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(typename local_acc::ConcreteASPtrType Ptr) {
+    local_acc::__init_esimd(Ptr);
+  }
+
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() {
@@ -2787,6 +2823,13 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
               range<local_acc::AdjustedDim> range,
               id<local_acc::AdjustedDim> id) {
     local_acc::__init(Ptr, AccessRange, range, id);
+  }
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(typename local_acc::ConcreteASPtrType Ptr) {
+    local_acc::__init_esimd(Ptr);
   }
 
 public:
@@ -2844,9 +2887,17 @@ public:
   bool empty() const noexcept { return this->size() == 0; }
 
   iterator begin() const noexcept {
-    return &this->operator[](id<Dimensions>());
+    if constexpr (Dimensions == 0)
+      return local_acc::getQualifiedPtr();
+    else
+      return &this->operator[](id<Dimensions>());
   }
-  iterator end() const noexcept { return begin() + this->size(); }
+  iterator end() const noexcept {
+    if constexpr (Dimensions == 0)
+      return begin() + 1;
+    else
+      return begin() + this->size();
+  }
 
   const_iterator cbegin() const noexcept { return const_iterator(begin()); }
   const_iterator cend() const noexcept { return const_iterator(end()); }
@@ -2899,6 +2950,9 @@ public:
     *local_acc::getQualifiedPtr() = std::move(Other);
     return *this;
   }
+
+private:
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 };
 
 /// Image accessors.

@@ -3,9 +3,7 @@
 
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU -o %t_gpu.out
-// RUN: env SYCL_CACHE_PERSISTENT=1 %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_CACHE_PERSISTENT=1 %GPU_RUN_PLACEHOLDER %t_gpu.out
-// RUN: env SYCL_CACHE_PERSISTENT=1 %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_CACHE_PERSISTENT=1 %{run} %if gpu %{ %t_gpu.out %} %else %{ %t.out %}
 
 #include <sycl/sycl.hpp>
 
