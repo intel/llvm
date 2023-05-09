@@ -1,7 +1,8 @@
 // REQUIRES: opencl
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: accelerator
 
 //==--------------- sampler.cpp - SYCL sampler basic test ------------------==//
 //

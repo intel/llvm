@@ -389,10 +389,7 @@ public:
     OpBuilder builder = getBuilder();
     Location loc = builder.getUnknownLoc();
     Attribute valueAttr = parseAttribute(value, builder.getContext());
-    Type type = NoneType::get(builder.getContext());
-    if (auto typedAttr = valueAttr.dyn_cast<TypedAttr>())
-      type = typedAttr.getType();
-    return builder.create<arith::ConstantOp>(loc, type, valueAttr);
+    return builder.create<arith::ConstantOp>(loc, ::cast<TypedAttr>(valueAttr));
   }
 
   Value index(int64_t dim) {
@@ -580,7 +577,7 @@ struct FoldInsertPadIntoFill : public OpRewritePattern<tensor::InsertSliceOp> {
     // plus low padding sizes.
     SmallVector<OpFoldResult, 4> newOffsets;
     for (const auto &p : llvm::zip(lowPads, oldOffsets)) {
-      newOffsets.push_back(makeComposedFoldedAffineApply(
+      newOffsets.push_back(affine::makeComposedFoldedAffineApply(
           rewriter, loc, addMap, {std::get<0>(p), std::get<1>(p)}));
     }
 
@@ -1178,7 +1175,7 @@ LogicalResult MapOp::verify() {
   }
 
   // The shape of each input must match the shape of the output.
-  auto outputShape = getInit().getType().cast<ShapedType>().getShape();
+  auto outputShape = getInit().getType().getShape();
   for (Type inputArgType : TypeRange{getInputs()}) {
     auto inputElemShape = inputArgType.cast<ShapedType>().getShape();
     if (inputElemShape != outputShape) {
@@ -2109,5 +2106,5 @@ void LinalgDialect::getCanonicalizationPatterns(
 Operation *LinalgDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  return builder.create<arith::ConstantOp>(loc, type, value);
+  return arith::ConstantOp::materialize(builder, value, type, loc);
 }

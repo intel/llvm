@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %{build} -o %t.out
 // REQUIRES: cuda || hip || level_zero
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

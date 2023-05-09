@@ -2154,9 +2154,9 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   //  b) if the function is a defaulted comparison, we can use the body we
   //     build when defining it as input to the exception specification
   //     computation rather than computing a new body.
-  if (auto *FPT = Ty->getAs<FunctionProtoType>()) {
+  if (const auto *FPT = Ty->getAs<FunctionProtoType>()) {
     if (isUnresolvedExceptionSpec(FPT->getExceptionSpecType())) {
-      if (auto *NewFPT = ResolveExceptionSpec(NameInfo.getLoc(), FPT))
+      if (const auto *NewFPT = ResolveExceptionSpec(NameInfo.getLoc(), FPT))
         E->setType(Context.getQualifiedType(NewFPT, Ty.getQualifiers()));
     }
   }
@@ -2166,8 +2166,8 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
       !Diags.isIgnored(diag::warn_arc_repeated_use_of_weak, E->getBeginLoc()))
     getCurFunction()->recordUseOfWeak(E);
 
-  FieldDecl *FD = dyn_cast<FieldDecl>(D);
-  if (IndirectFieldDecl *IFD = dyn_cast<IndirectFieldDecl>(D))
+  const auto *FD = dyn_cast<FieldDecl>(D);
+  if (const auto *IFD = dyn_cast<IndirectFieldDecl>(D))
     FD = IFD->getAnonField();
   if (FD) {
     UnusedPrivateFields.remove(FD);
@@ -2178,8 +2178,8 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
 
   // C++ [expr.prim]/8: The expression [...] is a bit-field if the identifier
   // designates a bit-field.
-  if (auto *BD = dyn_cast<BindingDecl>(D))
-    if (auto *BE = BD->getBinding())
+  if (const auto *BD = dyn_cast<BindingDecl>(D))
+    if (const auto *BE = BD->getBinding())
       E->setObjectKind(BE->getObjectKind());
 
   return E;
@@ -2258,7 +2258,7 @@ static void emitEmptyLookupTypoDiagnostic(
 ///
 /// Return \c true if the error is unrecoverable, or \c false if the caller
 /// should attempt to recover using these lookup results.
-bool Sema::DiagnoseDependentMemberLookup(LookupResult &R) {
+bool Sema::DiagnoseDependentMemberLookup(const LookupResult &R) {
   // During a default argument instantiation the CurContext points
   // to a CXXMethodDecl; but we can't apply a this-> fixit inside a
   // function parameter list, hence add an explicit check.
@@ -2266,7 +2266,7 @@ bool Sema::DiagnoseDependentMemberLookup(LookupResult &R) {
       !CodeSynthesisContexts.empty() &&
       CodeSynthesisContexts.back().Kind ==
           CodeSynthesisContext::DefaultFunctionArgumentInstantiation;
-  CXXMethodDecl *CurMethod = dyn_cast<CXXMethodDecl>(CurContext);
+  const auto *CurMethod = dyn_cast<CXXMethodDecl>(CurContext);
   bool isInstance = CurMethod && CurMethod->isInstance() &&
                     R.getNamingClass() == CurMethod->getParent() &&
                     !isDefaultArgument;
@@ -2298,7 +2298,7 @@ bool Sema::DiagnoseDependentMemberLookup(LookupResult &R) {
     Diag(R.getNameLoc(), DiagID) << R.getLookupName();
   }
 
-  for (NamedDecl *D : R)
+  for (const NamedDecl *D : R)
     Diag(D->getLocation(), NoteID);
 
   // Return true if we are inside a default argument instantiation
@@ -3056,7 +3056,7 @@ Sema::PerformObjectMemberConversion(Expr *From,
                                     NestedNameSpecifier *Qualifier,
                                     NamedDecl *FoundDecl,
                                     NamedDecl *Member) {
-  CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Member->getDeclContext());
+  const auto *RD = dyn_cast<CXXRecordDecl>(Member->getDeclContext());
   if (!RD)
     return From;
 
@@ -3081,7 +3081,7 @@ Sema::PerformObjectMemberConversion(Expr *From,
       DestType = DestRecordType;
       FromRecordType = FromType;
     }
-  } else if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Member)) {
+  } else if (const auto *Method = dyn_cast<CXXMethodDecl>(Member)) {
     if (Method->isStatic())
       return From;
 
@@ -3201,7 +3201,7 @@ bool Sema::UseArgumentDependentLookup(const CXXScopeSpec &SS,
 
   // Turn off ADL when we find certain kinds of declarations during
   // normal lookup:
-  for (NamedDecl *D : R) {
+  for (const NamedDecl *D : R) {
     // C++0x [basic.lookup.argdep]p3:
     //     -- a declaration of a class member
     // Since using decls preserve this property, we check this on the
@@ -3224,9 +3224,7 @@ bool Sema::UseArgumentDependentLookup(const CXXScopeSpec &SS,
     //     -- a declaration that is neither a function or a function
     //        template
     // And also for builtin functions.
-    if (isa<FunctionDecl>(D)) {
-      FunctionDecl *FDecl = cast<FunctionDecl>(D);
-
+    if (const auto *FDecl = dyn_cast<FunctionDecl>(D)) {
       // But also builtin functions.
       if (FDecl->getBuiltinID() && FDecl->isImplicit())
         return false;
@@ -3360,10 +3358,10 @@ ExprResult Sema::BuildDeclarationNameExpr(
   // Handle members of anonymous structs and unions.  If we got here,
   // and the reference is to a class member indirect field, then this
   // must be the subject of a pointer-to-member expression.
-  if (IndirectFieldDecl *indirectField = dyn_cast<IndirectFieldDecl>(VD))
-    if (!indirectField->isCXXClassMember())
-      return BuildAnonymousStructUnionMemberReference(SS, NameInfo.getLoc(),
-                                                      indirectField);
+  if (auto *IndirectField = dyn_cast<IndirectFieldDecl>(VD);
+      IndirectField && !IndirectField->isCXXClassMember())
+    return BuildAnonymousStructUnionMemberReference(SS, NameInfo.getLoc(),
+                                                    IndirectField);
 
   QualType type = VD->getType();
   if (type.isNull())
@@ -3863,7 +3861,7 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
 
   if (Literal.hasUDSuffix()) {
     // We're building a user-defined literal.
-    IdentifierInfo *UDSuffix = &Context.Idents.get(Literal.getUDSuffix());
+    const IdentifierInfo *UDSuffix = &Context.Idents.get(Literal.getUDSuffix());
     SourceLocation UDSuffixLoc =
       getUDSuffixLoc(*this, Tok.getLocation(), Literal.getUDSuffixOffset());
 
@@ -4326,13 +4324,13 @@ static bool CheckObjCTraitOperandConstraints(Sema &S, QualType T,
 /// Check whether E is a pointer from a decayed array type (the decayed
 /// pointer type is equal to T) and emit a warning if it is.
 static void warnOnSizeofOnArrayDecay(Sema &S, SourceLocation Loc, QualType T,
-                                     Expr *E) {
+                                     const Expr *E) {
   // Don't warn if the operation changed the type.
   if (T != E->getType())
     return;
 
   // Now look for array decays.
-  ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+  const auto *ICE = dyn_cast<ImplicitCastExpr>(E);
   if (!ICE || ICE->getCastKind() != CK_ArrayToPointerDecay)
     return;
 
@@ -4415,8 +4413,8 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
     return true;
 
   if (ExprKind == UETT_SizeOf) {
-    if (DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(E->IgnoreParens())) {
-      if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DeclRef->getFoundDecl())) {
+    if (const auto *DeclRef = dyn_cast<DeclRefExpr>(E->IgnoreParens())) {
+      if (const auto *PVD = dyn_cast<ParmVarDecl>(DeclRef->getFoundDecl())) {
         QualType OType = PVD->getOriginalType();
         QualType Type = PVD->getType();
         if (Type->isPointerType() && OType->isArrayType()) {
@@ -4430,7 +4428,7 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
     // Warn on "sizeof(array op x)" and "sizeof(x op array)", where the array
     // decays into a pointer and returns an unintended result. This is most
     // likely a typo for "sizeof(array) op x".
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
+    if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
       warnOnSizeofOnArrayDecay(*this, BO->getOperatorLoc(), BO->getType(),
                                BO->getLHS());
       warnOnSizeofOnArrayDecay(*this, BO->getOperatorLoc(), BO->getType(),
@@ -5010,7 +5008,8 @@ ExprResult Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base,
   // Build an unanalyzed expression if either operand is type-dependent.
   if (getLangOpts().CPlusPlus && ArgExprs.size() == 1 &&
       (base->isTypeDependent() ||
-       Expr::hasAnyTypeDependentArguments(ArgExprs))) {
+       Expr::hasAnyTypeDependentArguments(ArgExprs)) &&
+      !isa<PackExpansionExpr>(ArgExprs[0])) {
     return new (Context) ArraySubscriptExpr(
         base, ArgExprs.front(),
         getDependentArraySubscriptType(base, ArgExprs.front(), getASTContext()),
@@ -5044,7 +5043,8 @@ ExprResult Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base,
   // to overload resolution and so should not take this path.
   if (getLangOpts().CPlusPlus && !base->getType()->isObjCObjectPointerType() &&
       ((base->getType()->isRecordType() ||
-        (ArgExprs.size() != 1 || ArgExprs[0]->getType()->isRecordType())))) {
+        (ArgExprs.size() != 1 || isa<PackExpansionExpr>(ArgExprs[0]) ||
+         ArgExprs[0]->getType()->isRecordType())))) {
     return CreateOverloadedArraySubscriptExpr(lbLoc, rbLoc, base, ArgExprs);
   }
 
@@ -6012,7 +6012,9 @@ bool Sema::CheckCXXDefaultArgExpr(SourceLocation CallLoc, FunctionDecl *FD,
       Param);
   ExprEvalContexts.back().IsCurrentlyCheckingDefaultArgumentOrInitializer =
       SkipImmediateInvocations;
-  MarkDeclarationsReferencedInExpr(Init, /*SkipLocalVariables*/ true);
+  runWithSufficientStackSpace(CallLoc, [&] {
+    MarkDeclarationsReferencedInExpr(Init, /*SkipLocalVariables=*/true);
+  });
   return false;
 }
 
@@ -6122,8 +6124,11 @@ ExprResult Sema::BuildCXXDefaultArgExpr(SourceLocation CallLoc,
       ExprEvalContexts.back().DelayedDefaultInitializationContext = {
           CallLoc, Param, CurContext};
       EnsureImmediateInvocationInDefaultArgs Immediate(*this);
-      ExprResult Res = Immediate.TransformInitializer(Param->getInit(),
-                                                      /*NotCopy=*/false);
+      ExprResult Res;
+      runWithSufficientStackSpace(CallLoc, [&] {
+        Res = Immediate.TransformInitializer(Param->getInit(),
+                                             /*NotCopy=*/false);
+      });
       if (Res.isInvalid())
         return ExprError();
       Res = ConvertParamDefaultArgument(Param, Res.get(),
@@ -6203,10 +6208,11 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
         NestedDefaultChecking;
 
     EnsureImmediateInvocationInDefaultArgs Immediate(*this);
-
-    ExprResult Res =
-        Immediate.TransformInitializer(Field->getInClassInitializer(),
-                                       /*CXXDirectInit=*/false);
+    ExprResult Res;
+    runWithSufficientStackSpace(Loc, [&] {
+      Res = Immediate.TransformInitializer(Field->getInClassInitializer(),
+                                           /*CXXDirectInit=*/false);
+    });
     if (!Res.isInvalid())
       Res = ConvertMemberDefaultInitExpression(Field, Res.get(), Loc);
     if (Res.isInvalid()) {
@@ -6219,7 +6225,9 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
   if (Field->getInClassInitializer()) {
     Expr *E = Init ? Init : Field->getInClassInitializer();
     if (!NestedDefaultChecking)
-      MarkDeclarationsReferencedInExpr(E, /*SkipLocalVariables=*/false);
+      runWithSufficientStackSpace(Loc, [&] {
+        MarkDeclarationsReferencedInExpr(E, /*SkipLocalVariables=*/false);
+      });
     // C++11 [class.base.init]p7:
     //   The initialization of each base and member constitutes a
     //   full-expression.
@@ -8060,6 +8068,28 @@ bool Sema::isValidSveBitcast(QualType srcTy, QualType destTy) {
     const auto *VecTy = SecondType->getAs<VectorType>();
     return VecTy &&
            VecTy->getVectorKind() == VectorType::SveFixedLengthDataVector;
+  };
+
+  return ValidScalableConversion(srcTy, destTy) ||
+         ValidScalableConversion(destTy, srcTy);
+}
+
+/// Are the two types RVV-bitcast-compatible types? I.e. is bitcasting from the
+/// first RVV type (e.g. an RVV scalable type) to the second type (e.g. an RVV
+/// VLS type) allowed?
+///
+/// This will also return false if the two given types do not make sense from
+/// the perspective of RVV bitcasts.
+bool Sema::isValidRVVBitcast(QualType srcTy, QualType destTy) {
+  assert(srcTy->isVectorType() || destTy->isVectorType());
+
+  auto ValidScalableConversion = [](QualType FirstType, QualType SecondType) {
+    if (!FirstType->isRVVSizelessBuiltinType())
+      return false;
+
+    const auto *VecTy = SecondType->getAs<VectorType>();
+    return VecTy &&
+           VecTy->getVectorKind() == VectorType::RVVFixedLengthDataVector;
   };
 
   return ValidScalableConversion(srcTy, destTy) ||
@@ -9998,6 +10028,16 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
         return Compatible;
       }
 
+    // Allow assignments between fixed-length and sizeless RVV vectors.
+    if ((LHSType->isRVVSizelessBuiltinType() && RHSType->isVectorType()) ||
+        (LHSType->isVectorType() && RHSType->isRVVSizelessBuiltinType())) {
+      if (Context.areCompatibleRVVTypes(LHSType, RHSType) ||
+          Context.areLaxCompatibleRVVTypes(LHSType, RHSType)) {
+        Kind = CK_BitCast;
+        return Compatible;
+      }
+    }
+
     return Incompatible;
   }
 
@@ -10165,6 +10205,15 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     return Incompatible;
+  }
+
+  // Conversion to nullptr_t (C2x only)
+  if (getLangOpts().C2x && LHSType->isNullPtrType() &&
+      RHS.get()->isNullPointerConstant(Context,
+                                       Expr::NPC_ValueDependentIsNull)) {
+    // null -> nullptr_t
+    Kind = CK_NullToPointer;
+    return Compatible;
   }
 
   // Conversions from pointers that are not covered by the above.
@@ -10379,12 +10428,18 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
       return Incompatible;
   }
 
+  // The constraints are expressed in terms of the atomic, qualified, or
+  // unqualified type of the LHS.
+  QualType LHSTypeAfterConversion = LHSType.getAtomicUnqualifiedType();
+
   // C99 6.5.16.1p1: the left operand is a pointer and the right is
-  // a null pointer constant.
-  if ((LHSType->isPointerType() || LHSType->isObjCObjectPointerType() ||
-       LHSType->isBlockPointerType()) &&
-      RHS.get()->isNullPointerConstant(Context,
-                                       Expr::NPC_ValueDependentIsNull)) {
+  // a null pointer constant <C2x>or its type is nullptr_t;</C2x>.
+  if ((LHSTypeAfterConversion->isPointerType() ||
+       LHSTypeAfterConversion->isObjCObjectPointerType() ||
+       LHSTypeAfterConversion->isBlockPointerType()) &&
+      ((getLangOpts().C2x && RHS.get()->getType()->isNullPtrType()) ||
+       RHS.get()->isNullPointerConstant(Context,
+                                        Expr::NPC_ValueDependentIsNull))) {
     if (Diagnose || ConvertRHS) {
       CastKind Kind;
       CXXCastPath Path;
@@ -10394,6 +10449,26 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
         RHS = ImpCastExprToType(RHS.get(), LHSType, Kind, VK_PRValue, &Path);
     }
     return Compatible;
+  }
+  // C2x 6.5.16.1p1: the left operand has type atomic, qualified, or
+  // unqualified bool, and the right operand is a pointer or its type is
+  // nullptr_t.
+  if (getLangOpts().C2x && LHSType->isBooleanType() &&
+      RHS.get()->getType()->isNullPtrType()) {
+    // NB: T* -> _Bool is handled in CheckAssignmentConstraints, this only
+    // only handles nullptr -> _Bool due to needing an extra conversion
+    // step.
+    // We model this by converting from nullptr -> void * and then let the
+    // conversion from void * -> _Bool happen naturally.
+    if (Diagnose || ConvertRHS) {
+      CastKind Kind;
+      CXXCastPath Path;
+      CheckPointerConversion(RHS.get(), Context.VoidPtrTy, Kind, Path,
+                             /*IgnoreBaseAccess=*/false, Diagnose);
+      if (ConvertRHS)
+        RHS = ImpCastExprToType(RHS.get(), Context.VoidPtrTy, Kind, VK_PRValue,
+                                &Path);
+    }
   }
 
   // OpenCL queue_t type assignment.
@@ -10854,18 +10929,30 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
     }
   }
 
-  // Expressions containing fixed-length and sizeless SVE vectors are invalid
-  // since the ambiguity can affect the ABI.
-  auto IsSveConversion = [](QualType FirstType, QualType SecondType) {
+  // Expressions containing fixed-length and sizeless SVE/RVV vectors are
+  // invalid since the ambiguity can affect the ABI.
+  auto IsSveRVVConversion = [](QualType FirstType, QualType SecondType,
+                               unsigned &SVEorRVV) {
     const VectorType *VecType = SecondType->getAs<VectorType>();
-    return FirstType->isSizelessBuiltinType() && VecType &&
-           (VecType->getVectorKind() == VectorType::SveFixedLengthDataVector ||
-            VecType->getVectorKind() ==
-                VectorType::SveFixedLengthPredicateVector);
+    SVEorRVV = 0;
+    if (FirstType->isSizelessBuiltinType() && VecType) {
+      if (VecType->getVectorKind() == VectorType::SveFixedLengthDataVector ||
+          VecType->getVectorKind() == VectorType::SveFixedLengthPredicateVector)
+        return true;
+      if (VecType->getVectorKind() == VectorType::RVVFixedLengthDataVector) {
+        SVEorRVV = 1;
+        return true;
+      }
+    }
+
+    return false;
   };
 
-  if (IsSveConversion(LHSType, RHSType) || IsSveConversion(RHSType, LHSType)) {
-    Diag(Loc, diag::err_typecheck_sve_ambiguous) << LHSType << RHSType;
+  unsigned SVEorRVV;
+  if (IsSveRVVConversion(LHSType, RHSType, SVEorRVV) ||
+      IsSveRVVConversion(RHSType, LHSType, SVEorRVV)) {
+    Diag(Loc, diag::err_typecheck_sve_rvv_ambiguous)
+        << SVEorRVV << LHSType << RHSType;
     return QualType();
   }
 
@@ -10877,12 +10964,21 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
     const VectorType *SecondVecType = SecondType->getAs<VectorType>();
 
     SVEorRVV = 0;
-    if (FirstVecType && SecondVecType)
-      return FirstVecType->getVectorKind() == VectorType::GenericVector &&
-             (SecondVecType->getVectorKind() ==
-                  VectorType::SveFixedLengthDataVector ||
-              SecondVecType->getVectorKind() ==
-                  VectorType::SveFixedLengthPredicateVector);
+    if (FirstVecType && SecondVecType) {
+      if (FirstVecType->getVectorKind() == VectorType::GenericVector) {
+        if (SecondVecType->getVectorKind() ==
+                VectorType::SveFixedLengthDataVector ||
+            SecondVecType->getVectorKind() ==
+                VectorType::SveFixedLengthPredicateVector)
+          return true;
+        if (SecondVecType->getVectorKind() ==
+            VectorType::RVVFixedLengthDataVector) {
+          SVEorRVV = 1;
+          return true;
+        }
+      }
+      return false;
+    }
 
     if (SecondVecType &&
         SecondVecType->getVectorKind() == VectorType::GenericVector) {
@@ -10897,7 +10993,6 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
     return false;
   };
 
-  unsigned SVEorRVV;
   if (IsSveRVVGnuConversion(LHSType, RHSType, SVEorRVV) ||
       IsSveRVVGnuConversion(RHSType, LHSType, SVEorRVV)) {
     Diag(Loc, diag::err_typecheck_sve_rvv_gnu_ambiguous)
@@ -18463,9 +18558,6 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
   if (getLangOpts().SYCLIsDevice)
     checkSYCLDeviceFunction(Loc, Func);
 
-  if (getLangOpts().SYCLIsDevice)
-    checkSYCLDeviceFunction(Loc, Func);
-
   // If we need a definition, try to create one.
   if (NeedDefinition && !Func->getBody()) {
     runWithSufficientStackSpace(Loc, [&] {
@@ -18581,7 +18673,9 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
   if (CXXConstructorDecl *Constructor = dyn_cast<CXXConstructorDecl>(Func)) {
     for (CXXCtorInitializer *Init : Constructor->inits()) {
       if (Init->isInClassMemberInitializer())
-        MarkDeclarationsReferencedInExpr(Init->getInit());
+        runWithSufficientStackSpace(Init->getSourceLocation(), [&]() {
+          MarkDeclarationsReferencedInExpr(Init->getInit());
+        });
     }
   }
 

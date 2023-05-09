@@ -2,7 +2,7 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 //
-// RUN: not %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck %s
+// RUN: not %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck
 //
 // The spec only allows scalar types
 // (http://eel.is/c++draft/basic.types.general#def:type,scalar)

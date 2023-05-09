@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
@@ -107,7 +105,8 @@ template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
     q.submit([&](sycl::handler &cgh) {
       sycl::accessor accRes(bufRes, cgh);
       sycl::local_accessor<T, 1> locAcc(vec.size(), cgh);
-      cgh.single_task([=]() { test(accRes, locAcc); });
+      cgh.parallel_for(sycl::nd_range<1>{1, 1},
+                       [=](sycl::nd_item<1>) { test(accRes, locAcc); });
     });
     q.wait();
   }
@@ -120,7 +119,7 @@ template <typename GlobAcc, typename LocAcc>
 void testLocalAccItersImpl(sycl::handler &cgh, GlobAcc &globAcc, LocAcc &locAcc,
                            bool testConstIter) {
   if (testConstIter) {
-    cgh.single_task([=]() {
+    cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
       size_t Idx = 0;
       for (auto &It : locAcc) {
         It = globAcc[Idx++];
@@ -133,7 +132,7 @@ void testLocalAccItersImpl(sycl::handler &cgh, GlobAcc &globAcc, LocAcc &locAcc,
         globAcc[Idx--] += *It;
     });
   } else {
-    cgh.single_task([=]() {
+    cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
       size_t Idx = 0;
       for (auto It = locAcc.begin(); It != locAcc.end(); It++)
         *It = globAcc[Idx++] * 2;
@@ -759,6 +758,26 @@ int main() {
     }
   }
 
+  // SYCL2020 4.9.4.1: calling require() on empty accessor should throw
+  {
+    sycl::queue q;
+    try {
+      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+      AccT acc;
+
+      q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
+      q.wait_and_throw();
+      assert(false && "we should not be here, missing exception");
+    } catch (sycl::exception &e) {
+      std::cout << "exception received: " << e.what() << std::endl;
+      assert(e.code() == sycl::errc::invalid && "error code should be invalid");
+    } catch (...) {
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
+      return 1;
+    }
+  }
+
   {
     try {
       int data = -1;
@@ -980,6 +999,21 @@ int main() {
     }
     assert(vec1[7] == 4 && vec2[15] == 4);
   }
+
+  // 0-dim host_accessor iterator
+  {
+    std::vector<int> vec1(8);
+    {
+      sycl::buffer<int> buf1(vec1.data(), vec1.size());
+      sycl::host_accessor<int, 0> acc1(buf1);
+      *acc1.begin() = 4;
+      auto value = *acc1.cbegin();
+      value += *acc1.crbegin();
+      *acc1.rbegin() += value;
+    }
+    assert(vec1[0] == 12);
+  }
+
   // Test swap() on basic accessor
   {
     std::vector<int> vec1(8), vec2(16);
@@ -991,10 +1025,11 @@ int main() {
         sycl::accessor acc1(buf1, cgh);
         sycl::accessor acc2(buf2, cgh);
         acc1.swap(acc2);
-        cgh.single_task([=]() {
-          acc1[15] = 4;
-          acc2[7] = 4;
-        });
+        cgh.parallel_for<class swap1>(sycl::nd_range<1>{1, 1},
+                                      [=](sycl::nd_item<1>) {
+                                        acc1[15] = 4;
+                                        acc2[7] = 4;
+                                      });
       });
     }
     assert(vec1[7] == 4 && vec2[15] == 4);
@@ -1012,10 +1047,11 @@ int main() {
         sycl::accessor acc2(buf2, cgh);
         sycl::local_accessor<int, 1> locAcc1(8, cgh), locAcc2(16, cgh);
         locAcc1.swap(locAcc2);
-        cgh.single_task([=]() {
-          acc1[0] = locAcc1.size();
-          acc2[0] = locAcc2.size();
-        });
+        cgh.parallel_for<class swap2>(sycl::nd_range<1>{1, 1},
+                                      [=](sycl::nd_item<1>) {
+                                        acc1[0] = locAcc1.size();
+                                        acc2[0] = locAcc2.size();
+                                      });
       });
     }
     assert(size1 == 16 && size2 == 8);
@@ -1074,6 +1110,59 @@ int main() {
     assert(Data == 64);
   }
 
+  // iterator operations test for 0-dim buffer accessor
+  {
+    sycl::queue Queue;
+    int Data[] = {32, 32};
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(Data, sycl::range<1>(2));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        CGH.single_task<class acc_0_dim_iter_assignment>([=]() {
+          *Acc.begin() = 64;
+          auto value = *Acc.cbegin();
+          value += *Acc.crbegin();
+          *Acc.rbegin() += value;
+        });
+      });
+      Queue.wait();
+    }
+
+    assert(Data[0] == 64 * 3);
+    assert(Data[1] == 32);
+  }
+
+  // iterator operations test for 0-dim buffer accessor with target::host_task
+  {
+    sycl::queue Queue;
+    int Data[] = {32, 32};
+
+    using HostTaskAcc = sycl::accessor<int, 0, sycl::access::mode::read_write,
+                                       sycl::access::target::host_task>;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(Data, sycl::range<1>(2));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        HostTaskAcc Acc(DataBuffer, CGH);
+        CGH.host_task([=]() {
+          *Acc.begin() = 64;
+          auto value = *Acc.cbegin();
+          value += *Acc.crbegin();
+          *Acc.rbegin() += value;
+        });
+      });
+      Queue.wait();
+    }
+
+    assert(Data[0] == 64 * 3);
+    assert(Data[1] == 32);
+  }
+
   // Assignment operator test for 0-dim local accessor
   {
     sycl::queue Queue;
@@ -1082,18 +1171,53 @@ int main() {
     // Explicit block to prompt copy-back to Data
     {
       sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
-
       Queue.submit([&](sycl::handler &CGH) {
         sycl::accessor<int, 0> Acc(DataBuffer, CGH);
         sycl::local_accessor<int, 0> LocalAcc(CGH);
-        CGH.single_task<class local_acc_0_dim_assignment>([=]() {
-          LocalAcc = 64;
-          Acc = LocalAcc;
-        });
+        CGH.parallel_for<class copyblock>(sycl::nd_range<1>{1, 1},
+                                          [=](sycl::nd_item<1>) {
+                                            LocalAcc = 64;
+                                            Acc = LocalAcc;
+                                          });
       });
     }
 
     assert(Data == 64);
+  }
+
+  // Throws exception on local_accessors used in single_task
+  {
+    constexpr static int size = 1;
+    sycl::queue Queue;
+
+    try {
+      Queue.submit([&](sycl::handler &cgh) {
+        auto local_acc = sycl::local_accessor<int, 1>({size}, cgh);
+        cgh.single_task<class local_acc_exception>([=]() { (void)local_acc; });
+      });
+      assert(0 && "local accessor must not be used in single task.");
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what() << std::endl;
+    }
+  }
+
+  // Throws exception on local_accessors used in parallel_for taking a range
+  // parameter.
+  {
+    constexpr static int size = 1;
+    sycl::queue Queue;
+
+    try {
+      Queue.submit([&](sycl::handler &cgh) {
+        auto local_acc = sycl::local_accessor<int, 1>({size}, cgh);
+        cgh.parallel_for<class parallel_for_exception>(
+            sycl::range<1>{size}, [=](sycl::id<1> ID) { (void)local_acc; });
+      });
+      assert(0 &&
+             "local accessor must not be used in parallel for with range.");
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what() << std::endl;
+    }
   }
 
   // local_accessor::operator& and local_accessor::operator[] with const DataT
@@ -1106,12 +1230,39 @@ int main() {
       queue.submit([&](sycl::handler &cgh) {
         AccT_zero acc_zero(cgh);
         AccT_non_zero acc_non_zero(sycl::range<1>(5), cgh);
-        cgh.single_task([=] {
-          const int &ref_zero = acc_zero;
-          const int &ref_non_zero = acc_non_zero[0];
-        });
+        cgh.parallel_for<class local_acc_const_type>(
+            sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> ID) {
+              const int &ref_zero = acc_zero;
+              const int &ref_non_zero = acc_non_zero[0];
+            });
       });
     }
+  }
+
+  // Assignment operator test for 0-dim local accessor iterator
+  {
+    sycl::queue Queue;
+    int Data = 0;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        sycl::local_accessor<int, 0> LocalAcc(CGH);
+        CGH.parallel_for<class local_acc_0_dim_iter_assignment>(
+            sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> ID) {
+              *LocalAcc.begin() = 32;
+              auto value = *LocalAcc.cbegin();
+              value += *LocalAcc.crbegin();
+              *LocalAcc.rbegin() += value;
+              Acc = LocalAcc;
+            });
+      });
+    }
+
+    assert(Data == 96);
   }
 
   // host_accessor hash

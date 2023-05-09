@@ -138,7 +138,6 @@ struct PackOpInterface
   AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
                                             const AnalysisState &state) const {
     assert(op->getNumResults() == 1);
-    assert(isUniqueCOOType(op->getResultTypes()[0].cast<RankedTensorType>()));
     // PackOp reuses the input tensors as values/coordinates instead of
     // creating new ones when packing into a COO format.
     return {{op->getOpResult(0), BufferRelation::Equivalent}};
@@ -154,9 +153,12 @@ struct UnpackOpInterface
     : public BufferizableOpInterface::ExternalModel<UnpackOpInterface,
                                                     sparse_tensor::UnpackOp> {
   bool bufferizesToAllocation(Operation *op, OpResult opResult) const {
-    // Similar to InsertOp, reallocation is not considered to allocate a new
-    // piece of memory.
-    return false;
+    // We allocate and return unpacked memory if this is a batched unpack.
+    // When the number of batched levels equals to zero, we reuse the
+    // coordinates/values memref (and reallocation if the requested output size
+    // is larger than the actual size). Similar to InsertOp, reallocation is
+    // not considered to allocate a new piece of memory.
+    return llvm::cast<UnpackOp>(op).getNumBatchedLvls() != 0;
   }
 
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,

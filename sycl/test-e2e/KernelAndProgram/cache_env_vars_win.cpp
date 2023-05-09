@@ -3,7 +3,7 @@
 // REQUIRES: (level_zero || opencl) && windows
 
 // RUN: rm -rf %t/cache_dir
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -DTARGET_IMAGE=INC100
+// RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100
 
 // When no environment variables pointing cache directory are set the cache is
 // disabled

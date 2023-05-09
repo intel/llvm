@@ -200,6 +200,11 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
     // Currently we support the v0.11 RISC-V V intrinsics.
     Builder.defineMacro("__riscv_v_intrinsic", Twine(getVersionValue(0, 11)));
   }
+
+  auto VScale = getVScaleRange(Opts);
+  if (VScale && VScale->first && VScale->first == VScale->second)
+    Builder.defineMacro("__riscv_v_fixed_vlen",
+                        Twine(VScale->first * llvm::RISCV::RVVBitsPerBlock));
 }
 
 static constexpr Builtin::Info BuiltinInfo[] = {
@@ -320,7 +325,7 @@ bool RISCVTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
 
 bool RISCVTargetInfo::isValidCPUName(StringRef Name) const {
   bool Is64Bit = getTriple().isArch64Bit();
-  return llvm::RISCV::checkCPUKind(llvm::RISCV::parseCPUKind(Name), Is64Bit);
+  return llvm::RISCV::parseCPU(Name, Is64Bit);
 }
 
 void RISCVTargetInfo::fillValidCPUList(
@@ -331,8 +336,7 @@ void RISCVTargetInfo::fillValidCPUList(
 
 bool RISCVTargetInfo::isValidTuneCPUName(StringRef Name) const {
   bool Is64Bit = getTriple().isArch64Bit();
-  return llvm::RISCV::checkTuneCPUKind(
-      llvm::RISCV::parseTuneCPUKind(Name, Is64Bit), Is64Bit);
+  return llvm::RISCV::parseTuneCPU(Name, Is64Bit);
 }
 
 void RISCVTargetInfo::fillValidTuneCPUList(

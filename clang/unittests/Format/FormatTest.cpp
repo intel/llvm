@@ -2998,6 +2998,17 @@ TEST_F(FormatTest, FormatsLabels) {
                "test_label:;\n"
                "  int i = 0;\n"
                "}");
+  verifyFormat("{\n"
+               "  some_code();\n"
+               "test_label: { some_other_code(); }\n"
+               "}");
+  verifyFormat("{\n"
+               "  some_code();\n"
+               "test_label: {\n"
+               "  some_other_code();\n"
+               "  some_other_code();\n"
+               "}\n"
+               "}");
   FormatStyle Style = getLLVMStyle();
   Style.IndentGotoLabels = false;
   verifyFormat("void f() {\n"
@@ -3022,6 +3033,23 @@ TEST_F(FormatTest, FormatsLabels) {
                "test_label:;\n"
                "  int i = 0;\n"
                "}");
+  verifyFormat("{\n"
+               "  some_code();\n"
+               "test_label: { some_other_code(); }\n"
+               "}",
+               Style);
+  // The opening brace may either be on the same unwrapped line as the colon or
+  // on a separate one. The formatter should recognize both.
+  Style = getLLVMStyle();
+  Style.BreakBeforeBraces = FormatStyle::BraceBreakingStyle::BS_Allman;
+  verifyFormat("{\n"
+               "  some_code();\n"
+               "test_label:\n"
+               "{\n"
+               "  some_other_code();\n"
+               "}\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTest, MultiLineControlStatements) {
@@ -4853,6 +4881,191 @@ TEST_F(FormatTest, DesignatedInitializers) {
                "    [3] = cccccccccccccccccccccccccccccccccccccc,\n"
                "    [4] = dddddddddddddddddddddddddddddddddddddd,\n"
                "    [5] = eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee};");
+}
+
+TEST_F(FormatTest, BracedInitializerIndentWidth) {
+  auto Style = getLLVMStyleWithColumns(60);
+  Style.BinPackArguments = true;
+  Style.AlignAfterOpenBracket = FormatStyle::BAS_AlwaysBreak;
+  Style.BracedInitializerIndentWidth = 6;
+
+  // Non-initializing braces are unaffected by BracedInitializerIndentWidth.
+  verifyFormat("enum class {\n"
+               "  One,\n"
+               "  Two,\n"
+               "};\n",
+               Style);
+  verifyFormat("class Foo {\n"
+               "  Foo() {}\n"
+               "  void bar();\n"
+               "};\n",
+               Style);
+  verifyFormat("void foo() {\n"
+               "  auto bar = baz;\n"
+               "  return baz;\n"
+               "};\n",
+               Style);
+  verifyFormat("auto foo = [&] {\n"
+               "  auto bar = baz;\n"
+               "  return baz;\n"
+               "};\n",
+               Style);
+  verifyFormat("{\n"
+               "  auto bar = baz;\n"
+               "  return baz;\n"
+               "};\n",
+               Style);
+  // Non-brace initialization is unaffected by BracedInitializerIndentWidth.
+  verifyFormat("SomeClass clazz(\n"
+               "    \"xxxxxxxxxxxxxxxxxx\", \"yyyyyyyyyyyyyyyyyy\",\n"
+               "    \"zzzzzzzzzzzzzzzzzz\");\n",
+               Style);
+
+  // The following types of initialization are all affected by
+  // BracedInitializerIndentWidth. Aggregate initialization.
+  verifyFormat("int LooooooooooooooooooooooooongVariable[2] = {\n"
+               "      10000000, 20000000};",
+               Style);
+  verifyFormat("SomeStruct s{\n"
+               "      \"xxxxxxxxxxxxxxxx\", \"yyyyyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzzzzz\"};\n",
+               Style);
+  // Designated initializers.
+  verifyFormat("int LooooooooooooooooooooooooongVariable[1] = {\n"
+               "      [0] = 10000000, [1] = 20000000};",
+               Style);
+  verifyFormat("SomeStruct s{\n"
+               "      .foo = \"xxxxxxxxxxxxx\",\n"
+               "      .bar = \"yyyyyyyyyyyyy\",\n"
+               "      .baz = \"zzzzzzzzzzzzz\"};\n",
+               Style);
+  // List initialization.
+  verifyFormat("SomeStruct s{\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  verifyFormat("SomeStruct{\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  verifyFormat("new SomeStruct{\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  // Member initializer.
+  verifyFormat("class SomeClass {\n"
+               "  SomeStruct s{\n"
+               "        \"xxxxxxxxxxxxx\",\n"
+               "        \"yyyyyyyyyyyyy\",\n"
+               "        \"zzzzzzzzzzzzz\",\n"
+               "  };\n"
+               "};\n",
+               Style);
+  // Constructor member initializer.
+  verifyFormat("SomeClass::SomeClass : strct{\n"
+               "                             \"xxxxxxxxxxxxx\",\n"
+               "                             \"yyyyyyyyyyyyy\",\n"
+               "                             \"zzzzzzzzzzzzz\",\n"
+               "                       } {}\n",
+               Style);
+  // Copy initialization.
+  verifyFormat("SomeStruct s = SomeStruct{\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  // Copy list initialization.
+  verifyFormat("SomeStruct s = {\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  // Assignment operand initialization.
+  verifyFormat("s = {\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  // Returned object initialization.
+  verifyFormat("return {\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  // Initializer list.
+  verifyFormat("auto initializerList = {\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "};\n",
+               Style);
+  // Function parameter initialization.
+  verifyFormat("func({\n"
+               "      \"xxxxxxxxxxxxx\",\n"
+               "      \"yyyyyyyyyyyyy\",\n"
+               "      \"zzzzzzzzzzzzz\",\n"
+               "});\n",
+               Style);
+  // Nested init lists.
+  verifyFormat("SomeStruct s = {\n"
+               "      {{init1, init2, init3, init4, init5},\n"
+               "       {init1, init2, init3, init4, init5}}};\n",
+               Style);
+  verifyFormat("SomeStruct s = {\n"
+               "      {{\n"
+               "             .init1 = 1,\n"
+               "             .init2 = 2,\n"
+               "             .init3 = 3,\n"
+               "             .init4 = 4,\n"
+               "             .init5 = 5,\n"
+               "       },\n"
+               "       {init1, init2, init3, init4, init5}}};\n",
+               Style);
+  verifyFormat("SomeArrayT a[3] = {\n"
+               "      {\n"
+               "            foo,\n"
+               "            bar,\n"
+               "      },\n"
+               "      {\n"
+               "            foo,\n"
+               "            bar,\n"
+               "      },\n"
+               "      SomeArrayT{},\n"
+               "}\n",
+               Style);
+  verifyFormat("SomeArrayT a[3] = {\n"
+               "      {foo},\n"
+               "      {\n"
+               "            {\n"
+               "                  init1,\n"
+               "                  init2,\n"
+               "                  init3,\n"
+               "            },\n"
+               "            {\n"
+               "                  init1,\n"
+               "                  init2,\n"
+               "                  init3,\n"
+               "            },\n"
+               "      },\n"
+               "      {baz},\n"
+               "}\n",
+               Style);
+
+  // Aligning after open braces unaffected by BracedInitializerIndentWidth.
+  Style.AlignAfterOpenBracket = FormatStyle::BAS_Align;
+  verifyFormat("SomeStruct s{\"xxxxxxxxxxxxx\", \"yyyyyyyyyyyyy\",\n"
+               "             \"zzzzzzzzzzzzz\"};\n",
+               Style);
 }
 
 TEST_F(FormatTest, NestedStaticInitializers) {
@@ -16777,6 +16990,19 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
                "}\n"
                "}",
                CaseStyle);
+  // Goto labels should not be affected.
+  verifyFormat("switch (x) {\n"
+               "goto_label:\n"
+               "default :\n"
+               "}",
+               CaseStyle);
+  verifyFormat("switch (x) {\n"
+               "goto_label: { break; }\n"
+               "default : {\n"
+               "  break;\n"
+               "}\n"
+               "}",
+               CaseStyle);
 
   FormatStyle NoSpaceStyle = getLLVMStyle();
   EXPECT_EQ(NoSpaceStyle.SpaceBeforeCaseColon, false);
@@ -25427,6 +25653,13 @@ TEST_F(FormatTest, InsertNewlineAtEOF) {
 TEST_F(FormatTest, SpaceAfterUDL) {
   verifyFormat("auto c = (4s).count();");
   verifyFormat("auto x = 5s .count() == 5;");
+}
+
+TEST_F(FormatTest, InterfaceAsClassMemberName) {
+  verifyFormat("class Foo {\n"
+               "  int interface;\n"
+               "  Foo::Foo(int iface) : interface{iface} {}\n"
+               "}");
 }
 
 } // namespace

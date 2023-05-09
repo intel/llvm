@@ -236,6 +236,14 @@ private:
   TargetMachine &TM;
 };
 
+struct AMDGPUAtomicOptimizerPass : PassInfoMixin<AMDGPUAtomicOptimizerPass> {
+  AMDGPUAtomicOptimizerPass(TargetMachine &TM) : TM(TM) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
+private:
+  TargetMachine &TM;
+};
+
 Pass *createAMDGPUStructurizeCFGPass();
 FunctionPass *createAMDGPUISelDag(TargetMachine &TM,
                                   CodeGenOpt::Level OptLevel);
@@ -365,7 +373,7 @@ enum TargetIndex {
 namespace AMDGPUAS {
 enum : unsigned {
   // The maximum value for flat, generic, local, private, constant and region.
-  MAX_AMDGPU_ADDRESS = 7,
+  MAX_AMDGPU_ADDRESS = 8,
 
   FLAT_ADDRESS = 0,   ///< Address space for flat memory.
   GLOBAL_ADDRESS = 1, ///< Address space for global memory (RAT0, VTX0).
@@ -378,6 +386,9 @@ enum : unsigned {
   CONSTANT_ADDRESS_32BIT = 6, ///< Address space for 32-bit constant memory.
 
   BUFFER_FAT_POINTER = 7, ///< Address space for 160-bit buffer fat pointers.
+                          ///< Not used in backend.
+
+  BUFFER_RESOURCE = 8, ///< Address space for 128-bit buffer resources.
 
   /// Internal address spaces. Can be freely renumbered.
   STREAMOUT_REGISTER = 128, ///< Address space for GS NGG Streamout registers.
