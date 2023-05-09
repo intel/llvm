@@ -223,12 +223,13 @@ static void BlankPadCharacterAssignment(Descriptor &to, const Descriptor &from,
     SubscriptValue toAt[], SubscriptValue fromAt[], std::size_t elements,
     std::size_t toElementBytes, std::size_t fromElementBytes) {
   std::size_t padding{(toElementBytes - fromElementBytes) / sizeof(CHAR)};
+  std::size_t copiedCharacters{fromElementBytes / sizeof(CHAR)};
   for (; elements-- > 0;
        to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
     CHAR *p{to.Element<CHAR>(toAt)};
     std::memmove(
         p, from.Element<std::add_const_t<CHAR>>(fromAt), fromElementBytes);
-    p += fromElementBytes;
+    p += copiedCharacters;
     for (auto n{padding}; n-- > 0;) {
       *p++ = CHAR{' '};
     }
@@ -545,6 +546,17 @@ void RTNAME(Assign)(Descriptor &to, const Descriptor &from,
 void RTNAME(AssignTemporary)(Descriptor &to, const Descriptor &from,
     const char *sourceFile, int sourceLine) {
   Terminator terminator{sourceFile, sourceLine};
+  // Initialize the "to" if it is of derived type that needs initialization.
+  if (const DescriptorAddendum * addendum{to.Addendum()}) {
+    if (const auto *derived{addendum->derivedType()}) {
+      if (!derived->noInitializationNeeded()) {
+        if (ReturnError(terminator, Initialize(to, *derived, terminator)) !=
+            StatOk) {
+          return;
+        }
+      }
+    }
+  }
   Assign(to, from, terminator, PolymorphicLHS);
 }
 

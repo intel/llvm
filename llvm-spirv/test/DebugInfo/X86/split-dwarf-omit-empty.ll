@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK: .debug_info contents:
 ; CHECK: Compile Unit
-; CHECK-NOT: Compile Unit
+; CHECK: Compile Unit
 ; CHECK: .debug_info.dwo contents:
 
 

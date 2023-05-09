@@ -3,10 +3,9 @@
 
 // REQUIRES: aspect-fp64
 // REQUIRES: (cpu || accelerator) && windows
-// RUN: %clangxx -fsycl -c %s -o %t.o
+// RUN: %{build} -c -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath-fp64.o -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 #include "math_utils.hpp"
 #include <iostream>
 #include <math.h>

@@ -9,8 +9,8 @@
 // Recursion is not supported in ESIMD (intel/llvm PR#3390)
 // REQUIRES: TEMPORARY_DISBLED
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 //
 // The test checks that ESIMD kernels support recursive call of noinline
 // functions.

@@ -706,7 +706,7 @@ int main(int Ac, char **Av) {
   SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus);
   if (BIsRepresentation.getNumOccurrences() != 0) {
     if (!IsReverse) {
-      errs() << "Note: --spirv-ocl-builtins-version option ignored as it only "
+      errs() << "Note: --spirv-target-env option ignored as it only "
                 "affects translation from SPIR-V to LLVM IR";
     } else {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);

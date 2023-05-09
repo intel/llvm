@@ -1,6 +1,6 @@
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies the correctness of LSC SLM block load intrinsics.
 
