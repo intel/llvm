@@ -7,8 +7,8 @@
 // and adjusted for testing purposes (parts of code has been deleted and
 // refactored).
 
-// RUN: %clangxx -fsycl -O0 %s -o %t.unoptimized.out && %t.unoptimized.out >%t.unoptimized.output
-// RUN: %clangxx -fsycl -fsycl-optimize-non-user-code -O0 %s -o %t.optimized.out && %t.optimized.out >%t.optimized.output
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl-triple -O0 %s -o %t.unoptimized.out && %t.unoptimized.out >%t.unoptimized.output
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl-triple -fsycl-optimize-non-user-code -O0 %s -o %t.optimized.out && %t.optimized.out >%t.optimized.output
 
 // RUN: %CPU_RUN_PLACEHOLDER %t.unoptimized.out && \
 // RUN: %CPU_RUN_PLACEHOLDER %t.optimized.out && \
