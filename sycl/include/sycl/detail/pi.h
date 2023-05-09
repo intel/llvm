@@ -90,9 +90,11 @@
 // native handles.
 // 12.29 Support PI_EXT_PLATFORM_INFO_BACKEND query in piPlatformGetInfo
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
+// 12.31 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// piextQueueGetNativeHandle
 
-#define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 30
+#define _PI_H_VERSION_MAJOR 13
+#define _PI_H_VERSION_MINOR 31
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)

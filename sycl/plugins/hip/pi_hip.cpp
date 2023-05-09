@@ -2694,7 +2694,7 @@ pi_result hip_piQueueFlush(pi_queue command_queue) {
 pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
                                         pi_native_handle *nativeHandle,
                                         int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
+  *NativeHandleDesc = 0;
   ScopedContext active(queue->get_context());
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());

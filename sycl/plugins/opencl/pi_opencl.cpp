@@ -2240,7 +2240,7 @@ pi_result piextContextGetNativeHandle(pi_context context,
 pi_result piextQueueGetNativeHandle(pi_queue queue,
                                     pi_native_handle *nativeHandle,
                                     int32_t *nativeHandleDesc) {
-  (void)nativeHandleDesc;
+  *nativeHandleDesc = 0;
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
