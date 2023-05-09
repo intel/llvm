@@ -205,7 +205,16 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   const RT::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     const detail::plugin &Plugin = impl->getPlugin();
-    Plugin.call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
+    pi_result result =
+        Plugin.call_nocheck<detail::PiApiKind::piextEnablePeerAccess>(Device,
+                                                                      Peer);
+    // if (result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
+    if (result != PI_SUCCESS) {
+      char *message = nullptr;
+      auto err = Plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(
+          &message);
+      throw sycl::exception(make_error_code(errc::runtime), message);
+    }
   }
 }
 
@@ -214,7 +223,18 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   const RT::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     const detail::plugin Plugin = impl->getPlugin();
-    Plugin.call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
+    pi_result result =
+        Plugin.call_nocheck<detail::PiApiKind::piextDisablePeerAccess>(Device,
+                                                                       Peer);
+
+    // if (result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
+    if (result != PI_SUCCESS) {
+
+      char *message = nullptr;
+      auto err = Plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(
+          &message);
+      throw sycl::exception(make_error_code(errc::runtime), message);
+    }
   }
 }
 

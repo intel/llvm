@@ -58,7 +58,8 @@ pi_result map_error(CUresult result) {
   case CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES:
     return PI_ERROR_OUT_OF_RESOURCES;
   default:
-    return PI_ERROR_UNKNOWN;
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+    //return PI_ERROR_UNKNOWN;
   }
 }
 
@@ -138,7 +139,7 @@ pi_result check_error(CUresult result, const char *function, int line,
     return PI_SUCCESS;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  /*if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *errorString = nullptr;
     const char *errorName = nullptr;
     cuGetErrorName(result, &errorName);
@@ -156,7 +157,7 @@ pi_result check_error(CUresult result, const char *function, int line,
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
-  }
+  }*/
 
   throw map_error(result);
 }
@@ -5595,8 +5596,17 @@ pi_result cuda_piextEnablePeerAccess(pi_device command_device,
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(command_device->get_context());
-    result =
-        PI_CHECK_ERROR(cuCtxEnablePeerAccess(peer_device->get_context(), 0));
+
+    auto curesult = cuCtxEnablePeerAccess(peer_device->get_context(), 0);
+    if (curesult != CUDA_SUCCESS) {
+      const char *errorString = nullptr;
+      unused atm const char *errorName = nullptr;
+      cuGetErrorName(curesult, &errorName);
+      cuGetErrorString(curesult, &errorString);
+
+      setErrorMessage(errorString, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+    }
+    result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 
   } catch (pi_result err) {
     result = err;
@@ -5611,6 +5621,18 @@ pi_result cuda_piextDisablePeerAccess(pi_device command_device,
   try {
     ScopedContext active(command_device->get_context());
     result = PI_CHECK_ERROR(cuCtxDisablePeerAccess(peer_device->get_context()));
+
+    auto curesult = cuCtxDisablePeerAccess(peer_device->get_context());
+    if (curesult != CUDA_SUCCESS) {
+      const char *errorString;
+      // unused atm
+      const char *errorName;
+      cuGetErrorName(curesult, &errorName);
+      cuGetErrorString(curesult, &errorString);
+
+      setErrorMessage(errorString, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+    }
+    result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 
   } catch (pi_result err) {
     result = err;
