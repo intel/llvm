@@ -83,7 +83,7 @@ supports.
 [%header,cols="1,5"]
 |===
 |Value |Description
-|1     |Initial extension version. Base features are supported.
+|1     |The APIs of this experimental extension are not versioned, so the feature-test macro always has this value.
 |===   
 
 === Extension to `enum class aspect`
