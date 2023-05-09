@@ -1,5 +1,6 @@
 if(MLIR_INCLUDE_TESTS)
   add_mlir_library(MLIRPolygeistTestAnalysis
+    TestMemoryAccessAnalysis.cpp  
     TestReachingDefinitionsAnalysis.cpp
 
     EXCLUDE_FROM_LIBMLIR

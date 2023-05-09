@@ -14,17 +14,23 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 
 namespace mlir {
 
+struct MemRefAccess;
 class DataFlowSolver;
 
 namespace polygeist {
+
+class Definition;
+class ReachingDefinition;
 
 /// Classify array access patterns.
 enum MemoryAccessPattern : uint32_t {
@@ -115,7 +121,7 @@ class MemoryAccessMatrix {
   friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
 
 public:
-  MemoryAccessMatrix() = delete;
+  MemoryAccessMatrix() = default;
   MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
   MemoryAccessMatrix(const MemoryAccessMatrix &) = default;
   MemoryAccessMatrix &operator=(MemoryAccessMatrix &&) = default;
@@ -431,6 +437,52 @@ inline raw_ostream &operator<<(raw_ostream &os,
   os << "\n------------------\n";
   return os;
 }
+
+class MemoryAccessAnalysis {
+public:
+  MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
+
+  bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
+
+  /// Returns the operation this analysis was constructed from.
+  Operation *getOperation() const { return operation; }
+
+  std::optional<MemoryAccessMatrix>
+  getMemoryAccessMatrix(const MemRefAccess &access) const;
+
+private:
+  /// Construct the access map for the operation associated with the
+  /// analysis.
+  void build();
+
+  /// Construct the access map entry for the given affine memory operation \p
+  /// memoryOp.
+  template <typename T> bool build(T memoryOp, DataFlowSolver &solver);
+
+  /// Returns true if the memory access \p access has a single subscript that is
+  /// zero, and false otherwise.
+  bool hasZeroIndex(const MemRefAccess &access) const;
+
+  /// Returns the unique definition for the operand at index \p opIndex in
+  /// operation \p op, or nullptr if it does not have a unique definition.
+  std::shared_ptr<Definition>
+  getUniqueDefinitionOrNull(unsigned opIndex, Operation *op,
+                            DataFlowSolver &solver) const;
+
+  /// Return the underlying value of the operand at index \p opIndex in
+  /// operation \p op, or nullopt if the underlying value could not be
+  /// determined.
+  std::optional<Value> getUnderlyingValueOf(unsigned opIndex, Operation *op,
+                                            DataFlowSolver &solver) const;
+
+private:
+  /// The operation associated with the analysis.
+  Operation *operation;
+  /// A map from memory accesses to their memory access matrix.
+  DenseMap<Operation *, MemoryAccessMatrix> accessMap;
+  /// The analysis manager.
+  AnalysisManager &am;
+};
 
 } // namespace polygeist
 } // namespace mlir
