@@ -31,8 +31,9 @@ def Polygeist_StructType :
   let description = [{
     Type used to represent a collection of data members together in memory.
   }];
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `(` $body `)` `>`";
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body,
+                        OptionalParameter<"std::optional<StringAttr>">:$name);
+  let assemblyFormat = "`<` ($name^`,` )? `(` $body `)` `>`";
 }
 
 #endif // POLYGEIST_TYPES
