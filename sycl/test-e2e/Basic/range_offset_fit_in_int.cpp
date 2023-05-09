@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-id-queries-fit-in-int -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+// RUN: %{build} -fsycl-id-queries-fit-in-int -o %t.out
+// RUN: %{run} %t.out
 
 #include <climits>
 #include <iostream>

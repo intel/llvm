@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
@@ -1001,6 +999,21 @@ int main() {
     }
     assert(vec1[7] == 4 && vec2[15] == 4);
   }
+
+  // 0-dim host_accessor iterator
+  {
+    std::vector<int> vec1(8);
+    {
+      sycl::buffer<int> buf1(vec1.data(), vec1.size());
+      sycl::host_accessor<int, 0> acc1(buf1);
+      *acc1.begin() = 4;
+      auto value = *acc1.cbegin();
+      value += *acc1.crbegin();
+      *acc1.rbegin() += value;
+    }
+    assert(vec1[0] == 12);
+  }
+
   // Test swap() on basic accessor
   {
     std::vector<int> vec1(8), vec2(16);
@@ -1097,6 +1110,59 @@ int main() {
     assert(Data == 64);
   }
 
+  // iterator operations test for 0-dim buffer accessor
+  {
+    sycl::queue Queue;
+    int Data[] = {32, 32};
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(Data, sycl::range<1>(2));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        CGH.single_task<class acc_0_dim_iter_assignment>([=]() {
+          *Acc.begin() = 64;
+          auto value = *Acc.cbegin();
+          value += *Acc.crbegin();
+          *Acc.rbegin() += value;
+        });
+      });
+      Queue.wait();
+    }
+
+    assert(Data[0] == 64 * 3);
+    assert(Data[1] == 32);
+  }
+
+  // iterator operations test for 0-dim buffer accessor with target::host_task
+  {
+    sycl::queue Queue;
+    int Data[] = {32, 32};
+
+    using HostTaskAcc = sycl::accessor<int, 0, sycl::access::mode::read_write,
+                                       sycl::access::target::host_task>;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(Data, sycl::range<1>(2));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        HostTaskAcc Acc(DataBuffer, CGH);
+        CGH.host_task([=]() {
+          *Acc.begin() = 64;
+          auto value = *Acc.cbegin();
+          value += *Acc.crbegin();
+          *Acc.rbegin() += value;
+        });
+      });
+      Queue.wait();
+    }
+
+    assert(Data[0] == 64 * 3);
+    assert(Data[1] == 32);
+  }
+
   // Assignment operator test for 0-dim local accessor
   {
     sycl::queue Queue;
@@ -1171,6 +1237,32 @@ int main() {
             });
       });
     }
+  }
+
+  // Assignment operator test for 0-dim local accessor iterator
+  {
+    sycl::queue Queue;
+    int Data = 0;
+
+    // Explicit block to prompt copy-back to Data
+    {
+      sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
+
+      Queue.submit([&](sycl::handler &CGH) {
+        sycl::accessor<int, 0> Acc(DataBuffer, CGH);
+        sycl::local_accessor<int, 0> LocalAcc(CGH);
+        CGH.parallel_for<class local_acc_0_dim_iter_assignment>(
+            sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> ID) {
+              *LocalAcc.begin() = 32;
+              auto value = *LocalAcc.cbegin();
+              value += *LocalAcc.crbegin();
+              *LocalAcc.rbegin() += value;
+              Acc = LocalAcc;
+            });
+      });
+    }
+
+    assert(Data == 96);
   }
 
   // host_accessor hash
