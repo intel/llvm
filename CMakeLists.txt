@@ -170,19 +170,19 @@ add_subdirectory(${THIRD_PARTY_DIR})
 
 # A header only library to specify include directories in transitive
 # dependencies.
-add_library(headers INTERFACE)
+add_library(ur_headers INTERFACE)
 # Alias target to support FetchContent.
-add_library(${PROJECT_NAME}::headers ALIAS headers)
-target_include_directories(headers INTERFACE
+add_library(${PROJECT_NAME}::headers ALIAS ur_headers)
+target_include_directories(ur_headers INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 # Add the include directory and the headers target to the install.
 install(
     DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
-    DESTINATION include COMPONENT headers)
+    DESTINATION include COMPONENT ur_headers)
 install(
-    TARGETS headers
+    TARGETS ur_headers
     EXPORT ${PROJECT_NAME}-targets)
 
 add_subdirectory(source)
