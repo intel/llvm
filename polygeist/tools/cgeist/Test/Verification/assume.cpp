@@ -9,9 +9,9 @@ bool g();
 
 // CHECK-LABEL:   func.func @_Z2f0b(
 // CHECK-SAME:                      %[[VAL_0:.*]]: i1)
-// CHECK:           "llvm.intr.assume"(%[[VAL_0]]) : (i1) -> ()
-// CHECK:           return
-// CHECK:         }
+// CHECK-NEXT:      "llvm.intr.assume"(%[[VAL_0]]) : (i1) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
 void f0(bool b) {
   __builtin_assume(b);
 }
@@ -20,11 +20,11 @@ void f0(bool b) {
 
 // CHECK-LABEL:   func.func @_Z2f1i(
 // CHECK-SAME:                      %[[VAL_0:.*]]: i32)
-// CHECK:           %[[VAL_1:.*]] = arith.constant 0 : i32
-// CHECK:           %[[VAL_2:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_1]] : i32
-// CHECK:           "llvm.intr.assume"(%[[VAL_2]]) : (i1) -> ()
-// CHECK:           return
-// CHECK:         }
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_1]] : i32
+// CHECK-NEXT:      "llvm.intr.assume"(%[[VAL_2]]) : (i1) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
 
 void f1(int x) {
   __builtin_assume(x > 0);
@@ -34,8 +34,8 @@ void f1(int x) {
 // Should be omitted.
 
 // CHECK-LABEL:   func.func @_Z2f2v()
-// CHECK:           return
-// CHECK:         }
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
 
 void f2() {
   __builtin_assume(g());
