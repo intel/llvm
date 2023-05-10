@@ -131,8 +131,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGetApiVersion
 __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ///< [in] handle of the platform
-    ur_api_version_t *pVersion    ///< [out] api version
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_api_version_t *pVersion      ///< [out] api version
 ) {
     auto pfnGetApiVersion = context.urDdiTable.Platform.pfnGetApiVersion;
 
@@ -141,7 +141,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hDriver) {
+        if (NULL == hPlatform) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -150,7 +150,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
         }
     }
 
-    ur_result_t result = pfnGetApiVersion(hDriver, pVersion);
+    ur_result_t result = pfnGetApiVersion(hPlatform, pVersion);
 
     return result;
 }

@@ -10395,9 +10395,9 @@ inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_platform_get_api_version_params_t *params) {
 
-    os << ".hDriver = ";
+    os << ".hPlatform = ";
 
-    ur_params::serializePtr(os, *(params->phDriver));
+    ur_params::serializePtr(os, *(params->phPlatform));
 
     os << ", ";
     os << ".pVersion = ";

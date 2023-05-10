@@ -142,12 +142,12 @@ ur_result_t UR_APICALL urPlatformGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hDriver`
+///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pVersion`
 ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ///< [in] handle of the platform
-    ur_api_version_t *pVersion    ///< [out] api version
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_api_version_t *pVersion      ///< [out] api version
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

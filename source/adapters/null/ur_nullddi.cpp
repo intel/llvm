@@ -119,15 +119,15 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGetApiVersion
 __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ///< [in] handle of the platform
-    ur_api_version_t *pVersion    ///< [out] api version
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_api_version_t *pVersion      ///< [out] api version
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetApiVersion = d_context.urDdiTable.Platform.pfnGetApiVersion;
     if (nullptr != pfnGetApiVersion) {
-        result = pfnGetApiVersion(hDriver, pVersion);
+        result = pfnGetApiVersion(hPlatform, pVersion);
     } else {
         // generic implementation
     }

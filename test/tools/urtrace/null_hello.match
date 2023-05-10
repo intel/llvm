@@ -2,7 +2,7 @@ urInit(.device_flags = 0) -> UR_RESULT_SUCCESS;
 Platform initialized.
 urPlatformGet(.NumEntries = 1, .phPlatforms = [], .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
 urPlatformGet(.NumEntries = 1, .phPlatforms = [{{.*}}], .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
-urPlatformGetApiVersion(.hDriver = {{.*}}, .pVersion = {{.*}} ({{.*}})) -> UR_RESULT_SUCCESS;
+urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{.*}})) -> UR_RESULT_SUCCESS;
 API version: {{.*}}
 urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = [], .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
 urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = [{{.*}}], .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;

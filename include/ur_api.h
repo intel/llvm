@@ -470,13 +470,13 @@ typedef enum ur_api_version_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hDriver`
+///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pVersion`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ///< [in] handle of the platform
-    ur_api_version_t *pVersion    ///< [out] api version
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_api_version_t *pVersion      ///< [out] api version
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5751,7 +5751,7 @@ typedef struct ur_platform_create_with_native_handle_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_api_version_params_t {
-    ur_platform_handle_t *phDriver;
+    ur_platform_handle_t *phPlatform;
     ur_api_version_t **ppVersion;
 } ur_platform_get_api_version_params_t;
 
