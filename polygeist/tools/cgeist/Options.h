@@ -231,4 +231,8 @@ llvm::cl::opt<bool>
     UseOpaquePointers("use-opaque-pointers", llvm::cl::init(false),
                       llvm::cl::desc("Whether to use opaque pointers in MLIR"));
 
+static llvm::cl::opt<bool>
+    SYCLDeviceOnly("sycl-device-only", llvm::cl::init(false),
+                   llvm::cl::desc("Output SYCL kernels for device"));
+
 #endif /* CGEIST_OPTIONS_H_ */

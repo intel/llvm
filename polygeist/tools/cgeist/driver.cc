@@ -45,6 +45,7 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -52,6 +53,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
@@ -70,6 +72,8 @@
 #include <fstream>
 
 #define DEBUG_TYPE "cgeist"
+
+using namespace mlir;
 
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
@@ -104,6 +108,15 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   // allow taking the address of ::main however.
   return llvm::sys::fs::getMainExecutable(
       Argv0, reinterpret_cast<void *>(GetExecutablePath));
+}
+
+static void eraseHostCode(mlir::ModuleOp Module) {
+  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
+  SmallVector<std::reference_wrapper<Operation>> ToRemove;
+  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
+               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
+  for (auto Op : ToRemove)
+    Op.get().erase();
 }
 
 static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV,
@@ -710,6 +723,9 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     });
   }
 
+  if (SYCLDeviceOnly)
+    eraseHostCode(*Module);
+
   return success();
 }
 
@@ -1128,15 +1144,6 @@ static bool containsFunctions(mlir::gpu::GPUModuleOp DeviceModule) {
          !Rgn.getOps<mlir::func::FuncOp>().empty();
 }
 
-static void eraseHostCode(mlir::ModuleOp Module) {
-  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
-  SmallVector<std::reference_wrapper<Operation>> ToRemove;
-  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
-               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
-  for (auto Op : ToRemove)
-    Op.get().erase();
-}
-
 template <typename T> static void filterFunctions(T Module) {
   if (Cfunction.getNumOccurrences() == 0 || Cfunction == "*")
     return;
@@ -1296,8 +1303,6 @@ int main(int argc, char **argv) {
   });
 
   if (SYCLUseHostModule != "") {
-    // TODO: Drop host code when done compiling. Host code is kept for now for
-    // testing.
     if (!options.getCgeistOpts().getSYCLIsDevice()) {
       llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
                       "device compilation\n";
