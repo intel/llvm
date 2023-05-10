@@ -15,10 +15,10 @@
 ; RUN:     --implicit-check-not TU0
 ;
 ; CHECK: [SYCL/assert used]
-; CHECK0: main_TU0_kernel0
+; CHECK0-DAG: main_TU1_kernel0
+; CHECK0-DAG: main_TU1_kernel1
 ;
-; CHECK1-DAG: main_TU1_kernel0
-; CHECK1-DAG: main_TU1_kernel1
+; CHECK1: main_TU0_kernel0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
