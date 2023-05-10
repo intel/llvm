@@ -1,5 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
 //==--------------- local_mem_type.cpp - SYCL local mem type test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

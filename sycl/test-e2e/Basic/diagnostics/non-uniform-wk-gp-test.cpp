@@ -1,6 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: level_zero
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
 // UNSUPPORTED: ze_debug-1,ze_debug4
 //==------- non-uniform-wk-gp-test.cpp -------==//
 // This is a diagnostic test which verifies that

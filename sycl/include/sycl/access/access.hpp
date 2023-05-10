@@ -62,6 +62,8 @@ enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 using access::target;
 using access_mode = access::mode;
 
+enum class image_target : unsigned int { device = 0, host_task = 1 };
+
 template <access_mode mode> struct mode_tag_t {
   explicit mode_tag_t() = default;
 };

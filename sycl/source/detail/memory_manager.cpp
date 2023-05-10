@@ -781,7 +781,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 
   const detail::plugin &Plugin = Queue->getPlugin();
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (Dim == 1) {
+    if (Dim <= 1) {
       Plugin.call<PiApiKind::piEnqueueMemBufferFill>(
           Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, PatternSize,
           Offset[0] * ElementSize, Range[0] * ElementSize, DepEvents.size(),
