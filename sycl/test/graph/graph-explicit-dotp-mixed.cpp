@@ -20,14 +20,15 @@ float host_gold_result() {
 }
 
 int main() {
+  namespace sycl_ext = sycl::ext::oneapi::experimental;
+
   float alpha = 1.0f;
   float beta = 2.0f;
   float gamma = 3.0f;
 
   sycl::queue q{sycl::gpu_selector_v};
 
-  sycl::ext::oneapi::experimental::command_graph g{q.get_context(),
-                                                   q.get_device()};
+  sycl_ext::command_graph g{q.get_context(), q.get_device()};
 
   float dotpData = 0.f;
   std::vector<float> xData(n);
@@ -67,7 +68,7 @@ int main() {
             z[i] = gamma * z[i] + beta * y[i];
           });
         },
-        {n_i});
+        {sycl_ext::property::node::depends_on(n_i)});
 
     // Edge node_a from buffer accessor, and edge to node_b explicitly added
     auto node_c = g.add(
@@ -91,7 +92,7 @@ int main() {
           });
 #endif
         },
-        {node_b});
+        {sycl_ext::property::node::depends_on(node_b)});
 
     auto executable_graph = g.finalize();
 
