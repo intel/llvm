@@ -526,6 +526,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // Test providing malformed syntax in the device name.
   if (test == "DEVICE_MALFORMED_INFO"sv) {
     if (write) {
       for (const auto &plt : platform::get_platforms()) {
@@ -633,22 +634,10 @@ int main(int argc, char *argv[]) {
         device dev = deviceQueue.get_device();
         const auto &plt = dev.get_platform();
       } catch (sycl::exception &E) {
-        // Workaround to make CI pass.
-        // TODO: after the submission of PR intel/llvm:3826, create PR to
-        // intel/llvm-test-suite with removal of 1st parameter of the vector,
-        // and transformation of std::vector<std::string> to std::string
-        const std::vector<std::string> expectedMsgs{
-            "Malformed syntax in SYCL_DEVICE_ALLOWLIST",
-            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value "
-            "which starts with {{"};
-        const std::string gotMessage(E.what());
-        std::cout << "Got message: " << gotMessage << std::endl;
-        // FIXME:
-        return 0;
-        for (const auto &expectedMsg : expectedMsgs) {
-          if (gotMessage.find(expectedMsg) != std::string::npos)
-            return 0;
-        }
+        std::cout << "Caught exception: " << E.what() << std::endl;
+        if (E.what() ==
+            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+          return 0;
       }
       return 1;
     }
