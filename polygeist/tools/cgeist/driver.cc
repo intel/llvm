@@ -687,7 +687,9 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
 
     mlir::PassManager PM2(&Ctx);
     if (SCFOpenMP) {
-      PM2.addPass(createConvertSCFToOpenMPPass());
+      ConvertSCFToOpenMPPassOptions Options;
+      Options.useOpaquePointers = UseOpaquePointers;
+      PM2.addPass(createConvertSCFToOpenMPPass(Options));
     }
     PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (OpenMPOpt) {
@@ -718,6 +720,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       mlir::PassManager PM3(&Ctx);
       ConvertPolygeistToLLVMOptions ConvertOptions;
       ConvertOptions.dataLayout = DL.getStringRepresentation();
+      ConvertOptions.useOpaquePointers = UseOpaquePointers;
       if (options.getCgeistOpts().getSYCLIsDevice()) {
         ConvertOptions.syclImplementation = SYCLImplementation;
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
@@ -878,6 +881,7 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
   } else {
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
+    LLVMCtx.setOpaquePointers(UseOpaquePointers);
     auto LLVMModule =
         mlir::translateModuleToLLVMIR(Module.get(), LLVMCtx, ModuleId);
     if (!LLVMModule) {
