@@ -723,7 +723,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     });
   }
 
-  if (SYCLDeviceOnly)
+  if (!NoSYCLDeviceOnly)
     eraseHostCode(*Module);
 
   return success();
@@ -840,6 +840,9 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
                  << "*** Dumped MLIR in file '" << Output << "' ***\n");
     }
   } else {
+    // Host code is never output for non-MLIR format.
+    if (NoSYCLDeviceOnly)
+      eraseHostCode(*Module);
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
     auto LLVMModule =

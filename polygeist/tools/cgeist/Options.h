@@ -232,7 +232,7 @@ llvm::cl::opt<bool>
                       llvm::cl::desc("Whether to use opaque pointers in MLIR"));
 
 static llvm::cl::opt<bool>
-    SYCLDeviceOnly("sycl-device-only", llvm::cl::init(false),
-                   llvm::cl::desc("Output SYCL kernels for device"));
+    NoSYCLDeviceOnly("no-sycl-device-only", llvm::cl::init(false),
+                     llvm::cl::desc("Include host code in MLIR output"));
 
 #endif /* CGEIST_OPTIONS_H_ */

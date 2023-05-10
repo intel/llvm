@@ -1,9 +1,15 @@
 // RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
 // RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-mlir -o - %s \
-// RUN:     | FileCheck %s
+// RUN:     -Xcgeist -no-sycl-device-only | FileCheck %s
 // RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
 // RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-mlir -o - %s \
-// RUN:     -Xcgeist -sycl-device-only | FileCheck %s --check-prefix=CHECK-DROP
+// RUN:     | FileCheck %s --check-prefix=CHECK-DROP
+// RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
+// RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-llvm -o - %s \
+// RUN:     -Xcgeist -no-sycl-device-only | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
+// RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-llvm -o - %s \
+// RUN:     | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -20,4 +26,6 @@
 // CHECK-DROP:     gpu.module @device_functions
 // CHECK-DROP-NOT: memref.global constant @c : memref<i32, 1> {alignment = 4 : i64}
 // CHECK-DROP-NOT:   func.func @host_foo() -> memref<i32, 1> {
+
+// CHECK-LLVM-NOT: host_foo
 SYCL_EXTERNAL void do_nothing() {}
