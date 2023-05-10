@@ -7,6 +7,7 @@
 // UNSUPPORTED: cuda || hip
 
 #include "imf_utils.hpp"
+#include <sycl/ext/intel/math.hpp>
 #include <sycl/sycl.hpp>
 
 extern "C" {
@@ -34,7 +35,7 @@ long long __imf_bfloat162ll_rd(uint16_t);
 long long __imf_bfloat162ll_rn(uint16_t);
 long long __imf_bfloat162ll_ru(uint16_t);
 long long __imf_bfloat162ll_rz(uint16_t);
-uint16_t __imf_ushort2bfloat16_rd(unsigned short);
+/*uint16_t __imf_ushort2bfloat16_rd(unsigned short);
 uint16_t __imf_ushort2bfloat16_rn(unsigned short);
 uint16_t __imf_ushort2bfloat16_ru(unsigned short);
 uint16_t __imf_ushort2bfloat16_rz(unsigned short);
@@ -45,7 +46,7 @@ uint16_t __imf_uint2bfloat16_rz(unsigned);
 uint16_t __imf_ull2bfloat16_rd(unsigned long long);
 uint16_t __imf_ull2bfloat16_rn(unsigned long long);
 uint16_t __imf_ull2bfloat16_ru(unsigned long long);
-uint16_t __imf_ull2bfloat16_rz(unsigned long long);
+uint16_t __imf_ull2bfloat16_rz(unsigned long long);*/
 uint16_t __imf_short2bfloat16_rd(short);
 uint16_t __imf_short2bfloat16_rn(short);
 uint16_t __imf_short2bfloat16_ru(short);
@@ -319,14 +320,22 @@ int main() {
         0,      0x3F80, 0x4080, 0x4150, 0x4280, 0x436A, 0x43F9,
         0x4400, 0x4455, 0x4479, 0x4480, 0x4500, 0x457E, 0x461C,
         0x4694, 0x469C, 0x471B, 0x4720, 0x477F, 0x4758, 0x4700};
-    test_host(input_vals, output_vals_rd, F(__imf_ushort2bfloat16_rd));
-    test_host(input_vals, output_vals_rn, F(__imf_ushort2bfloat16_rn));
-    test_host(input_vals, output_vals_ru, F(__imf_ushort2bfloat16_ru));
-    test_host(input_vals, output_vals_rz, F(__imf_ushort2bfloat16_rz));
-    test(device_queue, input_vals, output_vals_rd, F(__imf_ushort2bfloat16_rd));
-    test(device_queue, input_vals, output_vals_rn, F(__imf_ushort2bfloat16_rn));
-    test(device_queue, input_vals, output_vals_ru, F(__imf_ushort2bfloat16_ru));
-    test(device_queue, input_vals, output_vals_rz, F(__imf_ushort2bfloat16_rz));
+    test_host(input_vals, output_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_rd));
+    test_host(input_vals, output_vals_rn,
+              FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_rn));
+    test_host(input_vals, output_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_ru));
+    test_host(input_vals, output_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_rz));
+    test(device_queue, input_vals, output_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_rd));
+    test(device_queue, input_vals, output_vals_rn,
+         FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_rn));
+    test(device_queue, input_vals, output_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_ru));
+    test(device_queue, input_vals, output_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::ushort2bfloat16_rz));
   }
 
   {
@@ -356,14 +365,22 @@ int main() {
         0x4455, 0x4479, 0x4480, 0x4500, 0x457E, 0x461C, 0x4694, 0x469C,
         0x471B, 0x4720, 0x477F, 0x4758, 0x47F5, 0x4974, 0x4DB6, 0x4F7F,
         0x4F41, 0x4CF4, 0x4AAC, 0x4B29, 0x4F7F};
-    test_host(input_vals, output_vals_rd, F(__imf_uint2bfloat16_rd));
-    test_host(input_vals, output_vals_rn, F(__imf_uint2bfloat16_rn));
-    test_host(input_vals, output_vals_ru, F(__imf_uint2bfloat16_ru));
-    test_host(input_vals, output_vals_rz, F(__imf_uint2bfloat16_rz));
-    test(device_queue, input_vals, output_vals_rd, F(__imf_uint2bfloat16_rd));
-    test(device_queue, input_vals, output_vals_rn, F(__imf_uint2bfloat16_rn));
-    test(device_queue, input_vals, output_vals_ru, F(__imf_uint2bfloat16_ru));
-    test(device_queue, input_vals, output_vals_rz, F(__imf_uint2bfloat16_rz));
+    test_host(input_vals, output_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_rd));
+    test_host(input_vals, output_vals_rn,
+              FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_rn));
+    test_host(input_vals, output_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_ru));
+    test_host(input_vals, output_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_rz));
+    test(device_queue, input_vals, output_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_rd));
+    test(device_queue, input_vals, output_vals_rn,
+         FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_rn));
+    test(device_queue, input_vals, output_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_ru));
+    test(device_queue, input_vals, output_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::uint2bfloat16_rz));
   }
 
   {
@@ -420,14 +437,22 @@ int main() {
         0x4479, 0x4480, 0x4500, 0x457E, 0x461C, 0x4694, 0x469C, 0x471B, 0x4720,
         0x477F, 0x4758, 0x47F5, 0x4974, 0x4DB6, 0x4F7F, 0x4F41, 0x4CF4, 0x4AAC,
         0x4B29, 0x4F7F, 0x51BA, 0x55CE, 0x58E2, 0x5F7F};
-    test_host(input_vals, output_vals_rd, F(__imf_ull2bfloat16_rd));
-    test_host(input_vals, output_vals_rn, F(__imf_ull2bfloat16_rn));
-    test_host(input_vals, output_vals_ru, F(__imf_ull2bfloat16_ru));
-    test_host(input_vals, output_vals_rz, F(__imf_ull2bfloat16_rz));
-    test(device_queue, input_vals, output_vals_rd, F(__imf_ull2bfloat16_rd));
-    test(device_queue, input_vals, output_vals_rn, F(__imf_ull2bfloat16_rn));
-    test(device_queue, input_vals, output_vals_ru, F(__imf_ull2bfloat16_ru));
-    test(device_queue, input_vals, output_vals_rz, F(__imf_ull2bfloat16_rz));
+    test_host(input_vals, output_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_rd));
+    test_host(input_vals, output_vals_rn,
+              FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_rn));
+    test_host(input_vals, output_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_ru));
+    test_host(input_vals, output_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_rz));
+    test(device_queue, input_vals, output_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_rd));
+    test(device_queue, input_vals, output_vals_rn,
+         FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_rn));
+    test(device_queue, input_vals, output_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_ru));
+    test(device_queue, input_vals, output_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::ull2bfloat16_rz));
   }
 
   {
