@@ -12,8 +12,8 @@
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in
 // "XREQUIRES".
 // UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 // TODO simd<float, 32> fills with unexpected values while base value is denorm
 // and step is ulp. The SIMD_RUN_TEST_WITH_DENORM_INIT_VAL_AND_ULP_STEP macros

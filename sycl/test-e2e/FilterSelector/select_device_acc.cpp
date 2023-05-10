@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR='*:acc' %t.out
 //
 // Checks if only specified device types can be acquired from select_device

@@ -32,13 +32,22 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 cmd = directive.command.replace(
                     '%{run}',
                     'env ONEAPI_DEVICE_SELECTOR={} {}'.format(sycl_device, test.config.run_launcher))
+                # Expand device-specific condtions (%if ... %{ ... %}).
+                tmp_script = [ cmd ]
+                conditions = {x: True for x in sycl_device.split(':')}
+                for os in ['linux', 'windows']:
+                    if os in test.config.available_features:
+                        conditions[os] = True
+
+                tmp_script = lit.TestRunner.applySubstitutions(
+                    tmp_script, [], conditions, recursion_limit=test.config.recursiveExpansionLimit)
 
                 new_script.append(
                     lit.TestRunner.CommandDirective(
                         directive.start_line_number,
                         directive.end_line_number,
                         directive.keyword,
-                        cmd))
+                        tmp_script[0]))
         script = new_script
 
         conditions = { feature: True for feature in test.config.available_features }

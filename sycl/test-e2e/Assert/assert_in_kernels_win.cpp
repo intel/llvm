@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out &> %t.txt || true
 // RUN: %CPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
 // RUN: %GPU_RUN_PLACEHOLDER %t.out &> %t.txt || true

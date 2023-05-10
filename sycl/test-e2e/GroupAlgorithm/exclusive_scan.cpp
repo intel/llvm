@@ -1,14 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -I . -o %t.out
+// RUN: %{run} %t.out
 
 // disabling hip because some of the binary_ops tested are not supported
 // getting undefined symbols for a handful of __spirv__ * functions.
 // XFAIL: hip
 
 // https://github.com/intel/llvm/issues/7585 to fix the time out failure:
-// UNSUPPORTED: gpu
+// UNSUPPORTED: cpu, gpu
 
 #include "support.h"
 #include <algorithm>
