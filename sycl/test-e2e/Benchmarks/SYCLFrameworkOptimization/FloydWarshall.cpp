@@ -7,8 +7,8 @@
 // and adjusted for testing purposes (parts of code has been deleted and
 // refactored).
 
-// RUN: %{build} -O0 -o %t.unoptimized.out && %t.unoptimized.out >%t.unoptimized.output
-// RUN: %{build} -fsycl-optimize-non-user-code -O0 -o %t.optimized.out && %t.optimized.out >%t.optimized.output
+// RUN: %{build} -O0 -o %t.unoptimized.out
+// RUN: %{build} -fsycl-optimize-non-user-code -O0 -o %t.optimized.out
 
 // RUN: %{run} %t.unoptimized.out && \
 // RUN: %{run} %t.optimized.out && \
