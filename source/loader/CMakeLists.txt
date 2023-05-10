@@ -7,49 +7,49 @@ configure_file(
     @ONLY
 )
 
-add_library(loader
+add_library(ur_loader
     SHARED
     ""
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
 )
 
-set_target_properties(loader PROPERTIES
+set_target_properties(ur_loader PROPERTIES
     LIBRARY_OUTPUT_NAME ur_loader
     RUNTIME_OUTPUT_NAME ur_loader
 )
 
-add_library(${PROJECT_NAME}::loader ALIAS loader)
+add_library(${PROJECT_NAME}::loader ALIAS ur_loader)
 
-target_include_directories(loader PRIVATE
+target_include_directories(ur_loader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/layers
 )
 
-set_target_properties(loader PROPERTIES
+set_target_properties(ur_loader PROPERTIES
     VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
-target_link_libraries(loader PRIVATE
+target_link_libraries(ur_loader PRIVATE
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
 )
 
 if(UR_ENABLE_TRACING)
-    target_link_libraries(loader PRIVATE xpti)
-    target_include_directories(loader PRIVATE ${xpti_SOURCE_DIR}/include)
-    target_compile_definitions(loader PRIVATE XPTI_STATIC_LIBRARY)
+    target_link_libraries(ur_loader PRIVATE xpti)
+    target_include_directories(ur_loader PRIVATE ${xpti_SOURCE_DIR}/include)
+    target_compile_definitions(ur_loader PRIVATE XPTI_STATIC_LIBRARY)
 endif()
 
 if (UNIX)
     set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
     set(THREADS_PREFER_PTHREAD_FLAG TRUE)
     find_package(Threads REQUIRED)
-    target_link_libraries(loader PRIVATE Threads::Threads)
+    target_link_libraries(ur_loader PRIVATE Threads::Threads)
 endif()
 
 if(WIN32)
-    target_link_libraries(loader PRIVATE cfgmgr32.lib)
+    target_link_libraries(ur_loader PRIVATE cfgmgr32.lib)
 endif()
 
 if(UNIX)
@@ -60,14 +60,14 @@ if(UNIX)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libur_loader.pc" DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig" COMPONENT unified-runtime)
 endif()
 
-install(TARGETS loader
+install(TARGETS ur_loader
     EXPORT ${PROJECT_NAME}-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
 )
 
-target_sources(loader
+target_sources(ur_loader
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_object.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.hpp
@@ -83,7 +83,7 @@ target_sources(loader
 )
 
 if(UR_ENABLE_TRACING)
-    target_sources(loader
+    target_sources(ur_loader
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/tracing/ur_tracing_layer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/tracing/ur_trcddi.cpp
@@ -96,31 +96,31 @@ find_package(Libbacktrace)
 if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND AND UNIX)
     message(STATUS "Using libbacktrace backtrace for validation")
 
-    target_sources(loader PRIVATE
+    target_sources(ur_loader PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_libbacktrace.cpp)
-    target_link_libraries(loader PRIVATE Libbacktrace)
+    target_link_libraries(ur_loader PRIVATE Libbacktrace)
 else()
     message(STATUS "Using default backtrace for validation")
 
     if(WIN32)
-        target_sources(loader PRIVATE
+        target_sources(ur_loader PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_win.cpp)
-        target_link_libraries(loader PRIVATE dbghelp)
+        target_link_libraries(ur_loader PRIVATE dbghelp)
     else()
-        target_sources(loader PRIVATE
+        target_sources(ur_loader PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_lin.cpp)
     endif()
 endif()
 
 if(WIN32)
-    target_sources(loader
+    target_sources(ur_loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_location.cpp
     )
 else()
-    target_sources(loader
+    target_sources(ur_loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
