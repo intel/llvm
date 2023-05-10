@@ -9,6 +9,8 @@
 #ifndef UR_UTIL_H
 #define UR_UTIL_H 1
 
+#include <ur_api.h>
+
 #include <iostream>
 #include <map>
 #include <optional>
@@ -255,6 +257,19 @@ inline std::size_t combine_hashes(std::size_t seed) { return seed; }
 template <typename T, typename... Args>
 inline std::size_t combine_hashes(std::size_t seed, const T &v, Args... args) {
     return combine_hashes(seed ^ std::hash<T>{}(v), args...);
+}
+
+inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
+    try {
+        if (eptr) {
+            std::rethrow_exception(eptr);
+        }
+        return UR_RESULT_SUCCESS;
+    } catch (std::bad_alloc &) {
+        return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+        return UR_RESULT_ERROR_UNKNOWN;
+    }
 }
 
 #endif /* UR_UTIL_H */
