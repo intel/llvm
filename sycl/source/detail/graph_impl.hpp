@@ -29,7 +29,8 @@ namespace experimental {
 namespace detail {
 
 /// Implementation of node class from SYCL_EXT_ONEAPI_GRAPH.
-struct node_impl {
+class node_impl {
+public:
   /// List of successors to this node.
   std::vector<std::shared_ptr<node_impl>> MSuccessors;
   /// List of predecessors to this node.
@@ -172,7 +173,8 @@ struct node_impl {
 };
 
 /// Class resenting implementation details of command_graph<modifiable>.
-struct graph_impl {
+class graph_impl {
+public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
   /// @param SyclDevice Device to create nodes with.

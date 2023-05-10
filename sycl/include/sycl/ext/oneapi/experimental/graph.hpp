@@ -26,7 +26,7 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
-struct node_impl;
+class node_impl;
 class graph_impl;
 class exec_graph_impl;
 
@@ -222,6 +222,11 @@ private:
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 };
+
+/// Additional CTAD deduction guide.
+template <graph_state State = graph_state::modifiable>
+command_graph(const context &SyclContext, const device &SyclDevice,
+              const property_list &PropList) -> command_graph<State>;
 
 } // namespace experimental
 } // namespace oneapi
