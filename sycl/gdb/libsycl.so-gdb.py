@@ -2,6 +2,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# Please follow GDB coding standards and use 'black' for formatting:
+# https://sourceware.org/gdb/wiki/Internals%20GDB-Python-Coding-Standards
+
+
 import re
 import gdb
 import gdb.xmethod
