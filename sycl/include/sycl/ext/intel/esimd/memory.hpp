@@ -323,7 +323,12 @@ template <typename Tx, int N, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
+__ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                   uint64_t offset,
+#else
+                                   uint32_t offset,
+#endif
                                    Flags = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset));
@@ -387,7 +392,12 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
 ///
 template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
+__ESIMD_API void block_store(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                             uint64_t offset,
+#else
+                             uint32_t offset,
+#endif
                              simd<Tx, N> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   block_store<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset), vals);
