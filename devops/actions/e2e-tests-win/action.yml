@@ -30,7 +30,7 @@ runs:
     run: |
       mkdir build-e2e
       set PATH=%GITHUB_WORKSPACE%\install\bin;%PATH%
-      cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.targets }}" -DCMAKE_CXX_COMPILER="clang++" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py" ${{ inputs.cmake_args }}
+      cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.targets }}" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py" ${{ inputs.cmake_args }}
   - name: Run testing
     shell: bash
     run: |
