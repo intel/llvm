@@ -5043,7 +5043,7 @@ static EvalStmtResult EvaluateSwitch(StmtResult &Result, EvalInfo &Info,
 
 static bool CheckLocalVariableDeclaration(EvalInfo &Info, const VarDecl *VD) {
   // An expression E is a core constant expression unless the evaluation of E
-  // would evaluate one of the following: [C++2b] - a control flow that passes
+  // would evaluate one of the following: [C++23] - a control flow that passes
   // through a declaration of a variable with static or thread storage duration
   // unless that variable is usable in constant expressions.
   if (VD->isLocalVarDecl() && VD->isStaticLocal() &&
@@ -15384,8 +15384,16 @@ bool Expr::EvaluateAsConstantExpr(EvalResult &Result, const ASTContext &Ctx,
   LValue LVal;
   LVal.set(Base);
 
-  if (!::EvaluateInPlace(Result.Val, Info, LVal, this) || Result.HasSideEffects)
-    return false;
+  {
+    // C++23 [intro.execution]/p5
+    // A full-expression is [...] a constant-expression
+    // So we need to make sure temporary objects are destroyed after having
+    // evaluating the expression (per C++23 [class.temporary]/p4).
+    FullExpressionRAII Scope(Info);
+    if (!::EvaluateInPlace(Result.Val, Info, LVal, this) ||
+        Result.HasSideEffects || !Scope.destroy())
+      return false;
+  }
 
   if (!Info.discardCleanups())
     llvm_unreachable("Unhandled cleanup; missing full expression marker?");
