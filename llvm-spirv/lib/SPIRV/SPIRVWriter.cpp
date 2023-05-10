@@ -410,11 +410,9 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
       Name = ST->getName();
 
     if (Name == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
-      return transSPIRVOpaqueType(getSPIRVTypeName(kSPIRVTypeName::Sampler),
-                                  SPIRAS_Constant);
+      return transSPIRVOpaqueType("spirv.Sampler", SPIRAS_Constant);
     if (Name == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
-      return transSPIRVOpaqueType(getSPIRVTypeName(kSPIRVTypeName::PipeStorage),
-                                  SPIRAS_Constant);
+      return transSPIRVOpaqueType("spirv.PipeStorage", SPIRAS_Constant);
 
     constexpr size_t MaxNumElements = MaxWordCount - SPIRVTypeStruct::FixedWC;
     const size_t NumElements = ST->getNumElements();
