@@ -7,8 +7,8 @@
 //===-------------------------------------------------------------------===//
 // REQUIRES: gpu, gpu-intel-pvc
 // UNSUPPORTED: cuda || hip || esimd_emulator
-// RUN: %clangxx -fsycl -fsycl-esimd-force-stateless-mem %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -fsycl-esimd-force-stateless-mem
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
