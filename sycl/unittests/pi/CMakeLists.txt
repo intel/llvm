@@ -16,3 +16,8 @@ target_include_directories(PiTests PRIVATE ${sycl_src_dir}/../tools/xpti_helpers
 if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     add_subdirectory(cuda)
 endif()
+
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_subdirectory(hip)
+endif()
+
