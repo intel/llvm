@@ -39,6 +39,6 @@ size_t evt2() {
 // LLVM-NEXT:   ret i64 undef
 
 // LLVM-LABEL: define i64 @_Z4evt2v() {
-// LLVM-NEXT:   %1 = load <3 x i64>, <3 x i64>* @stv, align 32
+// LLVM-NEXT:   %1 = load <3 x i64>, ptr @stv, align 32
 // LLVM-NEXT:   %2 = extractelement <3 x i64> %1, i64 0
 // LLVM-NEXT:   ret i64 %2

@@ -50,6 +50,6 @@ void kernel_deriche() {
 // LLVM-DAG: @external = external global i32, align 4
 
 // LLVM-LABEL: define void @kernel_deriche() {
-// LLVM-NEXT:   call void @run(i32* @local, i32* @local_init, i32* @internal, i32* @internal_init, i32* @external)
+// LLVM-NEXT:   call void @run(ptr @local, ptr @local_init, ptr @internal, ptr @internal_init, ptr @external)
 // LLVM-NEXT:   ret void
-// LLVM-LABEL: declare void @run(i32*, i32*, i32*, i32*, i32*)
+// LLVM-LABEL: declare void @run(ptr, ptr, ptr, ptr, ptr)
