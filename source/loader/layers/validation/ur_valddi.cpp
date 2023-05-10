@@ -2712,7 +2712,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_QUEUE_INFO_SIZE < propName) {
+        if (UR_QUEUE_INFO_EMPTY < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }

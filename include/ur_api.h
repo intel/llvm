@@ -3758,6 +3758,8 @@ typedef enum ur_queue_info_t {
                                        ///< It is unsuitable for general use in applications. This feature is
                                        ///< provided for identifying memory leaks.
     UR_QUEUE_INFO_SIZE = 5,            ///< [uint32_t] The size of the queue
+    UR_QUEUE_INFO_EMPTY = 6,           ///< [::ur_bool_t] return true if the queue was empty at the time of the
+                                       ///< query
     /// @cond
     UR_QUEUE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3797,7 +3799,7 @@ typedef enum ur_queue_flag_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_QUEUE_INFO_SIZE < propName`
+///         + `::UR_QUEUE_INFO_EMPTY < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
