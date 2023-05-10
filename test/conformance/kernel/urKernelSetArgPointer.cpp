@@ -24,7 +24,7 @@ struct urKernelSetArgPointerTest : uur::urKernelTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgPointerTest);
 
 TEST_P(urKernelSetArgPointerTest, SuccessHost) {
-    bool host_supported = false;
+    ur_device_usm_access_capability_flags_t host_supported = false;
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_supported));
     if (!host_supported) {
         GTEST_SKIP() << "Host USM is not supported.";
@@ -38,7 +38,7 @@ TEST_P(urKernelSetArgPointerTest, SuccessHost) {
 }
 
 TEST_P(urKernelSetArgPointerTest, SuccessDevice) {
-    bool device_supported = false;
+    ur_device_usm_access_capability_flags_t device_supported = false;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_supported));
     if (!device_supported) {
         GTEST_SKIP() << "Host USM is not supported.";
@@ -52,7 +52,7 @@ TEST_P(urKernelSetArgPointerTest, SuccessDevice) {
 }
 
 TEST_P(urKernelSetArgPointerTest, SuccessShared) {
-    bool shared_supported = false;
+    ur_device_usm_access_capability_flags_t shared_supported = false;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_supported));
     if (!shared_supported) {
@@ -69,7 +69,7 @@ TEST_P(urKernelSetArgPointerTest, SuccessShared) {
 struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
     // Get any valid allocation we can to test validation of the other parameters.
     void SetUpAllocation() {
-        bool host_supported = false;
+        ur_device_usm_access_capability_flags_t host_supported = false;
         ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_supported));
         if (host_supported) {
             ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr,
@@ -77,7 +77,7 @@ struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
             return;
         }
 
-        bool device_supported = false;
+        ur_device_usm_access_capability_flags_t device_supported = false;
         ASSERT_SUCCESS(
             uur::GetDeviceUSMDeviceSupport(device, device_supported));
         if (device_supported) {
@@ -86,7 +86,7 @@ struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
             return;
         }
 
-        bool shared_supported = false;
+        ur_device_usm_access_capability_flags_t shared_supported = false;
         ASSERT_SUCCESS(
             uur::GetDeviceUSMSingleSharedSupport(device, shared_supported));
         if (shared_supported) {

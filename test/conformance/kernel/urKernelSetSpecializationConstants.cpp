@@ -5,7 +5,7 @@
 
 #include <uur/fixtures.h>
 
-struct urKernelSetSpecializationConstantsTest : uur::urKernelTest {
+struct urKernelSetSpecializationConstantsTest : uur::urKernelExecutionTest {
     void SetUp() override {
         bool supports_kernel_spec_constant = false;
         ASSERT_SUCCESS(urDeviceGetInfo(
@@ -17,7 +17,7 @@ struct urKernelSetSpecializationConstantsTest : uur::urKernelTest {
                 << "Device does not support setting kernel spec constants.";
         }
         program_name = "spec_constant";
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
     }
 
     uint32_t spec_value = 42;
@@ -28,7 +28,11 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetSpecializationConstantsTest);
 
 TEST_P(urKernelSetSpecializationConstantsTest, Success) {
     ASSERT_SUCCESS(urKernelSetSpecializationConstants(kernel, 1, &info));
-    // TODO: Run the kernel to verify the spec constant was set.
+
+    ur_mem_handle_t buffer;
+    AddBuffer1DArg(sizeof(spec_value), &buffer);
+    Launch1DRange(1);
+    ValidateBuffer<uint32_t>(buffer, sizeof(spec_value), spec_value);
 }
 
 TEST_P(urKernelSetSpecializationConstantsTest, InvalidNullHandleKernel) {

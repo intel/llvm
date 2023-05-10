@@ -23,6 +23,8 @@ endfunction()
 
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/bar.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill_2d.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill_3d.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/foo.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/image_copy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/mean.cpp)
