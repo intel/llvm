@@ -139,12 +139,11 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
 
   // Only process module entry points:
   for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F))
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
     if (isESIMDFunction(F))
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    else
+    else if (MD.isEntryPointCandidate(F))
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
   }
 
