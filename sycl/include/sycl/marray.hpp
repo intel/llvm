@@ -41,11 +41,45 @@ template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
 
 } // namespace detail
 
+template <std::size_t N, typename T> constexpr std::size_t vecAlignment() {
+  static_assert(N > 0, "Invalid number of elements.");
+  constexpr size_t SizeOfT = sizeof(T);
+  static_assert(SizeOfT > 0, "Invalid size of T.");
+  // First find the "previous" vector num elements.
+  size_t res = N >= 16  ? 16
+               : N >= 8 ? 8
+               : N >= 4 ? 4
+               : N >= 3 ? 3
+               : N >= 2 ? 2
+                        : 1;
+  // Then calculate the alignment size in bytes, making sure it's power of 2.
+  res *= SizeOfT;
+  res--;
+  res |= res >> 1;
+  res |= res >> 2;
+  res |= res >> 4;
+  res |= res >> 8;
+  res |= res >> 16;
+  res++;
+  return res;
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+#define MARRAY_WINDOWS_ALIGN_ATTR                                              \
+  __declspec(align(vecAlignment<NumElements, Type>()))
+#define MARRAY_LINUX_ALIGN_ATTR
+#else
+#define MARRAY_WINDOWS_ALIGN_ATTR
+#define MARRAY_LINUX_ALIGN_ATTR                                                \
+  __attribute__((aligned(vecAlignment<NumElements, Type>())))
+#endif
+
 /// Provides a cross-platform math array class template that works on
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api
-template <typename Type, std::size_t NumElements> class marray {
+template <typename Type, std::size_t NumElements>
+class MARRAY_WINDOWS_ALIGN_ATTR marray {
   using DataT = Type;
 
 public:
@@ -361,7 +395,7 @@ public:
     }
     return Ret;
   }
-};
+} MARRAY_LINUX_ALIGN_ATTR;
 
 #define __SYCL_MAKE_MARRAY_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::marray<TYPE, N>;
@@ -403,6 +437,9 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH
+
+#undef MARRAY_LINUX_ALIGN_ATTR
+#undef MARRAY_WINDOWS_ALIGN_ATTR
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
