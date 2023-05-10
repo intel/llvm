@@ -2509,7 +2509,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_QUEUE_INFO_SIZE < propName`
+///         + `::UR_QUEUE_INFO_EMPTY < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
