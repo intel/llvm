@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-virtual-functions -internal-isystem %S/Inputs -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=novirtualfunction -fsyntax-only %s
 
 // This test verifies that pure virtual functions are not
 // diagnosed if undefined in base class.
@@ -23,7 +24,7 @@ void foo() {
     h.single_task<class CallToUndefinedFnTester>([]() {
       Derived d;
       AbstractClass* obj = &d;
-      (*obj).testVF();
+      obj->testVF(); // novirtualfunction-error {{SYCL kernel cannot call a virtual function}}
     });
   });
 }
