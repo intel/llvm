@@ -1,3 +1,6 @@
+; https://github.com/intel/llvm/issues/9387
+; UNSUPPORTED: windows
+;
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV

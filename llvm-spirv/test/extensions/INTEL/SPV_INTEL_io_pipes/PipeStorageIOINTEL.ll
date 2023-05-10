@@ -1,3 +1,6 @@
+; https://github.com/intel/llvm/issues/9387
+; UNSUPPORTED: windows
+;
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_io_pipes -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
