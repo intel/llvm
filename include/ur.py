@@ -1404,6 +1404,8 @@ class ur_queue_info_v(IntEnum):
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
     SIZE = 5                                        ## [uint32_t] The size of the queue
+    EMPTY = 6                                       ## [::ur_bool_t] return true if the queue was empty at the time of the
+                                                    ## query
 
 class ur_queue_info_t(c_int):
     def __str__(self):
