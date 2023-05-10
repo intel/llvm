@@ -113,6 +113,7 @@
 ??$get_info@Uimage3d_max_width@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Uimage_max_array_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Uimage_max_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
+??$get_info@Uimage_support@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uis_available@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uis_compiler_available@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uis_endian_little@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
