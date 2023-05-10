@@ -1569,6 +1569,10 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_UserDefinedConversion:
     return Visit(E->getSubExpr());
 
+  case clang::CastKind::CK_LValueBitCast: {
+    E->dump();
+    llvm_unreachable("LValue bitcast not handled yet\n");
+  } break;
   case clang::CastKind::CK_AddressSpaceConversion: {
     ValueCategory Scalar = Visit(E->getSubExpr());
     QualType DestTy = E->getType();
