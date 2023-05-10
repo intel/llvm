@@ -373,7 +373,8 @@ private:
   void throwOnLocalAccessorMisuse() const {
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using KI = sycl::detail::KernelInfo<NameT>;
+    using KI =
+        sycl::detail::KernelInfoProxy<NameT, std::is_same_v<NameT, KernelType>>;
 
     auto *KernelArgs = &KI::getParamDesc(0);
 
@@ -408,14 +409,16 @@ private:
   /// \return a string containing name of SYCL kernel.
   std::string getKernelName();
 
-  template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
+  template <typename LambdaNameT, bool NamedLambda>
+  bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
     // for parallel_for with sycl::kernel and lambda/functor together
     // Now if they are equal we extract argumets from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
+    const std::string LambdaName =
+        detail::KernelInfoProxy<LambdaNameT, NamedLambda>::getName();
     const std::string KernelName = getKernelName();
     return LambdaName == KernelName;
   }
@@ -687,7 +690,8 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
-    using KI = detail::KernelInfo<KernelName>;
+    using KI = detail::KernelInfoProxy<KernelName,
+                                       std::is_same_v<KernelName, KernelType>>;
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
@@ -981,7 +985,9 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
 
     // Range rounding can be disabled by the user.
     // Range rounding is not done on the host device.
@@ -1017,7 +1023,8 @@ private:
 
     // Get the kernel name to check condition 2.
     std::string KName = typeid(NameT *).name();
-    using KI = detail::KernelInfo<KernelName>;
+    using KI =
+        detail::KernelInfoProxy<NameT, std::is_same_v<NameT, KernelType>>;
     bool DisableRounding =
         this->DisableRangeRounding() ||
         (KI::getName() == nullptr || KI::getName()[0] == '\0');
@@ -1097,7 +1104,9 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     // If user type is convertible from sycl::item/sycl::nd_item, use
@@ -1156,7 +1165,9 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
@@ -1195,7 +1206,9 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
@@ -1467,7 +1480,9 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1710,7 +1725,9 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
@@ -1847,7 +1864,9 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1856,7 +1875,9 @@ public:
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!MIsHost &&
+        !lambdaAndKernelHaveEqualName<NameT,
+                                      std::is_same_v<NameT, KernelType>>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -1893,7 +1914,9 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
@@ -1903,7 +1926,9 @@ public:
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!MIsHost &&
+        !lambdaAndKernelHaveEqualName<NameT,
+                                      std::is_same_v<NameT, KernelType>>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -1931,7 +1956,9 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
@@ -1942,7 +1969,9 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!MIsHost &&
+        !lambdaAndKernelHaveEqualName<NameT,
+                                      std::is_same_v<NameT, KernelType>>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -1969,7 +1998,9 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)Kernel;
@@ -1980,7 +2011,9 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
+    if (!MIsHost &&
+        !lambdaAndKernelHaveEqualName<NameT,
+                                      std::is_same_v<NameT, KernelType>>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
@@ -2011,7 +2044,9 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
@@ -2051,7 +2086,9 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
+    verifyUsedKernelBundle(
+        detail::KernelInfoProxy<NameT,
+                                std::is_same_v<NameT, KernelType>>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
