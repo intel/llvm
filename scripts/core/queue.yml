@@ -31,6 +31,8 @@ etors:
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: SIZE
       desc: "[uint32_t] The size of the queue"
+    - name: EMPTY
+      desc: "[$x_bool_t] return true if the queue was empty at the time of the query"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Queue property flags"

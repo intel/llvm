@@ -6576,6 +6576,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value) {
     case UR_QUEUE_INFO_SIZE:
         os << "UR_QUEUE_INFO_SIZE";
         break;
+
+    case UR_QUEUE_INFO_EMPTY:
+        os << "UR_QUEUE_INFO_EMPTY";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -6669,6 +6673,20 @@ inline void serializeTaggedTyped_ur_queue_info_t(std::ostream &os,
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size
                << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_QUEUE_INFO_EMPTY: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
