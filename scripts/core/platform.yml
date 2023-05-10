@@ -121,7 +121,7 @@ details:
     - "The implementation of this function should be lock-free."
 params:
     - type: $x_platform_handle_t
-      name: hDriver
+      name: hPlatform
       desc: "[in] handle of the platform"
     - type: "$x_api_version_t*"
       name: pVersion

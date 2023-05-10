@@ -131,8 +131,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGetApiVersion
 __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ///< [in] handle of the platform
-    ur_api_version_t *pVersion    ///< [out] api version
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_api_version_t *pVersion      ///< [out] api version
 ) {
     auto pfnGetApiVersion = context.urDdiTable.Platform.pfnGetApiVersion;
 
@@ -140,12 +140,12 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_platform_get_api_version_params_t params = {&hDriver, &pVersion};
+    ur_platform_get_api_version_params_t params = {&hPlatform, &pVersion};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_PLATFORM_GET_API_VERSION,
                              "urPlatformGetApiVersion", &params);
 
-    ur_result_t result = pfnGetApiVersion(hDriver, pVersion);
+    ur_result_t result = pfnGetApiVersion(hPlatform, pVersion);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_API_VERSION,
                        "urPlatformGetApiVersion", &params, &result, instance);

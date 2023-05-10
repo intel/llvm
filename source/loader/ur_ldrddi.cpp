@@ -174,23 +174,24 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGetApiVersion
 __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ///< [in] handle of the platform
-    ur_api_version_t *pVersion    ///< [out] api version
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform
+    ur_api_version_t *pVersion      ///< [out] api version
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_platform_object_t *>(hDriver)->dditable;
+    auto dditable =
+        reinterpret_cast<ur_platform_object_t *>(hPlatform)->dditable;
     auto pfnGetApiVersion = dditable->ur.Platform.pfnGetApiVersion;
     if (nullptr == pfnGetApiVersion) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     // convert loader handle to platform handle
-    hDriver = reinterpret_cast<ur_platform_object_t *>(hDriver)->handle;
+    hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
 
     // forward to device-platform
-    result = pfnGetApiVersion(hDriver, pVersion);
+    result = pfnGetApiVersion(hPlatform, pVersion);
 
     return result;
 }

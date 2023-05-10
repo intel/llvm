@@ -5,8 +5,8 @@ begin(2) - urPlatformGet(.NumEntries = 1, .phPlatforms = [], .pNumPlatforms = {{
 end(2) - urPlatformGet(.NumEntries = 1, .phPlatforms = [], .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
 begin(3) - urPlatformGet(.NumEntries = 1, .phPlatforms = [nullptr], .pNumPlatforms = nullptr);
 end(3) - urPlatformGet(.NumEntries = 1, .phPlatforms = [{{.*}}], .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
-begin(4) - urPlatformGetApiVersion(.hDriver = {{.*}}, .pVersion = {{.*}} (0.0));
-end(4) - urPlatformGetApiVersion(.hDriver = {{.*}}, .pVersion = {{.*}} (0.6)) -> UR_RESULT_SUCCESS;
+begin(4) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.0));
+end(4) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.6)) -> UR_RESULT_SUCCESS;
 API version: {{.*}}
 begin(5) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = [], .pNumDevices = {{.*}} (0));
 end(5) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = [], .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
