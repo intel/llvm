@@ -15,6 +15,8 @@
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -681,8 +683,11 @@ MemoryAccessAnalysis::MemoryAccessAnalysis(Operation *op, AnalysisManager &am)
 
 bool MemoryAccessAnalysis::isInvalidated(
     const AnalysisManager::PreservedAnalyses &pa) {
-  return false; //! pa.isPreserved<AnalysisWithDependency>() ||
-  //         !pa.isPreserved<AliasAnalysis>();
+  return !pa.isPreserved<AliasAnalysis>() ||
+         !pa.isPreserved<dataflow::DeadCodeAnalysis>() ||
+         !pa.isPreserved<dataflow::SparseConstantPropagation>() ||
+         !pa.isPreserved<dataflow::IntegerRangeAnalysis>() ||
+         !pa.isPreserved<polygeist::ReachingDefinitionAnalysis>();
 }
 
 std::optional<MemoryAccessMatrix>
@@ -754,9 +759,21 @@ bool MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
   MemoryAccessMatrix accessMatrix(access.getRank(), enclosingLoops.size());
 
-  // ETTORE TODO
+  SmallVector<Value, 4> loopIVs;
   for (Operation *loop : enclosingLoops) {
-    accessMatrix(0, 0) = *val;
+    auto affineForOp = cast<AffineForOp>(loop);
+    loopIVs.push_back(affineForOp.getInductionVar());
+  }
+
+  // Attempt to match an expression like (iv * other) or (other * iv).
+  Value iv = loopIVs[0];
+  Value other;
+  if (matchPattern(*val, m_Op<arith::MulIOp>(matchers::m_Val(iv),
+                                             matchers::m_Any(&other))) ||
+      matchPattern(*val, m_Op<arith::MulIOp>(matchers::m_Any(&other),
+                                             matchers::m_Val(iv)))) {
+    llvm::errs() << "BINGO, other: " << other << "\n";
+    accessMatrix(0, 0) = other;
   }
 
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix constructed successfully\n");
