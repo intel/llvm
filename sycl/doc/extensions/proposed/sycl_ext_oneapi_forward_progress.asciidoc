@@ -458,7 +458,7 @@ struct max_num_sub_groups;
 }
 ----
 
-[%header,cols="1,5,5"]
+[%header,cols="1,5,5,5"]
 |===
 |Kernel Descriptor
 |Argument Types
