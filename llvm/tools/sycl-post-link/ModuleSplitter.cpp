@@ -171,49 +171,54 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
   return EntryPointGroups;
 }
 
-// Represents an "extended" call graph of a module. The main difference with a
-// regular call graph is that this graph represents not only calls, but also
-// other types of function uses. For example, if function FA contains a
-// StoreInst which has function FB in its arguments, then this graph will have
-// "FA" -> "FB" edge.
+// Represents "dependency" or "use" graph of global objects (functions and
+// global variables) in a module. It is used during device code split to
+// understand which global variables and functions (other than entry points)
+// should be included into a split module.
 //
-// The main purpose of such extended graph is to be able to track indirectly
-// called functions to correctly group them together during device code split.
+// Nodes of the graph represent LLVM's GlobalObjects, edges "A" -> "B" represent
+// the fact that if "A" is include into a module, then "B" should be included
+// as well.
 //
-// The following cases are treated as dependencies between functions:
-// 1. function A is used within a function B in any way (store, bitcast, phi
-//    node, call, etc.): "A" -> "B" edge will be added to the graph;
-// 2. function A is used by a global variable G and that global variable is used
-//    by function B (in any way). "A" -> "B" edge will be added to the graph;
-// 3. function A performs an indirect call of a function with signature S and
+// Examples of dependencies which are represented in this graph:
+// - Function FA calls function FB
+// - Function FA uses global variable GA
+// - Global variable GA references (intiialized with) function FB
+// - Function FA stores address of a function FB somewhere
+// - Function FA uses global variable GB
+//
+// The following cases are treated as dependencies between global objects:
+// 1. Global object A is used within by a global object B in any way (store,
+//    bitcast, phi node, call, etc.): "A" -> "B" edge will be added to the
+//    graph;
+// 2. function A performs an indirect call of a function with signature S and
 //    there is a function B with signature S. "A" -> "B" edge will be added to
 //    the graph;
-//
-// TODO: We should expand this to also track global variable uses.
 class DependencyGraph {
 public:
-  using FunctionSet = SmallPtrSet<const Function *, 16>;
+  using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
   DependencyGraph(const Module &M) {
-    // Group functions by their signature to implement check (3)
-    DenseMap<const FunctionType *, DependencyGraph::FunctionSet>
+    // Group functions by their signature to handle case (2)
+    DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncMap;
-    for (const auto &F : M) {
+    for (const auto &F : M.functions()) {
       FuncTypeToFuncMap[F.getFunctionType()].insert(&F);
     }
 
-    for (const auto &F : M) {
-      // check (1) and (2)
+    // We add every function into the graph
+    for (const auto &F : M.functions()) {
+      // case (1)
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
 
-      // check (3)
+      // case (2)
       for (const auto &I : instructions(F)) {
         if (!isa<CallInst>(&I))
           continue;
 
         const auto *CI = cast<CallInst>(&I);
-        // Direct calls were handled in previous checks
+        // Direct calls were handled above
         if (!CI->isIndirectCall())
           continue;
 
@@ -222,19 +227,23 @@ public:
         Graph[&F].insert(PotentialCallees.begin(), PotentialCallees.end());
       }
     }
+
+    // And every global variable (but their handling is a bit simpler)
+    for (const auto &GV : M.globals())
+      for (const Value *U : GV.users())
+        addUserToGraphRecursively(cast<const User>(U), &GV);
   }
 
-  iterator_range<FunctionSet::const_iterator>
-  dependencies(const Function *F) const {
-
-    auto It = Graph.find(F);
+  iterator_range<GlobalSet::const_iterator>
+  dependencies(const GlobalValue *Val) const {
+    auto It = Graph.find(Val);
     return (It == Graph.end())
                ? make_range(EmptySet.begin(), EmptySet.end())
                : make_range(It->second.begin(), It->second.end());
   }
 
 private:
-  void addUserToGraphRecursively(const User *Root, const Function *F) {
+  void addUserToGraphRecursively(const User *Root, const GlobalValue *V) {
 
     SmallVector<const User *, 8> WorkList;
     WorkList.push_back(Root);
@@ -243,11 +252,13 @@ private:
       const User *U = WorkList.pop_back_val();
       if (const auto *I = dyn_cast<const Instruction>(U)) {
         const auto *UFunc = I->getFunction();
-        Graph[UFunc].insert(F);
+        Graph[UFunc].insert(V);
       } else if (isa<const Constant>(U)) {
+        if (const auto *GV = dyn_cast<const GlobalVariable>(U))
+          Graph[GV].insert(V);
         // This could be a global variable or some constant expression (like
         // bitcast or gep). We trace users of this constant further to reach
-        // functions they came from to build dependency graph.
+        // global objects they are used by and add them to the graph.
         for (const auto *UU : U->users())
           WorkList.push_back(UU);
       } else {
@@ -256,45 +267,44 @@ private:
     }
   }
 
-  DenseMap<const Function *, FunctionSet> Graph;
-  SmallPtrSet<const Function *, 1> EmptySet;
+  DenseMap<const GlobalValue *, GlobalSet> Graph;
+  SmallPtrSet<const GlobalValue *, 1> EmptySet;
 };
 
-void collectFunctionsToExtract(
-    SetVector<const GlobalValue *> &GVs,
+void collectFunctionsAndGlobalVariablesToExtract(
+    SetVector<const GlobalValue *> &GVs, const Module &M,
     const EntryPointGroup &ModuleEntryPoints, const DependencyGraph &Deps,
     const std::function<bool(const Function *)> &Filter = nullptr) {
+  // We start with module entry points
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
+
+  // Non-discardable global variables are also include into the initial set
+  for (const auto &GV : M.globals()) {
+    if (!GV.isDiscardableIfUnused())
+      GVs.insert(&GV);
+  }
 
   // GVs has SetVector type. This type inserts a value only if it is not yet
   // present there. So, recursion is not expected here.
   decltype(GVs.size()) Idx = 0;
   while (Idx < GVs.size()) {
-    const auto *F = cast<Function>(GVs[Idx++]);
+    const auto *Obj = GVs[Idx++];
 
-    for (const Function *F1 : Deps.dependencies(F)) {
-      if (F1->isDeclaration())
-        continue;
+    for (const GlobalValue *Dep : Deps.dependencies(Obj)) {
+      // Functions can be additionally filtered
+      if (const auto *Func = dyn_cast<const Function>(Dep)) {
+        if (Func->isDeclaration())
+          continue;
 
-      if (!Filter || Filter(F1))
-        GVs.insert(F1);
+        if (!Filter || Filter(Func))
+          GVs.insert(Func);
+      } else {
+        // Global variables are added unconditionally
+        GVs.insert(Dep);
+      }
     }
   }
-}
-
-void collectGlobalVarsToExtract(SetVector<const GlobalValue *> &GVs,
-                                const Module &M) {
-  // It's not easy to trace global variable's uses inside needed functions
-  // because global variable can be used inside a combination of operators, so
-  // mark all global variables as needed and remove dead ones after cloning.
-  // Notice. For device global variables with the 'device_image_scope' property,
-  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
-  // checks that there are no usages of a single device global variable with the
-  // 'device_image_scope' property from multiple modules and the splitter must
-  // not add such usages after the check.
-  for (const auto &G : M.globals())
-    GVs.insert(&G);
 }
 
 ModuleDesc extractSubModule(const ModuleDesc &MD,
@@ -324,8 +334,8 @@ ModuleDesc extractCallGraph(
     const DependencyGraph &CG,
     const std::function<bool(const Function *)> &Filter = nullptr) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsToExtract(GVs, ModuleEntryPoints, CG, Filter);
-  collectGlobalVarsToExtract(GVs, MD.getModule());
+  collectFunctionsAndGlobalVariablesToExtract(GVs, MD.getModule(),
+                                              ModuleEntryPoints, CG, Filter);
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   SplitM.cleanup();
