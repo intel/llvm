@@ -41,7 +41,7 @@ TEST_P(urKernelSetExecInfoTest, InvalidNullPointerPropValue) {
 
 struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
     void SetUp() {
-        kernel_name = "fill";
+        program_name = "fill";
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     }
 
@@ -58,7 +58,7 @@ struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetExecInfoUSMPointersTest);
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
-    bool host_supported = false;
+    ur_device_usm_access_capability_flags_t host_supported = false;
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_supported));
     if (!host_supported) {
         GTEST_SKIP() << "Host USM is not supported.";
@@ -74,7 +74,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
 }
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
-    bool device_supported = false;
+    ur_device_usm_access_capability_flags_t device_supported = false;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_supported));
     if (!device_supported) {
         GTEST_SKIP() << "Device USM is not supported.";
@@ -90,7 +90,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessDevice) {
 }
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
-    bool shared_supported = false;
+    ur_device_usm_access_capability_flags_t shared_supported = false;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_supported));
     if (!shared_supported) {

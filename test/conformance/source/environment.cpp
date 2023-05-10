@@ -240,13 +240,11 @@ std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
         return {};
     }
 
-    // Delete the ETX character at the end as it is not part of the name.
-    IL_version.pop_back();
-
-    // TODO: Add other IL types like ptx when they are defined how they will be
-    // reported.
+    // TODO: This potentially needs updating as more adapters are tested.
     if (IL_version.find("SPIR-V") != std::string::npos) {
         IL << ".spv";
+    } else if (IL_version.find("nvptx") != std::string::npos) {
+        IL << ".bin";
     } else {
         error = "Undefined IL version: " + IL_version;
         return {};
