@@ -381,7 +381,7 @@ if 'gpu' in config.target_devices.split(','):
         gpu_l0_check_substitute = "| FileCheck %s"
         if lit_config.params.get('ze_debug'):
             gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} ONEAPI_DEVICE_SELECTOR=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
-            config.available_features.add('ze_debug'+config.ze_debug)
+            config.available_features.add('ze_debug')
     elif config.sycl_be == "ext_intel_esimd_emulator":
         # ESIMD_EMULATOR backend uses CM_EMU library package for
         # multi-threaded execution on CPU, and the package emulates
