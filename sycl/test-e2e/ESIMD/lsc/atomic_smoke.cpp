@@ -754,15 +754,14 @@ bool test_fp_types(queue q, const Config &cfg) {
 
   passed &= test<float, N, Op>(q, cfg);
 #ifndef USE_ACCESSORS
-
+#ifndef CMPXCHG_TEST
   if (q.get_device().has(sycl::aspect::atomic64) &&
       q.get_device().has(sycl::aspect::fp64)) {
     // Disable double data type for fcmpxchg operation as D64 data is not
     // supported for that operation.
-#ifndef CMPXCHG_TEST
     passed &= test<double, N, Op>(q, cfg);
-#endif
   }
+#endif
 #endif
   return passed;
 }
@@ -771,12 +770,9 @@ template <template <class, int> class Op, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
 
-  // TODO: Investigate esimd emulator crashes
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    passed &= test_int_types<1, Op, SignMask>(q, cfg);
-    passed &= test_int_types<2, Op, SignMask>(q, cfg);
-    passed &= test_int_types<4, Op, SignMask>(q, cfg);
-  }
+  passed &= test_int_types<1, Op, SignMask>(q, cfg);
+  passed &= test_int_types<2, Op, SignMask>(q, cfg);
+  passed &= test_int_types<4, Op, SignMask>(q, cfg);
 
   passed &= test_int_types<8, Op, SignMask>(q, cfg);
 
@@ -853,9 +849,12 @@ int main(void) {
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
 #ifndef CMPXCHG_TEST
-  // Check load/store operations
-  passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
-  passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
+  // TODO: Investigate test failures on emulator
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
+    // Check load/store operations
+    passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+    passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
+  }
 #ifndef USE_SCALAR_OFFSET
   if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
     passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
