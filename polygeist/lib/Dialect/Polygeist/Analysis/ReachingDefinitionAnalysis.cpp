@@ -81,8 +81,8 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
       if (valModifiers.empty())
         os.indent(6) << "<none>\n";
       else {
-        for (const std::shared_ptr<Definition> &def : valModifiers)
-          os.indent(6) << *def << "\n";
+        for (const Definition &def : valModifiers)
+          os.indent(6) << def << "\n";
       }
     }
   };
@@ -102,7 +102,7 @@ ReachingDefinition::ReachingDefinition(ProgramPoint p)
     if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
       for (Value arg : funcOp.getArguments()) {
         if (isa<MemRefType>(arg.getType()))
-          setModifier(arg, std::make_shared<Definition>());
+          setModifier(arg, Definition());
       }
     }
   }
@@ -140,7 +140,7 @@ ChangeResult ReachingDefinition::reset() {
   return ChangeResult::Change;
 }
 
-ChangeResult ReachingDefinition::setModifier(Value val, DefinitionPtr def) {
+ChangeResult ReachingDefinition::setModifier(Value val, Definition def) {
   ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
   assert((mods.size() != 1 || *mods.begin() != def) &&
          "seen this modifier already");
@@ -163,7 +163,7 @@ ChangeResult ReachingDefinition::removeModifiers(Value val) {
 }
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
-                                                      DefinitionPtr def) {
+                                                      Definition def) {
   return (valueToPotentialModifiers[val].insert(def).second)
              ? ChangeResult::Change
              : ChangeResult::NoChange;
@@ -259,20 +259,18 @@ void ReachingDefinitionAnalysis::visitOperation(
     TypeSwitch<MemoryEffects::Effect *>(effect.getEffect())
         .Case<MemoryEffects::Allocate>([&](auto) {
           // An allocate operation creates a definition for the current value.
-          result |= after->setModifier(val, std::make_shared<Definition>(op));
+          result |= after->setModifier(val, Definition(op));
         })
         .Case<MemoryEffects::Write>([&](auto) {
           // A write operation updates the definition of the current value
           // and the definition of its definitely aliased values. It also
           // updates the potential definitions of values that may alias the
           // current value.
-          result |= after->setModifier(val, std::make_shared<Definition>(op));
+          result |= after->setModifier(val, Definition(op));
           for (Value aliasedVal : aliasOracle.getMustAlias(val))
-            result |= after->setModifier(aliasedVal,
-                                         std::make_shared<Definition>(op));
+            result |= after->setModifier(aliasedVal, Definition(op));
           for (Value aliasedVal : aliasOracle.getMayAlias(val))
-            result |= after->addPotentialModifier(
-                aliasedVal, std::make_shared<Definition>(op));
+            result |= after->addPotentialModifier(aliasedVal, Definition(op));
         })
         .Case<MemoryEffects::Free>([&](auto) {
           // A deallocate operation kills reaching definitions of the

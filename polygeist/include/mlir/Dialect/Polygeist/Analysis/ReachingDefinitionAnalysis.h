@@ -22,7 +22,7 @@
 namespace mlir {
 namespace polygeist {
 
-/// Represents the inital definition of a memory resource.
+/// Represents the initial definition of a memory resource.
 class InitialDefinition {
   friend raw_ostream &operator<<(raw_ostream &, const InitialDefinition &);
 
@@ -94,15 +94,7 @@ class ReachingDefinition : public dataflow::AbstractDenseLattice {
 
 public:
   using AbstractDenseLattice::AbstractDenseLattice;
-  using DefinitionPtr = std::shared_ptr<Definition>;
-
-  struct CompareDefinition {
-    bool operator()(DefinitionPtr lhs, DefinitionPtr rhs) const {
-      return (lhs && rhs) ? std::less<Definition>{}(*lhs, *rhs)
-                          : std::less<DefinitionPtr>{}(lhs, rhs);
-    }
-  };
-  using ModifiersTy = std::set<DefinitionPtr, CompareDefinition>;
+  using ModifiersTy = std::set<Definition>;
 
   explicit ReachingDefinition(ProgramPoint p);
 
@@ -119,13 +111,13 @@ public:
   ChangeResult reset();
 
   /// Set definition \p def as a definite modifier of value \p val.
-  ChangeResult setModifier(Value val, DefinitionPtr def);
+  ChangeResult setModifier(Value val, Definition def);
 
   /// Remove all definite modifiers of value \p val.
   ChangeResult removeModifiers(Value val);
 
   /// Add definition \p def as a possible modifier of value \p val.
-  ChangeResult addPotentialModifier(Value val, DefinitionPtr def);
+  ChangeResult addPotentialModifier(Value val, Definition def);
 
   /// Remove all potential modifiers of value \p val.
   ChangeResult removePotentialModifiers(Value val);
