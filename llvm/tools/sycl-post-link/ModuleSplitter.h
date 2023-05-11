@@ -55,7 +55,7 @@ struct EntryPointGroup {
   // Properties an entry point (EP) group
   struct Properties {
     // Whether all EPs are ESIMD, SYCL or there are both kinds.
-    SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+    SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
@@ -82,7 +82,7 @@ struct EntryPointGroup {
 
   // Tells if this group has only ESIMD entry points.
   bool isEsimd() const {
-    return Props.HasESIMD != SyclEsimdSplitStatus::SYCL_ONLY;
+    return Props.HasESIMD == SyclEsimdSplitStatus::ESIMD_ONLY;
   }
   // Tells if this group has only SYCL entry points.
   bool isSycl() const {
