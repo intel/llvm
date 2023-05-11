@@ -36,10 +36,6 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 
 /// @} sycl_esimd_memory
 
-// sycl_esimd_raw_send intrinsics are not available when stateless memory
-// accesses are enforced.
-#ifndef __ESIMD_FORCE_STATELESS_MEM
-
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
@@ -254,8 +250,6 @@ __ESIMD_API
 }
 
 /// @} sycl_esimd_raw_send
-
-#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
 /// @ingroup sycl_esimd_memory
@@ -782,7 +776,8 @@ lsc_gather(AccessorTy acc,
 #endif
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(
+      reinterpret_cast<T *>(acc.get_pointer()), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -855,8 +850,9 @@ lsc_gather(AccessorTy acc,
            __ESIMD_NS::simd_mask<N> pred,
            __ESIMD_NS::simd<T, N * NElts> old_values) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred,
-                                            old_values);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(
+      reinterpret_cast<T *>(acc.get_pointer()), offsets, pred, old_values);
+
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
