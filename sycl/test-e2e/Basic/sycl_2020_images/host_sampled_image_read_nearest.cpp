@@ -76,7 +76,7 @@ bool checkSampledImageHostReadNearest(
       auto ReadVal = Acc.read(OffsetCoord);
       auto ExpectedVal = ReadNearest<Format, AddrMode>(
           RefData, OffsetCoord, ImagePitch, ImageRange, Normalized);
-      if (!ApproxEq(ReadVal, ExpectedVal)) {
+      if (!AllTrue(ReadVal == ExpectedVal)) {
         std::cout << "Unexpected read value (" << ReadVal
                   << " != " << ExpectedVal << ") at coordinate " << OffsetCoord
                   << " (" << FormatTraits<Format>::Name << ") ("
