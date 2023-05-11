@@ -1177,7 +1177,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     std::optional<mlir::Type> ElemTy = ET;
 
     if (RD->isUnion()) {
-      LLVM::TypeFromLLVMIRTranslator TypeTranslator(*Module->getContext());
+      mlirclang::CodeGen::TypeFromLLVMIRTranslator TypeTranslator(
+          *Module->getContext());
       auto SubType = TypeTranslator.translateType(
           mlirclang::getLLVMType(FD->getType(), Glob.getCGM()));
       ElemTy = SubType;
@@ -1562,7 +1563,8 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
   if (LLVMFunctions.find(Name) != LLVMFunctions.end())
     return LLVMFunctions[Name];
 
-  LLVM::TypeFromLLVMIRTranslator TypeTranslator(*Module->getContext());
+  mlirclang::CodeGen::TypeFromLLVMIRTranslator TypeTranslator(
+      *Module->getContext());
 
   std::vector<Type> Types;
   if (const auto *CC = dyn_cast<clang::CXXMethodDecl>(FD))

@@ -72,12 +72,12 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-LABEL:   func.func private @_ZZ14lt_kernel_cudaENK3$_0clEv(
 // CHECK-SAME:                                                      %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<internal>} {
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !polygeist.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_1]] x !polygeist.struct<(i8)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<(!llvm.ptr)>
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(i8)>
-// CHECK-NEXT:      llvm.store %[[VAL_6]], %[[VAL_2]] : !llvm.struct<(i8)>, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !polygeist.struct<(i8)>
+// CHECK-NEXT:      llvm.store %[[VAL_6]], %[[VAL_2]] : !polygeist.struct<(i8)>, !llvm.ptr
 // CHECK-NEXT:      call @_Z11igpu_kernelIZZ14lt_kernel_cudaENK3$_0clEvEUlvE_EvR15MTensorIteratorRKT_(%[[VAL_5]], %[[VAL_2]]) : (!llvm.ptr, !llvm.ptr) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }

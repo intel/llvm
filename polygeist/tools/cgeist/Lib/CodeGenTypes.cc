@@ -19,6 +19,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
@@ -403,6 +404,39 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
   TotalIRArgs = IRArgNo;
 }
 } // namespace
+
+mlir::Type TypeFromLLVMIRTranslator::translateType(llvm::Type *type) {
+  // TODO: Handle recursive struct type.
+  bool Recursive = false;
+  if (llvm::StructType *ST = dyn_cast<llvm::StructType>(type))
+    for (size_t I = 0; I < ST->getNumElements(); I++) {
+      SmallPtrSet<llvm::Type *, 4> Seen;
+      if (isRecursiveStruct(ST->getTypeAtIndex(I), type, Seen))
+        Recursive = true;
+    }
+
+  mlir::Type ty = mlir::LLVM::TypeFromLLVMIRTranslator::translateType(type);
+  if (Recursive || !isa<llvm::StructType>(type))
+    return ty;
+
+  LLVMTypeConverter typeConverter(ty.getContext());
+  typeConverter.addConversion(
+      [&](LLVM::LLVMStructType ST) -> Optional<mlir::Type> {
+        std::optional<StringAttr> name = std::nullopt;
+        if (ST.isIdentified())
+          name = StringAttr::get(ST.getContext(), ST.getName());
+        if (ST.isOpaque())
+          return polygeist::StructType::getOpaque(*name, ST.getContext());
+        SmallVector<mlir::Type> convertedElemTypes;
+        convertedElemTypes.reserve(ST.getBody().size());
+        //(void)typeConverter.convertTypes(ST.getBody(), convertedElemTypes);
+        // return polygeist::StructType::get(ST.getContext(),
+        // convertedElemTypes, name, ST.isPacked());
+        return polygeist::StructType::get(ST.getContext(), ST.getBody(), name,
+                                          ST.isPacked());
+      });
+  return typeConverter.convertType(ty);
+}
 
 CodeGenTypes::CodeGenTypes(clang::CodeGen::CodeGenModule &CGM,
                            mlir::OwningOpRef<mlir::ModuleOp> &Module)
@@ -1350,7 +1384,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     return polygeist::StructType::get(TheModule->getContext(), Types);
   }
 
-  mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
+  TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
 
   if (const auto *RT = dyn_cast<clang::RecordType>(QT)) {
     LLVM_DEBUG({
@@ -1623,7 +1657,7 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   assert(BT && "Expecting valid pointer");
 
   mlir::OpBuilder Builder(TheModule->getContext());
-  mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
+  TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
 
   switch (BT->getKind()) {
   case BuiltinType::Void:

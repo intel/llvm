@@ -35,7 +35,7 @@
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: !sycl_stream = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
-// CHECK-DAG: !sycl_swizzled_vec_f32_8_ = !sycl.swizzled_vec<[!sycl_vec_f32_8_, 0, 1, 2], (memref<?x!sycl_vec_f32_8_, 4>, !llvm.struct<(i8)>, !llvm.struct<(i8)>)>
+// CHECK-DAG: !sycl_swizzled_vec_f32_8_ = !sycl.swizzled_vec<[!sycl_vec_f32_8_, 0, 1, 2], (memref<?x!sycl_vec_f32_8_, 4>, !polygeist.struct<(i8)>, !polygeist.struct<(i8)>)>
 // CHECK-DAG: !sycl_vec_f32_8_ = !sycl.vec<[f32, 8], (vector<8xf32>)>
 // CHECK-DAG: !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
 

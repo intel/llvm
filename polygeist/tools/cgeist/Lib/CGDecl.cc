@@ -47,7 +47,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
     SubType = Glob.getTypes().getMLIRType(
         Glob.getCGM().getContext().getLValueReferenceType(Decl->getType()));
 
-  LLVM::TypeFromLLVMIRTranslator TypeTranslator(*Module->getContext());
+  mlirclang::CodeGen::TypeFromLLVMIRTranslator TypeTranslator(
+      *Module->getContext());
   ValueCategory InitExpr = nullptr;
 
   if (Expr *Init = Decl->getInit()) {

@@ -31,7 +31,7 @@ void make() {
 // CHECK-DAG:       %[[VAL_0:.*]] = arith.constant 3.140000e+00 : f64
 // CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 3 : i32
 // CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !polygeist.struct<(i8)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      call @_ZN3SubC1Eid(%[[VAL_3]], %[[VAL_1]], %[[VAL_0]]) : (!llvm.ptr, i32, f64) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }

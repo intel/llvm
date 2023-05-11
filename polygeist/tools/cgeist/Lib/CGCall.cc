@@ -616,7 +616,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       }
     }
 
-  LLVM::TypeFromLLVMIRTranslator TypeTranslator(*Module->getContext());
+  mlirclang::CodeGen::TypeFromLLVMIRTranslator TypeTranslator(
+      *Module->getContext());
 
   auto GetLLVM = [&](clang::Expr *E) -> Value {
     auto Sub = Visit(E);

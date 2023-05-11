@@ -15,6 +15,7 @@
 
 #include "Attributes.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 #include "clang/Basic/ABI.h"
 #include <map>
 
@@ -51,6 +52,15 @@ class LLVMPointerType;
 
 namespace mlirclang {
 namespace CodeGen {
+
+/// Utility class to translate LLVM IR types to the MLIR LLVM dialect.
+/// And convert `!llvm.struct` to `!polygeist.struct`.
+class TypeFromLLVMIRTranslator : public mlir::LLVM::TypeFromLLVMIRTranslator {
+public:
+  TypeFromLLVMIRTranslator(mlir::MLIRContext &context)
+      : mlir::LLVM::TypeFromLLVMIRTranslator(context) {}
+  mlir::Type translateType(llvm::Type *type);
+};
 
 /// This class organizes the cross-module state that is used while lowering
 /// AST types to MLIR types.
