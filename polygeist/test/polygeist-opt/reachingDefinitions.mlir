@@ -108,6 +108,7 @@ func.func @test6(%arg1: memref<i32>, %arg2: memref<i32>) {
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods: test7_store1
+// CHECK-LABEL: test_tag: test7_load2
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods: <none>
@@ -201,16 +202,16 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
 // COM: Test load after load in the presence of control flow.
 // CHECK-LABEL: test_tag: test12_load1:
 // CHECK-NEXT:  operand #0
-// CHECK-NEXT:  - mods: <initial> test12_store2
+// CHECK-NEXT:  - mods: <initial> test12_store1
 // CHECK-NEXT:  - pMods: <none>
 // CHECK-LABEL: test_tag: test12_load2:
 // CHECK-NEXT:  operand #0
 // CHECK-NEXT:  - mods: <initial>
-// CHECK-NEXT:  - pMods: test12_store2
+// CHECK-NEXT:  - pMods: test12_store1
 func.func @test12(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
   scf.if %cond {
     %val = arith.constant 0 : i32
-    memref.store %val, %arg1[] {tag_name = "test12_store2"}: memref<i32>
+    memref.store %val, %arg1[] {tag_name = "test12_store1"}: memref<i32>
     scf.yield
   }
   else {
@@ -235,7 +236,7 @@ func.func @test13(%val: i64) {
 }
 
 // COM: Test that a definition reaches a sycl.accessor.subscript operation.
-// CHECK-LABEL: test_tag: test14_load1
+// CHECK-LABEL: test_tag: test14_sub1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods: <none>
@@ -246,6 +247,6 @@ func.func @test14(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb,
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>  
   affine.store %val, %alloca[0] {tag_name = "test14_store1"}: memref<1x!sycl_id_1>
-  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test14_load1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
+  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test14_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
   return
 }

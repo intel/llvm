@@ -21,23 +21,6 @@ namespace mlir {
 namespace polygeist {
 
 //===----------------------------------------------------------------------===//
-// Initial Definition
-//===----------------------------------------------------------------------===//
-
-InitialDefinition *InitialDefinition::singleton = nullptr;
-
-InitialDefinition *InitialDefinition::getInstance() {
-  if (singleton == nullptr)
-    singleton = new InitialDefinition();
-  return singleton;
-}
-
-raw_ostream &operator<<(raw_ostream &os, const InitialDefinition &def) {
-  os << "<initial>";
-  return os;
-}
-
-//===----------------------------------------------------------------------===//
 // Definition
 //===----------------------------------------------------------------------===//
 
@@ -45,23 +28,21 @@ raw_ostream &operator<<(raw_ostream &os, const Definition &def) {
   if (def.isOperation())
     os << *def.getOperation();
   if (def.isInitialDefinition())
-    os << *def.getInitialDefinition();
+    os << "<initial>";
   return os;
 }
 
 bool Definition::operator==(const Definition &other) const {
   if (isOperation() && other.isOperation())
     return getOperation() == other.getOperation();
-  if (isInitialDefinition() && other.isInitialDefinition())
-    return true;
-  return false;
+  return (isInitialDefinition() && other.isInitialDefinition());
 }
 
 bool Definition::operator<(const Definition &other) const {
   if (isOperation() && other.isOperation())
     return getOperation() < other.getOperation();
   if (isInitialDefinition() && other.isInitialDefinition())
-    return false; // InitialDefinition is a singleton.
+    return false;
   return isInitialDefinition();
 }
 
@@ -78,16 +59,16 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
   auto printMap = [&os](const DenseMap<Value, ModifiersTy> &map,
                         StringRef title) {
     for (const auto &entry : map) {
-      Value val = entry.first;
+      const Value &val = entry.first;
       const ModifiersTy &valModifiers = entry.second;
 
-      os.indent(4) << val << "\n";
-      os.indent(4) << title << "\n";
+      os.indent(4) << "val: " << val << "\n";
+      os.indent(6) << title << "\n";
       if (valModifiers.empty())
-        os.indent(6) << "<none>\n";
+        os.indent(8) << "<none>\n";
       else {
-        for (const std::shared_ptr<Definition> &def : valModifiers)
-          os.indent(6) << *def << "\n";
+        for (const Definition &def : valModifiers)
+          os.indent(8) << def << "\n";
       }
     }
   };
@@ -107,7 +88,7 @@ ReachingDefinition::ReachingDefinition(ProgramPoint p)
     if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
       for (Value arg : funcOp.getArguments()) {
         if (isa<MemRefType>(arg.getType()))
-          setModifier(arg, std::make_shared<Definition>());
+          setModifier(arg, Definition());
       }
     }
   }
@@ -145,12 +126,9 @@ ChangeResult ReachingDefinition::reset() {
   return ChangeResult::Change;
 }
 
-ChangeResult ReachingDefinition::setModifier(Value val, DefinitionPtr def) {
-  ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
-  assert((mods.size() != 1 || *mods.begin() != def) &&
-         "seen this modifier already");
-
+ChangeResult ReachingDefinition::setModifier(Value val, Definition def) {
   // Set the new modifier and clear out all previous definitions.
+  ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
   mods.clear();
   mods.insert(def);
   valueToPotentialModifiers[val].clear();
@@ -168,7 +146,7 @@ ChangeResult ReachingDefinition::removeModifiers(Value val) {
 }
 
 ChangeResult ReachingDefinition::addPotentialModifier(Value val,
-                                                      DefinitionPtr def) {
+                                                      Definition def) {
   return (valueToPotentialModifiers[val].insert(def).second)
              ? ChangeResult::Change
              : ChangeResult::NoChange;
@@ -264,20 +242,18 @@ void ReachingDefinitionAnalysis::visitOperation(
     TypeSwitch<MemoryEffects::Effect *>(effect.getEffect())
         .Case<MemoryEffects::Allocate>([&](auto) {
           // An allocate operation creates a definition for the current value.
-          result |= after->setModifier(val, std::make_shared<Definition>(op));
+          result |= after->setModifier(val, Definition(op));
         })
         .Case<MemoryEffects::Write>([&](auto) {
           // A write operation updates the definition of the current value
           // and the definition of its definitely aliased values. It also
           // updates the potential definitions of values that may alias the
           // current value.
-          result |= after->setModifier(val, std::make_shared<Definition>(op));
+          result |= after->setModifier(val, Definition(op));
           for (Value aliasedVal : aliasOracle.getMustAlias(val))
-            result |= after->setModifier(aliasedVal,
-                                         std::make_shared<Definition>(op));
+            result |= after->setModifier(aliasedVal, Definition(op));
           for (Value aliasedVal : aliasOracle.getMayAlias(val))
-            result |= after->addPotentialModifier(
-                aliasedVal, std::make_shared<Definition>(op));
+            result |= after->addPotentialModifier(aliasedVal, Definition(op));
         })
         .Case<MemoryEffects::Free>([&](auto) {
           // A deallocate operation kills reaching definitions of the

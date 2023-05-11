@@ -870,15 +870,15 @@ bool MemoryAccessAnalysis::hasZeroIndex(const MemRefAccess &access) const {
   return (index && index.getValue() == 0);
 }
 
-std::shared_ptr<Definition>
-MemoryAccessAnalysis::getUniqueDefinitionOrNull(unsigned opIndex, Operation *op,
-                                                DataFlowSolver &solver) const {
+std::optional<Definition>
+MemoryAccessAnalysis::getUniqueDefinition(unsigned opIndex, Operation *op,
+                                          DataFlowSolver &solver) const {
   using ModifiersTy = ReachingDefinition::ModifiersTy;
 
   const ReachingDefinition *reachingDef =
       solver.lookupState<ReachingDefinition>(op);
   if (!reachingDef)
-    return nullptr;
+    return std::nullopt;
 
   Value operand = op->getOperand(opIndex);
   std::optional<ModifiersTy> mods = reachingDef->getModifiers(operand);
@@ -887,10 +887,10 @@ MemoryAccessAnalysis::getUniqueDefinitionOrNull(unsigned opIndex, Operation *op,
 
   // If there are potential modifiers then there is no unique modifier.
   if (pMods.has_value() && !pMods->empty())
-    return nullptr;
+    return std::nullopt;
 
   if (!mods.has_value() || mods->empty())
-    return nullptr;
+    return std::nullopt;
 
   return *mods->begin();
 }
@@ -899,9 +899,8 @@ SmallVector<Value>
 MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
                                           DataFlowSolver &solver) const {
   Value operand = op->getOperand(opIndex);
-  std::shared_ptr<Definition> def =
-      getUniqueDefinitionOrNull(opIndex, op, solver);
-  if (!def)
+  std::optional<Definition> def = getUniqueDefinition(opIndex, op, solver);
+  if (!def.has_value())
     return {operand};
 
   LLVM_DEBUG({
