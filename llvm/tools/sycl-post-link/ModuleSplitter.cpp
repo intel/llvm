@@ -139,11 +139,12 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
 
   // Only process module entry points:
   for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F))
       continue;
     if (isESIMDFunction(F))
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    else if (MD.isEntryPointCandidate(F))
+    else
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
   }
 
@@ -333,6 +334,27 @@ ModuleDesc extractCallGraph(
     const DependencyGraph &CG,
     const std::function<bool(const Function *)> &Filter = nullptr) {
   SetVector<const GlobalValue *> GVs;
+  collectFunctionsAndGlobalVariablesToExtract(GVs, MD.getModule(),
+                                              ModuleEntryPoints, CG, Filter);
+
+  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  SplitM.cleanup();
+
+  return SplitM;
+}
+
+// The function is simlar to 'extracCallGraph', but it produces a coupe of
+// input LLVM IR module M with _all_ ESIMD functions and kernels included,
+// regardless of whether or not they are listed in ModuleEntryPoints.
+ModuleDesc extractESIMDCallGraph(
+    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
+    const DependencyGraph &CG,
+    const std::function<bool(const Function *)> &Filter = nullptr) {
+  SetVector<const GlobalValue *> GVs;
+  for (const auto &F : MD.getModule().functions())
+    if (isESIMDFunction(F))
+      GVs.insert(&F);
+
   collectFunctionsAndGlobalVariablesToExtract(GVs, MD.getModule(),
                                               ModuleEntryPoints, CG, Filter);
 
@@ -916,14 +938,17 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   DependencyGraph CG(MD.getModule());
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
-      // For ESIMD module, we use full call graph
+      // For ESIMD module, we use full call graph of all entry points and all
+      // ESIMD functions.
       Result.emplace_back(
-          std::move(extractCallGraph(MD, std::move(Group), CG)));
+          std::move(extractESIMDCallGraph(MD, std::move(Group), CG)));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
-      // is needed, because there could be references to ESIMD functions through
-      // invoke_simd. If that is the case, both modules are expected to be
-      // linked back together after ESIMD functions were processed.
+      // is needed, because there could be uses of ESIMD functions from
+      // non-ESIMD functions through invoke_simd. If that is the case, both
+      // modules are expected to be linked back together after ESIMD functions
+      // were processed and therefore it is fine to return an "incomplete"
+      // module here.
       Result.emplace_back(std::move(extractCallGraph(
           MD, std::move(Group), CG,
           [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
