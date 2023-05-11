@@ -16,7 +16,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include <optional>
 
 namespace llvm {
 

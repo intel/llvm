@@ -15,8 +15,6 @@
 #ifndef LLVM_IR_FPACCURACY_H
 #define LLVM_IR_FPACCURACY_H
 
-#include <optional>
-
 namespace llvm {
 
 class StringRef;
