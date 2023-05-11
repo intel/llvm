@@ -2230,7 +2230,7 @@ __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
     Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
   }
 
-  __ESIMD_NS::simd_mask<BlockHeight *Pitch> pred = 1;
+  __ESIMD_NS::simd_mask<BlockHeight * Pitch> pred = 1;
   __esimd_lsc_store2d_stateless<T, L1H, L3H, DS, _Transposed, 1u, BlockWidth,
                                 BlockHeight, false, BlockHeight * Pitch>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
