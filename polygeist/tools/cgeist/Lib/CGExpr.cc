@@ -1570,9 +1570,24 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return Visit(E->getSubExpr());
 
   case clang::CastKind::CK_LValueBitCast: {
-    E->dump();
-    llvm_unreachable("LValue bitcast not handled yet\n");
-  } break;
+    Expr *SubExpr = E->getSubExpr();
+    ValueCategory Addr = EmitLValue(SubExpr);
+    mlir::Type SrcTy = Addr.val.getType();
+    unsigned AddrSpace = mlirclang::getAddressSpace(SrcTy);
+    mlir::Type DestElemTy = Glob.getTypes().getMLIRType(E->getType());
+    mlir::Type DestTy = Glob.getTypes().getPointerType(DestElemTy, AddrSpace);
+    Location Loc = getMLIRLocation(E->getExprLoc());
+    bool NeedsPtrConversion = isa<MemRefType>(SrcTy);
+    if (NeedsPtrConversion)
+      Addr = Addr.MemRef2Ptr(Builder, Loc);
+    Addr = Addr.BitCast(Builder, Loc, DestTy, DestElemTy);
+    Addr.ElementType = DestElemTy;
+    if (NeedsPtrConversion) {
+      auto MT = cast<MemRefType>(SrcTy);
+      Addr = Addr.Ptr2MemRef(Builder, Loc, MT.getShape(), MT.getLayout());
+    }
+    return Addr;
+  }
   case clang::CastKind::CK_AddressSpaceConversion: {
     ValueCategory Scalar = Visit(E->getSubExpr());
     QualType DestTy = E->getType();
