@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: hip
-// REQUIRES: fusion
 
 // Test correct return from device information descriptor.
 

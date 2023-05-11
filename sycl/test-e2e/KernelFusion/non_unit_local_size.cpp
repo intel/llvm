@@ -1,7 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test complete fusion with local internalization specified on the
 // accessors, where each work-item processes multiple data-items.

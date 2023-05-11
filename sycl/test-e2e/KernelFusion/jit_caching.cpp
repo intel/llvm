@@ -1,7 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "COMPUTATION ERROR" --implicit-check-not "WRONG INTERNALIZATION"
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test caching for JIT fused kernels. Also test for debug messages being
 // printed when SYCL_RT_WARNING_LEVEL=1.

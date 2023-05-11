@@ -1,7 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test complete fusion with private internalization specified on the
 // accessors for a combination of four kernels, forming a diamond-like shape and

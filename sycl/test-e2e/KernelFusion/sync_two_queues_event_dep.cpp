@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: hip
 // For this test, complete_fusion must be supported.
-// REQUIRES: fusion
 
 // Test fusion cancellation on event dependency between two active fusions.
 

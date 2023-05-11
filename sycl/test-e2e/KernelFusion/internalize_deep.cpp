@@ -1,7 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test complete fusion with internalization of a deep struct type.
 

@@ -1,8 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1\
 // RUN: | FileCheck %s
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// UNSUPPORTED: cuda
 
 // Test complete fusion of kernels with different ND-ranges.
 
