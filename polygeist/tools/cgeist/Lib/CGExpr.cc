@@ -1570,8 +1570,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return Visit(E->getSubExpr());
 
   case clang::CastKind::CK_LValueBitCast: {
-    Expr *SubExpr = E->getSubExpr();
-    ValueCategory Addr = EmitLValue(SubExpr);
+    ValueCategory Addr = EmitLValue(E->getSubExpr());
     mlir::Type SrcTy = Addr.val.getType();
     unsigned AddrSpace = mlirclang::getAddressSpace(SrcTy);
     mlir::Type DestElemTy = Glob.getTypes().getMLIRType(E->getType());
