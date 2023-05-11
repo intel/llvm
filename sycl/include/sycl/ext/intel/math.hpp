@@ -510,6 +510,42 @@ __internal_fp_convert_rz(std::enable_if_t<std::is_same_v<From, int>, int> x) {
                             __imf_int2bfloat16_rz(x));
 }
 
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                        sycl::ext::oneapi::bfloat16>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, long long int>, long long int> x) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_ll2bfloat16_rd(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                        sycl::ext::oneapi::bfloat16>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, long long int>, long long int> x) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_ll2bfloat16_rn(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                        sycl::ext::oneapi::bfloat16>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, long long int>, long long int> x) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_ll2bfloat16_ru(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                        sycl::ext::oneapi::bfloat16>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, long long int>, long long int> x) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_ll2bfloat16_rz(x));
+}
+
 float bfloat162float(sycl::ext::oneapi::bfloat16 x) {
   return __imf_bfloat162float(__builtin_bit_cast(uint16_t, x));
 }
@@ -734,6 +770,41 @@ To int2bfloat16_rz(From x) {
       std::enable_if_t<std::is_same_v<From, int>, int>>(x);
 }
 
+template <typename To = sycl::ext::oneapi::bfloat16,
+          typename From = long long int>
+To ll2bfloat16_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                       sycl::ext::oneapi::bfloat16>,
+      std::enable_if_t<std::is_same_v<From, long long int>, long long int>>(x);
+}
+
+template <typename To = sycl::ext::oneapi::bfloat16,
+          typename From = long long int>
+To ll2bfloat16_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                       sycl::ext::oneapi::bfloat16>,
+      std::enable_if_t<std::is_same_v<From, long long int>, long long int>>(x);
+}
+
+template <typename To = sycl::ext::oneapi::bfloat16,
+          typename From = long long int>
+To ll2bfloat16_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                       sycl::ext::oneapi::bfloat16>,
+      std::enable_if_t<std::is_same_v<From, long long int>, long long int>>(x);
+}
+
+template <typename To = sycl::ext::oneapi::bfloat16,
+          typename From = long long int>
+To ll2bfloat16_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                       sycl::ext::oneapi::bfloat16>,
+      std::enable_if_t<std::is_same_v<From, long long int>, long long int>>(x);
+}
 } // namespace ext::intel::math
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
