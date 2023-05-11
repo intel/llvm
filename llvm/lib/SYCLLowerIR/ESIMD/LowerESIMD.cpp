@@ -1821,6 +1821,7 @@ void lowerGlobalsToVector(Module &M) {
           new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
                              G.getThreadLocalMode(), G.getAddressSpace());
       NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
+      NewGlobalVar->setVisibility(G.getVisibility());
       NewGlobalVar->copyAttributesFrom(&G);
       NewGlobalVar->takeName(&G);
       NewGlobalVar->copyMetadata(&G, 0);
