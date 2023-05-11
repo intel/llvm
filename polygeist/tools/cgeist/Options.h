@@ -237,7 +237,7 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Only emit device code in MLIR output"));
 
 static llvm::cl::opt<mlir::sycl::Implementation> SYCLImplementation(
-    llvm::cl::desc("use-opaque-pointers"),
+    llvm::cl::desc("SYCL implementation to target on lowering"),
     llvm::cl::init(mlir::sycl::Implementation::DPCPP),
     llvm::cl::values(clEnumVal(mlir::sycl::Implementation::DPCPP, "dpcpp")));
 
