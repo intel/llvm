@@ -620,6 +620,9 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
 
+  if (options.getCgeistOpts().getSYCLIsDevice() && SYCLDeviceOnly)
+    eraseHostCode(*Module);
+
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
@@ -629,6 +632,21 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
   PM.addPass(mlir::createSymbolDCEPass());
 
   if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
+    // SYCL host code is never output for non-MLIR format. If this option is
+    // set, the host code should have already been removed.
+    if (options.getCgeistOpts().getSYCLIsDevice()) {
+      if (!SYCLDeviceOnly)
+        eraseHostCode(*Module);
+      // else it has already been removed
+      LLVM_DEBUG({
+        const auto &HostOperations =
+            Module->getRegion().front().getOperations();
+        assert(HostOperations.size() == 1 &&
+               isa<gpu::GPUModuleOp>(HostOperations.front()) &&
+               "The host code should have been erased by now");
+      });
+    }
+
     PM.addPass(mlir::createLowerAffinePass());
     if (InnerSerialize)
       PM.addPass(polygeist::createInnerSerializationPass());
@@ -722,9 +740,6 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       Module->dump();
     });
   }
-
-  if (SYCLDeviceOnly)
-    eraseHostCode(*Module);
 
   return success();
 }
@@ -840,10 +855,6 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
                  << "*** Dumped MLIR in file '" << Output << "' ***\n");
     }
   } else {
-    // Host code is never output for non-MLIR format. If this option is set, the
-    // host code should have already been removed.
-    if (!SYCLDeviceOnly)
-      eraseHostCode(*Module);
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
     auto LLVMModule =
@@ -1142,12 +1153,6 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
                    Commands);
 }
 
-static bool containsFunctions(mlir::gpu::GPUModuleOp DeviceModule) {
-  Region &Rgn = DeviceModule.getRegion();
-  return !Rgn.getOps<mlir::gpu::GPUFuncOp>().empty() ||
-         !Rgn.getOps<mlir::func::FuncOp>().empty();
-}
-
 template <typename T> static void filterFunctions(T Module) {
   if (Cfunction.getNumOccurrences() == 0 || Cfunction == "*")
     return;
@@ -1291,9 +1296,9 @@ int main(int argc, char **argv) {
     Module->dump();
   });
 
-  // For now, we will work on the device code if it contains any functions and
-  // on the host code otherwise.
-  if (containsFunctions(DeviceModule)) {
+  bool SYCLIsDevice = options.getCgeistOpts().getSYCLIsDevice();
+  // For SYCL code, we will drop the host code for now.
+  if (SYCLIsDevice) {
     eraseHostCode(*Module);
     Module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
@@ -1307,7 +1312,7 @@ int main(int argc, char **argv) {
   });
 
   if (SYCLUseHostModule != "") {
-    if (!options.getCgeistOpts().getSYCLIsDevice()) {
+    if (!SYCLIsDevice) {
       llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
                       "device compilation\n";
       return -1;
