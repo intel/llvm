@@ -597,8 +597,8 @@ __CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
 __CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
 __CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 
-__CLC_GROUP_COLLECTIVE(LogicalOrKHR, __CLC_AND, bool, false)
-__CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_AND, bool, true)
+__CLC_GROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, false)
+__CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 // half requires additional mangled entry points
 #define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
