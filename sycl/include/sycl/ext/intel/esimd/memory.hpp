@@ -534,7 +534,12 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<T, N>>
-gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+gather(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+       simd<uint64_t, N> offsets, uint64_t glob_offset = 0,
+#else
+       simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+#endif
        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
@@ -567,8 +572,13 @@ template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              (N == 1 || N == 8 || N == 16 || N == 32) &&
                              !std::is_pointer<AccessorTy>::value>
-scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+scatter(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+        simd<uint64_t, N> offsets, simd<T, N> vals, uint64_t glob_offset = 0,
+#else
+        simd<uint32_t, N> offsets, simd<T, N> vals, uint32_t glob_offset = 0,
+#endif
+        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
