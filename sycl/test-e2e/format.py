@@ -5,6 +5,9 @@ import os
 
 class SYCLEndToEndTest(lit.formats.ShTest):
     def execute(self, test, litConfig):
+        if test.config.unsupported:
+            return lit.Test.Result(lit.Test.UNSUPPORTED, 'Test is unsupported')
+
         filename = test.path_in_suite[-1]
         tmpDir, tmpBase = lit.TestRunner.getTempPaths(test)
         script = lit.TestRunner.parseIntegratedTestScript(test, require_script=True)
