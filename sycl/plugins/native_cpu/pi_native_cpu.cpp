@@ -58,7 +58,7 @@ using nativecpu_ptr_t = void (*)(
 using nativecpu_task_t = std::function<void(
     const std::vector<sycl::detail::NativeCPUArgDesc> &, nativecpu_state *)>;
 struct _pi_kernel : _pi_object {
-  const char* _name;
+  const char *_name;
   nativecpu_task_t _subhandler;
   std::vector<sycl::detail::NativeCPUArgDesc> _args;
 };
@@ -111,7 +111,7 @@ sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
                                   const size_t *GlobalWorkOffset,
                                   const size_t *GlobalWorkSize,
                                   const size_t *LocalWorkSize) {
-  // Todo: we flip indexes here, I'm not sure we should, if we don't we need to 
+  // Todo: we flip indexes here, I'm not sure we should, if we don't we need to
   // un-flip them in the spirv builtins definitions as well
   sycl::detail::NDRDescT Res;
   switch (WorkDim) {
@@ -214,6 +214,11 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
 
   case PI_PLATFORM_INFO_EXTENSIONS:
     return ReturnValueArray("");
+
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return getInfo<pi_platform_backend>(
+        ParamValueSize, ParamValue, ParamValueSizeRet,
+        _pi_platform_backend::PI_EXT_PLATFORM_BACKEND_NATIVE_CPU);
 
   default:
     DIE_NO_IMPLEMENTATION;
@@ -751,7 +756,8 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelCreate(pi_program program, const char *name, pi_kernel *kernel) {
+pi_result piKernelCreate(pi_program program, const char *name,
+                         pi_kernel *kernel) {
   // Todo: error checking
   auto ker = new _pi_kernel();
   auto f = reinterpret_cast<nativecpu_ptr_t>(program->_ptr);

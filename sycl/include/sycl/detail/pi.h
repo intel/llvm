@@ -216,6 +216,7 @@ typedef enum {
   PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
   PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
   PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+  PI_EXT_PLATFORM_BACKEND_NATIVE_CPU = 6, ///< The backend is NATIVE_CPU
 } _pi_platform_backend;
 
 typedef enum {
