@@ -35,7 +35,7 @@ bool checkUnsampledImageHostReadDirect(
     PixelType ReadVal = Acc.read(Coord);
     PixelType ExpectedVal =
         SimulateRead<Format, ImgType>(RefData, Coord, ImagePitch, ImageRange);
-    if (!ApproxEq(ReadVal, ExpectedVal)) {
+    if (!AllTrue(ReadVal == ExpectedVal)) {
       std::cout << "Unexpected read value (" << ReadVal << " != " << ExpectedVal
                 << ") at coordinate " << Coord << " ("
                 << FormatTraits<Format>::Name << ")" << std::endl;
