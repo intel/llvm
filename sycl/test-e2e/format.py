@@ -1,6 +1,8 @@
 import lit
 import lit.formats
 
+import os
+
 class SYCLEndToEndTest(lit.formats.ShTest):
     def execute(self, test, litConfig):
         filename = test.path_in_suite[-1]
