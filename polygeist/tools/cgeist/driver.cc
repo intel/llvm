@@ -716,13 +716,13 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     if (!EmitOpenMPIR) {
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
-      ConvertPolygeistToLLVMOptions Options;
-      Options.dataLayout = DL.getStringRepresentation();
+      ConvertPolygeistToLLVMOptions ConvertOptions;
+      ConvertOptions.dataLayout = DL.getStringRepresentation();
       if (options.getCgeistOpts().getSYCLIsDevice()) {
         Options.syclImplementation = SYCLImplementation;
         Options.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
       }
-      PM3.addPass(createConvertPolygeistToLLVM(Options));
+      PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
