@@ -35,30 +35,6 @@ long long __imf_bfloat162ll_rd(uint16_t);
 long long __imf_bfloat162ll_rn(uint16_t);
 long long __imf_bfloat162ll_ru(uint16_t);
 long long __imf_bfloat162ll_rz(uint16_t);
-/*uint16_t __imf_ushort2bfloat16_rd(unsigned short);
-uint16_t __imf_ushort2bfloat16_rn(unsigned short);
-uint16_t __imf_ushort2bfloat16_ru(unsigned short);
-uint16_t __imf_ushort2bfloat16_rz(unsigned short);
-uint16_t __imf_uint2bfloat16_rd(unsigned);
-uint16_t __imf_uint2bfloat16_rn(unsigned);
-uint16_t __imf_uint2bfloat16_ru(unsigned);
-uint16_t __imf_uint2bfloat16_rz(unsigned);
-uint16_t __imf_ull2bfloat16_rd(unsigned long long);
-uint16_t __imf_ull2bfloat16_rn(unsigned long long);
-uint16_t __imf_ull2bfloat16_ru(unsigned long long);
-uint16_t __imf_ull2bfloat16_rz(unsigned long long);
-uint16_t __imf_short2bfloat16_rd(short);
-uint16_t __imf_short2bfloat16_rn(short);
-uint16_t __imf_short2bfloat16_ru(short);
-uint16_t __imf_short2bfloat16_rz(short);
-uint16_t __imf_int2bfloat16_rd(int);
-uint16_t __imf_int2bfloat16_rn(int);
-uint16_t __imf_int2bfloat16_ru(int);
-uint16_t __imf_int2bfloat16_rz(int);
-uint16_t __imf_ll2bfloat16_rd(long long int);
-uint16_t __imf_ll2bfloat16_rn(long long int);
-uint16_t __imf_ll2bfloat16_ru(long long int);
-uint16_t __imf_ll2bfloat16_rz(long long int);*/
 };
 
 int main() {
