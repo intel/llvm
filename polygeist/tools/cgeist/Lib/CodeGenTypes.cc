@@ -27,6 +27,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/Assumptions.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -1546,11 +1547,12 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       // SYCL types, that means that this is the functor, and we can't create
       // a llvm pointer that contains custom aggregate types. We could create
       // a sycl::Functor type, that will help us get rid of those conditions.
-      bool InnerSYCL = false;
-      if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(SubType))
-        InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
-      else if (auto ST = dyn_cast<polygeist::StructType>(SubType))
-        InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
+      bool InnerSYCL =
+          mlir::TypeSwitch<mlir::Type, bool>(SubType)
+              .Case<LLVM::LLVMStructType, polygeist::StructType>([&](auto ST) {
+                return any_of(ST.getBody(), mlir::sycl::isSYCLType);
+              })
+              .Default(false);
 
       if (!InnerSYCL)
         return getPointerType(SubType, CGM.getContext().getTargetAddressSpace(
