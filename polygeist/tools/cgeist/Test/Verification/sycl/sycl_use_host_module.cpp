@@ -1,12 +1,12 @@
 // RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
 // RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-mlir -o - %s \
-// RUN:     -Xcgeist -no-sycl-device-only | FileCheck %s
+// RUN:     -Xcgeist -sycl-device-only=false | FileCheck %s
 // RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
 // RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-mlir -o - %s \
 // RUN:     | FileCheck %s --check-prefix=CHECK-DROP
 // RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
 // RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-llvm -o - %s \
-// RUN:     -Xcgeist -no-sycl-device-only | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN:     -Xcgeist -sycl-device-only=false | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: clang++ -fsycl -fsycl-device-only -Xcgeist \
 // RUN:     -sycl-use-host-module=%S/host_module.mlir -O0 -w -emit-llvm -o - %s \
 // RUN:     | FileCheck %s --check-prefix=CHECK-LLVM

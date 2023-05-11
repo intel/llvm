@@ -110,7 +110,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
       Argv0, reinterpret_cast<void *>(GetExecutablePath));
 }
 
-static void eraseHostCode(mlir::ModuleOp Module) {
+static void eraseHostCode(ModuleOp Module) {
   LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
   SmallVector<std::reference_wrapper<Operation>> ToRemove;
   std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
@@ -723,7 +723,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     });
   }
 
-  if (!NoSYCLDeviceOnly)
+  if (SYCLDeviceOnly)
     eraseHostCode(*Module);
 
   return success();
@@ -840,8 +840,9 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
                  << "*** Dumped MLIR in file '" << Output << "' ***\n");
     }
   } else {
-    // Host code is never output for non-MLIR format.
-    if (NoSYCLDeviceOnly)
+    // Host code is never output for non-MLIR format. If this option is set, the
+    // host code should have already been removed.
+    if (!SYCLDeviceOnly)
       eraseHostCode(*Module);
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
