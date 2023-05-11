@@ -640,8 +640,8 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
     // polygeist.subindex operation should be a memref of the element type of
     // the struct.
 
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType,
-                                             convViewElemType, target, indices);
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        subViewOp, resType, convSourceElemType, target, indices);
 
     return success();
   }

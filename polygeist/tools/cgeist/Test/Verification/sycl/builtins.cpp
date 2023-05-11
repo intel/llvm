@@ -1,5 +1,5 @@
 // RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir -o - %s | FileCheck %s
-// RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-llvm -S -o %t %s && rm %t
+// RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O1 -w -emit-llvm -S -o %t %s && rm %t
 
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>

@@ -1,5 +1,5 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 #define N 32
@@ -17,10 +17,10 @@
 // CHECK-MLIR:      affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
 
 // CHECK-LLVM:       define internal spir_func void [[FUNC:@_ZZZ21vec_add_device_simpleRSt5arrayIfLm32EES1_S1_ENKUlRN4sycl3_V17handlerEE_clES5_ENKUlNS3_2idILi1EEEE_clES8_]]({{.*}}) #[[FUNCATTRS:[0-9]+]]
-// CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
-// CHECK-LLVM-DAG:   [[V2:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
+// CHECK-LLVM-DAG:   [[V1:%.*]] = load float, ptr addrspace(4) {{.*}}, align 4
+// CHECK-LLVM-DAG:   [[V2:%.*]] = load float, ptr addrspace(4) {{.*}}, align 4
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
-// CHECK-LLVM:       store float [[RESULT]], float addrspace(4)* {{.*}}, align 4
+// CHECK-LLVM:       store float [[RESULT]], ptr addrspace(4) {{.*}}, align 4
 
 // CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #[[FUNCATTRS1:[0-9]+]]
 // CHECK-LLVM:       call spir_func void [[FUNC]]
