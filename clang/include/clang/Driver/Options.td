@@ -3787,10 +3787,10 @@ def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Visibility<[ClangOptio
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
-    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
+    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultTrue,
     PosFlag<SetTrue, [], [ClangOption], "Enforce using stateless memory accesses. "
             "Convert stateful accesses via SYCL accessors to stateless within ESIMD kernels. "
-            "Disabled by default. (experimental)">,
+            "Enabled by default.">,
     NegFlag<SetFalse, [], [ClangOption], "Do not enforce using stateless memory accesses. (experimental)">,
     BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], "">>;
 // TODO: Remove this option once ESIMD headers are updated to

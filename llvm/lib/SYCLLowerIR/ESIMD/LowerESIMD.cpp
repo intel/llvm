@@ -57,7 +57,7 @@ using namespace llvm::esimd;
 cl::opt<bool> ForceStatelessMem(
     "lower-esimd-force-stateless-mem", llvm::cl::Optional, llvm::cl::Hidden,
     llvm::cl::desc("Use stateless API for accessor based API."),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
