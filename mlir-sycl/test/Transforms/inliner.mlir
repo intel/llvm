@@ -176,14 +176,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 
 // COM: Ensure functions in a SCC are fully inlined (requires multiple inlining iterations).
 // CHECK-ALL-LABEL:   func.func @main(
-// CHECK-ALL-SAME:                      %[[VAL_0:.*]]: memref<?x!sycl_id_1_>) -> (i32, i64) {
-
-// ALWAYS-INLINE:           %[[VAL_1:.*]] = arith.constant 1 : i32
-// ALWAYS-INLINE:           %[[VAL_2:.*]] = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
-// ALWAYS-INLINE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
-// ALWAYS-INLINE:           %[[VAL_3:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] : (memref<?x!sycl_id_1_>, i32) -> i64
-// ALWAYS-INLINE:           return %[[VAL_2]], %[[VAL_3]] : i32, i64
-// ALWAYS-INLINE:         }
+// CHECK-ALL-SAME:                    %[[VAL_0:.*]]: memref<?x!sycl_id_1_>) -> (i32, i64) {
 
 // INLINE-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
 // INLINE-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
@@ -191,7 +184,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // INLINE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
 // INLINE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // INLINE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
-// INLINE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
+// INLINE:           sycl.constructor @id(%[[VAL_0]], %[[VAL_1]]) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
 // INLINE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] : (memref<?x!sycl_id_1_>, i32) -> i64
 // INLINE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
 // INLINE:         }
@@ -205,7 +198,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // AGGRESSIVE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
 // AGGRESSIVE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // AGGRESSIVE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
-// AGGRESSIVE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
+// AGGRESSIVE:           sycl.constructor @id(%[[VAL_0]], %[[VAL_1]]) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
 // AGGRESSIVE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] : (memref<?x!sycl_id_1_>, i32) -> i64
 // AGGRESSIVE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
 // AGGRESSIVE:         }

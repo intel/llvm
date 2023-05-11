@@ -15,10 +15,10 @@ namespace mlir {
 namespace polygeist {
 
 //===----------------------------------------------------------------------===//
-// AliasQueries
+// AliasOracle
 //===----------------------------------------------------------------------===//
 
-raw_ostream &operator<<(raw_ostream &os, const AliasQueries &aliasQueries) {
+raw_ostream &operator<<(raw_ostream &os, const AliasOracle &AliasOracle) {
   auto printMap = [&os](const DenseMap<Value, SetVector<Value>> &map,
                         StringRef title) {
     for (const auto &entry : map) {
@@ -36,14 +36,14 @@ raw_ostream &operator<<(raw_ostream &os, const AliasQueries &aliasQueries) {
     }
   };
 
-  os.indent(4) << aliasQueries.funcOp.getName() << ":\n";
-  printMap(aliasQueries.valueToMustAliasValues, "mustAliases");
-  printMap(aliasQueries.valueToMayAliasValues, "mayAliases");
+  os.indent(4) << AliasOracle.funcOp.getName() << ":\n";
+  printMap(AliasOracle.valueToMustAliasValues, "mustAliases");
+  printMap(AliasOracle.valueToMayAliasValues, "mayAliases");
   return os;
 }
 
-AliasQueries::AliasQueries(FunctionOpInterface &funcOp,
-                           mlir::AliasAnalysis &aliasAnalysis)
+AliasOracle::AliasOracle(FunctionOpInterface &funcOp,
+                         mlir::AliasAnalysis &aliasAnalysis)
     : funcOp(funcOp), aliasAnalysis(aliasAnalysis) {
   /// Collect all operations that reference a memory resource in the given
   /// function and initialize the maps.
@@ -63,7 +63,7 @@ AliasQueries::AliasQueries(FunctionOpInterface &funcOp,
 }
 
 SetVector<Value>
-AliasQueries::collectMemoryResourcesIn(FunctionOpInterface funcOp) {
+AliasOracle::collectMemoryResourcesIn(FunctionOpInterface funcOp) {
   SetVector<Value> memoryResources;
   funcOp->walk([&](MemoryEffectOpInterface memoryEffectOp) {
     SmallVector<MemoryEffects::EffectInstance> effects;
