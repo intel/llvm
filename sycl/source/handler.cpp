@@ -260,12 +260,6 @@ event handler::finalize() {
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
-    if (MImpl->MNativeCPUFunct) {
-      // reset the host kernel pointer to the optimized host kernel
-      detail::NativeCPUTask *HCTPtr =
-          new detail::NativeCPUTask(MImpl->MNativeCPUFunct, MArgs);
-      MHostKernel.reset(HCTPtr);
-    }
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(MArgsStorage),

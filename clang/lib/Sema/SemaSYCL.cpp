@@ -5158,12 +5158,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
 
-  if (llvm::SYCLNativeCPU) {
-    O << "#include <sycl/detail/native_cpu.hpp>\n";
-    O << "#include <iostream>\n";
-    O << "#include <vector>\n";
-  }
-
   O << "\n";
 
   LangOptions LO;
@@ -5283,25 +5277,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "};\n\n";
 
-  /* We emit the *subhandler function here, these are used because we
-   * don't have access to the unmangled kernel name when we generate the
-   * SYCL Native CPU helper header. KernelHandler calls this subhandler,
-   * which is defined in the helper header, when we have
-   * info about which arguments are used in the kernel.
-   */
-  auto printSubHandler = [](raw_ostream &O, const KernelDesc &K) {
-    O << K.Name << "subhandler";
-  };
-  if (llvm::SYCLNativeCPU) {
-    // This is a temporary workaround for the integration header file
-    // being emitted too early.
-    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
-
-    O << "\n// including the kernel handlers calling the kernels\n";
-    O << "\n#include \"";
-    O << HCName;
-    O << "\"\n\n";
-  }
 
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
@@ -5348,18 +5323,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       SYCLKernelNameTypePrinter Printer(O, Policy);
       Printer.Visit(K.NameType);
       O << "> {\n";
-    }
-    O << "  static constexpr bool is_native_cpu = " << llvm::SYCLNativeCPU
-      << ";\n";
-
-    if (llvm::SYCLNativeCPU) {
-      O << "  static inline void NCPUKernelHandler(const "
-           "std::vector<sycl::detail::NativeCPUArgDesc>& MArgs, "
-           "nativecpu_state* s) {\n";
-      O << "    ";
-      printSubHandler(O, K);
-      O << "(MArgs, s);\n";
-      O << "  }\n";
     }
 
     O << "  __SYCL_DLL_LOCAL\n";
@@ -5429,6 +5392,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // __SYCL_INLINE_VER_NAMESPACE(_V1)\n";
   O << "} // namespace sycl\n";
   O << "\n";
+  if (llvm::SYCLNativeCPU) {
+    // This is a temporary workaround for the integration header file
+    // being emitted too early.
+    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
+
+    O << "\n// including the kernel handlers calling the kernels\n";
+    O << "\n#include \"";
+    O << HCName;
+    O << "\"\n\n";
+  }
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {

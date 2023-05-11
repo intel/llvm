@@ -2554,10 +2554,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() ||
-        (MQueue->getPlugin().getBackend() ==
-         backend::ext_intel_esimd_emulator) ||
-        (MQueue->getPlugin().getBackend() == backend::ext_native_cpu)) {
+    if (MQueue->is_host() || (MQueue->getPlugin().getBackend() ==
+                              backend::ext_intel_esimd_emulator)) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);

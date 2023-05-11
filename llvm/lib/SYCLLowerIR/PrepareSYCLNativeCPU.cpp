@@ -16,6 +16,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -24,6 +25,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -96,12 +98,16 @@ SmallVector<Function *> getFunctionsFromUse(Use &U) {
   // instructions in multiple functions
   User *Usr = U.getUser();
   if (auto I = dyn_cast<Instruction>(Usr)) {
-    return {I->getFunction()};
+    if (I->getParent())
+      return {I->getFunction()};
   }
   if (auto Op = dyn_cast<Operator>(Usr)) {
     SmallVector<Function *> Res;
     for (auto &Use : Op->uses()) {
-      Res.push_back(dyn_cast<Instruction>(Use.getUser())->getFunction());
+      if (auto I = dyn_cast<Instruction>(Use.getUser())) {
+        if (I->getParent())
+          Res.push_back(I->getFunction());
+      }
     }
     return Res;
   }
@@ -158,6 +164,15 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     auto replaceFunc = getReplaceFunc(M, StatePtrType, entry.second);
     for (auto &Use : Glob->uses()) {
       auto Funcs = getFunctionsFromUse(Use);
+      // Here we check that the use comes from a kernel function
+      // Todo: remove this check once this pass supports non-optimized modules
+      for (auto &Func : Funcs) {
+        if (!(Func->getCallingConv() == CallingConv::SPIR_KERNEL))
+          report_fatal_error("SYCL Native CPU currently supports only "
+                             "optimized modules, please enable optimizations "
+                             "and eventually increase the inlining threshold",
+                             false);
+      }
       if (Funcs.empty()) {
         // todo: use without a parent function?
         continue;

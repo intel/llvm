@@ -1,5 +1,5 @@
-#include "sycl/nd_range.hpp"
 #include <atomic>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <sycl/detail/cg_types.hpp> // NDRDescT
@@ -42,6 +42,25 @@ struct _pi_mem : _pi_object {
   }
   char *_mem;
   bool _owns_mem;
+};
+
+struct _pi_context : _pi_object {
+  _pi_device *_device;
+};
+
+struct _pi_program : _pi_object {
+  _pi_context *_ctx;
+  const unsigned char *_ptr;
+};
+
+using nativecpu_ptr_t = void (*)(
+    const std::vector<sycl::detail::NativeCPUArgDesc> &, nativecpu_state *);
+using nativecpu_task_t = std::function<void(
+    const std::vector<sycl::detail::NativeCPUArgDesc> &, nativecpu_state *)>;
+struct _pi_kernel : _pi_object {
+  const char* _name;
+  nativecpu_task_t _subhandler;
+  std::vector<sycl::detail::NativeCPUArgDesc> _args;
 };
 
 // taken from pi_cuda.cpp
@@ -92,6 +111,8 @@ sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
                                   const size_t *GlobalWorkOffset,
                                   const size_t *GlobalWorkSize,
                                   const size_t *LocalWorkSize) {
+  // Todo: we flip indexes here, I'm not sure we should, if we don't we need to 
+  // un-flip them in the spirv builtins definitions as well
   sycl::detail::NDRDescT Res;
   switch (WorkDim) {
   case 1:
@@ -99,15 +120,15 @@ sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
                                  {GlobalWorkOffset[0]}));
     break;
   case 2:
-    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},
-                                 {LocalWorkSize[0], LocalWorkSize[1]},
-                                 {GlobalWorkOffset[0], GlobalWorkOffset[1]}));
+    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[1], GlobalWorkSize[0]},
+                                 {LocalWorkSize[1], LocalWorkSize[0]},
+                                 {GlobalWorkOffset[1], GlobalWorkOffset[0]}));
     break;
   case 3:
     Res.set<3>(sycl::nd_range<3>(
-        {GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},
-        {LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},
-        {GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
+        {GlobalWorkSize[2], GlobalWorkSize[1], GlobalWorkSize[0]},
+        {LocalWorkSize[2], LocalWorkSize[1], LocalWorkSize[0]},
+        {GlobalWorkOffset[2], GlobalWorkOffset[1], GlobalWorkOffset[0]}));
     break;
   }
   return Res;
@@ -478,13 +499,50 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             const void *PrivateInfo, size_t CB,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
-  // Todo: is it fine as a no-op?
+
+  // Todo: proper error checking
+  assert(NumDevices == 1 && Devices != nullptr);
+  _pi_context *ctx = new _pi_context();
+  ctx->_device = Devices[0];
+  *RetContext = ctx;
   return PI_SUCCESS;
 }
 
-pi_result piContextGetInfo(pi_context, pi_context_info, size_t, void *,
-                           size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piContextGetInfo(pi_context, pi_context_info param_name,
+                           size_t param_value_size, void *param_value,
+                           size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_CONTEXT_INFO_NUM_DEVICES:
+    return getInfo(param_value_size, param_value, param_value_size_ret, 1);
+  case PI_CONTEXT_INFO_DEVICES:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   nullptr);
+  case PI_CONTEXT_INFO_REFERENCE_COUNT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   nullptr);
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            true);
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
+    // 2D USM operations currently not supported.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // These queries should be dealt with in context_impl.cpp by calling the
+    // queries of each device separately and building the intersection set.
+    // setErrorMessage("These queries should have never come here.",
+    //               PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+  default:
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+  }
+
+  return PI_ERROR_OUT_OF_RESOURCES;
 }
 
 pi_result piextContextSetExtendedDeleter(pi_context,
@@ -592,11 +650,18 @@ pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
-                                    const size_t *, const unsigned char **,
-                                    size_t, const pi_device_binary_property *,
-                                    pi_int32 *, pi_program *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piProgramCreateWithBinary(pi_context context, pi_uint32,
+                                    const pi_device *, const size_t *,
+                                    const unsigned char **binaries, size_t,
+                                    const pi_device_binary_property *,
+                                    pi_int32 *, pi_program *program) {
+  // Todo: proper error checking
+  assert(binaries);
+  auto p = new _pi_program();
+  p->_ptr = binaries[0];
+  p->_ctx = context;
+  *program = p;
+  return PI_SUCCESS;
 }
 
 pi_result piclProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
@@ -610,9 +675,40 @@ pi_result piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramGetInfo(pi_program, pi_program_info, size_t, void *,
-                           size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piProgramGetInfo(pi_program program, pi_program_info param_name,
+                           size_t param_value_size, void *param_value,
+                           size_t *param_value_size_ret) {
+  assert(program != nullptr);
+
+  switch (param_name) {
+  case PI_PROGRAM_INFO_REFERENCE_COUNT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   &program->RefCount);
+  case PI_PROGRAM_INFO_CONTEXT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   nullptr);
+  case PI_PROGRAM_INFO_NUM_DEVICES:
+    return getInfo(param_value_size, param_value, param_value_size_ret, 1u);
+  case PI_PROGRAM_INFO_DEVICES:
+    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
+                        program->_ctx->_device);
+  case PI_PROGRAM_INFO_SOURCE:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   nullptr);
+  case PI_PROGRAM_INFO_BINARY_SIZES:
+    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
+                        "foo");
+  case PI_PROGRAM_INFO_BINARIES:
+    return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
+                        "foo");
+  case PI_PROGRAM_INFO_KERNEL_NAMES: {
+    return getInfo(param_value_size, param_value, param_value_size_ret, "foo");
+  }
+  default:
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+  }
+  sycl::detail::pi::die("Program info request not implemented");
+  return {};
 }
 
 pi_result piProgramLink(pi_context, pi_uint32, const pi_device *, const char *,
@@ -630,17 +726,21 @@ pi_result piProgramCompile(pi_program, pi_uint32, const pi_device *,
 
 pi_result piProgramBuild(pi_program, pi_uint32, const pi_device *, const char *,
                          void (*)(pi_program, void *), void *) {
-  DIE_NO_IMPLEMENTATION;
+  return PI_SUCCESS;
 }
 
-pi_result piProgramGetBuildInfo(pi_program, pi_device, pi_program_build_info,
-                                size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piProgramGetBuildInfo(pi_program, pi_device,
+                                pi_program_build_info param_name, size_t,
+                                void *, size_t *) {
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piProgramRetain(pi_program) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piProgramRelease(pi_program) { DIE_NO_IMPLEMENTATION; }
+pi_result piProgramRelease(pi_program program) {
+  delete program;
+  return PI_SUCCESS;
+}
 
 pi_result piextProgramGetNativeHandle(pi_program, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
@@ -651,16 +751,31 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelCreate(pi_program, const char *, pi_kernel *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piKernelCreate(pi_program program, const char *name, pi_kernel *kernel) {
+  // Todo: error checking
+  auto ker = new _pi_kernel();
+  auto f = reinterpret_cast<nativecpu_ptr_t>(program->_ptr);
+  ker->_subhandler = *f;
+  ker->_name = name;
+  *kernel = ker;
+  return PI_SUCCESS;
 }
 
-pi_result piKernelSetArg(pi_kernel, pi_uint32, size_t, const void *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piKernelSetArg(pi_kernel kernel, pi_uint32, size_t, const void *arg) {
+  // Todo: error checking
+  // Todo: I think that the opencl spec (and therefore the pi spec mandates that
+  // arg is copied (this is why it is defined as const void*, I guess we should
+  // do it
+  kernel->_args.emplace_back(const_cast<void *>(arg));
+  return PI_SUCCESS;
 }
 
-pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32, const pi_mem *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32,
+                                  const pi_mem *memObj) {
+  // Todo: error checking
+  _pi_mem *memPtr = *memObj;
+  kernel->_args.emplace_back(memPtr->_mem);
+  return PI_SUCCESS;
 }
 
 pi_result piextKernelSetArgSampler(pi_kernel, pi_uint32, const pi_sampler *) {
@@ -671,9 +786,59 @@ pi_result piKernelGetInfo(pi_kernel, pi_kernel_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelGetGroupInfo(pi_kernel, pi_device, pi_kernel_group_info,
-                               size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device,
+                               pi_kernel_group_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
+  // Todo: return something meaningful here, we could emit info in our
+  // integration header and read them here?
+
+  if (kernel != nullptr) {
+
+    switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+      size_t global_work_size[3] = {0, 0, 0};
+
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, global_work_size);
+    }
+    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+      size_t max_threads = 0;
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     size_t(max_threads));
+    }
+    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+      size_t group_size[3] = {64, 64, 64};
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, group_size);
+    }
+    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+      int bytes = 0;
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      int warpSize = 0;
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
+    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+      int bytes = 0;
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
+      sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
+                            "piKernelGetGroupInfo not implemented\n");
+      return {};
+    }
+
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
+  }
+
+  return PI_ERROR_INVALID_KERNEL;
 }
 
 pi_result piKernelGetSubGroupInfo(pi_kernel, pi_device,
@@ -684,7 +849,10 @@ pi_result piKernelGetSubGroupInfo(pi_kernel, pi_device,
 
 pi_result piKernelRetain(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
+pi_result piKernelRelease(pi_kernel kernel) {
+  delete kernel;
+  return PI_SUCCESS;
+}
 
 pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
@@ -802,7 +970,6 @@ pi_result piEnqueueMemBufferMap(pi_queue, pi_mem buffer, pi_bool, pi_map_flags,
                                 size_t offset, size_t size, pi_uint32,
                                 const pi_event *, pi_event *, void **ret_map) {
   // Todo: add proper error checking
-  std::cout << "[PTRDBG] offset size " << offset << " " << size << "\n";
   *ret_map = buffer->_mem + offset;
   return PI_SUCCESS;
 }
@@ -858,20 +1025,23 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const pi_event *EventWaitList, pi_event *Event) {
   // TODO: add proper error checking
   // TODO: add proper event dep management
-  sycl::detail::NDRDescT NDRDesc =
+  sycl::detail::NDRDescT ndr =
       getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
-  sycl::detail::NativeCPUTask *NativeKernel =
-      reinterpret_cast<sycl::detail::NativeCPUTask *>(Kernel);
-  // This arg processing logic should be done by piSetKernelArg but here we are
-  const std::vector<sycl::detail::ArgDesc> &Args = NativeKernel->getArgs();
-  std::vector<sycl::detail::NativeCPUArgDesc> NCArgs =
-      sycl::detail::processArgsForNativeCPU(Args);
-  for (auto &Arg : NCArgs) {
-    if (Arg.MisAcc)
-      Arg.MPtr = reinterpret_cast<_pi_mem *>(Arg.MPtr)->_mem;
+  nativecpu_state state;
+  for (unsigned dim0 = 0; dim0 < ndr.GlobalSize[0]; dim0++) {
+    for (unsigned dim1 = 0; dim1 < ndr.GlobalSize[1]; dim1++) {
+      for (unsigned dim2 = 0; dim2 < ndr.GlobalSize[2]; dim2++) {
+        // todo: this is quite bad for performances since we are calling into
+        // the kernel shared object file at each iteration of the work item
+        // loop. We could emit at least the work-item loop in the device
+        // compiler so that the kernel is inlined in it.
+        state.MGlobal_id[0] = dim0;
+        state.MGlobal_id[1] = dim1;
+        state.MGlobal_id[2] = dim2;
+        Kernel->_subhandler(Kernel->_args, &state);
+      }
+    }
   }
-
-  NativeKernel->call_native(NDRDesc, NCArgs);
 
   return PI_SUCCESS;
 }
@@ -901,11 +1071,12 @@ pi_result piextUSMHostAlloc(void **, pi_context, pi_usm_mem_properties *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
-                              pi_device Device,
-                              pi_usm_mem_properties *Properties, size_t Size,
-                              pi_uint32 Alignment) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context, pi_device,
+                              pi_usm_mem_properties *, size_t Size, pi_uint32) {
+  // Todo: check properties and alignment.
+  // Todo: error checking.
+  *ResultPtr = malloc(Size);
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
@@ -915,21 +1086,37 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMFree(pi_context Context, void *Ptr) { DIE_NO_IMPLEMENTATION; }
-
-pi_result piextKernelSetArgPointer(pi_kernel, pi_uint32, size_t, const void *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextUSMFree(pi_context, void *Ptr) {
+  // Todo: error checking
+  free(Ptr);
+  return PI_SUCCESS;
 }
 
-pi_result piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t, pi_uint32,
-                                const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32, size_t,
+                                   const void *ptr) {
+  // Todo: error checking
+  auto PtrToPtr = reinterpret_cast<const intptr_t *>(ptr);
+  auto DerefPtr = reinterpret_cast<void *>(*PtrToPtr);
+  kernel->_args.push_back(DerefPtr);
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMEnqueueMemset(pi_queue, void *ptr, pi_int32 value,
+                                size_t count, pi_uint32, const pi_event *,
+                                pi_event *) {
+  // Todo: event dependency
+  // Todo: error checking.
+  memset(ptr, value, count);
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *dest, const void *src,
                                 size_t len, pi_uint32, const pi_event *,
                                 pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+  // Todo: event dependency
+  // Todo: error checking
+  memcpy(dest, src, len);
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
@@ -944,7 +1131,7 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
 
 pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
                               const void *) {
-  DIE_NO_IMPLEMENTATION;
+  return PI_SUCCESS;
 }
 
 pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
