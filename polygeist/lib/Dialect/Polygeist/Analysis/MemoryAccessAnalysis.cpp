@@ -756,10 +756,16 @@ bool MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
   LLVM_DEBUG(llvm::dbgs() << "Underlying val: " << val << "\n");
 
-  // Construct the memory access matrix.
   SetVector<Operation *> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
-  MemoryAccessMatrix accessMatrix(access.getRank(), enclosingLoops.size());
+
+  // TODO: the number of rows needs to be equal to the number of dimensions of
+  // the sycl.id which should be equal to the number of dimensions of the
+  // accessor (add assertion).
+  // Construct the memory access matrix. The number of rows needs to be equal to
+  // the number of dimensions of accessor.
+  auto accessorTy = cast<MemRefType>(accessorSubscriptOp.getType());
+  MemoryAccessMatrix accessMatrix(accessorTy.getRank(), enclosingLoops.size());
 
   SmallVector<Value, 4> loopIVs;
   for (Operation *loop : enclosingLoops) {
@@ -774,11 +780,16 @@ bool MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
                                              matchers::m_Any(&other))) ||
       matchPattern(*val, m_Op<arith::MulIOp>(matchers::m_Any(&other),
                                              matchers::m_Val(iv)))) {
-    llvm::errs() << "BINGO, other: " << other << "\n";
-    accessMatrix(0, 0) = other;
+
+    for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
+      for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
+        accessMatrix(row, col) = other;
+      }
+    }
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "accessMatrix constructed successfully\n");
+  LLVM_DEBUG(llvm::dbgs() << "accessMatrix constructed successfully:\n"
+                          << accessMatrix << "\n");
 
   accessMap[access.opInst] = accessMatrix;
   return true;

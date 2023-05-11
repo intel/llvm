@@ -148,7 +148,7 @@ func.func @test8(%val: i32, %idx : index) {
 // CHECK-LABEL: test_tag: test9_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test9(%arg1: memref<i32>) {
   %1 = memref.load %arg1[] {tag = "test9_load1"} : memref<i32>
   return
@@ -191,10 +191,10 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
   } else {
     %c1 = arith.constant 1 : i32      
     memref.store %c1, %arg2[] {tag_name = "test11_store3"} : memref<i32>
-  }  
+  }
   memref.dealloc %arg2 {tag_name = "test11_dealloc1"} : memref<i32>
-  %1 = memref.load %arg1[] {tag = "test11_load1"} : memref<i32>  
-  %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>      
+  %1 = memref.load %arg1[] {tag = "test11_load1"} : memref<i32>
+  %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>
   return
 }
 
@@ -202,7 +202,7 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
 // CHECK-LABEL: test_tag: test12_load1:
 // CHECK-NEXT:  operand #0
 // CHECK-NEXT:  - mods: <initial> test12_store2
-// CHECK-NEXT:  - pMods:
+// CHECK-NEXT:  - pMods: <none>
 // CHECK-LABEL: test_tag: test12_load2:
 // CHECK-NEXT:  operand #0
 // CHECK-NEXT:  - mods: <initial>
@@ -225,7 +225,7 @@ func.func @test12(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
 // CHECK-LABEL: test_tag: test13_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: test13_store1
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test13(%val: i64) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %addrspace_cast = memref.memory_space_cast %alloca : memref<1x!sycl_id_1> to memref<1x!sycl_id_1, 4>
@@ -238,10 +238,10 @@ func.func @test13(%val: i64) {
 // CHECK-LABEL: test_tag: test14_load1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 // CHECK: operand #1
 // CHECK-NEXT: - mods: test14_store1
-// CHECK-NEXT: - pMods:
+// CHECK-NEXT: - pMods: <none>
 func.func @test14(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>  
