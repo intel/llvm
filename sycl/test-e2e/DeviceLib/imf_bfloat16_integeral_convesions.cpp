@@ -10,33 +10,6 @@
 #include <sycl/ext/intel/math.hpp>
 #include <sycl/sycl.hpp>
 
-extern "C" {
-unsigned short __imf_bfloat162ushort_rd(uint16_t);
-unsigned short __imf_bfloat162ushort_rn(uint16_t);
-unsigned short __imf_bfloat162ushort_ru(uint16_t);
-unsigned short __imf_bfloat162ushort_rz(uint16_t);
-short __imf_bfloat162short_rd(uint16_t);
-short __imf_bfloat162short_rn(uint16_t);
-short __imf_bfloat162short_ru(uint16_t);
-short __imf_bfloat162short_rz(uint16_t);
-unsigned __imf_bfloat162uint_rd(uint16_t);
-unsigned __imf_bfloat162uint_rn(uint16_t);
-unsigned __imf_bfloat162uint_ru(uint16_t);
-unsigned __imf_bfloat162uint_rz(uint16_t);
-int __imf_bfloat162int_rd(uint16_t);
-int __imf_bfloat162int_rn(uint16_t);
-int __imf_bfloat162int_ru(uint16_t);
-int __imf_bfloat162int_rz(uint16_t);
-unsigned long long __imf_bfloat162ull_rd(uint16_t);
-unsigned long long __imf_bfloat162ull_rn(uint16_t);
-unsigned long long __imf_bfloat162ull_ru(uint16_t);
-unsigned long long __imf_bfloat162ull_rz(uint16_t);
-long long __imf_bfloat162ll_rd(uint16_t);
-long long __imf_bfloat162ll_rn(uint16_t);
-long long __imf_bfloat162ll_ru(uint16_t);
-long long __imf_bfloat162ll_rz(uint16_t);
-};
-
 int main() {
   sycl::queue device_queue(sycl::default_selector_v);
   std::cout << "Running on "
@@ -63,26 +36,54 @@ int main() {
         0, 0, 3, -2, 1000, 32767, -32768, 2, -1, 32767, 32767, -32768, 0};
     std::initializer_list<short> soutput_vals_rz = {
         0, 0, 2, -2, 1000, 32767, -32768, 1, -1, 32767, 32767, -32768, 0};
-    test_host(input_vals, uoutput_vals_rd, F(__imf_bfloat162ushort_rd));
-    test_host(input_vals, uoutput_vals_rn, F(__imf_bfloat162ushort_rn));
-    test_host(input_vals, uoutput_vals_ru, F(__imf_bfloat162ushort_ru));
-    test_host(input_vals, uoutput_vals_rz, F(__imf_bfloat162ushort_rz));
+    test_host(input_vals, uoutput_vals_rd,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ushort_rd));
+    test_host(input_vals, uoutput_vals_rn,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ushort_rn));
+    test_host(input_vals, uoutput_vals_ru,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ushort_ru));
+    test_host(input_vals, uoutput_vals_rz,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ushort_rz));
     test(device_queue, input_vals, uoutput_vals_rd,
-         F(__imf_bfloat162ushort_rd));
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ushort_rd));
     test(device_queue, input_vals, uoutput_vals_rn,
-         F(__imf_bfloat162ushort_rn));
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ushort_rn));
     test(device_queue, input_vals, uoutput_vals_ru,
-         F(__imf_bfloat162ushort_ru));
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ushort_ru));
     test(device_queue, input_vals, uoutput_vals_rz,
-         F(__imf_bfloat162ushort_rz));
-    test_host(input_vals, soutput_vals_rd, F(__imf_bfloat162short_rd));
-    test_host(input_vals, soutput_vals_rn, F(__imf_bfloat162short_rn));
-    test_host(input_vals, soutput_vals_ru, F(__imf_bfloat162short_ru));
-    test_host(input_vals, soutput_vals_rz, F(__imf_bfloat162short_rz));
-    test(device_queue, input_vals, soutput_vals_rd, F(__imf_bfloat162short_rd));
-    test(device_queue, input_vals, soutput_vals_rn, F(__imf_bfloat162short_rn));
-    test(device_queue, input_vals, soutput_vals_ru, F(__imf_bfloat162short_ru));
-    test(device_queue, input_vals, soutput_vals_rz, F(__imf_bfloat162short_rz));
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ushort_rz));
+    test_host(input_vals, soutput_vals_rd,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162short_rd));
+    test_host(input_vals, soutput_vals_rn,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162short_rn));
+    test_host(input_vals, soutput_vals_ru,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162short_ru));
+    test_host(input_vals, soutput_vals_rz,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162short_rz));
+    test(device_queue, input_vals, soutput_vals_rd,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162short_rd));
+    test(device_queue, input_vals, soutput_vals_rn,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162short_rn));
+    test(device_queue, input_vals, soutput_vals_ru,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162short_ru));
+    test(device_queue, input_vals, soutput_vals_rz,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162short_rz));
   }
 
   {
@@ -126,22 +127,54 @@ int main() {
         -32768, 1,          -1,          65536,      2147483647, -2147483648,
         0,      2147483647, -2147483648, 2147483647, 1233125376, 0,
         0,      333447168,  -55574528};
-    test_host(input_vals, uoutput_vals_rd, F(__imf_bfloat162uint_rd));
-    test_host(input_vals, uoutput_vals_rn, F(__imf_bfloat162uint_rn));
-    test_host(input_vals, uoutput_vals_ru, F(__imf_bfloat162uint_ru));
-    test_host(input_vals, uoutput_vals_rz, F(__imf_bfloat162uint_rz));
-    test_host(input_vals, soutput_vals_rd, F(__imf_bfloat162int_rd));
-    test_host(input_vals, soutput_vals_rn, F(__imf_bfloat162int_rn));
-    test_host(input_vals, soutput_vals_ru, F(__imf_bfloat162int_ru));
-    test_host(input_vals, soutput_vals_rz, F(__imf_bfloat162int_rz));
-    test(device_queue, input_vals, uoutput_vals_rd, F(__imf_bfloat162uint_rd));
-    test(device_queue, input_vals, uoutput_vals_rn, F(__imf_bfloat162uint_rn));
-    test(device_queue, input_vals, uoutput_vals_ru, F(__imf_bfloat162uint_ru));
-    test(device_queue, input_vals, uoutput_vals_rz, F(__imf_bfloat162uint_rz));
-    test(device_queue, input_vals, soutput_vals_rd, F(__imf_bfloat162int_rd));
-    test(device_queue, input_vals, soutput_vals_rn, F(__imf_bfloat162int_rn));
-    test(device_queue, input_vals, soutput_vals_ru, F(__imf_bfloat162int_ru));
-    test(device_queue, input_vals, soutput_vals_rz, F(__imf_bfloat162int_rz));
+    test_host(input_vals, uoutput_vals_rd,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162uint_rd));
+    test_host(input_vals, uoutput_vals_rn,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162uint_rn));
+    test_host(input_vals, uoutput_vals_ru,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162uint_ru));
+    test_host(input_vals, uoutput_vals_rz,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162uint_rz));
+    test_host(input_vals, soutput_vals_rd,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162int_rd));
+    test_host(input_vals, soutput_vals_rn,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162int_rn));
+    test_host(input_vals, soutput_vals_ru,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162int_ru));
+    test_host(input_vals, soutput_vals_rz,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162int_rz));
+    test(device_queue, input_vals, uoutput_vals_rd,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162uint_rd));
+    test(device_queue, input_vals, uoutput_vals_rn,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162uint_rn));
+    test(device_queue, input_vals, uoutput_vals_ru,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162uint_ru));
+    test(device_queue, input_vals, uoutput_vals_rz,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162uint_rz));
+    test(device_queue, input_vals, soutput_vals_rd,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162int_rd));
+    test(device_queue, input_vals, soutput_vals_rn,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162int_rn));
+    test(device_queue, input_vals, soutput_vals_ru,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162int_ru));
+    test(device_queue, input_vals, soutput_vals_rz,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162int_rz));
   }
 
   {
@@ -258,22 +291,54 @@ int main() {
         LLONG_MIN, 2147483648, -2147483648, 4294967296, 1233125376, 0,
         0,         333447168,  -55574528};
 
-    test_host(input_vals, uoutput_vals_rd, F(__imf_bfloat162ull_rd));
-    test_host(input_vals, uoutput_vals_rn, F(__imf_bfloat162ull_rn));
-    test_host(input_vals, uoutput_vals_ru, F(__imf_bfloat162ull_ru));
-    test_host(input_vals, uoutput_vals_rz, F(__imf_bfloat162ull_rz));
-    test_host(input_vals, soutput_vals_rd, F(__imf_bfloat162ll_rd));
-    test_host(input_vals, soutput_vals_rn, F(__imf_bfloat162ll_rn));
-    test_host(input_vals, soutput_vals_ru, F(__imf_bfloat162ll_ru));
-    test_host(input_vals, soutput_vals_rz, F(__imf_bfloat162ll_rz));
-    test(device_queue, input_vals, uoutput_vals_rd, F(__imf_bfloat162ull_rd));
-    test(device_queue, input_vals, uoutput_vals_rn, F(__imf_bfloat162ull_rn));
-    test(device_queue, input_vals, uoutput_vals_ru, F(__imf_bfloat162ull_ru));
-    test(device_queue, input_vals, uoutput_vals_rz, F(__imf_bfloat162ull_rz));
-    test(device_queue, input_vals, soutput_vals_rd, F(__imf_bfloat162ll_rd));
-    test(device_queue, input_vals, soutput_vals_rn, F(__imf_bfloat162ll_rn));
-    test(device_queue, input_vals, soutput_vals_ru, F(__imf_bfloat162ll_ru));
-    test(device_queue, input_vals, soutput_vals_rz, F(__imf_bfloat162ll_rz));
+    test_host(input_vals, uoutput_vals_rd,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ull_rd));
+    test_host(input_vals, uoutput_vals_rn,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ull_rn));
+    test_host(input_vals, uoutput_vals_ru,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ull_ru));
+    test_host(input_vals, uoutput_vals_rz,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ull_rz));
+    test_host(input_vals, soutput_vals_rd,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ll_rd));
+    test_host(input_vals, soutput_vals_rn,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ll_rn));
+    test_host(input_vals, soutput_vals_ru,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ll_ru));
+    test_host(input_vals, soutput_vals_rz,
+              FT1(sycl::ext::oneapi::bfloat16,
+                  sycl::ext::intel::math::bfloat162ll_rz));
+    test(device_queue, input_vals, uoutput_vals_rd,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ull_rd));
+    test(device_queue, input_vals, uoutput_vals_rn,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ull_rn));
+    test(device_queue, input_vals, uoutput_vals_ru,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ull_ru));
+    test(device_queue, input_vals, uoutput_vals_rz,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ull_rz));
+    test(device_queue, input_vals, soutput_vals_rd,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ll_rd));
+    test(device_queue, input_vals, soutput_vals_rn,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ll_rn));
+    test(device_queue, input_vals, soutput_vals_ru,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ll_ru));
+    test(device_queue, input_vals, soutput_vals_rz,
+         FT1(sycl::ext::oneapi::bfloat16,
+             sycl::ext::intel::math::bfloat162ll_rz));
   }
 
   {
@@ -595,14 +660,22 @@ int main() {
         0xC60A, 0x4640, 0xC6A5, 0x46FF, 0xC700, 0x4788, 0xC78C, 0x4809, 0xC86A,
         0x4912, 0xC915, 0x4A07, 0xCA51, 0x4AD2, 0xCAF2, 0x4B37, 0xCB97, 0x4C18,
         0xCC95, 0x4E88, 0xCEFF, 0x4EFF, 0xCF00, 0x5EFF, 0xD83D, 0x5782, 0x58E2};
-    test_host(input_vals, output_vals_rd, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rd));
-    test_host(input_vals, output_vals_rn, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rn));
-    test_host(input_vals, output_vals_ru, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_ru));
-    test_host(input_vals, output_vals_rz, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rz));
-    test(device_queue, input_vals, output_vals_rd, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rd));
-    test(device_queue, input_vals, output_vals_rn, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rn));
-    test(device_queue, input_vals, output_vals_ru, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_ru));
-    test(device_queue, input_vals, output_vals_rz, FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rz));
+    test_host(input_vals, output_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rd));
+    test_host(input_vals, output_vals_rn,
+              FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rn));
+    test_host(input_vals, output_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_ru));
+    test_host(input_vals, output_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rz));
+    test(device_queue, input_vals, output_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rd));
+    test(device_queue, input_vals, output_vals_rn,
+         FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rn));
+    test(device_queue, input_vals, output_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_ru));
+    test(device_queue, input_vals, output_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::ll2bfloat16_rz));
   }
 
   return 0;
