@@ -3,9 +3,7 @@
 
 // RUN: %{build} -DGPU -o %t_gpu.out
 // RUN: %{build} -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %if gpu %{ %t_gpu.out %} %else %{ %t.out %}
 //
 //==--- build-log.cpp - Test log message from faild build ----------==//
 //

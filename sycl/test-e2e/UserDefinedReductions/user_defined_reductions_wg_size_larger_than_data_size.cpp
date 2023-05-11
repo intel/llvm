@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: accelerator
 
 #include <iostream>
 #include <numeric>
