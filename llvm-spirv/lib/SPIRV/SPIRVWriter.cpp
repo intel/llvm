@@ -521,6 +521,10 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         return mapType(T, BM->addQueueType());
       case OpTypeDeviceEvent:
         return mapType(T, BM->addDeviceEventType());
+      case OpTypeBufferSurfaceINTEL: {
+        ArrayRef<unsigned> Ops = TargetTy->int_params();
+        return mapType(T, BM->addBufferSurfaceINTELType(CastAccess(Ops[0])));
+      }
       case internal::OpTypeJointMatrixINTEL: {
         // The expected representation is:
         // target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%,
@@ -789,8 +793,12 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(StringRef STName,
     return SaveType(BM->addQueueType());
   else if (TN == kSPIRVTypeName::PipeStorage)
     return SaveType(BM->addPipeStorageType());
-  else if (TN == kSPIRVTypeName::JointMatrixINTEL) {
+  else if (TN == kSPIRVTypeName::JointMatrixINTEL)
     return SaveType(transSPIRVJointMatrixINTELType(Postfixes));
+  else if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute) &&
+           TN == kSPIRVTypeName::BufferSurfaceINTEL) {
+    auto Access = getAccessQualifier(STName);
+    return SaveType(BM->addBufferSurfaceINTELType(Access));
   } else
     return SaveType(
         BM->addOpaqueGenericType(SPIRVOpaqueTypeOpCodeMap::map(TN)));
