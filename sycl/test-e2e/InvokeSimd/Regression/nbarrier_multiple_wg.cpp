@@ -45,8 +45,8 @@ template <int case_num> class KernelID;
 
 template <unsigned Groups, unsigned Threads, unsigned Size>
 ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> LocalAcc,
-		                        int groupID, int localID,
-					int *o) SYCL_ESIMD_FUNCTION {
+                                        int groupID, int localID,
+                                        int *o) SYCL_ESIMD_FUNCTION {
   // 1 named barrier, id 0 reserved for unnamed
   constexpr unsigned bnum = 2;
   constexpr unsigned bid = 1;
@@ -124,7 +124,8 @@ bool test(QueueTY q) {
   }
 
   auto dev = q.get_device();
-  auto deviceSLMSize = dev.template get_info<sycl::info::device::local_mem_size>();
+  auto deviceSLMSize =
+      dev.template get_info<sycl::info::device::local_mem_size>();
   std::cout << "Local Memory Size: " << deviceSLMSize << std::endl;
 
   // The test is going to use Size elements of int type.
@@ -153,9 +154,9 @@ bool test(QueueTY q) {
 
             // Thread local ID in ESIMD context
             int localID = sg.get_group_linear_id();
-	    int groupID = g.get_group_linear_id();
+            int groupID = g.get_group_linear_id();
 
-	    // SLM init
+            // SLM init
             uint32_t slmID = item.get_local_id(0);
             auto LocalAccCopy = LocalAcc;
             LocalAccCopy[slmID] = -1;
@@ -168,7 +169,8 @@ bool test(QueueTY q) {
 #endif
 
             invoke_simd(sg, SIMD_CALLEE_nbarrier<Groups, Threads, Size>,
-                        LocalAccArg, uniform{groupID}, uniform{localID}, uniform{out});
+                        LocalAccArg, uniform{groupID}, uniform{localID},
+                        uniform{out});
           });
     });
     e.wait();
@@ -210,4 +212,3 @@ int main() {
 
   return passed ? 0 : 1;
 }
-

@@ -44,8 +44,8 @@ template <int case_num> class KernelID;
 
 template <unsigned Threads, unsigned Size, bool UseSLM>
 ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> LocalAcc,
-		                        int localID,
-					int *o) SYCL_ESIMD_FUNCTION {
+                                        int localID,
+                                        int *o) SYCL_ESIMD_FUNCTION {
   // Threads - 1 named barriers required
   // but id 0 reserved for unnamed
   experimental_esimd::named_barrier_init<Threads>();
@@ -56,10 +56,9 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> LocalAcc,
 
   // overlaping offsets
   unsigned int off = VL * localID / 2;
-  unsigned int off_slm =
-      static_cast<uint32_t>(
-          reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer())) +
-      off * sizeof(int);
+  unsigned int off_slm = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
+                             LocalAcc.get_pointer())) +
+                         off * sizeof(int);
   esimd::simd<int, VL> val(localID);
 
   esimd::barrier();
@@ -134,7 +133,8 @@ bool test(QueueTY q) {
   }
 
   auto dev = q.get_device();
-  auto deviceSLMSize = dev.template get_info<sycl::info::device::local_mem_size>();
+  auto deviceSLMSize =
+      dev.template get_info<sycl::info::device::local_mem_size>();
   if constexpr (UseSLM)
     std::cout << "Local Memory Size: " << deviceSLMSize << std::endl;
 
@@ -165,7 +165,7 @@ bool test(QueueTY q) {
             // Thread local ID in ESIMD context
             int localID = sg.get_group_linear_id();
 
-	    // SLM init
+            // SLM init
             uint32_t slmID = item.get_local_id(0);
             auto LocalAccCopy = LocalAcc;
             LocalAccCopy[slmID] = -1;
@@ -227,4 +227,3 @@ int main() {
 
   return passed ? 0 : 1;
 }
-
