@@ -349,7 +349,7 @@ if 'gpu' in config.target_devices.split(','):
 
     if config.sycl_be == "ext_oneapi_level_zero":
         if lit_config.params.get('ze_debug'):
-            config.available_features.add('ze_debug'+config.ze_debug)
+            config.available_features.add('ze_debug')
 else:
     lit_config.warning("GPU device not used")
 
