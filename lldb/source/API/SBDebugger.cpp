@@ -481,8 +481,7 @@ lldb::SBStructuredData SBDebugger::GetSetting(const char *setting) {
     m_opaque_sp->DumpAllPropertyValues(&exe_ctx, json_strm, /*dump_mask*/ 0,
                                        /*is_json*/ true);
 
-  data.m_impl_up->SetObjectSP(
-      StructuredData::ParseJSON(json_strm.GetString().str()));
+  data.m_impl_up->SetObjectSP(StructuredData::ParseJSON(json_strm.GetString()));
   return data;
 }
 
@@ -1364,7 +1363,7 @@ SBDebugger::GetInternalVariableValue(const char *var_name,
     ExecutionContext exe_ctx(
         debugger_sp->GetCommandInterpreter().GetExecutionContext());
     lldb::OptionValueSP value_sp(
-        debugger_sp->GetPropertyValue(&exe_ctx, var_name, false, error));
+        debugger_sp->GetPropertyValue(&exe_ctx, var_name, error));
     if (value_sp) {
       StreamString value_strm;
       value_sp->DumpValue(&exe_ctx, value_strm, OptionValue::eDumpOptionValue);

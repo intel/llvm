@@ -105,11 +105,9 @@ struct ReshapeConstOptimization : public OpRewritePattern<tosa::ReshapeOp> {
                                          "Used more than once or not-splat");
 
     // Build new const op with correct output shape
-    ShapedType inputShape = input.getType().cast<ShapedType>();
-    DenseElementsAttr outputAttr =
-        inputAttr.reshape(inputShape.clone(op.getNewShape()));
-    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputAttr.getType(),
-                                               outputAttr);
+    DenseElementsAttr outputAttr = inputAttr.reshape(
+        inputAttr.getType().cast<ShapedType>().clone(op.getNewShape()));
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultTy, outputAttr);
     return success();
   }
 };
@@ -227,7 +225,7 @@ struct TransposeIsReshape : public OpRewritePattern<tosa::TransposeOp> {
     for (int i = 1, s = nonZeroPerms.size(); i < s; ++i)
       if (nonZeroPerms[i - 1] > nonZeroPerms[i])
         return rewriter.notifyMatchFailure(op,
-                                           "Transpose changes memeory layout.");
+                                           "Transpose changes memory layout.");
 
     SmallVector<int64_t> newShape;
     newShape.reserve(inputTy.getRank());
@@ -997,4 +995,14 @@ OpFoldResult TransposeOp::fold(FoldAdaptor adaptor) {
     return {};
 
   return getInput1();
+}
+
+OpFoldResult tosa::LogOp::fold(FoldAdaptor adaptor) {
+  auto input = getInput1();
+  // Element-wise log(exp(x)) = x
+  if (auto op = input.getDefiningOp<tosa::ExpOp>()) {
+    return op.getInput1();
+  }
+
+  return {};
 }

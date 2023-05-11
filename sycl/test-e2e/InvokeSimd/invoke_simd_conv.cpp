@@ -11,9 +11,9 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
-// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx -O0 -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t0.out
+// RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
+// RUN: %{build} -O0 -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t0.out
 // TODO: enable execution of test generated with -O0 once crash issue is
 // resolved
 

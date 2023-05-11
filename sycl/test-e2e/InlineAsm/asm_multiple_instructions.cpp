@@ -1,9 +1,9 @@
 // UNSUPPORTED: cuda || hip
 // REQUIRES: gpu,linux
-// RUN: %clangxx -fsycl -DTO_PASS %s -o %t.out.pass
-// RUN: %GPU_RUN_PLACEHOLDER %t.out.pass
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -DTO_PASS -o %t.out.pass
+// RUN: %{run} %t.out.pass
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // The test is failing when writing directly to output buffer.
 // If temporary variable is used (see TO_PASS mode) the test succeeded.
 // XFAIL: gpu

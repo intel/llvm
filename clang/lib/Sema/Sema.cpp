@@ -813,15 +813,15 @@ static bool ShouldRemoveFromUnused(Sema *SemaRef, const DeclaratorDecl *D) {
   return false;
 }
 
-static bool isFunctionOrVarDeclExternC(NamedDecl *ND) {
-  if (auto *FD = dyn_cast<FunctionDecl>(ND))
+static bool isFunctionOrVarDeclExternC(const NamedDecl *ND) {
+  if (const auto *FD = dyn_cast<FunctionDecl>(ND))
     return FD->isExternC();
   return cast<VarDecl>(ND)->isExternC();
 }
 
 /// Determine whether ND is an external-linkage function or variable whose
 /// type has no linkage.
-bool Sema::isExternalWithNoLinkageType(ValueDecl *VD) const {
+bool Sema::isExternalWithNoLinkageType(const ValueDecl *VD) const {
   // Note: it's not quite enough to check whether VD has UniqueExternalLinkage,
   // because we also want to catch the case where its type has VisibleNoLinkage,
   // which does not affect the linkage of VD.
@@ -893,7 +893,7 @@ static void checkUndefinedButUsed(Sema &S) {
   S.getUndefinedButUsed(Undefined);
   if (Undefined.empty()) return;
 
-  for (auto Undef : Undefined) {
+  for (const auto &Undef : Undefined) {
     ValueDecl *VD = cast<ValueDecl>(Undef.first);
     SourceLocation UseLoc = Undef.second;
 
@@ -1283,7 +1283,8 @@ void Sema::ActOnEndOfTranslationUnit() {
         ModMap.resolveConflicts(Mod, /*Complain=*/false);
 
         // Queue the submodules, so their exports will also be resolved.
-        Stack.append(Mod->submodule_begin(), Mod->submodule_end());
+        auto SubmodulesRange = Mod->submodules();
+        Stack.append(SubmodulesRange.begin(), SubmodulesRange.end());
       }
     }
 
@@ -1446,9 +1447,7 @@ void Sema::ActOnEndOfTranslationUnit() {
     // source.
     RecordCompleteMap RecordsComplete;
     RecordCompleteMap MNCComplete;
-    for (NamedDeclSetType::iterator I = UnusedPrivateFields.begin(),
-         E = UnusedPrivateFields.end(); I != E; ++I) {
-      const NamedDecl *D = *I;
+    for (const NamedDecl *D : UnusedPrivateFields) {
       const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D->getDeclContext());
       if (RD && !RD->isUnion() &&
           IsRecordFullyDefined(RD, RecordsComplete, MNCComplete)) {
@@ -1651,7 +1650,7 @@ bool Sema::hasUncompilableErrorOccurred() const {
 
 // Print notes showing how we can reach FD starting from an a priori
 // known-callable function.
-static void emitCallStackNotes(Sema &S, FunctionDecl *FD) {
+static void emitCallStackNotes(Sema &S, const FunctionDecl *FD) {
   auto FnIt = S.DeviceKnownEmittedFns.find(FD);
   while (FnIt != S.DeviceKnownEmittedFns.end()) {
     // Respect error limit.
@@ -1913,7 +1912,7 @@ void Sema::emitDeferredDiags() {
 
 Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
                                                    unsigned DiagID,
-                                                   FunctionDecl *Fn, Sema &S,
+                                                   const FunctionDecl *Fn, Sema &S,
                                                    DeviceDiagnosticReason R)
     : S(S), Loc(Loc), DiagID(DiagID), Fn(Fn),
       ShowCallStack(K == K_ImmediateWithCallStack || K == K_Deferred) {
@@ -1960,7 +1959,7 @@ Sema::SemaDiagnosticBuilder::~SemaDiagnosticBuilder() {
 }
 
 Sema::SemaDiagnosticBuilder
-Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
+Sema::targetDiag(SourceLocation Loc, unsigned DiagID, const FunctionDecl *FD) {
   FD = FD ? FD : getCurFunctionDecl();
   if (LangOpts.OpenMP)
     return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID, FD)
@@ -2030,8 +2029,9 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
 
   // Try to associate errors with the lexical context, if that is a function, or
   // the value declaration otherwise.
-  FunctionDecl *FD = isa<FunctionDecl>(C) ? cast<FunctionDecl>(C)
-                                          : dyn_cast_or_null<FunctionDecl>(D);
+  const FunctionDecl *FD = isa<FunctionDecl>(C)
+                               ? cast<FunctionDecl>(C)
+                               : dyn_cast_or_null<FunctionDecl>(D);
 
   auto CheckDeviceType = [&](QualType Ty) {
     if (Ty->isDependentType())
@@ -2107,7 +2107,7 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
 
       if (Diag(Loc, PD, FD)
           << false /*show bit size*/ << 0 << Ty << false /*return*/
-          << Context.getTargetInfo().getTriple().str()) {
+          << TI.getTriple().str()) {
         if (D)
           D->setInvalidDecl();
       }
@@ -2126,7 +2126,7 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
 
       if (Diag(Loc, PD, FD)
           << false /*show bit size*/ << 0 << Ty << true /*return*/
-          << Context.getTargetInfo().getTriple().str()) {
+          << TI.getTriple().str()) {
         if (D)
           D->setInvalidDecl();
       }
@@ -2136,17 +2136,17 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
 
     // RISC-V vector builtin types (RISCVVTypes.def)
     if (Ty->isRVVType(/* Bitwidth */ 64, /* IsFloat */ false) &&
-        !Context.getTargetInfo().hasFeature("zve64x"))
+        !TI.hasFeature("zve64x"))
       Diag(Loc, diag::err_riscv_type_requires_extension, FD) << Ty << "zve64x";
     if (Ty->isRVVType(/* Bitwidth */ 16, /* IsFloat */ true) &&
-        !Context.getTargetInfo().hasFeature("experimental-zvfh"))
+        !TI.hasFeature("experimental-zvfh"))
       Diag(Loc, diag::err_riscv_type_requires_extension, FD)
           << Ty << "zvfh";
     if (Ty->isRVVType(/* Bitwidth */ 32, /* IsFloat */ true) &&
-        !Context.getTargetInfo().hasFeature("zve32f"))
+        !TI.hasFeature("zve32f"))
       Diag(Loc, diag::err_riscv_type_requires_extension, FD) << Ty << "zve32f";
     if (Ty->isRVVType(/* Bitwidth */ 64, /* IsFloat */ true) &&
-        !Context.getTargetInfo().hasFeature("zve64d"))
+        !TI.hasFeature("zve64d"))
       Diag(Loc, diag::err_riscv_type_requires_extension, FD) << Ty << "zve64d";
 
     // Don't allow SVE types in functions without a SVE target.
@@ -2611,8 +2611,8 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
     return false;
   }
 
-  if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(E.IgnoreParens())) {
-    if (const FunctionDecl *Fun = dyn_cast<FunctionDecl>(DeclRef->getDecl())) {
+  if (const auto *DeclRef = dyn_cast<DeclRefExpr>(E.IgnoreParens())) {
+    if (const auto *Fun = dyn_cast<FunctionDecl>(DeclRef->getDecl())) {
       if (Fun->getMinRequiredArguments() == 0)
         ZeroArgCallReturnTy = Fun->getReturnType();
       return true;
@@ -2629,8 +2629,7 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
   if (!FunTy)
     FunTy = ExprTy->getAs<FunctionType>();
 
-  if (const FunctionProtoType *FPT =
-      dyn_cast_or_null<FunctionProtoType>(FunTy)) {
+  if (const auto *FPT = dyn_cast_if_present<FunctionProtoType>(FunTy)) {
     if (FPT->getNumParams() == 0)
       ZeroArgCallReturnTy = FunTy->getReturnType();
     return true;
@@ -2661,7 +2660,7 @@ static void noteOverloads(Sema &S, const UnresolvedSetImpl &Overloads,
       continue;
     }
 
-    NamedDecl *Fn = (*It)->getUnderlyingDecl();
+    const NamedDecl *Fn = (*It)->getUnderlyingDecl();
     // Don't print overloads for non-default multiversioned functions.
     if (const auto *FD = Fn->getAsFunction()) {
       if (FD->isMultiVersion() && FD->hasAttr<TargetAttr>() &&
@@ -2691,7 +2690,7 @@ static void notePlausibleOverloads(Sema &S, SourceLocation Loc,
   UnresolvedSet<2> PlausibleOverloads;
   for (OverloadExpr::decls_iterator It = Overloads.begin(),
          DeclsEnd = Overloads.end(); It != DeclsEnd; ++It) {
-    const FunctionDecl *OverloadDecl = cast<FunctionDecl>(*It);
+    const auto *OverloadDecl = cast<FunctionDecl>(*It);
     QualType OverloadResultTy = OverloadDecl->getReturnType();
     if (IsPlausibleResult(OverloadResultTy))
       PlausibleOverloads.addDecl(It.getDecl());
@@ -2703,7 +2702,7 @@ static void notePlausibleOverloads(Sema &S, SourceLocation Loc,
 /// putting parentheses after it.  Notably, expressions with unary
 /// operators can't be because the unary operator will start parsing
 /// outside the call.
-static bool IsCallableWithAppend(Expr *E) {
+static bool IsCallableWithAppend(const Expr *E) {
   E = E->IgnoreImplicit();
   return (!isa<CStyleCastExpr>(E) &&
           !isa<UnaryOperator>(E) &&

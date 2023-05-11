@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda || hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
 

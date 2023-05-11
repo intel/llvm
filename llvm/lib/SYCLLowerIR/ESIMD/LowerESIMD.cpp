@@ -777,7 +777,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
-  id::StringView Val;
+  std::string_view Val;
   switch (Conv) {
   case ESIMDIntrinDesc::GenXArgConversion::NONE:
     // Default fallback case, if we cannot deduce bitsize
@@ -800,11 +800,11 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   switch (Args[N]->getKind()) {
   case id::Node::KIntegerLiteral: {
     auto *ValL = castNode(Args[N], IntegerLiteral);
-    const id::StringView &TyStr = ValL->getType();
+    const std::string_view &TyStr = ValL->getType();
     if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
       // Overwrite Ty with IntegerLiteral's size
       Ty =
-          parsePrimitiveTypeString(StringRef(TyStr.begin(), TyStr.size()), Ctx);
+          parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()), Ctx);
     Val = ValL->getValue();
     break;
   }
@@ -821,7 +821,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   default:
     llvm_unreachable_internal("bad esimd intrinsic template parameter");
   }
-  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(Val.begin(), Val.size()),
+  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(&*Val.begin(), Val.size()),
                10);
 }
 
@@ -1491,12 +1491,12 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
                                "bad ESIMD intrinsic: ", MnglName);
 
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
-  id::StringView BaseNameV = FE->getName()->getBaseName();
+  std::string_view BaseNameV = FE->getName()->getBaseName();
 
   auto PrefLen = isDevicelibFunction(F->getName())
                      ? 0
                      : StringRef(ESIMD_INTRIN_PREF1).size();
-  StringRef BaseName(BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
+  StringRef BaseName(&*BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
   const auto &Desc = getIntrinDesc(BaseName);
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
     return;
@@ -1651,17 +1651,26 @@ void generateKernelMetadata(Module &M) {
         StringRef ArgDesc = "";
 
         if (Arg.getType()->isPointerTy()) {
-          const auto *IsAccMD =
-              KernelArgAccPtrs
-                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
-                  : nullptr;
-          unsigned IsAcc =
-              IsAccMD
-                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
-                                              ->getValue()
-                                              .getZExtValue())
-                  : 0;
-          if (IsAcc && !ForceStatelessMem) {
+          bool IsAcc = false;
+          bool IsLocalAcc = false;
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            llvm::esimd::assert_and_diag(
+                AccMD, "Malformed IR: cannot find accessor arguments info");
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            IsLocalAcc =
+                IsAcc &&
+                cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
+          }
+
+          if (IsLocalAcc) {
+            // Local accessor doesn't need any changes.
+          } else if (IsAcc && !ForceStatelessMem) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
           } else
