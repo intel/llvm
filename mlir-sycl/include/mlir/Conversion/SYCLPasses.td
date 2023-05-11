@@ -35,6 +35,20 @@ def ConvertSYCLToLLVM : Pass<"convert-sycl-to-llvm", "ModuleOp"> {
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
             /*default=*/"false", "Generate LLVM IR using opaque pointers "
             "instead of typed pointers">,
+    Option<"syclImplementation", "sycl-implementation",
+           "::mlir::sycl::Implementation",
+           /*default=*/"::mlir::sycl::Implementation::DPCPP",
+           "SYCL target implementation for lowering",
+           [{::llvm::cl::values(
+             clEnumValN(::mlir::sycl::Implementation::DPCPP, "dpcpp", "DPC++")
+           )}]>,
+    Option<"syclTarget", "sycl-target",
+           "::mlir::sycl::LoweringTarget",
+	   /*default=*/"::mlir::sycl::LoweringTarget::SPIR",
+           "SYCL target for lowering",
+           [{::llvm::cl::values(
+             clEnumValN(::mlir::sycl::LoweringTarget::SPIR, "spir", "SPIR")
+           )}]>,
   ];
 }
 
