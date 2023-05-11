@@ -15,6 +15,7 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/image.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/platform.hpp>
@@ -75,6 +76,15 @@ struct owner_less<kernel_bundle<State>>
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct owner_less<buffer<DataT, Dimensions, AllocatorT>>
     : public detail::owner_less_base<buffer<DataT, Dimensions, AllocatorT>> {};
+
+template <int Dimensions, typename AllocatorT>
+struct owner_less<unsampled_image<Dimensions, AllocatorT>>
+    : public detail::owner_less_base<unsampled_image<Dimensions, AllocatorT>> {
+};
+
+template <int Dimensions, typename AllocatorT>
+struct owner_less<sampled_image<Dimensions, AllocatorT>>
+    : public detail::owner_less_base<sampled_image<Dimensions, AllocatorT>> {};
 
 template <typename DataT, int Dimensions, access_mode AccessMode,
           target AccessTarget, access::placeholder isPlaceholder>
