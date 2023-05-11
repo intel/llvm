@@ -26,7 +26,7 @@ namespace mlir {
 
 namespace affine {
 struct MemRefAccess;
-}
+} // namespace affine
 class DataFlowSolver;
 
 namespace polygeist {
@@ -293,16 +293,6 @@ private:
   SmallVector<Value> data;
 };
 
-inline raw_ostream &operator<<(raw_ostream &os,
-                               const MemoryAccessMatrix &matrix) {
-  for (size_t row = 0; row < matrix.getNumRows(); ++row) {
-    llvm::interleave(
-        matrix.getRow(row), os, [&os](Value elem) { os << elem; }, " ");
-    os << '\n';
-  }
-  return os;
-}
-
 /// A column vector representing offsets used to access an array.
 /// The size is equal to the number of array dimensions. The first vector
 /// element corresponds to the leftmost array dimension.
@@ -459,9 +449,9 @@ private:
   /// analysis.
   void build();
 
-  /// Construct the access map entry for the given affine memory operation \p
-  /// memoryOp.
-  template <typename T> bool build(T memoryOp, DataFlowSolver &solver);
+  /// Attempt tp construct the access map entry for the given memory
+  /// operation \p memoryOp.
+  template <typename T> void build(T memoryOp, DataFlowSolver &solver);
 
   /// Returns true if the memory access \p access has a single subscript that is
   /// zero, and false otherwise.
@@ -473,11 +463,16 @@ private:
   getUniqueDefinitionOrNull(unsigned opIndex, Operation *op,
                             DataFlowSolver &solver) const;
 
-  /// Return the underlying value of the operand at index \p opIndex in
-  /// operation \p op, or nullopt if the underlying value could not be
-  /// determined.
-  std::optional<Value> getUnderlyingValueOf(unsigned opIndex, Operation *op,
-                                            DataFlowSolver &solver) const;
+  /// Collect the underlying value(s) of the operand at index \p opIndex in
+  /// operation \p op.
+  /// For example given:
+  ///
+  ///   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
+  ///   %subscr = sycl.accessor.subscript %acc[%id] ...
+  ///
+  /// The underlying values for '%id' are {%i, %j}.
+  SmallVector<Value> getUnderlyingValues(unsigned opIndex, Operation *op,
+                                         DataFlowSolver &solver) const;
 
 private:
   /// The operation associated with the analysis.

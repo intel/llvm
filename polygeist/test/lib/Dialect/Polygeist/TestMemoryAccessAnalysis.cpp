@@ -6,17 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/AliasAnalysis.h"
-#include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
-#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
-#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
-using namespace mlir::dataflow;
+using namespace mlir::polygeist;
 
 namespace {
 
@@ -31,29 +26,30 @@ struct TestMemoryAccessAnalysisPass
   }
 
   void runOnOperation() override {
-#if 0
-    AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
-    aliasAnalysis.addAnalysisImplementation(
-        sycl::AliasAnalysis(false /* relaxedAliasing*/));
-
-    DataFlowSolver solver;
-    solver.load<DeadCodeAnalysis>();
-    solver.load<SparseConstantPropagation>();
-    solver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
-
-    Operation *op = getOperation();
-    if (failed(solver.initializeAndRun(op)))
-      return signalPassFailure();
-#endif
-
     Operation *op = getOperation();
     ModuleAnalysisManager mam(op, /*passInstrumentor=*/nullptr);
     AnalysisManager am = mam;
+    auto &memAccessAnalysis = am.getAnalysis<MemoryAccessAnalysis>();
 
-    polygeist::MemoryAccessAnalysis &memAccessAnalysis =
-        am.getAnalysis<polygeist::MemoryAccessAnalysis>();
+    op->walk([&](Operation *op) {
+      // Only operations with the "tag" attribute are interesting.
+      auto tag = op->getAttrOfType<StringAttr>("tag");
+      if (!tag)
+        return;
 
-    llvm::errs() << "Testing : " << *op << "\n";
+      assert(
+          (isa<affine::AffineLoadOp>(op) || isa<affine::AffineStoreOp>(op)) &&
+          "expecting affine load/store operation");
+
+      llvm::errs() << "test_tag: " << tag.getValue() << ":\n";
+
+      affine::MemRefAccess access(op);
+      const std::optional<MemoryAccessMatrix> matrix =
+          memAccessAnalysis.getMemoryAccessMatrix(access);
+      assert(matrix.has_value() && "expected a m,emory access matrix");
+
+      llvm::errs() << "matrix:\n" << *matrix << "\n";
+    });
   }
 };
 

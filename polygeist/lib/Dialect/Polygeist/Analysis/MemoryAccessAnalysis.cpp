@@ -12,20 +12,15 @@
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
-#include <utility>
-
-#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
-#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -97,6 +92,31 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
 //===----------------------------------------------------------------------===//
 // MemoryAccessMatrix
 //===----------------------------------------------------------------------===//
+
+raw_ostream &mlir::polygeist::operator<<(raw_ostream &os,
+                                         const MemoryAccessMatrix &matrix) {
+  auto getConstant = [](Value val) -> Optional<int64_t> {
+    return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
+        .Case([](arith::ConstantIndexOp op) { return op.value(); })
+        .Case([](arith::ConstantIntOp op) { return op.value(); })
+        .Default([](auto) { return std::nullopt; });
+  };
+
+  for (size_t row = 0; row < matrix.getNumRows(); ++row) {
+    llvm::interleave(
+        matrix.getRow(row), os,
+        [&](Value elem) {
+          std::optional<int64_t> constant = getConstant(elem);
+          if (constant.has_value())
+            os << constant;
+          else
+            os << elem;
+        },
+        " ");
+    os << '\n';
+  }
+  return os;
+}
 
 MemoryAccessMatrix::MemoryAccessMatrix(size_t nRows, size_t nColumns)
     : nRows(nRows), nColumns(nColumns), data(nRows * nColumns) {}
@@ -660,10 +680,7 @@ MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
 // MemoryAccessAnalysis
 //===----------------------------------------------------------------------===//
 
-/// Implementation detail that walks up the parents and records the ones with
-/// the specified type.
-/// TODO: could also be implemented as a collect parents followed by a
-/// filter and made available outside this file.
+/// Walks up the parents and records the ones with the specified type.
 template <typename T>
 static SetVector<Operation *> getParentsOfType(Block *block) {
   SetVector<Operation *> res;
@@ -689,7 +706,7 @@ bool MemoryAccessAnalysis::isInvalidated(
          !pa.isPreserved<dataflow::DeadCodeAnalysis>() ||
          !pa.isPreserved<dataflow::SparseConstantPropagation>() ||
          !pa.isPreserved<dataflow::IntegerRangeAnalysis>() ||
-         !pa.isPreserved<polygeist::ReachingDefinitionAnalysis>();
+         !pa.isPreserved<ReachingDefinitionAnalysis>();
 }
 
 std::optional<MemoryAccessMatrix>
@@ -710,7 +727,7 @@ void MemoryAccessAnalysis::build() {
   solver.load<dataflow::DeadCodeAnalysis>();
   solver.load<dataflow::SparseConstantPropagation>();
   solver.load<dataflow::IntegerRangeAnalysis>();
-  solver.load<polygeist::ReachingDefinitionAnalysis>(aliasAnalysis);
+  solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
   Operation *op = getOperation();
   if (failed(solver.initializeAndRun(op))) {
@@ -718,8 +735,8 @@ void MemoryAccessAnalysis::build() {
     return;
   }
 
-  // Try to construct the memory access matrix for each affine memory operation
-  // contained within this operation.
+  // Try to construct the memory access matrix for affine memory operation of
+  // interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
     TypeSwitch<Operation *>(op)
         .Case([&](AffineStoreOp memoryOp) { build(memoryOp, solver); })
@@ -728,71 +745,119 @@ void MemoryAccessAnalysis::build() {
 }
 
 template <typename T>
-bool MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
+void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value);
 
   MemRefType memRefType = memoryOp.getMemRefType();
   if (!memRefType.getLayout().isIdentity())
-    return false;
+    return;
 
-  // We are interested in memory accesses that have:
+  // Currently we are only interested in SYCL memory accesses that have:
   //  - base operand equal to the result of a sycl accessor subscript, and
   //  - a single index with zero value.
   MemRefAccess access(memoryOp);
   if (!isa<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp()) ||
       !hasZeroIndex(access))
-    return false;
+    return;
 
   LLVM_DEBUG(llvm::errs() << "Candidate op:" << memoryOp << "\n");
 
-  // Try to determine the underlying value of the accessor subscript
-  // offset operand.
   auto accessorSubscriptOp =
       cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
-  std::optional<Value> val = getUnderlyingValueOf(
+  Value accSubIndex = accessorSubscriptOp.getIndex();
+
+  // Try to determine the underlying value(s) of the accessor subscript index
+  // operand. The number of underlying values should be equal to the
+  // dimensionality of the sycl id used as an index in the accessor subscript
+  // operation. Example:
+  //   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
+  //   %sub = sycl.accessor.subscript %acc[%id] ...
+  // Here the underlying values for '%id' are {%i, %j}. The number of underlying
+  // values matches the dimensionality of the sycl id.
+  SmallVector<Value> underlyingVals = getUnderlyingValues(
       accessorSubscriptOp.getOffsetOperandIndex(), accessorSubscriptOp, solver);
-  if (!val)
-    return false;
+  if (underlyingVals.empty()) {
+    LLVM_DEBUG(llvm::dbgs() << "Failed to resolve underlying value(s) for: "
+                            << accessorSubscriptOp.getIndex() << "\n");
+    return;
+  }
 
-  LLVM_DEBUG(llvm::dbgs() << "Underlying val: " << val << "\n");
+  assert(
+      sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
+      "Number of underlying values should be equal to dimensionality of the id "
+      "used to index the accessor");
+  LLVM_DEBUG({
+    for (Value val : underlyingVals)
+      llvm::dbgs() << "Underlying val: " << val << "\n";
+  });
 
+  // Construct the memory access matrix. The number of rows is equal to the
+  // dimensionality of the sycl.id used by the accessor subscript operation. The
+  // number of columns is equal to the number of loops surrounding the memory
+  // access plus (TODO) the dimensionality of the sycl item received by the
+  // kernel.
   SetVector<Operation *> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
+  MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
+                                  enclosingLoops.size());
 
-  // TODO: the number of rows needs to be equal to the number of dimensions of
-  // the sycl.id which should be equal to the number of dimensions of the
-  // accessor (add assertion).
-  // Construct the memory access matrix. The number of rows needs to be equal to
-  // the number of dimensions of accessor.
-  auto accessorTy = cast<MemRefType>(accessorSubscriptOp.getType());
-  MemoryAccessMatrix accessMatrix(accessorTy.getRank(), enclosingLoops.size());
+  // Remove conversion like operations in the incoming expression if any.
+  auto removeConversions = [](Value expr) {
+    if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
+        matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
+        matchPattern(expr, m_Op<arith::TruncIOp>()) ||
+        matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
+        matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
+      return expr.getDefiningOp()->getOperand(0);
+    return expr;
+  };
 
-  SmallVector<Value, 4> loopIVs;
-  for (Operation *loop : enclosingLoops) {
-    auto affineForOp = cast<AffineForOp>(loop);
-    loopIVs.push_back(affineForOp.getInductionVar());
-  }
+  // Determine whether 'expr' is a multiplication involving 'val'.
+  auto getMultiplier = [&](Value expr, Value val) -> std::optional<Value> {
+    expr = removeConversions(expr);
+    if (expr == val) {
+      OpBuilder b(expr.getContext());
+      return b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1);
+    }
 
-  // Attempt to match an expression like (iv * other) or (other * iv).
-  Value iv = loopIVs[0];
-  Value other;
-  if (matchPattern(*val, m_Op<arith::MulIOp>(matchers::m_Val(iv),
-                                             matchers::m_Any(&other))) ||
-      matchPattern(*val, m_Op<arith::MulIOp>(matchers::m_Any(&other),
-                                             matchers::m_Val(iv)))) {
+    Value other;
 
-    for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
-      for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
-        accessMatrix(row, col) = other;
-      }
+    // Try to match (val * other) or (expr * other).
+    if (matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Val(val),
+                                               matchers::m_Any(&other))) ||
+        matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Any(&other),
+                                               matchers::m_Val(val))))
+      return other;
+
+    // TODO: we need a better way to handle chain of expressions.
+    // Example:
+    //   %0 = arith.index_cast %ii : index to i64
+    //   %i = arith.muli %0, %c1 : i64
+    // In this case we fail to match because the %0 is not %ii.
+
+    return std::nullopt;
+  };
+
+  // Collect the loop induction variables.
+  // TODO: collect also the global thread ids.
+  SmallVector<Value, 4> IVs;
+  for (Operation *loop : llvm::reverse(enclosingLoops))
+    IVs.push_back(cast<AffineForOp>(loop).getInductionVar());
+
+  OpBuilder b(access.memref.getContext());
+  Value zero = b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0);
+
+  // Initialize the memory access matrix.
+  for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
+    Value val = underlyingVals[row];
+    for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
+      std::optional<Value> factor = getMultiplier(val, IVs[col]);
+      accessMatrix(row, col) = factor.has_value() ? *factor : zero;
     }
   }
-
-  LLVM_DEBUG(llvm::dbgs() << "accessMatrix constructed successfully:\n"
-                          << accessMatrix << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
 
   accessMap[access.opInst] = accessMatrix;
-  return true;
 }
 
 bool MemoryAccessAnalysis::hasZeroIndex(const MemRefAccess &access) const {
@@ -810,8 +875,8 @@ MemoryAccessAnalysis::getUniqueDefinitionOrNull(unsigned opIndex, Operation *op,
                                                 DataFlowSolver &solver) const {
   using ModifiersTy = ReachingDefinition::ModifiersTy;
 
-  const polygeist::ReachingDefinition *reachingDef =
-      solver.lookupState<polygeist::ReachingDefinition>(op);
+  const ReachingDefinition *reachingDef =
+      solver.lookupState<ReachingDefinition>(op);
   if (!reachingDef)
     return nullptr;
 
@@ -830,51 +895,56 @@ MemoryAccessAnalysis::getUniqueDefinitionOrNull(unsigned opIndex, Operation *op,
   return *mods->begin();
 }
 
-std::optional<Value>
-MemoryAccessAnalysis::getUnderlyingValueOf(unsigned opIndex, Operation *op,
-                                           DataFlowSolver &solver) const {
+SmallVector<Value>
+MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
+                                          DataFlowSolver &solver) const {
   Value operand = op->getOperand(opIndex);
   std::shared_ptr<Definition> def =
       getUniqueDefinitionOrNull(opIndex, op, solver);
   if (!def)
-    return operand;
+    return {operand};
 
   LLVM_DEBUG({
     llvm::dbgs() << "operand: " << operand << "\n";
     llvm::dbgs() << "operand definition: " << *def << "\n";
   });
 
-  return TypeSwitch<Operation *, std::optional<Value>>(def->getOperation())
-      .Case([&](AffineStoreOp storeOp) -> std::optional<Value> {
+  return TypeSwitch<Operation *, SmallVector<Value>>(def->getOperation())
+      .Case([&](AffineStoreOp storeOp) {
+        // Memory accesses involving SYCL accessors should have zero index.
         MemRefAccess storeAccess(storeOp);
-        if (!hasZeroIndex(storeAccess))
-          return std::nullopt;
+        assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
 
         Value storedVal =
             storeOp.getOperand(storeOp.getStoredValOperandIndex());
         if (!isa<AffineLoadOp>(storedVal.getDefiningOp()))
-          return getUnderlyingValueOf(storeOp.getStoredValOperandIndex(),
-                                      storeOp, solver);
+          return getUnderlyingValues(storeOp.getStoredValOperandIndex(),
+                                     storeOp, solver);
 
+        // Try to determine the underlying value of the memory pointed to by the
+        // memref operand of a load.
         AffineLoadOp loadOp = cast<AffineLoadOp>(storedVal.getDefiningOp());
         MemRefAccess loadAccess(loadOp);
-        if (!hasZeroIndex(loadAccess))
-          return std::nullopt;
+        assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
 
-        return getUnderlyingValueOf(loadOp.getMemRefOperandIndex(), loadOp,
-                                    solver);
+        return getUnderlyingValues(loadOp.getMemRefOperandIndex(), loadOp,
+                                   solver);
       })
-      .Case([&](sycl::SYCLConstructorOp constructorOp) -> std::optional<Value> {
-        if (constructorOp.getNumOperands() != 2)
-          return std::nullopt;
-
-        return getUnderlyingValueOf(1, constructorOp, solver);
+      .Case([&](sycl::SYCLConstructorOp constructorOp) {
+        // Collect the underlying values of the sycl.constructor inputs.
+        SmallVector<Value> vec;
+        for (unsigned i = 1; i < constructorOp.getNumOperands(); ++i) {
+          auto vals = getUnderlyingValues(i, constructorOp, solver);
+          assert(vals.size() == 1 && "Expecting single value");
+          vec.push_back(vals.front());
+        }
+        return vec;
       })
-      .Default([&](auto *op) -> std::optional<Value> {
-        if (op->getNumResults() != 1)
-          return std::nullopt;
-
-        return op->getResult(0);
+      .Default([&](auto *op) {
+        SmallVector<Value> vec;
+        for (auto res : op->getResults())
+          vec.push_back(res);
+        return vec;
       });
 }
 
