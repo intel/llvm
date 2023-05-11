@@ -1237,10 +1237,10 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     NewInst = llvm::Constant::getNullValue(LI->getType());
   } else if (isa<GetElementPtrConstantExpr>(LI->getPointerOperand())) {
     // Translate the load that has getelementptr as an operand
-    auto *GEPCE = cast<GEPOperator>(LI->getPointerOperand());
+    auto *GEPOp = cast<GEPOperator>(LI->getPointerOperand());
     const DataLayout &DL = LI->getFunction()->getParent()->getDataLayout();
-    APInt Offset(DL.getIndexSizeInBits(GEPCE->getPointerAddressSpace()), 0);
-    if (!GEPCE->accumulateConstantOffset(DL, Offset))
+    APInt Offset(DL.getIndexSizeInBits(GEPOp->getPointerAddressSpace()), 0);
+    if (!GEPOp->accumulateConstantOffset(DL, Offset))
       llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
     APInt IndexValue;
     uint64_t Remainder;
