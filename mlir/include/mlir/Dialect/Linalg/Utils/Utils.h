@@ -18,9 +18,12 @@
 
 namespace mlir {
 class AffineExpr;
-class AffineForOp;
 class AffineMap;
 class PatternRewriter;
+
+namespace affine {
+class AffineForOp;
+} // namespace affine
 
 namespace tensor {
 class ExtractSliceOp;
@@ -129,7 +132,7 @@ getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes);
 
 /// Return the identity numeric value associated to the give op. Return
 /// std::nullopt if there is no known neutral element.
-std::optional<Attribute> getNeutralElement(Operation *op);
+std::optional<TypedAttr> getNeutralElement(Operation *op);
 
 //===----------------------------------------------------------------------===//
 // Fusion / Tiling utilities

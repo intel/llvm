@@ -212,7 +212,7 @@ VPBasicBlock::iterator VPBasicBlock::getFirstNonPhi() {
 }
 
 Value *VPTransformState::get(VPValue *Def, const VPIteration &Instance) {
-  if (!Def->hasDefiningRecipe())
+  if (Def->isLiveIn())
     return Def->getLiveInIRValue();
 
   if (hasScalarValue(Def, Instance)) {
@@ -591,14 +591,12 @@ VPlan::~VPlan() {
 
     VPBlockBase::deleteCFG(Entry);
   }
-  for (VPValue *VPV : VPValuesToFree)
+  for (VPValue *VPV : VPLiveInsToFree)
     delete VPV;
   if (TripCount)
     delete TripCount;
   if (BackedgeTakenCount)
     delete BackedgeTakenCount;
-  for (auto &P : VPExternalDefs)
-    delete P.second;
 }
 
 VPActiveLaneMaskPHIRecipe *VPlan::getActiveLaneMaskPhi() {
@@ -641,7 +639,7 @@ void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
   // needs to be changed from zero to the value after the main vector loop.
   // FIXME: Improve modeling for canonical IV start values in the epilogue loop.
   if (CanonicalIVStartValue) {
-    VPValue *VPV = getOrAddExternalDef(CanonicalIVStartValue);
+    VPValue *VPV = getVPValueOrAddLiveIn(CanonicalIVStartValue);
     auto *IV = getCanonicalIV();
     assert(all_of(IV->users(),
                   [](const VPUser *U) {
@@ -1118,9 +1116,13 @@ void VPSlotTracker::assignSlots(const VPlan &Plan) {
       RPOT(VPBlockDeepTraversalWrapper<const VPBlockBase *>(Plan.getEntry()));
   for (const VPBasicBlock *VPBB :
        VPBlockUtils::blocksOnly<const VPBasicBlock>(RPOT))
-    for (const VPRecipeBase &Recipe : *VPBB)
-      for (VPValue *Def : Recipe.definedValues())
-        assignSlot(Def);
+    assignSlots(VPBB);
+}
+
+void VPSlotTracker::assignSlots(const VPBasicBlock *VPBB) {
+  for (const VPRecipeBase &Recipe : *VPBB)
+    for (VPValue *Def : Recipe.definedValues())
+      assignSlot(Def);
 }
 
 bool vputils::onlyFirstLaneUsed(VPValue *Def) {
@@ -1131,11 +1133,11 @@ bool vputils::onlyFirstLaneUsed(VPValue *Def) {
 VPValue *vputils::getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
                                                 ScalarEvolution &SE) {
   if (auto *E = dyn_cast<SCEVConstant>(Expr))
-    return Plan.getOrAddExternalDef(E->getValue());
+    return Plan.getVPValueOrAddLiveIn(E->getValue());
   if (auto *E = dyn_cast<SCEVUnknown>(Expr))
-    return Plan.getOrAddExternalDef(E->getValue());
+    return Plan.getVPValueOrAddLiveIn(E->getValue());
 
-  VPBasicBlock *Preheader = Plan.getEntry()->getEntryBasicBlock();
+  VPBasicBlock *Preheader = Plan.getEntry();
   VPExpandSCEVRecipe *Step = new VPExpandSCEVRecipe(Expr, SE);
   Preheader->appendRecipe(Step);
   return Step;

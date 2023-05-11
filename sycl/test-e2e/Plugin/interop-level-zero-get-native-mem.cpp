@@ -2,8 +2,8 @@
 // L0 plugin incorrectly reports memory leaks because it doesn't take into
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug-1,ze_debug4
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out
 
 // Test get_native_mem for the Level Zero backend.
 

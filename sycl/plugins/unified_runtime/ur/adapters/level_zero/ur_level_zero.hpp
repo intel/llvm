@@ -175,7 +175,7 @@ struct _ur_device_handle_t : _ur_object {
   ImmCmdlistMode ImmCommandListUsed{};
 
   // Scope of events used for events on the device
-  // Can be adjusted with SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS
+  // Can be adjusted with UR_DEVICE_SCOPE_EVENTS
   // for non-immediate command lists
   EventsScope ZeEventsScope = AllHostVisible;
 

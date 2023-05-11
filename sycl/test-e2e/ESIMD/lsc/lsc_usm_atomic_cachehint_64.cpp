@@ -9,8 +9,8 @@
 // UNSUPPORTED: cuda || hip
 // TODO : Test uses 'kernel_bundle' that is not supported in ESIMD_EMULATOR
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // 64 bit offset variant of the test - uses 64 bit offsets.
 
 #define USE_64_BIT_OFFSET

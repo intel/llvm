@@ -86,6 +86,39 @@ std::string Linux::getMultiarchTriple(const Driver &D,
   case llvm::Triple::aarch64_be:
     return "aarch64_be-linux-gnu";
 
+  case llvm::Triple::loongarch64: {
+    const char *Libc;
+    const char *FPFlavor;
+
+    if (TargetTriple.isGNUEnvironment()) {
+      Libc = "gnu";
+    } else if (TargetTriple.isMusl()) {
+      Libc = "musl";
+    } else {
+      return TargetTriple.str();
+    }
+
+    switch (TargetEnvironment) {
+    default:
+      return TargetTriple.str();
+    case llvm::Triple::GNUSF:
+      FPFlavor = "sf";
+      break;
+    case llvm::Triple::GNUF32:
+      FPFlavor = "f32";
+      break;
+    case llvm::Triple::GNU:
+    case llvm::Triple::GNUF64:
+      // This was going to be "f64" in an earlier Toolchain Conventions
+      // revision, but starting from Feb 2023 the F64 ABI variants are
+      // unmarked in their canonical forms.
+      FPFlavor = "";
+      break;
+    }
+
+    return (Twine("loongarch64-linux-") + Libc + FPFlavor).str();
+  }
+
   case llvm::Triple::m68k:
     return "m68k-linux-gnu";
 
@@ -308,8 +341,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // libc++.so in D.Dir+"/../lib/". Detect this path.
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
   if (StringRef(D.Dir).startswith(SysRoot) &&
-      (D.getVFS().exists(D.Dir + "/../lib/libc++.so") ||
-       Args.hasArg(options::OPT_fsycl) ||
+      (Args.hasArg(options::OPT_fsycl) ||
        D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
     addPathIfExists(D, D.Dir + "/../lib", Paths);
 
@@ -776,7 +808,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64 || IsSystemZ ||
       IsLoongArch64)
     Res |= SanitizerKind::Thread;
-  if (IsX86_64)
+  if (IsX86_64 || IsSystemZ)
     Res |= SanitizerKind::KernelMemory;
   if (IsX86 || IsX86_64)
     Res |= SanitizerKind::Function;

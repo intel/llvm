@@ -1,7 +1,8 @@
+// REQUIRES: gpu
+// REQUIRES: aspect-fp16
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-
-// RUN: %clangxx -fsycl %{mathflags} %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda || hip
 
@@ -15,11 +16,6 @@ int main(int, char **) {
   std::cout << "Running on "
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
-
-  if (!device_queue.get_device().has(sycl::aspect::fp16)) {
-    std::cout << "Test skipped on platform without fp16 support." << std::endl;
-    return 0;
-  }
 
   {
     std::initializer_list<sycl::half> input_vals1 = {0.5f, -1.125f, 100.5f,

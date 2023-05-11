@@ -204,8 +204,8 @@ struct LinalgPromotionOptions {
   /// If ith element of `useFullTiles` is true the full view should be used
   /// for the promoted buffer of the ith operand in `operandsToPromote`.
   /// Otherwise the partial view will be used. The decision is defaulted to
-  /// `useFullTileBuffersDefault` when `useFullTileBuffers` is None and for
-  /// operands missing from `useFullTileBuffers`.
+  /// `useFullTileBuffersDefault` when `useFullTileBuffers` is std::nullopt and
+  /// for operands missing from `useFullTileBuffers`.
   std::optional<llvm::SmallBitVector> useFullTileBuffers;
   LinalgPromotionOptions &setUseFullTileBuffers(ArrayRef<bool> useFullTiles) {
     unsigned size = useFullTiles.size();
@@ -906,6 +906,27 @@ splitReductionByScaling(RewriterBase &b, LinalgOp op,
 FailureOr<SmallVector<Value>> collapseGenericOpIterationDims(
     GenericOp genericOp, ArrayRef<ReassociationIndices> foldedIterationDims,
     RewriterBase &rewriter);
+
+struct LowerPackResult {
+  tensor::PadOp padOp;
+  tensor::ExpandShapeOp expandShapeOp;
+  linalg::TransposeOp transposeOp;
+};
+
+/// Rewrite pack as pad + reshape + transpose.
+FailureOr<LowerPackResult> lowerPack(RewriterBase &rewriter,
+                                     tensor::PackOp packOp);
+
+struct LowerUnPackOpResult {
+  tensor::EmptyOp emptyOp;
+  linalg::TransposeOp transposeOp;
+  tensor::CollapseShapeOp collapseShapeOp;
+  tensor::ExtractSliceOp extractSliceOp;
+};
+
+/// Rewrite pack as empty + transpose + reshape + extract_slice.
+FailureOr<LowerUnPackOpResult> lowerUnPack(RewriterBase &rewriter,
+                                           tensor::UnPackOp unPackOp);
 
 /// Struct to hold the result of a `pack` call.
 struct PackResult {
