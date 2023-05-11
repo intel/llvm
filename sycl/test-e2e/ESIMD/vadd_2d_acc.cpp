@@ -8,7 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 // The test checks that 2D workitem addressing works correctly with SIMD
 // kernels.
 
