@@ -77,7 +77,6 @@ long long __imf_bfloat162ll_rd(uint16_t);
 long long __imf_bfloat162ll_rn(uint16_t);
 long long __imf_bfloat162ll_ru(uint16_t);
 long long __imf_bfloat162ll_rz(uint16_t);
-uint16_t __imf_double2bfloat16(double);
 short __imf_bfloat16_as_short(uint16_t);
 unsigned short __imf_bfloat16_as_ushort(uint16_t);
 uint16_t __imf_short_as_bfloat16(short);

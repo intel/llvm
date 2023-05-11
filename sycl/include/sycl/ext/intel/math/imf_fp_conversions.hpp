@@ -41,11 +41,21 @@ uint16_t __imf_ll2bfloat16_rd(long long);
 uint16_t __imf_ll2bfloat16_rn(long long);
 uint16_t __imf_ll2bfloat16_ru(long long);
 uint16_t __imf_ll2bfloat16_rz(long long);
+uint16_t __imf_double2bfloat16(double);
 };
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::math {
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                        sycl::ext::oneapi::bfloat16>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, double>, double> x) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_double2bfloat16(x));
+}
 
 template <typename To, typename From>
 static std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
@@ -561,6 +571,15 @@ To ll2bfloat16_rz(From x) {
       std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
                        sycl::ext::oneapi::bfloat16>,
       std::enable_if_t<std::is_same_v<From, long long int>, long long int>>(x);
+}
+
+template <typename To = sycl::ext::oneapi::bfloat16,
+          typename From = double>
+To double2bfloat16(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, sycl::ext::oneapi::bfloat16>,
+                       sycl::ext::oneapi::bfloat16>,
+      std::enable_if_t<std::is_same_v<From, double>, double>>(x);
 }
 
 } // namespace ext::intel::math
