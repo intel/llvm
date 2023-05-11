@@ -440,12 +440,12 @@ void ParallelLower::runOnOperation() {
       builder.replaceOp(bidx, val);
     });
 
-    container.walk([&](AffineStoreOp storeOp) {
+    container.walk([&](affine::AffineStoreOp storeOp) {
       builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = builder.create<AffineApplyOp>(
+        auto apply = builder.create<affine::AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
@@ -453,12 +453,12 @@ void ParallelLower::runOnOperation() {
                                                   storeOp.getMemref(), indices);
     });
 
-    container.walk([&](AffineLoadOp storeOp) {
+    container.walk([&](affine::AffineLoadOp storeOp) {
       builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = builder.create<AffineApplyOp>(
+        auto apply = builder.create<affine::AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }

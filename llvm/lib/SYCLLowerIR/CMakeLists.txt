@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: "Gorban, Igor" <igor.gorban@intel.com>
-    # Date: Wed Feb 15 09:37:04 2023 +0000
-    # Fix module globals accessors
-    set(LLVMGenXIntrinsics_GIT_TAG 3ac855c9253d608a36d10b8ff87e62aa413bbf23)
+    # Author: "Victor Mustya" <victor.mustya@intel.com>
+    # Date: Tue, 25 Apr 2023 15:13:02 +0000
+    # Use target extension types for SPIR-V opaque arguments
+    set(LLVMGenXIntrinsics_GIT_TAG 2c39bf09756c3afd6ce77c7aa104e4a6e025405d)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

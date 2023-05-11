@@ -25,4 +25,15 @@ class Polygeist_Type<string name, string typeMnemonic, list<Trait> traits = []>
   let mnemonic = typeMnemonic;
 }
 
+def Polygeist_StructType :
+    Polygeist_Type<"Struct", "struct"> {
+  let summary = "Polygeist Struct";
+  let description = [{
+    Type used to represent a collection of data members together in memory.
+  }];
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body,
+                        OptionalParameter<"std::optional<StringAttr>">:$name);
+  let assemblyFormat = "`<` ($name^`,` )? `(` $body `)` `>`";
+}
+
 #endif // POLYGEIST_TYPES

@@ -2,16 +2,14 @@
 // on opencl & level-zero backends
 // (because only SPIR-V supports specialization constants natively)
 
+// FIXME: This set is never satisfied all at once in our infrastructure.
 // REQUIRES: opencl, level-zero, cpu, gpu, opencl-aot, ocloc
 
-// RUN: %clangxx -DJIT -fsycl %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:cpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
+// RUN: %clangxx -fsycl -DJIT %s -o %t.out
+// RUN: %{run} %t.out
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

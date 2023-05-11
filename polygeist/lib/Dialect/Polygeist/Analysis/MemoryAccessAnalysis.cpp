@@ -11,6 +11,7 @@
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -29,6 +30,7 @@
 #define DEBUG_TYPE "memory-access-analysis"
 
 using namespace mlir;
+using namespace mlir::affine;
 using namespace mlir::polygeist;
 
 //===----------------------------------------------------------------------===//
@@ -868,8 +870,8 @@ MemoryAccessAnalysis::getUnderlyingValueOf(unsigned opIndex, Operation *op,
 namespace mlir {
 namespace polygeist {
 
-template class MemoryAccess<AffineLoadOp>;
-template class MemoryAccess<AffineStoreOp>;
+template class MemoryAccess<affine::AffineLoadOp>;
+template class MemoryAccess<affine::AffineStoreOp>;
 
 } // namespace polygeist
 } // namespace mlir

@@ -89,7 +89,7 @@ public:
 
   const plugin &getPlugin() const;
 
-  size_t getSizeInBytes() const override { return MSizeInBytes; }
+  size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept {

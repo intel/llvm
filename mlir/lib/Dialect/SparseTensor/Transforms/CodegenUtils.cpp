@@ -213,7 +213,19 @@ Value sparse_tensor::genCast(OpBuilder &builder, Location loc, Value value,
   return mlir::convertScalarToDtype(builder, loc, value, dstTp, isUnsignedCast);
 }
 
-mlir::Attribute mlir::sparse_tensor::getOneAttr(Builder &builder, Type tp) {
+Value sparse_tensor::genIndexLoad(OpBuilder &builder, Location loc, Value mem,
+                                  Value s) {
+  Value load = builder.create<memref::LoadOp>(loc, mem, s);
+  if (!load.getType().isa<IndexType>()) {
+    if (load.getType().getIntOrFloatBitWidth() < 64)
+      load = builder.create<arith::ExtUIOp>(loc, builder.getI64Type(), load);
+    load =
+        builder.create<arith::IndexCastOp>(loc, builder.getIndexType(), load);
+  }
+  return load;
+}
+
+mlir::TypedAttr mlir::sparse_tensor::getOneAttr(Builder &builder, Type tp) {
   if (tp.isa<FloatType>())
     return builder.getFloatAttr(tp, 1.0);
   if (tp.isa<IndexType>())
@@ -376,8 +388,12 @@ func::CallOp mlir::sparse_tensor::createFuncCall(
   return builder.create<func::CallOp>(loc, resultType, fn, operands);
 }
 
-Type mlir::sparse_tensor::getOpaquePointerType(OpBuilder &builder) {
-  return LLVM::LLVMPointerType::get(builder.getI8Type());
+Type mlir::sparse_tensor::getOpaquePointerType(MLIRContext *ctx) {
+  return LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+}
+
+Type mlir::sparse_tensor::getOpaquePointerType(Builder &builder) {
+  return getOpaquePointerType(builder.getContext());
 }
 
 Value mlir::sparse_tensor::genAlloca(OpBuilder &builder, Location loc,

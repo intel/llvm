@@ -21,9 +21,9 @@
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopInfoImpl.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
+#include "llvm/Support/GenericLoopInfoImpl.h"
 
 #include "llvm/Support/Debug.h"
 #define DEBUG_TYPE "LoopRestructure"

@@ -36,6 +36,7 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::affine;
 using namespace mlir::arith;
 using namespace polygeist;
 

@@ -142,30 +142,29 @@ public:
 
   uint64_t GetPacketTimeout() {
     const uint32_t idx = ePropertyPacketTimeout;
-    return m_collection_sp->GetPropertyAtIndexAsUInt64(
-        nullptr, idx, g_processgdbremote_properties[idx].default_uint_value);
+    return m_collection_sp->GetPropertyAtIndexAsUInt64(idx).value_or(
+        g_processgdbremote_properties[idx].default_uint_value);
   }
 
   bool SetPacketTimeout(uint64_t timeout) {
     const uint32_t idx = ePropertyPacketTimeout;
-    return m_collection_sp->SetPropertyAtIndexAsUInt64(nullptr, idx, timeout);
+    return m_collection_sp->SetPropertyAtIndexAsUInt64(idx, timeout);
   }
 
   FileSpec GetTargetDefinitionFile() const {
     const uint32_t idx = ePropertyTargetDefinitionFile;
-    return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+    return m_collection_sp->GetPropertyAtIndexAsFileSpec(idx);
   }
 
   bool GetUseSVR4() const {
     const uint32_t idx = ePropertyUseSVR4;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(
-        nullptr, idx,
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
         g_processgdbremote_properties[idx].default_uint_value != 0);
   }
 
   bool GetUseGPacketForReading() const {
     const uint32_t idx = ePropertyUseGPacketForReading;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(nullptr, idx, true);
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(true);
   }
 };
 
@@ -3400,8 +3399,7 @@ void ProcessGDBRemote::DebuggerInitialize(Debugger &debugger) {
     const bool is_global_setting = true;
     PluginManager::CreateSettingForProcessPlugin(
         debugger, GetGlobalPluginProperties().GetValueProperties(),
-        ConstString("Properties for the gdb-remote process plug-in."),
-        is_global_setting);
+        "Properties for the gdb-remote process plug-in.", is_global_setting);
   }
 }
 
@@ -3781,8 +3779,7 @@ ProcessGDBRemote::GetExtendedInfoForThread(lldb::tid_t tid) {
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp =
-              StructuredData::ParseJSON(std::string(response.GetStringRef()));
+          object_sp = StructuredData::ParseJSON(response.GetStringRef());
         }
       }
     }
@@ -3853,8 +3850,7 @@ ProcessGDBRemote::GetLoadedDynamicLibrariesInfos_sender(
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp =
-              StructuredData::ParseJSON(std::string(response.GetStringRef()));
+          object_sp = StructuredData::ParseJSON(response.GetStringRef());
         }
       }
     }
@@ -3876,8 +3872,7 @@ StructuredData::ObjectSP ProcessGDBRemote::GetDynamicLoaderProcessState() {
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp =
-              StructuredData::ParseJSON(std::string(response.GetStringRef()));
+          object_sp = StructuredData::ParseJSON(response.GetStringRef());
         }
       }
     }
@@ -3909,8 +3904,7 @@ StructuredData::ObjectSP ProcessGDBRemote::GetSharedCacheInfo() {
           response.GetResponseType();
       if (response_type == StringExtractorGDBRemote::eResponse) {
         if (!response.Empty()) {
-          object_sp =
-              StructuredData::ParseJSON(std::string(response.GetStringRef()));
+          object_sp = StructuredData::ParseJSON(response.GetStringRef());
         }
       }
     }
@@ -4201,8 +4195,7 @@ void ParseFlags(
 
             // If no fields overlap, use them.
             if (overlap == fields.end()) {
-              if (registers_flags_types.find(*id) !=
-                  registers_flags_types.end()) {
+              if (registers_flags_types.contains(*id)) {
                 // In theory you could define some flag set, use it with a
                 // register then redefine it. We do not know if anyone does
                 // that, or what they would expect to happen in that case.
@@ -4347,8 +4340,19 @@ bool ParseRegisters(
           // gdb_type could reference some flags type defined in XML.
           llvm::StringMap<std::unique_ptr<RegisterFlags>>::iterator it =
               registers_flags_types.find(gdb_type);
-          if (it != registers_flags_types.end())
-            reg_info.flags_type = it->second.get();
+          if (it != registers_flags_types.end()) {
+            auto flags_type = it->second.get();
+            if (reg_info.byte_size == flags_type->GetSize())
+              reg_info.flags_type = flags_type;
+            else
+              LLDB_LOGF(log,
+                        "ProcessGDBRemote::ParseRegisters Size of register "
+                        "flags %s (%d bytes) for "
+                        "register %s does not match the register size (%d "
+                        "bytes). Ignoring this set of flags.",
+                        flags_type->GetID().c_str(), flags_type->GetSize(),
+                        reg_info.name.AsCString(), reg_info.byte_size);
+          }
 
           // There's a slim chance that the gdb_type name is both a flags type
           // and a simple type. Just in case, look for that too (setting both
@@ -5088,8 +5092,7 @@ ParseStructuredDataPacket(llvm::StringRef packet) {
   }
 
   // This is an asynchronous JSON packet, destined for a StructuredDataPlugin.
-  StructuredData::ObjectSP json_sp =
-      StructuredData::ParseJSON(std::string(packet));
+  StructuredData::ObjectSP json_sp = StructuredData::ParseJSON(packet);
   if (log) {
     if (json_sp) {
       StreamString json_str;

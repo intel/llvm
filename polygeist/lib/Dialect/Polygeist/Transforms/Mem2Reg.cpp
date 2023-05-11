@@ -37,7 +37,7 @@
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 
-#define DEBUG_TYPE "mem2reg"
+#define DEBUG_TYPE "polygeist-mem2reg"
 
 namespace mlir {
 namespace polygeist {
@@ -292,7 +292,7 @@ public:
   ValueOrPlaceholder *get(Value val);
   ValueOrPlaceholder *get(Block *val);
   ValueOrPlaceholder *get(scf::IfOp val, ValueOrPlaceholder *ifVal);
-  ValueOrPlaceholder *get(AffineIfOp val, ValueOrPlaceholder *ifVal);
+  ValueOrPlaceholder *get(affine::AffineIfOp val, ValueOrPlaceholder *ifVal);
   ValueOrPlaceholder *get(scf::ExecuteRegionOp val);
 
   void replaceValue(Value orig, Value post);
@@ -338,7 +338,7 @@ public:
     if (ifLastVal)
       metaMap.opOperands[ifOp] = ifLastVal;
   }
-  ValueOrPlaceholder(AffineIfOp ifOp, ReplaceableUse ifLastVal,
+  ValueOrPlaceholder(affine::AffineIfOp ifOp, ReplaceableUse ifLastVal,
                      ReplacementHandler &metaMap)
       : metaMap(metaMap), overwritten(false), val(nullptr),
         valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp) {
@@ -385,7 +385,7 @@ public:
         }
         return true;
       } else {
-        auto aifOp = cast<AffineIfOp>(ifOp);
+        auto aifOp = cast<affine::AffineIfOp>(ifOp);
         auto thenFind = metaMap.valueAtEndOfBlock.find(getThenBlock(aifOp));
         assert(thenFind != metaMap.valueAtEndOfBlock.end());
         assert(thenFind->second);
@@ -556,8 +556,8 @@ public:
   Value materializeIf(bool full = true) {
     if (auto sop = dyn_cast<scf::IfOp>(ifOp))
       return materializeIf<scf::IfOp, scf::YieldOp>(sop, full);
-    return materializeIf<AffineIfOp, AffineYieldOp>(cast<AffineIfOp>(ifOp),
-                                                    full);
+    return materializeIf<affine::AffineIfOp, affine::AffineYieldOp>(
+        cast<affine::AffineIfOp>(ifOp), full);
   }
 
   template <typename IfType, typename YieldType>
@@ -718,7 +718,7 @@ ValueOrPlaceholder *ReplacementHandler::get(scf::IfOp val,
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
   return PH;
 }
-ValueOrPlaceholder *ReplacementHandler::get(AffineIfOp val,
+ValueOrPlaceholder *ReplacementHandler::get(affine::AffineIfOp val,
                                             ValueOrPlaceholder *ifVal) {
   ValueOrPlaceholder *PH;
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
@@ -1161,7 +1161,7 @@ bool Mem2Reg::forwardStoreToLoad(
         }
         continue;
       }
-      if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
+      if (auto loadOp = dyn_cast<affine::AffineLoadOp>(user)) {
         if (!modified &&
             matchesIndices(loadOp.getAffineMapAttr().getValue(),
                            loadOp.getMapOperands(), idx) == Match::Exact) {
@@ -1204,7 +1204,7 @@ bool Mem2Reg::forwardStoreToLoad(
         continue;
       }
 
-      if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
+      if (auto storeOp = dyn_cast<affine::AffineStoreOp>(user)) {
         if (storeOp.getValue() == val) {
           captured = true;
         } else if (!modified) {
@@ -1503,7 +1503,7 @@ bool Mem2Reg::forwardStoreToLoad(
                 lastVal = metaMap.get(ifOp, lastVal);
               }
               continue;
-            } else if (auto ifOp = dyn_cast<mlir::AffineIfOp>(a)) {
+            } else if (auto ifOp = dyn_cast<affine::AffineIfOp>(a)) {
               handleBlock(*ifOp.getThenRegion().begin(), lastVal);
               if (ifOp.getElseRegion().getBlocks().size()) {
                 handleBlock(*ifOp.getElseRegion().begin(), lastVal);
@@ -1531,7 +1531,7 @@ bool Mem2Reg::forwardStoreToLoad(
             if (allStoreOps.count(storeOp)) {
               lastVal = metaMap.get(storeOp.getValue());
             }
-          } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
+          } else if (auto storeOp = dyn_cast<affine::AffineStoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
               lastVal = metaMap.get(storeOp.getValueToStore());
             }
@@ -1841,11 +1841,11 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
         continue;
-      } else if (auto LO = dyn_cast<AffineLoadOp>(U)) {
+      } else if (auto LO = dyn_cast<affine::AffineLoadOp>(U)) {
         continue;
       } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         continue;
-      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
@@ -1883,7 +1883,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
           vec.emplace_back(idx);
         }
         lastStored[vec]++;
-      } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineLoadOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
@@ -1903,7 +1903,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
           vec.emplace_back(idx);
         }
         lastStored[vec]++;
-      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
@@ -2039,7 +2039,7 @@ void Mem2Reg::runOnOperation() {
               break;
             }
             toErase.push_back(U);
-          } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+          } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
             if (SO.getValue() == val) {
               error = true;
               break;

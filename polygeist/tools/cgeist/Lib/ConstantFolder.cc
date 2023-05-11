@@ -17,5 +17,9 @@ Value ConstantFolder::foldFPCast(Location Loc, Type PromotionType,
   const auto Attr = cast<FloatAttr>(C.getValueAttr());
   const auto NewAttr =
       FloatAttr::get(PromotionType, Attr.getValue().convertToDouble());
-  return Builder.createOrFold<arith::ConstantOp>(Loc, NewAttr, PromotionType);
+  auto Constant =
+      arith::ConstantOp::materialize(Builder, NewAttr, PromotionType, Loc);
+  SmallVector<Value, 0> Unused;
+  (void)Builder.tryFold(Constant.getOperation(), Unused);
+  return Constant;
 }

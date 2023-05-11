@@ -239,7 +239,7 @@ void ReachingDefinitionAnalysis::visitOperation(
 
   // Transfer the input state.
   ChangeResult result = ChangeResult::NoChange;
-  after->join(before);
+  propagateIfChanged(after, after->join(before));
 
   // Retrieve the alias oracle for the function this operation belongs to.
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
@@ -285,6 +285,7 @@ void ReachingDefinitionAnalysis::visitOperation(
           // kills the potential definitions of values that may alias the
           // current value.
           result |= after->removeModifiers(val);
+          result |= after->removePotentialModifiers(val);
           for (Value aliasedVal : aliasOracle.getMustAlias(val))
             result |= after->removeModifiers(aliasedVal);
           for (Value aliasedVal : aliasOracle.getMayAlias(val))

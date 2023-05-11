@@ -24,7 +24,9 @@
 
 namespace mlir {
 
+namespace affine {
 struct MemRefAccess;
+}
 class DataFlowSolver;
 
 namespace polygeist {
@@ -405,9 +407,11 @@ template <typename OpTy> class MemoryAccess {
 public:
   MemoryAccess() = delete;
 
-  template <typename T = OpTy,
-            typename = std::enable_if_t<
-                llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value, bool>>
+  template <
+      typename T = OpTy,
+      typename = std::enable_if_t<llvm::is_one_of<T, affine::AffineLoadOp,
+                                                  affine::AffineStoreOp>::value,
+                                  bool>>
   MemoryAccess(T accessOp, MemoryAccessMatrix &&matrix, OffsetVector &&offsets)
       : accessOp(accessOp), matrix(std::move(matrix)),
         offsets(std::move(offsets)) {}
@@ -448,7 +452,7 @@ public:
   Operation *getOperation() const { return operation; }
 
   std::optional<MemoryAccessMatrix>
-  getMemoryAccessMatrix(const MemRefAccess &access) const;
+  getMemoryAccessMatrix(const affine::MemRefAccess &access) const;
 
 private:
   /// Construct the access map for the operation associated with the
@@ -461,7 +465,7 @@ private:
 
   /// Returns true if the memory access \p access has a single subscript that is
   /// zero, and false otherwise.
-  bool hasZeroIndex(const MemRefAccess &access) const;
+  bool hasZeroIndex(const affine::MemRefAccess &access) const;
 
   /// Returns the unique definition for the operand at index \p opIndex in
   /// operation \p op, or nullptr if it does not have a unique definition.

@@ -1,9 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
+// UNSUPPORTED: hip
 // REQUIRES: fusion
 
 // Test fusion being aborted: Different scenarios causing the JIT compiler
