@@ -3341,14 +3341,7 @@ bool SPIRVToLLVM::translate() {
   if (!transSourceExtension())
     return false;
   transGeneratorMD();
-  // TODO: add an option to control the builtin format in SPV-IR.
-  // The primary format should be function calls:
-  //   e.g. call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv()
-  // The secondary format should be global variables:
-  //   e.g. load i32, i32* @__spirv_BuiltInGlobalLinearId, align 4
-  // If the desired format is global variables, we don't have to lower them
-  // as calls.
-  if (!lowerBuiltinVariablesToCalls(M))
+  if (!lowerBuiltins(BM, M))
     return false;
   if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR) {
     SPIRVWord SrcLangVer = 0;
