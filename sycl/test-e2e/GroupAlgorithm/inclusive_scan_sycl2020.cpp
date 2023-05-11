@@ -187,7 +187,7 @@ int main() {
   test<class LogicalAndInt>(q, input, output, sycl::logical_and<int>(), 1);
 
   std::array<bool, N> bool_input = {};
-  std::array<bool, 6> bool_output = {};
+  std::array<bool, N> bool_output = {};
   test<class LogicalOrBool>(q, bool_input, bool_output,
                             sycl::logical_or<bool>(), false);
   test<class LogicalOrVoid>(q, bool_input, bool_output, sycl::logical_or<>(),
