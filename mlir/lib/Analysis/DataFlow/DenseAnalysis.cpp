@@ -139,15 +139,37 @@ void AbstractDenseDataFlowAnalysis::visitRegionBranchOperation(
   assert(predecessors->allPredecessorsKnown() &&
          "unexpected unresolved region successors");
 
+  auto getBeforeBranchState = [&]() -> const AbstractDenseLattice * {
+    const AbstractDenseLattice *before;
+    if (Operation *prev = branch->getPrevNode())
+      before = getLatticeFor(point, prev);
+    else
+      before = getLatticeFor(point, branch->getBlock());
+    return before;
+  };
+
+  if (auto *op = point.dyn_cast<Operation *>())
+    if (op == branch)
+      // If the number of known predecessors is one less than the number of
+      // branch regions, then we need to join the state before the branch, as
+      // the branch operation doesn't dominate the next operation.
+      // For example (reaching definition):
+      //  store x, p
+      //  scf.if ()
+      //    store y, p
+      //  load p
+      // => the reaching definition for load of p should be both stores.
+      // Number of regions of a scf.if is 2, but number of known predecessors is
+      // only 1.
+      if (branch->getNumRegions() ==
+          predecessors->getKnownPredecessors().size() + 1)
+        join(after, *getBeforeBranchState());
+
   for (Operation *op : predecessors->getKnownPredecessors()) {
     const AbstractDenseLattice *before;
     // If the predecessor is the parent, get the state before the parent.
     if (op == branch) {
-      if (Operation *prev = op->getPrevNode())
-        before = getLatticeFor(point, prev);
-      else
-        before = getLatticeFor(point, op->getBlock());
-
+      before = getBeforeBranchState();
       // Otherwise, get the state after the terminator.
     } else {
       before = getLatticeFor(point, op);
