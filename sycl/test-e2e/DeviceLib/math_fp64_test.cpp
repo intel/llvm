@@ -1,13 +1,10 @@
 // REQUIRES: aspect-fp64
 // UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 // RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
 
 #include "math_utils.hpp"
 #include <cstdint>

@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-embed-ir %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{run} %t.out
 // UNSUPPORTED: hip
 // REQUIRES: fusion
 // This test currently fails because InferAddressSpace is not able to remove all
