@@ -991,6 +991,13 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
 // Transform all builtin variables into calls
 bool lowerBuiltinVariablesToCalls(Module *M);
 
+// Transform all builtin calls into variables
+bool lowerBuiltinCallsToVariables(Module *M);
+
+//  Transform all builtins into variables or calls
+//  depending on user specification
+bool lowerBuiltins(SPIRVModule *BM, Module *M);
+
 /// \brief Post-process OpenCL or SPIRV builtin function returning struct type.
 ///
 /// Some builtin functions are translated to SPIR-V instructions with
