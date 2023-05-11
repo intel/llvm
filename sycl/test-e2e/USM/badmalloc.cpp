@@ -2,7 +2,7 @@
 //
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //
