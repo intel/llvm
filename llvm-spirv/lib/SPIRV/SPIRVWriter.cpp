@@ -2912,6 +2912,8 @@ bool LLVMToSPIRVBase::transBuiltinSet() {
 ///  load WorkDim
 bool LLVMToSPIRVBase::transWorkItemBuiltinCallsToVariables() {
   LLVM_DEBUG(dbgs() << "Enter transWorkItemBuiltinCallsToVariables\n");
+  if(BM->preserveBuiltinFunctions())
+    return true;
   // Store instructions and functions that need to be removed.
   SmallVector<Value *, 16> ToRemove;
   for (auto &F : *M) {
