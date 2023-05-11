@@ -50,7 +50,7 @@ class SYCLMethodOpInterfaceImpl<
     static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
   }];
 
-  code extraClassDefinitionBase = [{
+  let extraClassDefinition = [{
     constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> $cppClass::methods;
   }];
 
