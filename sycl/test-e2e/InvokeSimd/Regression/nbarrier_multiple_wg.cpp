@@ -1,5 +1,7 @@
+// TODO: enable on Windows once driver is ready
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-pvc && linux
+// UNSUPPORTED: cuda || hip
 //
 // TODO: enable when Jira issue resolved, currently fail with VISALTO enable
 // XFAIL: gpu-intel-pvc
@@ -11,10 +13,9 @@
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 /*
- * Test checks basic support for named barriers in invoke_simd context.
- * Threads are executed in ascending order of their local ID and each thread
- * stores data to addresses that partially overlap with addresses used by
- * previous thread.
+ * Test checks support of named barrier in invoke_simd context with multiple
+ * ESIMD work-groups. Producers store to SLM; consumers read SLM and store
+ * data to surface.
  */
 
 #include <sycl/ext/intel/esimd.hpp>
@@ -42,91 +43,80 @@ namespace experimental_esimd = sycl::ext::intel::experimental::esimd;
 constexpr int VL = 16;
 template <int case_num> class KernelID;
 
-template <unsigned Threads, unsigned Size, bool UseSLM>
+template <unsigned Groups, unsigned Threads, unsigned Size>
 ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> LocalAcc,
-		                        int localID,
+		                        int groupID, int localID,
 					int *o) SYCL_ESIMD_FUNCTION {
-  // Threads - 1 named barriers required
-  // but id 0 reserved for unnamed
-  experimental_esimd::named_barrier_init<Threads>();
+  // 1 named barrier, id 0 reserved for unnamed
+  constexpr unsigned bnum = 2;
+  constexpr unsigned bid = 1;
+  experimental_esimd::named_barrier_init<bnum>();
 
-  int flag = 0; // producer-consumer mode
-  int producers = 2;
-  int consumers = 2;
+  unsigned int group_off = VL * groupID * Threads;
+  unsigned int globalID = groupID * Threads + localID;
+  unsigned int global_off = VL * globalID;
 
-  // overlaping offsets
-  unsigned int off = VL * localID / 2;
+  esimd::simd<int, VL> val(localID);
+
+  constexpr unsigned producers = Threads / 2;
+  constexpr unsigned consumers = Threads / 2;
+
+  // thread with even local id is producer in each work-group
+  bool is_producer = localID % 2 == 0;
+  bool is_consumer = !is_producer;
+  // only-producer or only-comsumer modes
+  unsigned int flag = is_producer ? 0x1 : 0x2;
+
+  // producer writes to SLM, consumer reads what producer wrote
   unsigned int off_slm =
       static_cast<uint32_t>(
           reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer())) +
-      off * sizeof(int);
-  esimd::simd<int, VL> val(localID);
+      (is_producer ? global_off : (global_off - VL)) * sizeof(int);
 
   esimd::barrier();
 
-  // Threads are executed in ascending order of their local ID and
-  // each thread stores data to addresses that partially overlap with
-  // addresses used by previous thread.
-
-  // localID == 0 skips this branch and goes straight to lsc_surf_store
-  // localID == 1 signals barrier 1
-  // localID == 2 signals barrier 2
-  // localID == 3 signals barrier 3
-  // and so on
-  if (localID > 0) {
-    int barrier_id = localID;
-    __ESIMD_ENS::named_barrier_signal(barrier_id, flag, producers, consumers);
-    __ESIMD_ENS::named_barrier_wait(barrier_id);
+  if (is_producer) {
+    esimd::simd<int, VL> v(globalID);
+    // producer stores data to SLM
+    experimental_esimd::lsc_slm_block_store<int, VL>(off_slm, v);
   }
 
-  if constexpr (UseSLM)
-    experimental_esimd::lsc_slm_block_store<int, VL>(off_slm, val);
-  else
-    experimental_esimd::lsc_block_store<int, VL>(o + off, val);
+  // signaling after data stored
+  __ESIMD_ENS::named_barrier_signal(bid, flag, producers, consumers);
 
-  experimental_esimd::lsc_fence();
-
-  // localID == 0 arrives here first and signals barrier 1
-  // localID == 1 arrives here next and signals barrier 2
-  // localID == 2 arrives here next and signals barrier 3
-  // and so on, but last thread skipped this block
-  if (localID < Threads - 1) {
-    int barrier_id = localID + 1;
-    __ESIMD_ENS::named_barrier_signal(barrier_id, flag, producers, consumers);
-    __ESIMD_ENS::named_barrier_wait(barrier_id);
-  }
-
-  esimd::barrier();
-  if constexpr (UseSLM) {
-    auto res = experimental_esimd::lsc_slm_block_load<int, VL>(2 * off_slm);
-    experimental_esimd::lsc_block_store<int, VL>(o + 2 * off, res);
+  if (is_consumer) {
+    // consumers waiting here for signal from producer
+    __ESIMD_ENS::named_barrier_wait(bid);
+    // read SLM and store to output
+    auto ret = experimental_esimd::lsc_slm_block_load<int, VL>(off_slm);
+    // store SLM to output
+    experimental_esimd::lsc_block_store<int, VL>(o + global_off - VL, ret);
+    experimental_esimd::lsc_block_store<int, VL>(o + global_off, ret);
   }
 }
 
-template <unsigned Threads, unsigned Size, bool UseSLM>
+template <unsigned Groups, unsigned Threads, unsigned Size>
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall SIMD_CALLEE_nbarrier(
 #ifdef USE_ACC_PTR
     local_accessor<int, 1> *LocalAcc,
 #else
     local_accessor<int, 1> LocalAcc,
 #endif
-    int localID, int *o) SYCL_ESIMD_FUNCTION {
+    int groupID, int localID, int *o) SYCL_ESIMD_FUNCTION {
 #ifdef USE_ACC_PTR
-  ESIMD_CALLEE_nbarrier<Threads, Size, UseSLM>(*LocalAcc, localID, o);
+  ESIMD_CALLEE_nbarrier<Groups, Threads, Size>(*LocalAcc, groupID, localID, o);
 #else
-  ESIMD_CALLEE_nbarrier<Threads, Size, UseSLM>(LocalAcc, localID, o);
+  ESIMD_CALLEE_nbarrier<Groups, Threads, Size>(LocalAcc, groupID, localID, o);
 #endif
 }
 
-template <int case_num, unsigned Threads, bool UseSLM, class QueueTY>
+template <int case_num, unsigned Groups, unsigned Threads, class QueueTY>
 bool test(QueueTY q) {
-  // number of ints stored by each thread
-  constexpr unsigned Size = VL * Threads;
+  constexpr unsigned Size = VL * Threads * Groups;
 
-  static_assert(Threads % 2 == 0, "Number of threads must be even");
-  std::cout << "Case #" << case_num << "\n\tTreads: " << Threads
-            << "\n\tInts per thread: " << VL
-            << "\n\tMemory: " << (UseSLM ? "local\n" : "global\n");
+  static_assert(Threads > 1, "Threads number must be greater than 1");
+  static_assert(Threads % 2 == 0, "Threads number expect to be even");
+  static_assert(Groups > 1, "Threads number must be greater than 1");
 
   auto *out = malloc_shared<int>(Size, q);
   for (int i = 0; i < Size; i++) {
@@ -135,8 +125,7 @@ bool test(QueueTY q) {
 
   auto dev = q.get_device();
   auto deviceSLMSize = dev.template get_info<sycl::info::device::local_mem_size>();
-  if constexpr (UseSLM)
-    std::cout << "Local Memory Size: " << deviceSLMSize << std::endl;
+  std::cout << "Local Memory Size: " << deviceSLMSize << std::endl;
 
   // The test is going to use Size elements of int type.
   if (deviceSLMSize < Size * sizeof(int)) {
@@ -150,7 +139,7 @@ bool test(QueueTY q) {
     // workgroups
     sycl::range<1> GlobalRange{Size};
     // threads in each group
-    sycl::range<1> LocalRange{Size};
+    sycl::range<1> LocalRange{Size / Groups};
     sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
     auto e = q.submit([&](handler &cgh) {
@@ -164,6 +153,7 @@ bool test(QueueTY q) {
 
             // Thread local ID in ESIMD context
             int localID = sg.get_group_linear_id();
+	    int groupID = g.get_group_linear_id();
 
 	    // SLM init
             uint32_t slmID = item.get_local_id(0);
@@ -177,8 +167,8 @@ bool test(QueueTY q) {
             auto LocalAccArg = uniform{LocalAccCopy};
 #endif
 
-            invoke_simd(sg, SIMD_CALLEE_nbarrier<Threads, Size, UseSLM>,
-                        LocalAccArg, uniform{localID}, uniform{out});
+            invoke_simd(sg, SIMD_CALLEE_nbarrier<Groups, Threads, Size>,
+                        LocalAccArg, uniform{groupID}, uniform{localID}, uniform{out});
           });
     });
     e.wait();
@@ -190,11 +180,7 @@ bool test(QueueTY q) {
 
   bool passed = true;
   for (int i = 0; i < Size; i++) {
-    int etalon = i * 2 * Threads / Size;
-    if (etalon == Threads) // last stored chunk
-      etalon -= 1;
-    if (etalon > Threads) // excessive part of surface
-      etalon = -1;
+    int etalon = (i / (2 * VL)) * 2;
     if (out[i] != etalon) {
       passed = false;
       std::cout << "out[" << i << "]=" << out[i] << " vs " << etalon << "\n";
@@ -215,15 +201,12 @@ int main() {
 
   bool passed = true;
 
-  passed &= test<1, 2, false>(q);
-  passed &= test<2, 4, false>(q);
-  passed &= test<3, 8, false>(q);
-  passed &= test<4, 16, false>(q);
-
-  passed &= test<5, 2, true>(q);
-  passed &= test<6, 4, true>(q);
-  passed &= test<7, 8, true>(q);
-  passed &= test<8, 16, true>(q);
+  passed &= test<1, 2, 8>(q);
+  passed &= test<2, 4, 8>(q);
+  passed &= test<3, 8, 8>(q);
+  passed &= test<4, 4, 32>(q);
+  passed &= test<5, 16, 16>(q);
+  passed &= test<6, 32, 32>(q);
 
   return passed ? 0 : 1;
 }
