@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-/// @file
+/// \file
 /// This file contains the implementations of functions that map standard
-/// accuracy levels to required accuracy expressed in terms of ulps.
+/// accuracy levels to required accuracy expressed in terms of ULPs.
 //
 //===----------------------------------------------------------------------===//
 
