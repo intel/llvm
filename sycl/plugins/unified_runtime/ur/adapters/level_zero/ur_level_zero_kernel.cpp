@@ -608,22 +608,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
                          ///< holding the argument value. If null then argument
                          ///< value is considered null.
 ) {
-  std::ignore = Kernel;
-  std::ignore = ArgIndex;
-  std::ignore = ArgValue;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex,   ///< [in] argument index in range [0, num args - 1]
-    size_t ArgSize,      ///< [in] size of argument type
-    const void *ArgValue ///< [in][optional] SVM pointer to memory location
-                         ///< holding the argument value. If null then argument
-                         ///< value is considered null.
-) {
-  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, ArgSize, ArgValue));
+  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), ArgValue));
   return UR_RESULT_SUCCESS;
 }
 
