@@ -926,8 +926,21 @@ struct LLVMOpLowering : public ConversionPattern {
                                        convertedOperandTypes))) {
       return failure();
     }
+
+    // With opaque pointers, type attributes also might need to be
+    // translated to the corresponding LLVM types, for example the element
+    // type attribute of GEP or alloca.
+    bool noTyAttrConversion =
+        llvm::all_of(op->getAttrs(), [&](const NamedAttribute &Attr) {
+          if (auto TyAttr = dyn_cast<TypeAttr>(Attr.getValue())) {
+            return converter->convertType(TyAttr.getValue()) ==
+                   TyAttr.getValue();
+          }
+          return true;
+        });
+
     if (convertedResultTypes == op->getResultTypes() &&
-        convertedOperandTypes == op->getOperandTypes()) {
+        convertedOperandTypes == op->getOperandTypes() && noTyAttrConversion) {
       return failure();
     }
     if (isa<UnrealizedConversionCastOp>(op))
@@ -936,7 +949,17 @@ struct LLVMOpLowering : public ConversionPattern {
     OperationState state(op->getLoc(), op->getName());
     state.addOperands(operands);
     state.addTypes(convertedResultTypes);
-    state.addAttributes(op->getAttrs());
+    SmallVector<NamedAttribute> Attrs;
+    for (const auto &NA : op->getAttrs()) {
+      if (auto tyAttr = dyn_cast<TypeAttr>(NA.getValue())) {
+        auto convTy = converter->convertType(tyAttr.getValue());
+        assert(convTy);
+        Attrs.emplace_back(NA.getName(), TypeAttr::get(convTy));
+      } else {
+        Attrs.push_back(NA);
+      }
+    }
+    state.addAttributes(Attrs);
     state.addSuccessors(op->getSuccessors());
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
       state.addRegion();
@@ -1634,8 +1657,43 @@ struct ConvertPolygeistToLLVMPass
         if (failed(converter.convertTypes(op->getOperandTypes(),
                                           convertedOperandTypes)))
           return std::nullopt;
+
+        // With opaque pointers, type attributes also might need to be
+        // translated to the corresponding LLVM types, for example the element
+        // type attribute of GEP or alloca.
+        std::optional<bool> noTyAttrConversion;
+        if (useOpaquePointers)
+          noTyAttrConversion = std::transform_reduce(
+              op->getAttrs().begin(), op->getAttrs().end(),
+              std::optional<bool>{true},
+              [](std::optional<bool> b1,
+                 std::optional<bool> b2) -> std::optional<bool> {
+                if (!b1.has_value() || !b2.has_value()) {
+                  return std::nullopt;
+                }
+                return b1.value() && b2.value();
+              },
+              [&](const NamedAttribute &Attr) -> std::optional<bool> {
+                if (auto TyAttr = dyn_cast<TypeAttr>(Attr.getValue())) {
+                  auto ConvTy = converter.convertType(TyAttr.getValue());
+                  if (!ConvTy) {
+                    return std::nullopt;
+                  }
+                  return ConvTy == TyAttr.getValue();
+                }
+                return true;
+              });
+        else
+          noTyAttrConversion = true;
+
+        // Type conversion of at least one type attribute failed.
+        if (!noTyAttrConversion) {
+          return std::nullopt;
+        }
+
         return convertedResultTypes == op->getResultTypes() &&
-               convertedOperandTypes == op->getOperandTypes();
+               convertedOperandTypes == op->getOperandTypes() &&
+               noTyAttrConversion.value();
       };
 
       LLVMConversionTarget target(getContext());
