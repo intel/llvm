@@ -52,11 +52,6 @@ _iml_half_internal __imf_rsqrtf16(_iml_half_internal);
 float __imf_truncf(float);
 double __imf_trunc(double);
 _iml_half_internal __imf_truncf16(_iml_half_internal);
-// bfloat16 conversions using software emulation
-short __imf_bfloat16_as_short(uint16_t);
-unsigned short __imf_bfloat16_as_ushort(uint16_t);
-uint16_t __imf_short_as_bfloat16(short);
-uint16_t __imf_ushort_as_bfloat16(unsigned short);
 };
 
 namespace sycl {
