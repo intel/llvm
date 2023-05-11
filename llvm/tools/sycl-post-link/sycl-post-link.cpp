@@ -745,7 +745,8 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
 }
 
 SmallVector<module_split::ModuleDesc, 2>
-handleESIMD(module_split::ModuleDesc &&MDesc) {
+handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
+            bool &SplitOccurred) {
   // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
   // undergo different set of LLVMIR passes. After this they are linked back
   // together to form single module with disjoint SYCL and ESIMD call graphs
@@ -755,8 +756,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc) {
   SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
       std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
 
-  // FIXME: SplitByScope
-  if (Result.size() > 1 && // SplitByScope &&
+  if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
     // Controversial state reached - SYCL and ESIMD entry points resulting
     // from SYCL/ESIMD split (which is done always) are linked back, since
@@ -765,12 +765,12 @@ handleESIMD(module_split::ModuleDesc &&MDesc) {
             "per-kernel, so " +
             SplitEsimd.ValueStr + " must also be specified");
   }
+  SplitOccurred |= Result.size() > 1;
 
   for (auto &MD : Result) {
-    // FIXME: update Modified flag
-    processSpecConstants(MD);
+    Modified |= processSpecConstants(MD);
     if (LowerEsimd && MD.isESIMD())
-      lowerEsimdConstructs(MD);
+      Modified |= lowerEsimdConstructs(MD);
   }
 
   if (!SplitEsimd && Result.size() > 1) {
@@ -880,11 +880,7 @@ processInputModule(std::unique_ptr<Module> M) {
     // FIXME: this step should be conditional depending on whether or not ESIMD
     // is actually used in a module
     SmallVector<module_split::ModuleDesc, 2> MMs =
-        handleESIMD(std::move(MDesc));
-
-    // FIXME: Modified |= SplitByESIMD;
-
-    // FIXME: SplitOccured |= SplitByESIMD
+        handleESIMD(std::move(MDesc), Modified, SplitOccurred);
 
     if (IROutputOnly) {
       if (SplitOccurred) {
