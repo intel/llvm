@@ -23,19 +23,7 @@ namespace mlir {
 namespace polygeist {
 
 /// Represents the initial definition of a memory resource.
-class InitialDefinition {
-  friend raw_ostream &operator<<(raw_ostream &, const InitialDefinition &);
-
-public:
-  InitialDefinition(InitialDefinition &) = delete;
-  InitialDefinition operator=(const InitialDefinition &) = delete;
-  InitialDefinition(InitialDefinition &&) = delete;
-  InitialDefinition operator=(InitialDefinition &&) = delete;
-  static InitialDefinition *get();
-
-private:
-  InitialDefinition() = default;
-};
+class InitialDefinition {};
 
 /// Represents either an operation that modifies a memory resource, or the
 /// initial definition.
@@ -44,7 +32,7 @@ class Definition {
 
 public:
   Definition(Operation *op) : def(op) {}
-  Definition() : def(InitialDefinition::get()) {}
+  Definition() : def(InitialDefinition()) {}
 
   bool operator==(const Definition &other) const;
   bool operator!=(const Definition &other) const { return !(*this == other); }
@@ -52,7 +40,7 @@ public:
 
   bool isOperation() const { return std::holds_alternative<Operation *>(def); }
   bool isInitialDefinition() const {
-    return std::holds_alternative<InitialDefinition *>(def);
+    return std::holds_alternative<InitialDefinition>(def);
   }
 
   Operation *getOperation() const {
@@ -60,13 +48,8 @@ public:
     return std::get<Operation *>(def);
   }
 
-  InitialDefinition *getInitialDefinition() const {
-    assert(isInitialDefinition() && "expecting initial definition");
-    return std::get<InitialDefinition *>(def);
-  }
-
 private:
-  std::variant<Operation *, InitialDefinition *> def;
+  std::variant<Operation *, InitialDefinition> def;
 };
 
 /// This lattice represents the set of operations that might have modified a

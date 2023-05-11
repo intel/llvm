@@ -21,20 +21,6 @@ namespace mlir {
 namespace polygeist {
 
 //===----------------------------------------------------------------------===//
-// Initial Definition
-//===----------------------------------------------------------------------===//
-
-InitialDefinition *InitialDefinition::get() {
-  static std::shared_ptr<InitialDefinition> instance(new InitialDefinition());
-  return instance.get();
-}
-
-raw_ostream &operator<<(raw_ostream &os, const InitialDefinition &def) {
-  os << "<initial>";
-  return os;
-}
-
-//===----------------------------------------------------------------------===//
 // Definition
 //===----------------------------------------------------------------------===//
 
@@ -42,7 +28,7 @@ raw_ostream &operator<<(raw_ostream &os, const Definition &def) {
   if (def.isOperation())
     os << *def.getOperation();
   if (def.isInitialDefinition())
-    os << *def.getInitialDefinition();
+    os << "<initial>";
   return os;
 }
 
