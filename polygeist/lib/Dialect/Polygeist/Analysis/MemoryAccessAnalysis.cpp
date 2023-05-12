@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -89,6 +90,42 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
   return (optConstVal.has_value() && optConstVal->slt(-1));
 }
 
+/// Remove conversion like operations in the incoming expression if any.
+static Value removeConversions(Value expr) {
+  if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
+      matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
+      matchPattern(expr, m_Op<arith::TruncIOp>()) ||
+      matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
+      matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
+    return expr.getDefiningOp()->getOperand(0);
+  return expr;
+}
+
+/// Determine whether 'expr' is a multiplication involving 'val'.
+/// TODO: Rewrite this function to handle more generic expressions.
+/// Example:
+///   %0 = arith.index_cast %ii : index to i64
+///   %i = arith.muli %0, %c1 : i64
+/// In this case we fail to match because the %0 is not %ii.
+static std::optional<Value> getMultiplier(Value expr, Value val) {
+  expr = removeConversions(expr);
+  if (expr == val) {
+    OpBuilder b(expr.getContext());
+    return b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1);
+  }
+
+  Value other;
+
+  // Try to match (val * other) or (expr * other).
+  if (matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Val(val),
+                                             matchers::m_Any(&other))) ||
+      matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Any(&other),
+                                             matchers::m_Val(val))))
+    return other;
+
+  return std::nullopt;
+}
+
 //===----------------------------------------------------------------------===//
 // MemoryAccessMatrix
 //===----------------------------------------------------------------------===//
@@ -97,8 +134,8 @@ raw_ostream &mlir::polygeist::operator<<(raw_ostream &os,
                                          const MemoryAccessMatrix &matrix) {
   auto getConstant = [](Value val) -> Optional<int64_t> {
     return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
-        .Case([](arith::ConstantIndexOp op) { return op.value(); })
-        .Case([](arith::ConstantIntOp op) { return op.value(); })
+        .Case<arith::ConstantIndexOp, arith::ConstantIntOp>(
+            [](auto op) { return op.value(); })
         .Default([](auto) { return std::nullopt; });
   };
 
@@ -738,9 +775,8 @@ void MemoryAccessAnalysis::build() {
   // Try to construct the memory access matrix for affine memory operation of
   // interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    TypeSwitch<Operation *>(op)
-        .Case([&](AffineStoreOp memoryOp) { build(memoryOp, solver); })
-        .Case([&](AffineLoadOp memoryOp) { build(memoryOp, solver); });
+    TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
+        [&](auto memoryOp) { build(memoryOp, solver); });
   });
 }
 
@@ -801,43 +837,6 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   enclosingLoops.size());
 
-  // Remove conversion like operations in the incoming expression if any.
-  auto removeConversions = [](Value expr) {
-    if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
-        matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
-        matchPattern(expr, m_Op<arith::TruncIOp>()) ||
-        matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
-        matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
-      return expr.getDefiningOp()->getOperand(0);
-    return expr;
-  };
-
-  // Determine whether 'expr' is a multiplication involving 'val'.
-  auto getMultiplier = [&](Value expr, Value val) -> std::optional<Value> {
-    expr = removeConversions(expr);
-    if (expr == val) {
-      OpBuilder b(expr.getContext());
-      return b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1);
-    }
-
-    Value other;
-
-    // Try to match (val * other) or (expr * other).
-    if (matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Val(val),
-                                               matchers::m_Any(&other))) ||
-        matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Any(&other),
-                                               matchers::m_Val(val))))
-      return other;
-
-    // TODO: we need a better way to handle chain of expressions.
-    // Example:
-    //   %0 = arith.index_cast %ii : index to i64
-    //   %i = arith.muli %0, %c1 : i64
-    // In this case we fail to match because the %0 is not %ii.
-
-    return std::nullopt;
-  };
-
   // Collect the loop induction variables.
   // TODO: collect also the global thread ids.
   SmallVector<Value, 4> IVs;
@@ -889,7 +888,7 @@ MemoryAccessAnalysis::getUniqueDefinition(unsigned opIndex, Operation *op,
   if (pMods.has_value() && !pMods->empty())
     return std::nullopt;
 
-  if (!mods.has_value() || mods->empty())
+  if (!mods.has_value() || mods->size() != 1)
     return std::nullopt;
 
   return *mods->begin();
@@ -898,13 +897,12 @@ MemoryAccessAnalysis::getUniqueDefinition(unsigned opIndex, Operation *op,
 SmallVector<Value>
 MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
                                           DataFlowSolver &solver) const {
-  Value operand = op->getOperand(opIndex);
   std::optional<Definition> def = getUniqueDefinition(opIndex, op, solver);
   if (!def.has_value())
-    return {operand};
+    return {op->getOperand(opIndex)};
 
   LLVM_DEBUG({
-    llvm::dbgs() << "operand: " << operand << "\n";
+    llvm::dbgs() << "operand: " << op->getOperand(opIndex) << "\n";
     llvm::dbgs() << "operand definition: " << *def << "\n";
   });
 
@@ -930,9 +928,18 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
                                    solver);
       })
       .Case([&](sycl::SYCLConstructorOp constructorOp) {
+        assert(
+            sycl::isIDPtrType(
+                constructorOp.getOperand(constructorOp.getMemRefOperandIndex())
+                    .getType()) &&
+            "add support for other types of sycl constructors");
+
         // Collect the underlying values of the sycl.constructor inputs.
         SmallVector<Value> vec;
-        for (unsigned i = 1; i < constructorOp.getNumOperands(); ++i) {
+        for (unsigned i = 0; i < constructorOp.getNumOperands(); ++i) {
+          if (i == constructorOp.getMemRefOperandIndex())
+            continue;
+
           auto vals = getUnderlyingValues(i, constructorOp, solver);
           assert(vals.size() == 1 && "Expecting single value");
           vec.push_back(vals.front());

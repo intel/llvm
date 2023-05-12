@@ -28,14 +28,14 @@ func.func @test1(%acc : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
 //      The underlying value of the accessor subscript is not immediately evident.
 // CHECK-LABEL: test_tag: test1a_load1
 // CHECK: matrix:
-// CHECK-NEXT: 1
+// CHECK-NEXT: 2
 func.func @test1a(%acc : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %alloca_0 = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>
   %cast_0 = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>
   %id = memref.memory_space_cast %cast : memref<?x!sycl_id_1> to  memref<?x!sycl_id_1, 4>
-  %c1 = arith.constant 1 : index
+  %c1 = arith.constant 2 : index
 
   affine.for %ii = 0 to 64 {
     %i = arith.muli %ii, %c1 : index

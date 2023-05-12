@@ -7,75 +7,86 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
-
 #include "llvm/ADT/TypeSwitch.h"
 
-llvm::SmallVector<mlir::TypeID>
-mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
-  if (TypeID == mlir::sycl::AccessorCommonType::getTypeID())
-    return {mlir::sycl::AccessorType::getTypeID()};
-  if (TypeID == mlir::sycl::ArrayType::getTypeID())
-    return {mlir::sycl::IDType::getTypeID(),
-            mlir::sycl::RangeType::getTypeID()};
+namespace mlir {
+namespace sycl {
+
+static bool isMemRefWithExpectedShape(MemRefType mt) {
+  return (mt && mt.hasRank() && (mt.getRank() == 1) &&
+          ShapedType::isDynamic(mt.getShape()[0]) &&
+          mt.getLayout().isIdentity());
+}
+
+llvm::SmallVector<TypeID> getDerivedTypes(TypeID typeID) {
+  if (typeID == AccessorCommonType::getTypeID())
+    return {AccessorType::getTypeID()};
+  if (typeID == ArrayType::getTypeID())
+    return {IDType::getTypeID(), RangeType::getTypeID()};
   return {};
 }
 
-mlir::LogicalResult
-mlir::sycl::VecType::verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
-                            mlir::Type DataT, int NumElements,
-                            llvm::ArrayRef<mlir::Type>) {
-  if (!(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
-        NumElements == 4 || NumElements == 8 || NumElements == 16)) {
-    return EmitError() << "SYCL vector types can only hold 1, 2, 3, 4, 8 or 16 "
+LogicalResult
+VecType::verify(llvm::function_ref<InFlightDiagnostic()> emitError, Type dataT,
+                int numElements, llvm::ArrayRef<Type>) {
+  if (numElements != 1 && numElements != 2 && numElements != 3 &&
+      numElements != 4 && numElements != 8 && numElements != 16) {
+    return emitError() << "SYCL vector types can only hold 1, 2, 3, 4, 8 or 16 "
                           "elements. Got "
-                       << NumElements << ".";
+                       << numElements << ".";
   }
 
-  if (!DataT.isa<IntegerType, FloatType>()) {
-    return EmitError()
+  if (!dataT.isa<IntegerType, FloatType>()) {
+    return emitError()
            << "SYCL vector types can only hold basic scalar types. Got "
-           << DataT << ".";
+           << dataT << ".";
   }
 
-  if (auto IntTy = DataT.dyn_cast<IntegerType>()) {
-    const auto Width = IntTy.getWidth();
-    if (!(Width == 1 || Width == 8 || Width == 16 || Width == 32 ||
-          Width == 64)) {
-      return EmitError() << "Integer SYCL vector element types can only be i1, "
+  if (auto intTy = dataT.dyn_cast<IntegerType>()) {
+    const auto width = intTy.getWidth();
+    if (width != 1 && width != 8 && width != 16 && width != 32 && width != 64) {
+      return emitError() << "Integer SYCL vector element types can only be i1, "
                             "i8, i16, i32 or i64. Got "
-                         << Width << ".";
+                         << width << ".";
     }
   } else {
-    const auto Width = DataT.cast<FloatType>().getWidth();
-    if (!(Width == 16 || Width == 32 || Width == 64)) {
-      return EmitError()
+    const auto width = dataT.cast<FloatType>().getWidth();
+    if (width != 16 && width != 32 && width != 64) {
+      return emitError()
              << "FP SYCL vector element types can only be f16, f32 or f64. Got "
-             << Width << ".";
+             << width << ".";
     }
   }
 
   return success();
 }
 
-unsigned mlir::sycl::getDimensions(mlir::Type Type) {
-  if (auto MemRefTy = dyn_cast<mlir::MemRefType>(Type))
-    Type = MemRefTy.getElementType();
-  return TypeSwitch<mlir::Type, unsigned>(Type)
+unsigned getDimensions(Type type) {
+  if (auto memRefTy = dyn_cast<MemRefType>(type))
+    type = memRefTy.getElementType();
+  return TypeSwitch<Type, unsigned>(type)
       .Case<AccessorType, GroupType, IDType, ItemType, NdItemType, NdRangeType,
-            RangeType>([](auto Ty) { return Ty.getDimension(); });
+            RangeType>([](auto type) { return type.getDimension(); });
 }
 
-bool mlir::sycl::isAccessorPtrType(Type type) {
+bool isAccessorPtrType(Type type) {
   auto mt = dyn_cast<MemRefType>(type);
-  bool isMemRefWithExpectedShape =
-      (mt && mt.hasRank() && (mt.getRank() == 1) &&
-       ShapedType::isDynamic(mt.getShape()[0]) && mt.getLayout().isIdentity());
-  if (!isMemRefWithExpectedShape)
+  if (!isMemRefWithExpectedShape(mt))
     return false;
 
   return isa<sycl::AccessorType>(mt.getElementType());
 }
 
-bool mlir::sycl::AccessorPtrValue::classof(Value v) {
+bool isIDPtrType(Type type) {
+  auto mt = dyn_cast<MemRefType>(type);
+  if (!isMemRefWithExpectedShape(mt))
+    return false;
+  return isa<sycl::IDType>(mt.getElementType());
+}
+
+bool AccessorPtrValue::classof(Value v) {
   return isAccessorPtrType(v.getType());
 }
+
+} // namespace sycl
+} // namespace mlir
