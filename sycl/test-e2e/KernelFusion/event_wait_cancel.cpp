@@ -1,3 +1,4 @@
+// REQUIRES: fusion
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
