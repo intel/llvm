@@ -1,7 +1,7 @@
-// TODO: enable after Jira issue resolved
+// TODO: Passing/returning structures via invoke_simd() API is not implemented
+// in GPU driver yet. Enable the test when GPU RT supports it.
 // XFAIL: gpu
 //
-// Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
@@ -107,7 +107,7 @@ template <int> class TestID;
 
 using namespace sycl;
 
-template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
+template <int CaseNum, StructsTypes UsedStruct> bool test(queue q) {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 4 * VL;
 
@@ -136,7 +136,7 @@ template <StructsTypes UsedStruct, class Queue> bool test(Queue q) {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for<TestID<UsedStruct>>(
+      cgh.parallel_for<TestID<CaseNum>>(
           Range, [=](nd_item<1> ndi) SUBGROUP_ATTR {
             sub_group sg = ndi.get_sub_group();
             group<1> g = ndi.get_group();
@@ -205,16 +205,16 @@ int main(void) {
 
   bool passed = true;
   std::cout << "  Case #1, structure with single element:\n";
-  passed &= test<StructsTypes::Solo>(q);
+  passed &= test<1, StructsTypes::Solo>(q);
 
   std::cout << "  Case #2, structure with two same type elements:\n";
-  passed &= test<StructsTypes::Duo>(q);
+  passed &= test<2, StructsTypes::Duo>(q);
 
   std::cout << "  Case #3, structure with tree elements:\n";
-  passed &= test<StructsTypes::Trio>(q);
+  passed &= test<3, StructsTypes::Trio>(q);
 
   std::cout << "  Case #4, structure with function member being called:\n";
-  passed &= test<StructsTypes::Func>(q);
+  passed &= test<4, StructsTypes::Func>(q);
 
   return passed ? 0 : 1;
 }
