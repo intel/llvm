@@ -79,6 +79,7 @@ Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
   return newF;
 }
 
+// Todo: add support for more SPIRV builtins here
 static std::map<std::string, std::string> BuiltinNamesMap{
     {"__spirv_BuiltInGlobalInvocationId", "_Z13get_global_idmP15nativecpu_state"}};
 
@@ -148,7 +149,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Then we iterate over all the supported builtins, find their uses and
   // replace them with calls to our Native CPU functions.
   for (auto &entry : BuiltinNamesMap) {
-    // Kernel -> builin materialization CallInst, this is used to avoid
+    // Kernel -> builtin materialization CallInst, this is used to avoid
     // inserting multiple calls to the same builtin
     std::map<Function *, CallInst *> BuiltinCallMap;
     // Map that associates to each User of a builtin, the index of the builtin
@@ -230,6 +231,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       for (auto &OpUse : OldOp->uses()) {
         User *Usr = OpUse.getUser();
         Instruction *I = dyn_cast<Instruction>(Usr);
+        if(!I) {
+          continue;
+        }
         auto NewCall = BuiltinCallMap[I->getFunction()];
         GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
             OldOp->getSourceElementType(), NewCall, Indices, "ncpu_gep", I);

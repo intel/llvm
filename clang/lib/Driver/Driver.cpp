@@ -54,7 +54,6 @@
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "ToolChains/ZOS.h"
-#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
@@ -104,9 +103,9 @@
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
-#include <optional>
 #include <regex>
 #include <sstream>
+#include <optional>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -7020,20 +7019,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         TmpFileFooter = C.addTempFile(C.getArgs().MakeArgString(OutName));
       }
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
-      //if (isSYCLNativeCPU(Args)) {
-      //  std::string TmpFileNameHCHeader;
-      //  if (IsSaveTemps) {
-      //    TmpFileNameHCHeader.append(C.getDriver().GetUniquePath(
-      //        OutFileDir.c_str() + StemmedSrcFileName + "-hc-header", "h"));
-      //  } else {
-      //    TmpFileNameHCHeader.append(C.getDriver().GetTemporaryPath(
-      //        OutFileDir.c_str() + StemmedSrcFileName + "-hc-header", "h"));
-      //  }
-
-      //  StringRef TmpHCHeader =
-      //      C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHCHeader));
-      //  addIntegrationNativeCPUHeader(TmpHCHeader, SrcFileName);
-      //}
     }
   }
 

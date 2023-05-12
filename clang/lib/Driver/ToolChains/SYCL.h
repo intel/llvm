@@ -9,9 +9,9 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
+#include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/Tool.h"
-#include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
