@@ -9,7 +9,7 @@ incompatible with this experimental version.
 
 ## Introduction
 
-This extension adds functionally a new device information descriptor. It provides the ability to query a device for the maximum number of registers available per work-group.
+This extension adds a new device information descriptor that provides the ability to query a device for the maximum number of registers available per work-group.
 
 OpenCL never offered such query due to the nature of being a very platform specific one - which is why it is also absent from SYCL. Now that SYCL supports back-ends where the register usage is a limiting resource factor of the possible maximum work-group size for a kernel, having the ability to query that limit is important for writing safe and portable code.
 
