@@ -78,7 +78,15 @@ function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
 endfunction()
 
 # Escape a string to be able to be processed by REGEX
-function(EscapeRegex IN_OUT_STR)
-    string(REGEX REPLACE "([][+.*()^])" "\\\\\\1" ${IN_OUT_STR} "${${IN_OUT_STR}}")
-    set(${IN_OUT_STR} "${${IN_OUT_STR}}" PARENT_SCOPE)
-endfunction()
+macro(EscapeRegex IN_OUT_STR)
+    set(PY_REGEX_ESCAPE_PROGRAM 
+"from re import escape
+print(escape('${${IN_OUT_STR}}'))")
+
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c ${PY_REGEX_ESCAPE_PROGRAM}
+        OUTPUT_VARIABLE PY_RESULT
+    )
+
+    set(${IN_OUT_STR} ${PY_RESULT})
+endmacro()
