@@ -3,8 +3,6 @@
 // RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: accelerator
-
 // This test checks ext::intel feature class online_compiler for OpenCL.
 // All OpenCL specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.

@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out %debug_option
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: accelerator
 // XFAIL: cpu
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //

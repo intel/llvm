@@ -58,12 +58,8 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
-
   Function *rewriteFunc(Function &F);
   Type *getSimdArgPtrTyOrNull(Value *arg);
-  void fixGlobals(Module &M);
-  void removeOldGlobals();
 };
 
 ModulePass *createESIMDLowerVecArgPass();
