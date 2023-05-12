@@ -1588,7 +1588,8 @@ struct ConvertPolygeistToLLVMPass
       populateSPIRVToLLVMConversionPatterns(converter, patterns, clientAPI);
       populateSPIRVToLLVMTypeConversion(converter, clientAPI);
 
-      populateSYCLToLLVMConversionPatterns(converter, patterns);
+      populateSYCLToLLVMConversionPatterns(syclImplementation, syclTarget,
+                                           converter, patterns);
       populateSYCLToSPIRVConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);

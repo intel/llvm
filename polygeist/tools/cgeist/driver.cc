@@ -612,10 +612,27 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
   return success();
 }
 
+static llvm::Expected<sycl::LoweringTarget>
+getSYCLTargetFromTriple(const llvm::Triple &Triple) {
+  switch (Triple.getArch()) {
+  case llvm::Triple::spir:
+    CGEIST_WARNING(llvm::WithColor::warning()
+                   << "Using the 32-bits spir target may lead to errors when "
+                      "lowering the `sycl` dialect.\n");
+    [[fallthrough]];
+  case llvm::Triple::spir64:
+    return sycl::LoweringTarget::SPIR;
+  default:
+    return llvm::createStringError(std::errc::not_supported,
+                                   "Cannot lower SYCL target \"%s\" to LLVM",
+                                   Triple.getTriple().c_str());
+  }
+}
+
 static LogicalResult finalize(mlir::MLIRContext &Ctx,
                               mlir::OwningOpRef<mlir::ModuleOp> &Module,
                               Options &options, llvm::DataLayout &DL,
-                              bool &LinkOMP) {
+                              const llvm::Triple &Triple, bool &LinkOMP) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
@@ -699,9 +716,13 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     if (!EmitOpenMPIR) {
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
-      ConvertPolygeistToLLVMOptions Options;
-      Options.dataLayout = DL.getStringRepresentation();
-      PM3.addPass(createConvertPolygeistToLLVM(Options));
+      ConvertPolygeistToLLVMOptions ConvertOptions;
+      ConvertOptions.dataLayout = DL.getStringRepresentation();
+      if (options.getCgeistOpts().getSYCLIsDevice()) {
+        ConvertOptions.syclImplementation = SYCLImplementation;
+        ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
+      }
+      PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
@@ -762,7 +783,7 @@ createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
   if (mlir::failed(optimizeCUDA(Ctx, Module, options)))
     return failure();
 
-  if (mlir::failed(finalize(Ctx, Module, options, DL, LinkOMP)))
+  if (mlir::failed(finalize(Ctx, Module, options, DL, Triple, LinkOMP)))
     return failure();
 
   return success();

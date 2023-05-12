@@ -28,6 +28,22 @@ def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp">
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
             /*default=*/"false", "Generate LLVM IR using opaque pointers "
             "instead of typed pointers">,
+    // TODO: These two options should be dropped once this pass is made a proper
+    // partial conversion pass and -convert-sycl-to-llvm is not launched from it.
+    Option<"syclImplementation", "sycl-implementation",
+           "::mlir::sycl::Implementation",
+           /*default=*/"::mlir::sycl::Implementation::DPCPP",
+           "SYCL target implementation for lowering",
+           [{::llvm::cl::values(
+             clEnumValN(::mlir::sycl::Implementation::DPCPP, "dpcpp", "DPC++")
+           )}]>,
+    Option<"syclTarget", "sycl-target",
+           "::mlir::sycl::LoweringTarget",
+	   /*default=*/"::mlir::sycl::LoweringTarget::SPIR",
+           "SYCL target for lowering",
+           [{::llvm::cl::values(
+             clEnumValN(::mlir::sycl::LoweringTarget::SPIR, "spir", "SPIR")
+           )}]>,
   ];
 }
 

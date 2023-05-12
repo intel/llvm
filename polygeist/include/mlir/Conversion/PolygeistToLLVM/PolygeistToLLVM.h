@@ -11,6 +11,8 @@
 
 #include "mlir/Pass/Pass.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
+
 #include <memory>
 
 namespace mlir {
