@@ -80,6 +80,10 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
     __ESIMD_ENS::named_barrier_wait(barrier_id);
   }
 
+  /* This is the payload store with overlapping offset. Since threads are
+   * executed in ascending order, each next thread will rewrite some amount of
+   * data that the previous one wrote.
+   */
   if constexpr (UseSLM)
     experimental_esimd::lsc_slm_block_store<int, VL>(slm_base + off * sizeof(int), val);
   else
@@ -98,11 +102,13 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
     __ESIMD_ENS::named_barrier_wait(barrier_id);
   }
 
-  /* Here we wait for all threads to sync, and each thread now copies the
-   * non-overlapping region from the SLM to the global buffer, so the offset is
-   * doubled.
-   */
   esimd::barrier();
+
+  /* This section is only needed to copy the content of the SLM to the global
+   * buffer for self-check purposes. Here we wait for all threads to sync, and
+   * each thread now copies the a region from the SLM to the global buffer. To
+   * do this, we double the value in off variable.
+   */
   if constexpr (UseSLM) {
     off *= 2;
     auto res = experimental_esimd::lsc_slm_block_load<int, VL>(slm_base + off * sizeof(int));
@@ -208,10 +214,15 @@ bool test(queue q) {
 
   bool passed = true;
   for (int i = 0; i < Size; i++) {
-    int ref = 2 * i * Threads / Size;
+    /* Each thread stores its ID. Effectively, each thread stores VL / 2 number
+     * of elements with an offset equal to ID * (VL / 2). The only exception is
+     * the last thread, it effectively stores VL elements with the same offset.
+     * So ID, the reference, can be calculated from i in the following way:
+     */
+    int ref = i * 2 / VL;
     if (ref == Threads) // last stored chunk
       ref -= 1;
-    if (ref > Threads) // excessive part of surface
+    if (ref > Threads) // excessive part of buffer, not used
       ref = -1;
     if (out[i] != ref) {
       passed = false;

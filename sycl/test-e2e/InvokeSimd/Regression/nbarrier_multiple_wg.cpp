@@ -60,7 +60,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   unsigned int flag = is_producer ? 0x1 : 0x2;
 
   /* Global offset depends on if the thread is producer or consumer. Producer
-   * is a thread with even index and it stores data to SLM. Consumer reads what
+   * is a thread with even id and it stores data to SLM. Consumer reads what
    * producer wrote, so consumer's offset has to be adjusted.
    */
   unsigned int global_id = groupID * Threads + local_id;
@@ -84,7 +84,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   if (is_consumer) {
     // Consumers waiting here for signal from producer.
     __ESIMD_ENS::named_barrier_wait(bid);
-    // Read SLM and store to output.
+    // Consumers simply copying producers data from SLM to global buffer.
     auto ret = experimental_esimd::lsc_slm_block_load<int, VL>(slm_off);
     experimental_esimd::lsc_block_store<int, VL>(o + global_off, ret);
   }
@@ -179,7 +179,10 @@ bool test(queue q) {
   bool passed = true;
   for (int i = 0; i < Size; i++) {
     int ref = i / VL;
-    if (ref % 2 == 1) // every odd ref is skipped
+    /* Since the producers have an even thread id and are the only ones doing a
+     * write, any odd ref must be skipped.
+     */
+    if (ref % 2 == 1)
       ref = -1;
     if (out[i] != ref) {
       passed = false;
