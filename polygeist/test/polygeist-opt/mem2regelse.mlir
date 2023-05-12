@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --polygeist-mem2reg --split-input-file %s | FileCheck %s
 
 module  {
   func.func @bad(%arg0: i1, %arg1: i1, %arg2: memref<?xi32>) -> i64 {

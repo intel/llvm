@@ -1,4 +1,4 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir -o - %s | FileCheck %s 
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir -o - %s | FileCheck %s 
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
@@ -6,9 +6,9 @@
 using namespace sycl;
 static constexpr unsigned N = 8;
 
-// CHECK-LABEL:  func.func @_ZN4sycl3_V18accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initE14ocl_image1d_ro(%arg0: memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %arg1: !llvm.ptr<struct<"opencl.image1d_ro_t", opaque>, 1>)
-// CHECK-NEXT:    %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4>) -> !llvm.ptr<struct<(ptr<struct<"opencl.image1d_ro_t", opaque>, 1>, array<24 x i8>)>, 4>
-// CHECK-NEXT:    sycl.call @imageAccessorInit(%0, %arg1) {MangledFunctionName = @_ZN4sycl3_V16detail14image_accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS5_6targetE2017ELNS5_11placeholderE0EE17imageAccessorInitE14ocl_image1d_ro, TypeName = @image_accessor} : (!llvm.ptr<struct<(ptr<struct<"opencl.image1d_ro_t", opaque>, 1>, array<24 x i8>)>, 4>, !llvm.ptr<struct<"opencl.image1d_ro_t", opaque>, 1>) -> ()
+// CHECK-LABEL:  func.func @_ZN4sycl3_V18accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initE14ocl_image1d_ro(%arg0: memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %arg1: !llvm.ptr<1>)
+// CHECK-NEXT:    %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:    sycl.call @imageAccessorInit(%0, %arg1) {MangledFunctionName = @_ZN4sycl3_V16detail14image_accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS5_6targetE2017ELNS5_11placeholderE0EE17imageAccessorInitE14ocl_image1d_ro, TypeName = @image_accessor} : (!llvm.ptr<4>, !llvm.ptr<1>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 
@@ -17,12 +17,12 @@ static constexpr unsigned N = 8;
 // CHECK-DAG:     %alloca = memref.alloca() : memref<1xi32>
 // CHECK-DAG:     %0 = llvm.mlir.undef : i32
 // CHECK-NEXT:    affine.store %0, %alloca[0] : memref<1xi32>
-// CHECK-NEXT:    %1 = "polygeist.memref2pointer"(%arg0) : (memref<?x!llvm.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4>) -> !llvm.ptr<struct<(ptr<struct<"opencl.image1d_ro_t", opaque>, 1>, array<24 x i8>)>, 4>
-// CHECK-NEXT:    %2 = sycl.item.get_id(%arg1, %c0_i32) {ArgumentTypes = [memref<?x!sycl_item_1_, 4>, i32], FunctionName = @"operator[]", TypeName = @item} : (memref<?x!sycl_item_1_>, i32) -> i64
+// CHECK-NEXT:    %1 = "polygeist.memref2pointer"(%arg0) : (memref<?x!llvm.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:    %2 = sycl.item.get_id(%arg1, %c0_i32) : (memref<?x!sycl_item_1_>, i32) -> i64
 // CHECK-NEXT:    %3 = arith.trunci %2 : i64 to i32
 // CHECK-NEXT:    %memspacecast = memref.memory_space_cast %cast : memref<?xi32> to memref<?xi32, 4>
 // CHECK-NEXT:    affine.store %3, %memspacecast[0] : memref<?xi32, 4>
-// CHECK-NEXT:    %4 = sycl.call @read(%1, %memspacecast) {MangledFunctionName = @_ZNK4sycl3_V16detail14image_accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS5_6targetE2017ELNS5_11placeholderE0EE4readIiLi1EvEES4_RKT_, TypeName = @image_accessor} : (!llvm.ptr<struct<(ptr<struct<"opencl.image1d_ro_t", opaque>, 1>, array<24 x i8>)>, 4>, memref<?xi32, 4>) -> !sycl_vec_f32_4_
+// CHECK-NEXT:    %4 = sycl.call @read(%1, %memspacecast) {MangledFunctionName = @_ZNK4sycl3_V16detail14image_accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS5_6targetE2017ELNS5_11placeholderE0EE4readIiLi1EvEES4_RKT_, TypeName = @image_accessor} : (!llvm.ptr<4>, memref<?xi32, 4>) -> !sycl_vec_f32_4_
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 

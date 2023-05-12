@@ -457,7 +457,7 @@ protected:
         indices.push_back(zero);
 
         TypeSwitch<Type>(currType)
-            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
+            .Case<LLVM::LLVMStructType, polygeist::StructType>([&](auto t) {
               assert(t.getBody().size() == 1 && "Expecting single member type");
               currType = t.getBody()[0];
             })
@@ -845,10 +845,38 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
   }
 };
 
+static void
+populatePolygeistToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
+  typeConverter.addConversion(
+      [&](polygeist::StructType type) -> Optional<Type> {
+        llvm::ArrayRef<Type> body = type.getBody();
+        SmallVector<Type> convertedElemTypes;
+        convertedElemTypes.reserve(body.size());
+        if (failed(typeConverter.convertTypes(body, convertedElemTypes)))
+          return std::nullopt;
+        if (type.getName().has_value()) {
+          auto ST = LLVM::LLVMStructType::getIdentified(
+              &typeConverter.getContext(), *type.getName());
+          if (!ST.isInitialized()) {
+            if (failed(ST.setBody(convertedElemTypes, type.isPacked())))
+              return std::nullopt;
+          } else if (convertedElemTypes != ST.getBody()) {
+            ST = LLVM::LLVMStructType::getNewIdentified(
+                &typeConverter.getContext(), *type.getName(),
+                convertedElemTypes, type.isPacked());
+          }
+          return ST;
+        }
+        return LLVM::LLVMStructType::getLiteral(&typeConverter.getContext(),
+                                                convertedElemTypes);
+      });
+}
+
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   assert(converter.getOptions().useBarePtrCallConv &&
          "These patterns only work with bare pointer calling convention");
+  populatePolygeistToLLVMTypeConversion(converter);
 
   if (converter.useOpaquePointers()) {
     patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
@@ -1559,7 +1587,8 @@ struct ConvertPolygeistToLLVMPass
       populateSPIRVToLLVMConversionPatterns(converter, patterns, clientAPI);
       populateSPIRVToLLVMTypeConversion(converter, clientAPI);
 
-      populateSYCLToLLVMConversionPatterns(converter, patterns);
+      populateSYCLToLLVMConversionPatterns(syclImplementation, syclTarget,
+                                           converter, patterns);
       populateSYCLToSPIRVConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);

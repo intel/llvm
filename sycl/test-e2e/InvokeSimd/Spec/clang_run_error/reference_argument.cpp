@@ -2,7 +2,7 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 //
-// RUN: not %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck %s
+// RUN: not %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck
 //
 // TODO FIXME: Currently compile fail with "no or multiple invoke_simd targets
 // found"

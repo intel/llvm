@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp16
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 #include <sycl/sycl.hpp>
 
 #include <iostream>
@@ -20,8 +19,6 @@ int main() {
   sycl::queue Q(AsyncHandler);
 
   sycl::device D = Q.get_device();
-  if (!D.has(sycl::aspect::fp16))
-    return 0; // Skip the test if halfs are not supported
 
   sycl::buffer<sycl::half> Buf(1);
 

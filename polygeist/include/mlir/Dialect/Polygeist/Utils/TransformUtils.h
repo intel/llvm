@@ -21,15 +21,18 @@
 #include <variant>
 
 namespace mlir {
-class AffineForOp;
-class AffineIfOp;
-class AffineParallelOp;
 class CallOpInterface;
 class DominanceInfo;
 class FunctionOpInterface;
 class LoopLikeOpInterface;
 class PatternRewriter;
 class RegionBranchOpInterface;
+
+namespace affine {
+class AffineForOp;
+class AffineIfOp;
+class AffineParallelOp;
+} // namespace affine
 
 namespace scf {
 class ForOp;
@@ -136,7 +139,7 @@ public:
 
 protected:
   void createElseBody(scf::IfOp) const;
-  void createElseBody(AffineIfOp) const;
+  void createElseBody(affine::AffineIfOp) const;
 
   mutable Operation *op; // The operation to version.
 };
@@ -228,10 +231,10 @@ private:
 /// Concrete class to guard an AffineForOp operation.
 class AffineForGuardBuilder : public AffineLoopGuardBuilder {
 public:
-  AffineForGuardBuilder(AffineForOp loop);
+  AffineForGuardBuilder(affine::AffineForOp loop);
 
 private:
-  AffineForOp getLoop() const;
+  affine::AffineForOp getLoop() const;
   void getConstraints(SmallVectorImpl<AffineExpr> &, ArrayRef<AffineExpr>,
                       ArrayRef<AffineExpr>) const final;
   OperandRange getInitVals() const final;
@@ -244,10 +247,10 @@ private:
 /// Concrete class to guard an AffineParallelOp operation.
 class AffineParallelGuardBuilder : public AffineLoopGuardBuilder {
 public:
-  AffineParallelGuardBuilder(AffineParallelOp loop);
+  AffineParallelGuardBuilder(affine::AffineParallelOp loop);
 
 private:
-  AffineParallelOp getLoop() const;
+  affine::AffineParallelOp getLoop() const;
   void getConstraints(SmallVectorImpl<AffineExpr> &, ArrayRef<AffineExpr>,
                       ArrayRef<AffineExpr>) const final;
   mlir::Operation::operand_range getInitVals() const final;
@@ -287,14 +290,16 @@ public:
       std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs,
       OpBuilder builder, Location loc);
 
-  std::unique_ptr<VersionCondition> createCondition() const {
-    SCFCondition scfCond = createSCFCondition(builder, loc);
+  std::unique_ptr<VersionCondition>
+  createCondition(bool useOpaquePointers) const {
+    SCFCondition scfCond = createSCFCondition(builder, loc, useOpaquePointers);
     return std::make_unique<VersionCondition>(scfCond);
   }
 
 private:
   /// Create a versioning condition suitable for scf::IfOp.
-  SCFCondition createSCFCondition(OpBuilder builder, Location loc) const;
+  SCFCondition createSCFCondition(OpBuilder builder, Location loc,
+                                  bool useOpaquePointers) const;
 
   std::set<sycl::AccessorPtrPair> accessorPairs;
   mutable OpBuilder builder;

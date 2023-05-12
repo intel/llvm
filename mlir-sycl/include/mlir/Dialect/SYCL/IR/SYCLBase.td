@@ -27,7 +27,6 @@ def SYCL_Dialect : Dialect {
   let extraClassDeclaration = [{
     MethodRegistry methods;
 
-    static constexpr llvm::StringRef getArgumentTypesAttrName() { return "ArgumentTypes"; }
     static constexpr llvm::StringRef getFunctionNameAttrName() { return "FunctionName"; }
     static constexpr llvm::StringRef getMangledFunctionNameAttrName() { return "MangledFunctionName"; }
     static constexpr llvm::StringRef getTypeNameAttrName() { return "TypeName"; }

@@ -37,7 +37,7 @@
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 
-#define DEBUG_TYPE "mem2reg"
+#define DEBUG_TYPE "polygeist-mem2reg"
 
 namespace mlir {
 namespace polygeist {
@@ -217,7 +217,7 @@ struct Mem2Reg : public mlir::polygeist::impl::Mem2RegBase<Mem2Reg> {
 
   // return if changed
   bool forwardStoreToLoad(
-      mlir::Value AI, std::vector<Offset> idx,
+      mlir::Value AI, mlir::Type elemTy, std::vector<Offset> idx,
       SmallVectorImpl<Operation *> &loadOpsToErase,
       DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing);
 };
@@ -292,7 +292,7 @@ public:
   ValueOrPlaceholder *get(Value val);
   ValueOrPlaceholder *get(Block *val);
   ValueOrPlaceholder *get(scf::IfOp val, ValueOrPlaceholder *ifVal);
-  ValueOrPlaceholder *get(AffineIfOp val, ValueOrPlaceholder *ifVal);
+  ValueOrPlaceholder *get(affine::AffineIfOp val, ValueOrPlaceholder *ifVal);
   ValueOrPlaceholder *get(scf::ExecuteRegionOp val);
 
   void replaceValue(Value orig, Value post);
@@ -338,7 +338,7 @@ public:
     if (ifLastVal)
       metaMap.opOperands[ifOp] = ifLastVal;
   }
-  ValueOrPlaceholder(AffineIfOp ifOp, ReplaceableUse ifLastVal,
+  ValueOrPlaceholder(affine::AffineIfOp ifOp, ReplaceableUse ifLastVal,
                      ReplacementHandler &metaMap)
       : metaMap(metaMap), overwritten(false), val(nullptr),
         valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp) {
@@ -385,7 +385,7 @@ public:
         }
         return true;
       } else {
-        auto aifOp = cast<AffineIfOp>(ifOp);
+        auto aifOp = cast<affine::AffineIfOp>(ifOp);
         auto thenFind = metaMap.valueAtEndOfBlock.find(getThenBlock(aifOp));
         assert(thenFind != metaMap.valueAtEndOfBlock.end());
         assert(thenFind->second);
@@ -556,8 +556,8 @@ public:
   Value materializeIf(bool full = true) {
     if (auto sop = dyn_cast<scf::IfOp>(ifOp))
       return materializeIf<scf::IfOp, scf::YieldOp>(sop, full);
-    return materializeIf<AffineIfOp, AffineYieldOp>(cast<AffineIfOp>(ifOp),
-                                                    full);
+    return materializeIf<affine::AffineIfOp, affine::AffineYieldOp>(
+        cast<affine::AffineIfOp>(ifOp), full);
   }
 
   template <typename IfType, typename YieldType>
@@ -718,7 +718,7 @@ ValueOrPlaceholder *ReplacementHandler::get(scf::IfOp val,
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
   return PH;
 }
-ValueOrPlaceholder *ReplacementHandler::get(AffineIfOp val,
+ValueOrPlaceholder *ReplacementHandler::get(affine::AffineIfOp val,
                                             ValueOrPlaceholder *ifVal) {
   ValueOrPlaceholder *PH;
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
@@ -1087,7 +1087,7 @@ std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
 bool Mem2Reg::forwardStoreToLoad(
-    mlir::Value AI, std::vector<Offset> idx,
+    mlir::Value AI, mlir::Type elemTy, std::vector<Offset> idx,
     SmallVectorImpl<Operation *> &loadOpsToErase,
     DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing) {
   bool changed = false;
@@ -1161,7 +1161,7 @@ bool Mem2Reg::forwardStoreToLoad(
         }
         continue;
       }
-      if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
+      if (auto loadOp = dyn_cast<affine::AffineLoadOp>(user)) {
         if (!modified &&
             matchesIndices(loadOp.getAffineMapAttr().getValue(),
                            loadOp.getMapOperands(), idx) == Match::Exact) {
@@ -1204,7 +1204,7 @@ bool Mem2Reg::forwardStoreToLoad(
         continue;
       }
 
-      if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
+      if (auto storeOp = dyn_cast<affine::AffineStoreOp>(user)) {
         if (storeOp.getValue() == val) {
           captured = true;
         } else if (!modified) {
@@ -1420,13 +1420,7 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
-  Type elType;
-  if (auto MT = dyn_cast<MemRefType>(AI.getType()))
-    elType = MT.getElementType();
-  else
-    elType = cast<LLVM::LLVMPointerType>(AI.getType()).getElementType();
-
-  ReplacementHandler metaMap(elType);
+  ReplacementHandler metaMap(elemTy);
 
   // Last value stored in an individual block and the operation which stored it
   BlockMap &valueAtEndOfBlock = metaMap.valueAtEndOfBlock;
@@ -1445,14 +1439,15 @@ bool Mem2Reg::forwardStoreToLoad(
       [&](Value orig, ValueOrPlaceholder *replacement) -> ValueOrPlaceholder * {
     assert(replacement);
     replacement->materialize(/*full*/ false);
-    assert(orig.getType() == elType);
+    assert(orig.getType() == elemTy);
     if (replacement->overwritten) {
       loadOps.erase(orig.getDefiningOp());
       return metaMap.get(orig);
-    } else if (replacement->val) {
+    }
+    if (replacement->val) {
       changed = true;
       assert(orig != replacement->val);
-      assert(replacement->val.getType() == elType);
+      assert(replacement->val.getType() == elemTy);
       assert(orig.getType() == replacement->val.getType() &&
              "mismatched load type");
       LLVM_DEBUG(llvm::dbgs() << " replaced " << orig << " with "
@@ -1508,7 +1503,7 @@ bool Mem2Reg::forwardStoreToLoad(
                 lastVal = metaMap.get(ifOp, lastVal);
               }
               continue;
-            } else if (auto ifOp = dyn_cast<mlir::AffineIfOp>(a)) {
+            } else if (auto ifOp = dyn_cast<affine::AffineIfOp>(a)) {
               handleBlock(*ifOp.getThenRegion().begin(), lastVal);
               if (ifOp.getElseRegion().getBlocks().size()) {
                 handleBlock(*ifOp.getElseRegion().begin(), lastVal);
@@ -1536,7 +1531,7 @@ bool Mem2Reg::forwardStoreToLoad(
             if (allStoreOps.count(storeOp)) {
               lastVal = metaMap.get(storeOp.getValue());
             }
-          } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
+          } else if (auto storeOp = dyn_cast<affine::AffineStoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
               lastVal = metaMap.get(storeOp.getValueToStore());
             }
@@ -1724,7 +1719,7 @@ bool Mem2Reg::forwardStoreToLoad(
 
     changed = true;
     assert(pair.first != val);
-    assert(val.getType() == elType);
+    assert(val.getType() == elemTy);
     assert(pair.first.getType() == val.getType() && "mismatched load type");
     LLVM_DEBUG(llvm::dbgs()
                << " replaced " << pair.first << " with " << val << "\n");
@@ -1753,7 +1748,7 @@ bool Mem2Reg::forwardStoreToLoad(
       assert(valueAtEndOfBlock.find(pred)->second);
       mlir::Value pval =
           valueAtEndOfBlock.find(pred)->second->materialize(true);
-      if (!pval || pval.getType() != elType) {
+      if (!pval || pval.getType() != elemTy) {
         AI.getDefiningOp()->getParentOfType<func::FuncOp>().dump();
         pred->dump();
         llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second
@@ -1762,7 +1757,7 @@ bool Mem2Reg::forwardStoreToLoad(
           llvm::errs() << " mat pval: " << pval << "\n";
       }
       assert(pval && "Null last stored");
-      assert(pval.getType() == elType);
+      assert(pval.getType() == elemTy);
       assert(pred->getTerminator());
 
       assert(blockArg.getOwner() == block);
@@ -1820,7 +1815,7 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
-  removeRedundantBlockArgs(AI, elType, blocksWithAddedArgs);
+  removeRedundantBlockArgs(AI, elemTy, blocksWithAddedArgs);
 
   for (auto *loadOp : llvm::make_early_inc_range(loadOps)) {
     assert(loadOp);
@@ -1846,11 +1841,11 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
         continue;
-      } else if (auto LO = dyn_cast<AffineLoadOp>(U)) {
+      } else if (auto LO = dyn_cast<affine::AffineLoadOp>(U)) {
         continue;
       } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         continue;
-      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
@@ -1888,7 +1883,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
           vec.emplace_back(idx);
         }
         lastStored[vec]++;
-      } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineLoadOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
@@ -1908,7 +1903,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
           vec.emplace_back(idx);
         }
         lastStored[vec]++;
-      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
@@ -1949,28 +1944,42 @@ void Mem2Reg::runOnOperation() {
 
     // Walk all load's and perform store to load forwarding.
     SmallVector<mlir::Value, 4> toPromote;
+    SmallVector<mlir::Type, 4> typesToPromote;
     f->walk([&](mlir::memref::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
+        typesToPromote.push_back(AI.getMemref().getType().getElementType());
       }
     });
     f->walk([&](mlir::memref::AllocOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
+        typesToPromote.push_back(AI.getMemref().getType().getElementType());
       }
     });
     f->walk([&](LLVM::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
+        if (std::optional<Type> optElemTy = AI.getElemType()) {
+          // Opaque pointer case.
+          typesToPromote.push_back(*optElemTy);
+        } else {
+          // Typed pointer case.
+          assert(!AI.getType().isOpaque());
+          typesToPromote.push_back(AI.getType().getElementType());
+        }
       }
     });
     f->walk([&](memref::GetGlobalOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
+        typesToPromote.push_back(AI.getResult().getType().getElementType());
       }
     });
     DenseMap<Operation *, SmallVector<Operation *>> capturedAliasing;
-    for (auto AI : toPromote) {
+    for (auto AllocAndType : llvm::zip(toPromote, typesToPromote)) {
+      auto AI = std::get<0>(AllocAndType);
+      auto AITy = std::get<1>(AllocAndType);
       LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
       auto lastStored = getLastStored(AI);
       for (const auto &vec : lastStored) {
@@ -1982,7 +1991,7 @@ void Mem2Reg::runOnOperation() {
         // llvm::errs() << " PRE " << AI << "\n";
         // f.dump();
         changed |=
-            forwardStoreToLoad(AI, vec, loadOpsToErase, capturedAliasing);
+            forwardStoreToLoad(AI, AITy, vec, loadOpsToErase, capturedAliasing);
         // llvm::errs() << " POST " << AI << "\n";
         // f.dump();
       }
@@ -2030,7 +2039,7 @@ void Mem2Reg::runOnOperation() {
               break;
             }
             toErase.push_back(U);
-          } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+          } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
             if (SO.getValue() == val) {
               error = true;
               break;

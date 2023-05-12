@@ -327,7 +327,7 @@ AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind, uint64_t Val,
     return Invoke(AddRawIntAttrPtr, Kind, Val);
   case llvm::Attribute::AttrKind::Alignment:
     assert(Val <= llvm::Value::MaximumAlignment && "Alignment too large");
-    LLVM_FALLTHROUGH;
+    return (!Val) ? *this : Invoke(AddRawIntAttrPtr, Kind, Val);
   case llvm::Attribute::AttrKind::StackAlignment:
     assert(Val <= 0x100 && "Alignment too large.");
     LLVM_FALLTHROUGH;

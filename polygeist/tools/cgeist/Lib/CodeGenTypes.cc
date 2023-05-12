@@ -55,6 +55,8 @@ static cl::opt<bool>
                             cl::desc("Whether to allow types in the sycl "
                                      "namespace and not in the SYCL dialect"));
 
+extern llvm::cl::opt<bool> UseOpaquePointers;
+
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
 /******************************************************************************/
@@ -1486,10 +1488,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      AT->getElementType().getAddressSpace()));
   }
 
-  if (const auto *AT = dyn_cast<clang::VectorType>(T)) {
+  if (const auto *VT = dyn_cast<clang::VectorType>(T)) {
     bool SubRef = false;
-    auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
-    int64_t Size = AT->getNumElements();
+    auto ET = getMLIRType(VT->getElementType(), &SubRef, AllowMerge);
+    int64_t Size = VT->getNumElements();
     return mlir::VectorType::get(Size, ET);
   }
 
@@ -1519,6 +1521,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     const clang::Type *PTT = PointeeType->getUnqualifiedDesugaredType();
 
     if (PTT->isVoidType()) {
+      if (UseOpaquePointers) {
+        // No need to determine the correct element type for void* in an opaque
+        // pointer world.
+        return LLVM::LLVMPointerType::get(
+            TheModule->getContext(), CGM.getContext().getTargetAddressSpace(
+                                         PointeeType.getAddressSpace()));
+      }
       llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
       return TypeTranslator.translateType(Ty);
     }
@@ -1539,9 +1548,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
       if (!InnerSYCL)
-        return LLVM::LLVMPointerType::get(
-            SubType, CGM.getContext().getTargetAddressSpace(
-                         PointeeType.getAddressSpace()));
+        return getPointerType(SubType, CGM.getContext().getTargetAddressSpace(
+                                           PointeeType.getAddressSpace()));
     }
 
     if (isa<clang::ArrayType>(PTT)) {
@@ -1549,7 +1557,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         assert(SubRef);
         return SubType;
       }
-      return LLVM::LLVMPointerType::get(SubType);
+      return getPointerType(SubType);
     }
 
     if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
@@ -1568,7 +1576,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      MT.getMemorySpace());
       }
 
-      return LLVM::LLVMPointerType::get(SubType);
+      return getPointerType(SubType);
     }
 
     if (isa<clang::RecordType>(PTT) && SubRef) {
@@ -1704,9 +1712,15 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::OCLEvent:
   case BuiltinType::OCLClkEvent:
   case BuiltinType::OCLQueue:
-  case BuiltinType::OCLReserveID:
-    return TypeTranslator.translateType(
-        CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT));
+  case BuiltinType::OCLReserveID: {
+    auto *OCLTy = CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT);
+    if (UseOpaquePointers && isa<llvm::PointerType>(OCLTy))
+      return LLVM::LLVMPointerType::get(
+          TheModule->getContext(),
+          cast<llvm::PointerType>(OCLTy)->getAddressSpace());
+
+    return TypeTranslator.translateType(OCLTy);
+  }
 
   case BuiltinType::SveInt8:
   case BuiltinType::SveUint8:
@@ -1770,9 +1784,9 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
 #define PLACEHOLDER_TYPE(Id, SingletonId) case BuiltinType::Id:
 #include "clang/AST/BuiltinTypes.def"
     llvm_unreachable("Unexpected placeholder builtin type!");
+  default:
+    llvm_unreachable("Unexpected builtin type!");
   }
-
-  llvm_unreachable("Unexpected builtin type!");
 }
 
 // Note: In principle we should always create a memref here because we want to
@@ -1791,8 +1805,16 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
   if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},
                                  AddressSpace);
+  return getPointerType(Ty, AddressSpace);
+}
 
-  return LLVM::LLVMPointerType::get(Ty, AddressSpace);
+LLVM::LLVMPointerType
+CodeGenTypes::getPointerType(mlir::Type ElementType,
+                             unsigned int AddressSpace) const {
+  return (UseOpaquePointers)
+             ? LLVM::LLVMPointerType::get(ElementType.getContext(),
+                                          AddressSpace)
+             : LLVM::LLVMPointerType::get(ElementType, AddressSpace);
 }
 
 const clang::CodeGen::CGFunctionInfo &

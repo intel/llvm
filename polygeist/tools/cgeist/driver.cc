@@ -45,12 +45,15 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
+#include "mlir/Tools/ParseUtilities.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
@@ -69,6 +72,8 @@
 #include <fstream>
 
 #define DEBUG_TYPE "cgeist"
+
+using namespace mlir;
 
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
@@ -103,6 +108,15 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   // allow taking the address of ::main however.
   return llvm::sys::fs::getMainExecutable(
       Argv0, reinterpret_cast<void *>(GetExecutablePath));
+}
+
+static void eraseHostCode(ModuleOp Module) {
+  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
+  SmallVector<std::reference_wrapper<Operation>> ToRemove;
+  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
+               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
+  for (auto Op : ToRemove)
+    Op.get().erase();
 }
 
 static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV,
@@ -220,7 +234,7 @@ emitBinary(const char *Argv0, const char *Filename,
 // Load MLIR Dialects.
 static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
   Ctx.disableMultithreading();
-  Ctx.getOrLoadDialect<mlir::AffineDialect>();
+  Ctx.getOrLoadDialect<affine::AffineDialect>();
   Ctx.getOrLoadDialect<func::FuncDialect>();
   Ctx.getOrLoadDialect<mlir::DLTIDialect>();
   Ctx.getOrLoadDialect<mlir::scf::SCFDialect>();
@@ -334,7 +348,7 @@ static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     if (ScalarReplacement)
-      addFunctionPass(createAffineScalarReplacementPass);
+      addFunctionPass(affine::createAffineScalarReplacementPass);
   }
 
   if (mlir::failed(PM.run(Module.get()))) {
@@ -480,7 +494,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createReplaceAffineCFGPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (LoopUnroll)
-      NOptPM2.addPass(mlir::createLoopUnrollPass(UnrollSize, false, true));
+      NOptPM2.addPass(affine::createLoopUnrollPass(UnrollSize, false, true));
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     NOptPM2.addPass(mlir::createCSEPass());
     NOptPM2.addPass(polygeist::createMem2RegPass());
@@ -495,7 +509,8 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createReplaceAffineCFGPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(
+          affine::createAffineScalarReplacementPass());
   }
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Optimize CUDA failed. Module: ***\n";
@@ -548,7 +563,8 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(
+          affine::createAffineScalarReplacementPass());
   }
   if (ToCPU == "continuation") {
     OptPM.addPass(polygeist::createBarrierRemovalContinuation());
@@ -574,7 +590,7 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (LoopUnroll)
-      OptPM.addPass(mlir::createLoopUnrollPass(UnrollSize, false, true));
+      OptPM.addPass(affine::createLoopUnrollPass(UnrollSize, false, true));
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
     OptPM.addPass(polygeist::createMem2RegPass());
@@ -589,19 +605,40 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(
+          affine::createAffineScalarReplacementPass());
   }
 
   return success();
 }
 
+static llvm::Expected<sycl::LoweringTarget>
+getSYCLTargetFromTriple(const llvm::Triple &Triple) {
+  switch (Triple.getArch()) {
+  case llvm::Triple::spir:
+    CGEIST_WARNING(llvm::WithColor::warning()
+                   << "Using the 32-bits spir target may lead to errors when "
+                      "lowering the `sycl` dialect.\n");
+    [[fallthrough]];
+  case llvm::Triple::spir64:
+    return sycl::LoweringTarget::SPIR;
+  default:
+    return llvm::createStringError(std::errc::not_supported,
+                                   "Cannot lower SYCL target \"%s\" to LLVM",
+                                   Triple.getTriple().c_str());
+  }
+}
+
 static LogicalResult finalize(mlir::MLIRContext &Ctx,
                               mlir::OwningOpRef<mlir::ModuleOp> &Module,
                               Options &options, llvm::DataLayout &DL,
-                              bool &LinkOMP) {
+                              const llvm::Triple &Triple, bool &LinkOMP) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
+
+  if (options.getCgeistOpts().getSYCLIsDevice() && SYCLDeviceOnly)
+    eraseHostCode(*Module);
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -612,6 +649,21 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
   PM.addPass(mlir::createSymbolDCEPass());
 
   if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
+    // SYCL host code is never output for non-MLIR format. If this option is
+    // set, the host code should have already been removed.
+    if (options.getCgeistOpts().getSYCLIsDevice()) {
+      if (!SYCLDeviceOnly)
+        eraseHostCode(*Module);
+      // else it has already been removed
+      LLVM_DEBUG({
+        const auto &HostOperations =
+            Module->getRegion().front().getOperations();
+        assert(HostOperations.size() == 1 &&
+               isa<gpu::GPUModuleOp>(HostOperations.front()) &&
+               "The host code should have been erased by now");
+      });
+    }
+
     PM.addPass(mlir::createLowerAffinePass());
     if (InnerSerialize)
       PM.addPass(polygeist::createInnerSerializationPass());
@@ -664,9 +716,13 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     if (!EmitOpenMPIR) {
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
-      ConvertPolygeistToLLVMOptions Options;
-      Options.dataLayout = DL.getStringRepresentation();
-      PM3.addPass(createConvertPolygeistToLLVM(Options));
+      ConvertPolygeistToLLVMOptions ConvertOptions;
+      ConvertOptions.dataLayout = DL.getStringRepresentation();
+      if (options.getCgeistOpts().getSYCLIsDevice()) {
+        ConvertOptions.syclImplementation = SYCLImplementation;
+        ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
+      }
+      PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
@@ -727,7 +783,7 @@ createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
   if (mlir::failed(optimizeCUDA(Ctx, Module, options)))
     return failure();
 
-  if (mlir::failed(finalize(Ctx, Module, options, DL, LinkOMP)))
+  if (mlir::failed(finalize(Ctx, Module, options, DL, Triple, LinkOMP)))
     return failure();
 
   return success();
@@ -1043,7 +1099,7 @@ void Options::splitCommandLineOptions(int argc, char **argv) {
 }
 
 // Fill the module with the MLIR in the inputFile.
-static void loadMLIR(const std::string &InputFile,
+static bool loadMLIR(const std::string &InputFile,
                      mlir::OwningOpRef<ModuleOp> &Module,
                      mlir::MLIRContext &Ctx) {
   assert(InputFile.substr(InputFile.find_last_of(".") + 1) == "mlir" &&
@@ -1054,7 +1110,7 @@ static void loadMLIR(const std::string &InputFile,
       mlir::openInputFile(InputFile, &ErrorMsg);
   if (!Input) {
     llvm::errs() << ErrorMsg << "\n";
-    exit(1);
+    return false;
   }
 
   // Parse the input mlir.
@@ -1064,12 +1120,13 @@ static void loadMLIR(const std::string &InputFile,
   Module = mlir::parseSourceFile<ModuleOp>(SourceMgr, &Ctx);
   if (!Module) {
     llvm::errs() << "Error can't load file " << InputFile << "\n";
-    exit(1);
+    return false;
   }
+  return true;
 }
 
 // Generate MLIR for the input files.
-static void
+static bool
 processInputFiles(const llvm::cl::list<std::string> &InputFiles,
                   const llvm::cl::list<std::string> &InputCommandArgs,
                   mlir::MLIRContext &Ctx, mlir::OwningOpRef<ModuleOp> &Module,
@@ -1083,7 +1140,7 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
     std::ifstream Ifs(InputFile);
     if (!Ifs.good()) {
       llvm::errs() << "Not able to open file: " << InputFile << "\n";
-      exit(-1);
+      return false;
     }
     Files.push_back(InputFile);
   }
@@ -1106,31 +1163,15 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
       llvm::errs()
           << "More than one input file has been provided. Only a single "
              "input MLIR file can be processed\n";
-      exit(-1);
+      return false;
     }
-    loadMLIR(Files[0], Module, Ctx);
-    return;
+    return loadMLIR(Files[0], Module, Ctx);
   }
 
   // Generate MLIR for the C/C++ files.
   std::string Fn = (!options.getSYCLIsDevice()) ? Cfunction.getValue() : "";
-  parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
-            Commands);
-}
-
-static bool containsFunctions(mlir::gpu::GPUModuleOp DeviceModule) {
-  Region &Rgn = DeviceModule.getRegion();
-  return !Rgn.getOps<mlir::gpu::GPUFuncOp>().empty() ||
-         !Rgn.getOps<mlir::func::FuncOp>().empty();
-}
-
-static void eraseHostCode(mlir::ModuleOp Module) {
-  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
-  SmallVector<std::reference_wrapper<Operation>> ToRemove;
-  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
-               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
-  for (auto Op : ToRemove)
-    Op.get().erase();
+  return parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
+                   Commands);
 }
 
 template <typename T> static void filterFunctions(T Module) {
@@ -1162,6 +1203,58 @@ template <typename T> static void filterFunctions(T Module) {
   }
   for (gpu::GPUFuncOp Func : ToRemove)
     Func.erase();
+}
+
+static bool readHostModule(MLIRContext &context, ModuleOp module,
+                           llvm::StringRef inputFilename) {
+  Block &dest = module.getBodyRegion().front();
+  assert(dest.getOperations().size() == 1 &&
+         "Expecting a single operation in the original module");
+
+  // Set up the input file.
+  std::string errorMessage;
+  auto file = openInputFile(inputFilename, &errorMessage);
+  if (!file) {
+    llvm::errs() << errorMessage << "\n";
+    return false;
+  }
+
+  // Tell sourceMgr about this buffer, which is what the parser will pick up.
+  auto sourceMgr = std::make_shared<llvm::SourceMgr>();
+  sourceMgr->AddNewSourceBuffer(std::move(file), SMLoc());
+
+  SourceMgrDiagnosticVerifierHandler sourceMgrHandler(*sourceMgr, &context);
+
+  // Disable multi-threading when parsing the input file. This removes the
+  // unnecessary/costly context synchronization when parsing.
+  bool wasThreadingEnabled = context.isMultithreadingEnabled();
+  context.disableMultithreading();
+
+  // Prepare the parser config, and attach any useful/necessary resource
+  // handlers. Unhandled external resources are treated as passthrough, i.e.
+  // they are not processed and will be emitted directly to the output
+  // untouched.
+  PassReproducerOptions reproOptions;
+  FallbackAsmResourceMap fallbackResourceMap;
+  ParserConfig parseConfig(&context, /*verifyAfterParse=*/true,
+                           &fallbackResourceMap);
+  reproOptions.attachResourceParser(parseConfig);
+
+  // Parse the input file and reset the context threading state.
+  OwningOpRef<Operation *> op = parseSourceFileForTool(
+      sourceMgr, parseConfig, /*shouldUseExplicitModule=*/true);
+  context.enableMultithreading(wasThreadingEnabled);
+
+  if (!op || !isa<ModuleOp>(*op)) {
+    llvm::errs() << "Error parsing input module\n";
+    return false;
+  }
+
+  // Clone new module into original one.
+  Block &source = (*op)->getRegion(0).front();
+  dest.getOperations().splice(dest.end(), source.getOperations());
+
+  return true;
 }
 
 int main(int argc, char **argv) {
@@ -1214,17 +1307,19 @@ int main(int argc, char **argv) {
 
   llvm::DataLayout DL("");
   llvm::Triple Triple;
-  processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL, Triple,
-                    argv[0], options.getCgeistOpts());
+  if (!processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL,
+                         Triple, argv[0], options.getCgeistOpts())) {
+    return -1;
+  }
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
     Module->dump();
   });
 
-  // For now, we will work on the device code if it contains any functions and
-  // on the host code otherwise.
-  if (containsFunctions(DeviceModule)) {
+  bool SYCLIsDevice = options.getCgeistOpts().getSYCLIsDevice();
+  // For SYCL code, we will drop the host code for now.
+  if (SYCLIsDevice) {
     eraseHostCode(*Module);
     Module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
@@ -1236,6 +1331,18 @@ int main(int argc, char **argv) {
     llvm::dbgs() << "MLIR before compilation:\n";
     Module->dump();
   });
+
+  if (SYCLUseHostModule != "") {
+    if (!SYCLIsDevice) {
+      llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
+                      "device compilation\n";
+      return -1;
+    }
+    if (!readHostModule(Ctx, *Module, SYCLUseHostModule)) {
+      llvm::errs() << "Failed to read SYCL host module\n";
+      return -1;
+    }
+  }
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
   if (mlir::failed(compileModule(

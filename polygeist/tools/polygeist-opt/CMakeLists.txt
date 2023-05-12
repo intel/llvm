@@ -1,16 +1,24 @@
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+
+if(MLIR_INCLUDE_TESTS)
+  set(test_libs
+    MLIRPolygeistTestAnalysis
+  )
+endif()
+
 set(LIBS
-        ${dialect_libs}
-        ${conversion_libs}
-        MLIROptLib
-        MLIRPolygeistDialect
-        MLIRPolygeistTransforms
-        MLIRSYCLDialect
-        MLIRSYCLToGPU
-        MLIRSYCLToLLVM
-        MLIRSYCLToSPIRV
-        MLIRSYCLTransforms
+  ${dialect_libs}
+  ${conversion_libs}
+  ${test_libs}        
+  MLIROptLib
+  MLIRPolygeistDialect
+  MLIRPolygeistTransforms
+  MLIRSYCLDialect
+  MLIRSYCLToGPU
+  MLIRSYCLToLLVM
+  MLIRSYCLToSPIRV
+  MLIRSYCLTransforms
 )
 add_llvm_executable(polygeist-opt polygeist-opt.cpp)
 

@@ -23,6 +23,7 @@ def Func_Dialect : Dialect {
   let cppNamespace = "::mlir::func";
   let dependentDialects = ["cf::ControlFlowDialect"];
   let hasConstantMaterializer = 1;
+  let usePropertiesForAttributes = 1;
 }
 
 // Base class for Func dialect ops.
@@ -93,7 +94,7 @@ def CallOp : Func_Op<"call",
 
     /// Set the callee for this operation.
     void setCalleeFromCallable(CallInterfaceCallable callee) {
-      (*this)->setAttr("callee", dyn_cast<SymbolRefAttr>(callee));
+      (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
     }
   }];
 
@@ -157,6 +158,11 @@ def CallIndirectOp : Func_Op<"call_indirect", [
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      setOperand(0, callee.get<Value>());
+    }
   }];
 
   let hasCanonicalizeMethod = 1;

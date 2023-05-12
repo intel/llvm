@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
 
 extern void print(char*);
 
@@ -27,32 +27,41 @@ void make() {
     Sub s(3, 3.14);
 }
 
-// clang-format off
-// CHECK:   func @_Z4makev() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %cst = arith.constant 3.140000e+00 : f64
-// CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
-// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:    %0 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:     call @_ZN3SubC1Eid(%0, %c3_i32, %cst) : (!llvm.ptr<struct<(i8)>>, i32, f64) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZN3SubC1Eid(%arg0: !llvm.ptr<struct<(i8)>>, %arg1: i32, %arg2: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
-// CHECK-NEXT:     call @_ZN4RootC1Ei(%arg0, %arg1) : (!llvm.ptr<struct<(i8)>>, i32) -> ()
-// CHECK-NEXT:     call @_ZN5FRootC1Ev(%arg0) : (!llvm.ptr<struct<(i8)>>) -> ()
-// CHECK-NEXT:     %0 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<array<12 x i8>>) -> memref<?xi8>
-// CHECK-NEXT:     call @_Z5printPc(%1) : (memref<?xi8>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZN4RootC1Ei(%arg0: !llvm.ptr<struct<(i8)>>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.mlir.addressof @str1 : !llvm.ptr<array<13 x i8>>
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<array<13 x i8>>) -> memref<?xi8> 
-// CHECK-NEXT:     call @_Z5printPc(%1) : (memref<?xi8>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZN5FRootC1Ev(%arg0: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<array<14 x i8>>) -> memref<?xi8> 
-// CHECK-NEXT:     call @_Z5printPc(%1) : (memref<?xi8>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z4makev() attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-DAG:       %[[VAL_0:.*]] = arith.constant 3.140000e+00 : f64
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 3 : i32
+// CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(i8)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      call @_ZN3SubC1Eid(%[[VAL_3]], %[[VAL_1]], %[[VAL_0]]) : (!llvm.ptr, i32, f64) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN3SubC1Eid(
+// CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                            %[[VAL_1:.*]]: i32,
+// CHECK-SAME:                            %[[VAL_2:.*]]: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      call @_ZN4RootC1Ei(%[[VAL_0]], %[[VAL_1]]) : (!llvm.ptr, i32) -> ()
+// CHECK-NEXT:      call @_ZN5FRootC1Ev(%[[VAL_0]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = "polygeist.pointer2memref"(%[[VAL_3]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK-NEXT:      call @_Z5printPc(%[[VAL_4]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN4RootC1Ei(
+// CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                            %[[VAL_1:.*]]: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.addressof @str1 : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = "polygeist.pointer2memref"(%[[VAL_2]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK-NEXT:      call @_Z5printPc(%[[VAL_3]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @_ZN5FRootC1Ev(
+// CHECK-SAME:                             %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.addressof @str2 : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = "polygeist.pointer2memref"(%[[VAL_1]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK-NEXT:      call @_Z5printPc(%[[VAL_2]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+// CHECK-NEXT:    func.func private @_Z5printPc(memref<?xi8>) attributes {llvm.linkage = #llvm.linkage<external>}

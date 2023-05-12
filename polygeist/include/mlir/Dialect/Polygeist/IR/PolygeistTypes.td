@@ -25,4 +25,24 @@ class Polygeist_Type<string name, string typeMnemonic, list<Trait> traits = []>
   let mnemonic = typeMnemonic;
 }
 
+def Polygeist_StructType :
+    Polygeist_Type<"Struct", "struct"> {
+  let summary = "Polygeist Struct";
+  let description = [{
+    Type used to represent a collection of data members together in memory.
+  }];
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body,
+                        OptionalParameter<"std::optional<StringAttr>">:$name,
+                        DefaultValuedParameter<"bool", "false">:$isPacked);
+  let builders = [
+    TypeBuilder<(ins "llvm::ArrayRef<mlir::Type>":$body),[{
+      return $_get($_ctxt, body, std::nullopt, false);
+    }]>
+  ];
+  let extraClassDeclaration = [{
+    bool isPacked() { return getIsPacked(); }
+  }];
+  let assemblyFormat = "`<` ($name^ `,` ` `)? (`isPacked` `=` $isPacked^ ` `)? `(` $body `)` `>`";
+}
+
 #endif // POLYGEIST_TYPES

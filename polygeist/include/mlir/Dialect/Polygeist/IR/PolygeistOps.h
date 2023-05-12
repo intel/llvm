@@ -81,7 +81,7 @@ public:
     }
 
     Operation *op = barrier;
-    if (NotTopLevel && isa<mlir::scf::ParallelOp, mlir::AffineParallelOp>(
+    if (NotTopLevel && isa<mlir::scf::ParallelOp, affine::AffineParallelOp>(
                            barrier->getParentOp()))
       return failure();
 

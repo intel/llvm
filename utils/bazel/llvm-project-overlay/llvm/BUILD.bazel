@@ -572,8 +572,33 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "llvm-min-tblgen",
+    srcs = [
+        "utils/TableGen/Attributes.cpp",
+        "utils/TableGen/CodeGenIntrinsics.cpp",
+        "utils/TableGen/DirectiveEmitter.cpp",
+        "utils/TableGen/IntrinsicEmitter.cpp",
+        "utils/TableGen/RISCVTargetDefEmitter.cpp",
+        "utils/TableGen/SDNodeProperties.cpp",
+        "utils/TableGen/TableGen.cpp",
+        "utils/TableGen/VTEmitter.cpp",
+
+        "utils/TableGen/CodeGenIntrinsics.h",
+        "utils/TableGen/SDNodeProperties.h",
+        "utils/TableGen/SequenceToOffsetTable.h",
+    ],
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":Support",
+        ":TableGen",
+        ":config",
+    ],
+)
+
 cc_library(
-    name = "LLVMTableGenGlobalISel",
+    name = "TableGenGlobalISel",
     srcs = glob([
         "utils/TableGen/GlobalISel/*.cpp",
     ]) + [
@@ -591,6 +616,7 @@ cc_library(
     features = ["-header_modules"],
     strip_include_prefix = "utils/TableGen",
     deps = [
+        ":CodeGenTypes",
         ":Support",
         ":TableGen",
         ":config",
@@ -617,9 +643,10 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
-        ":LLVMTableGenGlobalISel",
+        ":CodeGenTypes",
         ":Support",
         ":TableGen",
+        ":TableGenGlobalISel",
         ":config",
         ":llvm-tblgen-headers",
     ],
@@ -628,7 +655,7 @@ cc_binary(
 gentbl(
     name = "intrinsic_enums_gen",
     tbl_outs = [("-gen-intrinsic-enums", "include/llvm/IR/IntrinsicEnums.inc")],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/IR/Intrinsics.td",
     td_srcs = glob([
         "include/llvm/CodeGen/*.td",
@@ -639,12 +666,22 @@ gentbl(
 gentbl(
     name = "intrinsics_impl_gen",
     tbl_outs = [("-gen-intrinsic-impl", "include/llvm/IR/IntrinsicImpl.inc")],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/IR/Intrinsics.td",
     td_srcs = glob([
         "include/llvm/CodeGen/*.td",
         "include/llvm/IR/Intrinsics*.td",
     ]),
+)
+
+gentbl(
+    name = "vt_gen",
+    tbl_outs = [("-gen-vt", "include/llvm/CodeGen/GenVT.inc")],
+    tblgen = ":llvm-min-tblgen",
+    td_file = "include/llvm/CodeGen/ValueTypes.td",
+    td_srcs = [
+        "include/llvm/CodeGen/ValueTypes.td",
+    ],
 )
 
 # Note that the intrinsics are not currently set up so they can be pruned for
@@ -727,7 +764,7 @@ llvm_target_intrinsics_list = [
             "-gen-intrinsic-enums -intrinsic-prefix=" + target["intrinsic_prefix"],
             "include/llvm/IR/Intrinsics" + target["name"] + ".h",
         )],
-        tblgen = ":llvm-tblgen",
+        tblgen = ":llvm-min-tblgen",
         td_file = "include/llvm/IR/Intrinsics.td",
         td_srcs = glob([
             "include/llvm/CodeGen/*.td",
@@ -739,7 +776,7 @@ llvm_target_intrinsics_list = [
 gentbl(
     name = "attributes_gen",
     tbl_outs = [("-gen-attrs", "include/llvm/IR/Attributes.inc")],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/IR/Attributes.td",
     td_srcs = ["include/llvm/IR/Attributes.td"],
 )
@@ -1038,7 +1075,6 @@ cc_library(
         ],
     ) + [
         "include/llvm-c/Analysis.h",
-        "include/llvm-c/Initialization.h",
     ],
     copts = llvm_copts,
     textual_hdrs = glob([
@@ -1109,7 +1145,7 @@ cc_library(
 gentbl(
     name = "RISCVTargetParserDefGen",
     tbl_outs = [("-gen-riscv-target-def", "include/llvm/TargetParser/RISCVTargetParserDef.inc")],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "lib/Target/RISCV/RISCV.td",
     td_srcs = [
         ":common_target_td_sources",
@@ -1218,7 +1254,6 @@ cc_library(
     deps = [
         ":Analysis",
         ":Core",
-        ":InstCombineTableGen",
         ":Support",
         ":Target",
         ":TransformUtils",
@@ -1377,7 +1412,7 @@ gentbl(
     tbl_outs = [
         ("--gen-directive-decl", "include/llvm/Frontend/OpenMP/OMP.h.inc"),
     ],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/Frontend/OpenMP/OMP.td",
     td_srcs = [":omp_td_files"],
 )
@@ -1388,7 +1423,7 @@ gentbl(
     tbl_outs = [
         ("--gen-directive-impl", "include/llvm/Frontend/OpenMP/OMP.inc"),
     ],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/Frontend/OpenMP/OMP.td",
     td_srcs = [":omp_td_files"],
 )
@@ -1436,7 +1471,7 @@ gentbl(
     tbl_outs = [
         ("--gen-directive-decl", "include/llvm/Frontend/OpenACC/ACC.h.inc"),
     ],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/Frontend/OpenACC/ACC.td",
     td_srcs = [":acc_td_files"],
 )
@@ -1447,7 +1482,7 @@ gentbl(
     tbl_outs = [
         ("--gen-directive-impl", "include/llvm/Frontend/OpenACC/ACC.inc"),
     ],
-    tblgen = ":llvm-tblgen",
+    tblgen = ":llvm-min-tblgen",
     td_file = "include/llvm/Frontend/OpenACC/ACC.td",
     td_srcs = [":acc_td_files"],
 )
@@ -1643,6 +1678,22 @@ cc_library(
 )
 
 cc_library(
+    name = "CodeGenTypes",
+    srcs = [
+        "lib/CodeGen/LowLevelType.cpp",
+    ],
+    hdrs = [
+        "include/llvm/CodeGen/LowLevelType.h",
+        "include/llvm/CodeGen/MachineValueType.h",
+    ],
+    copts = llvm_copts,
+    deps = [
+        ":Support",
+        ":vt_gen",
+    ],
+)
+
+cc_library(
     name = "CodeGen",
     srcs = glob(
         [
@@ -1650,6 +1701,9 @@ cc_library(
             "lib/CodeGen/**/*.h",
             "lib/CodeGen/SelectionDAG/*.cpp",
             "lib/CodeGen/SelectionDAG/*.h",
+        ],
+        exclude = [
+            "lib/CodeGen/LowLevelType.cpp",
         ],
     ),
     hdrs = [
@@ -1671,6 +1725,7 @@ cc_library(
         ":BinaryFormat",
         ":BitReader",
         ":BitWriter",
+        ":CodeGenTypes",
         ":Core",
         ":DebugInfoCodeView",
         ":DebugInfoDWARF",
@@ -1777,6 +1832,7 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-searchable-tables", "lib/Target/AMDGPU/AMDGPUGenSearchableTables.inc"),
         ],
         "tbl_deps": [
+            ":InstCombineTableGen",
             ":amdgpu_isel_target_gen",
             ":r600_target_gen",
         ],
@@ -2187,6 +2243,7 @@ gentbl(
             # Depending on `:CodeGen` headers in this library is almost
             # certainly a layering problem in numerous targets.
             ":CodeGen",
+            ":CodeGenTypes",
             ":DebugInfoCodeView",
             ":MC",
             ":MCDisassembler",
@@ -2219,6 +2276,7 @@ gentbl(
             ":BinaryFormat",
             ":CFGuard",
             ":CodeGen",
+            ":CodeGenTypes",
             ":Core",
             ":IPO",
             ":MC",
@@ -2244,6 +2302,7 @@ gentbl(
         copts = llvm_copts,
         deps = [
             ":BinaryFormat",
+            ":CodeGenTypes",
             ":MC",
             ":MCParser",
             ":Support",
@@ -2289,7 +2348,7 @@ gentbl(
         copts = llvm_copts,
         features = ["-layering_check"],
         deps = [
-            ":CodeGen",
+            ":CodeGenTypes",
             ":Core",
             ":MC",
             ":MCDisassembler",
@@ -2311,6 +2370,7 @@ gentbl(
         copts = llvm_copts,
         features = ["-layering_check"],
         deps = [
+            ":CodeGenTypes",
             ":MC",
             ":MCA",
             ":MCParser",
@@ -2430,6 +2490,7 @@ cc_library(
         ":BitReader",
         ":BitWriter",
         ":CodeGen",
+        ":CodeGenTypes",
         ":Core",
         ":IPO",
         ":IRPrinter",
@@ -2682,6 +2743,7 @@ cc_library(
     deps = [
         ":BinaryFormat",
         ":CodeGen",
+        ":CodeGenTypes",
         ":DebugInfoDWARF",
         ":MC",
         ":Support",
@@ -2908,6 +2970,7 @@ cc_library(
         ":AllTargetsAsmParsers",
         ":AllTargetsCodeGens",
         ":CodeGen",
+        ":CodeGenTypes",
         ":Core",
         ":ExecutionEngine",
         ":MC",
@@ -2959,6 +3022,7 @@ cc_binary(
         ":AllTargetsCodeGens",
         ":BinaryFormat",
         ":CodeGen",
+        ":CodeGenTypes",
         ":DWARFLinker",
         ":DebugInfo",
         ":DebugInfoDWARF",
@@ -2990,6 +3054,7 @@ cc_binary(
         ":AsmParser",
         ":BitReader",
         ":CodeGen",
+        ":CodeGenTypes",
         ":Core",
         ":IRPrinter",
         ":IRReader",
@@ -3379,6 +3444,7 @@ cc_binary(
     deps = [
         ":AllTargetsAsmParsers",
         ":AllTargetsCodeGens",
+        ":CodeGenTypes",
         ":DWARFLinker",
         ":DebugInfoDWARF",
         ":DwarfutilOptionsTableGen",
@@ -3419,6 +3485,7 @@ cc_binary(
         ":AllTargetsAsmParsers",
         ":AllTargetsCodeGens",
         ":AllTargetsDisassemblers",
+        ":CodeGenTypes",
         ":Exegesis",
         ":MC",
         ":MCParser",
@@ -3450,12 +3517,33 @@ cc_binary(
     ],
 )
 
+gentbl(
+    name = "GSYMUtilOptionsTableGen",
+    strip_include_prefix = "tools/llvm-gsymutil",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-gsymutil/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-gsymutil/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+expand_template(
+    name = "gsymutil_main",
+    out = "llvm-gsymutil-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_gsymutil",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-gsymutil",
     srcs = glob([
         "tools/llvm-gsymutil/*.cpp",
         "tools/llvm-gsymutil/*.h",
-    ]),
+    ]) + ["llvm-gsymutil-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3463,8 +3551,10 @@ cc_binary(
         ":DebugInfo",
         ":DebugInfoDWARF",
         ":DebugInfoGSYM",
+        ":GSYMUtilOptionsTableGen",
         ":MC",
         ":Object",
+        ":Option",
         ":Support",
         ":Target",
         ":TargetParser",
@@ -4259,6 +4349,7 @@ cc_binary(
         ":BitReader",
         ":BitWriter",
         ":CodeGen",
+        ":CodeGenTypes",
         ":Core",
         ":IPO",
         ":IRReader",

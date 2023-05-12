@@ -18,12 +18,6 @@ from lit.llvm.subst import ToolSubst, FindTool
 # name: The name of this test suite.
 config.name = 'SYCL'
 
-# testFormat: The test format to use to interpret tests.
-#
-# For now we require '&&' between commands, until they get globally killed and
-# the test runner updated.
-config.test_format = lit.formats.ShTest()
-
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp']
 
@@ -186,6 +180,42 @@ if sp[0] == 0:
     config.substitutions.append( ('%cuda_options', cuda_options) )
 else:
     config.substitutions.append( ('%cuda_options', '') )
+
+# The code below is slightly more complex than currently necessary because of
+# the plans to allow running the same tests on multiple backends in a single
+# llvm-lit invocation.
+sycl_dev_aspects = []
+for be in [config.sycl_be]:
+    for device in config.target_devices.split(','):
+        cmd = ('env ONEAPI_DEVICE_SELECTOR={}:{} sycl-ls --verbose'.format(be, device))
+        sp = subprocess.run(cmd, env=llvm_config.config.environment,
+                            shell=True, capture_output=True, text=True)
+        if sp.returncode != 0:
+            lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+                be, device, sp.stdout, sp.stderr))
+
+        dev_aspects = []
+        for line in sp.stdout.split('\n'):
+            if not re.search(r'^ *Aspects *:', line):
+                continue
+            _, aspects_str = line.split(':', 1)
+            dev_aspects.append(aspects_str.strip().split(' '))
+
+        if dev_aspects == []:
+            lit_config.error('Cannot detect device aspect for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+                be, device, sp.stdout, sp.stderr))
+            sycl_dev_aspects.append(set())
+            continue
+
+        # We might have several devices matching the same filter in the system.
+        # Compute intersection of aspects.
+        result = set(dev_aspects[0]).intersection(*dev_aspects)
+        sycl_dev_aspects.append(result)
+
+resulting_aspects = sycl_dev_aspects[0].intersection(*sycl_dev_aspects)
+lit_config.note('Aspects: {}'.format(' '.join(resulting_aspects)))
+for aspect in resulting_aspects:
+    config.available_features.add('aspect-{}'.format(aspect))
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:

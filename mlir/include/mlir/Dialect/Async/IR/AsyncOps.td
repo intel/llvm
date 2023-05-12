@@ -274,7 +274,7 @@ def Async_CallOp : Async_Op<"call",
 
     /// Set the callee for this operation.
     void setCalleeFromCallable(CallInterfaceCallable callee) {
-      (*this)->setAttr("callee", dyn_cast<SymbolRefAttr>(callee));
+      (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
     }
   }];
 

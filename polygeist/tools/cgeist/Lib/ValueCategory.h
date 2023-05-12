@@ -11,16 +11,19 @@
 
 #include "Lib/ConstantFolder.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/Optional.h"
+#include <type_traits>
 
 // Represents a rhs or lhs value.
 class ValueCategory {
 private:
   template <typename OpTy>
   ValueCategory Cast(mlir::OpBuilder &Builder, mlir::Location Loc,
-                     mlir::Type PromotionType) const {
+                     mlir::Type PromotionType,
+                     std::optional<mlir::Type> ElemTy = std::nullopt) const {
     if (val.getType() == PromotionType)
       return *this;
     if (const auto C = val.getDefiningOp<mlir::arith::ConstantOp>()) {
@@ -29,7 +32,12 @@ private:
               Folder.fold<OpTy>(Loc, PromotionType, C))
         return {FoldedRes, false};
     }
-    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false};
+    // If we're casting a pointer to an integer, the result won't be a reference
+    // anymore.
+    bool ResIsReference =
+        !std::is_same_v<OpTy, mlir::LLVM::PtrToIntOp> && isReference;
+    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), ResIsReference,
+            ElemTy};
   }
 
   ValueCategory ICmp(mlir::OpBuilder &builder, mlir::Location Loc,
@@ -39,17 +47,30 @@ private:
                      mlir::arith::CmpFPredicate predicate,
                      mlir::Value RHS) const;
 
+  mlir::Type getPointerType(mlir::Type ElementType,
+                            unsigned AddressSpace) const;
+
 public:
   mlir::Value val;
   bool isReference;
   /// Holds the index the lvalue to a vector element refers to.
   llvm::Optional<mlir::Value> Index{std::nullopt};
+  /// Holds the element type of memrefs or pointers. This is particularly
+  /// important with opaque pointers.
+  std::optional<mlir::Type> ElementType{std::nullopt};
+
+  mlir::Type getElemTy() const {
+    assert(ElementType && "No element type defined");
+    return ElementType.value();
+  }
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
   ValueCategory(std::nullptr_t) : val(nullptr), isReference(false) {}
-  ValueCategory(mlir::Value val, bool isReference);
-  ValueCategory(mlir::Value Val, mlir::Value Index);
+  ValueCategory(mlir::Value val, bool isReference,
+                std::optional<mlir::Type> elementType = std::nullopt);
+  ValueCategory(mlir::Value Val, mlir::Value Index,
+                std::optional<mlir::Type> elementType = std::nullopt);
 
   static ValueCategory getNullValue(mlir::OpBuilder &Builder,
                                     mlir::Location Loc, mlir::Type Type);
@@ -101,9 +122,9 @@ public:
   ValueCategory PtrToInt(mlir::OpBuilder &Builder, mlir::Location Loc,
                          mlir::Type DestTy) const;
   ValueCategory IntToPtr(mlir::OpBuilder &Builder, mlir::Location Loc,
-                         mlir::Type DestTy) const;
+                         mlir::Type DestTy, mlir::Type ElemType) const;
   ValueCategory BitCast(mlir::OpBuilder &Builder, mlir::Location Loc,
-                        mlir::Type DestTy) const;
+                        mlir::Type DestTy, mlir::Type ElemTy) const;
   ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
   ValueCategory
   Ptr2MemRef(mlir::OpBuilder &Builder, mlir::Location Loc,

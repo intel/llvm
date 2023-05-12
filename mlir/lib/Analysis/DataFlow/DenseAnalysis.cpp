@@ -139,15 +139,44 @@ void AbstractDenseDataFlowAnalysis::visitRegionBranchOperation(
   assert(predecessors->allPredecessorsKnown() &&
          "unexpected unresolved region successors");
 
+  auto getBeforeBranchState = [&](RegionBranchOpInterface branch) {
+    const AbstractDenseLattice *before;
+    if (Operation *prev = branch->getPrevNode())
+      before = getLatticeFor(point, prev);
+    else
+      before = getLatticeFor(point, branch->getBlock());
+    return before;
+  };
+
+  if (auto *op = point.dyn_cast<Operation *>()) {
+    if (op == branch) {
+      // In this context, the known predecessors are the last operations along
+      // all execution paths that pass through the branch. When the number of
+      // terminators (e.g., `scf.yield`) is one less than the branch operation
+      // regions, we need to join the state before the branch, as the branch
+      // operation doesn't dominate the next operation.
+      // For example (reaching definition):
+      //  store x, p
+      //  scf.if ()
+      //    store y, p
+      //    scf.yield
+      //  load p
+      // => the reaching definition for the load of p should be both stores.
+      // A `scf.if` operation always has 2 regions (representing the "then" and
+      // "else" regions). The "else" region may have 0 blocks, in which case the
+      // operation will have only one terminator (the `scf.yield` in the "then"
+      // region).
+      if (branch->getNumRegions() ==
+          predecessors->getKnownPredecessors().size() + 1)
+        join(after, *getBeforeBranchState(branch));
+    }
+  }
+
   for (Operation *op : predecessors->getKnownPredecessors()) {
     const AbstractDenseLattice *before;
     // If the predecessor is the parent, get the state before the parent.
     if (op == branch) {
-      if (Operation *prev = op->getPrevNode())
-        before = getLatticeFor(point, prev);
-      else
-        before = getLatticeFor(point, op->getBlock());
-
+      before = getBeforeBranchState(branch);
       // Otherwise, get the state after the terminator.
     } else {
       before = getLatticeFor(point, op);

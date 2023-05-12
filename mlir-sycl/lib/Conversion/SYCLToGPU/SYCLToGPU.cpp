@@ -66,8 +66,7 @@ using gpu_counterpart_operation_t =
 /// Returns the result of creating an operation to get a reference to an element
 /// of a sycl::id or sycl::range.
 Value createGetOp(OpBuilder &builder, Location loc, Type underlyingArrTy,
-                  Value res, Value index, ArrayAttr argumentTypes,
-                  FlatSymbolRefAttr functionName) {
+                  Value res, Value index) {
   return TypeSwitch<Type, Value>(
              cast<MemRefType>(res.getType()).getElementType())
       .Case<IDType, RangeType>([&](auto arg) {
@@ -76,13 +75,7 @@ Value createGetOp(OpBuilder &builder, Location loc, Type underlyingArrTy,
         // Operation type depending on ArgTy
         using OpTy = std::conditional_t<std::is_same_v<ArgTy, IDType>,
                                         SYCLIDGetOp, SYCLRangeGetOp>;
-        // WARNING: functionName is used as a dummy to be able to generate the
-        // operation in the first place. Will not lower with the current
-        // approach.
-        return builder.create<OpTy>(
-            loc, underlyingArrTy, res, index, argumentTypes, functionName,
-            functionName,
-            builder.getAttr<FlatSymbolRefAttr>(ArgTy::getMnemonic()));
+        return builder.create<OpTy>(loc, underlyingArrTy, res, index);
       });
 }
 
@@ -126,9 +119,6 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
   // Load
   const auto zero =
       static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  const auto argumentTypes =
-      rewriter.getTypeArrayAttr({MemRefType::get(1, resTy), getIndexTy});
-  const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {
     const auto index = static_cast<Value>(
@@ -136,8 +126,7 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
     const auto val = static_cast<Value>(rewriter.create<arith::IndexCastOp>(
         loc, targetIndexTy,
         getDimension(rewriter, loc, opName, dimensionAttrname, i)));
-    const auto ptr = createGetOp(rewriter, loc, underlyingArrTy, res, index,
-                                 argumentTypes, functionName);
+    const auto ptr = createGetOp(rewriter, loc, underlyingArrTy, res, index);
     rewriter.create<memref::StoreOp>(loc, val, ptr, zero);
   }
   rewriter.replaceOpWithNewOp<memref::LoadOp>(op, res, zero);

@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --polygeist-mem2reg --split-input-file %s | FileCheck %s
 
 module {
   func.func @matrix_power(%arg0: memref<20xi32>, %arg1: i1, %arg2: index) {

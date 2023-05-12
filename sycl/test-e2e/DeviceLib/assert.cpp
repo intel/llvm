@@ -1,5 +1,5 @@
 // REQUIRES: (cpu || cuda ) && linux
-// RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves
@@ -75,8 +75,8 @@
 // results of the runs. Otherwise a skipped GPU run may remove the output from
 // a CPU run prior to running FileCheck.
 // RUN: echo "" > %t.stderr.native
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %t.out 2>> %t.stderr.native
-// RUN: %GPU_RUN_PLACEHOLDER SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT %t.out 2>> %t.stderr.native
+// RUN: env SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %CPU_RUN_PLACEHOLDER %t.out 2>> %t.stderr.native
+// RUN: env SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT %GPU_RUN_PLACEHOLDER %t.out 2>> %t.stderr.native
 // RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 //
 // Skip the test if the CPU RT doesn't support the extension yet:

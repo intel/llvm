@@ -393,14 +393,17 @@ inline raw_ostream &operator<<(raw_ostream &os, const OffsetVector &vector) {
 ///   | 0  c3|   |j|   |c4|
 ///
 template <typename OpTy> class MemoryAccess {
-  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess<OpTy> &);
+  template <typename T>
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess<T> &);
 
 public:
   MemoryAccess() = delete;
 
-  template <typename T = OpTy,
-            typename = std::enable_if_t<
-                llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value, bool>>
+  template <
+      typename T = OpTy,
+      typename = std::enable_if_t<llvm::is_one_of<T, affine::AffineLoadOp,
+                                                  affine::AffineStoreOp>::value,
+                                  bool>>
   MemoryAccess(T accessOp, MemoryAccessMatrix &&matrix, OffsetVector &&offsets)
       : accessOp(accessOp), matrix(std::move(matrix)),
         offsets(std::move(offsets)) {}

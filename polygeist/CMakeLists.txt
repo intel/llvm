@@ -1,6 +1,4 @@
-# Copyright (C) Codeplay Software Limited
-
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
@@ -96,15 +94,18 @@ set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 include(sanitizers)
 
+include(AddPolygeist)
+
 add_subdirectory(include)
 add_subdirectory(lib)
-add_subdirectory(tools)
-add_subdirectory(test)
-
-add_custom_target(MLIRPolygeistUnitTests)
-if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
-  add_subdirectory(unittests)
-else()
-  message(WARNING "gtest not found, unittests will not be available")
+if (MLIR_INCLUDE_TESTS)
+  add_definitions(-DMLIR_INCLUDE_TESTS)
+  add_custom_target(MLIRPolygeistUnitTests)
+  if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
+    add_subdirectory(unittests)
+  else()
+    message(WARNING "gtest not found, unittests will not be available")
+  endif()
+  add_subdirectory(test)
 endif()
-
+add_subdirectory(tools)

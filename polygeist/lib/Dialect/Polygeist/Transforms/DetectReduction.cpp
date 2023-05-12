@@ -65,13 +65,13 @@ class ReductionOp {
                                        const ReductionOp &);
 
 public:
-  ReductionOp(AffineLoadOp &Load, AffineStoreOp &Store,
-              SmallVector<AffineLoadOp> &OtherLoads)
+  ReductionOp(affine::AffineLoadOp &Load, affine::AffineStoreOp &Store,
+              SmallVector<affine::AffineLoadOp> &OtherLoads)
       : Load(Load), Store(Store), OtherLoads(OtherLoads) {}
 
-  AffineLoadOp getLoad() const { return Load; }
-  AffineStoreOp getStore() const { return Store; }
-  ArrayRef<AffineLoadOp> getOtherLoads() const { return OtherLoads; }
+  affine::AffineLoadOp getLoad() const { return Load; }
+  affine::AffineStoreOp getStore() const { return Store; }
+  ArrayRef<affine::AffineLoadOp> getOtherLoads() const { return OtherLoads; }
 
   const std::set<sycl::AccessorPtrPair> &
   getRequireNoOverlapAccessorPairs() const {
@@ -87,11 +87,11 @@ private:
   /// be invariant.
   std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs;
   /// The reduction load in the loop nest.
-  AffineLoadOp Load;
+  affine::AffineLoadOp Load;
   /// The reduction store in the same loop nest.
-  AffineStoreOp Store;
+  affine::AffineStoreOp Store;
   /// Compatible loads in the same loop nest.
-  SmallVector<AffineLoadOp> OtherLoads;
+  SmallVector<affine::AffineLoadOp> OtherLoads;
 };
 
 [[maybe_unused]] inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -101,7 +101,7 @@ private:
   OS.indent(2) << "\nStore: ";
   CR.getStore()->print(OS);
   OS.indent(2) << "\nOther Loads: ";
-  for (const AffineLoadOp &Op : CR.getOtherLoads()) {
+  for (const affine::AffineLoadOp &Op : CR.getOtherLoads()) {
     Op->print(OS);
     OS << "\n";
   }
@@ -111,7 +111,8 @@ private:
 
 /// Version \p Loop, if candidate in \p Candidates require versioning.
 static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
-                                ArrayRef<ReductionOp> Candidates) {
+                                ArrayRef<ReductionOp> Candidates,
+                                bool useOpaquePointers) {
   for (const ReductionOp &Candidate : Candidates) {
     const std::set<sycl::AccessorPtrPair> &accessorPairs =
         Candidate.getRequireNoOverlapAccessorPairs();
@@ -121,7 +122,7 @@ static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
     std::unique_ptr<polygeist::VersionCondition> condition =
         polygeist::VersionConditionBuilder(accessorPairs, builder,
                                            Loop->getLoc())
-            .createCondition();
+            .createCondition(useOpaquePointers);
     polygeist::VersionBuilder(Loop).version(*condition);
   }
 }
@@ -137,9 +138,9 @@ protected:
   Pass::Statistic &numReductionsDetected;
 
   LoopReductionIter(Pass::Statistic &numReductionsDetected,
-                    AliasAnalysis &aliasAnalysis)
+                    AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
       : numReductionsDetected(numReductionsDetected),
-        aliasAnalysis(aliasAnalysis) {}
+        aliasAnalysis(aliasAnalysis), opaquePointers(useOpaquePointers) {}
   virtual ~LoopReductionIter() = default;
 
   Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
@@ -181,7 +182,7 @@ protected:
       llvm::dbgs() << "\n";
     });
 
-    versionLoopIfNeeded(Loop, ReductionOps);
+    versionLoopIfNeeded(Loop, ReductionOps, opaquePointers);
 
     // Move the load outside the loop (recall that the load is loop invariant).
     // The load result is passed to the new loop as an iter argument.
@@ -239,10 +240,10 @@ protected:
       DominanceInfo DT;
       PostDominanceInfo PDT;
       size_t ArgNo = 0;
-      SmallVector<AffineStoreOp> NewStores;
+      SmallVector<affine::AffineStoreOp> NewStores;
 
       for (ReductionOp &Op : ReductionOps) {
-        for (const AffineLoadOp &Load : Op.getOtherLoads()) {
+        for (const affine::AffineLoadOp &Load : Op.getOtherLoads()) {
           if (PDT.postDominates(Op.getStore(), Load))
             Load->getResult(0).replaceAllUsesWith(
                 NewLoop.getLoopBody()
@@ -254,7 +255,7 @@ protected:
         }
 
         Rewriter.setInsertionPointAfter(NewLoop);
-        auto Store = Rewriter.create<AffineStoreOp>(
+        auto Store = Rewriter.create<affine::AffineStoreOp>(
             NewLoop.getLoc(),
             NewLoop->getResults()[Loop->getResults().size() + ArgNo],
             Op.getStore().getMemRef(), Op.getStore().getAffineMap(),
@@ -266,7 +267,7 @@ protected:
 
       LLVM_DEBUG({
         NewLoop.dump();
-        for (AffineStoreOp &Store : NewStores)
+        for (affine::AffineStoreOp &Store : NewStores)
           Store.dump();
         llvm::dbgs() << "------------------------------------------------\n";
       });
@@ -296,7 +297,7 @@ private:
 
   /// Returns true if the \p Load and \p Store operations are in the given
   /// loop \p Loop, and false otherwise.
-  bool areInSameLoop(AffineLoadOp Load, AffineStoreOp Store,
+  bool areInSameLoop(affine::AffineLoadOp Load, affine::AffineStoreOp Store,
                      const LoopLikeOpInterface Loop) const {
     return isInLoop(Load, Loop) && isInLoop(Store, Loop);
   }
@@ -317,9 +318,10 @@ private:
 
   /// Returns true if the given \p Load and \p StoreOrLoad operations have the
   /// same subscript indices, and false otherwise.
-  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
-                            T, AffineLoadOp, AffineStoreOp>::value>>
-  bool haveSameIndices(AffineLoadOp Load, T StoreOrLoad) const {
+  template <typename T,
+            typename = std::enable_if_t<llvm::is_one_of<
+                T, affine::AffineLoadOp, affine::AffineStoreOp>::value>>
+  bool haveSameIndices(affine::AffineLoadOp Load, T StoreOrLoad) const {
     const Operation::operand_range LoadIndices = Load.getIndices();
     const Operation::operand_range StoreOrLoadIndices =
         StoreOrLoad.getIndices();
@@ -329,9 +331,10 @@ private:
 
   /// Returns true if the given \p Load and \p LoadOrStore operations have the
   /// same base operand and the same subscript indices, and false otherwise.
-  template <typename T, typename = std::enable_if<llvm::is_one_of<
-                            T, AffineLoadOp, AffineStoreOp>::value>>
-  bool areCompatible(AffineLoadOp Load, T StoreOrLoad) const {
+  template <typename T,
+            typename = std::enable_if<llvm::is_one_of<
+                T, affine::AffineLoadOp, affine::AffineStoreOp>::value>>
+  bool areCompatible(affine::AffineLoadOp Load, T StoreOrLoad) const {
     if (Load.getMemRef() != StoreOrLoad.getMemRef())
       return false;
 
@@ -368,7 +371,7 @@ private:
     });
 
     unsigned NumVersion = 0;
-    WalkResult Result = Loop.getLoopBody().walk([&](AffineLoadOp Load) {
+    WalkResult Result = Loop.getLoopBody().walk([&](affine::AffineLoadOp Load) {
       LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
 
       // Ensure operands are loop invariant.
@@ -384,17 +387,17 @@ private:
       // Locate possible compatible stores (stores that have the same base
       // operand and subscript indices as the load), and collect all other loads
       // that have the same subscript and base symbol.
-      SmallVector<AffineStoreOp> CandidateStores;
-      SmallVector<AffineLoadOp> OtherLoads;
+      SmallVector<affine::AffineStoreOp> CandidateStores;
+      SmallVector<affine::AffineLoadOp> OtherLoads;
       for (Operation *User : Load.getMemRef().getUsers()) {
         bool InterruptWalk = false;
         TypeSwitch<Operation *>(User)
-            .Case<AffineLoadOp>([&](auto OtherLoad) {
+            .Case<affine::AffineLoadOp>([&](auto OtherLoad) {
               if (areCompatible(Load, OtherLoad) && Load != OtherLoad &&
                   Loop->isProperAncestor(OtherLoad))
                 OtherLoads.push_back(OtherLoad);
             })
-            .Case<AffineStoreOp>([&](auto Store) {
+            .Case<affine::AffineStoreOp>([&](auto Store) {
               if (areCompatible(Load, Store)) {
                 if (areInSameLoop(Load, Store, Loop))
                   CandidateStores.push_back(Store);
@@ -480,7 +483,7 @@ private:
 
   /// Return true if \p Op has memory effects that may alias with the memory
   /// loaded from \p Load, return false otherwise.
-  static bool hasMayAliasEffects(AffineLoadOp &Load, Operation &Op,
+  static bool hasMayAliasEffects(affine::AffineLoadOp &Load, Operation &Op,
                                  AliasAnalysis &aliasAnalysis) {
     if (isMemoryEffectFree(&Op))
       return false;
@@ -502,7 +505,7 @@ private:
   /// Return true if versioning can be done for \p Loop to resolve may alias
   /// memory effects between \p Load and \p Op. Update \p Candidate with the
   /// required accessors for loop versioning.
-  static bool canVersion(AffineLoadOp &Load, Operation &Op,
+  static bool canVersion(affine::AffineLoadOp &Load, Operation &Op,
                          LoopLikeOpInterface Loop, ReductionOp &Candidate) {
     Optional<sycl::AccessorPtrValue> opAccessor =
         polygeist::getAccessorUsedByOperation(*Load);
@@ -520,6 +523,8 @@ private:
   }
 
   AliasAnalysis &aliasAnalysis;
+
+  bool opaquePointers;
 };
 
 class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
@@ -527,9 +532,10 @@ class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
 public:
   SCFForReductionIter(MLIRContext *context,
                       Pass::Statistic &numReductionsDetected,
-                      AliasAnalysis &aliasAnalysis)
+                      AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
       : OpRewritePattern<scf::ForOp>(context),
-        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis,
+                          useOpaquePointers) {}
 
   LogicalResult matchAndRewrite(scf::ForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -558,16 +564,17 @@ public:
   }
 };
 
-class AffineForReductionIter : public OpRewritePattern<AffineForOp>,
+class AffineForReductionIter : public OpRewritePattern<affine::AffineForOp>,
                                public LoopReductionIter {
 public:
   AffineForReductionIter(MLIRContext *context,
                          Pass::Statistic &numReductionsDetected,
-                         AliasAnalysis &aliasAnalysis)
-      : OpRewritePattern<AffineForOp>(context),
-        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
+                         AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
+      : OpRewritePattern<affine::AffineForOp>(context),
+        LoopReductionIter(numReductionsDetected, aliasAnalysis,
+                          useOpaquePointers) {}
 
-  LogicalResult matchAndRewrite(AffineForOp Loop,
+  LogicalResult matchAndRewrite(affine::AffineForOp Loop,
                                 PatternRewriter &Rewriter) const final {
     return LoopReductionIter::matchAndRewrite(Loop, Rewriter);
   }
@@ -575,7 +582,7 @@ public:
   virtual void cloneFilteredTerminator(
       Operation *Terminator,
       const SmallVectorImpl<ReductionOp> &ReductionOps) const final {
-    auto MergedTerminator = cast<AffineYieldOp>(Terminator);
+    auto MergedTerminator = cast<affine::AffineYieldOp>(Terminator);
     SmallVector<Value> NewOperands;
     llvm::append_range(NewOperands, MergedTerminator.getOperands());
     // store operands are now returned.
@@ -587,8 +594,8 @@ public:
   virtual LoopLikeOpInterface
   createNewLoop(LoopLikeOpInterface Loop, SmallVectorImpl<Value> &NewIterArgs,
                 PatternRewriter &Rewriter) const final {
-    auto ForOp = cast<AffineForOp>(Loop);
-    return Rewriter.create<AffineForOp>(
+    auto ForOp = cast<affine::AffineForOp>(Loop);
+    return Rewriter.create<affine::AffineForOp>(
         ForOp.getLoc(), ForOp.getLowerBoundOperands(), ForOp.getLowerBoundMap(),
         ForOp.getUpperBoundOperands(), ForOp.getUpperBoundMap(),
         ForOp.getStep(), NewIterArgs);
@@ -602,8 +609,8 @@ void DetectReductionPass::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
   RewritePatternSet RPS(ctx);
-  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions,
-                                                       aliasAnalysis);
+  RPS.add<AffineForReductionIter, SCFForReductionIter>(
+      ctx, numReductions, aliasAnalysis, useOpaquePointers);
   GreedyRewriteConfig Config;
   // Only apply patterns on the original list of LoopLikeOpInterface, to avoid
   // reevaluating loops created within the patterns (e.g., from loop

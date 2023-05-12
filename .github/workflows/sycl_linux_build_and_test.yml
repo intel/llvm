@@ -109,8 +109,17 @@ jobs:
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+    - name: mlir-sycl-doc
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target mlir-sycl-doc
+    - name: polygeist-doc
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target polygeist-doc
     # TODO allow to optionally disable in-tree checks
     - name: check-mlir-sycl
+      shell: bash    
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-mlir-sycl
@@ -122,10 +131,16 @@ jobs:
           source /runtimes/oneapi-tbb/env/vars.sh;
         fi
         cmake --build $GITHUB_WORKSPACE/build --target check-cgeist
-    - name: check-polygeist-opt
+    - name: check-polygeist
+      shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-polygeist-opt
+        cmake --build $GITHUB_WORKSPACE/build --target check-polygeist
+    - name: check-polygeist-unit
+      shell: bash    
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-polygeist-unit
     - name: Install
       # TODO replace utility installation with a single CMake target
       run: |

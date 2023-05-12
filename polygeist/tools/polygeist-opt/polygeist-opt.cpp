@@ -47,12 +47,27 @@ struct PtrElementModel
     : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
           PtrElementModel<T>, T> {};
 
+namespace mlir {
+namespace test {
+void registerTestReachingDefinitionAnalysisPass();
+} // namespace test
+} // namespace mlir
+
+#ifdef MLIR_INCLUDE_TESTS
+void registerTestPasses() {
+  mlir::test::registerTestReachingDefinitionAnalysisPass();
+}
+#endif
+
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
   registerTransformsPasses();
   registerConversionPasses();
-  registerAffinePasses();
+#ifdef MLIR_INCLUDE_TESTS
+  registerTestPasses();
+#endif
+  affine::registerAffinePasses();
   registerAsyncPasses();
   arith::registerArithPasses();
   func::registerFuncPasses();
@@ -68,7 +83,7 @@ int main(int argc, char **argv) {
   sycl::registerConversionPasses();
 
   // Register MLIR stuff
-  registry.insert<AffineDialect, func::FuncDialect, LLVM::LLVMDialect,
+  registry.insert<affine::AffineDialect, func::FuncDialect, LLVM::LLVMDialect,
                   memref::MemRefDialect, async::AsyncDialect, func::FuncDialect,
                   arith::ArithDialect, scf::SCFDialect, gpu::GPUDialect,
                   NVVM::NVVMDialect, omp::OpenMPDialect, math::MathDialect,

@@ -366,7 +366,7 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
   // For parallel loop, only check for conflicts with other previous operations
   // in the same block.
   Operation *point =
-      (isa<scf::ParallelOp, AffineParallelOp>(loop)) ? &op : nullptr;
+      (isa<scf::ParallelOp, affine::AffineParallelOp>(loop)) ? &op : nullptr;
   for (Operation &other : *op.getBlock()) {
     if (point && !other.isBeforeInBlock(point))
       break;
@@ -408,7 +408,7 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
   // If the parent operation is not guaranteed to execute its
   // (single-block) region once, walk the block.
   bool conflict = false;
-  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op)) {
+  if (!isa<scf::IfOp, affine::AffineIfOp, memref::AllocaScopeOp>(op)) {
     op.walk([&](Operation *in) {
       if (willBeMoved.count(in))
         candidate.addPrerequisite(*in);
@@ -586,9 +586,11 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
                                     const AliasAnalysis &aliasAnalysis,
-                                    const DominanceInfo &domInfo) {
+                                    const DominanceInfo &domInfo,
+                                    bool useOpaquePointers) {
   Operation *loopOp = loop;
-  if (!isa<scf::ForOp, scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
+  if (!isa<scf::ForOp, scf::ParallelOp, affine::AffineParallelOp,
+           affine::AffineForOp>(loopOp))
     return 0;
 
   SmallVector<LICMCandidate> LICMCandidates;
@@ -609,7 +611,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
       std::unique_ptr<polygeist::VersionCondition> condition =
           polygeist::VersionConditionBuilder(accessorPairs, builder,
                                              loop->getLoc())
-              .createCondition();
+              .createCondition(useOpaquePointers);
       loopTools.versionLoop(loop, *condition);
     }
 
@@ -653,7 +655,8 @@ void LICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo);
+      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo,
+                                               useOpaquePointers);
       numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({

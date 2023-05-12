@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=sum -S | FileCheck %s
+// RUN: cgeist --use-opaque-pointers %s --function=sum -S | FileCheck %s
 
 struct Node {
     struct Node* next;
@@ -10,20 +10,21 @@ double sum(struct Node* n) {
     return n->value + sum(n->next);
 }
 
-// CHECK:   func.func @sum(%arg0: !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %cst = arith.constant 0.000000e+00 : f64
-// CHECK-DAG:     %0 = llvm.mlir.null : !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>
-// CHECK-NEXT:     %1 = llvm.icmp "eq" %arg0, %0 : !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>
-// CHECK-NEXT:     %2 = scf.if %1 -> (f64) {
-// CHECK-NEXT:       scf.yield %cst : f64
-// CHECK-NEXT:     } else {
-// CHECK-NEXT:       %3 = llvm.getelementptr inbounds %arg0[0, 1] : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:       %4 = llvm.load %3 : !llvm.ptr<f64>
-// CHECK-NEXT:       %5 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> !llvm.ptr<ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>>
-// CHECK-NEXT:       %6 = llvm.load %5 : !llvm.ptr<ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>>
-// CHECK-NEXT:       %7 = func.call @sum(%6) : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> f64
-// CHECK-NEXT:       %8 = arith.addf %4, %7 : f64
-// CHECK-NEXT:       scf.yield %8 : f64
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return %2 : f64
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @sum(
+// CHECK-SAME:                   %[[VAL_0:.*]]: !llvm.ptr) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0.000000e+00 : f64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.icmp "eq" %[[VAL_0]], %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = scf.if %[[VAL_3]] -> (f64) {
+// CHECK-NEXT:        scf.yield %[[VAL_1]] : f64
+// CHECK-NEXT:      } else {
+// CHECK-NEXT:        %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"polygeist@mlir@struct.Node", (ptr, f64)>
+// CHECK-NEXT:        %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> f64
+// CHECK-NEXT:        %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"polygeist@mlir@struct.Node", (ptr, f64)>
+// CHECK-NEXT:        %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:        %[[VAL_9:.*]] = func.call @sum(%[[VAL_8]]) : (!llvm.ptr) -> f64
+// CHECK-NEXT:        %[[VAL_10:.*]] = arith.addf %[[VAL_6]], %[[VAL_9]] : f64
+// CHECK-NEXT:        scf.yield %[[VAL_10]] : f64
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return %[[VAL_11:.*]] : f64
+// CHECK-NEXT:    }

@@ -162,7 +162,7 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *Fors,
 void MLIRScanner::buildAffineLoopImpl(
     clang::ForStmt *Fors, Location Loc, Value Lb, Value Ub,
     const mlirclang::AffineLoopDescriptor &Descr) {
-  auto AffineOp = Builder.create<AffineForOp>(
+  auto AffineOp = Builder.create<affine::AffineForOp>(
       Loc, Lb, Builder.getSymbolIdentityMap(), Ub,
       Builder.getSymbolIdentityMap(), Descr.getStep(),
       /*iterArgs=*/std::nullopt);
@@ -197,7 +197,7 @@ void MLIRScanner::buildAffineLoopImpl(
   Visit(Fors->getBody());
 
   Builder.setInsertionPointToEnd(&Reg.front());
-  Builder.create<AffineYieldOp>(Loc);
+  Builder.create<affine::AffineYieldOp>(Loc);
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
@@ -499,7 +499,7 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
 
     auto AllocOp = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
                                  /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-    Params[Name] = ValueCategory(AllocOp, true);
+    Params[Name] = ValueCategory(AllocOp, true, Idx.getType());
     Params[Name].store(Builder, Idx);
   }
 
@@ -566,7 +566,7 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
 
         auto AllocOp = createAllocOp(Ty, Name, /*memtype*/ 0,
                                      /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-        Params[Name] = ValueCategory(AllocOp, true);
+        Params[Name] = ValueCategory(AllocOp, true, Ty);
         Params[Name].store(Builder, PrevInduction[Name], IsArray);
       }
       break;
@@ -672,7 +672,7 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
     auto AllocOp = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
                                  /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-    Params[Name] = ValueCategory(AllocOp, true);
+    Params[Name] = ValueCategory(AllocOp, true, Idx.getType());
     Params[Name].store(Builder, Idx);
   }
 
@@ -825,7 +825,7 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *Stmt) {
   auto *OldBlock = Builder.getInsertionBlock();
   if (auto LT = dyn_cast<MemRefType>(Cond.getType())) {
     Cond = Builder.create<polygeist::Memref2PointerOp>(
-        Loc, LLVM::LLVMPointerType::get(Builder.getI8Type()), Cond);
+        Loc, Glob.getTypes().getPointerType(Builder.getI8Type()), Cond);
   }
   if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
     auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);

@@ -46,12 +46,15 @@ def DetectReduction : Pass<"detect-reduction"> {
   let summary = "Detect array reduction operations in a loop";
   let constructor = "mlir::polygeist::createDetectReductionPass()";
   let dependentDialects =
-    ["AffineDialect", "polygeist::PolygeistDialect",
+    ["affine::AffineDialect", "polygeist::PolygeistDialect",
      "scf::SCFDialect", "sycl::SYCLDialect"];
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
-           /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+            /*default=*/"false", 
+            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
   ];
   let statistics = [
     Statistic<"numReductions", "num-reductions", "Number of reductions detected">
@@ -70,15 +73,18 @@ def KernelDisjointSpecialization : Pass<"kernel-disjoint-specialization", "mlir:
   let constructor = "mlir::polygeist::createKernelDisjointSpecializationPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
-           /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+            /*default=*/"false", 
+            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
   ];
   let statistics = [
     Statistic<"numFunctionSpecialized", "num-function-specialized", "Number of function specialized">
   ];
 }
 
-def Mem2Reg : Pass<"mem2reg"> {
+def Mem2Reg : Pass<"polygeist-mem2reg"> {
   let summary = "Represent allocated values in SSA form.";
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
@@ -90,6 +96,11 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
       ["memref::MemRefDialect", "polygeist::PolygeistDialect",
        "LLVM::LLVMDialect", "scf::SCFDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
+  let options = [
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
+  ];
 }
 
 def SCFCPUify : Pass<"cpuify"> {
@@ -122,7 +133,7 @@ def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation"
 def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
   let summary = "Raise SCF to affine";
   let constructor = "mlir::polygeist::createRaiseSCFToAffinePass()";
-  let dependentDialects = ["AffineDialect"];
+  let dependentDialects = ["affine::AffineDialect"];
 }
 
 def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
@@ -138,13 +149,16 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
 def LICM : Pass<"licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
   let dependentDialects =
-    ["AffineDialect", "polygeist::PolygeistDialect",
+    ["affine::AffineDialect", "polygeist::PolygeistDialect",
      "scf::SCFDialect", "sycl::SYCLDialect"];
   let constructor = "mlir::polygeist::createLICMPass()";
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
-           /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+            /*default=*/"false", 
+            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            "instead of typed pointers">,
   ];
   let statistics = [
     Statistic<"numOpHoisted", "num-operations-hoisted", "Number of operations hoisted">
