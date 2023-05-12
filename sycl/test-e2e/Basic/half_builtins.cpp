@@ -1,12 +1,6 @@
 // REQUIRES: aspect-fp16
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-// Intel OpenCL CPU and FPGA emulator drivers do not support cl_khr_fp16
-// extension
-// UNSUPPORTED: (cpu || accelerator) && opencl
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

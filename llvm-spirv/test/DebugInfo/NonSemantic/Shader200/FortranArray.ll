@@ -7,8 +7,8 @@
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 
-; CHECK-SPIRV: [[#None:]] [[#]] DebugInfoNone
 ; CHECK-SPIRV: [[#CompUnit:]] [[#]] DebugCompilationUnit
+; CHECK-SPIRV: [[#None:]] [[#]] DebugInfoNone
 ; CHECK-SPIRV: [[#EntryFunc:]] [[#]] DebugFunction
 ; CHECK-SPIRV: [[#BaseTy:]] [[#]] DebugTypeBasic
 ; CHECK-SPIRV: [[#Subrange:]] [[#]] DebugTypeSubrange

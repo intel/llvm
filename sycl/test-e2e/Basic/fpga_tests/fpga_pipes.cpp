@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-//-fsycl-targets=%sycl_triple
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: accelerator
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------------- fpga_pipes.cpp - SYCL FPGA pipes test --------------------==//
 //
