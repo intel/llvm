@@ -13,7 +13,7 @@
 // RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: cuda || hip
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's PHI function.

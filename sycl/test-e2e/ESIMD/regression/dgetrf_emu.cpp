@@ -1,4 +1,4 @@
-//==-------------- dgetrf.cpp  - DPC++ ESIMD on-device test ----------------==//
+//==-------------- dgetrf_emu.cpp  - DPC++ ESIMD on-device test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || esimd_emulator
-// RUN: %{build} -I%S/.. -o %t.out
+// REQUIRES: esimd_emulator
+// RUN: %{build} -I%S/.. -fno-inline-functions -o %t.out
 // RUN: %{run} %t.out 3 2 1
 //
 // This test checks the correctness of ESIMD program for batched LU
