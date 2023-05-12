@@ -1102,8 +1102,7 @@ _ur_device_handle_t::useImmediateCommandLists() {
 #ifdef _WIN32
     return NotUsed;
 #else
-    //return isPVC() ? PerQueue : NotUsed;
-    return PerQueue;
+    return isPVC() ? PerQueue : NotUsed;
 #endif
 
   switch (ImmediateCommandlistsSetting) {
