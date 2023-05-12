@@ -8,7 +8,7 @@ struct urProgramSetSpecializationConstantsTest : uur::urProgramTest {
     ur_specialization_constant_info_t info = {0, sizeof(spec_value),
                                               &spec_value};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramSetSpecializationConstantsTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramSetSpecializationConstantsTest);
 
 TEST_P(urProgramSetSpecializationConstantsTest, Success) {
     ASSERT_SUCCESS(urProgramSetSpecializationConstants(program, 1, &info));
