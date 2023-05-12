@@ -719,8 +719,8 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       ConvertPolygeistToLLVMOptions ConvertOptions;
       ConvertOptions.dataLayout = DL.getStringRepresentation();
       if (options.getCgeistOpts().getSYCLIsDevice()) {
-        Options.syclImplementation = SYCLImplementation;
-        Options.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
+        ConvertOptions.syclImplementation = SYCLImplementation;
+        ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
       }
       PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
