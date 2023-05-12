@@ -53,6 +53,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLVGE20 = false; // Backend is Greater or Equal to OpenCL 2.0
   bool IsLevelZero = false;   // Backend is any OneAPI Level 0 version
+  bool IsCuda = false;        // Backend is CUDA
   auto Backend = Platform.get_backend();
   if (Backend == sycl::backend::opencl) {
     std::string VersionString =
@@ -63,6 +64,8 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         (VersionString.find("2.") == 0) || (VersionString.find("3.") == 0);
   } else if (Backend == sycl::backend::ext_oneapi_level_zero) {
     IsLevelZero = true;
+  } else if (Backend == sycl::backend::ext_oneapi_cuda) {
+    IsCuda = true;
   }
 
   size_t CompileWGSize[3] = {0};
@@ -236,6 +239,46 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                 PI_ERROR_INVALID_WORK_GROUP_SIZE);
           // else unknown.  fallback (below)
         }
+      }
+    } else if (IsCuda) {
+      // CUDA:
+      // PI_ERROR_INVALID_WORK_GROUP_SIZE is returned when the kernel registers
+      // required for the launch config exceeds the maximum number of registers
+      // per block (PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP).
+      // This is if local_work_size[0] * ... * local_work_size[work_dim - 1]
+      // multiplied by PI_KERNEL_GROUP_INFO_NUM_REGS is greater than the value
+      // of PI_KERNEL_MAX_NUM_REGISTERS_PER_BLOCK. See Table 15: Technical
+      // Specifications per Compute Capability, for limitations.
+      const size_t TotalNumberOfWIs =
+          NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
+
+      uint32_t NumRegisters = 0;
+      Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+          Kernel, Device, PI_KERNEL_GROUP_INFO_NUM_REGS, sizeof(NumRegisters),
+          &NumRegisters, nullptr);
+
+      uint32_t MaxRegistersPerBlock =
+          DeviceImpl.get_info<ext::codeplay::experimental::info::device::
+                                  max_registers_per_work_group>();
+
+      const bool HasExceededAvailableRegisters =
+          TotalNumberOfWIs * NumRegisters > MaxRegistersPerBlock;
+
+      if (HasExceededAvailableRegisters) {
+        std::string message(
+            "Exceeded the number of registers available on the hardware.\n");
+        throw sycl::nd_range_error(
+            // Additional information which can be helpful to the user.
+            message.append(
+                "\tThe number registers per work-group cannot exceed " +
+                std::to_string(MaxRegistersPerBlock) +
+                " for this kernel on this device.\n"
+                "\tThe kernel uses " +
+                std::to_string(NumRegisters) +
+                " registers per work-item for a total of " +
+                std::to_string(TotalNumberOfWIs) +
+                " work-items per work-group.\n"),
+            PI_ERROR_INVALID_WORK_GROUP_SIZE);
       }
     } else {
       // TODO: Decide what checks (if any) we need for the other backends
