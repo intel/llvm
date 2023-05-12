@@ -921,7 +921,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
   // Translate the host access mode info.
   ur_mem_handle_t_::access_mode_t AccessMode = ur_mem_handle_t_::unknown;
-  if (MapFlags & UR_EXT_MAP_FLAG_WRITE_INVALIDATE_REGION)
+  if (MapFlags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION)
     AccessMode = ur_mem_handle_t_::write_only;
   else {
     if (MapFlags & UR_MAP_FLAG_READ) {
@@ -3161,4 +3161,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       Pattern,     // It will be interpreted as an 8-bit value,
       PatternSize, // which is indicated with this pattern_size==1
       Size, NumEventsInWaitList, EventWaitList, Event);
+}
+
+/// Host Pipes
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
+    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hProgram;
+  std::ignore = pipe_symbol;
+  std::ignore = blocking;
+  std::ignore = pDst;
+  std::ignore = size;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
+    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hProgram;
+  std::ignore = pipe_symbol;
+  std::ignore = blocking;
+  std::ignore = pSrc;
+  std::ignore = size;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

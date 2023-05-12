@@ -111,7 +111,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(pi_bool{false});
-  case UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |

@@ -381,6 +381,76 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
   return PI_SUCCESS;
 }
 
+// Translate UR device info values to PI info values
+inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
+                                        size_t ParamValueSizePI,
+                                        size_t *ParamValueSizeUR,
+                                        void *ParamValue) {
+  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+
+  if (ParamName == UR_USM_ALLOC_INFO_TYPE) {
+    auto ConvertFunc = [](ur_usm_type_t UrValue) {
+      switch (UrValue) {
+      case UR_USM_TYPE_UNKNOWN:
+        return PI_MEM_TYPE_UNKNOWN;
+      case UR_USM_TYPE_HOST:
+        return PI_MEM_TYPE_HOST;
+      case UR_USM_TYPE_DEVICE:
+        return PI_MEM_TYPE_DEVICE;
+      case UR_USM_TYPE_SHARED:
+        return PI_MEM_TYPE_SHARED;
+      default:
+        die("UR_USM_ALLOC_INFO_TYPE: unhandled value");
+      }
+    };
+    return Value.convert<ur_usm_type_t, pi_usm_type>(ConvertFunc);
+  }
+
+  return PI_SUCCESS;
+}
+
+// Handle mismatched PI and UR type return sizes for info queries
+inline pi_result fixupInfoValueTypes(size_t ParamValueSizeUR,
+                                     size_t *ParamValueSizeRetPI,
+                                     void *ParamValue) {
+  if (ParamValueSizeUR == 1) {
+    // extend bool to pi_bool (uint32_t)
+    auto *ValIn = static_cast<bool *>(ParamValue);
+    auto *ValOut = static_cast<pi_bool *>(ParamValue);
+    *ValOut = static_cast<pi_bool>(*ValIn);
+    if (ParamValueSizeRetPI) {
+      *ParamValueSizeRetPI = sizeof(pi_bool);
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
+
+inline ur_result_t
+mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
+                  ur_program_metadata_t *ur_metadata) {
+  ur_metadata->pName = (*pi_metadata)->Name;
+  ur_metadata->size = (*pi_metadata)->ValSize;
+  switch ((*pi_metadata)->Type) {
+  case PI_PROPERTY_TYPE_UINT32:
+    ur_metadata->type = UR_PROGRAM_METADATA_TYPE_UINT32;
+    ur_metadata->value.data32 = (*pi_metadata)->ValSize;
+    return UR_RESULT_SUCCESS;
+  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+    ur_metadata->type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
+    ur_metadata->value.pData = (*pi_metadata)->ValAddr;
+    return UR_RESULT_SUCCESS;
+  case PI_PROPERTY_TYPE_STRING:
+    ur_metadata->type = UR_PROGRAM_METADATA_TYPE_STRING;
+    ur_metadata->value.pString =
+        reinterpret_cast<char *>((*pi_metadata)->ValAddr);
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+}
+
 namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
@@ -476,6 +546,8 @@ inline pi_result piPlatformGetInfo(pi_platform Platform,
                                   ParamValue, ParamValueSizeRet));
 
   ur2piPlatformInfoValue(UrParamName, ParamValueSize, &SizeInOut, ParamValue);
+  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
+
   return PI_SUCCESS;
 }
 
@@ -827,68 +899,65 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE;
     break;
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE;
+    InfoType = UR_DEVICE_INFO_BUILD_ON_SUBDEVICE;
     break;
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D;
+    InfoType = UR_DEVICE_INFO_MAX_WORK_GROUPS_3D;
     break;
   case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
+    InfoType = UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
     break;
   case PI_DEVICE_INFO_DEVICE_ID:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_DEVICE_ID;
+    InfoType = UR_DEVICE_INFO_DEVICE_ID;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_GLOBAL_MEM_FREE;
+    InfoType = UR_DEVICE_INFO_GLOBAL_MEM_FREE;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_MEMORY_CLOCK_RATE;
+    InfoType = UR_DEVICE_INFO_MEMORY_CLOCK_RATE;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH;
+    InfoType = UR_DEVICE_INFO_MEMORY_BUS_WIDTH;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES;
+    InfoType = UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES;
     break;
   case PI_DEVICE_INFO_GPU_SLICES:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_GPU_EU_SLICES;
+    InfoType = UR_DEVICE_INFO_GPU_EU_SLICES;
     break;
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE;
+    InfoType = UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE;
     break;
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU;
+    InfoType = UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU;
     break;
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH;
+    InfoType = UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH;
     break;
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_BFLOAT16;
+    InfoType = UR_DEVICE_INFO_BFLOAT16;
     break;
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-    InfoType =
-        (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES;
+    InfoType = UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES;
     break;
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-    InfoType =
-        (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES;
+    InfoType = UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES;
     break;
   case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES;
+    InfoType = UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES;
     break;
   case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
+    InfoType = UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
     break;
   case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT;
+    InfoType = UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT;
     break;
   case PI_DEVICE_INFO_IMAGE_SRGB:
-    InfoType = (ur_device_info_t)UR_DEVICE_INFO_IMAGE_SRGB;
+    InfoType = UR_DEVICE_INFO_IMAGE_SRGB;
     break;
   case PI_DEVICE_INFO_BACKEND_VERSION: {
-    // TODO: return some meaningful for backend_version below
-    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
-    return ReturnValue("");
+    InfoType = UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION;
+    break;
   }
   default:
     return PI_ERROR_UNKNOWN;
@@ -903,6 +972,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                 ParamValueSizeRet));
 
   ur2piDeviceInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
+  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
 
   return PI_SUCCESS;
 }
@@ -1074,13 +1144,12 @@ inline pi_result piContextCreate(const pi_context_properties *Properties,
   return PI_SUCCESS;
 }
 
-// FIXME: Dummy implementation to prevent link fail
 inline pi_result piextContextSetExtendedDeleter(
     pi_context Context, pi_context_extended_deleter Function, void *UserData) {
-  std::ignore = Context;
-  std::ignore = Function;
-  std::ignore = UserData;
-  die("piextContextSetExtendedDeleter: not supported");
+  auto hContext = reinterpret_cast<ur_context_handle_t>(Context);
+
+  HANDLE_ERRORS(urContextSetExtendedDeleter(hContext, Function, UserData));
+
   return PI_SUCCESS;
 }
 
@@ -1164,6 +1233,8 @@ inline pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
 
   HANDLE_ERRORS(urContextGetInfo(hContext, ContextInfoType, ParamValueSize,
                                  ParamValue, ParamValueSizeRet));
+  fixupInfoValueTypes(ParamValueSize, ParamValueSizeRet, ParamValue);
+
   return PI_SUCCESS;
 }
 
@@ -1213,6 +1284,7 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   ur_queue_properties_t UrProperties{};
+  UrProperties.stype = UR_STRUCTURE_TYPE_QUEUE_PROPERTIES;
   if (Properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)
     UrProperties.flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
   if (Properties[1] & PI_QUEUE_FLAG_PROFILING_ENABLE)
@@ -1252,6 +1324,12 @@ inline pi_result piQueueCreate(pi_context Context, pi_device Device,
   return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
 }
 
+inline pi_result piextQueueCreate2(pi_context context, pi_device device,
+                                   pi_queue_properties *properties,
+                                   pi_queue *queue) {
+  return pi2ur::piextQueueCreate(context, device, properties, queue);
+}
+
 inline pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
                                                   pi_context Context,
                                                   pi_device Device,
@@ -1275,6 +1353,16 @@ inline pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
+inline pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
+    pi_device device, bool pluginOwnsNativeHandle,
+    pi_queue_properties *Properties, pi_queue *queue) {
+  (void)nativeHandleDesc;
+  (void)Properties;
+  return pi2ur::piextQueueCreateWithNativeHandle(nativeHandle, context, device,
+                                                 pluginOwnsNativeHandle, queue);
+}
+
 inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                            pi_native_handle *NativeHandle) {
 
@@ -1290,6 +1378,16 @@ inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
   return PI_SUCCESS;
 }
+
+
+inline pi_result piextQueueGetNativeHandle2(pi_queue Queue,
+                                            pi_native_handle *NativeHandle,
+                                            int32_t *NativeHandleDesc) {
+
+  (void)NativeHandleDesc;
+  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
+}
+
 
 inline pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
@@ -1347,7 +1445,7 @@ inline pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
     break;
   }
   case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
-    UrParamName = UR_EXT_ONEAPI_QUEUE_INFO_EMPTY;
+    UrParamName = UR_QUEUE_INFO_EMPTY;
     break;
   }
   default: {
@@ -1414,9 +1512,6 @@ inline pi_result piProgramCreateWithBinary(
     const size_t *Lengths, const unsigned char **Binaries,
     size_t NumMetadataEntries, const pi_device_binary_property *Metadata,
     pi_int32 *BinaryStatus, pi_program *Program) {
-  std::ignore = Metadata;
-  std::ignore = NumMetadataEntries;
-
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(DeviceList && NumDevices, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Binaries && Lengths, PI_ERROR_INVALID_VALUE);
@@ -1437,8 +1532,18 @@ inline pi_result piProgramCreateWithBinary(
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(DeviceList[0]);
 
-  // TODO: Translate Metadata into Properties?
-  ur_program_properties_t Properties{};
+  std::unique_ptr<ur_program_metadata_t[]> pMetadatas(
+      new ur_program_metadata_t[NumMetadataEntries]);
+  for (unsigned i = 0; i < NumMetadataEntries; i++) {
+    HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
+  }
+
+  ur_program_properties_t Properties;
+  Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
+  Properties.pNext = nullptr;
+  Properties.count = NumMetadataEntries;
+  Properties.pMetadatas = pMetadatas.get();
+
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(Program);
   HANDLE_ERRORS(urProgramCreateWithBinary(UrContext, UrDevice, Lengths[0],
@@ -1750,6 +1855,15 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
   HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  return PI_SUCCESS;
+}
+
+inline pi_result piKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
+                                       size_t arg_size, const void *arg_value) {
+  (void)arg_size;
+  auto hKernel = reinterpret_cast<ur_kernel_handle_t>(kernel);
+  HANDLE_ERRORS(urKernelSetArgPointer(hKernel, arg_index, arg_value));
+
   return PI_SUCCESS;
 }
 
@@ -2178,14 +2292,6 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_ERROR_INVALID_VALUE);
 
-  // TODO: implement support for more access modes
-  if (!((Flags & PI_MEM_FLAGS_ACCESS_RW) ||
-        (Flags & PI_MEM_ACCESS_READ_ONLY))) {
-    die("piMemBufferCreate: Level-Zero supports read-write and read-only "
-        "buffer,"
-        "but not other accesses (such as write-only) yet.");
-  }
-
   if (properties != nullptr) {
     die("piMemBufferCreate: no mem properties goes to Level-Zero RT yet");
   }
@@ -2362,7 +2468,7 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
     break;
   }
   case PI_IMAGE_CHANNEL_ORDER_ABGR: {
-    UrFormat->channelOrder = UR_EXT_IMAGE_CHANNEL_ORDER_ABGR;
+    UrFormat->channelOrder = UR_IMAGE_CHANNEL_ORDER_ABGR;
     break;
   }
   case PI_IMAGE_CHANNEL_ORDER_INTENSITY: {
@@ -2444,11 +2550,6 @@ inline pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                   const pi_image_desc *ImageDesc, void *HostPtr,
                                   pi_mem *RetImage) {
 
-  // TODO: implement read-only, write-only
-  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-    die("piMemImageCreate: Level-Zero implements only read-write buffer,"
-        "no read-only or write-only yet.");
-  }
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(ImageFormat, PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
@@ -2778,9 +2879,23 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
-  // TODO: to map from pi_mem_advice to ur_mem_advice_t
-  // once we have those defined
   ur_usm_advice_flags_t UrAdvice{};
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_RESET) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
+  }
+
   HANDLE_ERRORS(urEnqueueUSMAdvise(UrQueue, Ptr, Length, UrAdvice, UrEvent));
 
   return PI_SUCCESS;
@@ -2805,18 +2920,18 @@ inline pi_result piextUSMEnqueueFill2D(pi_queue Queue, void *Ptr, size_t Pitch,
                                        const pi_event *EventsWaitList,
                                        pi_event *Event) {
 
-  std::ignore = Queue;
-  std::ignore = Ptr;
-  std::ignore = Pitch;
-  std::ignore = PatternSize;
-  std::ignore = Pattern;
-  std::ignore = Width;
-  std::ignore = Height;
-  std::ignore = NumEventsWaitList;
-  std::ignore = EventsWaitList;
-  std::ignore = Event;
-  die("piextUSMEnqueueFill2D: not implemented");
-  return {};
+
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  auto phEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+  auto phEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urEnqueueUSMFill2D(hQueue, Ptr, Pitch, PatternSize, Pattern,
+                                   Width, Height, NumEventsWaitList,
+                                   phEventWaitList, phEvent));
+
+  return PI_SUCCESS;
+
 }
 
 inline pi_result piextUSMEnqueueMemset2D(pi_queue Queue, void *Ptr,
@@ -2872,25 +2987,57 @@ inline pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   }
   }
 
+  size_t SizeInOut = ParamValueSize;
   HANDLE_ERRORS(urUSMGetMemAllocInfo(UrContext, Ptr, UrParamName,
                                      ParamValueSize, ParamValue,
                                      ParamValueSizeRet))
+  ur2piUSMAllocInfoValue(UrParamName, ParamValueSize, &SizeInOut, ParamValue);
   return PI_SUCCESS;
 }
 
 inline pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
                                    size_t ParamValueSize, void *ParamValue,
-                                   size_t *ParamValueSizeRet) { // missing
-  std::ignore = Image;
-  std::ignore = ParamName;
-  std::ignore = ParamValueSize;
-  std::ignore = ParamValue;
-  std::ignore = ParamValueSizeRet;
+                                   size_t *ParamValueSizeRet) {
 
-  // TODO: use urMemImageGetInfo
+  auto hMem = reinterpret_cast<ur_mem_handle_t>(Image);
 
-  die("piMemImageGetInfo: not implemented");
-  return {};
+  ur_image_info_t UrParamName{};
+  switch (ParamName) {
+  case PI_IMAGE_INFO_FORMAT: {
+    UrParamName = UR_IMAGE_INFO_FORMAT;
+    break;
+  }
+  case PI_IMAGE_INFO_ELEMENT_SIZE: {
+    UrParamName = UR_IMAGE_INFO_ELEMENT_SIZE;
+    break;
+  }
+  case PI_IMAGE_INFO_ROW_PITCH: {
+    UrParamName = UR_IMAGE_INFO_ROW_PITCH;
+    break;
+  }
+  case PI_IMAGE_INFO_SLICE_PITCH: {
+    UrParamName = UR_IMAGE_INFO_SLICE_PITCH;
+    break;
+  }
+  case PI_IMAGE_INFO_WIDTH: {
+    UrParamName = UR_IMAGE_INFO_WIDTH;
+    break;
+  }
+  case PI_IMAGE_INFO_HEIGHT: {
+    UrParamName = UR_IMAGE_INFO_HEIGHT;
+    break;
+  }
+  case PI_IMAGE_INFO_DEPTH: {
+    UrParamName = UR_IMAGE_INFO_DEPTH;
+    break;
+  }
+  default:
+    return PI_ERROR_UNKNOWN;
+  }
+
+  HANDLE_ERRORS(urMemImageGetInfo(hMem, UrParamName, ParamValueSize, ParamValue,
+                                  ParamValueSizeRet));
+  return PI_SUCCESS;
 }
 
 /// USM 2D Memcpy API
@@ -3039,7 +3186,7 @@ inline pi_result piEnqueueMemBufferMap(
   if (MapFlags & PI_MAP_WRITE)
     UrMapFlags |= UR_MAP_FLAG_WRITE;
   if (MapFlags & PI_MAP_WRITE_INVALIDATE_REGION)
-    UrMapFlags |= UR_EXT_MAP_FLAG_WRITE_INVALIDATE_REGION;
+    UrMapFlags |= UR_MAP_FLAG_WRITE_INVALIDATE_REGION;
 
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
@@ -3356,6 +3503,43 @@ inline pi_result piEnqueueEventsWait(pi_queue Queue,
 
   return PI_SUCCESS;
 }
+
+
+inline pi_result
+piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                         const char *pipe_symbol, pi_bool blocking, void *ptr,
+                         size_t size, pi_uint32 num_events_in_waitlist,
+                         const pi_event *events_waitlist, pi_event *event) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(queue);
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  auto phEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(events_waitlist);
+  auto phEvent = reinterpret_cast<ur_event_handle_t *>(event);
+
+  HANDLE_ERRORS(urEnqueueReadHostPipe(hQueue, hProgram, pipe_symbol, blocking,
+                                      ptr, size, num_events_in_waitlist,
+                                      phEventWaitList, phEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                          const char *pipe_symbol, pi_bool blocking, void *ptr,
+                          size_t size, pi_uint32 num_events_in_waitlist,
+                          const pi_event *events_waitlist, pi_event *event) {
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(queue);
+  auto hProgram = reinterpret_cast<ur_program_handle_t>(program);
+  auto phEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(events_waitlist);
+  auto phEvent = reinterpret_cast<ur_event_handle_t *>(event);
+
+  HANDLE_ERRORS(urEnqueueWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking,
+                                       ptr, size, num_events_in_waitlist,
+                                       phEventWaitList, phEvent));
+
+  return PI_SUCCESS;
+}
 // Enqueue
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -3601,13 +3785,33 @@ inline pi_result piSamplerCreate(pi_context Context,
 inline pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
-  std::ignore = Sampler;
-  std::ignore = ParamName;
-  std::ignore = ParamValueSize;
-  std::ignore = ParamValue;
-  std::ignore = ParamValueSizeRet;
+  ur_sampler_info_t InfoType{};
+  switch (ParamName) {
+  case PI_SAMPLER_INFO_REFERENCE_COUNT:
+    InfoType = UR_SAMPLER_INFO_REFERENCE_COUNT;
+    break;
+  case PI_SAMPLER_INFO_CONTEXT:
+    InfoType = UR_SAMPLER_INFO_CONTEXT;
+    break;
+  case PI_SAMPLER_INFO_NORMALIZED_COORDS:
+    InfoType = UR_SAMPLER_INFO_NORMALIZED_COORDS;
+    break;
+  case PI_SAMPLER_INFO_ADDRESSING_MODE:
+    InfoType = UR_SAMPLER_INFO_ADDRESSING_MODE;
+    break;
+  case PI_SAMPLER_INFO_FILTER_MODE:
+    InfoType = UR_SAMPLER_INFO_FILTER_MODE;
+    break;
+  default:
+    return PI_ERROR_UNKNOWN;
+  }
 
-  die("piSamplerGetInfo: not implemented");
+  size_t SizeInOut = ParamValueSize;
+  auto hSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
+  HANDLE_ERRORS(urSamplerGetInfo(hSampler, InfoType, SizeInOut, ParamValue,
+                                 ParamValueSizeRet));
+  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
+
   return PI_SUCCESS;
 }
 

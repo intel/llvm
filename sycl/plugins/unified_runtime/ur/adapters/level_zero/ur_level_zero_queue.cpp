@@ -167,7 +167,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
     die("UR_QUEUE_INFO_DEVICE_DEFAULT in urQueueGetInfo not implemented\n");
     break;
-  case UR_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+  case UR_QUEUE_INFO_EMPTY: {
     // We can exit early if we have in-order queue.
     if (Queue->isInOrderQueue()) {
       if (!Queue->LastCommandEvent)

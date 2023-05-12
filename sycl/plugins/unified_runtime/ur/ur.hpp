@@ -36,52 +36,11 @@ template <> uint32_t inline ur_cast(uint64_t Value) {
 
 // TODO: promote all of the below extensions to the Unified Runtime
 //       and get rid of these ZER_EXT constants.
-const int UR_EXT_DEVICE_INFO_END = UR_DEVICE_INFO_FORCE_UINT32;
-const int UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE = UR_EXT_DEVICE_INFO_END - 1;
-const int UR_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D = UR_EXT_DEVICE_INFO_END - 2;
-// const int UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES =
-//     UR_EXT_DEVICE_INFO_END - 3;
-// const int ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS =
-//     UR_EXT_DEVICE_INFO_END - 4;
-const int UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU = UR_EXT_DEVICE_INFO_END - 7;
-const int UR_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE =
-    UR_EXT_DEVICE_INFO_END - 8;
-// const int UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES =
-//     UR_EXT_DEVICE_INFO_END - 10;
-const int UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH = UR_EXT_DEVICE_INFO_END - 11;
-// const int ZER_EXT_DEVICE_INFO_MEMORY_CLOCK_RATE = UR_EXT_DEVICE_INFO_END -
-// 12;
-// const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
-// const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
-//     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
-const int UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT = UR_EXT_DEVICE_INFO_END - 15;
-
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
 
-const uint32_t UR_EXT_MAP_FLAG_WRITE_INVALIDATE_REGION =
-    (UR_MAP_FLAG_WRITE << 1);
-
-const int UR_EXT_RESULT_END = 0x1000;
-const ur_result_t UR_EXT_RESULT_ADAPTER_SPECIFIC_ERROR =
-    ur_result_t(UR_EXT_RESULT_END - 1);
-
-const int UR_EXT_USM_CAPS_ACCESS = 1 << 0;
-const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
-const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
-const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
-
-const ur_context_info_t UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES =
-    (ur_context_info_t)(UR_CONTEXT_INFO_FORCE_UINT32 - 1);
-
-const ur_queue_info_t UR_EXT_ONEAPI_QUEUE_INFO_EMPTY =
-    (ur_queue_info_t)(UR_QUEUE_INFO_SIZE + 1);
-
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
-
-const ur_image_channel_order_t UR_EXT_IMAGE_CHANNEL_ORDER_ABGR =
-    ur_image_channel_order_t(UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32 - 1);
 
 const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG =
     (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 1);
@@ -94,6 +53,20 @@ typedef enum {
   // Large General Data size.
   UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
 } ur_kernel_cache_config;
+
+// TODO(ur): These CUDA specific queue properties should live in the UR spec. In
+// the mean time just use the PI values.
+// PI Command Queue using Default stream
+#define __SYCL_UR_CUDA_USE_DEFAULT_STREAM (0xFF03)
+// PI Command queue will sync with default stream
+#define __SYCL_UR_CUDA_SYNC_WITH_DEFAULT (0xFF04)
+
+/// Program metadata tags recognized by the UR adapters. For kernels the tag
+/// must appear after the kernel name.
+#define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
+  "@reqd_work_group_size"
+#define __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
+
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
