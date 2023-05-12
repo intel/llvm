@@ -50,45 +50,42 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   constexpr unsigned bid = 1;
   experimental_esimd::named_barrier_init<bnum>();
 
-  unsigned int group_off = VL * groupID * Threads;
-  unsigned int global_id = groupID * Threads + local_id;
-  unsigned int global_off = VL * global_id;
-
-  esimd::simd<int, VL> val(local_id);
-
   constexpr unsigned producers = Threads / 2;
   constexpr unsigned consumers = Threads / 2;
 
-  // thread with even local id is producer in each work-group
+  // Thread with even local id is producer in each work-group.
   bool is_producer = local_id % 2 == 0;
   bool is_consumer = !is_producer;
-  // only-producer or only-comsumer modes
+  // Modes: only-producer or only-comsumer.
   unsigned int flag = is_producer ? 0x1 : 0x2;
 
-  // producer writes to SLM, consumer reads what producer wrote
+  /* Global offset depends on if the thread is producer or consumer. Producer
+   * is a thread with even index and it stores data to SLM. Consumer reads what
+   * producer wrote, so consumer's offset has to be adjusted.
+   */
+  unsigned int global_id = groupID * Threads + local_id;
+  unsigned int global_off = VL * (is_producer ? global_id : (global_id - 1));
+
   unsigned int slm_base =
       static_cast<uint32_t>(
           reinterpret_cast<std::uintptr_t>(local_acc.get_pointer()));
-  unsigned int slm_off = slm_base + (is_producer ? global_off : (global_off - VL)) * sizeof(int);
+  unsigned int slm_off = slm_base + global_off * sizeof(int);
 
   esimd::barrier();
 
   if (is_producer) {
-    esimd::simd<int, VL> v(global_id);
-    // producer stores data to SLM
-    experimental_esimd::lsc_slm_block_store<int, VL>(slm_off, v);
+    esimd::simd<int, VL> val(global_id);
+    // Producer stores data to SLM.
+    experimental_esimd::lsc_slm_block_store<int, VL>(slm_off, val);
   }
 
-  // signaling after data stored
   __ESIMD_ENS::named_barrier_signal(bid, flag, producers, consumers);
 
   if (is_consumer) {
-    // consumers waiting here for signal from producer
+    // Consumers waiting here for signal from producer.
     __ESIMD_ENS::named_barrier_wait(bid);
-    // read SLM and store to output
+    // Read SLM and store to output.
     auto ret = experimental_esimd::lsc_slm_block_load<int, VL>(slm_off);
-    // store SLM to output
-    experimental_esimd::lsc_block_store<int, VL>(o + global_off - VL, ret);
     experimental_esimd::lsc_block_store<int, VL>(o + global_off, ret);
   }
 }
@@ -151,7 +148,7 @@ bool test(queue q) {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
 
-            // Thread local ID in ESIMD context
+            // Thread's ID in ESIMD context
             int local_id = sg.get_group_linear_id();
             int groupID = g.get_group_linear_id();
 
@@ -181,10 +178,12 @@ bool test(queue q) {
 
   bool passed = true;
   for (int i = 0; i < Size; i++) {
-    int etalon = (i / (2 * VL)) * 2;
-    if (out[i] != etalon) {
+    int ref = i / VL;
+    if (ref % 2 == 1) // every odd ref is skipped
+      ref = -1;
+    if (out[i] != ref) {
       passed = false;
-      std::cout << "out[" << i << "]=" << out[i] << " vs " << etalon << "\n";
+      std::cout << "out[" << i << "]=" << out[i] << " vs " << ref << "\n";
     }
   }
 

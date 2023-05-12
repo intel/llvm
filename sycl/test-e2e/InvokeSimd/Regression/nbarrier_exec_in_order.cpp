@@ -134,16 +134,18 @@ bool test(queue q) {
 
   constexpr unsigned Size = VL * Threads;
 
-  auto dev = q.get_device();
-  auto device_slm_size =
-      dev.template get_info<sycl::info::device::local_mem_size>();
+  if constexpr (UseSLM) {
+    auto dev = q.get_device();
+    auto device_slm_size =
+        dev.template get_info<sycl::info::device::local_mem_size>();
 
-  // The test is going to use Size elements of int type.
-  if (device_slm_size < Size * sizeof(int)) {
-    // Report an error - the test needs a fix.
-    std::cerr << "Error: Test needs more SLM memory than device has"
-              << std::endl;
-    return false;
+    // The test is going to use Size elements of int type.
+    if (device_slm_size < Size * sizeof(int)) {
+      // Report an error - the test needs a fix.
+      std::cerr << "Error: Test needs more SLM memory than device has"
+                << std::endl;
+      return false;
+    }
   }
 
   auto *out = malloc_shared<int>(Size, q);
@@ -158,7 +160,17 @@ bool test(queue q) {
     sycl::range<1> local_range{Size};
 
     auto e = q.submit([&](handler &cgh) {
-      auto local_acc = local_accessor<int, 1>(Size, cgh);
+      local_accessor<int, 1> local_acc;
+
+      /* We only need to initialize local accessor for cases that use SLM,
+       * other cases use global buffer and initialize local accessor with size
+       * of 0 for compitability.
+       */
+      if constexpr (UseSLM)
+        local_acc = local_accessor<int, 1>(Size, cgh);
+      else
+        local_acc = local_accessor<int, 1>(0, cgh); // dummy local accessor
+
       cgh.parallel_for<KernelID<CaseNum>>(
           nd_range<1>(global_range, local_range),
           // This test requires an explicit specification of the subgroup size
@@ -166,13 +178,15 @@ bool test(queue q) {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
 
-            // Thread local ID in ESIMD context
+            // Thread's ID in ESIMD context
             int local_id = sg.get_group_linear_id();
 
-            // SLM init
-            uint32_t slm_id = item.get_local_id(0);
             auto local_acc_copy = local_acc;
-            local_acc_copy[slm_id] = -1;
+            // SLM init
+            if constexpr (UseSLM) {
+              uint32_t slm_id = item.get_local_id(0);
+              local_acc_copy[slm_id] = -1;
+	    }
             item.barrier();
 
 #ifdef USE_ACC_PTR
@@ -194,14 +208,14 @@ bool test(queue q) {
 
   bool passed = true;
   for (int i = 0; i < Size; i++) {
-    int etalon = i * 2 * Threads / Size;
-    if (etalon == Threads) // last stored chunk
-      etalon -= 1;
-    if (etalon > Threads) // excessive part of surface
-      etalon = -1;
-    if (out[i] != etalon) {
+    int ref = 2 * i * Threads / Size;
+    if (ref == Threads) // last stored chunk
+      ref -= 1;
+    if (ref > Threads) // excessive part of surface
+      ref = -1;
+    if (out[i] != ref) {
       passed = false;
-      std::cout << "out[" << i << "]=" << out[i] << " vs " << etalon << "\n";
+      std::cout << "out[" << i << "]=" << out[i] << " vs " << ref << "\n";
     }
   }
 
@@ -226,22 +240,14 @@ int main() {
   passed &= test<2, 4>(q);
   passed &= test<3, 8>(q);
   passed &= test<4, 16>(q);
+  passed &= test<5, 32>(q);
 
   constexpr bool UseSLM = true;
-  /* Skipping of cases if not enough local memory is available.
-   * Required size is VL * Threads, where VL always 16.
-   */
-  if (device_slm_size >= 32) // Threads == 2
-    passed &= test<5, 2, UseSLM>(q);
-
-  if (device_slm_size >= 64) // Threads == 4
-    passed &= test<6, 4, UseSLM>(q);
-
-  if (device_slm_size >= 128) // Threads == 8
-    passed &= test<7, 8, UseSLM>(q);
-
-  if (device_slm_size >= 256) // Threads == 16
-    passed &= test<8, 16, UseSLM>(q);
+  passed &= test<6, 2, UseSLM>(q);
+  passed &= test<7, 4, UseSLM>(q);
+  passed &= test<8, 8, UseSLM>(q);
+  passed &= test<9, 16, UseSLM>(q);
+  passed &= test<10, 32, UseSLM>(q);
 
   return passed ? 0 : 1;
 }

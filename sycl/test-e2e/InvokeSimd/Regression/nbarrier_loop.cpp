@@ -41,8 +41,12 @@ namespace experimental_esimd = sycl::ext::intel::experimental::esimd;
 
 constexpr int VL = 16;
 constexpr unsigned Groups = 1;
-constexpr unsigned Threads = 8;
-constexpr unsigned Size = Groups * Threads * VL;
+constexpr unsigned Threads = 4;
+constexpr unsigned Items = Groups * Threads * VL;
+
+// The size is chosen so that the entire surface can be covered in 2 stores with
+// SIMD size of VL
+constexpr unsigned Size = Items / 2;
 
 class KernelID;
 
@@ -54,53 +58,66 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
 
   experimental_esimd::named_barrier_init<bnum>();
 
-  // slm size used in kernel
-  constexpr unsigned SlmSize = Size / 2;
-
   // 2 producers on first iteration, 1 producer on second
   unsigned int indexes[2][2] = {{1, 2}, {3, 3}}; // local ids of producers
   unsigned int prods[2] = {2, 1};                // number of producers
 
-  unsigned int off = local_id * VL;
-  // producer writes to SLM, consumer reads what producer wrote
+  // Producer writes to SLM, consumer reads what producer wrote.
   unsigned int slm_base = static_cast<uint32_t>(
       reinterpret_cast<std::uintptr_t>(local_acc.get_pointer()));
 
   esimd::barrier();
 
-  for (int b = bnum - 1; b > 0; b--) {
-    int j = bnum - b - 1; // iteration index
+  // Iterate over barrier ids, starting with 1, since id 0 is reserved for
+  // unnamed barriers.
+  for (int b = 1; b < bnum; b++) {
+    // index to use in arrays and calculate offsets.
+    int index = b - 1;
 
-    bool is_producer = local_id == indexes[j][0] || local_id == indexes[j][1];
+    bool is_producer = local_id == indexes[index][0] || local_id == indexes[index][1];
     bool is_consumer = !is_producer;
-    // only-consumer or only-producer modes
+    // Modes: only-producer or only-consumer
     unsigned int flag = is_producer ? 0x1 : 0x2;
 
-    unsigned int producers = prods[j];
+    unsigned int producers = prods[index];
     unsigned int consumers = Threads - producers;
 
     if (is_producer) {
-      unsigned int slm_store_off = j * sizeof(int) * SlmSize / 4;
-      // second iteration store partialy overlaps first iteration stores
-      unsigned int dx = producers == 2 ? (local_id - 1) : 0;
-      slm_store_off += dx * sizeof(int) * SlmSize / 2;
-      simd<int, SlmSize / 2> init(local_id);
-      // producer stores to SLM
-      experimental_esimd::lsc_slm_block_store<int, SlmSize / 2>(
-          slm_base + slm_store_off, init);
+      /* The first iteration has 2 producers that cover all allocated SLM in
+       * equal parts. The second iteration has only 1 producer that stores data
+       * in the middle of the region, partially rewriting the results of the
+       * first iteration.
+       */
+      unsigned int slm_off = slm_base;
+      if (index == 0) {
+        // Here local_id is 1 or 2.
+	// local_id 1 stores to lower half of SLM
+	// local_id 2 to upper half
+        slm_off += (local_id - 1) * VL * sizeof(int);
+      } else {
+        // Here only one producer stores right in the middle.
+        slm_off += (Size / 4) * sizeof(int);
+      }
+
+      simd<int, VL> init(local_id);
+      experimental_esimd::lsc_slm_block_store<int, VL>(slm_off, init);
     }
 
     __ESIMD_ENS::named_barrier_signal(b, flag, producers, consumers);
 
     if (is_consumer)
       __ESIMD_ENS::named_barrier_wait(b);
+  }
 
-    auto val = experimental_esimd::lsc_slm_block_load<int, VL>(
-        slm_base + off * sizeof(int));
-    // and storing it to output surface
-    experimental_esimd::lsc_fence();
-    experimental_esimd::lsc_block_store<int, VL>(o + off + j * SlmSize, val);
-    experimental_esimd::lsc_fence();
+  experimental_esimd::lsc_fence();
+
+  // Copying SLM content to buffer.
+  if (local_id == 0) {
+    for (int off = 0; off < Size; off += VL) {
+      auto val = experimental_esimd::lsc_slm_block_load<int, VL>(
+          slm_base + off * sizeof(int));
+      experimental_esimd::lsc_block_store<int, VL>(o + off, val);
+    }
   }
 }
 
@@ -143,9 +160,9 @@ int main() {
 
   try {
     // workgroups
-    sycl::range<1> GlobalRange{Size};
+    sycl::range<1> GlobalRange{Items};
     // threads in each group
-    sycl::range<1> LocalRange{Size / Groups};
+    sycl::range<1> LocalRange{Items / Groups};
 
     auto e = q.submit([&](handler &cgh) {
       auto local_acc = local_accessor<int, 1>(Size, cgh);
@@ -156,7 +173,7 @@ int main() {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
 
-            // Thread local ID in ESIMD context
+            // Thread's ID in ESIMD context
             int local_id = sg.get_group_linear_id();
 
             // SLM init
@@ -184,20 +201,17 @@ int main() {
 
   bool passed = true;
   for (int i = 0; i < Size; i++) {
-    int etalon = 2;
-    if (i < Size / 4)
-      etalon = 1;
-    if (i >= Size / 2) {
-      if (i < (7 * Size / 8)) {
-        if (i < (5 * Size / 8))
-          etalon = 1;
-        else
-          etalon = 3;
-      }
-    }
-    if (out[i] != etalon) {
+    int ref = -1;
+    if (i < Size / 4) // lower quarter
+      ref = 1;
+    else if (i >= 3 * Size / 4) // upper quarter
+      ref = 2;
+    else // middle part
+      ref = 3;
+
+    if (out[i] != ref) {
       passed = false;
-      std::cout << "out[" << i << "]=" << std::hex << out[i] << " vs " << etalon
+      std::cout << "out[" << i << "]=" << std::hex << out[i] << " vs " << ref
                 << std::dec << std::endl;
     }
   }
