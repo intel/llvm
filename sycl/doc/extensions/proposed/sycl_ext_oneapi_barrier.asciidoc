@@ -381,6 +381,13 @@ may call `group_barrier` before and after the call to `wait` in the latter
 case.
 ====
 
+[source,c++]
+----
+template <typename Group, typename Barrier>
+void group_arrive_and_wait(Group g, Barrier b);
+----
+_Effects_: Equivalent to `group_wait(g, b, group_arrive(g, b))`.
+
 
 === Device queries
 
