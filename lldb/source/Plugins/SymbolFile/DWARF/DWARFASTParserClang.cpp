@@ -1351,6 +1351,11 @@ TypeSP DWARFASTParserClang::ParsePointerToMemberType(
   Type *class_type =
       dwarf->ResolveTypeUID(attrs.containing_type.Reference(), true);
 
+  // Check to make sure pointers are not NULL before attempting to
+  // dereference them.
+  if ((class_type == nullptr) || (pointee_type == nullptr))
+    return nullptr;
+
   CompilerType pointee_clang_type = pointee_type->GetForwardCompilerType();
   CompilerType class_clang_type = class_type->GetForwardCompilerType();
 
@@ -2412,7 +2417,7 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
                                &frame_base)) {
     Mangled func_name;
     if (mangled)
-      func_name.SetValue(ConstString(mangled), true);
+      func_name.SetValue(ConstString(mangled));
     else if ((die.GetParent().Tag() == DW_TAG_compile_unit ||
               die.GetParent().Tag() == DW_TAG_partial_unit) &&
              Language::LanguageIsCPlusPlus(
@@ -2423,9 +2428,9 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
       // If the mangled name is not present in the DWARF, generate the
       // demangled name using the decl context. We skip if the function is
       // "main" as its name is never mangled.
-      func_name.SetValue(ConstructDemangledNameFromDWARF(die), false);
+      func_name.SetValue(ConstructDemangledNameFromDWARF(die));
     } else
-      func_name.SetValue(ConstString(name), false);
+      func_name.SetValue(ConstString(name));
 
     FunctionSP func_sp;
     std::unique_ptr<Declaration> decl_up;

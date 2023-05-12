@@ -35,6 +35,7 @@
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/RISCVAttributes.h"
 #include "llvm/Support/RISCVISAInfo.h"
@@ -47,6 +48,9 @@ using namespace llvm;
 
 STATISTIC(RISCVNumInstrsCompressed,
           "Number of RISC-V Compressed instructions emitted");
+
+static cl::opt<bool> AddBuildAttributes("riscv-add-build-attributes",
+                                        cl::init(false));
 
 namespace llvm {
 extern const SubtargetFeatureKV RISCVFeatureKV[RISCV::NumSubtargetFeatures];
@@ -81,7 +85,10 @@ class RISCVAsmParser : public MCTargetAsmParser {
   unsigned checkTargetMatchPredicate(MCInst &Inst) override;
 
   bool generateImmOutOfRangeError(OperandVector &Operands, uint64_t ErrorInfo,
-                                  int64_t Lower, int64_t Upper, Twine Msg);
+                                  int64_t Lower, int64_t Upper,
+                                  const Twine &Msg);
+  bool generateImmOutOfRangeError(SMLoc ErrorLoc, int64_t Lower, int64_t Upper,
+                                  const Twine &Msg);
 
   bool MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                OperandVector &Operands, MCStreamer &Out,
@@ -240,6 +247,8 @@ public:
   RISCVAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                  const MCInstrInfo &MII, const MCTargetOptions &Options)
       : MCTargetAsmParser(Options, STI, MII) {
+    MCAsmParserExtension::Initialize(Parser);
+
     Parser.addAliasForDirective(".half", ".2byte");
     Parser.addAliasForDirective(".hword", ".2byte");
     Parser.addAliasForDirective(".word", ".4byte");
@@ -265,6 +274,9 @@ public:
 
     const MCObjectFileInfo *MOFI = Parser.getContext().getObjectFileInfo();
     ParserOptions.IsPicEnabled = MOFI->isPositionIndependent();
+
+    if (AddBuildAttributes)
+      getTargetStreamer().emitTargetAttributes(STI, /*EmitStackAlign*/ false);
   }
 };
 
@@ -575,6 +587,7 @@ public:
     return IsConstantImm && isUInt<N>(Imm) && VK == RISCVMCExpr::VK_RISCV_None;
   }
 
+  bool isUImm1() const { return IsUImm<1>(); }
   bool isUImm2() const { return IsUImm<2>(); }
   bool isUImm3() const { return IsUImm<3>(); }
   bool isUImm4() const { return IsUImm<4>(); }
@@ -1157,10 +1170,16 @@ unsigned RISCVAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
 }
 
 bool RISCVAsmParser::generateImmOutOfRangeError(
-    OperandVector &Operands, uint64_t ErrorInfo, int64_t Lower, int64_t Upper,
-    Twine Msg = "immediate must be an integer in the range") {
-  SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
+    SMLoc ErrorLoc, int64_t Lower, int64_t Upper,
+    const Twine &Msg = "immediate must be an integer in the range") {
   return Error(ErrorLoc, Msg + " [" + Twine(Lower) + ", " + Twine(Upper) + "]");
+}
+
+bool RISCVAsmParser::generateImmOutOfRangeError(
+    OperandVector &Operands, uint64_t ErrorInfo, int64_t Lower, int64_t Upper,
+    const Twine &Msg = "immediate must be an integer in the range") {
+  SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
+  return generateImmOutOfRangeError(ErrorLoc, Lower, Upper, Msg);
 }
 
 bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
@@ -1253,6 +1272,8 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     if (isRV64())
       return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 4) - 1);
+  case Match_InvalidUImm1:
+    return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 1) - 1);
   case Match_InvalidUImm2:
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 2) - 1);
   case Match_InvalidUImm2Lsb0:
@@ -1550,8 +1571,9 @@ RISCVAsmParser::parseInsnDirectiveOpcode(OperandVector &Operands) {
     break;
   }
 
-  Error(S, "opcode must be a valid opcode name or an immediate in the range "
-           "[0, 127]");
+  generateImmOutOfRangeError(S, 0, 127,
+                             "opcode must be a valid opcode name or an "
+                             "immediate in the range");
   return MatchOperand_ParseFail;
 }
 
@@ -1611,8 +1633,9 @@ RISCVAsmParser::parseInsnCDirectiveOpcode(OperandVector &Operands) {
   }
   }
 
-  Error(S, "opcode must be a valid opcode name or an immediate in the range "
-           "[0, 2]");
+  generateImmOutOfRangeError(S, 0, 2,
+                             "opcode must be a valid opcode name or an "
+                             "immediate in the range");
   return MatchOperand_ParseFail;
 }
 
@@ -1647,8 +1670,7 @@ RISCVAsmParser::parseCSRSystemRegister(OperandVector &Operands) {
       }
     }
 
-    Twine Msg = "immediate must be an integer in the range";
-    Error(S, Msg + " [" + Twine(0) + ", " + Twine((1 << 12) - 1) + "]");
+    generateImmOutOfRangeError(S, 0, (1 << 12) - 1);
     return MatchOperand_ParseFail;
   }
   case AsmToken::Identifier: {
@@ -1675,15 +1697,14 @@ RISCVAsmParser::parseCSRSystemRegister(OperandVector &Operands) {
       return MatchOperand_Success;
     }
 
-    Twine Msg = "operand must be a valid system register name "
-                "or an integer in the range";
-    Error(S, Msg + " [" + Twine(0) + ", " + Twine((1 << 12) - 1) + "]");
+    generateImmOutOfRangeError(S, 0, (1 << 12) - 1,
+                               "operand must be a valid system register name "
+                               "or an integer in the range");
     return MatchOperand_ParseFail;
   }
   case AsmToken::Percent: {
     // Discard operand with modifier.
-    Twine Msg = "immediate must be an integer in the range";
-    Error(S, Msg + " [" + Twine(0) + ", " + Twine((1 << 12) - 1) + "]");
+    generateImmOutOfRangeError(S, 0, (1 << 12) - 1);
     return MatchOperand_ParseFail;
   }
   }
@@ -1781,12 +1802,8 @@ RISCVAsmParser::parseOperandWithModifier(OperandVector &Operands) {
   SMLoc S = getLoc();
   SMLoc E;
 
-  if (getLexer().getKind() != AsmToken::Percent) {
-    Error(getLoc(), "expected '%' for operand modifier");
+  if (parseToken(AsmToken::Percent, "expected '%' for operand modifier"))
     return MatchOperand_ParseFail;
-  }
-
-  getParser().Lex(); // Eat '%'
 
   if (getLexer().getKind() != AsmToken::Identifier) {
     Error(getLoc(), "expected valid identifier for operand modifier");
@@ -1800,11 +1817,8 @@ RISCVAsmParser::parseOperandWithModifier(OperandVector &Operands) {
   }
 
   getParser().Lex(); // Eat the identifier
-  if (getLexer().getKind() != AsmToken::LParen) {
-    Error(getLoc(), "expected '('");
+  if (parseToken(AsmToken::LParen, "expected '('"))
     return MatchOperand_ParseFail;
-  }
-  getParser().Lex(); // Eat '('
 
   const MCExpr *SubExpr;
   if (getParser().parseParenExpression(SubExpr, E)) {
@@ -2138,12 +2152,8 @@ ParseFail:
 
 OperandMatchResultTy
 RISCVAsmParser::parseMemOpBaseReg(OperandVector &Operands) {
-  if (getLexer().isNot(AsmToken::LParen)) {
-    Error(getLoc(), "expected '('");
+  if (parseToken(AsmToken::LParen, "expected '('"))
     return MatchOperand_ParseFail;
-  }
-
-  getParser().Lex(); // Eat '('
   Operands.push_back(RISCVOperand::createToken("(", getLoc()));
 
   if (parseRegister(Operands) != MatchOperand_Success) {
@@ -2151,12 +2161,8 @@ RISCVAsmParser::parseMemOpBaseReg(OperandVector &Operands) {
     return MatchOperand_ParseFail;
   }
 
-  if (getLexer().isNot(AsmToken::RParen)) {
-    Error(getLoc(), "expected ')'");
+  if (parseToken(AsmToken::RParen, "expected ')'"))
     return MatchOperand_ParseFail;
-  }
-
-  getParser().Lex(); // Eat ')'
   Operands.push_back(RISCVOperand::createToken(")", getLoc()));
 
   return MatchOperand_Success;
@@ -2202,23 +2208,18 @@ RISCVAsmParser::parseZeroOffsetMemOp(OperandVector &Operands) {
                                 ImmStart, ImmEnd, isRV64());
   }
 
-  if (getLexer().isNot(AsmToken::LParen)) {
-    Error(getLoc(), OptionalImmOp ? "expected '(' after optional integer offset"
-                                  : "expected '(' or optional integer offset");
+  if (parseToken(AsmToken::LParen,
+                 OptionalImmOp ? "expected '(' after optional integer offset"
+                               : "expected '(' or optional integer offset"))
     return MatchOperand_ParseFail;
-  }
-  getParser().Lex(); // Eat '('
 
   if (parseRegister(Operands) != MatchOperand_Success) {
     Error(getLoc(), "expected register");
     return MatchOperand_ParseFail;
   }
 
-  if (getLexer().isNot(AsmToken::RParen)) {
-    Error(getLoc(), "expected ')'");
+  if (parseToken(AsmToken::RParen, "expected ')'"))
     return MatchOperand_ParseFail;
-  }
-  getParser().Lex(); // Eat ')'
 
   // Deferred Handling of non-zero offsets. This makes the error messages nicer.
   if (OptionalImmOp && !OptionalImmOp->isImmZero()) {
@@ -2301,13 +2302,10 @@ bool RISCVAsmParser::ParseInstruction(ParseInstructionInfo &Info,
       return true;
   }
 
-  if (getLexer().isNot(AsmToken::EndOfStatement)) {
-    SMLoc Loc = getLexer().getLoc();
+  if (getParser().parseEOL("unexpected token")) {
     getParser().eatToEndOfStatement();
-    return Error(Loc, "unexpected token");
+    return true;
   }
-
-  getParser().Lex(); // Consume the EndOfStatement.
   return false;
 }
 
@@ -2889,8 +2887,10 @@ std::unique_ptr<RISCVOperand> RISCVAsmParser::defaultFRMArgOp() const {
 
 bool RISCVAsmParser::validateInstruction(MCInst &Inst,
                                          OperandVector &Operands) {
-  if (Inst.getOpcode() == RISCV::PseudoVMSGEU_VX_M_T ||
-      Inst.getOpcode() == RISCV::PseudoVMSGE_VX_M_T) {
+  unsigned Opcode = Inst.getOpcode();
+
+  if (Opcode == RISCV::PseudoVMSGEU_VX_M_T ||
+      Opcode == RISCV::PseudoVMSGE_VX_M_T) {
     unsigned DestReg = Inst.getOperand(0).getReg();
     unsigned TempReg = Inst.getOperand(1).getReg();
     if (DestReg == TempReg) {
@@ -2899,8 +2899,6 @@ bool RISCVAsmParser::validateInstruction(MCInst &Inst,
                         "the destination register.");
     }
   }
-
-  unsigned Opcode = Inst.getOpcode();
 
   if (Opcode == RISCV::TH_LDD || Opcode == RISCV::TH_LWUD ||
       Opcode == RISCV::TH_LWD) {
@@ -2928,27 +2926,46 @@ bool RISCVAsmParser::validateInstruction(MCInst &Inst,
     return Error(Loc, "Operand must be constant 4.");
   }
 
-  const MCInstrDesc &MCID = MII.get(Inst.getOpcode());
-  RISCVII::VConstraintType Constraints = RISCVII::getConstraint(MCID.TSFlags);
-  if (Constraints == RISCVII::NoConstraint)
+  const MCInstrDesc &MCID = MII.get(Opcode);
+  if (!(MCID.TSFlags & RISCVII::ConstraintMask))
     return false;
+
+  if (Opcode == RISCV::VC_V_XVW || Opcode == RISCV::VC_V_IVW ||
+      Opcode == RISCV::VC_V_FVW || Opcode == RISCV::VC_V_VVW) {
+    // Operands Opcode, Dst, uimm, Dst, Rs2, Rs1 for VC_V_XVW.
+    unsigned VCIXDst = Inst.getOperand(0).getReg();
+    SMLoc VCIXDstLoc = Operands[2]->getStartLoc();
+    if (MCID.TSFlags & RISCVII::VS1Constraint) {
+      unsigned VCIXRs1 = Inst.getOperand(Inst.getNumOperands() - 1).getReg();
+      if (VCIXDst == VCIXRs1)
+        return Error(VCIXDstLoc, "The destination vector register group cannot"
+                                 " overlap the source vector register group.");
+    }
+    if (MCID.TSFlags & RISCVII::VS2Constraint) {
+      unsigned VCIXRs2 = Inst.getOperand(Inst.getNumOperands() - 2).getReg();
+      if (VCIXDst == VCIXRs2)
+        return Error(VCIXDstLoc, "The destination vector register group cannot"
+                                 " overlap the source vector register group.");
+    }
+    return false;
+  }
 
   unsigned DestReg = Inst.getOperand(0).getReg();
   // Operands[1] will be the first operand, DestReg.
   SMLoc Loc = Operands[1]->getStartLoc();
-  if (Constraints & RISCVII::VS2Constraint) {
+  if (MCID.TSFlags & RISCVII::VS2Constraint) {
     unsigned CheckReg = Inst.getOperand(1).getReg();
     if (DestReg == CheckReg)
       return Error(Loc, "The destination vector register group cannot overlap"
                         " the source vector register group.");
   }
-  if ((Constraints & RISCVII::VS1Constraint) && (Inst.getOperand(2).isReg())) {
+  if ((MCID.TSFlags & RISCVII::VS1Constraint) && (Inst.getOperand(2).isReg())) {
     unsigned CheckReg = Inst.getOperand(2).getReg();
     if (DestReg == CheckReg)
       return Error(Loc, "The destination vector register group cannot overlap"
                         " the source vector register group.");
   }
-  if ((Constraints & RISCVII::VMConstraint) && (DestReg == RISCV::V0)) {
+  if ((MCID.TSFlags & RISCVII::VMConstraint) && (DestReg == RISCV::V0)) {
     // vadc, vsbc are special cases. These instructions have no mask register.
     // The destination register could not be V0.
     if (Opcode == RISCV::VADC_VVM || Opcode == RISCV::VADC_VXM ||

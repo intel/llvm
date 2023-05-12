@@ -16,11 +16,11 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Format/Format.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Testing/TestAST.h"
 #include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -28,6 +28,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <cstddef>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -93,12 +94,14 @@ TEST_F(WalkUsedTest, Basic) {
   void $bar^bar($private^Private $p^p) {
     $foo^foo();
     std::$vector^vector $vconstructor^$v^v;
+    $builtin^__builtin_popcount(1);
+    std::$move^move(3);
   }
   )cpp");
   Inputs.Code = Code.code();
   Inputs.ExtraFiles["header.h"] = guard(R"cpp(
   void foo();
-  namespace std { class vector {}; }
+  namespace std { class vector {}; int&& move(int&&); }
   )cpp");
   Inputs.ExtraFiles["private.h"] = guard(R"cpp(
     // IWYU pragma: private, include "path/public.h"
@@ -112,6 +115,7 @@ TEST_F(WalkUsedTest, Basic) {
   auto PublicFile = Header("\"path/public.h\"");
   auto MainFile = Header(SM.getFileEntryForID(SM.getMainFileID()));
   auto VectorSTL = Header(*tooling::stdlib::Header::named("<vector>"));
+  auto UtilitySTL = Header(*tooling::stdlib::Header::named("<utility>"));
   EXPECT_THAT(
       offsetToProviders(AST, SM),
       UnorderedElementsAre(
@@ -122,8 +126,9 @@ TEST_F(WalkUsedTest, Basic) {
           Pair(Code.point("foo"), UnorderedElementsAre(HeaderFile)),
           Pair(Code.point("vector"), UnorderedElementsAre(VectorSTL)),
           Pair(Code.point("vconstructor"), UnorderedElementsAre(VectorSTL)),
-          Pair(Code.point("v"), UnorderedElementsAre(MainFile))
-          ));
+          Pair(Code.point("v"), UnorderedElementsAre(MainFile)),
+          Pair(Code.point("builtin"), testing::IsEmpty()),
+          Pair(Code.point("move"), UnorderedElementsAre(UtilitySTL))));
 }
 
 TEST_F(WalkUsedTest, MultipleProviders) {
@@ -188,8 +193,7 @@ TEST_F(WalkUsedTest, MacroRefs) {
           Pair(Code.point("1"), UnorderedElementsAre(HdrFile)),
           Pair(Code.point("2"), UnorderedElementsAre(HdrFile)),
           Pair(Code.point("3"), UnorderedElementsAre(MainFile)),
-          Pair(Code.point("4"), UnorderedElementsAre(MainFile))
-              ));
+          Pair(Code.point("4"), UnorderedElementsAre(MainFile))));
 }
 
 class AnalyzeTest : public testing::Test {
@@ -427,6 +431,43 @@ TEST(Hints, Ordering) {
   EXPECT_LT(Hinted(Hints::PublicHeader), Hinted(Hints::PreferredHeader));
   EXPECT_LT(Hinted(Hints::CompleteSymbol | Hints::PublicHeader),
             Hinted(Hints::PreferredHeader));
+}
+
+// Test ast traversal & redecl selection end-to-end for templates, as explicit
+// instantiations/specializations are not redecls of the primary template. We
+// need to make sure we're selecting the right ones.
+TEST_F(WalkUsedTest, TemplateDecls) {
+  llvm::Annotations Code(R"cpp(
+    #include "fwd.h"
+    #include "def.h"
+    #include "partial.h"
+    template <> struct $exp_spec^Foo<char> {};
+    template struct $exp^Foo<int>;
+    $full^Foo<int> x;
+    $implicit^Foo<bool> y;
+    $partial^Foo<int*> z;
+  )cpp");
+  Inputs.Code = Code.code();
+  Inputs.ExtraFiles["fwd.h"] = guard("template<typename> struct Foo;");
+  Inputs.ExtraFiles["def.h"] = guard("template<typename> struct Foo {};");
+  Inputs.ExtraFiles["partial.h"] =
+      guard("template<typename T> struct Foo<T*> {};");
+  TestAST AST(Inputs);
+  auto &SM = AST.sourceManager();
+  const auto *Fwd = SM.getFileManager().getFile("fwd.h").get();
+  const auto *Def = SM.getFileManager().getFile("def.h").get();
+  const auto *Partial = SM.getFileManager().getFile("partial.h").get();
+
+  EXPECT_THAT(
+      offsetToProviders(AST, SM),
+      AllOf(Contains(
+                Pair(Code.point("exp_spec"), UnorderedElementsAre(Fwd, Def))),
+            Contains(Pair(Code.point("exp"), UnorderedElementsAre(Fwd, Def))),
+            Contains(Pair(Code.point("full"), UnorderedElementsAre(Fwd, Def))),
+            Contains(
+                Pair(Code.point("implicit"), UnorderedElementsAre(Fwd, Def))),
+            Contains(
+                Pair(Code.point("partial"), UnorderedElementsAre(Partial)))));
 }
 
 } // namespace

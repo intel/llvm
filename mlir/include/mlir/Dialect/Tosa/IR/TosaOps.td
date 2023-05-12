@@ -1043,6 +1043,8 @@ def Tosa_LogOp : Tosa_Op<"log", [
   let results = (outs
     Tosa_Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1262,9 +1264,7 @@ def Tosa_GreaterEqualOp : Tosa_Op<"greater_equal", [
 // Operator: reduce_all
 //===----------------------------------------------------------------------===//
 def Tosa_ReduceAllOp : Tosa_Op<"reduce_all", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Reduce All operator";
 
   let description = [{
@@ -1281,15 +1281,19 @@ def Tosa_ReduceAllOp : Tosa_Op<"reduce_all", [
   );
 
   let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
 // Operator: reduce_any
 //===----------------------------------------------------------------------===//
 def Tosa_ReduceAnyOp : Tosa_Op<"reduce_any", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Reduce Any operator";
 
   let description = [{
@@ -1306,15 +1310,19 @@ def Tosa_ReduceAnyOp : Tosa_Op<"reduce_any", [
   );
 
   let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
 // Operator: reduce_max
 //===----------------------------------------------------------------------===//
 def Tosa_ReduceMaxOp : Tosa_Op<"reduce_max", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Reduce Max operator";
 
   let description = [{
@@ -1331,15 +1339,19 @@ def Tosa_ReduceMaxOp : Tosa_Op<"reduce_max", [
   );
 
   let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
 // Operator: reduce_min
 //===----------------------------------------------------------------------===//
 def Tosa_ReduceMinOp : Tosa_Op<"reduce_min", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Reduce Min operator";
 
   let description = [{
@@ -1356,15 +1368,19 @@ def Tosa_ReduceMinOp : Tosa_Op<"reduce_min", [
   );
 
   let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
 // Operator: reduce_prod
 //===----------------------------------------------------------------------===//
 def Tosa_ReduceProdOp : Tosa_Op<"reduce_prod", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Reduce Prod operator";
 
   let description = [{
@@ -1381,15 +1397,19 @@ def Tosa_ReduceProdOp : Tosa_Op<"reduce_prod", [
   );
 
   let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
 // Operator: reduce_sum
 //===----------------------------------------------------------------------===//
 def Tosa_ReduceSumOp : Tosa_Op<"reduce_sum", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Reduce Sum operator";
 
   let description = [{
@@ -1406,6 +1426,12 @@ def Tosa_ReduceSumOp : Tosa_Op<"reduce_sum", [
   );
 
   let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1417,8 +1443,7 @@ def Tosa_ReduceSumOp : Tosa_Op<"reduce_sum", [
 // Operator: concat
 //===----------------------------------------------------------------------===//
 def Tosa_ConcatOp : Tosa_Op<"concat", [
-                              InferTensorType,
-    Pure]> {
+    InferTensorType, Pure]> {
   let summary = "Concatenates tensors along one dimension.";
 
   let description = [{
@@ -1479,9 +1504,7 @@ def Tosa_PadOp : Tosa_Op<"pad", [
 // Operator: reshape
 //===----------------------------------------------------------------------===//
 def Tosa_ReshapeOp: Tosa_Op<"reshape", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    Pure]> {
+  InferTensorType, Pure]> {
   let summary = "Reshape operator";
 
   let description = [{
@@ -1502,6 +1525,12 @@ def Tosa_ReshapeOp: Tosa_Op<"reshape", [
   let results = (outs
     Tosa_RankedTensor:$output
   );
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//

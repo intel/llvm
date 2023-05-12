@@ -4148,7 +4148,7 @@ static void AddPrettyFunctionResults(const LangOptions &LangOpts,
 
 static void HandleCodeCompleteResults(Sema *S,
                                       CodeCompleteConsumer *CodeCompleter,
-                                      CodeCompletionContext Context,
+                                      const CodeCompletionContext &Context,
                                       CodeCompletionResult *Results,
                                       unsigned NumResults) {
   if (CodeCompleter)
@@ -4309,16 +4309,13 @@ void Sema::CodeCompleteModuleImport(SourceLocation ImportLoc,
                                         /*IsInclusionDirective=*/false);
     // Enumerate submodules.
     if (Mod) {
-      for (Module::submodule_iterator Sub = Mod->submodule_begin(),
-                                      SubEnd = Mod->submodule_end();
-           Sub != SubEnd; ++Sub) {
-
+      for (auto *Submodule : Mod->submodules()) {
         Builder.AddTypedTextChunk(
-            Builder.getAllocator().CopyString((*Sub)->Name));
+            Builder.getAllocator().CopyString(Submodule->Name));
         Results.AddResult(Result(
             Builder.TakeString(), CCP_Declaration, CXCursor_ModuleImportDecl,
-            (*Sub)->isAvailable() ? CXAvailability_Available
-                                  : CXAvailability_NotAvailable));
+            Submodule->isAvailable() ? CXAvailability_Available
+                                     : CXAvailability_NotAvailable));
       }
     }
   }
@@ -6217,7 +6214,7 @@ getNextAggregateIndexAfterDesignatedInit(const ResultCandidate &Aggregate,
 
   // Look for designated initializers.
   // They're in their syntactic form, not yet resolved to fields.
-  IdentifierInfo *DesignatedFieldName = nullptr;
+  const IdentifierInfo *DesignatedFieldName = nullptr;
   unsigned ArgsAfterDesignator = 0;
   for (const Expr *Arg : Args) {
     if (const auto *DIE = dyn_cast<DesignatedInitExpr>(Arg)) {
@@ -6423,7 +6420,7 @@ static QualType getDesignatedType(QualType BaseType, const Designation &Desig) {
       assert(D.isFieldDesignator());
       auto *RD = getAsRecordDecl(BaseType);
       if (RD && RD->isCompleteDefinition()) {
-        for (const auto *Member : RD->lookup(D.getField()))
+        for (const auto *Member : RD->lookup(D.getFieldDecl()))
           if (const FieldDecl *FD = llvm::dyn_cast<FieldDecl>(Member)) {
             NextType = FD->getType();
             break;

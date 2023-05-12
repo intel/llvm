@@ -1908,6 +1908,13 @@ template <class BidirectionalIterator, class Compare>
 #include <__algorithm/unwrap_iter.h>
 #include <__algorithm/upper_bound.h>
 
+#ifdef _LIBCPP_HAS_PARALLEL_ALGORITHMS
+#  include <__algorithm/pstl_any_all_none_of.h>
+#  include <__algorithm/pstl_fill.h>
+#  include <__algorithm/pstl_find.h>
+#  include <__algorithm/pstl_for_each.h>
+#endif
+
 // standard-mandated includes
 
 // [algorithm.syn]
@@ -1917,18 +1924,11 @@ template <class BidirectionalIterator, class Compare>
 #  pragma GCC system_header
 #endif
 
-#if defined(_LIBCPP_HAS_PARALLEL_ALGORITHMS) && _LIBCPP_STD_VER >= 17
-#  include <__pstl_algorithm>
-#endif
-
-#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 17
-#  include <chrono>
-#endif
-
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
 #  include <atomic>
 #  include <bit>
 #  include <concepts>
+#  include <cstdlib>
 #  include <cstring>
 #  include <iterator>
 #  include <memory>

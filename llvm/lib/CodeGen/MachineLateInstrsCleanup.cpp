@@ -39,8 +39,8 @@ STATISTIC(NumRemoved, "Number of redundant instructions removed.");
 namespace {
 
 class MachineLateInstrsCleanup : public MachineFunctionPass {
-  const TargetRegisterInfo *TRI;
-  const TargetInstrInfo *TII;
+  const TargetRegisterInfo *TRI = nullptr;
+  const TargetInstrInfo *TII = nullptr;
 
   // Data structures to map regs to their definitions per MBB.
   using Reg2DefMap = std::map<Register, MachineInstr*>;
@@ -175,7 +175,8 @@ bool MachineLateInstrsCleanup::processBlock(MachineBasicBlock *MBB) {
   Reg2DefMap &MBBDefs = RegDefs[MBB->getNumber()];
 
   // Find reusable definitions in the predecessor(s).
-  if (!MBB->pred_empty() && !MBB->isEHPad()) {
+  if (!MBB->pred_empty() && !MBB->isEHPad() &&
+      !MBB->isInlineAsmBrIndirectTarget()) {
     MachineBasicBlock *FirstPred = *MBB->pred_begin();
     for (auto [Reg, DefMI] : RegDefs[FirstPred->getNumber()])
       if (llvm::all_of(

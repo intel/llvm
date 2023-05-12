@@ -53,7 +53,7 @@ Section,Description,Dependencies,Assignee,Complete
 | `[range.transform.iterator] <https://wg21.link/range.transform.iterator>`_,| `ranges::transform_view::iterator <https://reviews.llvm.org/D110774>`_,[concepts.cmp],Arthur O'Dwyer,|Complete|
 | `[range.elements.iterator] <https://wg21.link/range.elements.iterator>`_,| ranges::elements_view::iterator,[concepts.cmp],Hui Xie,|Complete|
 | `[time.duration.comparisons] <https://wg21.link/time.duration.comparisons>`_, `chrono::duration <https://reviews.llvm.org/D145881>`_, None, Hristo Hristov, |Complete|
-| `[time.point.comparisons] <https://wg21.link/time.point.comparisons>`_, `chrono::time_point <https://reviews.llvm.org/D146250>`_, None, Hristo Hristov, |In Progress|
+| `[time.point.comparisons] <https://wg21.link/time.point.comparisons>`_, `chrono::time_point <https://reviews.llvm.org/D146250>`_, None, Hristo Hristov, |Complete|
 "| `[time.cal.day.nonmembers] <https://wg21.link/time.cal.day.nonmembers>`_
 | `[time.cal.month.nonmembers] <https://wg21.link/time.cal.month.nonmembers>`_
 | `[time.cal.year.nonmembers] <https://wg21.link/time.cal.year.nonmembers>`_
@@ -77,5 +77,5 @@ Section,Description,Dependencies,Assignee,Complete
 | `[fs.filesystem.syn] <https://wg21.link/fs.filesystem.syn>`_,| `filesystem::space_info <https://reviews.llvm.org/D130861>`_,None,Adrian Vogelsgesang,|Complete|
 | `[fs.path.nonmember] <https://wg21.link/fs.path.nonmember>`_,| `filesystem::path <https://reviews.llvm.org/D130859>`_,None,Adrian Vogelsgesang,|Complete|
 | `[fs.dir.entry.obs] <https://wg21.link/fs.dir.entry.obs>`_,| `filesystem::directory_entry <https://reviews.llvm.org/D130860>`_,None,Adrian Vogelsgesang,|Complete|
-| `[re.submatch.op] <https://wg21.link/re.submatch.op>`_,| `sub_match <https://reviews.llvm.org/D132310>`_,None,Mark de Wever,|In Progress|
+| `[re.submatch.op] <https://wg21.link/re.submatch.op>`_,| `sub_match <https://reviews.llvm.org/D132310>`_,None,Mark de Wever,|Complete|
 | `[thread.thread.id] <https://wg21.link/thread.thread.id>`_,| `thread::id <https://reviews.llvm.org/D131362>`_,None,Adrian Vogelsgesang,|Complete|

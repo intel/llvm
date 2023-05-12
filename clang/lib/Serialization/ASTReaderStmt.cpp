@@ -1226,9 +1226,9 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       auto *Field = readDeclAs<FieldDecl>();
       SourceLocation DotLoc = readSourceLocation();
       SourceLocation FieldLoc = readSourceLocation();
-      Designators.push_back(Designator(Field->getIdentifier(), DotLoc,
-                                       FieldLoc));
-      Designators.back().setField(Field);
+      Designators.push_back(Designator::CreateFieldDesignator(
+          Field->getIdentifier(), DotLoc, FieldLoc));
+      Designators.back().setFieldDecl(Field);
       break;
     }
 
@@ -1236,7 +1236,8 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       const IdentifierInfo *Name = Record.readIdentifier();
       SourceLocation DotLoc = readSourceLocation();
       SourceLocation FieldLoc = readSourceLocation();
-      Designators.push_back(Designator(Name, DotLoc, FieldLoc));
+      Designators.push_back(Designator::CreateFieldDesignator(Name, DotLoc,
+                                                              FieldLoc));
       break;
     }
 
@@ -1244,7 +1245,9 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       unsigned Index = Record.readInt();
       SourceLocation LBracketLoc = readSourceLocation();
       SourceLocation RBracketLoc = readSourceLocation();
-      Designators.push_back(Designator(Index, LBracketLoc, RBracketLoc));
+      Designators.push_back(Designator::CreateArrayDesignator(Index,
+                                                              LBracketLoc,
+                                                              RBracketLoc));
       break;
     }
 
@@ -1253,8 +1256,8 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       SourceLocation LBracketLoc = readSourceLocation();
       SourceLocation EllipsisLoc = readSourceLocation();
       SourceLocation RBracketLoc = readSourceLocation();
-      Designators.push_back(Designator(Index, LBracketLoc, EllipsisLoc,
-                                       RBracketLoc));
+      Designators.push_back(Designator::CreateArrayRangeDesignator(
+          Index, LBracketLoc, EllipsisLoc, RBracketLoc));
       break;
     }
     }
@@ -2035,9 +2038,10 @@ ASTStmtReader::VisitCXXUnresolvedConstructExpr(CXXUnresolvedConstructExpr *E) {
   Record.skipInts(1);
   for (unsigned I = 0, N = E->getNumArgs(); I != N; ++I)
     E->setArg(I, Record.readSubExpr());
-  E->TSI = readTypeSourceInfo();
+  E->TypeAndInitForm.setPointer(readTypeSourceInfo());
   E->setLParenLoc(readSourceLocation());
   E->setRParenLoc(readSourceLocation());
+  E->TypeAndInitForm.setInt(Record.readInt());
 }
 
 void ASTStmtReader::VisitOverloadExpr(OverloadExpr *E) {

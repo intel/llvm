@@ -60,11 +60,12 @@ struct LocalAccessorMarker {};
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
+  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+                sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>) {
     return detail::SLM_BTI;
   } else {
     return __esimd_get_surface_index(
-        detail::AccessorPrivateProxy::getNativeImageObj(acc));
+        detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   }
 }
 
@@ -326,7 +327,12 @@ template <typename Tx, int N, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
+__ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                   uint64_t offset,
+#else
+                                   uint32_t offset,
+#endif
                                    Flags = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset));
@@ -342,7 +348,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                 "block size must be at most 8 owords");
 
   auto surf_ind = __esimd_get_surface_index(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+      detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
@@ -390,7 +396,12 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
 ///
 template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
+__ESIMD_API void block_store(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                             uint64_t offset,
+#else
+                             uint32_t offset,
+#endif
                              simd<Tx, N> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   block_store<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset), vals);
@@ -406,7 +417,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                 "block size must be at most 8 owords");
 
   auto surf_ind = __esimd_get_surface_index(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+      detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 #endif
 }
@@ -435,9 +446,8 @@ ESIMD_INLINE
                                     detail::uint_type_t<sizeof(T)>>;
     using Treal = __raw_t<T>;
     simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
-    using PromoT =
-        typename sycl::detail::conditional_t<std::is_signed<Tint>::value,
-                                             int32_t, uint32_t>;
+    using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
+                                               int32_t, uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
     __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
         mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
@@ -473,9 +483,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
     using Treal = __raw_t<T>;
     static_assert(std::is_integral<Tint>::value,
                   "only integral 1- & 2-byte types are supported");
-    using PromoT =
-        typename sycl::detail::conditional_t<std::is_signed<Tint>::value,
-                                             int32_t, uint32_t>;
+    using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
+                                               int32_t, uint32_t>;
     const simd<PromoT, N> promo_vals =
         __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
                                       scale>(si, glob_offset, offsets.data(),

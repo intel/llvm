@@ -5085,7 +5085,8 @@ void Sema::setTagNameForLinkagePurposes(TagDecl *TagFromDeclSpec,
   TagFromDeclSpec->setTypedefNameForAnonDecl(NewTD);
 }
 
-static unsigned GetDiagnosticTypeSpecifierID(DeclSpec::TST T) {
+static unsigned GetDiagnosticTypeSpecifierID(const DeclSpec &DS) {
+  DeclSpec::TST T = DS.getTypeSpecType();
   switch (T) {
   case DeclSpec::TST_class:
     return 0;
@@ -5096,12 +5097,17 @@ static unsigned GetDiagnosticTypeSpecifierID(DeclSpec::TST T) {
   case DeclSpec::TST_union:
     return 3;
   case DeclSpec::TST_enum:
+    if (const auto *ED = dyn_cast<EnumDecl>(DS.getRepAsDecl())) {
+      if (ED->isScopedUsingClassTag())
+        return 5;
+      if (ED->isScoped())
+        return 6;
+    }
     return 4;
   default:
     llvm_unreachable("unexpected type specifier");
   }
 }
-
 /// ParsedFreeStandingDeclSpec - This method is invoked when a declspec with
 /// no declarator (e.g. "struct foo;") is parsed. It also accepts template
 /// parameters to cope with template friend declarations.
@@ -5159,7 +5165,7 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
     // the declaration of a function or function template
     if (Tag)
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_tag)
-          << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType())
+          << GetDiagnosticTypeSpecifierID(DS)
           << static_cast<int>(DS.getConstexprSpecifier());
     else
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_wrong_decl_kind)
@@ -5193,7 +5199,7 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
     //
     // Per C++ [dcl.enum]p1, an opaque-enum-declaration can't either.
     Diag(SS.getBeginLoc(), diag::err_standalone_class_nested_name_specifier)
-        << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType()) << SS.getRange();
+        << GetDiagnosticTypeSpecifierID(DS) << SS.getRange();
     return nullptr;
   }
 
@@ -5358,10 +5364,10 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
         TypeSpecType == DeclSpec::TST_enum) {
       for (const ParsedAttr &AL : DS.getAttributes())
         Diag(AL.getLoc(), diag::warn_declspec_attribute_ignored)
-            << AL << GetDiagnosticTypeSpecifierID(TypeSpecType);
+            << AL << GetDiagnosticTypeSpecifierID(DS);
       for (const ParsedAttr &AL : DeclAttrs)
         Diag(AL.getLoc(), diag::warn_declspec_attribute_ignored)
-            << AL << GetDiagnosticTypeSpecifierID(TypeSpecType);
+            << AL << GetDiagnosticTypeSpecifierID(DS);
     }
   }
 
@@ -7870,9 +7876,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       Diag(D.getDeclSpec().getConstexprSpecLoc(),
            diag::err_constinit_local_variable);
     else
-      NewVD->addAttr(ConstInitAttr::Create(
-          Context, D.getDeclSpec().getConstexprSpecLoc(),
-          AttributeCommonInfo::AS_Keyword, ConstInitAttr::Keyword_constinit));
+      NewVD->addAttr(
+          ConstInitAttr::Create(Context, D.getDeclSpec().getConstexprSpecLoc(),
+                                ConstInitAttr::Keyword_constinit));
     break;
   }
 
@@ -8795,7 +8801,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   }
 
   // Check that SVE types are only used in functions with SVE available.
-  if (T->isSVESizelessBuiltinType() && CurContext->isFunctionOrMethod()) {
+  if (T->isSVESizelessBuiltinType() && isa<FunctionDecl>(CurContext)) {
     const FunctionDecl *FD = cast<FunctionDecl>(CurContext);
     llvm::StringMap<bool> CallerFeatureMap;
     Context.getFunctionFeatureMap(CallerFeatureMap, FD);
@@ -10215,9 +10221,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   NewFD->setParams(Params);
 
   if (D.getDeclSpec().isNoreturnSpecified())
-    NewFD->addAttr(C11NoReturnAttr::Create(Context,
-                                           D.getDeclSpec().getNoreturnSpecLoc(),
-                                           AttributeCommonInfo::AS_Keyword));
+    NewFD->addAttr(
+        C11NoReturnAttr::Create(Context, D.getDeclSpec().getNoreturnSpecLoc()));
 
   // Functions returning a variably modified type violate C99 6.7.5.2p2
   // because all functions have linkage.
@@ -10232,15 +10237,14 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       !NewFD->hasAttr<SectionAttr>())
     NewFD->addAttr(PragmaClangTextSectionAttr::CreateImplicit(
         Context, PragmaClangTextSection.SectionName,
-        PragmaClangTextSection.PragmaLocation, AttributeCommonInfo::AS_Pragma));
+        PragmaClangTextSection.PragmaLocation));
 
   // Apply an implicit SectionAttr if #pragma code_seg is active.
   if (CodeSegStack.CurrentValue && D.isFunctionDefinition() &&
       !NewFD->hasAttr<SectionAttr>()) {
     NewFD->addAttr(SectionAttr::CreateImplicit(
         Context, CodeSegStack.CurrentValue->getString(),
-        CodeSegStack.CurrentPragmaLocation, AttributeCommonInfo::AS_Pragma,
-        SectionAttr::Declspec_allocate));
+        CodeSegStack.CurrentPragmaLocation, SectionAttr::Declspec_allocate));
     if (UnifySection(CodeSegStack.CurrentValue->getString(),
                      ASTContext::PSF_Implicit | ASTContext::PSF_Execute |
                          ASTContext::PSF_Read,
@@ -10253,8 +10257,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   if (StrictGuardStackCheckStack.CurrentValue && D.isFunctionDefinition() &&
       !NewFD->hasAttr<StrictGuardStackCheckAttr>())
     NewFD->addAttr(StrictGuardStackCheckAttr::CreateImplicit(
-        Context, PragmaClangTextSection.PragmaLocation,
-        AttributeCommonInfo::AS_Pragma));
+        Context, PragmaClangTextSection.PragmaLocation));
 
   // Apply an implicit CodeSegAttr from class declspec or
   // apply an implicit SectionAttr from #pragma code_seg if active.
@@ -10295,14 +10298,19 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       CheckHLSLEntryPoint(NewFD);
       if (!NewFD->isInvalidDecl()) {
         auto Env = TargetInfo.getTriple().getEnvironment();
-        AttributeCommonInfo AL(NewFD->getBeginLoc());
         HLSLShaderAttr::ShaderType ShaderType =
             static_cast<HLSLShaderAttr::ShaderType>(
                 hlsl::getStageFromEnvironment(Env));
         // To share code with HLSLShaderAttr, add HLSLShaderAttr to entry
         // function.
-        if (HLSLShaderAttr *Attr = mergeHLSLShaderAttr(NewFD, AL, ShaderType))
-          NewFD->addAttr(Attr);
+        if (HLSLShaderAttr *NT = NewFD->getAttr<HLSLShaderAttr>()) {
+          if (NT->getType() != ShaderType)
+            Diag(NT->getLocation(), diag::err_hlsl_entry_shader_attr_mismatch)
+                << NT;
+        } else {
+          NewFD->addAttr(HLSLShaderAttr::Create(Context, ShaderType,
+                                                NewFD->getBeginLoc()));
+        }
       }
     }
     // HLSL does not support specifying an address space on a function return
@@ -10878,8 +10886,7 @@ Attr *Sema::getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD,
       CodeSegStack.CurrentValue)
     return SectionAttr::CreateImplicit(
         getASTContext(), CodeSegStack.CurrentValue->getString(),
-        CodeSegStack.CurrentPragmaLocation, AttributeCommonInfo::AS_Pragma,
-        SectionAttr::Declspec_allocate);
+        CodeSegStack.CurrentPragmaLocation, SectionAttr::Declspec_allocate);
   return nullptr;
 }
 
@@ -11420,8 +11427,7 @@ static bool CheckMultiVersionAdditionalDecl(
     if (NewMVKind == MultiVersionKind::None &&
         OldMVKind == MultiVersionKind::TargetVersion) {
       NewFD->addAttr(TargetVersionAttr::CreateImplicit(
-          S.Context, "default", NewFD->getSourceRange(),
-          AttributeCommonInfo::AS_GNU));
+          S.Context, "default", NewFD->getSourceRange()));
       NewFD->setIsMultiVersion();
       NewMVKind = MultiVersionKind::TargetVersion;
       if (!NewTVA) {
@@ -11638,8 +11644,7 @@ static bool CheckMultiVersionFunction(Sema &S, FunctionDecl *NewFD,
       const auto *OldTVA = OldFD->getAttr<TargetVersionAttr>();
       if (OldTVA) {
         NewFD->addAttr(TargetVersionAttr::CreateImplicit(
-            S.Context, "default", NewFD->getSourceRange(),
-            AttributeCommonInfo::AS_GNU));
+            S.Context, "default", NewFD->getSourceRange()));
         NewFD->setIsMultiVersion();
         OldFD->setIsMultiVersion();
         OldDecl = OldFD;
@@ -14294,9 +14299,9 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
     } else if (Stack->CurrentValue) {
       SectionFlags |= ASTContext::PSF_Implicit;
       auto SectionName = Stack->CurrentValue->getString();
-      var->addAttr(SectionAttr::CreateImplicit(
-          Context, SectionName, Stack->CurrentPragmaLocation,
-          AttributeCommonInfo::AS_Pragma, SectionAttr::Declspec_allocate));
+      var->addAttr(SectionAttr::CreateImplicit(Context, SectionName,
+                                               Stack->CurrentPragmaLocation,
+                                               SectionAttr::Declspec_allocate));
       if (UnifySection(SectionName, SectionFlags, var))
         var->dropAttr<SectionAttr>();
     }
@@ -14306,8 +14311,7 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
     // attribute.
     if (CurInitSeg && var->getInit())
       var->addAttr(InitSegAttr::CreateImplicit(Context, CurInitSeg->getString(),
-                                               CurInitSegLoc,
-                                               AttributeCommonInfo::AS_Pragma));
+                                               CurInitSegLoc));
   }
 
   // All the following checks are C++ only.
@@ -14409,23 +14413,19 @@ void Sema::FinalizeDeclaration(Decl *ThisDecl) {
     if (PragmaClangBSSSection.Valid)
       VD->addAttr(PragmaClangBSSSectionAttr::CreateImplicit(
           Context, PragmaClangBSSSection.SectionName,
-          PragmaClangBSSSection.PragmaLocation,
-          AttributeCommonInfo::AS_Pragma));
+          PragmaClangBSSSection.PragmaLocation));
     if (PragmaClangDataSection.Valid)
       VD->addAttr(PragmaClangDataSectionAttr::CreateImplicit(
           Context, PragmaClangDataSection.SectionName,
-          PragmaClangDataSection.PragmaLocation,
-          AttributeCommonInfo::AS_Pragma));
+          PragmaClangDataSection.PragmaLocation));
     if (PragmaClangRodataSection.Valid)
       VD->addAttr(PragmaClangRodataSectionAttr::CreateImplicit(
           Context, PragmaClangRodataSection.SectionName,
-          PragmaClangRodataSection.PragmaLocation,
-          AttributeCommonInfo::AS_Pragma));
+          PragmaClangRodataSection.PragmaLocation));
     if (PragmaClangRelroSection.Valid)
       VD->addAttr(PragmaClangRelroSectionAttr::CreateImplicit(
           Context, PragmaClangRelroSection.SectionName,
-          PragmaClangRelroSection.PragmaLocation,
-          AttributeCommonInfo::AS_Pragma));
+          PragmaClangRelroSection.PragmaLocation));
   }
 
   if (auto *DD = dyn_cast<DecompositionDecl>(ThisDecl)) {
@@ -15275,6 +15275,15 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
     PushExpressionEvaluationContext(
         FD->isConsteval() ? ExpressionEvaluationContext::ImmediateFunctionContext
                           : ExprEvalContexts.back().Context);
+
+  // Each ExpressionEvaluationContextRecord also keeps track of whether the
+  // context is nested in an immediate function context, so smaller contexts
+  // that appear inside immediate functions (like variable initializers) are
+  // considered to be inside an immediate function context even though by
+  // themselves they are not immediate function contexts. But when a new
+  // function is entered, we need to reset this tracking, since the entered
+  // function might be not an immediate function.
+  ExprEvalContexts.back().InImmediateFunctionContext = FD->isConsteval();
 
   // Check for defining attributes before the check for redefinition.
   if (const auto *Attr = FD->getAttr<AliasAttr>()) {
@@ -17761,9 +17770,10 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
     Record->markAbstract();
 
   if (FinalLoc.isValid()) {
-    Record->addAttr(FinalAttr::Create(
-        Context, FinalLoc, AttributeCommonInfo::AS_Keyword,
-        static_cast<FinalAttr::Spelling>(IsFinalSpelledSealed)));
+    Record->addAttr(FinalAttr::Create(Context, FinalLoc,
+                                      IsFinalSpelledSealed
+                                          ? FinalAttr::Keyword_sealed
+                                          : FinalAttr::Keyword_final));
   }
   // C++ [class]p2:
   //   [...] The class-name is also inserted into the scope of the
@@ -19961,7 +19971,7 @@ void Sema::ActOnPragmaRedefineExtname(IdentifierInfo* Name,
   NamedDecl *PrevDecl = LookupSingleName(TUScope, Name, NameLoc,
                                          LookupOrdinaryName);
   AttributeCommonInfo Info(AliasName, SourceRange(AliasNameLoc),
-                           AttributeCommonInfo::AS_Pragma);
+                           AttributeCommonInfo::Form::Pragma());
   AsmLabelAttr *Attr = AsmLabelAttr::CreateImplicit(
       Context, AliasName->getName(), /*IsLiteralLabel=*/true, Info);
 
@@ -19986,7 +19996,7 @@ void Sema::ActOnPragmaWeakID(IdentifierInfo* Name,
   Decl *PrevDecl = LookupSingleName(TUScope, Name, NameLoc, LookupOrdinaryName);
 
   if (PrevDecl) {
-    PrevDecl->addAttr(WeakAttr::CreateImplicit(Context, PragmaLoc, AttributeCommonInfo::AS_Pragma));
+    PrevDecl->addAttr(WeakAttr::CreateImplicit(Context, PragmaLoc));
   } else {
     (void)WeakUndeclaredIdentifiers[Name].insert(WeakInfo(nullptr, NameLoc));
   }
@@ -20031,7 +20041,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   return Sema::DeviceDiagnosticReason::All;
 }
 
-Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
+Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
                                                      bool Final) {
   assert(FD && "Expected non-null FunctionDecl");
 
@@ -20048,7 +20058,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // We have to check the GVA linkage of the function's *definition* -- if we
     // only have a declaration, we don't know whether or not the function will
     // be emitted, because (say) the definition could include "inline".
-    FunctionDecl *Def = FD->getDefinition();
+    const FunctionDecl *Def = FD->getDefinition();
 
     return Def && !isDiscardableGVALinkage(
                       getASTContext().GetGVALinkageForFunction(Def));
@@ -20115,7 +20125,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // We have to check the GVA linkage of the function's *definition* -- if we
     // only have a declaration, we don't know whether or not the function will
     // be emitted, because (say) the definition could include "inline".
-    FunctionDecl *Def = FD->getDefinition();
+    const FunctionDecl *Def = FD->getDefinition();
 
     if (Def &&
         !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))

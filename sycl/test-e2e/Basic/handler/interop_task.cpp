@@ -1,7 +1,6 @@
 // REQUIRES: opencl, opencl_icd
-// RUN: %clangxx -fsycl %s -o %t.out %opencl_lib
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %opencl_lib
+// RUN: %{run} %t.out
 
 //==------- interop_task.cpp -----------------------------------------------==//
 //

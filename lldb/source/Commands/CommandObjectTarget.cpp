@@ -2161,9 +2161,9 @@ protected:
     }
 
     const char *pcm_path = command.GetArgumentAtIndex(0);
-    FileSpec pcm_file{pcm_path};
+    const FileSpec pcm_file{pcm_path};
 
-    if (pcm_file.GetFileNameExtension().GetStringRef() != ".pcm") {
+    if (pcm_file.GetFileNameExtension() != ".pcm") {
       result.AppendError("file must have a .pcm extension");
       return false;
     }

@@ -10,13 +10,10 @@
 // REQUIRES: gpu
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
-// TODO: Re-enable this test on Windows after the following issue gets fixed:
-// https://github.com/intel/llvm/issues/8934
-// UNSUPPORTED: windows
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // scalar offset variant of the test - uses scalar offsets.
 

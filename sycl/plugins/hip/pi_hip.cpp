@@ -25,6 +25,7 @@
 #include <mutex>
 #include <regex>
 #include <string.h>
+#include <string_view>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
@@ -130,6 +131,24 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result hip_piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for hip.
+// TODO: Determine correct string to be passed.
+pi_result hip_piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                       const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -529,9 +548,9 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      hipStream_t stream, pi_uint32 stream_token)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
+      isRecorded_{false}, isStarted_{false}, streamToken_{stream_token},
+      evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr}, queue_{queue},
+      stream_{stream}, context_{context} {
 
   assert(type != PI_COMMAND_TYPE_USER);
 
@@ -685,8 +704,8 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{},
-      binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
+    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
+      context_{ctxt} {
   hip_piContextRetain(context_);
 }
 
@@ -936,6 +955,11 @@ pi_result hip_piPlatformGetInfo(pi_platform platform,
   }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    return getInfo<pi_platform_backend>(param_value_size, param_value,
+                                        param_value_size_ret,
+                                        PI_EXT_PLATFORM_BACKEND_HIP);
   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -1682,6 +1706,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
   case PI_DEVICE_INFO_EXTENSIONS: {
     // TODO: Remove comment when HIP support native asserts.
     // DEVICELIB_ASSERT extension is set so fallback assert
@@ -1931,6 +1959,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 #endif
     return PI_ERROR_INVALID_VALUE;
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on HIP devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    // The sRGB images are not supported on HIP device.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
 
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -1942,6 +1980,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
+  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
     setErrorMessage("HIP backend does not support this query",
                     PI_ERROR_INVALID_ARG_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
@@ -2448,6 +2487,35 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 
   sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
+  return {};
+}
+
+/// Created a PI image mem object from a HIP image mem handle.
+/// TODO: Implement this.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param[in] ImageFormat The format of the image.
+/// \param[in] ImageDesc The description information for the image.
+/// \param[out] mem Set to the PI mem object created from native handle.
+///
+/// \return TBD
+pi_result hip_piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *mem) {
+  (void)nativeHandle;
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  (void)mem;
+
+  sycl::detail::pi::die(
+      "Creation of PI mem from native image handle not implemented");
   return {};
 }
 
@@ -3603,6 +3671,37 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   if (kernel != nullptr) {
 
     switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+      size_t global_work_size[3] = {0, 0, 0};
+
+      int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_block_dimX, hipDeviceAttributeMaxBlockDimX,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_block_dimY, hipDeviceAttributeMaxBlockDimY,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_block_dimZ, hipDeviceAttributeMaxBlockDimZ,
+                                device->get()) == hipSuccess);
+
+      int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_grid_dimX, hipDeviceAttributeMaxGridDimX,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_grid_dimY, hipDeviceAttributeMaxGridDimY,
+                                device->get()) == hipSuccess);
+      sycl::detail::pi::assertion(
+          hipDeviceGetAttribute(&max_grid_dimZ, hipDeviceAttributeMaxGridDimZ,
+                                device->get()) == hipSuccess);
+
+      global_work_size[0] = max_block_dimX * max_grid_dimX;
+      global_work_size[1] = max_block_dimY * max_grid_dimY;
+      global_work_size[2] = max_block_dimZ * max_grid_dimZ;
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, global_work_size);
+    }
     case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
       sycl::detail::pi::assertion(
@@ -5448,7 +5547,7 @@ pi_result hip_piextEnqueueWriteHostPipe(
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result hip_piTearDown(void *PluginParameter) {
@@ -5643,6 +5742,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
 
 #undef _PI_CL
 

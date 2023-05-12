@@ -22,6 +22,7 @@ add_llvm_unittest(SupportTests
   Chrono.cpp
   CommandLineTest.cpp
   CompressionTest.cpp
+  ConvertEBCDICTest.cpp
   ConvertUTFTest.cpp
   CRCTest.cpp
   CSKYAttributeParserTest.cpp

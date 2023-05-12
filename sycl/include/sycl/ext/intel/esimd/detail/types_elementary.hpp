@@ -41,7 +41,7 @@ template <typename U> constexpr bool is_type() { return false; }
 template <typename U, typename T, typename... Ts> constexpr bool is_type() {
   using UU = typename std::remove_const_t<U>;
   using TT = typename std::remove_const_t<T>;
-  return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
+  return std::is_same_v<UU, TT> || is_type<UU, Ts...>();
 }
 
 // Converts types to single 'void' type (used for SFINAE).
@@ -78,7 +78,7 @@ static inline constexpr bool is_vectorizable_v = is_vectorizable<Ty>::value;
 
 // Raw vector type, using clang vector type extension.
 template <typename Ty, int N> struct raw_vector_type {
-  static_assert(!std::is_const<Ty>::value, "const element type not supported");
+  static_assert(!std::is_const_v<Ty>, "const element type not supported");
   static_assert(is_vectorizable_v<Ty>, "element type not supported");
   static_assert(N > 0, "zero-element vector not supported");
 

@@ -1635,8 +1635,8 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
   llvm_unreachable("unknown module kind");
 }
 
-void NamedDecl::printName(raw_ostream &OS, const PrintingPolicy&) const {
-  OS << Name;
+void NamedDecl::printName(raw_ostream &OS, const PrintingPolicy &Policy) const {
+  Name.print(OS, Policy);
 }
 
 void NamedDecl::printName(raw_ostream &OS) const {
@@ -3249,7 +3249,7 @@ bool FunctionDecl::isReplaceableGlobalAllocationFunction(
     return false;
 
   const auto *FPT = getType()->castAs<FunctionProtoType>();
-  if (FPT->getNumParams() == 0 || FPT->getNumParams() > 3 || FPT->isVariadic())
+  if (FPT->getNumParams() == 0 || FPT->getNumParams() > 4 || FPT->isVariadic())
     return false;
 
   // If this is a single-parameter function, it must be a replaceable global
@@ -3284,8 +3284,8 @@ bool FunctionDecl::isReplaceableGlobalAllocationFunction(
       *AlignmentParam = Params;
   }
 
-  // Finally, if this is not a sized delete, the final parameter can
-  // be a 'const std::nothrow_t&'.
+  // If this is not a sized delete, the next parameter can be a
+  // 'const std::nothrow_t&'.
   if (!IsSizedDelete && !Ty.isNull() && Ty->isReferenceType()) {
     Ty = Ty->getPointeeType();
     if (Ty.getCVRQualifiers() != Qualifiers::Const)
@@ -3297,6 +3297,19 @@ bool FunctionDecl::isReplaceableGlobalAllocationFunction(
     }
   }
 
+  // Finally, recognize the not yet standard versions of new that take a
+  // hot/cold allocation hint (__hot_cold_t). These are currently supported by
+  // tcmalloc (see
+  // https://github.com/google/tcmalloc/blob/220043886d4e2efff7a5702d5172cb8065253664/tcmalloc/malloc_extension.h#L53).
+  if (!IsSizedDelete && !Ty.isNull() && Ty->isEnumeralType()) {
+    QualType T = Ty;
+    while (const auto *TD = T->getAs<TypedefType>())
+      T = TD->getDecl()->getUnderlyingType();
+    IdentifierInfo *II = T->getAs<EnumType>()->getDecl()->getIdentifier();
+    if (II && II->isStr("__hot_cold_t"))
+      Consume();
+  }
+
   return Params == FPT->getNumParams();
 }
 
@@ -3306,8 +3319,7 @@ bool FunctionDecl::isInlineBuiltinDeclaration() const {
 
   const FunctionDecl *Definition;
   return hasBody(Definition) && Definition->isInlineSpecified() &&
-         Definition->hasAttr<AlwaysInlineAttr>() &&
-         Definition->hasAttr<GNUInlineAttr>();
+         Definition->hasAttr<AlwaysInlineAttr>();
 }
 
 bool FunctionDecl::isDestroyingOperatorDelete() const {
@@ -4349,6 +4361,28 @@ bool FieldDecl::isAnonymousStructOrUnion() const {
   return false;
 }
 
+Expr *FieldDecl::getInClassInitializer() const {
+  if (!hasInClassInitializer())
+    return nullptr;
+
+  LazyDeclStmtPtr InitPtr = BitField ? InitAndBitWidth->Init : Init;
+  return cast_or_null<Expr>(
+      InitPtr.isOffset() ? InitPtr.get(getASTContext().getExternalSource())
+                         : InitPtr.get(nullptr));
+}
+
+void FieldDecl::setInClassInitializer(Expr *NewInit) {
+  setLazyInClassInitializer(LazyDeclStmtPtr(NewInit));
+}
+
+void FieldDecl::setLazyInClassInitializer(LazyDeclStmtPtr NewInit) {
+  assert(hasInClassInitializer() && !getInClassInitializer());
+  if (BitField)
+    InitAndBitWidth->Init = NewInit;
+  else
+    Init = NewInit;
+}
+
 unsigned FieldDecl::getBitWidthValue(const ASTContext &Ctx) const {
   assert(isBitField() && "not a bitfield");
   return getBitWidth()->EvaluateKnownConstInt(Ctx).getZExtValue();
@@ -4409,6 +4443,8 @@ unsigned FieldDecl::getFieldIndex() const {
 
   for (auto *Field : RD->fields()) {
     Field->getCanonicalDecl()->CachedFieldIndex = Index + 1;
+    assert(Field->getCanonicalDecl()->CachedFieldIndex == Index + 1 &&
+           "overflow in field numbering");
     ++Index;
   }
 
@@ -4428,11 +4464,11 @@ SourceRange FieldDecl::getSourceRange() const {
 void FieldDecl::setCapturedVLAType(const VariableArrayType *VLAType) {
   assert((getParent()->isLambda() || getParent()->isCapturedRecord()) &&
          "capturing type in non-lambda or captured record.");
-  assert(InitStorage.getInt() == ISK_NoInit &&
-         InitStorage.getPointer() == nullptr &&
-         "bit width, initializer or captured type already set");
-  InitStorage.setPointerAndInt(const_cast<VariableArrayType *>(VLAType),
-                               ISK_CapturedVLAType);
+  assert(StorageKind == ISK_NoInit && !BitField &&
+         "bit-field or field with default member initializer cannot capture "
+         "VLA type");
+  StorageKind = ISK_CapturedVLAType;
+  CapturedVLAType = VLAType;
 }
 
 //===----------------------------------------------------------------------===//
@@ -4867,8 +4903,13 @@ void RecordDecl::LoadFieldsFromExternalStorage() const {
   if (Decls.empty())
     return;
 
-  std::tie(FirstDecl, LastDecl) = BuildDeclChain(Decls,
-                                                 /*FieldsAlreadyLoaded=*/false);
+  auto [ExternalFirst, ExternalLast] =
+      BuildDeclChain(Decls,
+                     /*FieldsAlreadyLoaded=*/false);
+  ExternalLast->NextInContextAndBits.setPointer(FirstDecl);
+  FirstDecl = ExternalFirst;
+  if (!LastDecl)
+    LastDecl = ExternalLast;
 }
 
 bool RecordDecl::mayInsertExtraPadding(bool EmitRemark) const {

@@ -38,9 +38,28 @@ static const plugin &getPlugin(backend Backend) {
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
   default:
-    throw sycl::runtime_error{"Unsupported backend",
+    throw sycl::runtime_error{"getPlugin: Unsupported backend",
                               PI_ERROR_INVALID_OPERATION};
   }
+}
+
+backend convertBackend(pi_platform_backend PiBackend) {
+  switch (PiBackend) {
+  case PI_EXT_PLATFORM_BACKEND_UNKNOWN:
+    return backend::all; // No specific backend
+  case PI_EXT_PLATFORM_BACKEND_LEVEL_ZERO:
+    return backend::ext_oneapi_level_zero;
+  case PI_EXT_PLATFORM_BACKEND_OPENCL:
+    return backend::opencl;
+  case PI_EXT_PLATFORM_BACKEND_CUDA:
+    return backend::ext_oneapi_cuda;
+  case PI_EXT_PLATFORM_BACKEND_HIP:
+    return backend::ext_oneapi_hip;
+  case PI_EXT_PLATFORM_BACKEND_ESIMD:
+    return backend::ext_intel_esimd_emulator;
+  }
+  throw sycl::runtime_error{"convertBackend: Unsupported backend",
+                            PI_ERROR_INVALID_OPERATION};
 }
 
 platform make_platform(pi_native_handle NativeHandle, backend Backend) {
@@ -176,7 +195,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   pi::PiProgram PiProgram = nullptr;
   Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiProgram);
-  if (Plugin.getBackend() == backend::opencl)
+  if (ContextImpl->getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piProgramRetain>(PiProgram);
 
   std::vector<pi::PiDevice> ProgramDevices;

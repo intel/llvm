@@ -1838,6 +1838,30 @@ public:
     for (const auto &arg : llvm::enumerate(procRef.arguments())) {
       auto *expr =
           Fortran::evaluate::UnwrapExpr<Fortran::lower::SomeExpr>(arg.value());
+
+      if (!expr && arg.value() && arg.value()->GetAssumedTypeDummy()) {
+        // Assumed type optional.
+        const Fortran::evaluate::Symbol *assumedTypeSym =
+            arg.value()->GetAssumedTypeDummy();
+        auto symBox = symMap.lookupSymbol(*assumedTypeSym);
+        ExtValue exv =
+            converter.getSymbolExtendedValue(*assumedTypeSym, &symMap);
+        if (argLowering) {
+          fir::ArgLoweringRule argRules =
+              fir::lowerIntrinsicArgumentAs(*argLowering, arg.index());
+          // Note: usages of TYPE(*) is limited by C710 but C_LOC and
+          // IS_CONTIGUOUS may require an assumed size TYPE(*) to be passed to
+          // the intrinsic library utility as a fir.box.
+          if (argRules.lowerAs == fir::LowerIntrinsicArgAs::Box &&
+              !fir::getBase(exv).getType().isa<fir::BaseBoxType>()) {
+            operands.emplace_back(
+                fir::factory::createBoxValue(builder, loc, exv));
+            continue;
+          }
+        }
+        operands.emplace_back(std::move(exv));
+        continue;
+      }
       if (!expr) {
         // Absent optional.
         operands.emplace_back(fir::getAbsentIntrinsicArgument());
@@ -4022,7 +4046,11 @@ private:
       if (passArg) {
         ExtValue exv = asScalarRef(*passArg->UnwrapExpr());
         fir::FirOpBuilder *builder = &converter.getFirOpBuilder();
-        return fir::factory::getExtents(getLoc(), *builder, exv);
+        auto extents = fir::factory::getExtents(getLoc(), *builder, exv);
+        if (extents.size() == 0)
+          TODO(getLoc(), "getting shape from polymorphic array in elemental "
+                         "procedure reference");
+        return extents;
       }
     }
     fir::emitFatalError(getLoc(),
@@ -4266,7 +4294,9 @@ private:
     // Put the implicit loop variables in row to column order to match FIR's
     // Ops. (The loops were constructed from outermost column to innermost
     // row.)
-    mlir::Value outerRes = loops[0].getResult(0);
+    mlir::Value outerRes;
+    if (loops[0].getNumResults() != 0)
+      outerRes = loops[0].getResult(0);
     return {IterationSpace(innerArg, outerRes, llvm::reverse(ivars)),
             afterLoopNest};
   }

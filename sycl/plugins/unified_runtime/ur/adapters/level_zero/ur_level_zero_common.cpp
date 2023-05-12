@@ -69,6 +69,8 @@ void urPrint(const char *Format, ...) {
   }
 }
 
+usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value) {
@@ -78,13 +80,14 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    urPrint(
-        "Level Zero plugin was unable to set the environment variable: %s\n",
-        name);
+    urPrint("UR L0 Adapter was unable to set the environment variable: %s\n",
+            name);
     return false;
   }
   return true;
 }
+
+ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
 std::map<const char *, int> *ZeCallCount = nullptr;

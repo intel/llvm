@@ -110,7 +110,7 @@
 // RUN:          -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a \
 // RUN:          %s -### 2>&1 \
 // RUN:  | FileCheck %s --check-prefix=CHK-FPGA-LINK-UNDEFS
-// CHK-FPGA-LINK-UNDEFS: ld{{.*}} "-z" "undefs"
+// CHK-FPGA-LINK-UNDEFS: ld{{.*}} "--unresolved-symbols=ignore-all"
 // CHK-FPGA-LINK-UNDEFS: clang-offload-deps{{.*}}
 
 /// -fintelfpga -fsycl-link from source

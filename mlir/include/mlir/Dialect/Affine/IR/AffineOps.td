@@ -21,7 +21,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Affine_Dialect : Dialect {
   let name = "affine";
-  let cppNamespace = "mlir";
+  let cppNamespace = "::mlir::affine";
   let hasConstantMaterializer = 1;
   let dependentDialects = ["arith::ArithDialect"];
 }
@@ -96,6 +96,18 @@ def AffineApplyOp : Affine_Op<"apply", [Pure]> {
     /// Returns true if the result of this operation is a symbol for all its
     /// uses in `region`.
     bool isValidSymbol(Region *region);
+
+    /// Returns all dimension operands.
+    ValueRange getDimOperands() {
+      return OperandRange{getOperands().begin(),
+                          getOperands().begin() + getMap().getNumDims()};
+    }
+
+    /// Returns all symbol operands.
+    ValueRange getSymbolOperands() {
+      return OperandRange{getOperands().begin() + getMap().getNumDims(),
+                          getOperands().end()};
+    }
   }];
 
   let hasCanonicalizer = 1;

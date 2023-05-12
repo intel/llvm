@@ -170,7 +170,7 @@
 //            Number of samples to get to the desrired percentile.
 //
 // NAME TABLE
-//    SIZE (uint32_t)
+//    SIZE (uint64_t)
 //        Number of entries in the name table.
 //    NAMES
 //        A NUL-separated list of SIZE strings.
@@ -182,7 +182,7 @@
 //        NOTE: This field should only be present for top-level functions
 //              (i.e., not inlined into any caller). Inlined function calls
 //              have no prologue, so they don't need this.
-//    NAME_IDX (uint32_t)
+//    NAME_IDX (uint64_t)
 //        Index into the name table indicating the function name.
 //    SAMPLES (uint64_t)
 //        Total number of samples collected in this function.
@@ -204,7 +204,7 @@
 //            represent all the actual functions called at runtime.
 //          CALL_TARGETS
 //            A list of NUM_CALLS entries for each called function:
-//               NAME_IDX (uint32_t)
+//               NAME_IDX (uint64_t)
 //                  Index into the name table with the callee name.
 //               SAMPLES (uint64_t)
 //                  Number of samples collected at the call site.
@@ -623,7 +623,7 @@ protected:
   ErrorOr<StringRef> readString();
 
   /// Read the string index and check whether it overflows the table.
-  template <typename T> inline ErrorOr<uint32_t> readStringIndex(T &Table);
+  template <typename T> inline ErrorOr<size_t> readStringIndex(T &Table);
 
   /// Return true if we've reached the end of file.
   bool at_eof() const { return Data >= End; }
@@ -704,7 +704,7 @@ private:
 
 protected:
   std::vector<SecHdrTableEntry> SecHdrTable;
-  std::error_code readSecHdrTableEntry(uint32_t Idx);
+  std::error_code readSecHdrTableEntry(uint64_t Idx);
   std::error_code readSecHdrTable();
 
   std::error_code readFuncMetadata(bool ProfileHasAttribute);
@@ -809,41 +809,6 @@ public:
 
   /// \brief Return true if \p Buffer is in the format supported by this class.
   static bool hasFormat(const MemoryBuffer &Buffer);
-};
-
-class SampleProfileReaderCompactBinary : public SampleProfileReaderBinary {
-private:
-  /// Function name table.
-  std::vector<std::string> NameTable;
-  /// The table mapping from function name to the offset of its FunctionSample
-  /// towards file start.
-  DenseMap<StringRef, uint64_t> FuncOffsetTable;
-  /// The set containing the functions to use when compiling a module.
-  DenseSet<StringRef> FuncsToUse;
-  std::error_code verifySPMagic(uint64_t Magic) override;
-  std::error_code readNameTable() override;
-  /// Read a string indirectly via the name table.
-  ErrorOr<StringRef> readStringFromTable() override;
-  std::error_code readHeader() override;
-  std::error_code readFuncOffsetTable();
-
-public:
-  SampleProfileReaderCompactBinary(std::unique_ptr<MemoryBuffer> B,
-                                   LLVMContext &C)
-      : SampleProfileReaderBinary(std::move(B), C, SPF_Compact_Binary) {}
-
-  /// \brief Return true if \p Buffer is in the format supported by this class.
-  static bool hasFormat(const MemoryBuffer &Buffer);
-
-  /// Read samples only for functions to use.
-  std::error_code readImpl() override;
-
-  /// Collect functions with definitions in Module M. Return true if
-  /// the reader has been given a module.
-  bool collectFuncsFromModule() override;
-
-  /// Return whether names in the profile are all MD5 numbers.
-  bool useMD5() override { return true; }
 };
 
 using InlineCallStack = SmallVector<FunctionSamples *, 10>;

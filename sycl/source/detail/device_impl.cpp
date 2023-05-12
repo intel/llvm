@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_impl.hpp>
+#include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
 
@@ -110,14 +111,39 @@ platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 
+template <typename Param>
+typename Param::return_type device_impl::get_info() const {
+  if (is_host()) {
+    return get_device_info_host<Param>();
+  }
+  return get_device_info<Param>(MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+}
+// Explicitly instantiate all device info traits
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template ReturnT device_impl::get_info<info::device::Desc>() const;
+
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  template ReturnT device_impl::get_info<info::device::Desc>() const;
+
+#include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  device_impl::get_info<Namespace::info::DescType::Desc>() const;
+
+#include <sycl/info/ext_codeplay_device_traits.def>
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   if (MIsHostDevice)
     // TODO: implement extension management for host device;
     return false;
-
-  std::string AllExtensionNames = get_device_info_string(
-      this->getHandleRef(), PiInfoCode<info::device::extensions>::value,
-      this->getPlugin());
+  std::string AllExtensionNames =
+      get_device_info_string(PiInfoCode<info::device::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -275,7 +301,7 @@ std::vector<device> device_impl::create_sub_devices() const {
 
 pi_native_handle device_impl::getNative() const {
   auto Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
+  if (getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piDeviceRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
@@ -325,20 +351,21 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_device_allocations>();
   case aspect::usm_host_allocations:
     return get_info<info::device::usm_host_allocations>();
+  case aspect::ext_intel_mem_channel:
+    return get_info<info::device::ext_intel_mem_channel>();
   case aspect::usm_atomic_host_allocations:
     return is_host() ||
-           (get_device_info_impl<
-                pi_usm_capabilities,
-                info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
+           (get_device_info_impl<pi_usm_capabilities,
+                                 info::device::usm_host_allocations>::
+                get(MPlatform->getDeviceImpl(MDevice)) &
             PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
     return is_host() ||
-           (get_device_info_impl<
-                pi_usm_capabilities,
-                info::device::usm_shared_allocations>::get(MDevice,
-                                                           getPlugin()) &
+           (get_device_info_impl<pi_usm_capabilities,
+                                 info::device::usm_shared_allocations>::
+                get(MPlatform->getDeviceImpl(MDevice)) &
             PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
@@ -417,10 +444,17 @@ bool device_impl::has(aspect Aspect) const {
             &async_barrier_supported, nullptr) == PI_SUCCESS;
     return call_successful && async_barrier_supported;
   }
-  default:
-    throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_ERROR_INVALID_DEVICE);
+  case aspect::ext_intel_legacy_image: {
+    pi_bool legacy_image_support = PI_FALSE;
+    bool call_successful =
+        getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
+            &legacy_image_support, nullptr) == PI_SUCCESS;
+    return call_successful && legacy_image_support;
   }
+  }
+  throw runtime_error("This device aspect has not been implemented yet.",
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {

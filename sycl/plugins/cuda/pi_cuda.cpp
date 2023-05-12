@@ -25,6 +25,7 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <string_view>
 
 // Forward declarations
 void enableCUDATracing();
@@ -78,6 +79,25 @@ static void setErrorMessage(const char *message, pi_result error_code) {
 pi_result cuda_piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for cuda.
+// TODO: Determine correct string to be passed.
+pi_result cuda_piPluginGetBackendOption(pi_platform,
+                                        const char *frontend_option,
+                                        const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -370,6 +390,41 @@ void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
   }
 }
 
+bool getMaxRegistersJitOptionValue(const std::string &build_options,
+                                   unsigned int &value) {
+  using namespace std::string_view_literals;
+  const std::size_t optionPos = build_options.find_first_of("maxrregcount"sv);
+  if (optionPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t delimPos = build_options.find('=', optionPos + 1u);
+  if (delimPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t length = build_options.length();
+  const std::size_t startPos = delimPos + 1u;
+  if (delimPos == std::string::npos || startPos >= length) {
+    return false;
+  }
+
+  std::size_t pos = startPos;
+  while (pos < length &&
+         std::isdigit(static_cast<unsigned char>(build_options[pos]))) {
+    pos++;
+  }
+
+  const std::string valueString =
+      build_options.substr(startPos, pos - startPos);
+  if (valueString.empty()) {
+    return false;
+  }
+
+  value = static_cast<unsigned int>(std::stoi(valueString));
+  return true;
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -547,8 +602,8 @@ _pi_event::_pi_event(pi_context context, CUevent eventNative)
     : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
-                                                                  context} {
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr},
+      context_{context} {
   cuda_piContextRetain(context_);
 }
 
@@ -757,8 +812,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 
   constexpr const unsigned int numberOfOptions = 4u;
 
-  CUjit_option options[numberOfOptions];
-  void *optionVals[numberOfOptions];
+  std::vector<CUjit_option> options(numberOfOptions);
+  std::vector<void *> optionVals(numberOfOptions);
 
   // Pass a buffer for info messages
   options[0] = CU_JIT_INFO_LOG_BUFFER;
@@ -773,9 +828,18 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
+  if (!buildOptions_.empty()) {
+    unsigned int maxRegs;
+    bool valid = getMaxRegistersJitOptionValue(buildOptions_, maxRegs);
+    if (valid) {
+      options.push_back(CU_JIT_MAX_REGISTERS);
+      optionVals.push_back(reinterpret_cast<void *>(maxRegs));
+    }
+  }
+
   auto result = PI_CHECK_ERROR(
       cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
+                         options.size(), options.data(), optionVals.data()));
 
   const auto success = (result == PI_SUCCESS);
 
@@ -943,6 +1007,11 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    return getInfo<pi_platform_backend>(param_value_size, param_value,
+                                        param_value_size_ret,
+                                        PI_EXT_PLATFORM_BACKEND_CUDA);
   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -2031,6 +2100,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    memory_bandwidth);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on CUDA devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    // The sRGB images are not supported on CUDA.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -2449,6 +2528,29 @@ pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
                                               pi_mem *mem) {
   sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
+  return {};
+}
+
+/// Created a PI image mem object from a CUDA image mem handle.
+/// TODO: Implement this.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param[in] pi_native_handle The native handle to create PI mem object from.
+/// \param[in] pi_context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Boolean indicates if we own the native memory
+/// handle or it came from interop that asked to not transfer the ownership to
+/// SYCL RT. \param[in] pi_image_format The format of the image. \param[in]
+/// pi_image_desc The description information for the image. \param[out] pi_mem
+/// Set to the PI mem object created from native handle.
+///
+/// \return TBD
+pi_result cuda_piextMemImageCreateWithNativeHandle(pi_native_handle, pi_context,
+                                                   bool,
+                                                   const pi_image_format *,
+                                                   const pi_image_desc *,
+                                                   pi_mem *) {
+  sycl::detail::pi::die(
+      "Creation of PI mem from native image handle not implemented");
   return {};
 }
 
@@ -2957,6 +3059,43 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   if (kernel != nullptr) {
 
     switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+      size_t global_work_size[3] = {0, 0, 0};
+
+      int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_block_dimX,
+                               CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_block_dimY,
+                               CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_block_dimZ,
+                               CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
+                               device->get()) == CUDA_SUCCESS);
+
+      int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_grid_dimX,
+                               CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_grid_dimY,
+                               CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_grid_dimZ,
+                               CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                               device->get()) == CUDA_SUCCESS);
+
+      global_work_size[0] = max_block_dimX * max_grid_dimX;
+      global_work_size[1] = max_block_dimY * max_grid_dimY;
+      global_work_size[2] = max_block_dimZ * max_grid_dimZ;
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, global_work_size);
+    }
     case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
       sycl::detail::pi::assertion(
@@ -5629,7 +5768,7 @@ pi_result cuda_piextEnqueueWriteHostPipe(
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result cuda_piTearDown(void *) {
@@ -5824,6 +5963,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOption, cuda_piPluginGetBackendOption)
 
 #undef _PI_CL
 

@@ -190,7 +190,7 @@ static RecordDecl *buildRecordForGlobalizedVars(
           IntegerLiteral::Create(C, Align,
                                  C.getIntTypeForBitwidth(32, /*Signed=*/0),
                                  SourceLocation()),
-          {}, AttributeCommonInfo::AS_GNU, AlignedAttr::GNU_aligned));
+          {}, AlignedAttr::GNU_aligned));
     }
     GlobalizedRD->addDecl(Field);
     MappedDeclsFields.try_emplace(VD, Field);
@@ -905,14 +905,15 @@ void CGOpenMPRuntimeGPU::emitNumTeamsClause(CodeGenFunction &CGF,
                                               SourceLocation Loc) {}
 
 llvm::Function *CGOpenMPRuntimeGPU::emitParallelOutlinedFunction(
-    const OMPExecutableDirective &D, const VarDecl *ThreadIDVar,
-    OpenMPDirectiveKind InnermostKind, const RegionCodeGenTy &CodeGen) {
+    CodeGenFunction &CGF, const OMPExecutableDirective &D,
+    const VarDecl *ThreadIDVar, OpenMPDirectiveKind InnermostKind,
+    const RegionCodeGenTy &CodeGen) {
   // Emit target region as a standalone region.
   bool PrevIsInTTDRegion = IsInTTDRegion;
   IsInTTDRegion = false;
   auto *OutlinedFun =
       cast<llvm::Function>(CGOpenMPRuntime::emitParallelOutlinedFunction(
-          D, ThreadIDVar, InnermostKind, CodeGen));
+          CGF, D, ThreadIDVar, InnermostKind, CodeGen));
   IsInTTDRegion = PrevIsInTTDRegion;
   if (getExecutionMode() != CGOpenMPRuntimeGPU::EM_SPMD) {
     llvm::Function *WrapperFun =
@@ -962,8 +963,9 @@ getTeamsReductionVars(ASTContext &Ctx, const OMPExecutableDirective &D,
 }
 
 llvm::Function *CGOpenMPRuntimeGPU::emitTeamsOutlinedFunction(
-    const OMPExecutableDirective &D, const VarDecl *ThreadIDVar,
-    OpenMPDirectiveKind InnermostKind, const RegionCodeGenTy &CodeGen) {
+    CodeGenFunction &CGF, const OMPExecutableDirective &D,
+    const VarDecl *ThreadIDVar, OpenMPDirectiveKind InnermostKind,
+    const RegionCodeGenTy &CodeGen) {
   SourceLocation Loc = D.getBeginLoc();
 
   const RecordDecl *GlobalizedRD = nullptr;
@@ -1024,7 +1026,7 @@ llvm::Function *CGOpenMPRuntimeGPU::emitTeamsOutlinedFunction(
   } Action(Loc, GlobalizedRD, MappedDeclsFields);
   CodeGen.setAction(Action);
   llvm::Function *OutlinedFun = CGOpenMPRuntime::emitTeamsOutlinedFunction(
-      D, ThreadIDVar, InnermostKind, CodeGen);
+      CGF, D, ThreadIDVar, InnermostKind, CodeGen);
 
   return OutlinedFun;
 }
@@ -2922,9 +2924,9 @@ void CGOpenMPRuntimeGPU::emitReduction(
 
   llvm::Value *RL = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       ReductionList.getPointer(), CGF.VoidPtrTy);
-  llvm::Function *ReductionFn =
-      emitReductionFunction(Loc, CGF.ConvertTypeForMem(ReductionArrayTy),
-                            Privates, LHSExprs, RHSExprs, ReductionOps);
+  llvm::Function *ReductionFn = emitReductionFunction(
+      CGF.CurFn->getName(), Loc, CGF.ConvertTypeForMem(ReductionArrayTy),
+      Privates, LHSExprs, RHSExprs, ReductionOps);
   llvm::Value *ReductionArrayTySize = CGF.getTypeSize(ReductionArrayTy);
   llvm::Function *ShuffleAndReduceFn = emitShuffleAndReduceFunction(
       CGM, Privates, ReductionArrayTy, ReductionFn, Loc);
@@ -3351,7 +3353,7 @@ Address CGOpenMPRuntimeGPU::getAddressOfLocalVariable(CodeGenFunction &CGF,
     llvm::Type *VarTy = CGF.ConvertTypeForMem(VD->getType());
     auto *GV = new llvm::GlobalVariable(
         CGM.getModule(), VarTy, /*isConstant=*/false,
-        llvm::GlobalValue::InternalLinkage, llvm::Constant::getNullValue(VarTy),
+        llvm::GlobalValue::InternalLinkage, llvm::PoisonValue::get(VarTy),
         VD->getName(),
         /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal,
         CGM.getContext().getTargetAddressSpace(AS));

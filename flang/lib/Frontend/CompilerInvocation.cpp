@@ -163,6 +163,10 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
                    clang::driver::options::OPT_fno_stack_arrays, false)) {
     opts.StackArrays = 1;
   }
+  if (args.hasFlag(clang::driver::options::OPT_floop_versioning,
+                   clang::driver::options::OPT_fno_loop_versioning, false)) {
+    opts.LoopVersioning = 1;
+  }
 
   for (auto *a : args.filtered(clang::driver::options::OPT_fpass_plugin_EQ))
     opts.LLVMPassPlugins.push_back(a->getValue());
@@ -721,6 +725,49 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
 
     if (args.hasArg(clang::driver::options::OPT_fopenmp_is_device)) {
       res.getLangOpts().OpenMPIsDevice = 1;
+
+      // Get OpenMP host file path if any and report if a non existent file is
+      // found
+      if (auto *arg = args.getLastArg(
+              clang::driver::options::OPT_fopenmp_host_ir_file_path)) {
+        res.getLangOpts().OMPHostIRFile = arg->getValue();
+        if (!llvm::sys::fs::exists(res.getLangOpts().OMPHostIRFile))
+          diags.Report(clang::diag::err_drv_omp_host_ir_file_not_found)
+              << res.getLangOpts().OMPHostIRFile;
+      }
+
+      if (args.hasFlag(
+              clang::driver::options::OPT_fopenmp_assume_teams_oversubscription,
+              clang::driver::options::
+                  OPT_fno_openmp_assume_teams_oversubscription,
+              /*Default=*/false))
+        res.getLangOpts().OpenMPTeamSubscription = true;
+
+      if (args.hasArg(
+              clang::driver::options::OPT_fopenmp_assume_no_thread_state))
+        res.getLangOpts().OpenMPNoThreadState = 1;
+
+      if (args.hasArg(
+              clang::driver::options::OPT_fopenmp_assume_no_nested_parallelism))
+        res.getLangOpts().OpenMPNoNestedParallelism = 1;
+
+      if (args.hasFlag(clang::driver::options::
+                           OPT_fopenmp_assume_threads_oversubscription,
+                       clang::driver::options::
+                           OPT_fno_openmp_assume_threads_oversubscription,
+                       /*Default=*/false))
+        res.getLangOpts().OpenMPThreadSubscription = true;
+
+      if ((args.hasArg(clang::driver::options::OPT_fopenmp_target_debug) ||
+           args.hasArg(clang::driver::options::OPT_fopenmp_target_debug_EQ))) {
+        res.getLangOpts().OpenMPTargetDebug = getLastArgIntValue(
+            args, clang::driver::options::OPT_fopenmp_target_debug_EQ,
+            res.getLangOpts().OpenMPTargetDebug, diags);
+
+        if (!res.getLangOpts().OpenMPTargetDebug &&
+            args.hasArg(clang::driver::options::OPT_fopenmp_target_debug))
+          res.getLangOpts().OpenMPTargetDebug = 1;
+      }
     }
   }
 

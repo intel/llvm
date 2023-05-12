@@ -158,7 +158,7 @@ static LogicalResult genForeachOnSparseConstant(ForeachOp op,
 
   // Foreach on constant.
   foreachInSparseConstant(
-      loc, rewriter, attr, op.getOrder().value_or(AffineMap()),
+      rewriter, loc, attr, op.getOrder().value_or(AffineMap()),
       [&reduc, &rewriter, op](ArrayRef<Value> cvs, Value v) mutable {
         SmallVector<Value> args;
         args.append(cvs.begin(), cvs.end());
@@ -346,6 +346,45 @@ private:
   }
 };
 
+// Fuse a tensor cast into producing operation. Note that a tensor.cast
+// should really not be used to convert between sparse encodings. Since
+// the pattern currently appears as a result of some prior rewriting
+// we make an attempt to repair very obvious cases.
+// TODO: audit the pure tensor dialect rewriting rules
+struct FuseTensorCast : public OpRewritePattern<tensor::CastOp> {
+public:
+  using OpRewritePattern<tensor::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::CastOp op,
+                                PatternRewriter &rewriter) const override {
+    Type srcType = op.getSource().getType();
+    Type dstType = op.getDest().getType();
+    // A nop cast simply folds away.
+    if (srcType == dstType) {
+      rewriter.replaceOp(op, op->getResults());
+      return success();
+    }
+    // See if a sparsity changing cast can be fused into producer.
+    if (tensor::isSameTypeWithoutEncoding(srcType, dstType)) {
+      if (Operation *def = op.getSource().getDefiningOp()) {
+        if (def->hasOneUse() && isa<tensor::ExtractSliceOp>(def)) {
+          def->getResult(0).setType(op->getResultTypes()[0]);
+          rewriter.replaceOp(op, def->getResult(0));
+          return success();
+        }
+      }
+    }
+    // Repair tensor casts with at least one sparse operand into the
+    // the properly supported sparse_tensor.convert.
+    if (getSparseTensorEncoding(srcType) || getSparseTensorEncoding(dstType)) {
+      rewriter.replaceOpWithNewOp<ConvertOp>(op, dstType, op.getSource());
+      return success();
+    }
+    // Fail otherwise.
+    return failure();
+  }
+};
+
 /// Sparse rewriting rule for sparse-to-sparse reshape operator.
 template <typename ReshapeOp>
 struct Sparse2SparseReshapeRewriter : public OpRewritePattern<ReshapeOp> {
@@ -372,7 +411,7 @@ public:
         dstSizes.push_back(constantIndex(rewriter, loc, d));
     } else {
       ArrayRef<DynSize> dstShape = dstTp.getDimShape();
-      genReshapeDstShape(loc, rewriter, dstSizes, srcSizes, dstShape,
+      genReshapeDstShape(rewriter, loc, dstSizes, srcSizes, dstShape,
                          op.getReassociationIndices());
       for (auto [idx, shape] : llvm::enumerate(dstShape)) {
         if (shape == ShapedType::kDynamic)
@@ -1014,7 +1053,7 @@ public:
       // Link the reduction chain. Note that loop emitter update the reducValue
       // in place.
       loopEmitter.exitCurrentLoop(rewriter, loc, reducValue);
-      loopEmitter.exitCurrentLoopSeq();
+      loopEmitter.exitCurrentLoopSeq(rewriter, loc);
     }
 
     // Replace the foreach operator with the value returned by the outtermost
@@ -1125,7 +1164,7 @@ struct OutRewriter : public OpRewritePattern<OutOp> {
 //===---------------------------------------------------------------------===//
 
 void mlir::populatePreSparsificationRewriting(RewritePatternSet &patterns) {
-  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd>(
+  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd, FuseTensorCast>(
       patterns.getContext());
 }
 

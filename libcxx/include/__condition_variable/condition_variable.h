@@ -15,12 +15,12 @@
 #include <__config>
 #include <__mutex/mutex.h>
 #include <__mutex/unique_lock.h>
+#include <__system_error/system_error.h>
 #include <__threading_support>
 #include <__type_traits/enable_if.h>
 #include <__type_traits/is_floating_point.h>
 #include <__utility/move.h>
 #include <ratio>
-#include <system_error>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -82,11 +82,12 @@ private:
   void
   __do_timed_wait(unique_lock<mutex>& __lk, chrono::time_point<chrono::system_clock, chrono::nanoseconds>) _NOEXCEPT;
 #  if defined(_LIBCPP_HAS_COND_CLOCKWAIT)
-  void
+  _LIBCPP_HIDE_FROM_ABI void
   __do_timed_wait(unique_lock<mutex>& __lk, chrono::time_point<chrono::steady_clock, chrono::nanoseconds>) _NOEXCEPT;
 #  endif
   template <class _Clock>
-  void __do_timed_wait(unique_lock<mutex>& __lk, chrono::time_point<_Clock, chrono::nanoseconds>) _NOEXCEPT;
+  _LIBCPP_HIDE_FROM_ABI void
+  __do_timed_wait(unique_lock<mutex>& __lk, chrono::time_point<_Clock, chrono::nanoseconds>) _NOEXCEPT;
 };
 #endif // !_LIBCPP_HAS_NO_THREADS
 

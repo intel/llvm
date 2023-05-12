@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple spir64-unknown-unknown-sycldevice -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE=addrspace(1) '
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE=addrspace(1) '
 // RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE='
 
 

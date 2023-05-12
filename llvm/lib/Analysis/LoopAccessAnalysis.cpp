@@ -43,6 +43,7 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -136,6 +137,11 @@ static cl::opt<unsigned> MaxForkedSCEVDepth(
     cl::desc("Maximum recursion depth when finding forked SCEVs (default = 5)"),
     cl::init(5));
 
+static cl::opt<bool> SpeculateUnitStride(
+    "laa-speculate-unit-stride", cl::Hidden,
+    cl::desc("Speculate that non-constant strides are unit in LAA"),
+    cl::init(true));
+
 bool VectorizerParams::isInterleaveForced() {
   return ::VectorizationInterleave.getNumOccurrences() > 0;
 }
@@ -162,11 +168,11 @@ const SCEV *llvm::replaceSymbolicStrideSCEV(PredicatedScalarEvolution &PSE,
   Value *StrideVal = stripIntegerCast(SI->second);
 
   ScalarEvolution *SE = PSE.getSE();
-  const auto *U = cast<SCEVUnknown>(SE->getSCEV(StrideVal));
-  const auto *CT =
-    static_cast<const SCEVConstant *>(SE->getOne(StrideVal->getType()));
+  const SCEV *StrideSCEV = SE->getSCEV(StrideVal);
+  assert(isa<SCEVUnknown>(StrideSCEV) && "shouldn't be in map");
 
-  PSE.addPredicate(*SE->getEqualPredicate(U, CT));
+  const auto *CT = SE->getOne(StrideSCEV->getType());
+  PSE.addPredicate(*SE->getEqualPredicate(StrideSCEV, CT));
   auto *Expr = PSE.getSCEV(Ptr);
 
   LLVM_DEBUG(dbgs() << "LAA: Replacing SCEV: " << *OrigSCEV
@@ -1311,18 +1317,16 @@ void AccessAnalysis::processMemAccesses() {
   }
 }
 
-static bool isInBoundsGep(Value *Ptr) {
-  if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Ptr))
-    return GEP->isInBounds();
-  return false;
-}
-
 /// Return true if an AddRec pointer \p Ptr is unsigned non-wrapping,
 /// i.e. monotonically increasing/decreasing.
 static bool isNoWrapAddRec(Value *Ptr, const SCEVAddRecExpr *AR,
                            PredicatedScalarEvolution &PSE, const Loop *L) {
+
   // FIXME: This should probably only return true for NUW.
   if (AR->getNoWrapFlags(SCEV::NoWrapMask))
+    return true;
+
+  if (PSE.hasNoOverflow(Ptr, SCEVWrapPredicate::IncrementNUSW))
     return true;
 
   // Scalar evolution does not propagate the non-wrapping flags to values that
@@ -1399,35 +1403,6 @@ std::optional<int64_t> llvm::getPtrStride(PredicatedScalarEvolution &PSE,
     return std::nullopt;
   }
 
-  // The address calculation must not wrap. Otherwise, a dependence could be
-  // inverted.
-  // An inbounds getelementptr that is a AddRec with a unit stride
-  // cannot wrap per definition. The unit stride requirement is checked later.
-  // An getelementptr without an inbounds attribute and unit stride would have
-  // to access the pointer value "0" which is undefined behavior in address
-  // space 0, therefore we can also vectorize this case.
-  unsigned AddrSpace = Ty->getPointerAddressSpace();
-  bool IsInBoundsGEP = isInBoundsGep(Ptr);
-  bool IsNoWrapAddRec = !ShouldCheckWrap ||
-    PSE.hasNoOverflow(Ptr, SCEVWrapPredicate::IncrementNUSW) ||
-    isNoWrapAddRec(Ptr, AR, PSE, Lp);
-  if (!IsNoWrapAddRec && !IsInBoundsGEP &&
-      NullPointerIsDefined(Lp->getHeader()->getParent(), AddrSpace)) {
-    if (Assume) {
-      PSE.setNoOverflow(Ptr, SCEVWrapPredicate::IncrementNUSW);
-      IsNoWrapAddRec = true;
-      LLVM_DEBUG(dbgs() << "LAA: Pointer may wrap in the address space:\n"
-                        << "LAA:   Pointer: " << *Ptr << "\n"
-                        << "LAA:   SCEV: " << *AR << "\n"
-                        << "LAA:   Added an overflow assumption\n");
-    } else {
-      LLVM_DEBUG(
-          dbgs() << "LAA: Bad stride - Pointer may wrap in the address space "
-                 << *Ptr << " SCEV: " << *AR << "\n");
-      return std::nullopt;
-    }
-  }
-
   // Check the step is constant.
   const SCEV *Step = AR->getStepRecurrence(*PSE.getSE());
 
@@ -1456,25 +1431,42 @@ std::optional<int64_t> llvm::getPtrStride(PredicatedScalarEvolution &PSE,
   if (Rem)
     return std::nullopt;
 
-  // If the SCEV could wrap but we have an inbounds gep with a unit stride we
-  // know we can't "wrap around the address space". In case of address space
-  // zero we know that this won't happen without triggering undefined behavior.
-  if (!IsNoWrapAddRec && Stride != 1 && Stride != -1 &&
-      (IsInBoundsGEP || !NullPointerIsDefined(Lp->getHeader()->getParent(),
-                                              AddrSpace))) {
-    if (Assume) {
-      // We can avoid this case by adding a run-time check.
-      LLVM_DEBUG(dbgs() << "LAA: Non unit strided pointer which is not either "
-                        << "inbounds or in address space 0 may wrap:\n"
-                        << "LAA:   Pointer: " << *Ptr << "\n"
-                        << "LAA:   SCEV: " << *AR << "\n"
-                        << "LAA:   Added an overflow assumption\n");
-      PSE.setNoOverflow(Ptr, SCEVWrapPredicate::IncrementNUSW);
-    } else
-      return std::nullopt;
-  }
+  if (!ShouldCheckWrap)
+    return Stride;
 
-  return Stride;
+  // The address calculation must not wrap. Otherwise, a dependence could be
+  // inverted.
+  if (isNoWrapAddRec(Ptr, AR, PSE, Lp))
+    return Stride;
+
+  // An inbounds getelementptr that is a AddRec with a unit stride
+  // cannot wrap per definition.  If it did, the result would be poison
+  // and any memory access dependent on it would be immediate UB
+  // when executed.
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);
+      GEP && GEP->isInBounds() && (Stride == 1 || Stride == -1))
+    return Stride;
+
+  // If the null pointer is undefined, then a access sequence which would
+  // otherwise access it can be assumed not to unsigned wrap.  Note that this
+  // assumes the object in memory is aligned to the natural alignment.
+  unsigned AddrSpace = Ty->getPointerAddressSpace();
+  if (!NullPointerIsDefined(Lp->getHeader()->getParent(), AddrSpace) &&
+      (Stride == 1 || Stride == -1))
+    return Stride;
+
+  if (Assume) {
+    PSE.setNoOverflow(Ptr, SCEVWrapPredicate::IncrementNUSW);
+    LLVM_DEBUG(dbgs() << "LAA: Pointer may wrap:\n"
+                      << "LAA:   Pointer: " << *Ptr << "\n"
+                      << "LAA:   SCEV: " << *AR << "\n"
+                      << "LAA:   Added an overflow assumption\n");
+    return Stride;
+  }
+  LLVM_DEBUG(
+      dbgs() << "LAA: Bad stride - Pointer may wrap in the address space "
+             << *Ptr << " SCEV: " << *AR << "\n");
+  return std::nullopt;
 }
 
 std::optional<int> llvm::getPointersDiff(Type *ElemTyA, Value *PtrA,
@@ -2556,6 +2548,144 @@ bool LoopAccessInfo::isUniform(Value *V) const {
   return (SE->isLoopInvariant(SE->getSCEV(V), TheLoop));
 }
 
+/// Find the operand of the GEP that should be checked for consecutive
+/// stores. This ignores trailing indices that have no effect on the final
+/// pointer.
+static unsigned getGEPInductionOperand(const GetElementPtrInst *Gep) {
+  const DataLayout &DL = Gep->getModule()->getDataLayout();
+  unsigned LastOperand = Gep->getNumOperands() - 1;
+  TypeSize GEPAllocSize = DL.getTypeAllocSize(Gep->getResultElementType());
+
+  // Walk backwards and try to peel off zeros.
+  while (LastOperand > 1 && match(Gep->getOperand(LastOperand), m_Zero())) {
+    // Find the type we're currently indexing into.
+    gep_type_iterator GEPTI = gep_type_begin(Gep);
+    std::advance(GEPTI, LastOperand - 2);
+
+    // If it's a type with the same allocation size as the result of the GEP we
+    // can peel off the zero index.
+    if (DL.getTypeAllocSize(GEPTI.getIndexedType()) != GEPAllocSize)
+      break;
+    --LastOperand;
+  }
+
+  return LastOperand;
+}
+
+/// If the argument is a GEP, then returns the operand identified by
+/// getGEPInductionOperand. However, if there is some other non-loop-invariant
+/// operand, it returns that instead.
+static Value *stripGetElementPtr(Value *Ptr, ScalarEvolution *SE, Loop *Lp) {
+  GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Ptr);
+  if (!GEP)
+    return Ptr;
+
+  unsigned InductionOperand = getGEPInductionOperand(GEP);
+
+  // Check that all of the gep indices are uniform except for our induction
+  // operand.
+  for (unsigned i = 0, e = GEP->getNumOperands(); i != e; ++i)
+    if (i != InductionOperand &&
+        !SE->isLoopInvariant(SE->getSCEV(GEP->getOperand(i)), Lp))
+      return Ptr;
+  return GEP->getOperand(InductionOperand);
+}
+
+/// If a value has only one user that is a CastInst, return it.
+static Value *getUniqueCastUse(Value *Ptr, Loop *Lp, Type *Ty) {
+  Value *UniqueCast = nullptr;
+  for (User *U : Ptr->users()) {
+    CastInst *CI = dyn_cast<CastInst>(U);
+    if (CI && CI->getType() == Ty) {
+      if (!UniqueCast)
+        UniqueCast = CI;
+      else
+        return nullptr;
+    }
+  }
+  return UniqueCast;
+}
+
+/// Get the stride of a pointer access in a loop. Looks for symbolic
+/// strides "a[i*stride]". Returns the symbolic stride, or null otherwise.
+static Value *getStrideFromPointer(Value *Ptr, ScalarEvolution *SE, Loop *Lp) {
+  auto *PtrTy = dyn_cast<PointerType>(Ptr->getType());
+  if (!PtrTy || PtrTy->isAggregateType())
+    return nullptr;
+
+  // Try to remove a gep instruction to make the pointer (actually index at this
+  // point) easier analyzable. If OrigPtr is equal to Ptr we are analyzing the
+  // pointer, otherwise, we are analyzing the index.
+  Value *OrigPtr = Ptr;
+
+  // The size of the pointer access.
+  int64_t PtrAccessSize = 1;
+
+  Ptr = stripGetElementPtr(Ptr, SE, Lp);
+  const SCEV *V = SE->getSCEV(Ptr);
+
+  if (Ptr != OrigPtr)
+    // Strip off casts.
+    while (const SCEVIntegralCastExpr *C = dyn_cast<SCEVIntegralCastExpr>(V))
+      V = C->getOperand();
+
+  const SCEVAddRecExpr *S = dyn_cast<SCEVAddRecExpr>(V);
+  if (!S)
+    return nullptr;
+
+  // If the pointer is invariant then there is no stride and it makes no
+  // sense to add it here.
+  if (Lp != S->getLoop())
+    return nullptr;
+
+  V = S->getStepRecurrence(*SE);
+  if (!V)
+    return nullptr;
+
+  // Strip off the size of access multiplication if we are still analyzing the
+  // pointer.
+  if (OrigPtr == Ptr) {
+    if (const SCEVMulExpr *M = dyn_cast<SCEVMulExpr>(V)) {
+      if (M->getOperand(0)->getSCEVType() != scConstant)
+        return nullptr;
+
+      const APInt &APStepVal = cast<SCEVConstant>(M->getOperand(0))->getAPInt();
+
+      // Huge step value - give up.
+      if (APStepVal.getBitWidth() > 64)
+        return nullptr;
+
+      int64_t StepVal = APStepVal.getSExtValue();
+      if (PtrAccessSize != StepVal)
+        return nullptr;
+      V = M->getOperand(1);
+    }
+  }
+
+  // Strip off casts.
+  Type *StripedOffRecurrenceCast = nullptr;
+  if (const SCEVIntegralCastExpr *C = dyn_cast<SCEVIntegralCastExpr>(V)) {
+    StripedOffRecurrenceCast = C->getType();
+    V = C->getOperand();
+  }
+
+  // Look for the loop invariant symbolic value.
+  const SCEVUnknown *U = dyn_cast<SCEVUnknown>(V);
+  if (!U)
+    return nullptr;
+
+  Value *Stride = U->getValue();
+  if (!Lp->isLoopInvariant(Stride))
+    return nullptr;
+
+  // If we have stripped off the recurrence cast we have to make sure that we
+  // return the value that is used in this loop so that we can replace it later.
+  if (StripedOffRecurrenceCast)
+    Stride = getUniqueCastUse(Stride, Lp, StripedOffRecurrenceCast);
+
+  return Stride;
+}
+
 void LoopAccessInfo::collectStridedAccess(Value *MemAccess) {
   Value *Ptr = getLoadStorePointerOperand(MemAccess);
   if (!Ptr)
@@ -2568,6 +2698,11 @@ void LoopAccessInfo::collectStridedAccess(Value *MemAccess) {
   LLVM_DEBUG(dbgs() << "LAA: Found a strided access that is a candidate for "
                        "versioning:");
   LLVM_DEBUG(dbgs() << "  Ptr: " << *Ptr << " Stride: " << *Stride << "\n");
+
+  if (!SpeculateUnitStride) {
+    LLVM_DEBUG(dbgs() << "  Chose not to due to -laa-speculate-unit-stride\n");
+    return;
+  }
 
   // Avoid adding the "Stride == 1" predicate when we know that
   // Stride >= Trip-Count. Such a predicate will effectively optimize a single

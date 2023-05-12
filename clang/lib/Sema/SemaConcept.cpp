@@ -160,7 +160,7 @@ struct SatisfactionStackRAII {
   Sema &SemaRef;
   bool Inserted = false;
   SatisfactionStackRAII(Sema &SemaRef, const NamedDecl *ND,
-                        llvm::FoldingSetNodeID FSNID)
+                        const llvm::FoldingSetNodeID &FSNID)
       : SemaRef(SemaRef) {
       if (ND) {
       SemaRef.PushSatisfactionStackEntry(ND, FSNID);
@@ -721,7 +721,7 @@ CalculateTemplateDepthForConstraints(Sema &S, const NamedDecl *ND,
       ND, /*Final=*/false, /*Innermost=*/nullptr, /*RelativeToPrimary=*/true,
       /*Pattern=*/nullptr,
       /*ForConstraintInstantiation=*/true, SkipForSpecialization);
-  return MLTAL.getNumSubstitutedLevels();
+  return MLTAL.getNumLevels();
 }
 
 namespace {
@@ -752,27 +752,44 @@ namespace {
   };
 } // namespace
 
+static const Expr *SubstituteConstraintExpression(Sema &S, const NamedDecl *ND,
+                                                  const Expr *ConstrExpr) {
+  MultiLevelTemplateArgumentList MLTAL = S.getTemplateInstantiationArgs(
+      ND, /*Final=*/false, /*Innermost=*/nullptr,
+      /*RelativeToPrimary=*/true,
+      /*Pattern=*/nullptr, /*ForConstraintInstantiation=*/true,
+      /*SkipForSpecialization*/ false);
+  if (MLTAL.getNumSubstitutedLevels() == 0)
+    return ConstrExpr;
+
+  Sema::SFINAETrap SFINAE(S, /*AccessCheckingSFINAE=*/false);
+  std::optional<Sema::CXXThisScopeRAII> ThisScope;
+  if (auto *RD = dyn_cast<CXXRecordDecl>(ND->getDeclContext()))
+    ThisScope.emplace(S, const_cast<CXXRecordDecl *>(RD), Qualifiers());
+  ExprResult SubstConstr =
+      S.SubstConstraintExpr(const_cast<clang::Expr *>(ConstrExpr), MLTAL);
+  if (SFINAE.hasErrorOccurred() || !SubstConstr.isUsable())
+    return nullptr;
+  return SubstConstr.get();
+}
+
 bool Sema::AreConstraintExpressionsEqual(const NamedDecl *Old,
                                          const Expr *OldConstr,
                                          const NamedDecl *New,
                                          const Expr *NewConstr) {
+  if (OldConstr == NewConstr)
+    return true;
   if (Old && New && Old != New) {
-    unsigned Depth1 = CalculateTemplateDepthForConstraints(
-        *this, Old);
-    unsigned Depth2 = CalculateTemplateDepthForConstraints(
-        *this, New);
-
-    // Adjust the 'shallowest' verison of this to increase the depth to match
-    // the 'other'.
-    if (Depth2 > Depth1) {
-      OldConstr = AdjustConstraintDepth(*this, Depth2 - Depth1)
-                      .TransformExpr(const_cast<Expr *>(OldConstr))
-                      .get();
-    } else if (Depth1 > Depth2) {
-      NewConstr = AdjustConstraintDepth(*this, Depth1 - Depth2)
-                      .TransformExpr(const_cast<Expr *>(NewConstr))
-                      .get();
-    }
+    if (const Expr *SubstConstr =
+            SubstituteConstraintExpression(*this, Old, OldConstr))
+      OldConstr = SubstConstr;
+    else
+      return false;
+    if (const Expr *SubstConstr =
+            SubstituteConstraintExpression(*this, New, NewConstr))
+      NewConstr = SubstConstr;
+    else
+      return false;
   }
 
   llvm::FoldingSetNodeID ID1, ID2;
@@ -1351,7 +1368,7 @@ static NormalForm makeDNF(const NormalizedConstraint &Normalized) {
 }
 
 template<typename AtomicSubsumptionEvaluator>
-static bool subsumes(NormalForm PDNF, NormalForm QCNF,
+static bool subsumes(const NormalForm &PDNF, const NormalForm &QCNF,
                      AtomicSubsumptionEvaluator E) {
   // C++ [temp.constr.order] p2
   //   Then, P subsumes Q if and only if, for every disjunctive clause Pi in the

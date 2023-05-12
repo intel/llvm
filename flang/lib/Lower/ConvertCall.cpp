@@ -71,11 +71,9 @@ static fir::ExtendedValue toExtendedValue(mlir::Location loc, mlir::Value base,
 /// Lower a type(C_PTR/C_FUNPTR) argument with VALUE attribute into a
 /// reference. A C pointer can correspond to a Fortran dummy argument of type
 /// C_PTR with the VALUE attribute. (see 18.3.6 note 3).
-static mlir::Value
-genRecordCPtrValueArg(Fortran::lower::AbstractConverter &converter,
-                      mlir::Value rec, mlir::Type ty) {
-  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
-  mlir::Location loc = converter.getCurrentLocation();
+static mlir::Value genRecordCPtrValueArg(fir::FirOpBuilder &builder,
+                                         mlir::Location loc, mlir::Value rec,
+                                         mlir::Type ty) {
   mlir::Value cAddr = fir::factory::genCPtrOrCFunptrAddr(builder, loc, rec, ty);
   mlir::Value cVal = builder.create<fir::LoadOp>(loc, cAddr);
   return builder.createConvert(loc, cAddr.getType(), cVal);
@@ -216,10 +214,12 @@ fir::ExtendedValue Fortran::lower::genCallOpAndResult(
       auto *bldr = &converter.getFirOpBuilder();
       auto stackSaveFn = fir::factory::getLlvmStackSave(builder);
       auto stackSaveSymbol = bldr->getSymbolRefAttr(stackSaveFn.getName());
-      mlir::Value sp = bldr->create<fir::CallOp>(
-                               loc, stackSaveFn.getFunctionType().getResults(),
-                               stackSaveSymbol, mlir::ValueRange{})
-                           .getResult(0);
+      mlir::Value sp;
+      fir::CallOp call = bldr->create<fir::CallOp>(
+          loc, stackSaveFn.getFunctionType().getResults(), stackSaveSymbol,
+          mlir::ValueRange{});
+      if (call.getNumResults() != 0)
+        sp = call.getResult(0);
       stmtCtx.attachCleanup([bldr, loc, sp]() {
         auto stackRestoreFn = fir::factory::getLlvmStackRestore(*bldr);
         auto stackRestoreSymbol =
@@ -352,7 +352,7 @@ fir::ExtendedValue Fortran::lower::genCallOpAndResult(
       mlir::Type fromTy = fir::unwrapRefType(fst.getType());
       if (fir::isa_builtin_cptr_type(fromTy) &&
           Fortran::lower::isCPtrArgByValueType(snd)) {
-        cast = genRecordCPtrValueArg(converter, fst, fromTy);
+        cast = genRecordCPtrValueArg(builder, loc, fst, fromTy);
       } else if (fir::isa_derived(snd)) {
         // FIXME: This seems like a serious bug elsewhere in lowering. Paper
         // over the problem for now.
@@ -401,14 +401,16 @@ fir::ExtendedValue Fortran::lower::genCallOpAndResult(
           loc, funcType.getResults(), builder.getStringAttr(procName),
           passObject, operands, nullptr);
     }
-    callResult = dispatch.getResult(0);
     callNumResults = dispatch.getNumResults();
+    if (callNumResults != 0)
+      callResult = dispatch.getResult(0);
   } else {
     // Standard procedure call with fir.call.
     auto call = builder.create<fir::CallOp>(loc, funcType.getResults(),
                                             funcSymbolAttr, operands);
-    callResult = call.getResult(0);
     callNumResults = call.getNumResults();
+    if (callNumResults != 0)
+      callResult = call.getResult(0);
   }
 
   if (caller.mustSaveResult()) {
@@ -852,7 +854,10 @@ static PreparedDummyArgument preparePresentUserCallActualArgument(
     const PreparedActualArgument &preparedActual, mlir::Type dummyType,
     const Fortran::lower::CallerInterface::PassedEntity &arg,
     const Fortran::lower::SomeExpr &expr,
-    Fortran::evaluate::FoldingContext &foldingContext) {
+    Fortran::lower::AbstractConverter &converter) {
+
+  Fortran::evaluate::FoldingContext &foldingContext =
+      converter.getFoldingContext();
 
   // Step 1: get the actual argument, which includes addressing the
   // element if this is an array in an elemental call.
@@ -929,8 +934,9 @@ static PreparedDummyArgument preparePresentUserCallActualArgument(
     if (mustSetDynamicTypeToDummyType)
       TODO(loc, "passing polymorphic array expression to non polymorphic "
                 "contiguous dummy");
+    mlir::Type storageType = converter.genType(expr);
     hlfir::AssociateOp associate = hlfir::genAssociateExpr(
-        loc, builder, entity, dummyType, "adapt.valuebyref");
+        loc, builder, entity, storageType, "adapt.valuebyref");
     entity = hlfir::Entity{associate.getBase()};
     preparedDummy.setExprAssociateCleanUp(associate.getFirBase(),
                                           associate.getMustFreeStrorageFlag());
@@ -981,10 +987,10 @@ static PreparedDummyArgument prepareUserCallActualArgument(
     const PreparedActualArgument &preparedActual, mlir::Type dummyType,
     const Fortran::lower::CallerInterface::PassedEntity &arg,
     const Fortran::lower::SomeExpr &expr,
-    Fortran::evaluate::FoldingContext &foldingContext) {
+    Fortran::lower::AbstractConverter &converter) {
   if (!preparedActual.handleDynamicOptional())
     return preparePresentUserCallActualArgument(
-        loc, builder, preparedActual, dummyType, arg, expr, foldingContext);
+        loc, builder, preparedActual, dummyType, arg, expr, converter);
 
   // Conditional dummy argument preparation. The actual may be absent
   // at runtime, causing any addressing, copy, and packaging to have
@@ -1005,8 +1011,8 @@ static PreparedDummyArgument prepareUserCallActualArgument(
   mlir::Block *preparationBlock = &badIfOp.getThenRegion().front();
   builder.setInsertionPointToStart(preparationBlock);
   PreparedDummyArgument unconditionalDummy =
-      preparePresentUserCallActualArgument(
-          loc, builder, preparedActual, dummyType, arg, expr, foldingContext);
+      preparePresentUserCallActualArgument(loc, builder, preparedActual,
+                                           dummyType, arg, expr, converter);
   builder.restoreInsertionPoint(insertPt);
 
   // TODO: when forwarding an optional to an optional of the same kind
@@ -1073,9 +1079,24 @@ genUserCall(PreparedActualArguments &loweredActuals,
       // True pass-by-value semantics.
       assert(!preparedActual->handleDynamicOptional() && "cannot be optional");
       hlfir::Entity actual = preparedActual->getActual(loc, builder);
-      auto value = hlfir::loadTrivialScalar(loc, builder, actual);
-      if (!value.isValue())
-        TODO(loc, "Passing CPTR an CFUNCTPTR VALUE in HLFIR");
+      hlfir::Entity value = hlfir::loadTrivialScalar(loc, builder, actual);
+
+      mlir::Type eleTy = value.getFortranElementType();
+      if (fir::isa_builtin_cptr_type(eleTy)) {
+        // Pass-by-value argument of type(C_PTR/C_FUNPTR).
+        // Load the __address component and pass it by value.
+        if (value.isValue()) {
+          auto associate = hlfir::genAssociateExpr(loc, builder, value, eleTy,
+                                                   "adapt.cptrbyval");
+          value = hlfir::Entity{genRecordCPtrValueArg(
+              builder, loc, associate.getFirBase(), eleTy)};
+          builder.create<hlfir::EndAssociateOp>(loc, associate);
+        } else {
+          value =
+              hlfir::Entity{genRecordCPtrValueArg(builder, loc, value, eleTy)};
+        }
+      }
+
       caller.placeInput(arg, builder.createConvert(loc, argTy, value));
     } break;
     case PassBy::BaseAddressValueAttribute:
@@ -1083,9 +1104,9 @@ genUserCall(PreparedActualArguments &loweredActuals,
     case PassBy::Box:
     case PassBy::BaseAddress:
     case PassBy::BoxChar: {
-      PreparedDummyArgument preparedDummy = prepareUserCallActualArgument(
-          loc, builder, *preparedActual, argTy, arg, *expr,
-          callContext.converter.getFoldingContext());
+      PreparedDummyArgument preparedDummy =
+          prepareUserCallActualArgument(loc, builder, *preparedActual, argTy,
+                                        arg, *expr, callContext.converter);
       if (preparedDummy.maybeCleanUp.has_value())
         callCleanUps.emplace_back(std::move(*preparedDummy.maybeCleanUp));
       caller.placeInput(arg, preparedDummy.dummy);
@@ -1188,12 +1209,16 @@ genIntrinsicRefCore(PreparedActualArguments &loweredActuals,
     // Helper to get the type of the Fortran expression in case it is a
     // computed value that must be placed in memory (logicals are computed as
     // i1, but must be placed in memory as fir.logical).
-    auto getActualFortranElementType = [&]() {
-      const Fortran::lower::SomeExpr *expr =
-          callContext.procRef.UnwrapArgExpr(arg.index());
-      assert(expr && "must be an expr");
-      mlir::Type type = converter.genType(*expr);
-      return hlfir::getFortranElementType(type);
+    auto getActualFortranElementType = [&]() -> mlir::Type {
+      if (const Fortran::lower::SomeExpr *expr =
+              callContext.procRef.UnwrapArgExpr(arg.index())) {
+
+        mlir::Type type = converter.genType(*expr);
+        return hlfir::getFortranElementType(type);
+      }
+      // TYPE(*): is already in memory anyway. Can return none
+      // here.
+      return builder.getNoneType();
     };
     // Ad-hoc argument lowering handling.
     fir::ArgLoweringRule argRules =
@@ -1239,8 +1264,10 @@ genIntrinsicRefCore(PreparedActualArguments &loweredActuals,
   hlfir::EntityWithAttributes resultEntity = extendedValueToHlfirEntity(
       loc, builder, resultExv, ".tmp.intrinsic_result");
   // Move result into memory into an hlfir.expr since they are immutable from
-  // that point, and the result storage is some temp.
-  if (resultEntity.isVariable()) {
+  // that point, and the result storage is some temp. "Null" is special: it
+  // returns a null pointer variable that should not be transformed into a value
+  // (what matters is the memory address).
+  if (resultEntity.isVariable() && intrinsicName != "null") {
     hlfir::AsExprOp asExpr;
     // Character/Derived MERGE lowering returns one of its argument address
     // (this is the only intrinsic implemented in that way so far). The
@@ -1617,11 +1644,33 @@ genIntrinsicRef(const Fortran::evaluate::SpecificIntrinsic *intrinsic,
   const fir::IntrinsicArgumentLoweringRules *argLowering =
       fir::getIntrinsicArgumentLowering(callContext.getProcedureName());
   for (const auto &arg : llvm::enumerate(callContext.procRef.arguments())) {
+
+    if (!arg.value()) {
+      // Absent optional.
+      loweredActuals.push_back(std::nullopt);
+      continue;
+    }
     auto *expr =
         Fortran::evaluate::UnwrapExpr<Fortran::lower::SomeExpr>(arg.value());
     if (!expr) {
-      // Absent optional.
-      loweredActuals.push_back(std::nullopt);
+      // TYPE(*) dummy. They are only allowed as argument of a few intrinsics
+      // that do not take optional arguments: see Fortran 2018 standard C710.
+      const Fortran::evaluate::Symbol *assumedTypeSym =
+          arg.value()->GetAssumedTypeDummy();
+      if (!assumedTypeSym)
+        fir::emitFatalError(loc,
+                            "expected assumed-type symbol as actual argument");
+      std::optional<fir::FortranVariableOpInterface> var =
+          callContext.symMap.lookupVariableDefinition(*assumedTypeSym);
+      if (!var)
+        fir::emitFatalError(loc, "assumed-type symbol was not lowered");
+      assert(
+          (!argLowering ||
+           !fir::lowerIntrinsicArgumentAs(*argLowering, arg.index())
+                .handleDynamicOptional) &&
+          "TYPE(*) are not expected to appear as optional intrinsic arguments");
+      loweredActuals.push_back(PreparedActualArgument{
+          hlfir::Entity{*var}, /*isPresent=*/std::nullopt});
       continue;
     }
     auto loweredActual = Fortran::lower::convertExprToHLFIR(

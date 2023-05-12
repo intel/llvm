@@ -48,6 +48,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
@@ -60,8 +61,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -431,14 +432,13 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
       CodeGenOpts.UniqueBasicBlockSectionNames;
   Options.TLSSize = CodeGenOpts.TLSSize;
   Options.EmulatedTLS = CodeGenOpts.EmulatedTLS;
-  Options.ExplicitEmulatedTLS = true;
   Options.DebuggerTuning = CodeGenOpts.getDebuggerTuning();
   Options.EmitStackSizeSection = CodeGenOpts.StackSizeSection;
   Options.StackUsageOutput = CodeGenOpts.StackUsageOutput;
   Options.EmitAddrsig = CodeGenOpts.Addrsig;
   Options.ForceDwarfFrameSection = CodeGenOpts.ForceDwarfFrameSection;
   Options.EmitCallSiteInfo = CodeGenOpts.EmitCallSiteInfo;
-  Options.EnableAIXExtendedAltivecABI = CodeGenOpts.EnableAIXExtendedAltivecABI;
+  Options.EnableAIXExtendedAltivecABI = LangOpts.EnableAIXExtendedAltivecABI;
   Options.XRayOmitFunctionIndex = CodeGenOpts.XRayOmitFunctionIndex;
   Options.LoopAlignment = CodeGenOpts.LoopAlignment;
   Options.DebugStrictDwarf = CodeGenOpts.DebugStrictDwarf;
@@ -1044,6 +1044,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
                                                 /*ValidateAspects=*/false));
+
+      // Add attribute corresponding to optimization level.
+      MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
 
       // Add SPIRITTAnnotations pass to the pass manager if
       // -fsycl-instrument-device-code option was passed. This option can be

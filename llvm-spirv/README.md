@@ -174,7 +174,7 @@ To translate between LLVM IR and SPIR-V:
     llvm-spirv -r input.spv
     ```
     Recommended options:
-    * `-spirv-ocl-builtins-version` - to specify target version of OpenCL builtins to translate to (default CL1.2)
+    * `-spirv-target-env` - to specify target version of OpenCL builtins to translate to (default CL1.2)
 
 3. Other options accepted by `llvm-spirv`
 

@@ -56,6 +56,9 @@ enum {
   InstFormatShift = 0,
 
   ConstraintShift = InstFormatShift + 5,
+  VS2Constraint = 0b001 << ConstraintShift,
+  VS1Constraint = 0b010 << ConstraintShift,
+  VMConstraint  = 0b100 << ConstraintShift,
   ConstraintMask = 0b111 << ConstraintShift,
 
   VLMulShift = ConstraintShift + 3,
@@ -111,14 +114,6 @@ enum {
   IsSignExtendingOpWMask = 1ULL << IsSignExtendingOpWShift,
 };
 
-// Match with the definitions in RISCVInstrFormats.td
-enum VConstraintType {
-  NoConstraint = 0,
-  VS2Constraint = 0b001,
-  VS1Constraint = 0b010,
-  VMConstraint = 0b100,
-};
-
 enum VLMUL : uint8_t {
   LMUL_1 = 0,
   LMUL_2,
@@ -140,11 +135,6 @@ enum {
 /// \returns the format of the instruction.
 static inline unsigned getFormat(uint64_t TSFlags) {
   return (TSFlags & InstFormatMask) >> InstFormatShift;
-}
-/// \returns the constraint for the instruction.
-static inline VConstraintType getConstraint(uint64_t TSFlags) {
-  return static_cast<VConstraintType>((TSFlags & ConstraintMask) >>
-                                      ConstraintShift);
 }
 /// \returns the LMUL for the instruction.
 static inline VLMUL getLMul(uint64_t TSFlags) {
@@ -240,7 +230,8 @@ enum {
 namespace RISCVOp {
 enum OperandType : unsigned {
   OPERAND_FIRST_RISCV_IMM = MCOI::OPERAND_FIRST_TARGET,
-  OPERAND_UIMM2 = OPERAND_FIRST_RISCV_IMM,
+  OPERAND_UIMM1 = OPERAND_FIRST_RISCV_IMM,
+  OPERAND_UIMM2,
   OPERAND_UIMM2_LSB0,
   OPERAND_UIMM3,
   OPERAND_UIMM4,
@@ -419,7 +410,7 @@ enum ABI {
 
 // Returns the target ABI, or else a StringError if the requested ABIName is
 // not supported for the given TT and FeatureBits combination.
-ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
+ABI computeTargetABI(const Triple &TT, const FeatureBitset &FeatureBits,
                      StringRef ABIName);
 
 ABI getTargetABI(StringRef ABIName);

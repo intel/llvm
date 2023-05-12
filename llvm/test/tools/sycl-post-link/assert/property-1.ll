@@ -12,9 +12,9 @@
 ; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
 ;
 ; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes=CHECK-K1
-; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK-K2
-; RUN: FileCheck %s -input-file=%t_2.prop --check-prefixes=CHECK-K3
+; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes=CHECK-K3
+; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK-K1
+; RUN: FileCheck %s -input-file=%t_2.prop --check-prefixes=CHECK-K2
 
 ; SYCL source:
 ; void foo() {

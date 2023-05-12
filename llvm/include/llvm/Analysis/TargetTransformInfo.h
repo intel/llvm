@@ -192,6 +192,15 @@ enum class TailFoldingStyle {
   DataAndControlFlowWithoutRuntimeCheck
 };
 
+struct TailFoldingInfo {
+  TargetLibraryInfo *TLI;
+  LoopVectorizationLegality *LVL;
+  InterleavedAccessInfo *IAI;
+  TailFoldingInfo(TargetLibraryInfo *TLI, LoopVectorizationLegality *LVL,
+                  InterleavedAccessInfo *IAI)
+      : TLI(TLI), LVL(LVL), IAI(IAI) {}
+};
+
 class TargetTransformInfo;
 typedef TargetTransformInfo TTI;
 
@@ -395,22 +404,20 @@ public:
   /// branches.
   bool hasBranchDivergence() const;
 
-  /// Return true if the target prefers to use GPU divergence analysis to
-  /// replace the legacy version.
-  bool useGPUDivergenceAnalysis() const;
-
   /// Returns whether V is a source of divergence.
   ///
   /// This function provides the target-dependent information for
-  /// the target-independent LegacyDivergenceAnalysis. LegacyDivergenceAnalysis
-  /// first builds the dependency graph, and then runs the reachability
-  /// algorithm starting with the sources of divergence.
+  /// the target-independent UniformityAnalysis.
   bool isSourceOfDivergence(const Value *V) const;
 
   // Returns true for the target specific
   // set of operations which produce uniform result
   // even taking non-uniform arguments
   bool isAlwaysUniform(const Value *V) const;
+
+  /// Query the target whether the specified address space cast from FromAS to
+  /// ToAS is valid.
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const;
 
   /// Returns the address space ID for a target's 'flat' address space. Note
   /// this is not necessarily the same as addrspace(0), which LLVM sometimes
@@ -583,11 +590,7 @@ public:
 
   /// Query the target whether it would be prefered to create a predicated
   /// vector loop, which can avoid the need to emit a scalar epilogue loop.
-  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
-                                   DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL,
-                                   InterleavedAccessInfo *IAI) const;
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) const;
 
   /// Query the target what the preferred style of tail folding is.
   /// \param IVUpdateMayOverflow Tells whether it is known if the IV update
@@ -1383,6 +1386,7 @@ public:
 
   InstructionCost getMinMaxReductionCost(
       VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
+      FastMathFlags FMF = FastMathFlags(),
       TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
 
   /// Calculate the cost of an extended reduction pattern, similar to
@@ -1400,7 +1404,7 @@ public:
   /// ResTy vecreduce.opcode(ext(Ty A)).
   InstructionCost getExtendedReductionCost(
       unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *Ty,
-      std::optional<FastMathFlags> FMF,
+      FastMathFlags FMF,
       TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
 
   /// \returns The cost of Intrinsic instructions. Analyses the real arguments.
@@ -1639,6 +1643,9 @@ public:
   /// false, but it shouldn't matter what it returns anyway.
   bool hasArmWideBranch(bool Thumb) const;
 
+  /// \return The maximum number of function arguments the target supports.
+  unsigned getMaxNumArgs() const;
+
   /// @}
 
 private:
@@ -1677,9 +1684,9 @@ public:
                                              TargetCostKind CostKind) = 0;
   virtual BranchProbability getPredictableBranchThreshold() = 0;
   virtual bool hasBranchDivergence() = 0;
-  virtual bool useGPUDivergenceAnalysis() = 0;
   virtual bool isSourceOfDivergence(const Value *V) = 0;
   virtual bool isAlwaysUniform(const Value *V) = 0;
+  virtual bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const = 0;
   virtual unsigned getFlatAddressSpace() = 0;
   virtual bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                           Intrinsic::ID IID) const = 0;
@@ -1703,11 +1710,7 @@ public:
                                         AssumptionCache &AC,
                                         TargetLibraryInfo *LibInfo,
                                         HardwareLoopInfo &HWLoopInfo) = 0;
-  virtual bool
-  preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                              AssumptionCache &AC, TargetLibraryInfo *TLI,
-                              DominatorTree *DT, LoopVectorizationLegality *LVL,
-                              InterleavedAccessInfo *IAI) = 0;
+  virtual bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) = 0;
   virtual TailFoldingStyle
   getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) = 0;
   virtual std::optional<Instruction *> instCombineIntrinsic(
@@ -1928,10 +1931,10 @@ public:
                              TTI::TargetCostKind CostKind) = 0;
   virtual InstructionCost
   getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
-                         TTI::TargetCostKind CostKind) = 0;
+                         FastMathFlags FMF, TTI::TargetCostKind CostKind) = 0;
   virtual InstructionCost getExtendedReductionCost(
       unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *Ty,
-      std::optional<FastMathFlags> FMF,
+      FastMathFlags FMF,
       TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) = 0;
   virtual InstructionCost getMulAccReductionCost(
       bool IsUnsigned, Type *ResTy, VectorType *Ty,
@@ -2003,6 +2006,7 @@ public:
   virtual VPLegalization
   getVPLegalizationStrategy(const VPIntrinsic &PI) const = 0;
   virtual bool hasArmWideBranch(bool Thumb) const = 0;
+  virtual unsigned getMaxNumArgs() const = 0;
 };
 
 template <typename T>
@@ -2050,15 +2054,16 @@ public:
     return Impl.getPredictableBranchThreshold();
   }
   bool hasBranchDivergence() override { return Impl.hasBranchDivergence(); }
-  bool useGPUDivergenceAnalysis() override {
-    return Impl.useGPUDivergenceAnalysis();
-  }
   bool isSourceOfDivergence(const Value *V) override {
     return Impl.isSourceOfDivergence(V);
   }
 
   bool isAlwaysUniform(const Value *V) override {
     return Impl.isAlwaysUniform(V);
+  }
+
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const override {
+    return Impl.isValidAddrSpaceCast(FromAS, ToAS);
   }
 
   unsigned getFlatAddressSpace() override { return Impl.getFlatAddressSpace(); }
@@ -2110,12 +2115,8 @@ public:
                                 HardwareLoopInfo &HWLoopInfo) override {
     return Impl.isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
   }
-  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
-                                   DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL,
-                                   InterleavedAccessInfo *IAI) override {
-    return Impl.preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LVL, IAI);
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) override {
+    return Impl.preferPredicateOverEpilogue(TFI);
   }
   TailFoldingStyle
   getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) override {
@@ -2539,19 +2540,20 @@ public:
   }
   InstructionCost
   getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
+                         FastMathFlags FMF,
                          TTI::TargetCostKind CostKind) override {
-    return Impl.getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return Impl.getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
   }
-  InstructionCost getExtendedReductionCost(
-      unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *Ty,
-      std::optional<FastMathFlags> FMF,
-      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) override {
+  InstructionCost
+  getExtendedReductionCost(unsigned Opcode, bool IsUnsigned, Type *ResTy,
+                           VectorType *Ty, FastMathFlags FMF,
+                           TTI::TargetCostKind CostKind) override {
     return Impl.getExtendedReductionCost(Opcode, IsUnsigned, ResTy, Ty, FMF,
                                          CostKind);
   }
-  InstructionCost getMulAccReductionCost(
-      bool IsUnsigned, Type *ResTy, VectorType *Ty,
-      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) override {
+  InstructionCost
+  getMulAccReductionCost(bool IsUnsigned, Type *ResTy, VectorType *Ty,
+                         TTI::TargetCostKind CostKind) override {
     return Impl.getMulAccReductionCost(IsUnsigned, ResTy, Ty, CostKind);
   }
   InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
@@ -2695,6 +2697,10 @@ public:
 
   bool hasArmWideBranch(bool Thumb) const override {
     return Impl.hasArmWideBranch(Thumb);
+  }
+
+  unsigned getMaxNumArgs() const override {
+    return Impl.getMaxNumArgs();
   }
 };
 

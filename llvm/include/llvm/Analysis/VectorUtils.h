@@ -274,6 +274,20 @@ public:
     return Ret;
   }
 
+  static bool hasMaskedVariant(const CallInst &CI,
+                               std::optional<ElementCount> VF = std::nullopt) {
+    // Check whether we have at least one masked vector version of a scalar
+    // function. If no VF is specified then we check for any masked variant,
+    // otherwise we look for one that matches the supplied VF.
+    auto Mappings = VFDatabase::getMappings(CI);
+    for (VFInfo Info : Mappings)
+      if (!VF || Info.Shape.VF == *VF)
+        if (Info.isMasked())
+          return true;
+
+    return false;
+  }
+
   /// Constructor, requires a CallInst instance.
   VFDatabase(CallInst &CI)
       : M(CI.getModule()), CI(CI),
@@ -333,32 +347,15 @@ bool isTriviallyVectorizable(Intrinsic::ID ID);
 bool isVectorIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
                                         unsigned ScalarOpdIdx);
 
-/// Identifies if the vector form of the intrinsic has a operand that has
-/// an overloaded type.
-bool isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID, unsigned OpdIdx);
+/// Identifies if the vector form of the intrinsic is overloaded on the type of
+/// the operand at index \p OpdIdx, or on the return type if \p OpdIdx is -1.
+bool isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID, int OpdIdx);
 
 /// Returns intrinsic ID for call.
 /// For the input call instruction it finds mapping intrinsic and returns
 /// its intrinsic ID, in case it does not found it return not_intrinsic.
 Intrinsic::ID getVectorIntrinsicIDForCall(const CallInst *CI,
                                           const TargetLibraryInfo *TLI);
-
-/// Find the operand of the GEP that should be checked for consecutive
-/// stores. This ignores trailing indices that have no effect on the final
-/// pointer.
-unsigned getGEPInductionOperand(const GetElementPtrInst *Gep);
-
-/// If the argument is a GEP, then returns the operand identified by
-/// getGEPInductionOperand. However, if there is some other non-loop-invariant
-/// operand, it returns that instead.
-Value *stripGetElementPtr(Value *Ptr, ScalarEvolution *SE, Loop *Lp);
-
-/// If a value has only one user that is a CastInst, return it.
-Value *getUniqueCastUse(Value *Ptr, Loop *Lp, Type *Ty);
-
-/// Get the stride of a pointer access in a loop. Looks for symbolic
-/// strides "a[i*stride]". Returns the symbolic stride, or null otherwise.
-Value *getStrideFromPointer(Value *Ptr, ScalarEvolution *SE, Loop *Lp);
 
 /// Given a vector and an element number, see if the scalar value is
 /// already around as a register, for example if it were inserted then extracted

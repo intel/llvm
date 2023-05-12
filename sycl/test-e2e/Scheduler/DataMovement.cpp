@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %debug_option
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %debug_option
+// RUN: %{run} %t.out
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //

@@ -1098,7 +1098,7 @@ void ASTStmtWriter::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
   Record.push_back(E->usesGNUSyntax());
   for (const DesignatedInitExpr::Designator &D : E->designators()) {
     if (D.isFieldDesignator()) {
-      if (FieldDecl *Field = D.getField()) {
+      if (FieldDecl *Field = D.getFieldDecl()) {
         Record.push_back(serialization::DESIG_FIELD_DECL);
         Record.AddDeclRef(Field);
       } else {
@@ -1109,13 +1109,13 @@ void ASTStmtWriter::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       Record.AddSourceLocation(D.getFieldLoc());
     } else if (D.isArrayDesignator()) {
       Record.push_back(serialization::DESIG_ARRAY);
-      Record.push_back(D.getFirstExprIndex());
+      Record.push_back(D.getArrayIndex());
       Record.AddSourceLocation(D.getLBracketLoc());
       Record.AddSourceLocation(D.getRBracketLoc());
     } else {
       assert(D.isArrayRangeDesignator() && "Unknown designator");
       Record.push_back(serialization::DESIG_ARRAY_RANGE);
-      Record.push_back(D.getFirstExprIndex());
+      Record.push_back(D.getArrayIndex());
       Record.AddSourceLocation(D.getLBracketLoc());
       Record.AddSourceLocation(D.getEllipsisLoc());
       Record.AddSourceLocation(D.getRBracketLoc());
@@ -1958,6 +1958,7 @@ ASTStmtWriter::VisitCXXUnresolvedConstructExpr(CXXUnresolvedConstructExpr *E) {
   Record.AddTypeSourceInfo(E->getTypeSourceInfo());
   Record.AddSourceLocation(E->getLParenLoc());
   Record.AddSourceLocation(E->getRParenLoc());
+  Record.push_back(E->isListInitialization());
   Code = serialization::EXPR_CXX_UNRESOLVED_CONSTRUCT;
 }
 

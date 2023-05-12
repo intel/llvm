@@ -18,6 +18,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/ASTMatchers/ASTMatchersMacros.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/CFGMatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
@@ -36,16 +37,44 @@
 
 namespace clang {
 namespace dataflow {
+
+static bool isTopLevelNamespaceWithName(const NamespaceDecl &NS,
+                                        llvm::StringRef Name) {
+  return NS.getDeclName().isIdentifier() && NS.getName() == Name &&
+         NS.getParent() != nullptr && NS.getParent()->isTranslationUnit();
+}
+
+static bool hasOptionalClassName(const CXXRecordDecl &RD) {
+  if (!RD.getDeclName().isIdentifier())
+    return false;
+
+  if (RD.getName() == "optional") {
+    if (const auto *N = dyn_cast_or_null<NamespaceDecl>(RD.getDeclContext()))
+      return N->isStdNamespace() || isTopLevelNamespaceWithName(*N, "absl");
+    return false;
+  }
+
+  if (RD.getName() == "Optional") {
+    // Check whether namespace is "::base".
+    const auto *N = dyn_cast_or_null<NamespaceDecl>(RD.getDeclContext());
+    return N != nullptr && isTopLevelNamespaceWithName(*N, "base");
+  }
+
+  return false;
+}
+
 namespace {
 
 using namespace ::clang::ast_matchers;
 using LatticeTransferState = TransferState<NoopLattice>;
 
+AST_MATCHER(CXXRecordDecl, hasOptionalClassNameMatcher) {
+  return hasOptionalClassName(Node);
+}
+
 DeclarationMatcher optionalClass() {
   return classTemplateSpecializationDecl(
-      anyOf(hasName("std::optional"), hasName("std::__optional_storage_base"),
-            hasName("__optional_destruct_base"), hasName("absl::optional"),
-            hasName("base::Optional")),
+      hasOptionalClassNameMatcher(),
       hasTemplateArgument(0, refersToType(type().bind("T"))));
 }
 
@@ -63,8 +92,10 @@ auto isOptionalMemberCallWithName(
   auto Exception = unless(Ignorable ? expr(anyOf(*Ignorable, cxxThisExpr()))
                                     : cxxThisExpr());
   return cxxMemberCallExpr(
-      on(expr(Exception)),
-      callee(cxxMethodDecl(hasName(MemberName), ofClass(optionalClass()))));
+      on(expr(Exception,
+              anyOf(hasOptionalType(),
+                    hasType(pointerType(pointee(optionalOrAliasType())))))),
+      callee(cxxMethodDecl(hasName(MemberName))));
 }
 
 auto isOptionalOperatorCallWithName(
@@ -95,7 +126,6 @@ auto hasAnyOptionalType() {
   return hasType(hasUnqualifiedDesugaredType(
       recordType(hasDeclaration(anyOf(nulloptTypeDecl(), optionalClass())))));
 }
-
 
 auto inPlaceClass() {
   return recordDecl(
@@ -147,6 +177,11 @@ auto isStdSwapCall() {
   return callExpr(callee(functionDecl(hasName("std::swap"))),
                   argumentCountIs(2), hasArgument(0, hasOptionalType()),
                   hasArgument(1, hasOptionalType()));
+}
+
+auto isStdForwardCall() {
+  return callExpr(callee(functionDecl(hasName("std::forward"))),
+                  argumentCountIs(1), hasArgument(0, hasOptionalType()));
 }
 
 constexpr llvm::StringLiteral ValueOrCallID = "ValueOrCall";
@@ -221,9 +256,9 @@ void setHasValue(Value &OptionalVal, BoolValue &HasValueVal) {
 /// Creates a symbolic value for an `optional` value using `HasValueVal` as the
 /// symbolic value of its "has_value" property.
 StructValue &createOptionalValue(Environment &Env, BoolValue &HasValueVal) {
-  auto OptionalVal = std::make_unique<StructValue>();
-  setHasValue(*OptionalVal, HasValueVal);
-  return Env.takeOwnership(std::move(OptionalVal));
+  auto &OptionalVal = Env.create<StructValue>();
+  setHasValue(OptionalVal, HasValueVal);
+  return OptionalVal;
 }
 
 /// Returns the symbolic value that represents the "has_value" property of the
@@ -251,10 +286,8 @@ QualType stripReference(QualType Type) {
 bool isOptionalType(QualType Type) {
   if (!Type->isRecordType())
     return false;
-  // FIXME: Optimize this by avoiding the `getQualifiedNameAsString` call.
-  auto TypeName = Type->getAsCXXRecordDecl()->getQualifiedNameAsString();
-  return TypeName == "std::optional" || TypeName == "absl::optional" ||
-         TypeName == "base::Optional";
+  const CXXRecordDecl *D = Type->getAsCXXRecordDecl();
+  return D != nullptr && hasOptionalClassName(*D);
 }
 
 /// Returns the number of optional wrappers in `Type`.
@@ -312,8 +345,8 @@ StorageLocation *maybeInitializeOptionalValueMember(QualType Q,
     return nullptr;
   auto &ValueLoc = Env.createStorageLocation(Ty);
   Env.setValue(ValueLoc, *ValueVal);
-  auto ValueRef = std::make_unique<ReferenceValue>(ValueLoc);
-  OptionalVal.setProperty("value", Env.takeOwnership(std::move(ValueRef)));
+  auto &ValueRef = Env.create<ReferenceValue>(ValueLoc);
+  OptionalVal.setProperty("value", ValueRef);
   return &ValueLoc;
 }
 
@@ -571,6 +604,31 @@ void transferStdSwapCall(const CallExpr *E, const MatchFinder::MatchResult &,
   transferSwap(*E->getArg(0), SkipPast::Reference, *E->getArg(1), State.Env);
 }
 
+void transferStdForwardCall(const CallExpr *E, const MatchFinder::MatchResult &,
+                            LatticeTransferState &State) {
+  assert(E->getNumArgs() == 1);
+
+  StorageLocation *LocRet = State.Env.getStorageLocation(*E, SkipPast::None);
+  if (LocRet != nullptr)
+    return;
+
+  StorageLocation *LocArg =
+      State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference);
+
+  if (LocArg == nullptr)
+    return;
+
+  Value *ValArg = State.Env.getValue(*LocArg);
+  if (ValArg == nullptr)
+    ValArg = &createOptionalValue(State.Env, State.Env.makeAtomicBoolValue());
+
+  // Create a new storage location
+  LocRet = &State.Env.createStorageLocation(*E);
+  State.Env.setStorageLocation(*E, *LocRet);
+
+  State.Env.setValue(*LocRet, *ValArg);
+}
+
 BoolValue &evaluateEquality(Environment &Env, BoolValue &EqVal, BoolValue &LHS,
                             BoolValue &RHS) {
   // Logically, an optional<T> object is composed of two values - a `has_value`
@@ -686,7 +744,6 @@ auto buildTransferMatchSwitch() {
       .CaseOfCFGStmt<CXXConstructExpr>(isOptionalValueOrConversionConstructor(),
                                        transferValueOrConversionConstructor)
 
-
       // optional::operator=
       .CaseOfCFGStmt<CXXOperatorCallExpr>(
           isOptionalValueOrConversionAssignment(),
@@ -744,6 +801,9 @@ auto buildTransferMatchSwitch() {
 
       // std::swap
       .CaseOfCFGStmt<CallExpr>(isStdSwapCall(), transferStdSwapCall)
+
+      // std::forward
+      .CaseOfCFGStmt<CallExpr>(isStdForwardCall(), transferStdForwardCall)
 
       // opt.value_or("").empty()
       .CaseOfCFGStmt<Expr>(isValueOrStringEmptyCall(),
@@ -845,10 +905,12 @@ ComparisonResult UncheckedOptionalAccessModel::compare(
     return ComparisonResult::Unknown;
   bool MustNonEmpty1 = isNonEmptyOptional(Val1, Env1);
   bool MustNonEmpty2 = isNonEmptyOptional(Val2, Env2);
-  if (MustNonEmpty1 && MustNonEmpty2) return ComparisonResult::Same;
+  if (MustNonEmpty1 && MustNonEmpty2)
+    return ComparisonResult::Same;
   // If exactly one is true, then they're different, no reason to check whether
   // they're definitely empty.
-  if (MustNonEmpty1 || MustNonEmpty2) return ComparisonResult::Different;
+  if (MustNonEmpty1 || MustNonEmpty2)
+    return ComparisonResult::Different;
   // Check if they're both definitely empty.
   return (isEmptyOptional(Val1, Env1) && isEmptyOptional(Val2, Env2))
              ? ComparisonResult::Same

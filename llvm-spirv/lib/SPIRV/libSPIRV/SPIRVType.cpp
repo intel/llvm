@@ -199,7 +199,8 @@ bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }
 
 bool SPIRVType::isTypeJointMatrixINTEL() const {
-  return OpCode == internal::OpTypeJointMatrixINTEL;
+  return OpCode == internal::OpTypeJointMatrixINTEL ||
+         OpCode == internal::OpTypeJointMatrixINTELv2;
 }
 
 bool SPIRVType::isTypeVectorBool() const {
@@ -279,13 +280,20 @@ void SPIRVTypeForwardPointer::decode(std::istream &I) {
 }
 
 SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
-    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
+    SPIRVModule *M, SPIRVId TheId, Op OC, SPIRVType *CompType,
     std::vector<SPIRVValue *> Args)
     : SPIRVType(M, FixedWC + Args.size(), OC, TheId), CompType(CompType),
-      Args(Args) {}
+      Args(std::move(Args)) {}
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
+    std::vector<SPIRVValue *> Args)
+    : SPIRVType(M, FixedWC + Args.size(), internal::OpTypeJointMatrixINTEL,
+                TheId),
+      CompType(CompType), Args(std::move(Args)) {}
 
 SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL()
-    : SPIRVType(OC), CompType(nullptr),
+    : SPIRVType(internal::OpTypeJointMatrixINTEL), CompType(nullptr),
       Args({nullptr, nullptr, nullptr, nullptr}) {}
 
 void SPIRVTypeJointMatrixINTEL::encode(spv_ostream &O) const {

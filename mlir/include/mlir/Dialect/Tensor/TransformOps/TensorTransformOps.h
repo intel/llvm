@@ -11,10 +11,13 @@
 
 #include "mlir/Dialect/PDL/IR/PDLTypes.h"
 #include "mlir/Dialect/Transform/IR/TransformOps.h"
+#include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
+class DialectRegistry;
+
 namespace tensor {
 
 /// A specialized TrackingListener for transform ops that operate on tensor IR.
@@ -22,15 +25,19 @@ namespace tensor {
 /// replacements.
 class TrackingListener : public transform::TrackingListener {
 public:
-  explicit TrackingListener(transform::TransformState &state)
-      : transform::TrackingListener(state) {}
+  using transform::TrackingListener::TrackingListener;
 
 protected:
   Operation *findReplacementOp(Operation *op,
                                ValueRange newValues) const override;
 };
 
+void registerTransformDialectExtension(DialectRegistry &registry);
+
 } // namespace tensor
 } // namespace mlir
+
+#define GET_OP_CLASSES
+#include "mlir/Dialect/Tensor/TransformOps/TensorTransformOps.h.inc"
 
 #endif // MLIR_DIALECT_TENSOR_TRANSFORMOPS_TENSORTRANSFORMOPS_H

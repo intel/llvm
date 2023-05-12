@@ -52,36 +52,6 @@
 #include <ur/adapters/level_zero/ur_level_zero.hpp>
 #include <ur/usm_allocator.hpp>
 
-template <class To, class From> To pi_cast(From Value) {
-  // TODO: see if more sanity checks are possible.
-  assert(sizeof(From) == sizeof(To));
-  return (To)(Value);
-}
-
-template <> uint32_t inline pi_cast(uint64_t Value) {
-  // Cast value and check that we don't lose any information.
-  uint32_t CastedValue = (uint32_t)(Value);
-  assert((uint64_t)CastedValue == Value);
-  return CastedValue;
-}
-
-// Record for a memory allocation. This structure is used to keep information
-// for each memory allocation.
-struct MemAllocRecord : _pi_object {
-  MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
-      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
-  // Currently kernel can reference memory allocations from different contexts
-  // and we need to know the context of a memory allocation when we release it
-  // in piKernelRelease.
-  // TODO: this should go away when memory isolation issue is fixed in the Level
-  // Zero runtime.
-  pi_context Context;
-
-  // Indicates if we own the native memory handle or it came from interop that
-  // asked to not transfer the ownership to SYCL RT.
-  bool OwnZeMemHandle;
-};
-
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
@@ -204,7 +174,7 @@ using pi_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
 
-struct _pi_context : _pi_object {
+struct _pi_context : _ur_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
@@ -411,7 +381,7 @@ private:
   }
 };
 
-struct _pi_queue : _pi_object {
+struct _pi_queue : _ur_object {
   // ForceComputeIndex, if non-negative, indicates that the queue must be fixed
   // to that particular compute CCS.
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
@@ -724,7 +694,7 @@ struct _pi_queue : _pi_object {
   active_barriers ActiveBarriers;
 
   // Besides each PI object keeping a total reference count in
-  // _pi_object::RefCount we keep special track of the queue *external*
+  // _ur_object::RefCount we keep special track of the queue *external*
   // references. This way we are able to tell when the queue is being finished
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
@@ -832,7 +802,7 @@ struct _pi_queue : _pi_object {
   bool doReuseDiscardedEvents();
 };
 
-struct _pi_mem : _pi_object {
+struct _pi_mem : _ur_object {
   // Keeps the PI context of this memory handle.
   pi_context Context;
 
@@ -992,20 +962,23 @@ struct _pi_buffer final : _pi_mem {
   } SubBuffer;
 };
 
+struct _pi_image;
+using pi_image = _pi_image *;
+
 // TODO: add proper support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image)
-      : _pi_mem(Ctx), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, bool OwnNativeHandle)
+      : _pi_mem(Ctx), ZeImage{Image}, OwnZeMemHandle{OwnNativeHandle} {}
 
   virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
                                 pi_device = nullptr) override {
-    ZeHandle = pi_cast<char *>(ZeImage);
+    ZeHandle = ur_cast<char *>(ZeImage);
     return PI_SUCCESS;
   }
   virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
                                    pi_device = nullptr) override {
-    ZeHandlePtr = pi_cast<char **>(&ZeImage);
+    ZeHandlePtr = ur_cast<char **>(&ZeImage);
     return PI_SUCCESS;
   }
 
@@ -1018,6 +991,8 @@ struct _pi_image final : _pi_mem {
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
+
+  bool OwnZeMemHandle;
 };
 
 struct _pi_ze_event_list_t {
@@ -1071,7 +1046,7 @@ struct _pi_ze_event_list_t {
   }
 };
 
-struct _pi_event : _pi_object {
+struct _pi_event : _ur_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
             pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
       : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
@@ -1147,7 +1122,7 @@ struct _pi_event : _pi_object {
   bool IsDiscarded = {false};
 
   // Besides each PI object keeping a total reference count in
-  // _pi_object::RefCount we keep special track of the event *external*
+  // _ur_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
   // externally anymore, i.e. it can't be passed as a dependency event to
   // piEnqueue* functions and explicitly waited meaning that we can do some
@@ -1168,7 +1143,7 @@ struct _pi_event : _pi_object {
   pi_result reset();
 };
 
-struct _pi_program : _pi_object {
+struct _pi_program : _ur_object {
   // Possible states of a program.
   typedef enum {
     // The program has been created from intermediate language (SPIR-V), but it
@@ -1281,7 +1256,7 @@ struct _pi_program : _pi_object {
   ze_module_build_log_handle_t ZeBuildLog;
 };
 
-struct _pi_kernel : _pi_object {
+struct _pi_kernel : _ur_object {
   _pi_kernel(ze_kernel_handle_t Kernel, bool OwnZeKernel, pi_program Program)
       : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
         MemAllocs{}, SubmissionsCount{0} {}
@@ -1358,7 +1333,7 @@ struct _pi_kernel : _pi_object {
   ZeCache<std::string> ZeKernelName;
 };
 
-struct _pi_sampler : _pi_object {
+struct _pi_sampler : _ur_object {
   _pi_sampler(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
   // Level Zero sampler handle.

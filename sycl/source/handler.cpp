@@ -30,6 +30,17 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
+namespace detail {
+
+bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
+  DeviceGlobalMapEntry *DGEntry =
+      detail::ProgramManager::getInstance().getDeviceGlobalEntry(
+          DeviceGlobalPtr);
+  return DGEntry && !DGEntry->MImageIdentifiers.empty();
+}
+
+} // namespace detail
+
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, Queue, nullptr, IsHost) {}
 
@@ -189,7 +200,7 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
-          if (MQueue->getPlugin().getBackend() ==
+          if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
             MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
@@ -501,7 +512,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   case kernel_param_kind_t::kind_accessor: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
-    const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
+    const access::target AccTarget =
+        static_cast<access::target>(Size & AccessTargetMask);
     switch (AccTarget) {
     case access::target::device:
     case access::target::constant_buffer: {
@@ -626,7 +638,7 @@ void handler::extractArgsAndReqsFromLambda(
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
-          static_cast<access::target>(Size & 0x7ff);
+          static_cast<access::target>(Size & AccessTargetMask);
       if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
@@ -905,6 +917,47 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
   MLength = NumBytes;
   MImpl->MOffset = Offset;
   setType(detail::CG::CopyFromDeviceGlobal);
+}
+
+void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                           const void *Src,
+                                           size_t DeviceGlobalTSize,
+                                           bool IsDeviceImageScoped,
+                                           size_t NumBytes, size_t Offset) {
+  std::weak_ptr<detail::context_impl> WeakContextImpl =
+      MQueue->getContextImplPtr();
+  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Capture context and device as weak to avoid keeping them alive for too
+    // long. If they are dead by the time this executes, the operation would not
+    // have been visible anyway.
+    std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
+    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
+    if (ContextImpl && DeviceImpl)
+      ContextImpl->memcpyToHostOnlyDeviceGlobal(
+          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
+          IsDeviceImageScoped, NumBytes, Offset);
+  });
+}
+
+void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
+                                             const void *DeviceGlobalPtr,
+                                             size_t DeviceGlobalTSize,
+                                             bool IsDeviceImageScoped,
+                                             size_t NumBytes, size_t Offset) {
+  const std::shared_ptr<detail::context_impl> &ContextImpl =
+      MQueue->getContextImplPtr();
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Unlike memcpy to device_global, we need to keep the context and device
+    // alive in the capture of this operation as we must be able to correctly
+    // copy the value to the user-specified pointer.
+    ContextImpl->memcpyFromHostOnlyDeviceGlobal(
+        DeviceImpl, Dest, DeviceGlobalPtr, DeviceGlobalTSize,
+        IsDeviceImageScoped, NumBytes, Offset);
+  });
 }
 
 const std::shared_ptr<detail::context_impl> &

@@ -460,7 +460,7 @@ static void hoistLoopToNewParent(Loop &L, BasicBlock &Preheader,
     // Because we just hoisted a loop out of this one, we have essentially
     // created new exit paths from it. That means we need to form LCSSA PHI
     // nodes for values used in the no-longer-nested loop.
-    formLCSSA(*OldContainingL, DT, &LI, SE);
+    formLCSSA(*OldContainingL, DT, &LI);
 
     // We shouldn't need to form dedicated exits because the exit introduced
     // here is the (just split by unswitching) preheader. However, after trivial
@@ -475,10 +475,10 @@ static void hoistLoopToNewParent(Loop &L, BasicBlock &Preheader,
 // Return the top-most loop containing ExitBB and having ExitBB as exiting block
 // or the loop containing ExitBB, if there is no parent loop containing ExitBB
 // as exiting block.
-static const Loop *getTopMostExitingLoop(const BasicBlock *ExitBB,
-                                         const LoopInfo &LI) {
-  const Loop *TopMost = LI.getLoopFor(ExitBB);
-  const Loop *Current = TopMost;
+static Loop *getTopMostExitingLoop(const BasicBlock *ExitBB,
+                                   const LoopInfo &LI) {
+  Loop *TopMost = LI.getLoopFor(ExitBB);
+  Loop *Current = TopMost;
   while (Current) {
     if (Current->isLoopExiting(ExitBB))
       TopMost = Current;
@@ -792,14 +792,14 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
 
   if (DefaultExitBB) {
     // Check the loop containing this exit.
-    Loop *ExitL = LI.getLoopFor(DefaultExitBB);
+    Loop *ExitL = getTopMostExitingLoop(DefaultExitBB, LI);
     if (!ExitL || ExitL->contains(OuterL))
       OuterL = ExitL;
   }
   for (unsigned Index : ExitCaseIndices) {
     auto CaseI = SI.case_begin() + Index;
     // Compute the outer loop from this exit.
-    Loop *ExitL = LI.getLoopFor(CaseI->getCaseSuccessor());
+    Loop *ExitL = getTopMostExitingLoop(CaseI->getCaseSuccessor(), LI);
     if (!ExitL || ExitL->contains(OuterL))
       OuterL = ExitL;
   }
@@ -2207,7 +2207,9 @@ static void unswitchNontrivialInvariants(
   SmallVector<BasicBlock *, 4> ExitBlocks;
   L.getUniqueExitBlocks(ExitBlocks);
   for (auto *ExitBB : ExitBlocks) {
-    Loop *NewOuterExitL = LI.getLoopFor(ExitBB);
+    // ExitBB can be an exit block for several levels in the loop nest. Make
+    // sure we find the top most.
+    Loop *NewOuterExitL = getTopMostExitingLoop(ExitBB, LI);
     if (!NewOuterExitL) {
       // We exited the entire nest with this block, so we're done.
       OuterExitL = nullptr;
@@ -2549,7 +2551,7 @@ static void unswitchNontrivialInvariants(
     // First build LCSSA for this loop so that we can preserve it when
     // forming dedicated exits. We don't want to perturb some other loop's
     // LCSSA while doing that CFG edit.
-    formLCSSA(UpdateL, DT, &LI, SE);
+    formLCSSA(UpdateL, DT, &LI);
 
     // For loops reached by this loop's original exit blocks we may
     // introduced new, non-dedicated exits. At least try to re-form dedicated
@@ -2760,7 +2762,7 @@ static int CalculateUnswitchCostMultiplier(
   // Count amount of clones that all the candidates might cause during
   // unswitching. Branch/guard counts as 1, switch counts as log2 of its cases.
   int UnswitchedClones = 0;
-  for (auto Candidate : UnswitchCandidates) {
+  for (const auto &Candidate : UnswitchCandidates) {
     const Instruction *CI = Candidate.TI;
     const BasicBlock *CondBlock = CI->getParent();
     bool SkipExitingSuccessors = DT.dominates(CondBlock, Latch);
@@ -3164,6 +3166,8 @@ static bool collectUnswitchCandidatesWithInjections(
     auto *Term = BB->getTerminator();
     if (!match(Term, m_Br(m_ICmp(Pred, m_Value(LHS), m_Value(RHS)),
                           m_BasicBlock(IfTrue), m_BasicBlock(IfFalse))))
+      continue;
+    if (!LHS->getType()->isIntegerTy())
       continue;
     canonicalizeForInvariantConditionInjection(Pred, LHS, RHS, IfTrue, IfFalse,
                                                L);

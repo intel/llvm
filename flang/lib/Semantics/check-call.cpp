@@ -204,7 +204,14 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
   if (allowActualArgumentConversions) {
     ConvertIntegerActual(actual, dummy.type, actualType, messages);
   }
-  bool typesCompatible{dummy.type.type().IsTkCompatibleWith(actualType.type())};
+  bool typesCompatible{
+      (dummy.ignoreTKR.test(common::IgnoreTKR::Type) &&
+          (dummy.type.type().category() == TypeCategory::Derived ||
+              actualType.type().category() == TypeCategory::Derived ||
+              dummy.type.type().category() != actualType.type().category())) ||
+      (dummy.ignoreTKR.test(common::IgnoreTKR::Kind) &&
+          dummy.type.type().category() == actualType.type().category()) ||
+      dummy.type.type().IsTkCompatibleWith(actualType.type())};
   if (!typesCompatible && dummy.type.Rank() == 0 &&
       allowActualArgumentConversions) {
     // Extension: pass Hollerith literal to scalar as if it had been BOZ
@@ -221,6 +228,7 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
     if (isElemental) {
     } else if (dummy.type.attrs().test(
                    characteristics::TypeAndShape::Attr::AssumedRank)) {
+    } else if (dummy.ignoreTKR.test(common::IgnoreTKR::Rank)) {
     } else if (dummy.type.Rank() > 0 && !dummyIsAllocatableOrPointer &&
         !dummy.type.attrs().test(
             characteristics::TypeAndShape::Attr::AssumedShape) &&
@@ -378,7 +386,8 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
     if (!actualIsCKindCharacter) {
       if (!actualIsArrayElement &&
           !(dummy.type.type().IsAssumedType() && dummyIsAssumedSize) &&
-          !dummyIsAssumedRank) {
+          !dummyIsAssumedRank &&
+          !dummy.ignoreTKR.test(common::IgnoreTKR::Rank)) {
         messages.Say(
             "Whole scalar actual argument may not be associated with a %s array"_err_en_US,
             dummyName);
@@ -1226,6 +1235,57 @@ bool CheckInterfaceForGeneric(const characteristics::Procedure &proc,
       !CheckExplicitInterface(proc, actuals, context, nullptr, nullptr,
           allowActualArgumentConversions)
            .AnyFatalError();
+}
+
+bool CheckArgumentIsConstantExprInRange(
+    const evaluate::ActualArguments &actuals, int index, int lowerBound,
+    int upperBound, parser::ContextualMessages &messages) {
+  CHECK(index >= 0 && static_cast<unsigned>(index) < actuals.size());
+
+  const std::optional<evaluate::ActualArgument> &argOptional{actuals[index]};
+  if (!argOptional) {
+    DIE("Actual argument should have value");
+    return false;
+  }
+
+  const evaluate::ActualArgument &arg{argOptional.value()};
+  const evaluate::Expr<evaluate::SomeType> *argExpr{arg.UnwrapExpr()};
+  CHECK(argExpr != nullptr);
+
+  if (!IsConstantExpr(*argExpr)) {
+    messages.Say("Actual argument #%d must be a constant expression"_err_en_US,
+        index + 1);
+    return false;
+  }
+
+  // This does not imply that the kind of the argument is 8. The kind
+  // for the intrinsic's argument should have been check prior. This is just
+  // a conversion so that we can read the constant value.
+  auto scalarValue{evaluate::ToInt64(argExpr)};
+  CHECK(scalarValue.has_value());
+
+  if (*scalarValue < lowerBound || *scalarValue > upperBound) {
+    messages.Say(
+        "Argument #%d must be a constant expression in range %d-%d"_err_en_US,
+        index + 1, lowerBound, upperBound);
+    return false;
+  }
+  return true;
+}
+
+bool CheckPPCIntrinsic(const Symbol &generic, const Symbol &specific,
+    const evaluate::ActualArguments &actuals,
+    evaluate::FoldingContext &context) {
+  parser::ContextualMessages &messages{context.messages()};
+
+  if (specific.name() == "__ppc_mtfsf") {
+    return CheckArgumentIsConstantExprInRange(actuals, 0, 0, 7, messages);
+  }
+  if (specific.name() == "__ppc_mtfsfi") {
+    return CheckArgumentIsConstantExprInRange(actuals, 0, 0, 7, messages) &&
+        CheckArgumentIsConstantExprInRange(actuals, 1, 0, 15, messages);
+  }
+  return false;
 }
 
 bool CheckArguments(const characteristics::Procedure &proc,

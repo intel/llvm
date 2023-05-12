@@ -36,7 +36,7 @@ namespace RISCVInsnOpcode {
 } // namespace RISCVInsnOpcode
 
 namespace RISCVABI {
-ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
+ABI computeTargetABI(const Triple &TT, const FeatureBitset &FeatureBits,
                      StringRef ABIName) {
   auto TargetABI = getTargetABI(ABIName);
   bool IsRV64 = TT.isArch64Bit();
@@ -98,7 +98,7 @@ ABI getTargetABI(StringRef ABIName) {
 MCRegister getBPReg() { return RISCV::X9; }
 
 // Returns the register holding shadow call stack pointer.
-MCRegister getSCSPReg() { return RISCV::X18; }
+MCRegister getSCSPReg() { return RISCV::X3; }
 
 } // namespace RISCVABI
 

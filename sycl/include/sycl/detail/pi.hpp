@@ -117,6 +117,7 @@ void handleUnknownParamName(const char *functionName, T parameter) {
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
 using PiPlatform = ::pi_platform;
+using PiPlatformBackend = ::pi_platform_backend;
 using PiDevice = ::pi_device;
 using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;

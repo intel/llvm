@@ -39,6 +39,8 @@ Implemented Papers
 ------------------
 - P2520R0 - ``move_iterator<T*>`` should be a random access iterator
 - P1328R1 - ``constexpr type_info::operator==()``
+- P1413R3 - Formatting ``thread::id`` (the ``stacktrace`` is not done yet)
+- P2675R1 - ``format``'s width estimation is too approximate and not forward compatible
 
 Improvements and New Features
 -----------------------------
@@ -62,8 +64,10 @@ Deprecations and Removals
   includes are removed based on the language version used. Incidental transitive
   inclusions of the following headers have been removed:
 
-  - C++2b: ``atomic``, ``bit``, ``cstdint``, ``cstdlib``, ``cstring``, ``initializer_list``, ``new``, ``stdexcept``,
-           ``type_traits``, ``typeinfo``
+  - C++2b: ``atomic``, ``bit``, ``cstdint``, ``cstdlib``, ``cstring``, ``initializer_list``, ``limits``, ``new``,
+           ``stdexcept``, ``system_error``, ``type_traits``, ``typeinfo``
+
+- ``<algorithm>`` no longer includes ``<chrono>`` in any C++ version (it was prevously included in C++17 and earlier).
 
 - The headers ``<experimental/algorithm>`` and ``<experimental/functional>`` have been removed, since all the contents
   have been implemented in namespace ``std`` for at least two releases.
@@ -101,6 +105,14 @@ API Changes
 
 ABI Affecting Changes
 ---------------------
+
+- Symbols for ``std::allocator_arg``, ``std::defer_lock``, ``std::try_to_lock``, ``std::adopt_lock``, and
+  ``std::piecewise_construct`` have been removed from the built library. Under most circumstances, user code
+  should not have been relying on those symbols anyway since those are empty classes and the compiler does
+  not generate an undefined reference unless the address of the object is taken. However, this is an ABI break
+  if the address of one of these objects has been taken in code compiled as C++03, since in those cases the
+  objects were marked as defined in the shared library. In other Standard modes, this should never be a problem
+  since those objects were defined in the headers as ``constexpr``.
 
 Build System Changes
 --------------------

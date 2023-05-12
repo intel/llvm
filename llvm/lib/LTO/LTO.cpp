@@ -788,7 +788,7 @@ LTO::addRegularLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
     ModuleSymbolTable::Symbol Msym = *MsymI++;
     Skip();
 
-    if (GlobalValue *GV = Msym.dyn_cast<GlobalValue *>()) {
+    if (GlobalValue *GV = dyn_cast_if_present<GlobalValue *>(Msym)) {
       if (Res.Prevailing) {
         if (Sym.isUndefined())
           continue;
@@ -826,7 +826,8 @@ LTO::addRegularLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
           GV->setDLLStorageClass(GlobalValue::DLLStorageClassTypes::
                                  DefaultStorageClass);
       }
-    } else if (auto *AS = Msym.dyn_cast<ModuleSymbolTable::AsmSymbol *>()) {
+    } else if (auto *AS =
+                   dyn_cast_if_present<ModuleSymbolTable::AsmSymbol *>(Msym)) {
       // Collect non-prevailing symbols.
       if (!Res.Prevailing)
         NonPrevailingAsmSymbols.insert(AS->first);
@@ -1403,11 +1404,10 @@ ThinBackend lto::createInProcessThinBackend(ThreadPoolStrategy Parallelism,
 // Given the original \p Path to an output file, replace any path
 // prefix matching \p OldPrefix with \p NewPrefix. Also, create the
 // resulting directory if it does not yet exist.
-std::string lto::getThinLTOOutputFile(const std::string &Path,
-                                      const std::string &OldPrefix,
-                                      const std::string &NewPrefix) {
+std::string lto::getThinLTOOutputFile(StringRef Path, StringRef OldPrefix,
+                                      StringRef NewPrefix) {
   if (OldPrefix.empty() && NewPrefix.empty())
-    return Path;
+    return std::string(Path);
   SmallString<128> NewPath(Path);
   llvm::sys::path::replace_path_prefix(NewPath, OldPrefix, NewPrefix);
   StringRef ParentPath = llvm::sys::path::parent_path(NewPath.str());
@@ -1422,18 +1422,20 @@ std::string lto::getThinLTOOutputFile(const std::string &Path,
 
 namespace {
 class WriteIndexesThinBackend : public ThinBackendProc {
-  std::string OldPrefix, NewPrefix;
+  std::string OldPrefix, NewPrefix, NativeObjectPrefix;
   raw_fd_ostream *LinkedObjectsFile;
 
 public:
   WriteIndexesThinBackend(
       const Config &Conf, ModuleSummaryIndex &CombinedIndex,
       const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
-      std::string OldPrefix, std::string NewPrefix, bool ShouldEmitImportsFiles,
+      std::string OldPrefix, std::string NewPrefix,
+      std::string NativeObjectPrefix, bool ShouldEmitImportsFiles,
       raw_fd_ostream *LinkedObjectsFile, lto::IndexWriteCallback OnWrite)
       : ThinBackendProc(Conf, CombinedIndex, ModuleToDefinedGVSummaries,
                         OnWrite, ShouldEmitImportsFiles),
         OldPrefix(OldPrefix), NewPrefix(NewPrefix),
+        NativeObjectPrefix(NativeObjectPrefix),
         LinkedObjectsFile(LinkedObjectsFile) {}
 
   Error start(
@@ -1444,10 +1446,15 @@ public:
       MapVector<StringRef, BitcodeModule> &ModuleMap) override {
     StringRef ModulePath = BM.getModuleIdentifier();
     std::string NewModulePath =
-        getThinLTOOutputFile(std::string(ModulePath), OldPrefix, NewPrefix);
+        getThinLTOOutputFile(ModulePath, OldPrefix, NewPrefix);
 
-    if (LinkedObjectsFile)
-      *LinkedObjectsFile << NewModulePath << '\n';
+    if (LinkedObjectsFile) {
+      std::string ObjectPrefix =
+          NativeObjectPrefix.empty() ? NewPrefix : NativeObjectPrefix;
+      std::string LinkedObjectsFilePath =
+          getThinLTOOutputFile(ModulePath, OldPrefix, ObjectPrefix);
+      *LinkedObjectsFile << LinkedObjectsFilePath << '\n';
+    }
 
     if (auto E = emitFiles(ImportList, ModulePath, NewModulePath))
       return E;
@@ -1466,14 +1473,15 @@ public:
 } // end anonymous namespace
 
 ThinBackend lto::createWriteIndexesThinBackend(
-    std::string OldPrefix, std::string NewPrefix, bool ShouldEmitImportsFiles,
+    std::string OldPrefix, std::string NewPrefix,
+    std::string NativeObjectPrefix, bool ShouldEmitImportsFiles,
     raw_fd_ostream *LinkedObjectsFile, IndexWriteCallback OnWrite) {
   return [=](const Config &Conf, ModuleSummaryIndex &CombinedIndex,
              const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
              AddStreamFn AddStream, FileCache Cache) {
     return std::make_unique<WriteIndexesThinBackend>(
         Conf, CombinedIndex, ModuleToDefinedGVSummaries, OldPrefix, NewPrefix,
-        ShouldEmitImportsFiles, LinkedObjectsFile, OnWrite);
+        NativeObjectPrefix, ShouldEmitImportsFiles, LinkedObjectsFile, OnWrite);
   };
 }
 

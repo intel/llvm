@@ -1308,6 +1308,9 @@ mlir::ParseResult fir::GlobalOp::parse(mlir::OpAsmParser &parser,
     simpleInitializer = true;
   }
 
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return mlir::failure();
+
   if (succeeded(parser.parseOptionalKeyword("constant"))) {
     // if "constant" keyword then mark this as a constant, not a variable
     result.addAttribute("constant", builder.getUnitAttr());
@@ -1342,6 +1345,7 @@ void fir::GlobalOp::print(mlir::OpAsmPrinter &p) {
   p.printAttributeWithoutType(getSymrefAttr());
   if (auto val = getValueOrNull())
     p << '(' << val << ')';
+  p.printOptionalAttrDict((*this)->getAttrs(), (*this).getAttributeNames());
   if (getOperation()->getAttr(fir::GlobalOp::getConstantAttrNameStr()))
     p << " constant";
   if (getOperation()->getAttr(getTargetAttrName()))
@@ -2327,6 +2331,8 @@ mlir::LogicalResult fir::ReboxOp::verify() {
         inputEleTy.isa<fir::RecordType>() || outEleTy.isa<mlir::NoneType>() ||
         (inputEleTy.isa<mlir::NoneType>() && outEleTy.isa<fir::RecordType>()) ||
         (getSlice() && inputEleTy.isa<fir::CharacterType>()) ||
+        (getSlice() && fir::isa_complex(inputEleTy) &&
+         outEleTy.isa<mlir::FloatType>()) ||
         areCompatibleCharacterTypes(inputEleTy, outEleTy);
     if (!typeCanMismatch)
       return emitOpError(

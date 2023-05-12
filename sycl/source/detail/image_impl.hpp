@@ -18,6 +18,7 @@
 #include <sycl/image.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
+#include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 
 namespace sycl {
@@ -163,9 +164,76 @@ public:
                           detail::getNextPowerOfTwo(MElementSize), IsConstPtr);
   }
 
+  image_impl(const void *HData, image_channel_order Order,
+             image_channel_type Type, image_sampler Sampler,
+             const range<3> &ImageRange,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
+             const property_list &PropList = {})
+      : BaseT(PropList, std::move(Allocator)), MDimensions(Dimensions),
+        MRange(ImageRange), MOrder(Order), MType(Type),
+        MNumChannels(getImageNumberChannels(MOrder)),
+        MElementSize(getImageElementSize(MNumChannels, MType)),
+        MSampler(Sampler) {
+    setPitches();
+    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
+  }
+
+  image_impl(const void *HData, image_channel_order Order,
+             image_channel_type Type, image_sampler Sampler,
+             const range<3> &ImageRange, const range<2> &Pitch,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
+             const property_list &PropList = {})
+      : BaseT(PropList, std::move(Allocator)), MDimensions(Dimensions),
+        MRange(ImageRange), MOrder(Order), MType(Type),
+        MNumChannels(getImageNumberChannels(MOrder)),
+        MElementSize(getImageElementSize(MNumChannels, MType)),
+        MSampler(Sampler) {
+    setPitches(Pitch);
+    BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
+  }
+
+  image_impl(const std::shared_ptr<const void> &HData,
+             image_channel_order Order, image_channel_type Type,
+             image_sampler Sampler, const range<3> &ImageRange,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
+             const property_list &PropList)
+      : BaseT(PropList, std::move(Allocator)), MDimensions(Dimensions),
+        MRange(ImageRange), MOrder(Order), MType(Type),
+        MNumChannels(getImageNumberChannels(MOrder)),
+        MElementSize(getImageElementSize(MNumChannels, MType)),
+        MSampler(Sampler) {
+    setPitches();
+    BaseT::handleHostData(std::const_pointer_cast<void>(HData),
+                          detail::getNextPowerOfTwo(MElementSize),
+                          /*IsConstPtr=*/true);
+  }
+
+  image_impl(const std::shared_ptr<const void> &HData,
+             image_channel_order Order, image_channel_type Type,
+             image_sampler Sampler, const range<3> &ImageRange,
+             const range<2> &Pitch,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
+             const property_list &PropList)
+      : BaseT(PropList, std::move(Allocator)), MDimensions(Dimensions),
+        MRange(ImageRange), MOrder(Order), MType(Type),
+        MNumChannels(getImageNumberChannels(MOrder)),
+        MElementSize(getImageElementSize(MNumChannels, MType)),
+        MSampler(Sampler) {
+    setPitches(Pitch);
+    BaseT::handleHostData(std::const_pointer_cast<void>(HData),
+                          detail::getNextPowerOfTwo(MElementSize),
+                          /*IsConstPtr=*/true);
+  }
+
   image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
              std::unique_ptr<SYCLMemObjAllocator> Allocator,
              uint8_t Dimensions);
+
+  image_impl(pi_native_handle MemObject, const context &SyclContext,
+             event AvailableEvent,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
+             image_channel_order Order, image_channel_type Type,
+             bool OwnNativeHandle, range<3> Range3WithOnes);
 
   // Return a range object representing the size of the image in terms of the
   // number of elements in each dimension as passed to the constructor
@@ -195,6 +263,12 @@ public:
   size_t getRowPitch() const { return MRowPitch; }
 
   size_t getSlicePitch() const { return MSlicePitch; }
+
+  image_sampler getSampler() const noexcept {
+    return MSampler.value_or(image_sampler{
+        addressing_mode::none, coordinate_normalization_mode::unnormalized,
+        filtering_mode::linear});
+  }
 
   ~image_impl() {
     try {
@@ -258,6 +332,9 @@ private:
   size_t MElementSize = 0;  // Maximum Value - 16
   size_t MRowPitch = 0;
   size_t MSlicePitch = 0;
+
+  // Image may carry a 2020 sampler.
+  std::optional<image_sampler> MSampler = std::nullopt;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

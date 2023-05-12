@@ -130,6 +130,12 @@ def warn_cxx20_compat_consteval : Warning<
 def warn_missing_type_specifier : Warning<
   "type specifier missing, defaults to 'int'">,
   InGroup<ImplicitInt>, DefaultIgnore;
+
+def ext_c_empty_initializer : Extension<
+  "use of an empty initializer is a C2x extension">, InGroup<C2x>;
+def warn_c2x_compat_empty_initializer : Warning<
+  "use of an empty initializer is incompatible with C standards before C2x">,
+  InGroup<CPre2xCompat>, DefaultIgnore;
 }
 
 let CategoryName = "Nullability Issue" in {
@@ -302,7 +308,7 @@ def warn_dup_category_def : Warning<
 // Targets
 
 def err_target_unknown_triple : Error<
-  "unknown target triple '%0', please use -triple or -arch">;
+  "unknown target triple '%0'">;
 def err_target_unknown_cpu : Error<"unknown target CPU '%0'">;
 def note_valid_options : Note<"valid target CPU values are: %0">;
 def err_target_unsupported_cpu_for_micromips : Error<

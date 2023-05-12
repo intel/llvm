@@ -15,6 +15,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
@@ -74,9 +75,7 @@ struct Wrapper {
 Operation *MemRefDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  if (arith::ConstantOp::isBuildableWith(value, type))
-    return builder.create<arith::ConstantOp>(loc, value, type);
-  return nullptr;
+  return arith::ConstantOp::materialize(builder, value, type, loc);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1356,9 +1355,10 @@ void ExtractAlignedPointerAsIndexOp::getAsmResultNames(
 /// shape of the source.
 LogicalResult ExtractStridedMetadataOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  ExtractStridedMetadataOpAdaptor extractAdaptor(operands, attributes, regions);
+  ExtractStridedMetadataOpAdaptor extractAdaptor(
+      operands, attributes, *properties.as<EmptyProperties *>(), regions);
   auto sourceType = extractAdaptor.getSource().getType().dyn_cast<MemRefType>();
   if (!sourceType)
     return failure();
@@ -1895,7 +1895,7 @@ LogicalResult ReinterpretCastOp::verify() {
       !ShapedType::isDynamic(expectedOffset) &&
       resultOffset != expectedOffset)
     return emitError("expected result type with offset = ")
-           << resultOffset << " instead of " << expectedOffset;
+           << expectedOffset << " instead of " << resultOffset;
 
   // Match strides in result memref type and in static_strides attribute.
   for (auto [idx, resultStride, expectedStride] :
@@ -3236,7 +3236,7 @@ ParseResult TransposeOp::parse(OpAsmParser &parser, OperationState &result) {
 LogicalResult TransposeOp::verify() {
   if (!getPermutation().isPermutation())
     return emitOpError("expected a permutation map");
-  if (getPermutation().getNumDims() != getShapedType().getRank())
+  if (getPermutation().getNumDims() != getIn().getType().getRank())
     return emitOpError("expected a permutation map of same rank as the input");
 
   auto srcType = getIn().getType().cast<MemRefType>();

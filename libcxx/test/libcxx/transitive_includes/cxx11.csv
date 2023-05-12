@@ -1,6 +1,5 @@
 algorithm atomic
 algorithm bit
-algorithm chrono
 algorithm climits
 algorithm concepts
 algorithm cstddef
@@ -127,11 +126,13 @@ cmath type_traits
 cmath version
 codecvt atomic
 codecvt cctype
+codecvt clocale
 codecvt concepts
 codecvt cstddef
 codecvt cstdint
 codecvt cstdlib
 codecvt cstring
+codecvt cwchar
 codecvt initializer_list
 codecvt iosfwd
 codecvt limits
@@ -158,6 +159,7 @@ concepts cstddef
 concepts type_traits
 concepts version
 condition_variable atomic
+condition_variable cerrno
 condition_variable concepts
 condition_variable cstddef
 condition_variable cstdint
@@ -170,6 +172,7 @@ condition_variable limits
 condition_variable new
 condition_variable ratio
 condition_variable stdexcept
+condition_variable string
 condition_variable system_error
 condition_variable type_traits
 condition_variable typeinfo
@@ -210,9 +213,9 @@ exception cstddef
 exception cstdlib
 exception type_traits
 exception version
+execution cstddef
 execution version
 expected cstddef
-expected cstdlib
 expected initializer_list
 expected new
 expected version
@@ -298,7 +301,6 @@ ext/hash_set limits
 ext/hash_set new
 ext/hash_set string
 ext/hash_set type_traits
-filesystem cerrno
 filesystem compare
 filesystem concepts
 filesystem cstddef
@@ -317,7 +319,7 @@ filesystem system_error
 filesystem type_traits
 filesystem version
 format array
-format charconv
+format cmath
 format cstddef
 format cstdint
 format cstdlib
@@ -331,7 +333,6 @@ format stdexcept
 format string
 format string_view
 format tuple
-format vector
 format version
 forward_list algorithm
 forward_list atomic
@@ -354,12 +355,14 @@ forward_list typeinfo
 forward_list version
 fstream atomic
 fstream cctype
+fstream clocale
 fstream concepts
 fstream cstddef
 fstream cstdint
 fstream cstdio
 fstream cstdlib
 fstream cstring
+fstream cwchar
 fstream filesystem
 fstream initializer_list
 fstream iosfwd
@@ -395,6 +398,7 @@ functional utility
 functional vector
 functional version
 future atomic
+future cerrno
 future chrono
 future cstddef
 future cstdint
@@ -408,6 +412,7 @@ future mutex
 future new
 future ratio
 future stdexcept
+future string
 future system_error
 future thread
 future type_traits
@@ -418,11 +423,13 @@ iomanip istream
 iomanip version
 ios atomic
 ios cctype
+ios clocale
 ios concepts
 ios cstddef
 ios cstdint
 ios cstdlib
 ios cstring
+ios cwchar
 ios initializer_list
 ios iosfwd
 ios limits
@@ -493,6 +500,8 @@ list typeinfo
 list version
 locale atomic
 locale cctype
+locale cerrno
+locale clocale
 locale concepts
 locale cstdarg
 locale cstddef
@@ -501,6 +510,7 @@ locale cstdio
 locale cstdlib
 locale cstring
 locale ctime
+locale cwchar
 locale initializer_list
 locale ios
 locale iosfwd
@@ -556,6 +566,7 @@ memory_resource stdexcept
 memory_resource tuple
 memory_resource version
 mutex atomic
+mutex cerrno
 mutex concepts
 mutex cstddef
 mutex cstdint
@@ -569,6 +580,7 @@ mutex limits
 mutex new
 mutex ratio
 mutex stdexcept
+mutex string
 mutex system_error
 mutex tuple
 mutex type_traits
@@ -613,6 +625,7 @@ optional variant
 optional version
 ostream atomic
 ostream bitset
+ostream cerrno
 ostream concepts
 ostream cstddef
 ostream cstdint
@@ -627,6 +640,7 @@ ostream locale
 ostream new
 ostream stdexcept
 ostream streambuf
+ostream string
 ostream type_traits
 ostream typeinfo
 ostream version
@@ -675,12 +689,14 @@ ratio type_traits
 ratio version
 regex atomic
 regex cctype
+regex clocale
 regex compare
 regex concepts
 regex cstddef
 regex cstdint
 regex cstdlib
 regex cstring
+regex cwchar
 regex deque
 regex initializer_list
 regex iosfwd
@@ -741,6 +757,8 @@ shared_mutex ctime
 shared_mutex iosfwd
 shared_mutex limits
 shared_mutex ratio
+shared_mutex stdexcept
+shared_mutex string
 shared_mutex system_error
 shared_mutex type_traits
 shared_mutex version
@@ -830,17 +848,24 @@ system_error stdexcept
 system_error string
 system_error type_traits
 system_error version
+thread array
+thread cerrno
 thread chrono
 thread compare
 thread cstddef
 thread cstdint
+thread cstdlib
 thread cstring
 thread ctime
 thread functional
 thread iosfwd
 thread limits
+thread locale
 thread new
 thread ratio
+thread stdexcept
+thread string
+thread string_view
 thread system_error
 thread tuple
 thread type_traits

@@ -633,7 +633,7 @@ public:
         }
 
 #ifndef _LIBCPP_CXX03_LANG
-    set(set&& __s, const allocator_type& __a);
+    _LIBCPP_HIDE_FROM_ABI set(set&& __s, const allocator_type& __a);
 
     _LIBCPP_INLINE_VISIBILITY
     set(initializer_list<value_type> __il, const value_compare& __comp = value_compare())
@@ -1158,7 +1158,7 @@ public:
         _NOEXCEPT_(is_nothrow_move_constructible<__base>::value)
         : __tree_(_VSTD::move(__s.__tree_)) {}
 
-    multiset(multiset&& __s, const allocator_type& __a);
+    _LIBCPP_HIDE_FROM_ABI multiset(multiset&& __s, const allocator_type& __a);
 #endif // _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY
     explicit multiset(const allocator_type& __a)
@@ -1598,6 +1598,7 @@ _LIBCPP_END_NAMESPACE_STD
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
 #  include <concepts>
+#  include <cstdlib>
 #  include <functional>
 #  include <iterator>
 #  include <type_traits>

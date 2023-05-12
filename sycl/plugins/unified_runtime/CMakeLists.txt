@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG d6af758779db6eebdc419fd5e249302f566eb5de)
+  set(UNIFIED_RUNTIME_TAG 74843ea0800e6fb7ce0f82e0ef991fc258f4b9bd)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -80,6 +80,8 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/ur.cpp"
     "ur/usm_allocator.hpp"
     "ur/usm_allocator.cpp"
+    "ur/usm_allocator_config.cpp"
+    "ur/usm_allocator_config.hpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_loader_interface.cpp"

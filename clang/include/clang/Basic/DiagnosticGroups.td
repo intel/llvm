@@ -258,7 +258,6 @@ def EmptyBody : DiagGroup<"empty-body">;
 def Exceptions : DiagGroup<"exceptions">;
 def DeclarationAfterStatement : DiagGroup<"declaration-after-statement">;
 
-def GNUEmptyInitializer : DiagGroup<"gnu-empty-initializer">;
 def GNUEmptyStruct : DiagGroup<"gnu-empty-struct">;
 def ExtraTokens : DiagGroup<"extra-tokens">;
 def CXX98CompatExtraSemi : DiagGroup<"c++98-compat-extra-semi">;
@@ -856,7 +855,8 @@ def WritableStrings : DiagGroup<"writable-strings", [DeprecatedWritableStr]>;
 //
 // FIXME: Should this affect C++11 (where this is an error,
 //        not just deprecated) or not?
-def GCCWriteStrings : DiagGroup<"write-strings" , [WritableStrings]>;
+def GCCWriteStrings : DiagGroup<"write-strings" , [WritableStrings],
+                                GCCWriteStringsDocs>;
 
 def CharSubscript : DiagGroup<"char-subscripts">;
 def LargeByValueCopy : DiagGroup<"large-by-value-copy">;
@@ -1143,7 +1143,7 @@ def GNU : DiagGroup<"gnu", [GNUAlignofExpression, GNUAnonymousStruct,
                             GNUBinaryLiteral, GNUCaseRange,
                             GNUComplexInteger, GNUCompoundLiteralInitializer,
                             GNUConditionalOmittedOperand, GNUDesignator,
-                            GNUEmptyInitializer, GNUEmptyStruct,
+                            GNUEmptyStruct,
                             VLAExtension, GNUFlexibleArrayInitializer,
                             GNUFlexibleArrayUnionMember, GNUFoldingConstant,
                             GNUImaginaryConstant, GNUIncludeNext,

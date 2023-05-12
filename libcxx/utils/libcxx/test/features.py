@@ -209,6 +209,7 @@ macros = {
   '_LIBCPP_HAS_NO_WIDE_CHARACTERS': 'no-wide-characters',
   '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
   '_LIBCPP_ENABLE_DEBUG_MODE': 'libcpp-has-debug-mode',
+  '_LIBCPP_HAS_PARALLEL_ALGORITHMS': 'with-pstl',
 }
 for macro, feature in macros.items():
   DEFAULT_FEATURES.append(
@@ -240,7 +241,10 @@ for locale, alts in locales.items():
 DEFAULT_FEATURES += [
   Feature(name='darwin', when=lambda cfg: '__APPLE__' in compilerMacros(cfg)),
   Feature(name='windows', when=lambda cfg: '_WIN32' in compilerMacros(cfg)),
-  Feature(name='windows-dll', when=lambda cfg: '_WIN32' in compilerMacros(cfg) and programSucceeds(cfg, """
+  Feature(name='windows-dll', when=lambda cfg: '_WIN32' in compilerMacros(cfg) and sourceBuilds(cfg, """
+            #include <iostream>
+            int main(int, char**) { return 0; }
+          """) and programSucceeds(cfg, """
             #include <iostream>
             #include <windows.h>
             #include <winnt.h>

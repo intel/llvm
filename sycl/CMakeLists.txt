@@ -32,11 +32,11 @@ include(SYCLUtils)
 #
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
-set(SYCL_MAJOR_VERSION 6)
-set(SYCL_MINOR_VERSION 2)
+set(SYCL_MAJOR_VERSION 7)
+set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 
-set(SYCL_DEV_ABI_VERSION 0)
+set(SYCL_DEV_ABI_VERSION 1)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()

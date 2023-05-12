@@ -944,6 +944,39 @@ struct FormatStyle {
   /// \version 12
   BitFieldColonSpacingStyle BitFieldColonSpacing;
 
+  /// The number of columns to use to indent the contents of braced init lists.
+  /// If unset, ``ContinuationIndentWidth`` is used.
+  /// \code
+  ///   AlignAfterOpenBracket: AlwaysBreak
+  ///   BracedInitializerIndentWidth: 2
+  ///
+  ///   void f() {
+  ///     SomeClass c{
+  ///       "foo",
+  ///       "bar",
+  ///       "baz",
+  ///     };
+  ///     auto s = SomeStruct{
+  ///       .foo = "foo",
+  ///       .bar = "bar",
+  ///       .baz = "baz",
+  ///     };
+  ///     SomeArrayT a[3] = {
+  ///       {
+  ///         foo,
+  ///         bar,
+  ///       },
+  ///       {
+  ///         foo,
+  ///         bar,
+  ///       },
+  ///       SomeArrayT{},
+  ///     };
+  ///   }
+  /// \endcode
+  /// \version 17
+  std::optional<unsigned> BracedInitializerIndentWidth;
+
   /// Different ways to wrap braces after control statements.
   enum BraceWrappingAfterControlStatementStyle : int8_t {
     /// Never wrap braces after a control statement.
@@ -2670,6 +2703,11 @@ struct FormatStyle {
     ///        [](SomeReallyLongLambdaSignatureArgument foo) {
     ///      return;
     ///    });
+    ///
+    ///    someMethod(someOtherMethod(
+    ///        [](SomeReallyLongLambdaSignatureArgument foo) {
+    ///      return;
+    ///    }));
     /// \endcode
     LBI_OuterScope,
   };
@@ -2678,11 +2716,7 @@ struct FormatStyle {
   /// causes the lambda body to be indented one additional level relative to
   /// the indentation level of the signature. ``OuterScope`` forces the lambda
   /// body to be indented one additional level relative to the parent scope
-  /// containing the lambda signature. For callback-heavy code, it may improve
-  /// readability to have the signature indented two levels and to use
-  /// ``OuterScope``. The KJ style guide requires ``OuterScope``.
-  /// `KJ style guide
-  /// <https://github.com/capnproto/capnproto/blob/master/style-guide.md>`_
+  /// containing the lambda signature.
   /// \version 13
   LambdaBodyIndentationKind LambdaBodyIndentation;
 
@@ -3748,7 +3782,8 @@ struct FormatStyle {
   /// \version 7
   bool SpaceBeforeInheritanceColon;
 
-  /// If ``true``, a space will be add before a JSON colon.
+  /// If ``true``, a space will be added before a JSON colon. For other
+  /// languages, e.g. JavaScript, use ``SpacesInContainerLiterals`` instead.
   /// \code
   ///    true:                                  false:
   ///    {                                      {
@@ -4031,8 +4066,9 @@ struct FormatStyle {
   /// \version 10
   bool SpacesInConditionalStatement;
 
-  /// If ``true``, spaces are inserted inside container literals (e.g.
-  /// ObjC and Javascript array and dict literals).
+  /// If ``true``, spaces are inserted inside container literals (e.g.  ObjC and
+  /// Javascript array and dict literals). For JSON, use
+  /// ``SpaceBeforeJsonColon`` instead.
   /// \code{.js}
   ///    true:                                  false:
   ///    var arr = [ 1, 2, 3 ];         vs.     var arr = [1, 2, 3];
@@ -4219,6 +4255,20 @@ struct FormatStyle {
   /// \version 3.7
   UseTabStyle UseTab;
 
+  /// For Verilog, put each port on its own line in module instantiations.
+  /// \code
+  ///    true:
+  ///    ffnand ff1(.q(),
+  ///               .qbar(out1),
+  ///               .clear(in1),
+  ///               .preset(in2));
+  ///
+  ///    false:
+  ///    ffnand ff1(.q(), .qbar(out1), .clear(in1), .preset(in2));
+  /// \endcode
+  /// \version 17
+  bool VerilogBreakBetweenInstancePorts;
+
   /// A vector of macros which are whitespace-sensitive and should not
   /// be touched.
   ///
@@ -4269,6 +4319,7 @@ struct FormatStyle {
            BinPackArguments == R.BinPackArguments &&
            BinPackParameters == R.BinPackParameters &&
            BitFieldColonSpacing == R.BitFieldColonSpacing &&
+           BracedInitializerIndentWidth == R.BracedInitializerIndentWidth &&
            BreakAfterAttributes == R.BreakAfterAttributes &&
            BreakAfterJavaFieldAnnotations == R.BreakAfterJavaFieldAnnotations &&
            BreakArrays == R.BreakArrays &&
@@ -4388,6 +4439,8 @@ struct FormatStyle {
            StatementAttributeLikeMacros == R.StatementAttributeLikeMacros &&
            StatementMacros == R.StatementMacros && TabWidth == R.TabWidth &&
            TypenameMacros == R.TypenameMacros && UseTab == R.UseTab &&
+           VerilogBreakBetweenInstancePorts ==
+               R.VerilogBreakBetweenInstancePorts &&
            WhitespaceSensitiveMacros == R.WhitespaceSensitiveMacros;
   }
 

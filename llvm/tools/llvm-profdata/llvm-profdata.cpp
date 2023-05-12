@@ -53,7 +53,7 @@ const std::string DuplicateNameStr = "----";
 enum ProfileFormat {
   PF_None = 0,
   PF_Text,
-  PF_Compact_Binary,
+  PF_Compact_Binary, // Deprecated
   PF_Ext_Binary,
   PF_GCC,
   PF_Binary
@@ -216,9 +216,10 @@ struct WriterContext {
   SmallSet<instrprof_error, 4> &WriterErrorCodes;
 
   WriterContext(bool IsSparse, std::mutex &ErrLock,
-                SmallSet<instrprof_error, 4> &WriterErrorCodes)
-      : Writer(IsSparse), ErrLock(ErrLock), WriterErrorCodes(WriterErrorCodes) {
-  }
+                SmallSet<instrprof_error, 4> &WriterErrorCodes,
+                uint64_t ReservoirSize = 0, uint64_t MaxTraceLength = 0)
+      : Writer(IsSparse, ReservoirSize, MaxTraceLength), ErrLock(ErrLock),
+        WriterErrorCodes(WriterErrorCodes) {}
 };
 
 /// Computer the overlap b/w profile BaseFilename and TestFileName,
@@ -232,9 +233,10 @@ static void overlapInput(const std::string &BaseFilename,
   auto ReaderOrErr = InstrProfReader::create(TestFilename, *FS);
   if (Error E = ReaderOrErr.takeError()) {
     // Skip the empty profiles by returning sliently.
-    instrprof_error IPE = InstrProfError::take(std::move(E));
-    if (IPE != instrprof_error::empty_raw_profile)
-      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), TestFilename);
+    auto [ErrorCode, Msg] = InstrProfError::take(std::move(E));
+    if (ErrorCode != instrprof_error::empty_raw_profile)
+      WC->Errors.emplace_back(make_error<InstrProfError>(ErrorCode, Msg),
+                              TestFilename);
     return;
   }
 
@@ -279,8 +281,9 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
     }
 
     auto MemProfError = [&](Error E) {
-      instrprof_error IPE = InstrProfError::take(std::move(E));
-      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), Filename);
+      auto [ErrorCode, Msg] = InstrProfError::take(std::move(E));
+      WC->Errors.emplace_back(make_error<InstrProfError>(ErrorCode, Msg),
+                              Filename);
     };
 
     // Add the frame mappings into the writer context.
@@ -304,10 +307,11 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
   auto FS = vfs::getRealFileSystem();
   auto ReaderOrErr = InstrProfReader::create(Input.Filename, *FS, Correlator);
   if (Error E = ReaderOrErr.takeError()) {
-    // Skip the empty profiles by returning sliently.
-    instrprof_error IPE = InstrProfError::take(std::move(E));
-    if (IPE != instrprof_error::empty_raw_profile)
-      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), Filename);
+    // Skip the empty profiles by returning silently.
+    auto [ErrCode, Msg] = InstrProfError::take(std::move(E));
+    if (ErrCode != instrprof_error::empty_raw_profile)
+      WC->Errors.emplace_back(make_error<InstrProfError>(ErrCode, Msg),
+                              Filename);
     return;
   }
 
@@ -334,14 +338,20 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
       }
       Reported = true;
       // Only show hint the first time an error occurs.
-      instrprof_error IPE = InstrProfError::take(std::move(E));
+      auto [ErrCode, Msg] = InstrProfError::take(std::move(E));
       std::unique_lock<std::mutex> ErrGuard{WC->ErrLock};
-      bool firstTime = WC->WriterErrorCodes.insert(IPE).second;
-      handleMergeWriterError(make_error<InstrProfError>(IPE), Input.Filename,
-                             FuncName, firstTime);
+      bool firstTime = WC->WriterErrorCodes.insert(ErrCode).second;
+      handleMergeWriterError(make_error<InstrProfError>(ErrCode, Msg),
+                             Input.Filename, FuncName, firstTime);
     });
   }
 
+  if (Reader->hasTemporalProfile()) {
+    auto &Traces = Reader->getTemporalProfTraces(Input.Weight);
+    if (!Traces.empty())
+      WC->Writer.addTemporalProfileTraces(
+          Traces, Reader->getTemporalProfTraceStreamSize());
+  }
   if (Reader->hasError()) {
     if (Error E = Reader->getError())
       WC->Errors.emplace_back(std::move(E), Filename);
@@ -363,11 +373,11 @@ static void mergeWriterContexts(WriterContext *Dst, WriterContext *Src) {
     exitWithError(std::move(E));
 
   Dst->Writer.mergeRecordsFromWriter(std::move(Src->Writer), [&](Error E) {
-    instrprof_error IPE = InstrProfError::take(std::move(E));
+    auto [ErrorCode, Msg] = InstrProfError::take(std::move(E));
     std::unique_lock<std::mutex> ErrGuard{Dst->ErrLock};
-    bool firstTime = Dst->WriterErrorCodes.insert(IPE).second;
+    bool firstTime = Dst->WriterErrorCodes.insert(ErrorCode).second;
     if (firstTime)
-      warn(toString(make_error<InstrProfError>(IPE)));
+      warn(toString(make_error<InstrProfError>(ErrorCode, Msg)));
   });
 }
 
@@ -392,15 +402,17 @@ static void writeInstrProfile(StringRef OutputFilename,
   }
 }
 
-static void mergeInstrProfile(const WeightedFileVector &Inputs,
-                              StringRef DebugInfoFilename,
-                              SymbolRemapper *Remapper,
-                              StringRef OutputFilename,
-                              ProfileFormat OutputFormat, bool OutputSparse,
-                              unsigned NumThreads, FailureMode FailMode,
-                              const StringRef ProfiledBinary) {
-  if (OutputFormat != PF_Binary && OutputFormat != PF_Compact_Binary &&
-      OutputFormat != PF_Ext_Binary && OutputFormat != PF_Text)
+static void
+mergeInstrProfile(const WeightedFileVector &Inputs, StringRef DebugInfoFilename,
+                  SymbolRemapper *Remapper, StringRef OutputFilename,
+                  ProfileFormat OutputFormat, uint64_t TraceReservoirSize,
+                  uint64_t MaxTraceLength, bool OutputSparse,
+                  unsigned NumThreads, FailureMode FailMode,
+                  const StringRef ProfiledBinary) {
+  if (OutputFormat == PF_Compact_Binary)
+    exitWithError("Compact Binary is deprecated");
+  if (OutputFormat != PF_Binary && OutputFormat != PF_Ext_Binary &&
+      OutputFormat != PF_Text)
     exitWithError("unknown format is specified");
 
   std::unique_ptr<InstrProfCorrelator> Correlator;
@@ -424,7 +436,8 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
   SmallVector<std::unique_ptr<WriterContext>, 4> Contexts;
   for (unsigned I = 0; I < NumThreads; ++I)
     Contexts.emplace_back(std::make_unique<WriterContext>(
-        OutputSparse, ErrorLock, WriterErrorCodes));
+        OutputSparse, ErrorLock, WriterErrorCodes, TraceReservoirSize,
+        MaxTraceLength));
 
   if (NumThreads == 1) {
     for (const auto &Input : Inputs)
@@ -901,7 +914,7 @@ remapSamples(const sampleprof::FunctionSamples &Samples,
 static sampleprof::SampleProfileFormat FormatMap[] = {
     sampleprof::SPF_None,
     sampleprof::SPF_Text,
-    sampleprof::SPF_Compact_Binary,
+    sampleprof::SPF_None,
     sampleprof::SPF_Ext_Binary,
     sampleprof::SPF_GCC,
     sampleprof::SPF_Binary};
@@ -1172,8 +1185,6 @@ static int merge_main(int argc, const char *argv[]) {
       cl::desc("Format of output profile"), cl::init(PF_Binary),
       cl::values(
           clEnumValN(PF_Binary, "binary", "Binary encoding (default)"),
-          clEnumValN(PF_Compact_Binary, "compbinary",
-                     "Compact binary encoding"),
           clEnumValN(PF_Ext_Binary, "extbinary", "Extensible binary encoding"),
           clEnumValN(PF_Text, "text", "Text encoding"),
           clEnumValN(PF_GCC, "gcc",
@@ -1264,6 +1275,17 @@ static int merge_main(int argc, const char *argv[]) {
       "drop-profile-symbol-list", cl::init(false), cl::Hidden,
       cl::desc("Drop the profile symbol list when merging AutoFDO profiles "
                "(only meaningful for -sample)"));
+  // WARNING: This reservoir size value is propagated to any input indexed
+  // profiles for simplicity. Changing this value between invocations could
+  // result in sample bias.
+  cl::opt<uint64_t> TemporalProfTraceReservoirSize(
+      "temporal-profile-trace-reservoir-size", cl::init(100),
+      cl::desc("The maximum number of stored temporal profile traces (default: "
+               "100)"));
+  cl::opt<uint64_t> TemporalProfMaxTraceLength(
+      "temporal-profile-max-trace-length", cl::init(10000),
+      cl::desc("The maximum length of a single temporal profile trace "
+               "(default: 10000)"));
 
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data merger\n");
 
@@ -1305,7 +1327,9 @@ static int merge_main(int argc, const char *argv[]) {
 
   if (ProfileKind == instr)
     mergeInstrProfile(WeightedInputs, DebugInfoFilename, Remapper.get(),
-                      OutputFilename, OutputFormat, OutputSparse, NumThreads,
+                      OutputFilename, OutputFormat,
+                      TemporalProfTraceReservoirSize,
+                      TemporalProfMaxTraceLength, OutputSparse, NumThreads,
                       FailureMode, ProfiledBinary);
   else
     mergeSampleProfile(WeightedInputs, Remapper.get(), OutputFilename,
@@ -2384,16 +2408,14 @@ static void showValueSitesStats(raw_fd_ostream &OS, uint32_t VK,
   }
 }
 
-static int showInstrProfile(const std::string &Filename, bool ShowCounts,
-                            uint32_t TopN, bool ShowIndirectCallTargets,
-                            bool ShowMemOPSizes, bool ShowDetailedSummary,
-                            std::vector<uint32_t> DetailedSummaryCutoffs,
-                            bool ShowAllFunctions, bool ShowCS,
-                            uint64_t ValueCutoff, bool OnlyListBelow,
-                            const std::string &ShowFunction, bool TextFormat,
-                            bool ShowBinaryIds, bool ShowCovered,
-                            bool ShowProfileVersion, ShowFormat SFormat,
-                            raw_fd_ostream &OS) {
+static int showInstrProfile(
+    const std::string &Filename, bool ShowCounts, uint32_t TopN,
+    bool ShowIndirectCallTargets, bool ShowMemOPSizes, bool ShowDetailedSummary,
+    std::vector<uint32_t> DetailedSummaryCutoffs, bool ShowAllFunctions,
+    bool ShowCS, uint64_t ValueCutoff, bool OnlyListBelow,
+    const std::string &ShowFunction, bool TextFormat, bool ShowBinaryIds,
+    bool ShowCovered, bool ShowProfileVersion, bool ShowTemporalProfTraces,
+    ShowFormat SFormat, raw_fd_ostream &OS) {
   if (SFormat == ShowFormat::Json)
     exitWithError("JSON output is not supported for instr profiles");
   if (SFormat == ShowFormat::Yaml)
@@ -2610,6 +2632,19 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
 
   if (ShowProfileVersion)
     OS << "Profile version: " << Reader->getVersion() << "\n";
+
+  if (ShowTemporalProfTraces) {
+    auto &Traces = Reader->getTemporalProfTraces();
+    OS << "Temporal Profile Traces (samples=" << Traces.size()
+       << " seen=" << Reader->getTemporalProfTraceStreamSize() << "):\n";
+    for (unsigned i = 0; i < Traces.size(); i++) {
+      OS << "  Temporal Profile Trace " << i << " (weight=" << Traces[i].Weight
+         << " count=" << Traces[i].FunctionNameRefs.size() << "):\n";
+      for (auto &NameRef : Traces[i].FunctionNameRefs)
+        OS << "    " << Reader->getSymtab().getFuncName(NameRef) << "\n";
+    }
+  }
+
   return 0;
 }
 
@@ -2945,6 +2980,9 @@ static int show_main(int argc, const char *argv[]) {
                "extbinary format"));
   cl::opt<bool> ShowBinaryIds("binary-ids", cl::init(false),
                               cl::desc("Show binary ids in the profile. "));
+  cl::opt<bool> ShowTemporalProfTraces(
+      "temporal-profile-traces",
+      cl::desc("Show temporal profile traces in the profile."));
   cl::opt<std::string> DebugInfoFilename(
       "debug-info", cl::init(""),
       cl::desc("Read and extract profile metadata from debug info and show "
@@ -2989,8 +3027,8 @@ static int show_main(int argc, const char *argv[]) {
         Filename, ShowCounts, TopNFunctions, ShowIndirectCallTargets,
         ShowMemOPSizes, ShowDetailedSummary, DetailedSummaryCutoffs,
         ShowAllFunctions, ShowCS, ValueCutoff, OnlyListBelow, ShowFunction,
-        TextFormat, ShowBinaryIds, ShowCovered, ShowProfileVersion, SFormat,
-        OS);
+        TextFormat, ShowBinaryIds, ShowCovered, ShowProfileVersion,
+        ShowTemporalProfTraces, SFormat, OS);
   if (ProfileKind == sample)
     return showSampleProfile(Filename, ShowCounts, TopNFunctions,
                              ShowAllFunctions, ShowDetailedSummary,

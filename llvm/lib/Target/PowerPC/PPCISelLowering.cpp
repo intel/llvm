@@ -46,6 +46,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -85,7 +86,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -10228,14 +10228,16 @@ SDValue PPCTargetLowering::LowerVPERM(SDValue Op, SelectionDAG &DAG,
   if (isLittleEndian)
     std::swap(V1, V2);
 
-  if (Subtarget.isISA3_0() && (V1->hasOneUse() || V2->hasOneUse())) {
+  if (Subtarget.hasVSX() && Subtarget.hasP9Vector() &&
+      (V1->hasOneUse() || V2->hasOneUse())) {
     LLVM_DEBUG(dbgs() << "At least one of two input vectors are dead - using "
                          "XXPERM instead\n");
     Opcode = PPCISD::XXPERM;
 
-    // if V2 is dead, then we swap V1 and V2 so we can
-    // use V2 as the destination instead.
-    if (!V1->hasOneUse() && V2->hasOneUse()) {
+    // The second input to XXPERM is also an output so if the second input has
+    // multiple uses then copying is necessary, as a result we want the
+    // single-use operand to be used as the second input to prevent copying.
+    if (!V2->hasOneUse() && V1->hasOneUse()) {
       std::swap(V1, V2);
       NeedSwap = !NeedSwap;
     }
@@ -11928,6 +11930,7 @@ MachineBasicBlock *PPCTargetLowering::EmitPartwordAtomicBinary(
     BuildMI(*BB, MI, dl, TII->get(is8bit ? PPC::EXTSB : PPC::EXTSH), ValueReg)
         .addReg(MI.getOperand(3).getReg());
     MI.getOperand(3).setReg(ValueReg);
+    incr = ValueReg;
   }
   // If we support part-word atomic mnemonics, just use them
   if (Subtarget.hasPartwordAtomics())

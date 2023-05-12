@@ -27,12 +27,10 @@
 ; RUN:     -passes='lto<O3>' -S  %s -passes-ep-peephole='no-op-function' 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O3,CHECK-O23,CHECK-O23SZ,CHECK-EP-Peephole
 
-; CHECK-O: Running pass: Annotation2Metadata
-; CHECK-EP-NEXT: Running pass: NoOpModulePass
-; CHECK-O-NEXT: Running pass: CrossDSOCFIPass
+; CHECK-EP: Running pass: NoOpModulePass
+; CHECK-O: Running pass: CrossDSOCFIPass
 ; CHECK-O-NEXT: Running pass: OpenMPOptPass
 ; CHECK-O-NEXT: Running pass: GlobalDCEPass
-; CHECK-O-NEXT: Running pass: ForceFunctionAttrsPass
 ; CHECK-O-NEXT: Running pass: InferFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}Module
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
@@ -70,7 +68,7 @@
 ; CHECK-O23SZ-NEXT: Running pass: ConstantMergePass
 ; CHECK-O23SZ-NEXT: Running pass: DeadArgumentEliminationPass
 ; CHECK-O23SZ-NEXT: Running pass: InstCombinePass
-; CHECK-O3-NEXT: Running pass: AggressiveInstCombinePass
+; CHECK-O23SZ-NEXT: Running pass: AggressiveInstCombinePass
 ; CHECK-EP-Peephole-NEXT: Running pass: NoOpFunctionPass
 ; CHECK-O23SZ-NEXT: Running pass: ModuleInlinerWrapperPass
 ; CHECK-O23SZ-NEXT: Running analysis: InlineAdvisorAnalysis
@@ -108,6 +106,7 @@
 ; CHECK-O23SZ-NEXT: Running pass: MemCpyOptPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: DSEPass on foo
 ; CHECK-O23SZ-NEXT: Running analysis: PostDominatorTreeAnalysis on foo
+; CHECK-O23SZ-NEXT: Running pass: MoveAutoInitPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: MergedLoadStoreMotionPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: LoopSimplifyPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: LCSSAPass on foo
@@ -136,6 +135,8 @@
 ; CHECK-O23SZ-NEXT: Running pass: JumpThreadingPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: LowerTypeTestsPass
 ; CHECK-O-NEXT: Running pass: LowerTypeTestsPass
+; CHECK-O23SZ-NEXT: Running pass: LoopSink
+; CHECK-O23SZ-NEXT: Running pass: DivRemPairs
 ; CHECK-O23SZ-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O23SZ-NEXT: Running pass: EliminateAvailableExternallyPass
 ; CHECK-O23SZ-NEXT: Running pass: GlobalDCEPass

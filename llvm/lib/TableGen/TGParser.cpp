@@ -709,6 +709,148 @@ ParseSubMultiClassReference(MultiClass *CurMC) {
   return Result;
 }
 
+/// ParseSliceElement - Parse subscript or range
+///
+///  SliceElement  ::= Value<list<int>>
+///  SliceElement  ::= Value<int>
+///  SliceElement  ::= Value<int> '...' Value<int>
+///  SliceElement  ::= Value<int> '-' Value<int> (deprecated)
+///  SliceElement  ::= Value<int> INTVAL(Negative; deprecated)
+///
+/// SliceElement is either IntRecTy, ListRecTy, or nullptr
+///
+TypedInit *TGParser::ParseSliceElement(Record *CurRec) {
+  auto LHSLoc = Lex.getLoc();
+  auto *CurVal = ParseValue(CurRec);
+  if (!CurVal)
+    return nullptr;
+  auto *LHS = cast<TypedInit>(CurVal);
+
+  TypedInit *RHS = nullptr;
+  switch (Lex.getCode()) {
+  case tgtok::dotdotdot:
+  case tgtok::minus: { // Deprecated
+    Lex.Lex();         // eat
+    auto RHSLoc = Lex.getLoc();
+    CurVal = ParseValue(CurRec);
+    if (!CurVal)
+      return nullptr;
+    RHS = cast<TypedInit>(CurVal);
+    if (!isa<IntRecTy>(RHS->getType())) {
+      Error(RHSLoc,
+            "expected int...int, got " + Twine(RHS->getType()->getAsString()));
+      return nullptr;
+    }
+    break;
+  }
+  case tgtok::IntVal: { // Deprecated "-num"
+    auto i = -Lex.getCurIntVal();
+    if (i < 0) {
+      TokError("invalid range, cannot be negative");
+      return nullptr;
+    }
+    RHS = IntInit::get(Records, i);
+    Lex.Lex(); // eat IntVal
+    break;
+  }
+  default: // Single value (IntRecTy or ListRecTy)
+    return LHS;
+  }
+
+  assert(RHS);
+  assert(isa<IntRecTy>(RHS->getType()));
+
+  // Closed-interval range <LHS:IntRecTy>...<RHS:IntRecTy>
+  if (!isa<IntRecTy>(LHS->getType())) {
+    Error(LHSLoc,
+          "expected int...int, got " + Twine(LHS->getType()->getAsString()));
+    return nullptr;
+  }
+
+  return cast<TypedInit>(BinOpInit::get(BinOpInit::RANGEC, LHS, RHS,
+                                        IntRecTy::get(Records)->getListTy())
+                             ->Fold(CurRec));
+}
+
+/// ParseSliceElements - Parse subscripts in square brackets.
+///
+///  SliceElements ::= ( SliceElement ',' )* SliceElement ','?
+///
+/// SliceElement is either IntRecTy, ListRecTy, or nullptr
+///
+/// Returns ListRecTy by defaut.
+/// Returns IntRecTy if;
+///  - Single=true
+///  - SliceElements is Value<int> w/o trailing comma
+///
+TypedInit *TGParser::ParseSliceElements(Record *CurRec, bool Single) {
+  TypedInit *CurVal;
+  SmallVector<Init *, 2> Elems;       // int
+  SmallVector<TypedInit *, 2> Slices; // list<int>
+
+  auto FlushElems = [&] {
+    if (!Elems.empty()) {
+      Slices.push_back(ListInit::get(Elems, IntRecTy::get(Records)));
+      Elems.clear();
+    }
+  };
+
+  do {
+    auto LHSLoc = Lex.getLoc();
+    CurVal = ParseSliceElement(CurRec);
+    if (!CurVal)
+      return nullptr;
+    auto *CurValTy = CurVal->getType();
+
+    if (auto *ListValTy = dyn_cast<ListRecTy>(CurValTy)) {
+      if (!isa<IntRecTy>(ListValTy->getElementType())) {
+        Error(LHSLoc,
+              "expected list<int>, got " + Twine(ListValTy->getAsString()));
+        return nullptr;
+      }
+
+      FlushElems();
+      Slices.push_back(CurVal);
+      Single = false;
+      CurVal = nullptr;
+    } else if (!isa<IntRecTy>(CurValTy)) {
+      Error(LHSLoc,
+            "unhandled type " + Twine(CurValTy->getAsString()) + " in range");
+      return nullptr;
+    }
+
+    if (Lex.getCode() != tgtok::comma)
+      break;
+
+    Lex.Lex(); // eat comma
+
+    // `[i,]` is not LISTELEM but LISTSLICE
+    Single = false;
+    if (CurVal)
+      Elems.push_back(CurVal);
+    CurVal = nullptr;
+  } while (Lex.getCode() != tgtok::r_square);
+
+  if (CurVal) {
+    // LISTELEM
+    if (Single)
+      return CurVal;
+
+    Elems.push_back(CurVal);
+  }
+
+  FlushElems();
+
+  // Concatenate lists in Slices
+  TypedInit *Result = nullptr;
+  for (auto *Slice : Slices) {
+    Result = (Result ? cast<TypedInit>(BinOpInit::getListConcat(Result, Slice))
+                     : Slice);
+  }
+
+  return Result;
+}
+
 /// ParseRangePiece - Parse a bit/value range.
 ///   RangePiece ::= INTVAL
 ///   RangePiece ::= INTVAL '...' INTVAL
@@ -1217,6 +1359,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
   case tgtok::XListConcat:
   case tgtok::XListSplat:
   case tgtok::XListRemove:
+  case tgtok::XRange:
   case tgtok::XStrConcat:
   case tgtok::XInterleave:
   case tgtok::XSetDagOp: { // Value ::= !binop '(' Value ',' Value ')'
@@ -1247,6 +1390,7 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     case tgtok::XListConcat: Code = BinOpInit::LISTCONCAT; break;
     case tgtok::XListSplat:  Code = BinOpInit::LISTSPLAT; break;
     case tgtok::XListRemove: Code = BinOpInit::LISTREMOVE; break;
+    case tgtok::XRange:      Code = BinOpInit::RANGE; break;
     case tgtok::XStrConcat:  Code = BinOpInit::STRCONCAT; break;
     case tgtok::XInterleave: Code = BinOpInit::INTERLEAVE; break;
     case tgtok::XSetDagOp:   Code = BinOpInit::SETDAGOP; break;
@@ -1294,6 +1438,10 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     case tgtok::XListRemove:
       // We don't know the list type until we parse the first argument.
       ArgType = ItemType;
+      break;
+    case tgtok::XRange:
+      Type = IntRecTy::get(Records)->getListTy();
+      // ArgType may be either Int or List.
       break;
     case tgtok::XStrConcat:
       Type = StringRecTy::get(Records);
@@ -1376,6 +1524,27 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
           if (!isa<ListRecTy>(ArgType)) {
             Error(InitLoc, Twine("expected a list, got value of type '") +
                                ArgType->getAsString() + "'");
+            return nullptr;
+          }
+          break;
+        case BinOpInit::RANGE:
+          if (InitList.size() == 1) {
+            if (isa<ListRecTy>(ArgType)) {
+              ArgType = nullptr; // Detect error if 2nd arg were present.
+            } else if (isa<IntRecTy>(ArgType)) {
+              // Assume 2nd arg should be IntRecTy
+            } else {
+              Error(InitLoc,
+                    Twine("expected list or int, got value of type '") +
+                        ArgType->getAsString() + "'");
+              return nullptr;
+            }
+          } else {
+            // Don't come here unless 1st arg is ListRecTy.
+            assert(isa<ListRecTy>(cast<TypedInit>(InitList[0])->getType()));
+            Error(InitLoc,
+                  Twine("expected one list, got extra value of type '") +
+                      ArgType->getAsString() + "'");
             return nullptr;
           }
           break;
@@ -1476,6 +1645,37 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
     // listremove returns a list with type of the argument.
     if (Code == BinOpInit::LISTREMOVE)
       Type = ArgType;
+
+    if (Code == BinOpInit::RANGE) {
+      Init *LHS, *RHS;
+      auto ArgCount = InitList.size();
+      assert(ArgCount >= 1);
+      auto *Arg0 = cast<TypedInit>(InitList[0]);
+      auto *Arg0Ty = Arg0->getType();
+      if (ArgCount == 1) {
+        if (isa<ListRecTy>(Arg0Ty)) {
+          // (0, !size(arg))
+          LHS = IntInit::get(Records, 0);
+          RHS = UnOpInit::get(UnOpInit::SIZE, Arg0, IntRecTy::get(Records))
+                    ->Fold(CurRec);
+        } else {
+          assert(isa<IntRecTy>(Arg0Ty));
+          // (0, arg)
+          LHS = IntInit::get(Records, 0);
+          RHS = Arg0;
+        }
+      } else if (ArgCount == 2) {
+        assert(isa<IntRecTy>(Arg0Ty));
+        auto *Arg1 = cast<TypedInit>(InitList[1]);
+        assert(isa<IntRecTy>(Arg1->getType()));
+        LHS = Arg0;
+        RHS = Arg1;
+      } else {
+        Error(OpLoc, "expected at most two values of integer");
+        return nullptr;
+      }
+      return BinOpInit::get(Code, LHS, RHS, Type)->Fold(CurRec);
+    }
 
     // We allow multiple operands to associative operators like !strconcat as
     // shorthand for nesting them.
@@ -2208,6 +2408,8 @@ Init *TGParser::ParseOperationCond(Record *CurRec, RecTy *ItemType) {
 ///   SimpleValue ::= LISTCONCATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= LISTSPLATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= LISTREMOVETOK '(' Value ',' Value ')'
+///   SimpleValue ::= RANGE '(' Value ')'
+///   SimpleValue ::= RANGE '(' Value ',' Value ')'
 ///   SimpleValue ::= STRCONCATTOK '(' Value ',' Value ')'
 ///   SimpleValue ::= COND '(' [Value ':' Value,]+ ')'
 ///
@@ -2510,6 +2712,7 @@ Init *TGParser::ParseSimpleValue(Record *CurRec, RecTy *ItemType,
   case tgtok::XListConcat:
   case tgtok::XListSplat:
   case tgtok::XListRemove:
+  case tgtok::XRange:
   case tgtok::XStrConcat:
   case tgtok::XInterleave:
   case tgtok::XSetDagOp: // Value ::= !binop '(' Value ',' Value ')'
@@ -2532,10 +2735,11 @@ Init *TGParser::ParseSimpleValue(Record *CurRec, RecTy *ItemType,
 ///
 ///   Value       ::= SimpleValue ValueSuffix*
 ///   ValueSuffix ::= '{' BitList '}'
-///   ValueSuffix ::= '[' BitList ']'
+///   ValueSuffix ::= '[' SliceElements ']'
 ///   ValueSuffix ::= '.' ID
 ///
 Init *TGParser::ParseValue(Record *CurRec, RecTy *ItemType, IDParseMode Mode) {
+  SMLoc LHSLoc = Lex.getLoc();
   Init *Result = ParseSimpleValue(CurRec, ItemType, Mode);
   if (!Result) return nullptr;
 
@@ -2570,17 +2774,34 @@ Init *TGParser::ParseValue(Record *CurRec, RecTy *ItemType, IDParseMode Mode) {
       break;
     }
     case tgtok::l_square: {
-      SMLoc SquareLoc = Lex.getLoc();
-      Lex.Lex(); // eat the '['
-      SmallVector<unsigned, 16> Ranges;
-      ParseRangeList(Ranges);
-      if (Ranges.empty()) return nullptr;
-
-      Result = Result->convertInitListSlice(Ranges);
-      if (!Result) {
-        Error(SquareLoc, "Invalid range for list slice");
+      auto *LHS = dyn_cast<TypedInit>(Result);
+      if (!LHS) {
+        Error(LHSLoc, "Invalid value, list expected");
         return nullptr;
       }
+
+      auto *LHSTy = dyn_cast<ListRecTy>(LHS->getType());
+      if (!LHSTy) {
+        Error(LHSLoc, "Type '" + Twine(LHS->getType()->getAsString()) +
+                          "' is invalid, list expected");
+        return nullptr;
+      }
+
+      Lex.Lex(); // eat the '['
+      TypedInit *RHS = ParseSliceElements(CurRec, /*Single=*/true);
+      if (!RHS)
+        return nullptr;
+
+      if (isa<ListRecTy>(RHS->getType())) {
+        Result =
+            BinOpInit::get(BinOpInit::LISTSLICE, LHS, RHS, LHSTy)->Fold(CurRec);
+      } else {
+        Result = BinOpInit::get(BinOpInit::LISTELEM, LHS, RHS,
+                                LHSTy->getElementType())
+                     ->Fold(CurRec);
+      }
+
+      assert(Result);
 
       // Eat the ']'.
       if (!consume(tgtok::r_square)) {
@@ -3023,7 +3244,7 @@ bool TGParser::ParseBodyItem(Record *CurRec) {
     return ParseAssert(nullptr, CurRec);
 
   if (Lex.getCode() == tgtok::Defvar)
-    return ParseDefvar();
+    return ParseDefvar(CurRec);
 
   if (Lex.getCode() != tgtok::Let) {
     if (!ParseDeclaration(CurRec, false))
@@ -3254,7 +3475,7 @@ bool TGParser::ParseDefset() {
 ///
 ///   Defvar ::= DEFVAR Id '=' Value ';'
 ///
-bool TGParser::ParseDefvar() {
+bool TGParser::ParseDefvar(Record *CurRec) {
   assert(Lex.getCode() == tgtok::Defvar);
   Lex.Lex(); // Eat the 'defvar' token
 
@@ -3273,7 +3494,7 @@ bool TGParser::ParseDefvar() {
   if (!consume(tgtok::equal))
     return TokError("expected '='");
 
-  Init *Value = ParseValue(nullptr);
+  Init *Value = ParseValue(CurRec);
   if (!Value)
     return true;
 

@@ -1272,7 +1272,7 @@ private:
   /// location information).
   ///@{
   void processNonDbgInstruction(Instruction &I, BlockInfo *LiveSet);
-  void processDbgInstruction(Instruction &I, BlockInfo *LiveSet);
+  void processDbgInstruction(DbgInfoIntrinsic &I, BlockInfo *LiveSet);
   /// Update \p LiveSet after encountering an instruction with a DIAssignID
   /// attachment, \p I.
   void processTaggedInstruction(Instruction &I, BlockInfo *LiveSet);
@@ -1702,8 +1702,22 @@ void AssignmentTrackingLowering::processDbgValue(DbgValueInst &DVI,
   emitDbgValue(LocKind::Val, &DVI, &DVI);
 }
 
+static bool hasZeroSizedFragment(DbgVariableIntrinsic &DVI) {
+  if (auto F = DVI.getExpression()->getFragmentInfo())
+    return F->SizeInBits == 0;
+  return false;
+}
+
 void AssignmentTrackingLowering::processDbgInstruction(
-    Instruction &I, AssignmentTrackingLowering::BlockInfo *LiveSet) {
+    DbgInfoIntrinsic &I, AssignmentTrackingLowering::BlockInfo *LiveSet) {
+  auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I);
+  if (!DVI)
+    return;
+
+  // Ignore assignments to zero bits of the variable.
+  if (hasZeroSizedFragment(*DVI))
+    return;
+
   if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&I))
     processDbgAssign(*DAI, LiveSet);
   else if (auto *DVI = dyn_cast<DbgValueInst>(&I))
@@ -1733,10 +1747,11 @@ void AssignmentTrackingLowering::process(BasicBlock &BB, BlockInfo *LiveSet) {
       ++II;
     }
     while (II != EI) {
-      if (!isa<DbgInfoIntrinsic>(&*II))
+      auto *Dbg = dyn_cast<DbgInfoIntrinsic>(&*II);
+      if (!Dbg)
         break;
       resetInsertionPoint(*II);
-      processDbgInstruction(*II, LiveSet);
+      processDbgInstruction(*Dbg, LiveSet);
       assert(LiveSet->isValid());
       ++II;
     }
@@ -1996,16 +2011,17 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     }
   }
 
-  // Sort the fragment map for each DebugAggregate in non-descending
-  // order of fragment size. Assert no entries are duplicates.
+  // Sort the fragment map for each DebugAggregate in ascending
+  // order of fragment size - there should be no duplicates.
   for (auto &Pair : FragmentMap) {
     SmallVector<DebugVariable, 8> &Frags = Pair.second;
-    std::sort(
-        Frags.begin(), Frags.end(), [](DebugVariable Next, DebugVariable Elmt) {
-          assert(!(Elmt.getFragmentOrDefault() == Next.getFragmentOrDefault()));
-          return Elmt.getFragmentOrDefault().SizeInBits >
-                 Next.getFragmentOrDefault().SizeInBits;
-        });
+    std::sort(Frags.begin(), Frags.end(),
+              [](const DebugVariable &Next, const DebugVariable &Elmt) {
+                return Elmt.getFragmentOrDefault().SizeInBits >
+                       Next.getFragmentOrDefault().SizeInBits;
+              });
+    // Check for duplicates.
+    assert(std::adjacent_find(Frags.begin(), Frags.end()) == Frags.end());
   }
 
   // Build the map.
@@ -2178,8 +2194,7 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
       //
       // Unless we've already done so, create the single location def now.
       if (AlwaysStackHomed.insert(Aggr).second) {
-        assert(!VarLoc.Values.hasArgList() &&
-               isa<AllocaInst>(VarLoc.Values.getVariableLocationOp(0)));
+        assert(!VarLoc.Values.hasArgList());
         // TODO: When more complex cases are handled VarLoc.Expr should be
         // built appropriately rather than always using an empty DIExpression.
         // The assert below is a reminder.
