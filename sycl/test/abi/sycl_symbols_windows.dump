@@ -1174,7 +1174,7 @@
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KV423@@Z
 ?memcpyFromDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_N_K3@Z
 ?memcpyFromDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
-?memcpyFromHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_K_N22@Z
+?memcpyFromHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_N_K3@Z
 ?memcpyToDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_N_K2@Z
 ?memcpyToDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?memcpyToHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_K_N11@Z
