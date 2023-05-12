@@ -144,16 +144,17 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnBufferCreate = nullptr;
-  pDdiTable->pfnBufferPartition = nullptr;
-  pDdiTable->pfnBufferCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnImageCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnImageCreate = nullptr;
-  pDdiTable->pfnImageGetInfo = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnBufferCreate = urMemBufferCreate;
+  pDdiTable->pfnBufferPartition = urMemBufferPartition;
+  pDdiTable->pfnBufferCreateWithNativeHandle =
+      urMemBufferCreateWithNativeHandle;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = urMemGetInfo;
+  pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
+  pDdiTable->pfnImageCreate = urMemImageCreate;
+  pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
+  pDdiTable->pfnRelease = urMemRelease;
+  pDdiTable->pfnRetain = urMemRetain;
   return UR_RESULT_SUCCESS;
 }
 

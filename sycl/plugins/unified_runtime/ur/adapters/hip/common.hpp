@@ -105,3 +105,78 @@ void assertion(bool Condition, const char *Message = nullptr);
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
+
+/// RAII object that calls the reference count release function on the held UR
+/// object on destruction.
+///
+/// The `dismiss` function stops the release from happening on destruction.
+template <typename T> class ReleaseGuard {
+private:
+  T Captive;
+
+  static ur_result_t callRelease(ur_device_handle_t Captive) {
+    return urDeviceRelease(Captive);
+  }
+
+  static ur_result_t callRelease(ur_context_handle_t Captive) {
+    return urContextRelease(Captive);
+  }
+
+  static ur_result_t callRelease(ur_mem_handle_t Captive) {
+    return urMemRelease(Captive);
+  }
+
+  static ur_result_t callRelease(ur_program_handle_t Captive) {
+    return urProgramRelease(Captive);
+  }
+
+  static ur_result_t callRelease(ur_kernel_handle_t Captive) {
+    return urKernelRelease(Captive);
+  }
+
+  static ur_result_t callRelease(ur_queue_handle_t Captive) {
+    return urQueueRelease(Captive);
+  }
+
+  static ur_result_t callRelease(ur_event_handle_t Captive) {
+    return urEventRelease(Captive);
+  }
+
+public:
+  ReleaseGuard() = delete;
+  /// Obj can be `nullptr`.
+  explicit ReleaseGuard(T Obj) : Captive(Obj) {}
+  ReleaseGuard(ReleaseGuard &&Other) noexcept : Captive(Other.Captive) {
+    Other.Captive = nullptr;
+  }
+
+  ReleaseGuard(const ReleaseGuard &) = delete;
+
+  /// Calls the related UR object release function if the object held is not
+  /// `nullptr` or if `dismiss` has not been called.
+  ~ReleaseGuard() {
+    if (Captive != nullptr) {
+      ur_result_t ret = callRelease(Captive);
+      if (ret != UR_RESULT_SUCCESS) {
+        // A reported HIP error is either an implementation or an asynchronous
+        // HIP error for which it is unclear if the function that reported it
+        // succeeded or not. Either way, the state of the program is compromised
+        // and likely unrecoverable.
+        sycl::detail::ur::die(
+            "Unrecoverable program state reached in piMemRelease");
+      }
+    }
+  }
+
+  ReleaseGuard &operator=(const ReleaseGuard &) = delete;
+
+  ReleaseGuard &operator=(ReleaseGuard &&Other) {
+    Captive = Other.Captive;
+    Other.Captive = nullptr;
+    return *this;
+  }
+
+  /// End the guard and do not release the reference count of the held
+  /// UR object.
+  void dismiss() { Captive = nullptr; }
+};

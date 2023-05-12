@@ -455,9 +455,9 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      hipStream_t stream, pi_uint32 stream_token)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false}, streamToken_{stream_token},
-      evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr}, queue_{queue},
-      stream_{stream}, context_{context} {
+      isRecorded_{false}, isStarted_{false},
+      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
+      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
 
   assert(type != PI_COMMAND_TYPE_USER);
 
@@ -687,81 +687,6 @@ std::string getKernelNames(pi_program program) {
   return {};
 }
 
-/// RAII object that calls the reference count release function on the held PI
-/// object on destruction.
-///
-/// The `dismiss` function stops the release from happening on destruction.
-template <typename T> class ReleaseGuard {
-private:
-  T Captive;
-
-  static pi_result callRelease(pi_device Captive) {
-    return pi2ur::piDeviceRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_context Captive) {
-    return pi2ur::piContextRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_mem Captive) {
-    return hip_piMemRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_program Captive) {
-    return hip_piProgramRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_kernel Captive) {
-    return hip_piKernelRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_queue Captive) {
-    return hip_piQueueRelease(Captive);
-  }
-
-  static pi_result callRelease(pi_event Captive) {
-    return hip_piEventRelease(Captive);
-  }
-
-public:
-  ReleaseGuard() = delete;
-  /// Obj can be `nullptr`.
-  explicit ReleaseGuard(T Obj) : Captive(Obj) {}
-  ReleaseGuard(ReleaseGuard &&Other) noexcept : Captive(Other.Captive) {
-    Other.Captive = nullptr;
-  }
-
-  ReleaseGuard(const ReleaseGuard &) = delete;
-
-  /// Calls the related PI object release function if the object held is not
-  /// `nullptr` or if `dismiss` has not been called.
-  ~ReleaseGuard() {
-    if (Captive != nullptr) {
-      pi_result ret = callRelease(Captive);
-      if (ret != PI_SUCCESS) {
-        // A reported HIP error is either an implementation or an asynchronous
-        // HIP error for which it is unclear if the function that reported it
-        // succeeded or not. Either way, the state of the program is compromised
-        // and likely unrecoverable.
-        sycl::detail::pi::die(
-            "Unrecoverable program state reached in hip_piMemRelease");
-      }
-    }
-  }
-
-  ReleaseGuard &operator=(const ReleaseGuard &) = delete;
-
-  ReleaseGuard &operator=(ReleaseGuard &&Other) {
-    Captive = Other.Captive;
-    Other.Captive = nullptr;
-    return *this;
-  }
-
-  /// End the guard and do not release the reference count of the held
-  /// PI object.
-  void dismiss() { Captive = nullptr; }
-};
-
 //-- PI API implementation
 extern "C" {
 
@@ -821,319 +746,6 @@ pi_result hip_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
   }
 
   return retError;
-}
-
-/// Creates a PI Memory object using a HIP memory allocation.
-/// Can trigger a manual copy depending on the mode.
-/// \TODO Implement USE_HOST_PTR using cuHostRegister
-///
-pi_result
-hip_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                      void *host_ptr, pi_mem *ret_mem,
-                      [[maybe_unused]] const pi_mem_properties *properties) {
-  // Need input memory object
-  assert(ret_mem != nullptr);
-  assert((properties == nullptr || *properties == 0) &&
-         "no mem properties goes to HIP RT yet");
-  // Currently, USE_HOST_PTR is not implemented using host register
-  // since this triggers a weird segfault after program ends.
-  // Setting this constant to true enables testing that behavior.
-  const bool enableUseHostPtr = false;
-  const bool performInitialCopy =
-      (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
-      ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && !enableUseHostPtr);
-  pi_result retErr = PI_SUCCESS;
-  pi_mem retMemObj = nullptr;
-
-  try {
-    ScopedContext active(context);
-    void *ptr;
-    _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
-        _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
-
-    if ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && enableUseHostPtr) {
-      retErr = PI_CHECK_ERROR(
-          hipHostRegister(host_ptr, size, hipHostRegisterMapped));
-      retErr = PI_CHECK_ERROR(hipHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr;
-    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
-      retErr = PI_CHECK_ERROR(hipHostMalloc(&host_ptr, size));
-      retErr = PI_CHECK_ERROR(hipHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
-    } else {
-      retErr = PI_CHECK_ERROR(hipMalloc(&ptr, size));
-      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-        allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
-      }
-    }
-
-    if (retErr == PI_SUCCESS) {
-      pi_mem parentBuffer = nullptr;
-
-      auto devPtr =
-          reinterpret_cast<_pi_mem::mem_::mem_::buffer_mem_::native_type>(ptr);
-      auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
-          context, parentBuffer, allocMode, devPtr, host_ptr, size});
-      if (piMemObj != nullptr) {
-        retMemObj = piMemObj.release();
-        if (performInitialCopy) {
-          // Operates on the default stream of the current HIP context.
-          retErr = PI_CHECK_ERROR(hipMemcpyHtoD(devPtr, host_ptr, size));
-          // Synchronize with default stream implicitly used by cuMemcpyHtoD
-          // to make buffer data available on device before any other PI call
-          // uses it.
-          if (retErr == PI_SUCCESS) {
-            hipStream_t defaultStream = 0;
-            retErr = PI_CHECK_ERROR(hipStreamSynchronize(defaultStream));
-          }
-        }
-      } else {
-        retErr = PI_ERROR_OUT_OF_HOST_MEMORY;
-      }
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  } catch (...) {
-    retErr = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  *ret_mem = retMemObj;
-
-  return retErr;
-}
-
-/// Decreases the reference count of the Mem object.
-/// If this is zero, calls the relevant HIP Free function
-/// \return PI_SUCCESS unless deallocation error
-///
-pi_result hip_piMemRelease(pi_mem memObj) {
-  assert((memObj != nullptr) && "PI_ERROR_INVALID_MEM_OBJECTS");
-
-  pi_result ret = PI_SUCCESS;
-
-  try {
-
-    // Do nothing if there are other references
-    if (memObj->decrement_reference_count() > 0) {
-      return PI_SUCCESS;
-    }
-
-    // make sure memObj is released in case PI_CHECK_ERROR throws
-    std::unique_ptr<_pi_mem> uniqueMemObj(memObj);
-
-    if (memObj->is_sub_buffer()) {
-      return PI_SUCCESS;
-    }
-
-    ScopedContext active(uniqueMemObj->get_context());
-
-    if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
-      switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(
-            hipFree((void *)uniqueMemObj->mem_.buffer_mem_.ptr_));
-        break;
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
-        ret = PI_CHECK_ERROR(
-            hipHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-        break;
-      case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
-        ret = PI_CHECK_ERROR(
-            hipFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
-      };
-    }
-
-    else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
-      ret = PI_CHECK_ERROR(hipDestroySurfaceObject(
-          uniqueMemObj->mem_.surface_mem_.get_surface()));
-      auto array = uniqueMemObj->mem_.surface_mem_.get_array();
-      ret = PI_CHECK_ERROR(hipFreeArray(array));
-    }
-
-  } catch (pi_result err) {
-    ret = err;
-  } catch (...) {
-    ret = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  if (ret != PI_SUCCESS) {
-    // A reported HIP error is either an implementation or an asynchronous HIP
-    // error for which it is unclear if the function that reported it succeeded
-    // or not. Either way, the state of the program is compromised and likely
-    // unrecoverable.
-    sycl::detail::pi::die(
-        "Unrecoverable program state reached in hip_piMemRelease");
-  }
-
-  return PI_SUCCESS;
-}
-
-/// Implements a buffer partition in the HIP backend.
-/// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
-/// as an offset over an existing HIP allocation.
-///
-pi_result hip_piMemBufferPartition(
-    pi_mem parent_buffer, pi_mem_flags flags,
-    [[maybe_unused]] pi_buffer_create_type buffer_create_type,
-    void *buffer_create_info, pi_mem *memObj) {
-  assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
-  assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
-  assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
-
-  // Default value for flags means PI_MEM_FLAGS_ACCCESS_RW.
-  if (flags == 0) {
-    flags = PI_MEM_FLAGS_ACCESS_RW;
-  }
-
-  assert((flags == PI_MEM_FLAGS_ACCESS_RW) && "PI_ERROR_INVALID_VALUE");
-  assert((buffer_create_type == PI_BUFFER_CREATE_TYPE_REGION) &&
-         "PI_ERROR_INVALID_VALUE");
-  assert((buffer_create_info != nullptr) && "PI_ERROR_INVALID_VALUE");
-  assert(memObj != nullptr);
-
-  const auto bufferRegion =
-      *reinterpret_cast<pi_buffer_region>(buffer_create_info);
-  assert((bufferRegion.size != 0u) && "PI_ERROR_INVALID_BUFFER_SIZE");
-
-  assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
-         "Overflow");
-  assert(((bufferRegion.origin + bufferRegion.size) <=
-          parent_buffer->mem_.buffer_mem_.get_size()) &&
-         "PI_ERROR_INVALID_BUFFER_SIZE");
-  // Retained indirectly due to retaining parent buffer below.
-  pi_context context = parent_buffer->context_;
-  _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
-      _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
-
-  assert(parent_buffer->mem_.buffer_mem_.ptr_ !=
-         _pi_mem::mem_::buffer_mem_::native_type{0});
-  _pi_mem::mem_::buffer_mem_::native_type ptr =
-      parent_buffer->mem_.buffer_mem_.get_with_offset(bufferRegion.origin);
-
-  void *hostPtr = nullptr;
-  if (parent_buffer->mem_.buffer_mem_.hostPtr_) {
-    hostPtr = static_cast<char *>(parent_buffer->mem_.buffer_mem_.hostPtr_) +
-              bufferRegion.origin;
-  }
-
-  ReleaseGuard<pi_mem> releaseGuard(parent_buffer);
-
-  std::unique_ptr<_pi_mem> retMemObj{nullptr};
-  try {
-    ScopedContext active(context);
-
-    retMemObj = std::unique_ptr<_pi_mem>{new _pi_mem{
-        context, parent_buffer, allocMode, ptr, hostPtr, bufferRegion.size}};
-  } catch (pi_result err) {
-    *memObj = nullptr;
-    return err;
-  } catch (...) {
-    *memObj = nullptr;
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  releaseGuard.dismiss();
-  *memObj = retMemObj.release();
-  return PI_SUCCESS;
-}
-
-pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
-                           size_t expectedQuerySize, void *queryOutput,
-                           size_t *writtenQuerySize) {
-  (void)memObj;
-  (void)queriedInfo;
-  (void)expectedQuerySize;
-  (void)queryOutput;
-  (void)writtenQuerySize;
-
-  sycl::detail::pi::die("hip_piMemGetInfo not implemented");
-}
-
-/// Gets the native HIP handle of a PI mem object
-///
-/// \param[in] mem The PI mem to get the native HIP object of.
-/// \param[out] nativeHandle Set to the native handle of the PI mem object.
-///
-/// \return PI_SUCCESS
-pi_result hip_piextMemGetNativeHandle(pi_mem mem,
-                                      pi_native_handle *nativeHandle) {
-#if defined(__HIP_PLATFORM_NVIDIA__)
-  if (sizeof(_pi_mem::mem_::buffer_mem_::native_type) >
-      sizeof(pi_native_handle)) {
-    // Check that all the upper bits that cannot be represented by
-    // pi_native_handle are empty.
-    // NOTE: The following shift might trigger a warning, but the check in the
-    // if above makes sure that this does not underflow.
-    _pi_mem::mem_::buffer_mem_::native_type upperBits =
-        mem->mem_.buffer_mem_.get() >> (sizeof(pi_native_handle) * CHAR_BIT);
-    if (upperBits) {
-      // Return an error if any of the remaining bits is non-zero.
-      return PI_ERROR_INVALID_MEM_OBJECT;
-    }
-  }
-  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
-#elif defined(__HIP_PLATFORM_AMD__)
-  *nativeHandle =
-      reinterpret_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
-  return PI_SUCCESS;
-}
-
-/// Created a PI mem object from a HIP mem handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI mem object from.
-/// \param[in] context The PI context of the memory allocation.
-/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
-/// it came from interop that asked to not transfer the ownership to SYCL RT.
-/// \param[out] mem Set to the PI mem object created from native handle.
-///
-/// \return TBD
-pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                             pi_context context,
-                                             bool ownNativeHandle,
-                                             pi_mem *mem) {
-  (void)nativeHandle;
-  (void)context;
-  (void)ownNativeHandle;
-  (void)mem;
-
-  sycl::detail::pi::die(
-      "Creation of PI mem from native handle not implemented");
-  return {};
-}
-
-/// Created a PI image mem object from a HIP image mem handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI mem object from.
-/// \param[in] context The PI context of the memory allocation.
-/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
-/// it came from interop that asked to not transfer the ownership to SYCL RT.
-/// \param[in] ImageFormat The format of the image.
-/// \param[in] ImageDesc The description information for the image.
-/// \param[out] mem Set to the PI mem object created from native handle.
-///
-/// \return TBD
-pi_result hip_piextMemImageCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
-    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
-    pi_mem *mem) {
-  (void)nativeHandle;
-  (void)context;
-  (void)ownNativeHandle;
-  (void)ImageFormat;
-  (void)ImageDesc;
-  (void)mem;
-
-  sycl::detail::pi::die(
-      "Creation of PI mem from native image handle not implemented");
-  return {};
 }
 
 /// Creates a `pi_queue` object on the HIP backend.
@@ -1764,182 +1376,6 @@ hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
 
   sycl::detail::pi::die("Not implemented in HIP backend");
   return {};
-}
-
-/// \TODO Not implemented
-
-pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
-                               const pi_image_format *image_format,
-                               const pi_image_desc *image_desc, void *host_ptr,
-                               pi_mem *ret_mem) {
-
-  // Need input memory object
-  assert(ret_mem != nullptr);
-  const bool performInitialCopy = (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
-                                  ((flags & PI_MEM_FLAGS_HOST_PTR_USE));
-  pi_result retErr = PI_SUCCESS;
-
-  // We only support RBGA channel order
-  // TODO: check SYCL CTS and spec. May also have to support BGRA
-  if (image_format->image_channel_order !=
-      pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
-    sycl::detail::pi::die(
-        "hip_piMemImageCreate only supports RGBA channel order");
-  }
-
-  // We have to use cuArray3DCreate, which has some caveats. The height and
-  // depth parameters must be set to 0 produce 1D or 2D arrays. image_desc gives
-  // a minimum value of 1, so we need to convert the answer.
-  HIP_ARRAY3D_DESCRIPTOR array_desc;
-  array_desc.NumChannels = 4; // Only support 4 channel image
-  array_desc.Flags = 0;       // No flags required
-  array_desc.Width = image_desc->image_width;
-  if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
-    array_desc.Height = 0;
-    array_desc.Depth = 0;
-  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
-    array_desc.Height = image_desc->image_height;
-    array_desc.Depth = 0;
-  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
-    array_desc.Height = image_desc->image_height;
-    array_desc.Depth = image_desc->image_depth;
-  }
-
-  // We need to get this now in bytes for calculating the total image size later
-  size_t pixel_type_size_bytes;
-
-  switch (image_format->image_channel_data_type) {
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
-    array_desc.Format = HIP_AD_FORMAT_UNSIGNED_INT8;
-    pixel_type_size_bytes = 1;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
-    array_desc.Format = HIP_AD_FORMAT_SIGNED_INT8;
-    pixel_type_size_bytes = 1;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
-    array_desc.Format = HIP_AD_FORMAT_UNSIGNED_INT16;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
-    array_desc.Format = HIP_AD_FORMAT_SIGNED_INT16;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
-    array_desc.Format = HIP_AD_FORMAT_HALF;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
-    array_desc.Format = HIP_AD_FORMAT_UNSIGNED_INT32;
-    pixel_type_size_bytes = 4;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
-    array_desc.Format = HIP_AD_FORMAT_SIGNED_INT32;
-    pixel_type_size_bytes = 4;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
-    array_desc.Format = HIP_AD_FORMAT_FLOAT;
-    pixel_type_size_bytes = 4;
-    break;
-  default:
-    sycl::detail::pi::die(
-        "hip_piMemImageCreate given unsupported image_channel_data_type");
-  }
-
-  // When a dimension isn't used image_desc has the size set to 1
-  size_t pixel_size_bytes =
-      pixel_type_size_bytes * 4; // 4 is the only number of channels we support
-  size_t image_size_bytes = pixel_size_bytes * image_desc->image_width *
-                            image_desc->image_height * image_desc->image_depth;
-
-  ScopedContext active(context);
-  hipArray *image_array;
-  retErr = PI_CHECK_ERROR(hipArray3DCreate(
-      reinterpret_cast<hipCUarray *>(&image_array), &array_desc));
-
-  try {
-    if (performInitialCopy) {
-      // We have to use a different copy function for each image dimensionality
-      if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
-        retErr = PI_CHECK_ERROR(
-            hipMemcpyHtoA(image_array, 0, host_ptr, image_size_bytes));
-      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
-        hip_Memcpy2D cpy_desc;
-        memset(&cpy_desc, 0, sizeof(cpy_desc));
-        cpy_desc.srcMemoryType = hipMemoryType::hipMemoryTypeHost;
-        cpy_desc.srcHost = host_ptr;
-        cpy_desc.dstMemoryType = hipMemoryType::hipMemoryTypeArray;
-        cpy_desc.dstArray = reinterpret_cast<hipCUarray>(image_array);
-        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
-        cpy_desc.Height = image_desc->image_height;
-        retErr = PI_CHECK_ERROR(hipMemcpyParam2D(&cpy_desc));
-      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
-        HIP_MEMCPY3D cpy_desc;
-        memset(&cpy_desc, 0, sizeof(cpy_desc));
-        cpy_desc.srcMemoryType = hipMemoryType::hipMemoryTypeHost;
-        cpy_desc.srcHost = host_ptr;
-        cpy_desc.dstMemoryType = hipMemoryType::hipMemoryTypeArray;
-        cpy_desc.dstArray = reinterpret_cast<hipCUarray>(image_array);
-        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
-        cpy_desc.Height = image_desc->image_height;
-        cpy_desc.Depth = image_desc->image_depth;
-        retErr = PI_CHECK_ERROR(hipDrvMemcpy3D(&cpy_desc));
-      }
-    }
-
-    // HIP_RESOURCE_DESC is a union of different structs, shown here
-    // We need to fill it as described here to use it for a surface or texture
-    // HIP_RESOURCE_DESC::resType must be HIP_RESOURCE_TYPE_ARRAY and
-    // HIP_RESOURCE_DESC::res::array::hArray must be set to a valid HIP array
-    // handle.
-    // HIP_RESOURCE_DESC::flags must be set to zero
-
-    hipResourceDesc image_res_desc;
-    image_res_desc.res.array.array = image_array;
-    image_res_desc.resType = hipResourceTypeArray;
-
-    hipSurfaceObject_t surface;
-    retErr = PI_CHECK_ERROR(hipCreateSurfaceObject(&surface, &image_res_desc));
-
-    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
-        context, image_array, surface, image_desc->image_type, host_ptr});
-
-    if (piMemObj == nullptr) {
-      return PI_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    *ret_mem = piMemObj.release();
-  } catch (pi_result err) {
-    PI_CHECK_ERROR(hipFreeArray(image_array));
-    return err;
-  } catch (...) {
-    PI_CHECK_ERROR(hipFreeArray(image_array));
-    return PI_ERROR_UNKNOWN;
-  }
-  return retErr;
-}
-
-/// \TODO Not implemented
-pi_result hip_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  (void)image;
-  (void)param_name;
-  (void)param_value_size;
-  (void)param_value;
-  (void)param_value_size_ret;
-
-  sycl::detail::pi::die("hip_piMemImageGetInfo not implemented");
-  return {};
-}
-
-pi_result hip_piMemRetain(pi_mem mem) {
-  assert(mem != nullptr);
-  assert(mem->get_reference_count() > 0);
-  mem->increment_reference_count();
-  return PI_SUCCESS;
 }
 
 /// Not used as HIP backend only creates programs from binary.
@@ -3336,6 +2772,17 @@ static pi_result commonEnqueueMemImageNDCopy(
   return PI_ERROR_INVALID_VALUE;
 }
 
+// TODO(ur) - this is just a workaround until we port Enqueue
+static std::unordered_map<ur_mem_type_t, pi_mem_type> UrToPiMemTypeMap = {
+    {UR_MEM_TYPE_BUFFER, PI_MEM_TYPE_BUFFER},
+    {UR_MEM_TYPE_IMAGE2D, PI_MEM_TYPE_IMAGE2D},
+    {UR_MEM_TYPE_IMAGE3D, PI_MEM_TYPE_IMAGE3D},
+    {UR_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D_ARRAY},
+    {UR_MEM_TYPE_IMAGE1D, PI_MEM_TYPE_IMAGE1D},
+    {UR_MEM_TYPE_IMAGE1D_ARRAY, PI_MEM_TYPE_IMAGE1D_ARRAY},
+    {UR_MEM_TYPE_IMAGE1D_BUFFER, PI_MEM_TYPE_IMAGE1D_BUFFER},
+};
+
 pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
                                     pi_bool blocking_read, const size_t *origin,
                                     const size_t *region, size_t row_pitch,
@@ -3372,7 +2819,15 @@ pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
     size_t byteOffsetX = origin[0] * elementByteSize * NumChannels;
     size_t bytesToCopy = elementByteSize * NumChannels * region[0];
 
-    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    // TODO(ur) - this can be removed when porting Enqueue
+    auto urImgType = image->mem_.surface_mem_.get_image_type();
+    pi_mem_type imgType;
+    if (auto search = UrToPiMemTypeMap.find(urImgType);
+        search != UrToPiMemTypeMap.end()) {
+      imgType = search->second;
+    } else {
+      return PI_ERROR_UNKNOWN;
+    }
 
     size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
     size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
@@ -3441,7 +2896,15 @@ pi_result hip_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     size_t byteOffsetX = origin[0] * elementByteSize * NumChannels;
     size_t bytesToCopy = elementByteSize * NumChannels * region[0];
 
-    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    // TODO(ur) - this can be removed when porting Enqueue
+    auto urImgType = image->mem_.surface_mem_.get_image_type();
+    pi_mem_type imgType;
+    if (auto search = UrToPiMemTypeMap.find(urImgType);
+        search != UrToPiMemTypeMap.end()) {
+      imgType = search->second;
+    } else {
+      return PI_ERROR_UNKNOWN;
+    }
 
     size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
     size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
@@ -3513,7 +2976,15 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     size_t srcByteOffsetX = src_origin[0] * elementByteSize * dstNumChannels;
     size_t bytesToCopy = elementByteSize * srcNumChannels * region[0];
 
-    pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
+    // TODO(ur) - this can be removed when porting Enqueue
+    auto urImgType = src_image->mem_.surface_mem_.get_image_type();
+    pi_mem_type imgType;
+    if (auto search = UrToPiMemTypeMap.find(urImgType);
+        search != UrToPiMemTypeMap.end()) {
+      imgType = search->second;
+    } else {
+      return PI_ERROR_UNKNOWN;
+    }
 
     size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
     size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
@@ -4247,15 +3718,15 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
   _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
   // Memory
-  _PI_CL(piMemBufferCreate, hip_piMemBufferCreate)
-  _PI_CL(piMemImageCreate, hip_piMemImageCreate)
-  _PI_CL(piMemGetInfo, hip_piMemGetInfo)
-  _PI_CL(piMemImageGetInfo, hip_piMemImageGetInfo)
-  _PI_CL(piMemRetain, hip_piMemRetain)
-  _PI_CL(piMemRelease, hip_piMemRelease)
-  _PI_CL(piMemBufferPartition, hip_piMemBufferPartition)
-  _PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
-  _PI_CL(piextMemCreateWithNativeHandle, hip_piextMemCreateWithNativeHandle)
+  _PI_CL(piMemBufferCreate, pi2ur::piMemBufferCreate)
+  _PI_CL(piMemImageCreate, pi2ur::piMemImageCreate)
+  _PI_CL(piMemGetInfo, pi2ur::piMemGetInfo)
+  _PI_CL(piMemImageGetInfo, pi2ur::piMemImageGetInfo)
+  _PI_CL(piMemRetain, pi2ur::piMemRetain)
+  _PI_CL(piMemRelease, pi2ur::piMemRelease)
+  _PI_CL(piMemBufferPartition, pi2ur::piMemBufferPartition)
+  _PI_CL(piextMemGetNativeHandle, pi2ur::piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, pi2ur::piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, hip_piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, hip_piclProgramCreateWithSource)

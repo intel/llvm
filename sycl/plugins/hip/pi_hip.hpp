@@ -41,6 +41,7 @@
 
 #include <ur/adapters/hip/context.hpp>
 #include <ur/adapters/hip/device.hpp>
+#include <ur/adapters/hip/memory.hpp>
 #include <ur/adapters/hip/platform.hpp>
 
 #include "pi2ur.hpp"
@@ -52,8 +53,6 @@ pi_result hip_piProgramRetain(pi_program);
 pi_result hip_piProgramRelease(pi_program);
 pi_result hip_piQueueRelease(pi_queue);
 pi_result hip_piQueueRetain(pi_queue);
-pi_result hip_piMemRetain(pi_mem);
-pi_result hip_piMemRelease(pi_mem);
 pi_result hip_piKernelRetain(pi_kernel);
 pi_result hip_piKernelRelease(pi_kernel);
 /// \endcond
@@ -125,182 +124,8 @@ struct _pi_context : ur_context_handle_t_ {
 /// \brief Represents non-SVM allocations on the HIP backend.
 /// Keeps tracks of all mapped regions used for Map/Unmap calls.
 /// Only one region can be active at the same time per allocation.
-struct _pi_mem {
-
-  // TODO: Move as much shared data up as possible
-  using pi_context = _pi_context *;
-
-  // Context where the memory object is accessibles
-  pi_context context_;
-
-  /// Reference counting of the handler
-  std::atomic_uint32_t refCount_;
-  enum class mem_type { buffer, surface } mem_type_;
-
-  /// A PI Memory object represents either plain memory allocations ("Buffers"
-  /// in OpenCL) or typed allocations ("Images" in OpenCL).
-  /// In HIP their API handlers are different. Whereas "Buffers" are allocated
-  /// as pointer-like structs, "Images" are stored in Textures or Surfaces
-  /// This union allows implementation to use either from the same handler.
-  union mem_ {
-    // Handler for plain, pointer-based HIP allocations
-    struct buffer_mem_ {
-      using native_type = hipDeviceptr_t;
-
-      // If this allocation is a sub-buffer (i.e., a view on an existing
-      // allocation), this is the pointer to the parent handler structure
-      pi_mem parent_;
-      // HIP handler for the pointer
-      native_type ptr_;
-
-      /// Pointer associated with this device on the host
-      void *hostPtr_;
-      /// Size of the allocation in bytes
-      size_t size_;
-      /// Offset of the active mapped region.
-      size_t mapOffset_;
-      /// Pointer to the active mapped region, if any
-      void *mapPtr_;
-      /// Original flags for the mapped region
-      pi_map_flags mapFlags_;
-
-      /** alloc_mode
-       * classic: Just a normal buffer allocated on the device via hip malloc
-       * use_host_ptr: Use an address on the host for the device
-       * copy_in: The data for the device comes from the host but the host
-       pointer is not available later for re-use
-       * alloc_host_ptr: Uses pinned-memory allocation
-      */
-      enum class alloc_mode {
-        classic,
-        use_host_ptr,
-        copy_in,
-        alloc_host_ptr
-      } allocMode_;
-
-      native_type get() const noexcept { return ptr_; }
-
-      native_type get_with_offset(size_t offset) const noexcept {
-        return reinterpret_cast<native_type>(reinterpret_cast<uint8_t *>(ptr_) +
-                                             offset);
-      }
-
-      void *get_void() const noexcept { return reinterpret_cast<void *>(ptr_); }
-
-      size_t get_size() const noexcept { return size_; }
-
-      void *get_map_ptr() const noexcept { return mapPtr_; }
-
-      size_t get_map_offset(void *ptr) const noexcept {
-        (void)ptr;
-        return mapOffset_;
-      }
-
-      /// Returns a pointer to data visible on the host that contains
-      /// the data on the device associated with this allocation.
-      /// The offset is used to index into the HIP allocation.
-      ///
-      void *map_to_ptr(size_t offset, pi_map_flags flags) noexcept {
-        assert(mapPtr_ == nullptr);
-        mapOffset_ = offset;
-        mapFlags_ = flags;
-        if (hostPtr_) {
-          mapPtr_ = static_cast<char *>(hostPtr_) + offset;
-        } else {
-          // TODO: Allocate only what is needed based on the offset
-          mapPtr_ = static_cast<void *>(malloc(this->get_size()));
-        }
-        return mapPtr_;
-      }
-
-      /// Detach the allocation from the host memory.
-      void unmap(void *ptr) noexcept {
-        (void)ptr;
-        assert(mapPtr_ != nullptr);
-
-        if (mapPtr_ != hostPtr_) {
-          free(mapPtr_);
-        }
-        mapPtr_ = nullptr;
-        mapOffset_ = 0;
-      }
-
-      pi_map_flags get_map_flags() const noexcept {
-        assert(mapPtr_ != nullptr);
-        return mapFlags_;
-      }
-    } buffer_mem_;
-
-    // Handler data for surface object (i.e. Images)
-    struct surface_mem_ {
-      hipArray *array_;
-      hipSurfaceObject_t surfObj_;
-      pi_mem_type imageType_;
-
-      hipArray *get_array() const noexcept { return array_; }
-
-      hipSurfaceObject_t get_surface() const noexcept { return surfObj_; }
-
-      pi_mem_type get_image_type() const noexcept { return imageType_; }
-    } surface_mem_;
-  } mem_;
-
-  /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
-  _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
-          hipDeviceptr_t ptr, void *host_ptr, size_t size)
-      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
-    mem_.buffer_mem_.ptr_ = ptr;
-    mem_.buffer_mem_.parent_ = parent;
-    mem_.buffer_mem_.hostPtr_ = host_ptr;
-    mem_.buffer_mem_.size_ = size;
-    mem_.buffer_mem_.mapOffset_ = 0;
-    mem_.buffer_mem_.mapPtr_ = nullptr;
-    mem_.buffer_mem_.mapFlags_ = PI_MAP_WRITE;
-    mem_.buffer_mem_.allocMode_ = mode;
-    if (is_sub_buffer()) {
-      hip_piMemRetain(mem_.buffer_mem_.parent_);
-    } else {
-      pi2ur::piContextRetain(context_);
-    }
-  };
-
-  /// Constructs the PI allocation for an Image object
-  _pi_mem(pi_context ctxt, hipArray *array, hipSurfaceObject_t surf,
-          pi_mem_type image_type, void *host_ptr)
-      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
-    (void)host_ptr;
-    mem_.surface_mem_.array_ = array;
-    mem_.surface_mem_.imageType_ = image_type;
-    mem_.surface_mem_.surfObj_ = surf;
-    pi2ur::piContextRetain(context_);
-  }
-
-  ~_pi_mem() {
-    if (mem_type_ == mem_type::buffer) {
-      if (is_sub_buffer()) {
-        hip_piMemRelease(mem_.buffer_mem_.parent_);
-        return;
-      }
-    }
-    pi2ur::piContextRelease(context_);
-  }
-
-  // TODO: Move as many shared funcs up as possible
-  bool is_buffer() const noexcept { return mem_type_ == mem_type::buffer; }
-
-  bool is_sub_buffer() const noexcept {
-    return (is_buffer() && (mem_.buffer_mem_.parent_ != nullptr));
-  }
-
-  bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
-
-  pi_context get_context() const noexcept { return context_; }
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
+struct _pi_mem : ur_mem_handle_t_ {
+  using ur_mem_handle_t_::ur_mem_handle_t_;
 };
 
 /// PI queue mapping on to hipStream_t objects.
