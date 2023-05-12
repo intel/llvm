@@ -1,5 +1,4 @@
 // Test intended to run on PVC only
-// TODO: enable on Windows once driver is ready
 // REQUIRES: gpu-intel-pvc
 //
 //

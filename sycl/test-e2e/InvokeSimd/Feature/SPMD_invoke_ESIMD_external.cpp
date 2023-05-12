@@ -1,5 +1,3 @@
-// TODO: enable on Windows once driver is ready
-//
 // TODO: enable when Jira ticket resolved
 // XFAIL: gpu
 //

@@ -1,5 +1,3 @@
-// TODO: enable on Windows once driver is ready
-//
 // NOTE: The feature is not yet supported, there is a discussion on the
 // feasibility of tests
 // REQUIRES: TEMPORARY_DISABLED
