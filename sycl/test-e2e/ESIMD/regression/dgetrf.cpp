@@ -6,9 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || esimd_emulator
+// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: %{run} %t.out 3 2 1
 //

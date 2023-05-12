@@ -15,7 +15,6 @@
 //   -doubleGRF option
 
 // REQUIRES: gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
 // TODO/FIXME: esimd_emulator does not support online compilation that
 //             invokes 'piProgramBuild'/'piKernelCreate'
 // UNSUPPORTED: esimd_emulator

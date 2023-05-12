@@ -187,8 +187,11 @@ else:
 sycl_dev_aspects = []
 for be in [config.sycl_be]:
     for device in config.target_devices.split(','):
-        cmd = ('env ONEAPI_DEVICE_SELECTOR={}:{} sycl-ls --verbose'.format(be, device))
-        sp = subprocess.run(cmd, env=llvm_config.config.environment,
+        cmd = 'env '
+        if be == 'ext_oneapi_cuda':
+            cmd += 'SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 '
+        cmd += 'ONEAPI_DEVICE_SELECTOR={}:{} sycl-ls --verbose'.format(be, device)
+        sp = subprocess.run((cmd), env=llvm_config.config.environment,
                             shell=True, capture_output=True, text=True)
         if sp.returncode != 0:
             lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
