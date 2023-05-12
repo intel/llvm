@@ -689,6 +689,14 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
   }
 };
 
+// Specialization for image_support
+template <> struct get_device_info_impl<bool, info::device::image_support> {
+  static bool get(const DeviceImplPtr &) {
+    // No devices currently support SYCL 2020 images.
+    return false;
+  }
+};
+
 // USM
 
 // Specialization for device usm query.
