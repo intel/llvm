@@ -5,10 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Needs AMX.
+// REQUIRES: cpu
 // REQUIRES: matrix
 
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>

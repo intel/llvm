@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -fsycl-unique-prefix=THE_PREFIX -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-unique-prefix=THE_PREFIX -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 #include "sycl.hpp"
 
 // Test cases below show that 'sycl-unique-id' LLVM IR attribute is attached to the

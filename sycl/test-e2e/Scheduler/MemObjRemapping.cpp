@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
-// UNSUPPORTED: accelerator
 // XFAIL: hip_nvidia
 #include <cassert>
 #include <cstddef>
