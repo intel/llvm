@@ -1,0 +1,161 @@
+= sycl_ext_oneapi_async_memcpy
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following SYCL extensions:
+
+* link:https://github.com/intel/llvm/pull/9186/[sycl_ext_oneapi_barrier]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension defines
+`sycl::ext::oneapi::experimental::async_memcpy` free function to
+generalize and replace the current `sycl::async_work_group_copy`
+function. 
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_ASYNC_MEMCPY` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== `async_memcpy` function
+`sycl::ext::oneapi::experimental::async_memcpy` is a free function
+that  asynchronously copies a number of elements specified by
+`num_elements` of data of type `T` from the source pointer `src` to
+destination pointer `dest`. It also takes a barrier object of type
+`syclex::barrier` as an argument that can be used to wait on the
+completion of the memory copy.
+
+Permitted types for `T` are all scalar and vector types.
+
+This extension provides two versions of `async_memcpy`: with and
+without `Group` template parameter and argument. In the case of the
+group variant, `group_async_memcpy` is issued by all the threads in
+the group. This is a _group function_, as defined in Section 4.17.3
+of the SYCL specification. In the case of the work-item variant,
+`async_memcpy` is issued by the current work-item.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <typename T,  access::address_space DestSpace,
+  access::decorated DestIsDecorated, access::address_space SrcSpace,
+  access::decorated SrcIsDecorated, sycl::memory_scope Scope>
+  void async_memcpy(multi_ptr<T, DestSpace, DestIsDecorated> dest,
+  multi_ptr<T, SrcSpace, SrcIsDecorated> src, size_t numElements,
+  syclex::barrier<Scope> bar);
+
+  template <typename Group, typename T,  access::address_space Space,
+  access::decorated IsDecorated, sycl::memory_scope Scope>
+  void group_async_memcpy(Group g, multi_ptr<T, Space, IsDecorated>
+  dest, multi_ptr<T, Space, IsDecorated> src, size_t numElements,
+  syclex::barrier<Scope> bar);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+=== `async_memcpy` Example
+
+[source,c++]
+----
+using wg_barrier = syclex::barrier<sycl::memory_scope::work_group>;
+auto psrc = multi_ptr<T, sycl::access::address_space::global_space>(src);
+auto pdest = multi_ptr<T, sycl::access::address_space::local_space>(dest);
+
+q.parallel_for(..., [=](sycl::nd_item it) {
+
+  // Allocate memory for and construct the barrier
+  auto* bar = sycl::ext::oneapi::group_local_memory<wg_barrier>(it.get_group(), nthreads);
+
+  async_memcpy(pdest, psrc, N, bar);
+  // Use the barrier
+  bar->arrive_and_wait();
+
+}).wait();
+----
+
+=== `group_async_memcpy` Example
+
+[source,c++]
+----
+using wg_barrier = syclex::barrier<sycl::memory_scope::work_group>;
+auto psrc = multi_ptr<T, sycl::access::address_space::global_space>(src);
+auto pdest = multi_ptr<T, sycl::access::address_space::local_space>(dest);
+
+q.parallel_for(..., [=](sycl::nd_item it) {
+
+  // Allocate memory for and construct the barrier
+  auto* bar = sycl::ext::oneapi::group_local_memory<wg_barrier>(it.get_group(), nthreads);
+
+  group_async_memcpy(it.get_group(), pdest, psrc, N, bar);
+  // Use the group barrier wait
+  group_arrive_and_wait(it.get_group(), bar);
+
+}).wait();
+----
