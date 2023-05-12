@@ -149,12 +149,12 @@ void AbstractDenseDataFlowAnalysis::visitRegionBranchOperation(
   };
 
   if (auto *op = point.dyn_cast<Operation *>()) {
-    if (op == branch)
+    if (op == branch) {
       // In this context, the known predecessors are the last operations along
-      // all execution paths that pass through the branch. If the number of
-      // branch regions is equal to the number of terminates (e.g., scf.yield)
-      // plus one, then we need to join the state before the branch, as the
-      // branch operation doesn't dominate the next operation.
+      // all execution paths that pass through the branch. When the number of
+      // terminators (e.g., `scf.yield`) is one less than the branch operation
+      // regions, we need to join the state before the branch, as the branch
+      // operation doesn't dominate the next operation.
       // For example (reaching definition):
       //  store x, p
       //  scf.if ()
@@ -162,13 +162,14 @@ void AbstractDenseDataFlowAnalysis::visitRegionBranchOperation(
       //    scf.yield
       //  load p
       // => the reaching definition for the load of p should be both stores.
-      // A `scf.if` has 2 regions, the "then" and "else" regions. The "else"
-      // region may have 0 or 1 block(, when no results are produced). For a
-      // `scf.if` with 0 blocks "else" region, there is only one `scf.yield`
-      // (explicit or implicit)`.
+      // A `scf.if` operation always has 2 regions (representing the "then" and
+      // "else" regions). The "else" region may have 0 blocks, in which case the
+      // operation will have only one terminator (the `scf.yield` in the "then"
+      // region).
       if (branch->getNumRegions() ==
           predecessors->getKnownPredecessors().size() + 1)
         join(after, *getBeforeBranchState(branch));
+    }
   }
 
   for (Operation *op : predecessors->getKnownPredecessors()) {
