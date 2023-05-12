@@ -22,3 +22,4 @@ add_trace_test(null_hello_no_args "--libpath $<TARGET_FILE_DIR:ur_adapter_null> 
 add_trace_test(null_hello_filter_device "--libpath $<TARGET_FILE_DIR:ur_adapter_null> --null --filter \".*Device.*\"")
 add_trace_test(null_hello_profiling "--libpath $<TARGET_FILE_DIR:ur_adapter_null> --null --profiling --time-unit ns")
 add_trace_test(null_hello_begin "--libpath $<TARGET_FILE_DIR:ur_adapter_null> --null --print-begin")
+add_trace_test(null_hello_json "--libpath $<TARGET_FILE_DIR:ur_adapter_null> --null --json")

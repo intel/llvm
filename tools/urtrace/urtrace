@@ -46,6 +46,7 @@ parser.add_argument("--profiling", help="Measure function execution time.", acti
 parser.add_argument("--filter", help="Only trace functions that match the provided regex filter.")
 parser.add_argument("--null", help="Force the use of the null adapter.", action="store_true")
 parser.add_argument("--adapter", help="Force the use of the provided adapter.", action="append", default=[])
+parser.add_argument("--json", help="Write output in a JSON Trace Event Format.", action="store_true")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--file", help="Write trace output to a file with the given name instead of stderr.")
 group.add_argument("--stdout", help="Write trace output to stdout instead of stderr.", action="store_true")
@@ -73,6 +74,8 @@ if args.filter:
     collector_args += "filter:" + args.filter + ";"
 if args.no_args:
     collector_args += "no_args;"
+if args.json:
+    collector_args += "json;"
 env['UR_COLLECTOR_ARGS'] = collector_args
 
 log_collector = ""

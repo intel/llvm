@@ -10,18 +10,23 @@
  * execution time.
  */
 
+#include <cassert>
 #include <chrono>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <regex>
 #include <sstream>
 #include <stack>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "logger/ur_logger.hpp"
 #include "ur_api.h"
 #include "ur_params.hpp"
+#include "ur_util.hpp"
 #include "xpti/xpti_trace_framework.h"
 
 constexpr uint16_t TRACE_FN_BEGIN =
@@ -85,6 +90,14 @@ std::string time_to_str(std::chrono::nanoseconds dur, enum time_unit unit) {
     return ostr.str();
 }
 
+enum output_format {
+    OUTPUT_HUMAN_READABLE,
+    OUTPUT_JSON,
+    MAX_OUTPUT_FORMAT,
+};
+
+const char *output_format_str[MAX_OUTPUT_FORMAT] = {"human readable", "json"};
+
 /*
  * Since this is a library that gets loaded alongside the traced program, it
  * can't just accept arguments from the trace CLI tool directly. Instead, the
@@ -96,6 +109,7 @@ std::string time_to_str(std::chrono::nanoseconds dur, enum time_unit unit) {
  * - "profiling"
  * - "time_unit:<auto,ns, ...>"
  * - "filter:<regex>"
+ * - "json"
  */
 static class cli_args {
     std::optional<std::string>
@@ -119,10 +133,13 @@ static class cli_args {
         no_args = false;
         filter = std::nullopt;
         filter_str = std::nullopt;
+        output_format = OUTPUT_HUMAN_READABLE;
         if (auto args = getenv_to_map(ARGS_ENV, false)) {
             for (auto [arg_name, arg_values] : *args) {
                 if (arg_name == "print_begin") {
                     print_begin = true;
+                } else if (arg_name == "json") {
+                    output_format = OUTPUT_JSON;
                 } else if (arg_name == "profiling") {
                     profiling = true;
                 } else if (arg_name == "no_args") {
@@ -149,27 +166,120 @@ static class cli_args {
             }
         }
         out.debug("collector args (.print_begin = {}, .profiling = {}, "
-                  ".time_unit = {}, .filter = {})",
+                  ".time_unit = {}, .filter = {}, .output_format = {})",
                   print_begin, profiling, time_unit_str[time_unit],
-                  filter_str.has_value() ? *filter_str : "none");
+                  filter_str.has_value() ? *filter_str : "none",
+                  output_format_str[output_format]);
     }
 
     enum time_unit time_unit;
     bool print_begin;
     bool profiling;
     bool no_args;
+    enum output_format output_format;
     std::optional<std::string>
         filter_str; //the filter_str is kept primarly for printing.
     std::optional<std::regex> filter;
 } cli_args;
 
-using namespace ur_params;
+typedef std::chrono::steady_clock Clock;
+typedef std::chrono::time_point<Clock> Timepoint;
 
-typedef std::chrono::high_resolution_clock Clock;
+class TraceWriter {
+  public:
+    virtual ~TraceWriter() {}
+    virtual void begin(uint64_t id, const char *fname, std::string args) = 0;
+    virtual void end(uint64_t id, const char *fname, std::string args,
+                     Timepoint tp, Timepoint start_tp,
+                     const ur_result_t *resultp) = 0;
+};
+
+class HumanReadable : public TraceWriter {
+    void begin(uint64_t id, const char *fname, std::string args) override {
+        if (cli_args.print_begin) {
+            out.info("begin({}) - {}({});", id, fname, args);
+        }
+    }
+    void end(uint64_t id, const char *fname, std::string args, Timepoint tp,
+             Timepoint start_tp, const ur_result_t *resultp) override {
+        std::ostringstream prefix_str;
+        if (cli_args.print_begin) {
+            prefix_str << "end(" << id << ") - ";
+        }
+
+        std::ostringstream profile_str;
+        if (cli_args.profiling) {
+            auto dur = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                tp - start_tp);
+            profile_str << " (" << time_to_str(dur, cli_args.time_unit) << ")";
+        }
+        out.info("{}{}({}) -> {};{}", prefix_str.str(), fname, args, *resultp,
+                 profile_str.str());
+    }
+};
+
+class JsonWriter : public TraceWriter {
+  public:
+    JsonWriter() { out.info("{{\n \"traceEvents\": ["); }
+    ~JsonWriter() override {
+        // Empty trace to avoid ending in a comma
+        // To prevent that last comma from being printed in the first place
+        // we could synchronize the entire 'end' function, while reversing the
+        // logic and printing commas at the front. Not worth it probably.
+        out.info(
+            "{{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
+            "\"tid\": \"\", \"ts\": \"\"}}");
+        out.info("]\n}}");
+    }
+
+    void begin(uint64_t id, const char *fname, std::string args) override {}
+
+    void end(uint64_t id, const char *fname, std::string args, Timepoint tp,
+             Timepoint start_tp, const ur_result_t *resultp) override {
+        auto dur = tp - start_tp;
+        auto ts_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                         tp.time_since_epoch())
+                         .count();
+        auto dur_us =
+            std::chrono::duration_cast<std::chrono::microseconds>(dur).count();
+        out.info("{{\
+            \"cat\": \"UR\", \
+            \"ph\": \"X\",\
+            \"pid\": {},\
+            \"tid\": {},\
+            \"ts\": {},\
+            \"dur\": {},\
+            \"name\": \"{}\",\
+            \"args\": \"({})\"\
+        }},",
+                 ur_getpid(), std::this_thread::get_id(), ts_us, dur_us, fname,
+                 args);
+    }
+};
+
+std::unique_ptr<TraceWriter> create_writer() {
+    switch (cli_args.output_format) {
+    case OUTPUT_HUMAN_READABLE:
+        return std::make_unique<HumanReadable>();
+    case OUTPUT_JSON:
+        return std::make_unique<JsonWriter>();
+    default:
+        assert(0); /* unreachable */
+    }
+    return nullptr;
+}
+
+static std::unique_ptr<TraceWriter> &writer() {
+    static std::unique_ptr<TraceWriter> writer = create_writer();
+
+    return writer;
+}
+
+using namespace ur_params;
 
 struct fn_context {
     uint64_t instance;
-    std::optional<std::chrono::time_point<Clock>> start;
+    std::optional<Timepoint> start;
 };
 
 static thread_local std::stack<fn_context> instance_data;
@@ -191,58 +301,12 @@ std::optional<fn_context> pop_instance_data(uint64_t instance) {
     return data;
 }
 
-void trace_begin(const xpti::function_with_args_t *args, uint64_t instance,
-                 fn_context *ctx) {
-    if (cli_args.print_begin) {
-        std::ostringstream args_str;
-        if (cli_args.no_args) {
-            args_str << "...";
-        } else {
-            ur_params::serializeFunctionParams(args_str, args->function_id,
-                                               args->args_data);
-        }
-        out.info("begin({}) - {}({});", instance, args->function_name,
-                 args_str.str());
-    }
-    // start the clock as the very last thing this function does to minimize
-    // tracing overheads
-    if (cli_args.profiling) {
-        ctx->start = Clock::now();
-    }
-}
-
-void trace_end(const xpti::function_with_args_t *args, uint64_t instance,
-               fn_context ctx, std::chrono::time_point<Clock> time) {
-    std::ostringstream args_str;
-    if (cli_args.no_args) {
-        args_str << "...";
-    } else {
-        ur_params::serializeFunctionParams(args_str, args->function_id,
-                                           args->args_data);
-    }
-
-    std::ostringstream prefix_str;
-    if (cli_args.print_begin) {
-        prefix_str << "end(" << instance << ") - ";
-    }
-    auto result = static_cast<const ur_result_t *>(args->ret_data);
-
-    std::ostringstream profile_str;
-    if (ctx.start && cli_args.profiling) {
-        auto dur = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            time - *ctx.start);
-        profile_str << " (" << time_to_str(dur, cli_args.time_unit) << ")";
-    }
-    out.info("{}{}({}) -> {};{}", prefix_str.str(), args->function_name,
-             args_str.str(), *result, profile_str.str());
-}
-
 XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
                                 xpti::trace_event_data_t *parent,
                                 xpti::trace_event_data_t *event,
                                 uint64_t instance, const void *user_data) {
     // stop the the clock as the very first thing, only used for TRACE_FN_END
-    auto time = Clock::now();
+    auto time_for_end = Clock::now();
     auto *args = static_cast<const xpti::function_with_args_t *>(user_data);
 
     if (auto regex = cli_args.filter) {
@@ -253,9 +317,19 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
         }
     }
 
+    std::ostringstream args_str;
+    if (cli_args.no_args) {
+        args_str << "...";
+    } else {
+        ur_params::serializeFunctionParams(args_str, args->function_id,
+                                           args->args_data);
+    }
+
     if (trace_type == TRACE_FN_BEGIN) {
         auto ctx = push_instance_data(instance);
-        trace_begin(args, instance, ctx);
+        ctx->start = std::optional(Clock::now());
+
+        writer()->begin(instance, args->function_name, args_str.str());
     } else if (trace_type == TRACE_FN_END) {
         auto ctx = pop_instance_data(instance);
         if (!ctx) {
@@ -264,7 +338,10 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
                       instance);
             return;
         }
-        trace_end(args, instance, *ctx, time);
+        auto resultp = static_cast<const ur_result_t *>(args->ret_data);
+
+        writer()->end(instance, args->function_name, args_str.str(),
+                      time_for_end, *ctx->start, resultp);
     } else {
         out.warn("unsupported trace type");
     }
