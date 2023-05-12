@@ -332,7 +332,6 @@ optimizeFunction(Function *OldF,
     const DataLayout &DL = NewF->getParent()->getDataLayout();
     Align Al = DL.getPrefTypeAlign(T);
     unsigned AddrSpace = DL.getAllocaAddrSpace();
-
     AllocaInst *Alloca = new AllocaInst(T, AddrSpace, 0 /*array size*/, Al);
     NewInsts.push_back(Alloca);
     Instruction *ReplaceInst = Alloca;
