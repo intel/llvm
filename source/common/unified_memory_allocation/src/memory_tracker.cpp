@@ -14,6 +14,7 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
+#include <stdlib.h>
 
 // TODO: reimplement in C and optimize...
 struct uma_memory_tracker_t {
