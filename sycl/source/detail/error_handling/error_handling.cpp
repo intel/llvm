@@ -253,7 +253,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
 
       uint32_t NumRegisters = 0;
-      Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Plugin->call<PiApiKind::piKernelGetGroupInfo>(
           Kernel, Device, PI_KERNEL_GROUP_INFO_NUM_REGS, sizeof(NumRegisters),
           &NumRegisters, nullptr);
 

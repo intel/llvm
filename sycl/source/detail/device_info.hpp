@@ -795,7 +795,7 @@ struct get_device_info_impl<
     ext::codeplay::experimental::info::device::max_registers_per_work_group> {
   static uint32_t get(const DeviceImplPtr &Dev) {
     uint32_t maxRegsPerWG;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<ext::codeplay::experimental::info::device::
                        max_registers_per_work_group>::value,
