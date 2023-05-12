@@ -97,6 +97,14 @@ struct urDeviceTest : urPlatformTest,
             return uur::GetPlatformAndDeviceName(info.param);                  \
         })
 
+#define UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(FIXTURE)                           \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::KernelsEnvironment::instance->devices),       \
+        [](const ::testing::TestParamInfo<ur_device_handle_t> &info) {         \
+            return uur::GetPlatformAndDeviceName(info.param);                  \
+        })
+
 namespace uur {
 
 template <class T>

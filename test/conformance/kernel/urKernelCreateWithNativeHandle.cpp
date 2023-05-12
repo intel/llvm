@@ -24,7 +24,7 @@ struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
         true                                        /*isNativeHandleOwned*/
     };
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelCreateWithNativeHandleTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelCreateWithNativeHandleTest);
 
 TEST_P(urKernelCreateWithNativeHandleTest, Success) {
     ASSERT_SUCCESS(urKernelCreateWithNativeHandle(

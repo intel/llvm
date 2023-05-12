@@ -20,7 +20,7 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
     ur_native_handle_t native_program_handle = nullptr;
     ur_program_handle_t native_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);
 
 TEST_P(urProgramCreateWithNativeHandleTest, Success) {
     ASSERT_SUCCESS(urProgramCreateWithNativeHandle(native_program_handle,

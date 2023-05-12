@@ -15,7 +15,7 @@ struct urProgramCreateWithILTest : uur::urContextTest {
 
     std::shared_ptr<std::vector<char>> il_binary;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramCreateWithILTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithILTest);
 
 TEST_P(urProgramCreateWithILTest, Success) {
     ur_program_handle_t program = nullptr;
