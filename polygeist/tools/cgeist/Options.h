@@ -13,6 +13,7 @@
 #ifndef CGEIST_OPTIONS_H_
 #define CGEIST_OPTIONS_H_
 
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/CommandLine.h"
@@ -230,5 +231,14 @@ static llvm::cl::opt<std::string>
 llvm::cl::opt<bool>
     UseOpaquePointers("use-opaque-pointers", llvm::cl::init(false),
                       llvm::cl::desc("Whether to use opaque pointers in MLIR"));
+
+static llvm::cl::opt<bool>
+    SYCLDeviceOnly("sycl-device-only", llvm::cl::init(true),
+                   llvm::cl::desc("Only emit device code in MLIR output"));
+
+static llvm::cl::opt<mlir::sycl::Implementation> SYCLImplementation(
+    llvm::cl::desc("SYCL implementation to target on lowering"),
+    llvm::cl::init(mlir::sycl::Implementation::DPCPP),
+    llvm::cl::values(clEnumVal(mlir::sycl::Implementation::DPCPP, "dpcpp")));
 
 #endif /* CGEIST_OPTIONS_H_ */

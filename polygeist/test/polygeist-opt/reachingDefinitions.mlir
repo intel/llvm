@@ -222,31 +222,47 @@ func.func @test12(%cond: i1, %arg1: memref<i32>, %arg2: memref<i32>) {
   return
 }
 
+// COM: Test control flow if without else.
+// CHECK-LABEL: test_tag: test13_load1:
+// CHECK-NEXT:  operand #0
+// CHECK-NEXT:  - mods: test13_store1 test13_store2
+// CHECK-NEXT:  - pMods: <none>
+func.func @test13(%cond: i1, %arg1: memref<i32>) {
+  %val = arith.constant 0 : i32
+  memref.store %val, %arg1[] {tag_name = "test13_store1"}: memref<i32>
+  scf.if %cond {
+    memref.store %val, %arg1[] {tag_name = "test13_store2"}: memref<i32>
+    scf.yield
+  }
+  %1 = memref.load %arg1[] {tag = "test13_load1"} : memref<i32>
+  return
+}
+
 // COM: Test that a definition created by a sycl.constructor reaches a load.
-// CHECK-LABEL: test_tag: test13_load1
+// CHECK-LABEL: test_tag: test14_load1
 // CHECK: operand #0
-// CHECK-NEXT: - mods: test13_store1
+// CHECK-NEXT: - mods: test14_store1
 // CHECK-NEXT: - pMods: <none>
-func.func @test13(%val: i64) {
+func.func @test14(%val: i64) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %addrspace_cast = memref.memory_space_cast %alloca : memref<1x!sycl_id_1> to memref<1x!sycl_id_1, 4>
-  sycl.constructor @id(%addrspace_cast, %val) {MangledFunctionName = @constr, tag_name = "test13_store1"} : (memref<1x!sycl_id_1, 4>, i64)
-  %1 = affine.load %alloca[0] {tag = "test13_load1"} : memref<1x!sycl_id_1>
+  sycl.constructor @id(%addrspace_cast, %val) {MangledFunctionName = @constr, tag_name = "test14_store1"} : (memref<1x!sycl_id_1, 4>, i64)
+  %2 = affine.load %alloca[0] {tag = "test14_load1"} : memref<1x!sycl_id_1>
   return
 }
 
 // COM: Test that a definition reaches a sycl.accessor.subscript operation.
-// CHECK-LABEL: test_tag: test14_sub1
+// CHECK-LABEL: test_tag: test15_sub1
 // CHECK: operand #0
 // CHECK-NEXT: - mods: <initial>
 // CHECK-NEXT: - pMods: <none>
 // CHECK: operand #1
-// CHECK-NEXT: - mods: test14_store1
+// CHECK-NEXT: - mods: test15_store1
 // CHECK-NEXT: - pMods: <none>
-func.func @test14(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+func.func @test15(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>  
-  affine.store %val, %alloca[0] {tag_name = "test14_store1"}: memref<1x!sycl_id_1>
-  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test14_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
+  affine.store %val, %alloca[0] {tag_name = "test15_store1"}: memref<1x!sycl_id_1>
+  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test15_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
   return
 }

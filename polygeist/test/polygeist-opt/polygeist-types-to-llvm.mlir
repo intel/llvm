@@ -11,3 +11,10 @@ func.func @test_struct(%arg0: !polygeist.struct<(memref<i32>, i32)>) {
 func.func @test_struct(%arg0: !polygeist.struct<"name", (memref<i32>, i32)>) {
   return
 }
+
+// -----
+
+// CHECK: llvm.func @test_struct(%arg0: !llvm.struct<"name", packed (ptr, i32)>)
+func.func @test_struct(%arg0: !polygeist.struct<"name", isPacked=true (memref<i32>, i32)>) {
+  return
+}

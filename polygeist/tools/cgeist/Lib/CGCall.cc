@@ -1522,8 +1522,16 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
     V = Builder.create<math::PowFOp>(Loc, Args[0], Args[1]);
   } break;
   case clang::Builtin::BI__builtin_assume: {
-    VisitArgs();
-    Builder.create<LLVM::AssumeOp>(Loc, Args[0]);
+    if (!Expr->getArg(0)->HasSideEffects(Glob.getTypes().getContext())) {
+      VisitArgs();
+      Builder.create<LLVM::AssumeOp>(Loc, Args[0]);
+    }
+    // Early return as we have two possible scenarios here:
+    // 1. We have not generated the intrinsic, but we don't want the call to
+    // __builtin_assume to be generated either.
+    // 2. We have generated the intrinsic and we don't want the call to
+    // __builtin_assume to be generated.
+    return {{}, true};
   } break;
   case clang::Builtin::BI__builtin_isgreater: {
     VisitArgs();

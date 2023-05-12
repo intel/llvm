@@ -45,6 +45,7 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -52,6 +53,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
@@ -70,6 +72,8 @@
 #include <fstream>
 
 #define DEBUG_TYPE "cgeist"
+
+using namespace mlir;
 
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
@@ -104,6 +108,15 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   // allow taking the address of ::main however.
   return llvm::sys::fs::getMainExecutable(
       Argv0, reinterpret_cast<void *>(GetExecutablePath));
+}
+
+static void eraseHostCode(ModuleOp Module) {
+  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
+  SmallVector<std::reference_wrapper<Operation>> ToRemove;
+  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
+               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
+  for (auto Op : ToRemove)
+    Op.get().erase();
 }
 
 static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV,
@@ -599,13 +612,33 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
   return success();
 }
 
+static llvm::Expected<sycl::LoweringTarget>
+getSYCLTargetFromTriple(const llvm::Triple &Triple) {
+  switch (Triple.getArch()) {
+  case llvm::Triple::spir:
+    CGEIST_WARNING(llvm::WithColor::warning()
+                   << "Using the 32-bits spir target may lead to errors when "
+                      "lowering the `sycl` dialect.\n");
+    [[fallthrough]];
+  case llvm::Triple::spir64:
+    return sycl::LoweringTarget::SPIR;
+  default:
+    return llvm::createStringError(std::errc::not_supported,
+                                   "Cannot lower SYCL target \"%s\" to LLVM",
+                                   Triple.getTriple().c_str());
+  }
+}
+
 static LogicalResult finalize(mlir::MLIRContext &Ctx,
                               mlir::OwningOpRef<mlir::ModuleOp> &Module,
                               Options &options, llvm::DataLayout &DL,
-                              bool &LinkOMP) {
+                              const llvm::Triple &Triple, bool &LinkOMP) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
+
+  if (options.getCgeistOpts().getSYCLIsDevice() && SYCLDeviceOnly)
+    eraseHostCode(*Module);
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -616,6 +649,21 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
   PM.addPass(mlir::createSymbolDCEPass());
 
   if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
+    // SYCL host code is never output for non-MLIR format. If this option is
+    // set, the host code should have already been removed.
+    if (options.getCgeistOpts().getSYCLIsDevice()) {
+      if (!SYCLDeviceOnly)
+        eraseHostCode(*Module);
+      // else it has already been removed
+      LLVM_DEBUG({
+        const auto &HostOperations =
+            Module->getRegion().front().getOperations();
+        assert(HostOperations.size() == 1 &&
+               isa<gpu::GPUModuleOp>(HostOperations.front()) &&
+               "The host code should have been erased by now");
+      });
+    }
+
     PM.addPass(mlir::createLowerAffinePass());
     if (InnerSerialize)
       PM.addPass(polygeist::createInnerSerializationPass());
@@ -668,9 +716,13 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     if (!EmitOpenMPIR) {
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
-      ConvertPolygeistToLLVMOptions Options;
-      Options.dataLayout = DL.getStringRepresentation();
-      PM3.addPass(createConvertPolygeistToLLVM(Options));
+      ConvertPolygeistToLLVMOptions ConvertOptions;
+      ConvertOptions.dataLayout = DL.getStringRepresentation();
+      if (options.getCgeistOpts().getSYCLIsDevice()) {
+        ConvertOptions.syclImplementation = SYCLImplementation;
+        ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
+      }
+      PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
@@ -731,7 +783,7 @@ createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
   if (mlir::failed(optimizeCUDA(Ctx, Module, options)))
     return failure();
 
-  if (mlir::failed(finalize(Ctx, Module, options, DL, LinkOMP)))
+  if (mlir::failed(finalize(Ctx, Module, options, DL, Triple, LinkOMP)))
     return failure();
 
   return success();
@@ -1122,21 +1174,6 @@ processInputFiles(const llvm::cl::list<std::string> &InputFiles,
                    Commands);
 }
 
-static bool containsFunctions(mlir::gpu::GPUModuleOp DeviceModule) {
-  Region &Rgn = DeviceModule.getRegion();
-  return !Rgn.getOps<mlir::gpu::GPUFuncOp>().empty() ||
-         !Rgn.getOps<mlir::func::FuncOp>().empty();
-}
-
-static void eraseHostCode(mlir::ModuleOp Module) {
-  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
-  SmallVector<std::reference_wrapper<Operation>> ToRemove;
-  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
-               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
-  for (auto Op : ToRemove)
-    Op.get().erase();
-}
-
 template <typename T> static void filterFunctions(T Module) {
   if (Cfunction.getNumOccurrences() == 0 || Cfunction == "*")
     return;
@@ -1280,9 +1317,9 @@ int main(int argc, char **argv) {
     Module->dump();
   });
 
-  // For now, we will work on the device code if it contains any functions and
-  // on the host code otherwise.
-  if (containsFunctions(DeviceModule)) {
+  bool SYCLIsDevice = options.getCgeistOpts().getSYCLIsDevice();
+  // For SYCL code, we will drop the host code for now.
+  if (SYCLIsDevice) {
     eraseHostCode(*Module);
     Module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
@@ -1296,9 +1333,7 @@ int main(int argc, char **argv) {
   });
 
   if (SYCLUseHostModule != "") {
-    // TODO: Drop host code when done compiling. Host code is kept for now for
-    // testing.
-    if (!options.getCgeistOpts().getSYCLIsDevice()) {
+    if (!SYCLIsDevice) {
       llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
                       "device compilation\n";
       return -1;
