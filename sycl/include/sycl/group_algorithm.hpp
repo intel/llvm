@@ -272,10 +272,9 @@ std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
      (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
-     detail::is_native_op<V, BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<V, BinaryOperation>::value),
+     std::is_convertible_v<V, T>),
     T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
@@ -285,7 +284,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
            std::is_same_v<decltype(binary_op(init, x)), float>),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return binary_op(init, reduce_over_group(g, x, binary_op));
+  return binary_op(init, reduce_over_group(g, T(x), binary_op));
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
@@ -328,10 +327,6 @@ std::enable_if_t<
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<Ptr>::type>::value &&
      detail::is_arithmetic_or_complex<T>::value &&
-     detail::is_native_op<typename detail::remove_pointer<Ptr>::type,
-                          BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<Ptr>::type, BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value),
     T>
@@ -725,10 +720,9 @@ std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
      (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
-     detail::is_native_op<V, BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<V, BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value),
+     detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value &&
+     std::is_convertible_v<V, T>),
     T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
@@ -739,10 +733,11 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type local_linear_id =
       sycl::detail::get_local_linear_id(g);
+  T y = x;
   if (local_linear_id == 0) {
-    x = binary_op(init, x);
+    y = binary_op(init, y);
   }
-  T scan = exclusive_scan_over_group(g, x, binary_op);
+  T scan = exclusive_scan_over_group(g, y, binary_op);
   if (local_linear_id == 0) {
     scan = init;
   }
@@ -762,23 +757,19 @@ std::enable_if_t<
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<OutPtr>::type>::value &&
      detail::is_arithmetic_or_complex<T>::value &&
-     detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
-                          BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<InPtr>::type,
-         BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value),
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same_v<decltype(binary_op(*first, *first)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(*first, *first)), float>),
-      "Result type of binary_op must match scan accumulation type.");
+  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T> ||
+                    (std::is_same_v<T, half> &&
+                     std::is_same_v<decltype(binary_op(init, *first)), float>),
+                "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
   ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
@@ -789,14 +780,13 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   };
   typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
       x;
-  typename detail::remove_pointer<OutPtr>::type carry = init;
+  T carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename detail::remove_pointer<OutPtr>::type out =
-        exclusive_scan_over_group(g, x, carry, binary_op);
+    T out = exclusive_scan_over_group(g, x, carry, binary_op);
     if (i < N) {
       result[i] = out;
     }
@@ -820,10 +810,13 @@ std::enable_if_t<
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
-     detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<OutPtr>::type>::value &&
+     detail::is_native_op<typename detail::remove_pointer<OutPtr>::type,
                           BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<InPtr>::type, BinaryOperation>::value),
+         typename detail::remove_pointer<OutPtr>::type,
+         BinaryOperation>::value),
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
@@ -835,7 +828,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                           half> &&
            std::is_same_v<decltype(binary_op(*first, *first)), float>),
       "Result type of binary_op must match scan accumulation type.");
-  using T = typename detail::remove_pointer<InPtr>::type;
+  using T = typename detail::remove_pointer<OutPtr>::type;
   T init = detail::identity_for_ga_op<T, BinaryOperation>();
   return joint_exclusive_scan(g, first, last, result, init, binary_op);
 }
@@ -915,10 +908,9 @@ std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
      (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
-     detail::is_native_op<V, BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<V, BinaryOperation>::value),
+     std::is_convertible_v<V, T>),
     T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
   // FIXME: Do not special-case for half precision
@@ -927,10 +919,11 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
                      std::is_same_v<decltype(binary_op(init, x)), float>),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+  T y = x;
   if (sycl::detail::get_local_linear_id(g) == 0) {
-    x = binary_op(init, x);
+    y = binary_op(init, y);
   }
-  return inclusive_scan_over_group(g, x, binary_op);
+  return inclusive_scan_over_group(g, y, binary_op);
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
@@ -966,13 +959,10 @@ std::enable_if_t<
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<OutPtr>::type>::value &&
      detail::is_arithmetic_or_complex<T>::value &&
-     detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
-                          BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value &&
-     detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<InPtr>::type,
-         BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<T, BinaryOperation>::value),
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
@@ -992,14 +982,13 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   };
   typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
       x;
-  typename detail::remove_pointer<OutPtr>::type carry = init;
+  T carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename detail::remove_pointer<OutPtr>::type out =
-        inclusive_scan_over_group(g, x, binary_op, carry);
+    T out = inclusive_scan_over_group(g, x, binary_op, carry);
     if (i < N) {
       result[i] = out;
     }
@@ -1022,10 +1011,11 @@ std::enable_if_t<
      detail::is_pointer<OutPtr>::value &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
-     detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
+     detail::is_native_op<typename detail::remove_pointer<OutPtr>::type,
                           BinaryOperation>::value &&
      detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<InPtr>::type, BinaryOperation>::value),
+         typename detail::remove_pointer<OutPtr>::type,
+         BinaryOperation>::value),
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
@@ -1038,7 +1028,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
            std::is_same_v<decltype(binary_op(*first, *first)), float>),
       "Result type of binary_op must match scan accumulation type.");
 
-  using T = typename detail::remove_pointer<InPtr>::type;
+  using T = typename detail::remove_pointer<OutPtr>::type;
   T init = detail::identity_for_ga_op<T, BinaryOperation>();
   return joint_inclusive_scan(g, first, last, result, binary_op, init);
 }
