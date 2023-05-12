@@ -6,7 +6,6 @@
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 // https://github.com/intel/llvm/issues/7585 to fix the flaky failure:
-// XFAIL: cpu
 // UNSUPPORTED: gpu
 
 #include <iostream>
