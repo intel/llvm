@@ -11,9 +11,11 @@
 
 #include "Lib/ConstantFolder.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/Optional.h"
+#include <type_traits>
 
 // Represents a rhs or lhs value.
 class ValueCategory {
@@ -30,7 +32,12 @@ private:
               Folder.fold<OpTy>(Loc, PromotionType, C))
         return {FoldedRes, false};
     }
-    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false, ElemTy};
+    // If we're casting a pointer to an integer, the result won't be a reference
+    // anymore.
+    bool ResIsReference =
+        !std::is_same_v<OpTy, mlir::LLVM::PtrToIntOp> && isReference;
+    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), ResIsReference,
+            ElemTy};
   }
 
   ValueCategory ICmp(mlir::OpBuilder &builder, mlir::Location Loc,
