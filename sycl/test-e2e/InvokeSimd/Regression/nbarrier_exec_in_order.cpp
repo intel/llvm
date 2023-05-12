@@ -1,7 +1,5 @@
-// TODO: enable on Windows once driver is ready
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc && linux
-// UNSUPPORTED: cuda || hip
+// REQUIRES: gpu-intel-pvc
 //
 // TODO: enable when Jira issue resolved, currently fail with VISALTO enable
 // XFAIL: gpu-intel-pvc
