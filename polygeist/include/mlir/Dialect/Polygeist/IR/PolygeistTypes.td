@@ -39,6 +39,9 @@ def Polygeist_StructType :
       return $_get($_ctxt, body, std::nullopt, false);
     }]>
   ];
+  let extraClassDeclaration = [{
+    bool isPacked() { return getIsPacked(); }
+  }];
   let assemblyFormat = "`<` ($name^ `,` ` `)? (`isPacked` `=` $isPacked^ ` `)? `(` $body `)` `>`";
 }
 
