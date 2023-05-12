@@ -54,6 +54,35 @@ class Tensor_OpWithOffsetSizesAndStrides<string mnemonic,
 }
 
 //===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_BitcastOp : Tensor_Op<"bitcast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    Pure
+  ]> {
+  let summary = "tensor bitcast operation";
+  let description = [{
+    Bitcast a tensor from one type to another type of equivalent element width.
+    If both are ranked, then the rank should be the same and static dimensions
+    should match. 
+
+    Example:
+
+    ```mlir
+    // Bitcast from unsigned to signed or signless integer.
+    %2 = tensor.bitcast %1 : tensor<4xui32> to tensor<4xi32>
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$source);
+  let results = (outs AnyTensor:$dest);
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($dest)";
+
+  let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // CastOp
 //===----------------------------------------------------------------------===//
 
@@ -226,7 +255,7 @@ def Tensor_ExtractOp : Tensor_Op<"extract", [
     Pure,
     TypesMatchWith<"result type matches element type of tensor",
                    "tensor", "result",
-                   "$_self.cast<ShapedType>().getElementType()">]> {
+                   "$_self.cast<TensorType>().getElementType()">]> {
   let summary = "element extraction operation";
   let description = [{
     The `tensor.extract` op reads a ranked tensor and returns one element as
@@ -281,8 +310,7 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamic and
-    ShapedType::kDynamic encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "extract_slice" op is expected to lower into a
@@ -389,12 +417,12 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     /// rank-reduced, from the source type and the static representation of
     /// offsets, sizes and strides. Special sentinels encode the dynamic case.
     static RankedTensorType inferResultType(
-      ShapedType sourceShapedTensorType,
+      RankedTensorType sourceTensorType,
       ArrayRef<int64_t> staticOffsets,
       ArrayRef<int64_t> staticSizes,
       ArrayRef<int64_t> staticStrides);
     static RankedTensorType inferResultType(
-      ShapedType sourceShapedTensorType,
+      RankedTensorType sourceTensorType,
       ArrayRef<OpFoldResult> staticOffsets,
       ArrayRef<OpFoldResult> staticSizes,
       ArrayRef<OpFoldResult> staticStrides);
@@ -459,8 +487,8 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
     Pure,
     TypesMatchWith<"operand types match result element type",
                    "result", "elements", "SmallVector<Type, 2>("
-                   "$_self.cast<ShapedType>().getNumElements(), "
-                   "$_self.cast<ShapedType>().getElementType())">
+                   "$_self.cast<RankedTensorType>().getNumElements(), "
+                   "$_self.cast<RankedTensorType>().getElementType())">
   ]> {
   let summary = "tensor from elements operation.";
   let description = [{
@@ -485,9 +513,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 
   let assemblyFormat = "$elements attr-dict `:` type($result)";
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Type":$resultType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
     OpBuilder<(ins "ValueRange":$elements)>
   ];
@@ -695,7 +721,7 @@ def Tensor_InsertOp : Tensor_Op<"insert", [
                    "$_self">,
     TypesMatchWith<"scalar type matches element type of dest",
                    "dest", "scalar",
-                   "$_self.cast<ShapedType>().getElementType()">]> {
+                   "$_self.cast<TensorType>().getElementType()">]> {
   let summary = "element insertion operation";
   let description = [{
     The `tensor.insert` op inserts a scalar into a ranked tensor `dest` as
@@ -770,8 +796,7 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamic and
-    ShapedType::kDynamic encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "insert_slice" op is expected to lower into a
@@ -823,17 +848,18 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
   }];
 
   let builders = [
-    // Build a InsertSliceOp with mixed static and dynamic entries.
+    // Build a InsertSliceOp with mixed static and dynamic entries and inferred
+    // result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<OpFoldResult>":$offsets, "ArrayRef<OpFoldResult>":$sizes,
       "ArrayRef<OpFoldResult>":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a InsertSliceOp with dynamic entries.
+    // Build a InsertSliceOp with dynamic entries and inferred result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build an InsertSliceOp with mixed static and dynamic entries packed in
-    // a Range vector.
+    // a Range vector and inferred result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<Range>":$ranges,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
@@ -1380,8 +1406,7 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamic and
-    ShapedType::kDynamic encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "parallel_insert_slice" op is expected to lower
@@ -1450,6 +1475,10 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     /// Return the OpResult of the enclosing ForallOp that is
     /// corresponding to this ParallelInsertSliceOp.
     OpResult getTiedOpResult();
+
+    /// Return the dimensions of the dest that are omitted to insert a source
+    /// when the result is rank-extended.
+    llvm::SmallBitVector getDroppedDims();
   }];
 
   let builders = [
@@ -1785,10 +1814,10 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
         ArrayRef<OpFoldResult> innerTileDims, ArrayRef<int64_t> innerDimsPos,
         ArrayRef<int64_t> outerDimsPerm = {});
 
-    // Method to get the `ShapedType` of the result based on the inner tiles,
-    // position of the inner tiles (innerDimsPos)  and interchange vector of
-    // outer loops (outerDimsPerm).
-    static ShapedType inferPackedType(ShapedType sourceType,
+    // Method to get the `RankedTensorType` of the result based on the inner
+    // tiles, position of the inner tiles (innerDimsPos)  and interchange vector
+    // of outer loops (outerDimsPerm).
+    static RankedTensorType inferPackedType(RankedTensorType sourceType,
         ArrayRef<int64_t> innerTileSizes, ArrayRef<int64_t> innerDimsPos,
         ArrayRef<int64_t> outerDimsPerm = {});
 

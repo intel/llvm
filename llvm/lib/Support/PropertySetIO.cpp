@@ -80,7 +80,7 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
       break;
     }
     case PropertyValue::Type::BYTE_ARRAY: {
-      Expected<std::unique_ptr<byte>> DecArr =
+      Expected<std::unique_ptr<byte[]>> DecArr =
           Base64::decode(Val.data(), Val.size());
       if (!DecArr)
         return DecArr.takeError();

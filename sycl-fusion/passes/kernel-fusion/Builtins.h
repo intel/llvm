@@ -61,10 +61,6 @@ llvm::Value *getGlobalLinearID(llvm::IRBuilderBase &Builder,
                                const NDRange &FusedNDRange);
 
 ///
-/// Creates a call to a barrier function.
-void barrierCall(llvm::IRBuilderBase &Builder, int Flags);
-
-///
 /// @return A call to a SPIRV function, which will be declared if not already in
 /// the module.
 llvm::Value *createSPIRVCall(llvm::IRBuilderBase &Builder, llvm::StringRef N,

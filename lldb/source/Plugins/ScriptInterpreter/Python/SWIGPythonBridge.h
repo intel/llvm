@@ -92,6 +92,7 @@ python::ScopedPythonObject<lldb::SBEvent> ToSWIGWrapper(Event *event);
 } // namespace python
 
 void *LLDBSWIGPython_CastPyObjectToSBData(PyObject *data);
+void *LLDBSWIGPython_CastPyObjectToSBBreakpoint(PyObject *data);
 void *LLDBSWIGPython_CastPyObjectToSBAttachInfo(PyObject *data);
 void *LLDBSWIGPython_CastPyObjectToSBLaunchInfo(PyObject *data);
 void *LLDBSWIGPython_CastPyObjectToSBError(PyObject *data);
@@ -146,6 +147,11 @@ python::PythonObject LLDBSwigPythonCreateScriptedThreadPlan(
 
 bool LLDBSWIGPythonCallThreadPlan(void *implementor, const char *method_name,
                                   lldb_private::Event *event_sp,
+                                  bool &got_error);
+                                  
+bool LLDBSWIGPythonCallThreadPlan(void *implementor, 
+                                  const char *method_name,
+                                  lldb_private::Stream *stream,
                                   bool &got_error);
 
 python::PythonObject LLDBSwigPythonCreateScriptedBreakpointResolver(

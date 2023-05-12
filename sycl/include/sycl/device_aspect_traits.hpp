@@ -136,8 +136,11 @@ template <>
 struct all_devices_have<aspect::emulated>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_40__> {};
 template <>
-struct all_devices_have<aspect::ext_oneapi_virtual_mem>
+struct all_devices_have<aspect::ext_intel_legacy_image>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_41__> {};
+template <>
+struct all_devices_have<aspect::ext_oneapi_virtual_mem>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_42__> {};
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
@@ -268,8 +271,11 @@ template <>
 struct any_device_has<aspect::emulated>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_40__> {};
 template <>
-struct any_device_has<aspect::ext_oneapi_virtual_mem>
+struct any_device_has<aspect::ext_intel_legacy_image>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_41__> {};
+template <>
+struct any_device_has<aspect::ext_oneapi_virtual_mem>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_42__> {};
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 
 template <aspect Aspect>

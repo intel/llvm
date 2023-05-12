@@ -1,14 +1,14 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=cpu %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=gpu %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=acc %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=CPU %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=GPU %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=ACC %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=Cpu %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=Gpu %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=Acc %BE_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_TYPE=XPU %BE_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=cpu %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=gpu %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=acc %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=CPU %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=GPU %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=ACC %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=Cpu %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=Gpu %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=Acc %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_DEVICE_TYPE=XPU %{run-unfiltered-devices} %t.out
 
 //==------------------- device-check.cpp --------------------------==//
 // This is a diagnostic test which ensures that

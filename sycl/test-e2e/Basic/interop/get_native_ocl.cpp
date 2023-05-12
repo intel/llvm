@@ -1,7 +1,6 @@
 // REQUIRES: opencl, opencl_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %opencl_options %s -o %t.ocl.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.ocl.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.ocl.out
+// RUN: %{build} %opencl_options -o %t.ocl.out
+// RUN: %{run} %t.out
 
 #include <CL/cl.h>
 

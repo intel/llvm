@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// REQUIRES: cpu
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/sycl.hpp>
 

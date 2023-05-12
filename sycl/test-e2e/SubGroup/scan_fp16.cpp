@@ -1,5 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp16
+// REQUIRES: gpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Missing __spirv_SubgroupLocalInvocationId, __spirv_GroupFAdd,
 // __spirv_GroupFMin, __spirv_GroupFMax on AMD
@@ -12,8 +14,7 @@
 #include <iostream>
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device()) ||
-      !Queue.get_device().has(sycl::aspect::fp16)) {
+  if (!core_sg_supported(Queue.get_device())) {
     std::cout << "Skipping test\n";
     return 0;
   }

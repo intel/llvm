@@ -10,10 +10,10 @@
 // based spirv translator. This test should start working on Windows when the
 // llvm version is switched to 9.
 // UNSUPPORTED: windows
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: %{run} %t.out
 // UNSUPPORTED: cuda || hip
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's PHI function.

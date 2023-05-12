@@ -214,8 +214,13 @@
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_41__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 41)
+// __SYCL_ASPECT(ext_intel_legacy_image, 41)
 #define __SYCL_ALL_DEVICES_HAVE_41__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_42__
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 42)
+#define __SYCL_ALL_DEVICES_HAVE_42__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_0__
@@ -424,6 +429,11 @@
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_41__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 41)
+// __SYCL_ASPECT(ext_intel_legacy_image, 41)
 #define __SYCL_ANY_DEVICE_HAS_41__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_42__
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 42)
+#define __SYCL_ANY_DEVICE_HAS_42__ 0
 #endif

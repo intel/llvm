@@ -689,6 +689,14 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
   }
 };
 
+// Specialization for image_support
+template <> struct get_device_info_impl<bool, info::device::image_support> {
+  static bool get(const DeviceImplPtr &) {
+    // No devices currently support SYCL 2020 images.
+    return false;
+  }
+};
+
 // USM
 
 // Specialization for device usm query.
@@ -771,7 +779,8 @@ struct get_device_info_impl<
     // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
     // and LevelZero.
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
-           (Dev->getBackend() == backend::opencl);
+           (Dev->getBackend() == backend::opencl) ||
+           (Dev->getBackend() == backend::ext_oneapi_cuda);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;

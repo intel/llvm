@@ -14,7 +14,7 @@
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -fno-sycl-dead-args-optimization -Xclang -verify-ignore-unexpected=note,warning
-// RUN: env SYCL_USE_KERNEL_SPV=%t.spv %BE_RUN_PLACEHOLDER %t.out | FileCheck %s
+// RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out | FileCheck %s
 // CHECK: Passed
 
 #include <iostream>

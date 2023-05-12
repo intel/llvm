@@ -8,8 +8,8 @@
 // REQUIRES: gpu
 // UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip || gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 
 #include "bitmap_helpers.h"
 #include "esimd_test_utils.hpp"

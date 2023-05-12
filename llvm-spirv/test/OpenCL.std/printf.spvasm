@@ -20,8 +20,8 @@
 ; CHECK-CL20: declare spir_func i32 @printf(ptr addrspace(2), ...)
 
 ; CHECK-SPV-BACK: ExtInstImport [[Set:[0-9]+]] "OpenCL.std"
-; CHECK-SPV-BACK: TypeInt [[Int8:[0-9]+]] 8
-; CHECK-SPV-BACK: TypeInt [[Int32:[0-9]+]] 32
+; CHECK-SPV-BACK-DAG: TypeInt [[Int8:[0-9]+]] 8
+; CHECK-SPV-BACK-DAG: TypeInt [[Int32:[0-9]+]] 32
 ; CHECK-SPV-BACK: Constant [[Int32]] [[One:[0-9]+]] 1{{[[:space:]]}}
 ; CHECK-SPV-BACK: TypePointer [[Int8PtrTy:[0-9]+]] 0 [[Int8]]{{[[:space:]]}}
 ; CHECK-SPV-BACK: InBoundsPtrAccessChain [[Int8PtrTy]] [[Int8Ptr:[0-9]+]]

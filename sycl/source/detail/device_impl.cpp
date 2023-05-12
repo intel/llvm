@@ -444,6 +444,14 @@ bool device_impl::has(aspect Aspect) const {
             &async_barrier_supported, nullptr) == PI_SUCCESS;
     return call_successful && async_barrier_supported;
   }
+  case aspect::ext_intel_legacy_image: {
+    pi_bool legacy_image_support = PI_FALSE;
+    bool call_successful =
+        getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
+            &legacy_image_support, nullptr) == PI_SUCCESS;
+    return call_successful && legacy_image_support;
+  }
   case aspect::ext_oneapi_virtual_mem: {
     pi_bool virtual_mem_supported;
     bool call_successful =

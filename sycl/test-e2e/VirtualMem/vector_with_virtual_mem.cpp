@@ -1,9 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-ext_oneapi_virtual_mem
 
-// TODO: Require ext_oneapi_virtual_mem aspect here when supported.
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -138,13 +136,6 @@ constexpr size_t NumWorkItems = 512;
 
 int main() {
   sycl::queue Q;
-
-  if (!Q.get_device().has(sycl::aspect::ext_oneapi_virtual_mem)) {
-    std::cout
-        << "sycl::aspect::ext_oneapi_virtual_mem not supported. Skipping..."
-        << std::endl;
-    return 0;
-  }
 
   VirtualVector<int> Vec(Q);
 
