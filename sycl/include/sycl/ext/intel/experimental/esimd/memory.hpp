@@ -2293,10 +2293,9 @@ public:
   /// </summary>
   /// <returns>surface base address</returns>
   T *get_data_pointer() const {
-    return (
-        T *)((uint64_t)(const_cast<config_2d_mem_access *>(this)
-                            ->payload_data.template bit_cast_view<uint64_t>()
-                            .template select<1, 1>(0)[0]));
+    return (T *)((
+        uint64_t)(const_cast<config_2d_mem_access *>(this)
+                      ->payload_data.template bit_cast_view<uint64_t>()[0]));
   }
 
   /// <summary>

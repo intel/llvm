@@ -15,7 +15,6 @@
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/sycl.hpp>
 #include <vector>
 
@@ -40,35 +39,33 @@ int main() {
 
   shared_vector vec(9, allocator);
   {
-    q.submit([&](sycl::handler &cgh) {
-      uint32_t *output_ptr = vec.data();
-      cgh.single_task<class test1>([=]() SYCL_ESIMD_KERNEL {
-        simd<uint32_t, 9> result;
-        config_2d_mem_access<uint32_t, BlockWidth, BlockHeight, NumBlocks>
-            payload;
-        payload.set_data_pointer(output_ptr);
-        payload.set_surface_width(SurfaceWidth);
-        payload.set_surface_height(SurfaceHeight);
-        payload.set_surface_pitch(SurfacePitch);
-        payload.set_x(x);
-        payload.set_y(y);
-        result[0] = payload.get_surface_width();
-        result[1] = payload.get_surface_height();
-        result[2] = payload.get_surface_pitch();
-        result[3] = payload.get_x();
-        result[4] = payload.get_y();
-        result[5] = payload.get_width();
-        result[6] = payload.get_height();
-        result[7] = payload.get_number_of_blocks();
-        auto p = payload.get_data_pointer();
-        if (p == output_ptr) {
-          result[8] = 8;
-        } else {
-          result[8] = 0;
-        }
+    uint32_t *output_ptr = vec.data();
+    q.single_task([=]() SYCL_ESIMD_KERNEL {
+      simd<uint32_t, 9> result;
+      config_2d_mem_access<uint32_t, BlockWidth, BlockHeight, NumBlocks>
+          payload;
+      payload.set_data_pointer(output_ptr);
+      payload.set_surface_width(SurfaceWidth);
+      payload.set_surface_height(SurfaceHeight);
+      payload.set_surface_pitch(SurfacePitch);
+      payload.set_x(x);
+      payload.set_y(y);
+      result[0] = payload.get_surface_width();
+      result[1] = payload.get_surface_height();
+      result[2] = payload.get_surface_pitch();
+      result[3] = payload.get_x();
+      result[4] = payload.get_y();
+      result[5] = payload.get_width();
+      result[6] = payload.get_height();
+      result[7] = payload.get_number_of_blocks();
+      auto p = payload.get_data_pointer();
+      if (p == output_ptr) {
+        result[8] = 8;
+      } else {
+        result[8] = 0;
+      }
 
-        result.copy_to(output_ptr);
-      });
+      result.copy_to(output_ptr);
     });
   }
   q.wait();
