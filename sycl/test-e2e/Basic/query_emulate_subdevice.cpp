@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env CreateMultipleSubDevices=2 EnableTimestampPacket=1 \
 // RUN: NEOReadDebugKeys=1 ONEAPI_DEVICE_SELECTOR="*:gpu" %t.out
 

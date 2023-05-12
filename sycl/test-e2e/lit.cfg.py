@@ -18,12 +18,6 @@ from lit.llvm.subst import ToolSubst, FindTool
 # name: The name of this test suite.
 config.name = 'SYCL'
 
-# testFormat: The test format to use to interpret tests.
-#
-# For now we require '&&' between commands, until they get globally killed and
-# the test runner updated.
-config.test_format = lit.formats.ShTest()
-
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp']
 
@@ -187,6 +181,45 @@ if sp[0] == 0:
 else:
     config.substitutions.append( ('%cuda_options', '') )
 
+# The code below is slightly more complex than currently necessary because of
+# the plans to allow running the same tests on multiple backends in a single
+# llvm-lit invocation.
+sycl_dev_aspects = []
+for be in [config.sycl_be]:
+    for device in config.target_devices.split(','):
+        cmd = 'env '
+        if be == 'ext_oneapi_cuda':
+            cmd += 'SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 '
+        cmd += 'ONEAPI_DEVICE_SELECTOR={}:{} sycl-ls --verbose'.format(be, device)
+        sp = subprocess.run((cmd), env=llvm_config.config.environment,
+                            shell=True, capture_output=True, text=True)
+        if sp.returncode != 0:
+            lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+                be, device, sp.stdout, sp.stderr))
+
+        dev_aspects = []
+        for line in sp.stdout.split('\n'):
+            if not re.search(r'^ *Aspects *:', line):
+                continue
+            _, aspects_str = line.split(':', 1)
+            dev_aspects.append(aspects_str.strip().split(' '))
+
+        if dev_aspects == []:
+            lit_config.error('Cannot detect device aspect for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+                be, device, sp.stdout, sp.stderr))
+            sycl_dev_aspects.append(set())
+            continue
+
+        # We might have several devices matching the same filter in the system.
+        # Compute intersection of aspects.
+        result = set(dev_aspects[0]).intersection(*dev_aspects)
+        sycl_dev_aspects.append(result)
+
+resulting_aspects = sycl_dev_aspects[0].intersection(*sycl_dev_aspects)
+lit_config.note('Aspects: {}'.format(' '.join(resulting_aspects)))
+for aspect in resulting_aspects:
+    config.available_features.add('aspect-{}'.format(aspect))
+
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     if cl_options:
@@ -245,10 +278,6 @@ lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 
 # Use short names for LIT rules
 config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
-be_run_substitute = "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)
-if config.run_launcher:
-    be_run_substitute += " {}".format(config.run_launcher)
-config.substitutions.append( ('%BE_RUN_PLACEHOLDER', be_run_substitute) )
 
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')
@@ -309,90 +338,30 @@ for target_device in config.target_devices.split(','):
                          target_device +
                          "' supported devices are " + ', '.join(supported_device_types))
 
-cpu_run_substitute = "true"
-cpu_run_on_linux_substitute = "true "
-cpu_check_substitute = ""
-cpu_check_on_linux_substitute = ""
-
 if 'cpu' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Test CPU device")
-    cpu_run_substitute = "env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=config.sycl_be)
-    cpu_check_substitute = "| FileCheck %s"
     config.available_features.add('cpu')
-    if platform.system() == "Linux":
-        cpu_run_on_linux_substitute = cpu_run_substitute
-        cpu_check_on_linux_substitute = "| FileCheck %s"
-
-    if config.run_launcher:
-        cpu_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("CPU device not used")
-
-config.substitutions.append( ('%CPU_RUN_PLACEHOLDER',  cpu_run_substitute) )
-config.substitutions.append( ('%CPU_RUN_ON_LINUX_PLACEHOLDER',  cpu_run_on_linux_substitute) )
-config.substitutions.append( ('%CPU_CHECK_PLACEHOLDER',  cpu_check_substitute) )
-config.substitutions.append( ('%CPU_CHECK_ON_LINUX_PLACEHOLDER',  cpu_check_on_linux_substitute) )
-
-gpu_run_substitute = "true"
-gpu_run_on_linux_substitute = "true "
-gpu_check_substitute = ""
-gpu_l0_check_substitute = ""
-gpu_check_on_linux_substitute = ""
 
 if 'gpu' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Test GPU device")
-    gpu_run_substitute = " env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
-    gpu_check_substitute = "| FileCheck %s"
     config.available_features.add('gpu')
 
     if config.sycl_be == "ext_oneapi_level_zero":
-        gpu_l0_check_substitute = "| FileCheck %s"
         if lit_config.params.get('ze_debug'):
-            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} ONEAPI_DEVICE_SELECTOR=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
-            config.available_features.add('ze_debug'+config.ze_debug)
-    elif config.sycl_be == "ext_intel_esimd_emulator":
-        # ESIMD_EMULATOR backend uses CM_EMU library package for
-        # multi-threaded execution on CPU, and the package emulates
-        # multiple target platforms. In case user does not specify
-        # what target platform to emulate, 'skl' is chosen by default.
-        if not "CM_RT_PLATFORM" in os.environ:
-            gpu_run_substitute += "CM_RT_PLATFORM=skl "
-
-    if platform.system() == "Linux":
-        gpu_run_on_linux_substitute = "env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
-        gpu_check_on_linux_substitute = "| FileCheck %s"
-
-    if config.sycl_be == "ext_oneapi_cuda":
-        gpu_run_substitute += "SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 "
-
-    if config.run_launcher:
-        gpu_run_substitute += " {}".format(config.run_launcher)
+            config.available_features.add('ze_debug')
 else:
     lit_config.warning("GPU device not used")
 
-config.substitutions.append( ('%GPU_RUN_PLACEHOLDER',  gpu_run_substitute) )
-config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux_substitute) )
-config.substitutions.append( ('%GPU_CHECK_PLACEHOLDER',  gpu_check_substitute) )
-config.substitutions.append( ('%GPU_L0_CHECK_PLACEHOLDER',  gpu_l0_check_substitute) )
-config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_linux_substitute) )
-
-acc_run_substitute = "true"
-acc_check_substitute = ""
 if 'acc' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Tests accelerator device")
-    acc_run_substitute = " env ONEAPI_DEVICE_SELECTOR='*:acc' "
-    acc_check_substitute = "| FileCheck %s"
     config.available_features.add('accelerator')
-
-    if config.run_launcher:
-        acc_run_substitute += " {}".format(config.run_launcher)
 else:
     lit_config.warning("Accelerator device not used")
-config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
-config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
 if config.run_launcher:
     config.substitutions.append(('%e2e_tests_root', config.test_source_root))

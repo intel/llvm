@@ -81,6 +81,7 @@ class InjectorIRStrategy : public IRMutationStrategy {
                                                         RandomIRBuilder &IB);
 
 public:
+  InjectorIRStrategy() : Operations(getDefaultOps()) {}
   InjectorIRStrategy(std::vector<fuzzerop::OpDescriptor> &&Operations)
       : Operations(std::move(Operations)) {}
   static std::vector<fuzzerop::OpDescriptor> getDefaultOps();
@@ -116,6 +117,20 @@ public:
 
   using IRMutationStrategy::mutate;
   void mutate(Instruction &Inst, RandomIRBuilder &IB) override;
+};
+
+/// Strategy that generates new function calls and inserts function signatures
+/// to the modules. If any signatures are present in the module it will be
+/// called.
+class InsertFunctionStrategy : public IRMutationStrategy {
+public:
+  uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
+                     uint64_t CurrentWeight) override {
+    return 10;
+  }
+
+  using IRMutationStrategy::mutate;
+  void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
 };
 
 /// Strategy to split a random block and insert a random CFG in between.

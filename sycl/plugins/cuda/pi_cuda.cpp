@@ -425,6 +425,27 @@ bool getMaxRegistersJitOptionValue(const std::string &build_options,
   return true;
 }
 
+// Helper to verify out-of-registers case (exceeded block max registers).
+// If the kernel requires a number of registers for the entire thread
+// block exceeds the hardware limitations, then the cuLaunchKernel call
+// will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
+bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
+                                     size_t blockSize) {
+  assert(device);
+  assert(kernel);
+
+  int maxRegsPerBlock{0};
+  PI_CHECK_ERROR(cuDeviceGetAttribute(
+      &maxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+      device->get()));
+
+  int regsPerThread{0};
+  PI_CHECK_ERROR(cuFuncGetAttribute(&regsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                    kernel->get()));
+
+  return blockSize * regsPerThread > size_t(maxRegsPerBlock);
+};
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -2111,6 +2132,21 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                             false);
   }
 
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    PI_CHECK_ERROR(cuDeviceGetAttribute(
+        &max_registers, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+        device->get()));
+
+    sycl::detail::pi::assertion(max_registers >= 0);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(max_registers));
+  }
+
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
@@ -3218,10 +3254,18 @@ pi_result cuda_piEnqueueKernelLaunch(
           return PI_SUCCESS;
         };
 
+        size_t kernelLocalWorkGroupSize = 0;
         for (size_t dim = 0; dim < work_dim; dim++) {
           auto err = isValid(dim);
           if (err != PI_SUCCESS)
             return err;
+          // If no error then sum the total local work size per dim.
+          kernelLocalWorkGroupSize += local_work_size[dim];
+        }
+
+        if (hasExceededMaxRegistersPerBlock(command_queue->device_, kernel,
+                                            kernelLocalWorkGroupSize)) {
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         }
       } else {
         guessLocalWorkSize(command_queue->device_, threadsPerBlock,
