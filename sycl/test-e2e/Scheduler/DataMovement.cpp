@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out %debug_option
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: accelerator
-//
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
