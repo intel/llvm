@@ -7,16 +7,13 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{run} %t.out
 
 // Optimizations:
 // cache tiling of i and j
 // cache tiling on k as well (so no reordering is needed)
 // data reuse of A and B in physical layer
-
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
 
 #include <algorithm>
 #include <chrono>

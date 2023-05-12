@@ -7,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %clangxx -fsycl -mllvm -inline-threshold=2000 %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -mllvm -inline-threshold=2000 -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DMANUAL_UNROLL
+// RUN: %{run} %t.out
 
 // Optimizations:
 // cache tiling of i and j
@@ -18,9 +17,6 @@
 
 // -mllvm -inline-threshold=2000 added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently
-
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
-#define MANUAL_UNROLL
 
 #include <algorithm>
 #include <chrono>

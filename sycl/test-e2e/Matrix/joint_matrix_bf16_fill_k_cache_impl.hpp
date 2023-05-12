@@ -351,6 +351,19 @@ double run(queue &q, int i) {
 }
 
 int main(void) {
+  std::cout << "Test variant:";
+#ifdef MANUAL_UNROLL
+  std::cout << " Manual unroll;";
+#else
+  std::cout << " No unroll;";
+#endif
+#ifdef INIT_LIST
+  std::cout << " Init list;";
+#else
+  std::cout << " No init list;";
+#endif
+  std::cout << "\n";
+
   queue q;
   A = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
   A2 = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
