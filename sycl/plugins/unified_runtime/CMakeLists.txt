@@ -133,3 +133,10 @@ if (TARGET UnifiedRuntimeLoader)
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
   )
 endif()
+
+# Install the UR adapters too
+install(TARGETS ur_adapter_level_zero
+ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+)
