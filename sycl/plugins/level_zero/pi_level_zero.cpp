@@ -692,8 +692,8 @@ pi_result _pi_context::finalize() {
 
   std::scoped_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
-    for (CmdListAndIndex &Item : List.second) {
-      ze_command_list_handle_t &ZeCommandList = Item.first;
+    for (pi_command_list_and_desc_t &Item : List.second) {
+      ze_command_list_handle_t &ZeCommandList = Item.CmdList;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -703,8 +703,8 @@ pi_result _pi_context::finalize() {
     }
   }
   for (auto &List : ZeCopyCommandListCache) {
-    for (CmdListAndIndex &Item : List.second) {
-      ze_command_list_handle_t &ZeCommandList = Item.first;
+    for (pi_command_list_and_desc_t &Item : List.second) {
+      ze_command_list_handle_t &ZeCommandList = Item.CmdList;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -826,8 +826,8 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
         UseCopyEngine
             ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
             : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
-    ZeCommandListCache.push_back(
-        {CommandList->first, CommandList->second.ZeQueueGroupIndex});
+    CommandList->second.ZeQueueDesc.CmdList = CommandList->first;
+    ZeCommandListCache.push_back(CommandList->second.ZeQueueDesc);
   }
 
   return PI_SUCCESS;
@@ -1289,7 +1289,7 @@ pi_result _pi_context::getAvailableCommandList(
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
-      auto &ZeCommandList = ZeCommandListIt->first;
+      auto &ZeCommandList = ZeCommandListIt->CmdList;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         if (ForcedCmdQueue && *ForcedCmdQueue != it->second.ZeQueue)
@@ -1800,6 +1800,23 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   if (ImmCmdLists[Index] != Queue->CommandListMap.end())
     return ImmCmdLists[Index];
 
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+  ZeCommandQueueDesc.ordinal = QueueOrdinal;
+  ZeCommandQueueDesc.index = QueueIndex;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  const char *Priority = "Normal";
+  if (Queue->isPriorityLow()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
+    Priority = "Low";
+  } else if (Queue->isPriorityHigh()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
+    Priority = "High";
+  }
+  // Evaluate performance of explicit usage for "0" index.
+  if (QueueIndex != 0) {
+    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+  }
+
   // Check if context's command list cache has an immediate command list with
   // matching index.
   ze_command_list_handle_t ZeCommandList = nullptr;
@@ -1817,8 +1834,11 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       auto Item = *ZeCommandListIt;
-      if (Item.second == Index) {
-        ZeCommandList = Item.first;
+      if (Item.Index == ZeCommandQueueDesc.index &&
+          Item.Flags == ZeCommandQueueDesc.flags &&
+          Item.Mode == ZeCommandQueueDesc.mode &&
+          Item.Priority == ZeCommandQueueDesc.priority) {
+        ZeCommandList = Item.CmdList;
         ZeCommandListCache.erase(ZeCommandListIt);
         break;
       }
@@ -1827,24 +1847,6 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
 
   // If cache didn't contain a command list, create one.
   if (!ZeCommandList) {
-    ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-    ZeCommandQueueDesc.ordinal = QueueOrdinal;
-    ZeCommandQueueDesc.index = QueueIndex;
-    ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
-    const char *Priority = "Normal";
-    if (Queue->isPriorityLow()) {
-      ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
-      Priority = "Low";
-    } else if (Queue->isPriorityHigh()) {
-      ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
-      Priority = "High";
-    }
-
-    // Evaluate performance of explicit usage for "0" index.
-    if (QueueIndex != 0) {
-      ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
-    }
-
     urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
             "(round robin in [%d, %d]) priority = %s\n",
             ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
@@ -1854,12 +1856,15 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
                      &ZeCommandQueueDesc, &ZeCommandList));
   }
+  pi_command_list_and_desc_t Desc{
+      ZeCommandList, QueueIndex, ZeCommandQueueDesc.flags,
+      ZeCommandQueueDesc.mode, ZeCommandQueueDesc.priority};
 
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
               ZeCommandList,
-              {nullptr, true, false, nullptr, QueueOrdinal, QueueIndex}})
+              {nullptr, true, false, nullptr, QueueOrdinal, Desc}})
           .first;
 
   return ImmCmdLists[Index];
@@ -2890,7 +2895,7 @@ pi_result piQueueRelease(pi_queue Queue) {
                       ->ZeCopyCommandListCache[Queue->Device->ZeDevice]
                 : Queue->Context
                       ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
-        ZeCommandListCache.push_back({it->first, it->second.ZeQueueGroupIndex});
+        ZeCommandListCache.push_back(it->second.ZeQueueDesc);
       }
     }
     Queue->CommandListMap.clear();

@@ -132,6 +132,17 @@ struct _pi_device : _ur_device_handle_t {
   using _ur_device_handle_t::_ur_device_handle_t;
 };
 
+// Structure describing the command queue descriptor when command lists are
+// created. This is used to ensure that the appropriate command list type is
+// reused from the context's cache.
+struct pi_command_list_and_desc_t {
+  ze_command_list_handle_t CmdList;
+  uint32_t Index{0};
+  ze_command_queue_flags_t Flags{0};
+  ze_command_queue_mode_t Mode{ZE_COMMAND_QUEUE_MODE_DEFAULT};
+  ze_command_queue_priority_t Priority{ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
+};
+
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
@@ -155,8 +166,9 @@ struct pi_command_list_info_t {
   ze_command_queue_handle_t ZeQueue{nullptr};
   // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
   uint32_t ZeQueueGroupOrdinal{0};
-  // Keeps the index if this entry is for an immediate command list.
-  uint32_t ZeQueueGroupIndex{0};
+  // Keeps the queue descriptor of the command list.
+  pi_command_list_and_desc_t ZeQueueDesc;
+
   // Helper functions to tell if this is a copy command-list.
   bool isCopy(pi_queue Queue) const;
 
@@ -175,9 +187,7 @@ using pi_command_list_map_t =
     std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>;
 // The iterator pointing to a specific command-list in use.
 using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
-// The type that holds a command list and the index when the command list is an
-// immediate command list.
-using CmdListAndIndex = std::pair<ze_command_list_handle_t, uint32_t>;
+// The type that holds a command list and the queue descriptor.
 
 struct _pi_context : _ur_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
@@ -249,9 +259,9 @@ struct _pi_context : _ur_object {
   // application must only use the command list for the device, or its
   // sub-devices, which was provided during creation."
   //
-  std::unordered_map<ze_device_handle_t, std::list<CmdListAndIndex>>
+  std::unordered_map<ze_device_handle_t, std::list<pi_command_list_and_desc_t>>
       ZeComputeCommandListCache;
-  std::unordered_map<ze_device_handle_t, std::list<CmdListAndIndex>>
+  std::unordered_map<ze_device_handle_t, std::list<pi_command_list_and_desc_t>>
       ZeCopyCommandListCache;
 
   // Retrieves a command list for executing on this device along with
