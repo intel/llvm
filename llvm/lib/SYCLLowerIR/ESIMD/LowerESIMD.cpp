@@ -1198,7 +1198,7 @@ static Value *generateSpirvGlobalGenX(Instruction *EEI,
   } else if (SpirvGlobalName == "GlobalOffset") {
     // TODO: Support GlobalOffset SPIRV intrinsics
     // Currently all users of load of GlobalOffset are replaced with 0.
-    NewInst = llvm::Constant::getNullValue(EEI->getType());
+    NewInst = llvm::Constant::getNullValue(UseType ? UseType : EEI->getType());
   } else if (SpirvGlobalName == "NumWorkgroups") {
     NewInst = generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
   }
@@ -1235,12 +1235,20 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
                                               llvm::APInt(32, 1, true));
   } else if (SpirvGlobalName == "GlobalLinearId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
-  } else if (isa<GetElementPtrConstantExpr>(LI->getPointerOperand())) {
+  } else if (auto *GEPOp = dyn_cast<GEPOperator>(LI->getPointerOperand())) {
     // Translate the load that has getelementptr as an operand
-    auto *GEPCE = cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
-    uint64_t IndexValue =
-        cast<Constant>(GEPCE->getOperand(2))->getUniqueInteger().getZExtValue();
-    NewInst = generateSpirvGlobalGenX(LI, SpirvGlobalName, IndexValue);
+    const DataLayout &DL = LI->getFunction()->getParent()->getDataLayout();
+    APInt Offset(DL.getIndexSizeInBits(GEPOp->getPointerAddressSpace()), 0);
+    if (!GEPOp->accumulateConstantOffset(DL, Offset))
+      llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+    APInt IndexValue;
+    uint64_t Remainder;
+    APInt::udivrem(Offset, LI->getType()->getScalarSizeInBits() / 8, IndexValue,
+                   Remainder);
+    if (Remainder != 0)
+      llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+    NewInst =
+        generateSpirvGlobalGenX(LI, SpirvGlobalName, IndexValue.getZExtValue());
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
