@@ -15,6 +15,8 @@
 
 #include <memory>
 
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
+
 namespace mlir {
 class Pass;
 class LLVMTypeConverter;
@@ -25,10 +27,13 @@ class RewritePatternSet;
 #undef GEN_PASS_DECL_CONVERTSYCLTOLLVM
 
 /// Populates type conversions with additional SYCL types.
-void populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter);
+void populateSYCLToLLVMTypeConversion(sycl::Implementation implementation,
+                                      LLVMTypeConverter &typeConverter);
 
 /// Populates the given list with patterns that convert from SYCL to LLVM.
-void populateSYCLToLLVMConversionPatterns(LLVMTypeConverter &typeConverter,
+void populateSYCLToLLVMConversionPatterns(sycl::Implementation implementation,
+                                          sycl::LoweringTarget target,
+                                          LLVMTypeConverter &typeConverter,
                                           RewritePatternSet &patterns);
 
 } // namespace mlir

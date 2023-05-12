@@ -858,13 +858,12 @@ populatePolygeistToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
           auto ST = LLVM::LLVMStructType::getIdentified(
               &typeConverter.getContext(), *type.getName());
           if (!ST.isInitialized()) {
-            if (failed(ST.setBody(convertedElemTypes, /*isPacked=*/false)))
+            if (failed(ST.setBody(convertedElemTypes, type.isPacked())))
               return std::nullopt;
           } else if (convertedElemTypes != ST.getBody()) {
             ST = LLVM::LLVMStructType::getNewIdentified(
                 &typeConverter.getContext(), *type.getName(),
-                convertedElemTypes,
-                /*isPacked=*/false);
+                convertedElemTypes, type.isPacked());
           }
           return ST;
         }
@@ -1588,7 +1587,8 @@ struct ConvertPolygeistToLLVMPass
       populateSPIRVToLLVMConversionPatterns(converter, patterns, clientAPI);
       populateSPIRVToLLVMTypeConversion(converter, clientAPI);
 
-      populateSYCLToLLVMConversionPatterns(converter, patterns);
+      populateSYCLToLLVMConversionPatterns(syclImplementation, syclTarget,
+                                           converter, patterns);
       populateSYCLToSPIRVConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);

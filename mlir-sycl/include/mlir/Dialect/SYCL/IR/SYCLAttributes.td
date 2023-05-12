@@ -116,4 +116,23 @@ def AccessDecoratedAttr
                        [NoAccessDecorated, YesAccessDecorated,
                        LegacyAccessDecorated]>;
 
+////////////////////////////////////////////////////////////////////////////////
+// Implementation
+////////////////////////////////////////////////////////////////////////////////
+
+def DPCPPImplementation : I32EnumAttrCase<"DPCPP", 0, "DPC++">;
+
+def Implementation :
+    SYCL_I32Enum<"Implementation", "SYCL implementation", [DPCPPImplementation]>;
+
+////////////////////////////////////////////////////////////////////////////////
+// LoweringTarget
+////////////////////////////////////////////////////////////////////////////////
+
+def SPIRLoweringTarget : I32EnumAttrCase<"SPIR", 0, "SPIR">;
+
+def LoweringTarget :
+    SYCL_I32Enum<"LoweringTarget", "SYCL target representation",
+    [SPIRLoweringTarget]>;
+
 #endif // SYCL_ATTRIBUTES
