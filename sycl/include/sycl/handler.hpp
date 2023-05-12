@@ -2856,8 +2856,6 @@ public:
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
-  std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
 
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
@@ -2905,6 +2903,9 @@ private:
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+          
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
 
   bool MIsHost = false;
 
