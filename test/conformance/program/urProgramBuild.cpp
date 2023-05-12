@@ -4,7 +4,7 @@
 #include <uur/fixtures.h>
 
 using urProgramBuildTest = uur::urProgramTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramBuildTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramBuildTest);
 
 TEST_P(urProgramBuildTest, Success) {
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));

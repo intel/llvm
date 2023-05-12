@@ -22,7 +22,7 @@ struct urKernelSetSpecializationConstantsTest : uur::urKernelTest {
     ur_specialization_constant_info_t info = {0, sizeof(spec_value),
                                               &spec_value};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetSpecializationConstantsTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetSpecializationConstantsTest);
 
 TEST_P(urKernelSetSpecializationConstantsTest, Success) {
     ASSERT_SUCCESS(urKernelSetSpecializationConstants(kernel, 1, &info));

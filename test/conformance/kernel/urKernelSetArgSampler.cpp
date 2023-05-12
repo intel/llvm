@@ -26,7 +26,7 @@ struct urKernelSetArgSamplerTest : uur::urKernelTest {
 
     ur_sampler_handle_t sampler = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgSamplerTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgSamplerTest);
 
 TEST_P(urKernelSetArgSamplerTest, Success) {
     ASSERT_SUCCESS(urKernelSetArgSampler(kernel, 2, sampler));

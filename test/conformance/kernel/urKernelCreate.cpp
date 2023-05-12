@@ -28,28 +28,28 @@ struct urKernelCreateTest : uur::urProgramTest {
     std::string kernel_name;
     ur_kernel_handle_t kernel = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelCreateTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelCreateTest);
 
-TEST_F(urKernelCreateTest, Success) {
+TEST_P(urKernelCreateTest, Success) {
     ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
 }
 
-TEST_F(urKernelCreateTest, InvalidNullHandleProgram) {
+TEST_P(urKernelCreateTest, InvalidNullHandleProgram) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urKernelCreate(nullptr, kernel_name.data(), &kernel));
 }
 
-TEST_F(urKernelCreateTest, InvalidNullPointerName) {
+TEST_P(urKernelCreateTest, InvalidNullPointerName) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urKernelCreate(program, nullptr, &kernel));
 }
 
-TEST_F(urKernelCreateTest, InvalidNullPointerKernel) {
+TEST_P(urKernelCreateTest, InvalidNullPointerKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urKernelCreate(program, kernel_name.data(), nullptr));
 }
 
-TEST_F(urKernelCreateTest, InvalidKernelName) {
+TEST_P(urKernelCreateTest, InvalidKernelName) {
     std::string invalid_name = "";
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME,
                      urKernelCreate(program, invalid_name.data(), &kernel));
