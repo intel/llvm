@@ -38,6 +38,7 @@ static std::optional<APInt> getConstIntegerValue(Value val,
   if (!val.getType().isIntOrIndex())
     return std::nullopt;
 
+  llvm::errs() << "val: " << val << "\n";
   auto *inferredRange =
       solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
   if (!inferredRange || inferredRange->getValue().isUninitialized()) {
@@ -87,6 +88,127 @@ static bool isGreaterThanOne(Value val, DataFlowSolver &solver) {
 static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
   std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
   return (optConstVal.has_value() && optConstVal->slt(-1));
+}
+
+/// Walks up the parents and records the ones with the specified type.
+template <typename T> static SetVector<T> getParentsOfType(Block *block) {
+  SetVector<T> res;
+  auto *current = block->getParentOp();
+  while (current) {
+    if (auto typedParent = dyn_cast<T>(current)) {
+      assert(res.count(typedParent) == 0 && "Already inserted");
+      res.insert(typedParent);
+    }
+    current = current->getParentOp();
+  }
+  return res;
+}
+
+/// Remove conversion like operations in the incoming expression if any.
+static Value removeConversions(Value expr) {
+  if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
+      matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
+      matchPattern(expr, m_Op<arith::TruncIOp>()) ||
+      matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
+      matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
+    return expr.getDefiningOp()->getOperand(0);
+  return expr;
+}
+
+/// Determine whether \p expr involves a subexpression which is a multiplication
+/// of \p val, and return the multiplication factor if it does.
+/// Example:
+///   %c1_i32 = arith.constant 1 : i32
+///   %c2_i32 = arith.constant 2 : i32
+///   %index_cast = arith.index_cast %ii : index to i64
+///   %c1_i64 = arith.extsi %c1_i32 : i32 to i64
+///   %mul = arith.muli %index_cast, %c1_i64 : i64
+///   %c2_i64 = arith.extsi %c2_i32 : i32 to i64
+///   %add = arith.addi %mul, %c2_i64 : i64
+///
+/// Here getMultiplier(%add, %ii) should return '%c1_i32'.
+static std::optional<Value> getMultiplier(Value expr, Value val,
+                                          DataFlowSolver &solver) {
+  llvm::errs() << "expr: " << expr << "\n";
+
+  //  expr = removeConversions(expr);
+  if (expr == val) {
+    OpBuilder b(expr.getContext());
+    return b.create<arith::ConstantIntOp>(expr.getLoc(), 1, 32);
+  }
+
+  Operation *op = expr.getDefiningOp();
+  if (!op)
+    return std::nullopt;
+
+  return TypeSwitch<Operation *, std::optional<Value>>(op)
+      .Case<arith::MulIOp>([&](auto mulOp) -> std::optional<Value> {
+        Value lhs = mulOp.getLhs(), rhs = mulOp.getRhs();
+        llvm::errs() << mulOp << "\n";
+        llvm::errs() << "lhs: " << lhs << "\n";
+        llvm::errs() << "rhs: " << rhs << "\n";
+
+        auto isOne = [](std::optional<Value> factor, DataFlowSolver &solver) {
+          if (!factor.has_value())
+            return false;
+        // we should use this code but does not work (TODO)
+#if 0
+          std::optional<APInt> constVal = getConstIntegerValue(*factor, solver);
+          return (constVal.has_value() && constVal->isOne());
+#else
+          if (auto constOp =
+                  dyn_cast<arith::ConstantIntOp>(factor->getDefiningOp()))
+            return constOp.value() == 1;
+
+          return false;
+#endif
+        };
+
+        std::optional<Value> lhsFactor = getMultiplier(lhs, val, solver);
+        if (lhsFactor.has_value())
+          llvm::errs() << "lhsFactor: " << *lhsFactor << "\n";
+        if (isOne(lhsFactor, solver)) {
+          llvm::errs() << "lhsFactor is one\n";
+          return removeConversions(rhs);
+        }
+
+        std::optional<Value> rhsFactor = getMultiplier(rhs, val, solver);
+        if (rhsFactor.has_value())
+          llvm::errs() << "rhsFactor: " << *rhsFactor << "\n";
+
+        if (isOne(rhsFactor, solver)) {
+          llvm::errs() << "rhsFactor is one\n";
+          return removeConversions(lhs);
+        }
+
+        return std::nullopt;
+      })
+      .Case<arith::AddIOp, arith::SubIOp>(
+          [&](auto binOp) -> std::optional<Value> {
+            Value lhs = binOp.getLhs(), rhs = binOp.getRhs();
+
+            llvm::errs() << binOp << "\n";
+            llvm::errs() << "lhs: " << lhs << "\n";
+            llvm::errs() << "rhs: " << rhs << "\n";
+            std::optional<Value> lhsFactor = getMultiplier(lhs, val, solver);
+            if (lhsFactor.has_value()) {
+              llvm::errs() << "lhsFactor: " << *lhsFactor << "\n";
+              return *lhsFactor;
+            }
+
+            std::optional<Value> rhsFactor = getMultiplier(rhs, val, solver);
+            if (rhsFactor.has_value()) {
+              llvm::errs() << "rhsFactor: " << *rhsFactor << "\n";
+              return *rhsFactor;
+            }
+
+            return std::nullopt;
+          })
+      .Case<arith::ExtUIOp, arith::ExtSIOp, arith::TruncIOp, arith::IndexCastOp,
+            arith::IndexCastUIOp>([&](auto castOp) -> std::optional<Value> {
+        return getMultiplier(castOp.getOperand(), val, solver);
+      })
+      .Default([](auto) { return std::nullopt; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -680,21 +802,6 @@ MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
 // MemoryAccessAnalysis
 //===----------------------------------------------------------------------===//
 
-/// Walks up the parents and records the ones with the specified type.
-template <typename T>
-static SetVector<Operation *> getParentsOfType(Block *block) {
-  SetVector<Operation *> res;
-  auto *current = block->getParentOp();
-  while (current) {
-    if (auto typedParent = dyn_cast<T>(current)) {
-      assert(res.count(current) == 0 && "Already inserted");
-      res.insert(current);
-    }
-    current = current->getParentOp();
-  }
-  return res;
-}
-
 MemoryAccessAnalysis::MemoryAccessAnalysis(Operation *op, AnalysisManager &am)
     : operation(op), am(am) {
   build();
@@ -726,8 +833,8 @@ void MemoryAccessAnalysis::build() {
   DataFlowSolver solver;
   solver.load<dataflow::DeadCodeAnalysis>();
   solver.load<dataflow::SparseConstantPropagation>();
-  solver.load<dataflow::IntegerRangeAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
+  solver.load<dataflow::IntegerRangeAnalysis>();
 
   Operation *op = getOperation();
   if (failed(solver.initializeAndRun(op))) {
@@ -738,9 +845,8 @@ void MemoryAccessAnalysis::build() {
   // Try to construct the memory access matrix for affine memory operation of
   // interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    TypeSwitch<Operation *>(op)
-        .Case([&](AffineStoreOp memoryOp) { build(memoryOp, solver); })
-        .Case([&](AffineLoadOp memoryOp) { build(memoryOp, solver); });
+    TypeSwitch<Operation *>(op).Case<AffineLoadOp, AffineStoreOp>(
+        [&](auto memoryOp) { build(memoryOp, solver); });
   });
 }
 
@@ -796,53 +902,16 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // number of columns is equal to the number of loops surrounding the memory
   // access plus (TODO) the dimensionality of the sycl item received by the
   // kernel.
-  SetVector<Operation *> enclosingLoops =
+  SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   enclosingLoops.size());
 
-  // Remove conversion like operations in the incoming expression if any.
-  auto removeConversions = [](Value expr) {
-    if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
-        matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
-        matchPattern(expr, m_Op<arith::TruncIOp>()) ||
-        matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
-        matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
-      return expr.getDefiningOp()->getOperand(0);
-    return expr;
-  };
-
-  // Determine whether 'expr' is a multiplication involving 'val'.
-  auto getMultiplier = [&](Value expr, Value val) -> std::optional<Value> {
-    expr = removeConversions(expr);
-    if (expr == val) {
-      OpBuilder b(expr.getContext());
-      return b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1);
-    }
-
-    Value other;
-
-    // Try to match (val * other) or (expr * other).
-    if (matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Val(val),
-                                               matchers::m_Any(&other))) ||
-        matchPattern(expr, m_Op<arith::MulIOp>(matchers::m_Any(&other),
-                                               matchers::m_Val(val))))
-      return other;
-
-    // TODO: we need a better way to handle chain of expressions.
-    // Example:
-    //   %0 = arith.index_cast %ii : index to i64
-    //   %i = arith.muli %0, %c1 : i64
-    // In this case we fail to match because the %0 is not %ii.
-
-    return std::nullopt;
-  };
-
   // Collect the loop induction variables.
   // TODO: collect also the global thread ids.
   SmallVector<Value, 4> IVs;
-  for (Operation *loop : llvm::reverse(enclosingLoops))
-    IVs.push_back(cast<AffineForOp>(loop).getInductionVar());
+  for (AffineForOp loop : llvm::reverse(enclosingLoops))
+    IVs.push_back(loop.getInductionVar());
 
   OpBuilder b(access.memref.getContext());
   Value zero = b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0);
@@ -851,8 +920,13 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
-      std::optional<Value> factor = getMultiplier(val, IVs[col]);
+      llvm::errs() << "line: " << __LINE__ << "\n";
+      llvm::errs() << "val: " << val << "\n";
+      llvm::errs() << "IVs[col]: " << IVs[col] << "\n";
+      std::optional<Value> factor = getMultiplier(val, IVs[col], solver);
+      llvm::errs() << "line: " << __LINE__ << "\n";
       accessMatrix(row, col) = factor.has_value() ? *factor : zero;
+      llvm::errs() << "line: " << __LINE__ << "\n";
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
