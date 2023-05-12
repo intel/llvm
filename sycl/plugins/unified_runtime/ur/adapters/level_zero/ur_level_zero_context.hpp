@@ -15,7 +15,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <sycl/detail/pi.h>
+ 
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ze_api.h>

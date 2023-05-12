@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <sycl/detail/pi.h>
+ 
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ze_api.h>
@@ -43,7 +43,7 @@ const bool UseCopyEngineForD2DCopy = [] {
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                                  ur_queue_handle_t Queue, void *Dst,
-                                 pi_bool BlockingWrite, size_t Size,
+                                 ur_bool_t BlockingWrite, size_t Size,
                                  const void *Src, uint32_t NumEventsInWaitList,
                                  const ur_event_handle_t *EventWaitList,
                                  ur_event_handle_t *OutEvent,
@@ -53,7 +53,7 @@ ur_result_t enqueueMemCopyRectHelper(
     ur_command_t CommandType, ur_queue_handle_t Queue, const void *SrcBuffer,
     void *DstBuffer, ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
     ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
-    size_t SrcSlicePitch, size_t DstSlicePitch, pi_bool Blocking,
+    size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 

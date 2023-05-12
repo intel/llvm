@@ -13,7 +13,8 @@
 #include "ur_level_zero.hpp"
 #include "ur_level_zero_context.hpp"
 #include "ur_level_zero_event.hpp"
-#include <ur_bindings.hpp>
+#include "ur_level_zero.hpp"
+  
 
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
@@ -42,7 +43,7 @@ bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr) {
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                                  ur_queue_handle_t Queue, void *Dst,
-                                 pi_bool BlockingWrite, size_t Size,
+                                 ur_bool_t BlockingWrite, size_t Size,
                                  const void *Src, uint32_t NumEventsInWaitList,
                                  const ur_event_handle_t *EventWaitList,
                                  ur_event_handle_t *OutEvent,
@@ -94,7 +95,7 @@ ur_result_t enqueueMemCopyRectHelper(
     ur_command_t CommandType, ur_queue_handle_t Queue, const void *SrcBuffer,
     void *DstBuffer, ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
     ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
-    size_t SrcSlicePitch, size_t DstSlicePitch, pi_bool Blocking,
+    size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine) {
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
@@ -298,10 +299,10 @@ static ur_result_t getImageRegionHelper(_ur_image *Mem,
   UR_ASSERT(Mem, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
 
+#ifndef NDEBUG
   auto UrImage = static_cast<_ur_image *>(Mem);
   ze_image_desc_t &ZeImageDesc = UrImage->ZeImageDesc;
 
-#ifndef NDEBUG
   UR_ASSERT(Mem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
              Origin->z == 0) ||
@@ -341,7 +342,7 @@ static ur_result_t enqueueMemImageCommandHelper(
     ur_command_t CommandType, ur_queue_handle_t Queue,
     const void *Src, // image or ptr
     void *Dst,       // image or ptr
-    pi_bool IsBlocking, ur_rect_offset_t *SrcOrigin,
+    ur_bool_t IsBlocking, ur_rect_offset_t *SrcOrigin,
     ur_rect_offset_t *DstOrigin, ur_rect_region_t *Region, size_t RowPitch,
     size_t SlicePitch, uint32_t NumEventsInWaitList,
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent,
@@ -384,6 +385,7 @@ static ur_result_t enqueueMemImageCommandHelper(
     std::ignore = SlicePitch;
     UR_ASSERT(SrcMem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
+#ifndef NDEBUG
     auto SrcImage = SrcMem;
     const ze_image_desc_t &ZeImageDesc = SrcImage->ZeImageDesc;
     UR_ASSERT(
@@ -396,6 +398,7 @@ static ur_result_t enqueueMemImageCommandHelper(
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
              RowPitch == 4 * ZeSrcRegion.width),
         UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
+#endif
     UR_ASSERT(SlicePitch == 0 || SlicePitch == RowPitch * ZeSrcRegion.height,
               UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
 
@@ -414,6 +417,7 @@ static ur_result_t enqueueMemImageCommandHelper(
     // Check that SYCL RT did not want pitch larger than default.
     UR_ASSERT(DstMem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
+#ifndef NDEBUG
     auto DstImage = static_cast<_ur_image *>(DstMem);
     const ze_image_desc_t &ZeImageDesc = DstImage->ZeImageDesc;
     UR_ASSERT(
@@ -426,6 +430,7 @@ static ur_result_t enqueueMemImageCommandHelper(
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
              RowPitch == 4 * ZeDstRegion.width),
         UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
+#endif
     UR_ASSERT(SlicePitch == 0 || SlicePitch == RowPitch * ZeDstRegion.height,
               UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
 
@@ -2316,19 +2321,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
   switch (PropName) {
   case UR_USM_ALLOC_INFO_TYPE: {
-    pi_usm_type MemAllocaType;
+    ur_usm_type_t MemAllocaType;
     switch (ZeMemoryAllocationProperties.type) {
     case ZE_MEMORY_TYPE_UNKNOWN:
-      MemAllocaType = PI_MEM_TYPE_UNKNOWN;
+      MemAllocaType = UR_USM_TYPE_UNKNOWN;
       break;
     case ZE_MEMORY_TYPE_HOST:
-      MemAllocaType = PI_MEM_TYPE_HOST;
+      MemAllocaType = UR_USM_TYPE_HOST;
       break;
     case ZE_MEMORY_TYPE_DEVICE:
-      MemAllocaType = PI_MEM_TYPE_DEVICE;
+      MemAllocaType = UR_USM_TYPE_DEVICE;
       break;
     case ZE_MEMORY_TYPE_SHARED:
-      MemAllocaType = PI_MEM_TYPE_SHARED;
+      MemAllocaType = UR_USM_TYPE_SHARED;
       break;
     default:
       urPrint("urUSMGetMemAllocInfo: unexpected usm memory type\n");

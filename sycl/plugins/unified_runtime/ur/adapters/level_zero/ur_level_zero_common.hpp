@@ -16,13 +16,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include <sycl/detail/pi.h>
+ 
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "ur/usm_allocator_config.hpp"
+#include <ur/usm_allocator_config.hpp>
 
 struct _ur_platform_handle_t;
 

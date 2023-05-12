@@ -13,7 +13,8 @@
 
 #include "ur_level_zero_common.hpp"
 #include "ur_level_zero_queue.hpp"
-#include <ur_bindings.hpp>
+#include "ur_level_zero.hpp"
+  
 
 /// @brief Cleanup events in the immediate lists of the queue.
 /// @param Queue Queue where events need to be cleaned up.
@@ -639,7 +640,7 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
   }
   const char *BatchSizeStr = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (BatchSizeStr) {
-    pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
+    int32_t BatchSizeStrVal = std::atoi(BatchSizeStr);
     // Level Zero may only support a limted number of commands per command
     // list.  The actual upper limit is not specified by the Level Zero
     // Specification.  For now we allow an arbitrary upper limit.
@@ -1205,20 +1206,20 @@ bool ur_queue_handle_t_::isBatchingAllowed(bool IsCopy) const {
 }
 
 bool ur_queue_handle_t_::isDiscardEvents() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_DISCARD_EVENTS) != 0);
 }
 
 bool ur_queue_handle_t_::isPriorityLow() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_PRIORITY_LOW) != 0);
 }
 
 bool ur_queue_handle_t_::isPriorityHigh() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_PRIORITY_HIGH) != 0);
 }
 
 bool ur_queue_handle_t_::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
-  return ((this->Properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
+  return ((this->Properties & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
           0);
 }
 

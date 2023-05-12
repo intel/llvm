@@ -7,7 +7,8 @@
 //===-----------------------------------------------------------------===//
 
 #include "ur_level_zero_kernel.hpp"
-#include <ur_bindings.hpp>
+#include "ur_level_zero.hpp"
+  
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
@@ -512,7 +513,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
     // As of right now, L0 is missing API to query kernel and device specific
     // max work group size.
     return ReturnValue(
-        pi_uint64{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
+        uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
@@ -623,7 +624,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
-      *(static_cast<const pi_bool *>(PropValue)) == PI_TRUE) {
+      *(static_cast<const ur_bool_t *>(PropValue)) == true) {
     // The whole point for users really was to not need to know anything
     // about the types of allocations kernel uses. So in DPC++ we always
     // just set all 3 modes for each kernel.

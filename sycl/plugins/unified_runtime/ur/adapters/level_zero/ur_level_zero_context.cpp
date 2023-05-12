@@ -13,7 +13,8 @@
 
 #include "ur_level_zero.hpp"
 #include "ur_level_zero_context.hpp"
-#include <ur_bindings.hpp>
+#include "ur_level_zero.hpp"
+  
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, ///< [in] the number of devices given in phDevices
@@ -107,11 +108,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(uint32_t{Context->RefCount.load()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
-    return ReturnValue(pi_bool{UseMemcpy2DOperations});
+    return ReturnValue(ur_bool_t{UseMemcpy2DOperations});
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
-    return ReturnValue(pi_bool{false});
+    return ReturnValue(ur_bool_t{false});
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+
     ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
@@ -410,7 +412,7 @@ ur_result_t ur_context_handle_t_::finalize() {
 // Maximum number of events that can be present in an event ZePool is captured
 // here. Setting it to 256 gave best possible performance for several
 // benchmarks.
-static const pi_uint32 MaxNumEventsPerPool = [] {
+static const uint32_t MaxNumEventsPerPool = [] {
   const char *UrRet = std::getenv("UR_L0_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
   const char *PiRet = std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
   const char *MaxNumEventsPerPoolEnv =
