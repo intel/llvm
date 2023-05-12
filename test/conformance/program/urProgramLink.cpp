@@ -32,7 +32,7 @@ struct urProgramLinkTest : uur::urProgramTest {
     std::shared_ptr<std::vector<char>> bar_binary;
     std::vector<ur_program_handle_t> programs;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramLinkTest);
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramLinkTest);
 
 TEST_P(urProgramLinkTest, Success) {
     ASSERT_SUCCESS(urProgramLink(context, programs.size(), programs.data(),
