@@ -1665,8 +1665,6 @@ void generateKernelMetadata(Module &M) {
           if (KernelArgAccPtrs) {
             auto *AccMD =
                 cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
-            llvm::esimd::assert_and_diag(
-                AccMD, "Malformed IR: cannot find accessor arguments info");
             auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
             IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
 
