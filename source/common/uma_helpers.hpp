@@ -47,8 +47,12 @@ auto memoryProviderMakeUnique(Args &&...args) {
         auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
         auto provider = new T;
         *obj = provider;
-        return std::apply(&T::initialize,
-                          std::tuple_cat(std::make_tuple(provider), *tuple));
+        auto ret = std::apply(
+            &T::initialize, std::tuple_cat(std::make_tuple(provider), *tuple));
+        if (ret != UMA_RESULT_SUCCESS) {
+            delete provider;
+        }
+        return ret;
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
     ops.alloc = [](void *obj, auto... args) {
@@ -111,10 +115,14 @@ auto poolMakeUnique(uma_memory_provider_handle_t *providers,
         auto *tuple = reinterpret_cast<decltype(argsTuple) *>(params);
         auto pool = new T;
         *obj = pool;
-        return std::apply(
+        auto ret = std::apply(
             &T::initialize,
             std::tuple_cat(std::make_tuple(pool, providers, numProviders),
                            *tuple));
+        if (ret != UMA_RESULT_SUCCESS) {
+            delete pool;
+        }
+        return ret;
     };
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
     ops.malloc = [](void *obj, auto... args) {
