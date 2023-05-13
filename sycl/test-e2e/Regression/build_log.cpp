@@ -1,6 +1,6 @@
 // REQUIRES: gpu
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.exe
-// RUN: %GPU_RUN_PLACEHOLDER %t.exe 2> %t.out || true
+// RUN: %{build} -o %t.exe
+// RUN: %{run} %t.exe 2> %t.out || true
 
 // RUN: FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build

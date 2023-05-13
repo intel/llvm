@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks correctness of compiling and running of application with
 // kernel lambdas containing kernel_handler arguments and w/o usage of

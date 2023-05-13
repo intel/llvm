@@ -1,40 +1,43 @@
-add_libc_testsuite(libc_support_unittests)
+add_custom_target(libc-support-tests)
 
-add_libc_unittest(
+add_libc_test(
   blockstore_test
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     blockstore_test.cpp
   DEPENDS
     libc.src.__support.blockstore
 )
 
-add_libc_unittest(
+add_libc_test(
   endian_test
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     endian_test.cpp
   DEPENDS
     libc.src.__support.common
 )
 
-add_libc_unittest(
-  high_precision_decimal_test
-  SUITE
-    libc_support_unittests
-  SRCS
-  high_precision_decimal_test.cpp
-  DEPENDS
-    libc.src.__support.high_precision_decimal
-    libc.src.__support.uint128
-)
+# This test fails with a segmentation fault on NVPTX.
+if(NOT LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
+  add_libc_test(
+    high_precision_decimal_test
+    SUITE
+      libc-support-tests
+    SRCS
+    high_precision_decimal_test.cpp
+    DEPENDS
+      libc.src.__support.high_precision_decimal
+      libc.src.__support.uint128
+  )
+endif()
 
-add_libc_unittest(
+add_libc_test(
   str_to_float_test
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     str_to_float_test.cpp
   DEPENDS
@@ -43,10 +46,10 @@ add_libc_unittest(
     libc.src.errno.errno
 )
 
-add_libc_unittest(
+add_libc_test(
   integer_to_string_test
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     integer_to_string_test.cpp
   DEPENDS
@@ -54,20 +57,23 @@ add_libc_unittest(
     libc.src.__support.CPP.string_view
 )
 
-add_libc_unittest(
-  arg_list_test
-  SUITE
-    libc_support_unittests
-  SRCS
-    arg_list_test.cpp
-  DEPENDS
-    libc.src.__support.arg_list
-)
+# The GPU does not support varargs currently.
+if(NOT LIBC_TARGET_ARCHITECTURE_IS_GPU)
+  add_libc_test(
+    arg_list_test
+    SUITE
+      libc-support-tests
+    SRCS
+      arg_list_test.cpp
+    DEPENDS
+      libc.src.__support.arg_list
+  )
+endif()
 
-add_libc_unittest(
+add_libc_test(
   uint_test
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     uint_test.cpp
   DEPENDS
@@ -75,20 +81,22 @@ add_libc_unittest(
     libc.src.__support.CPP.optional
 )
 
-add_libc_unittest(
+add_libc_test(
   fixedvector_test
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     fixedvector_test.cpp
   DEPENDS
     libc.src.__support.fixedvector
 )
 
-add_libc_unittest(
+add_libc_test(
   char_vector_test
+  # This test relies on 'realloc' which is not implemented for hermetic tests.
+  UNIT_TEST_ONLY
   SUITE
-    libc_support_unittests
+    libc-support-tests
   SRCS
     char_vector_test.cpp
   DEPENDS

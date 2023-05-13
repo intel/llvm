@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/DebugLoc.h"
@@ -37,7 +38,6 @@
 #include "llvm/Support/ArrayRecycler.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/RecyclingAllocator.h"
 #include <cassert>
 #include <cstdint>
@@ -1984,8 +1984,31 @@ public:
     OFK_Always,
   };
 
-  /// Determine if the result of the addition of 2 node can overflow.
-  OverflowKind computeOverflowKind(SDValue N0, SDValue N1) const;
+  /// Determine if the result of the signed addition of 2 nodes can overflow.
+  OverflowKind computeOverflowForSignedAdd(SDValue N0, SDValue N1) const;
+
+  /// Determine if the result of the unsigned addition of 2 nodes can overflow.
+  OverflowKind computeOverflowForUnsignedAdd(SDValue N0, SDValue N1) const;
+
+  /// Determine if the result of the addition of 2 nodes can overflow.
+  OverflowKind computeOverflowForAdd(bool IsSigned, SDValue N0,
+                                     SDValue N1) const {
+    return IsSigned ? computeOverflowForSignedAdd(N0, N1)
+                    : computeOverflowForUnsignedAdd(N0, N1);
+  }
+
+  /// Determine if the result of the signed sub of 2 nodes can overflow.
+  OverflowKind computeOverflowForSignedSub(SDValue N0, SDValue N1) const;
+
+  /// Determine if the result of the unsigned sub of 2 nodes can overflow.
+  OverflowKind computeOverflowForUnsignedSub(SDValue N0, SDValue N1) const;
+
+  /// Determine if the result of the sub of 2 nodes can overflow.
+  OverflowKind computeOverflowForSub(bool IsSigned, SDValue N0,
+                                     SDValue N1) const {
+    return IsSigned ? computeOverflowForSignedSub(N0, N1)
+                    : computeOverflowForUnsignedSub(N0, N1);
+  }
 
   /// Test if the given value is known to have exactly one bit set. This differs
   /// from computeKnownBits in that it doesn't necessarily determine which bit

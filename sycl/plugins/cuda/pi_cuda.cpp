@@ -390,6 +390,62 @@ void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
   }
 }
 
+bool getMaxRegistersJitOptionValue(const std::string &build_options,
+                                   unsigned int &value) {
+  using namespace std::string_view_literals;
+  const std::size_t optionPos = build_options.find_first_of("maxrregcount"sv);
+  if (optionPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t delimPos = build_options.find('=', optionPos + 1u);
+  if (delimPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t length = build_options.length();
+  const std::size_t startPos = delimPos + 1u;
+  if (delimPos == std::string::npos || startPos >= length) {
+    return false;
+  }
+
+  std::size_t pos = startPos;
+  while (pos < length &&
+         std::isdigit(static_cast<unsigned char>(build_options[pos]))) {
+    pos++;
+  }
+
+  const std::string valueString =
+      build_options.substr(startPos, pos - startPos);
+  if (valueString.empty()) {
+    return false;
+  }
+
+  value = static_cast<unsigned int>(std::stoi(valueString));
+  return true;
+}
+
+// Helper to verify out-of-registers case (exceeded block max registers).
+// If the kernel requires a number of registers for the entire thread
+// block exceeds the hardware limitations, then the cuLaunchKernel call
+// will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
+bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
+                                     size_t blockSize) {
+  assert(device);
+  assert(kernel);
+
+  int maxRegsPerBlock{0};
+  PI_CHECK_ERROR(cuDeviceGetAttribute(
+      &maxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+      device->get()));
+
+  int regsPerThread{0};
+  PI_CHECK_ERROR(cuFuncGetAttribute(&regsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                    kernel->get()));
+
+  return blockSize * regsPerThread > size_t(maxRegsPerBlock);
+};
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -777,8 +833,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 
   constexpr const unsigned int numberOfOptions = 4u;
 
-  CUjit_option options[numberOfOptions];
-  void *optionVals[numberOfOptions];
+  std::vector<CUjit_option> options(numberOfOptions);
+  std::vector<void *> optionVals(numberOfOptions);
 
   // Pass a buffer for info messages
   options[0] = CU_JIT_INFO_LOG_BUFFER;
@@ -793,9 +849,18 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
+  if (!buildOptions_.empty()) {
+    unsigned int maxRegs;
+    bool valid = getMaxRegistersJitOptionValue(buildOptions_, maxRegs);
+    if (valid) {
+      options.push_back(CU_JIT_MAX_REGISTERS);
+      optionVals.push_back(reinterpret_cast<void *>(maxRegs));
+    }
+  }
+
   auto result = PI_CHECK_ERROR(
       cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
+                         options.size(), options.data(), optionVals.data()));
 
   const auto success = (result == PI_SUCCESS);
 
@@ -2056,6 +2121,31 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    memory_bandwidth);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on CUDA devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    // The sRGB images are not supported on CUDA.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    PI_CHECK_ERROR(cuDeviceGetAttribute(
+        &max_registers, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+        device->get()));
+
+    sycl::detail::pi::assertion(max_registers >= 0);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(max_registers));
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -2065,7 +2155,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case PI_DEVICE_INFO_IMAGE_SRGB:
     return PI_ERROR_INVALID_VALUE;
 
   default:
@@ -3165,10 +3254,18 @@ pi_result cuda_piEnqueueKernelLaunch(
           return PI_SUCCESS;
         };
 
+        size_t kernelLocalWorkGroupSize = 0;
         for (size_t dim = 0; dim < work_dim; dim++) {
           auto err = isValid(dim);
           if (err != PI_SUCCESS)
             return err;
+          // If no error then sum the total local work size per dim.
+          kernelLocalWorkGroupSize += local_work_size[dim];
+        }
+
+        if (hasExceededMaxRegistersPerBlock(command_queue->device_, kernel,
+                                            kernelLocalWorkGroupSize)) {
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         }
       } else {
         guessLocalWorkSize(command_queue->device_, threadsPerBlock,

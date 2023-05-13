@@ -466,6 +466,16 @@ SBEvent SBProcess::GetStopEventForStopID(uint32_t stop_id) {
   return sb_event;
 }
 
+void SBProcess::ForceScriptedState(StateType new_state) {
+  LLDB_INSTRUMENT_VA(this, new_state);
+
+  if (ProcessSP process_sp = GetSP()) {
+    std::lock_guard<std::recursive_mutex> guard(
+        process_sp->GetTarget().GetAPIMutex());
+    process_sp->ForceScriptedState(new_state);
+  }
+}
+
 StateType SBProcess::GetState() {
   LLDB_INSTRUMENT_VA(this);
 
@@ -769,8 +779,8 @@ SBProcess::GetStructuredDataFromEvent(const lldb::SBEvent &event) {
 bool SBProcess::EventIsProcessEvent(const SBEvent &event) {
   LLDB_INSTRUMENT_VA(event);
 
-  return (event.GetBroadcasterClass() == SBProcess::GetBroadcasterClass()) &&
-         !EventIsStructuredDataEvent(event);
+  return Process::ProcessEventData::GetEventDataFromEvent(event.get()) !=
+         nullptr;
 }
 
 bool SBProcess::EventIsStructuredDataEvent(const lldb::SBEvent &event) {

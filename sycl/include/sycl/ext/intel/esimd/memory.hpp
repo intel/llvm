@@ -60,11 +60,12 @@ struct LocalAccessorMarker {};
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
+  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+                sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>) {
     return detail::SLM_BTI;
   } else {
     return __esimd_get_surface_index(
-        detail::AccessorPrivateProxy::getNativeImageObj(acc));
+        detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   }
 }
 
@@ -326,7 +327,12 @@ template <typename Tx, int N, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
+__ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                   uint64_t offset,
+#else
+                                   uint32_t offset,
+#endif
                                    Flags = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset));
@@ -342,7 +348,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                 "block size must be at most 8 owords");
 
   auto surf_ind = __esimd_get_surface_index(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+      detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
@@ -390,7 +396,12 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
 ///
 template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
+__ESIMD_API void block_store(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                             uint64_t offset,
+#else
+                             uint32_t offset,
+#endif
                              simd<Tx, N> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   block_store<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset), vals);
@@ -406,7 +417,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                 "block size must be at most 8 owords");
 
   auto surf_ind = __esimd_get_surface_index(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+      detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 #endif
 }

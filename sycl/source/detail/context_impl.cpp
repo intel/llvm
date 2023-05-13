@@ -393,6 +393,52 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   MDeviceGlobalInitEvents.clear();
 }
 
+void context_impl::memcpyToHostOnlyDeviceGlobal(
+    const std::shared_ptr<device_impl> &DeviceImpl, const void *DeviceGlobalPtr,
+    const void *Src, size_t DeviceGlobalTSize, bool IsDeviceImageScoped,
+    size_t NumBytes, size_t Offset) {
+  std::optional<RT::PiDevice> KeyDevice = std::nullopt;
+  if (IsDeviceImageScoped)
+    KeyDevice = DeviceImpl->getHandleRef();
+  auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
+
+  std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
+
+  auto UnregisteredDataIt = MDeviceGlobalUnregisteredData.find(Key);
+  if (UnregisteredDataIt == MDeviceGlobalUnregisteredData.end()) {
+    std::unique_ptr<std::byte[]> NewData =
+        std::make_unique<std::byte[]>(DeviceGlobalTSize);
+    UnregisteredDataIt =
+        MDeviceGlobalUnregisteredData.insert({Key, std::move(NewData)}).first;
+  }
+  std::byte *ValuePtr = UnregisteredDataIt->second.get();
+  std::memcpy(ValuePtr + Offset, Src, NumBytes);
+}
+
+void context_impl::memcpyFromHostOnlyDeviceGlobal(
+    const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
+    const void *DeviceGlobalPtr, bool IsDeviceImageScoped, size_t NumBytes,
+    size_t Offset) {
+
+  std::optional<RT::PiDevice> KeyDevice = std::nullopt;
+  if (IsDeviceImageScoped)
+    KeyDevice = DeviceImpl->getHandleRef();
+  auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
+
+  std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
+
+  auto UnregisteredDataIt = MDeviceGlobalUnregisteredData.find(Key);
+  if (UnregisteredDataIt == MDeviceGlobalUnregisteredData.end()) {
+    // If there is no entry we do not need to add it as it would just be
+    // zero-initialized.
+    char *FillableDest = reinterpret_cast<char *>(Dest);
+    std::fill(FillableDest, FillableDest + NumBytes, 0);
+    return;
+  }
+  std::byte *ValuePtr = UnregisteredDataIt->second.get();
+  std::memcpy(Dest, ValuePtr + Offset, NumBytes);
+}
+
 std::optional<RT::PiProgram> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {

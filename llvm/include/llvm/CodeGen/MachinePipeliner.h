@@ -69,7 +69,7 @@ public:
   MachineOptimizationRemarkEmitter *ORE = nullptr;
   const MachineLoopInfo *MLI = nullptr;
   const MachineDominatorTree *MDT = nullptr;
-  const InstrItineraryData *InstrItins;
+  const InstrItineraryData *InstrItins = nullptr;
   const TargetInstrInfo *TII = nullptr;
   RegisterClassInfo RegClassInfo;
   bool disabledByPragma = false;
@@ -168,7 +168,7 @@ class SwingSchedulerDAG : public ScheduleDAGInstrs {
     SmallVector<SmallVector<int, 4>, 16> AdjK;
     // Node to Index from ScheduleDAGTopologicalSort
     std::vector<int> *Node2Idx;
-    unsigned NumPaths;
+    unsigned NumPaths = 0u;
     static unsigned MaxPaths;
 
   public:
@@ -464,7 +464,7 @@ private:
   /// processor resource masks. There is exactly one element per each processor
   /// resource declared by the scheduling model.
   llvm::SmallVector<uint64_t, DefaultProcResSize> ProcResourceMasks;
-  int InitiationInterval;
+  int InitiationInterval = 0;
   /// The number of micro operations that can be scheduled at a cycle.
   int IssueWidth;
 

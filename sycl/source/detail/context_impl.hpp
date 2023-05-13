@@ -214,6 +214,17 @@ public:
   initializeDeviceGlobals(pi::PiProgram NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
 
+  void memcpyToHostOnlyDeviceGlobal(
+      const std::shared_ptr<device_impl> &DeviceImpl,
+      const void *DeviceGlobalPtr, const void *Src, size_t DeviceGlobalTSize,
+      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+
+  void
+  memcpyFromHostOnlyDeviceGlobal(const std::shared_ptr<device_impl> &DeviceImpl,
+                                 void *Dest, const void *DeviceGlobalPtr,
+                                 bool IsDeviceImageScoped, size_t NumBytes,
+                                 size_t Offset);
+
   /// Gets a program associated with a device global from the cache.
   std::optional<RT::PiProgram>
   getProgramForDeviceGlobal(const device &Device,
@@ -280,6 +291,16 @@ private:
   std::map<std::pair<RT::PiProgram, RT::PiDevice>, DeviceGlobalInitializer>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
+
+  // For device_global variables that are not used in any kernel code we still
+  // allow copy operations on them. MDeviceGlobalUnregisteredData stores the
+  // associated writes.
+  // The key to this map is a combination of a the pointer to the device_global
+  // and optionally a device if the device_global has device image scope.
+  std::map<std::pair<const void *, std::optional<RT::PiDevice>>,
+           std::unique_ptr<std::byte[]>>
+      MDeviceGlobalUnregisteredData;
+  std::mutex MDeviceGlobalUnregisteredDataMutex;
 };
 
 template <typename T, typename Capabilities>
