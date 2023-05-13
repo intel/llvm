@@ -1551,138 +1551,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   Location Loc = getMLIRLocation(E->getExprLoc());
 
   switch (E->getCastKind()) {
-  case clang::CastKind::CK_NullToPointer: {
-    mlir::Type LLVMTy = Glob.getTypes().getMLIRType(E->getType());
-    if (isa<LLVM::LLVMPointerType>(LLVMTy))
-      return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, LLVMTy),
-                           /*isReference*/ false, Builder.getI8Type());
-    if (auto MT = dyn_cast<MemRefType>(LLVMTy))
-      return ValueCategory(
-          Builder.create<polygeist::Pointer2MemrefOp>(
-              Loc, MT,
-              Builder.create<mlir::LLVM::NullOp>(
-                  Loc, Glob.getTypes().getPointerType(
-                           Builder.getI8Type(), MT.getMemorySpaceAsInt()))),
-          false);
-    llvm_unreachable("illegal type for cast");
-  }
-  case clang::CastKind::CK_UserDefinedConversion:
-    return Visit(E->getSubExpr());
-
-  case clang::CastKind::CK_LValueBitCast: {
-    ValueCategory Addr = EmitLValue(E->getSubExpr());
-    mlir::Type SrcTy = Addr.val.getType();
-    unsigned AddrSpace = mlirclang::getAddressSpace(SrcTy);
-    mlir::Type DestElemTy = Glob.getTypes().getMLIRType(E->getType());
-    mlir::Type DestTy = Glob.getTypes().getPointerType(DestElemTy, AddrSpace);
-    Location Loc = getMLIRLocation(E->getExprLoc());
-    bool NeedsPtrConversion = isa<MemRefType>(SrcTy);
-    if (NeedsPtrConversion)
-      Addr = Addr.MemRef2Ptr(Builder, Loc);
-    Addr = Addr.BitCast(Builder, Loc, DestTy, DestElemTy);
-    Addr.ElementType = DestElemTy;
-    if (NeedsPtrConversion) {
-      auto MT = cast<MemRefType>(SrcTy);
-      Addr = Addr.Ptr2MemRef(Builder, Loc, MT.getShape(), MT.getLayout());
-    }
-    return Addr;
-  }
-  case clang::CastKind::CK_AddressSpaceConversion: {
-    ValueCategory Scalar = Visit(E->getSubExpr());
-    QualType DestTy = E->getType();
-    unsigned AS = Glob.getCGM().getContext().getTargetAddressSpace(
-        DestTy->isPointerType() ? DestTy->getPointeeType().getAddressSpace()
-                                : DestTy.getAddressSpace());
-    return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference,
-                         Scalar.ElementType);
-  }
-  case clang::CastKind::CK_Dynamic: {
-    E->dump();
-    llvm_unreachable("dynamic cast not handled yet\n");
-  } break;
-  case clang::CastKind::CK_UncheckedDerivedToBase:
-  case clang::CastKind::CK_DerivedToBase: {
-    auto SE = Visit(E->getSubExpr());
-    if (!SE.val)
-      E->dump();
-
-    assert(SE.val);
-    const auto *Derived =
-        (E->isLValue() || E->isXValue())
-            ? cast<CXXRecordDecl>(
-                  E->getSubExpr()->getType()->castAs<RecordType>()->getDecl())
-            : E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
-    SmallVector<const clang::Type *> BaseTypes;
-    SmallVector<bool> BaseVirtual;
-    for (auto *B : E->path()) {
-      BaseTypes.push_back(B->getType().getTypePtr());
-      BaseVirtual.push_back(B->isVirtual());
-    }
-
-    if (auto UT = dyn_cast<mlir::MemRefType>(SE.val.getType())) {
-      if (auto MT = dyn_cast<mlir::MemRefType>(Glob.getTypes().getMLIRType(
-              (E->isLValue() || E->isXValue())
-                  ? Glob.getCGM().getContext().getLValueReferenceType(
-                        E->getType())
-                  : E->getType()))) {
-        if (UT.getShape().size() != MT.getShape().size()) {
-          E->dump();
-          llvm::errs() << " se.val: " << SE.val << " ut: " << UT
-                       << " mt: " << MT << "\n";
-        }
-        assert(UT.getShape().size() == MT.getShape().size());
-        auto Ty = mlir::MemRefType::get(MT.getShape(), MT.getElementType(),
-                                        MemRefLayoutAttrInterface(),
-                                        UT.getMemorySpace());
-        if (Ty.getElementType().getDialect().getNamespace() ==
-                mlir::sycl::SYCLDialect::getDialectNamespace() &&
-            UT.getElementType().getDialect().getNamespace() ==
-                mlir::sycl::SYCLDialect::getDialectNamespace() &&
-            Ty.getElementType() != UT.getElementType()) {
-          return ValueCategory(
-              Builder.create<mlir::sycl::SYCLCastOp>(Loc, Ty, SE.val),
-              /*isReference*/ SE.isReference, SE.ElementType);
-        }
-      }
-    }
-
-    mlir::Value Val =
-        GetAddressOfBaseClass(SE.val, Derived, BaseTypes, BaseVirtual);
-    if (E->getCastKind() != clang::CastKind::CK_UncheckedDerivedToBase &&
-        !isa<CXXThisExpr>(E->IgnoreParens())) {
-      mlir::Value Ptr = Val;
-      if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
-        Ptr = Builder.create<polygeist::Memref2PointerOp>(
-            Loc,
-            Glob.getTypes().getPointerType(MT.getElementType(),
-                                           MT.getMemorySpaceAsInt()),
-            Ptr);
-      mlir::Value NullptrLlvm =
-          Builder.create<mlir::LLVM::NullOp>(Loc, Ptr.getType());
-      auto NE = Builder.create<mlir::LLVM::ICmpOp>(
-          Loc, mlir::LLVM::ICmpPredicate::ne, Ptr, NullptrLlvm);
-      if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
-        NullptrLlvm =
-            Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT, NullptrLlvm);
-      Val = Builder.create<arith::SelectOp>(Loc, NE, Val, NullptrLlvm);
-    }
-
-    return ValueCategory(Val, SE.isReference, SE.ElementType);
-  }
-  case clang::CastKind::CK_BaseToDerived: {
-    auto SE = Visit(E->getSubExpr());
-    if (!SE.val)
-      E->dump();
-
-    assert(SE.val);
-    const auto *Derived =
-        (E->isLValue() || E->isXValue())
-            ? cast<CXXRecordDecl>(E->getType()->castAs<RecordType>()->getDecl())
-            : E->getType()->getPointeeCXXRecordDecl();
-    mlir::Value Val = GetAddressOfDerivedClass(SE.val, Derived, E->path_begin(),
-                                               E->path_end());
-    return ValueCategory(Val, SE.isReference, SE.ElementType);
-  }
   case clang::CastKind::CK_BitCast: {
     if (auto *CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
       if (auto *IC = dyn_cast<ImplicitCastExpr>(CI->getCallee()))
@@ -1846,6 +1714,28 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     });
     llvm_unreachable("illegal type for cast");
   } break;
+  case clang::CastKind::CK_LValueBitCast: {
+    ValueCategory Addr = EmitLValue(E->getSubExpr());
+    mlir::Type SrcTy = Addr.val.getType();
+    unsigned AddrSpace = mlirclang::getAddressSpace(SrcTy);
+    mlir::Type DestElemTy = Glob.getTypes().getMLIRType(E->getType());
+    mlir::Type DestTy = Glob.getTypes().getPointerType(DestElemTy, AddrSpace);
+    Location Loc = getMLIRLocation(E->getExprLoc());
+    bool NeedsPtrConversion = isa<MemRefType>(SrcTy);
+    if (NeedsPtrConversion)
+      Addr = Addr.MemRef2Ptr(Builder, Loc);
+    Addr = Addr.BitCast(Builder, Loc, DestTy, DestElemTy);
+    Addr.ElementType = DestElemTy;
+    if (NeedsPtrConversion) {
+      auto MT = cast<MemRefType>(SrcTy);
+      Addr = Addr.Ptr2MemRef(Builder, Loc, MT.getShape(), MT.getLayout());
+    }
+    return Addr;
+  }
+  case clang::CastKind::CK_LValueToRValueBitCast: {
+    E->dump();
+    llvm_unreachable("LValue to RValue bitcast not handled yet\n");
+  } break;
   case clang::CastKind::CK_LValueToRValue: {
     if (auto *DR = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
       if (auto *VD = dyn_cast<VarDecl>(DR->getDecl()->getCanonicalDecl())) {
@@ -1894,49 +1784,120 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     return ValueCategory(Lres, /*isReference*/ false, ElemTy);
   }
-  case clang::CastKind::CK_IntegralToFloating:
-  case clang::CastKind::CK_FloatingToIntegral:
-  case clang::CastKind::CK_FloatingCast:
-  case clang::CastKind::CK_IntegralCast:
-  case clang::CastKind::CK_BooleanToSignedIntegral:
-    return EmitScalarConversion(Visit(E->getSubExpr()),
-                                E->getSubExpr()->getType(), E->getType(),
-                                E->getExprLoc());
+  case clang::CastKind::CK_NoOp:
+  case clang::CastKind::CK_ConstructorConversion:
+    return Visit(E->getSubExpr());
+  case clang::CastKind::CK_BaseToDerived: {
+    auto SE = Visit(E->getSubExpr());
+    if (!SE.val)
+      E->dump();
 
+    assert(SE.val);
+    const auto *Derived =
+        (E->isLValue() || E->isXValue())
+            ? cast<CXXRecordDecl>(E->getType()->castAs<RecordType>()->getDecl())
+            : E->getType()->getPointeeCXXRecordDecl();
+    mlir::Value Val = GetAddressOfDerivedClass(SE.val, Derived, E->path_begin(),
+                                               E->path_end());
+    return ValueCategory(Val, SE.isReference, SE.ElementType);
+  }
+  case clang::CastKind::CK_DerivedToBase:
+  case clang::CastKind::CK_UncheckedDerivedToBase: {
+    auto SE = Visit(E->getSubExpr());
+    if (!SE.val)
+      E->dump();
+
+    assert(SE.val);
+    const auto *Derived =
+        (E->isLValue() || E->isXValue())
+            ? cast<CXXRecordDecl>(
+                  E->getSubExpr()->getType()->castAs<RecordType>()->getDecl())
+            : E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
+    SmallVector<const clang::Type *> BaseTypes;
+    SmallVector<bool> BaseVirtual;
+    for (auto *B : E->path()) {
+      BaseTypes.push_back(B->getType().getTypePtr());
+      BaseVirtual.push_back(B->isVirtual());
+    }
+
+    if (auto UT = dyn_cast<mlir::MemRefType>(SE.val.getType())) {
+      if (auto MT = dyn_cast<mlir::MemRefType>(Glob.getTypes().getMLIRType(
+              (E->isLValue() || E->isXValue())
+                  ? Glob.getCGM().getContext().getLValueReferenceType(
+                        E->getType())
+                  : E->getType()))) {
+        if (UT.getShape().size() != MT.getShape().size()) {
+          E->dump();
+          llvm::errs() << " se.val: " << SE.val << " ut: " << UT
+                       << " mt: " << MT << "\n";
+        }
+        assert(UT.getShape().size() == MT.getShape().size());
+        auto Ty = mlir::MemRefType::get(MT.getShape(), MT.getElementType(),
+                                        MemRefLayoutAttrInterface(),
+                                        UT.getMemorySpace());
+        if (Ty.getElementType().getDialect().getNamespace() ==
+                mlir::sycl::SYCLDialect::getDialectNamespace() &&
+            UT.getElementType().getDialect().getNamespace() ==
+                mlir::sycl::SYCLDialect::getDialectNamespace() &&
+            Ty.getElementType() != UT.getElementType()) {
+          return ValueCategory(
+              Builder.create<mlir::sycl::SYCLCastOp>(Loc, Ty, SE.val),
+              /*isReference*/ SE.isReference, SE.ElementType);
+        }
+      }
+    }
+
+    mlir::Value Val =
+        GetAddressOfBaseClass(SE.val, Derived, BaseTypes, BaseVirtual);
+    if (E->getCastKind() != clang::CastKind::CK_UncheckedDerivedToBase &&
+        !isa<CXXThisExpr>(E->IgnoreParens())) {
+      mlir::Value Ptr = Val;
+      if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
+        Ptr = Builder.create<polygeist::Memref2PointerOp>(
+            Loc,
+            Glob.getTypes().getPointerType(MT.getElementType(),
+                                           MT.getMemorySpaceAsInt()),
+            Ptr);
+      mlir::Value NullptrLlvm =
+          Builder.create<mlir::LLVM::NullOp>(Loc, Ptr.getType());
+      auto NE = Builder.create<mlir::LLVM::ICmpOp>(
+          Loc, mlir::LLVM::ICmpPredicate::ne, Ptr, NullptrLlvm);
+      if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
+        NullptrLlvm =
+            Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT, NullptrLlvm);
+      Val = Builder.create<arith::SelectOp>(Loc, NE, Val, NullptrLlvm);
+    }
+
+    return ValueCategory(Val, SE.isReference, SE.ElementType);
+  }
+  case clang::CastKind::CK_Dynamic: {
+    E->dump();
+    llvm_unreachable("dynamic cast not handled yet\n");
+  } break;
   case clang::CastKind::CK_ArrayToPointerDecay:
     return CommonArrayToPointer(Visit(E->getSubExpr()));
-
   case clang::CastKind::CK_FunctionToPointerDecay: {
     auto Scalar = Visit(E->getSubExpr());
     assert(Scalar.isReference);
     return ValueCategory(Scalar.val, /*isReference*/ false);
   }
-  case clang::CastKind::CK_ConstructorConversion:
-  case clang::CastKind::CK_NoOp:
+  case clang::CastKind::CK_NullToPointer: {
+    mlir::Type LLVMTy = Glob.getTypes().getMLIRType(E->getType());
+    if (isa<LLVM::LLVMPointerType>(LLVMTy))
+      return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, LLVMTy),
+                           /*isReference*/ false, Builder.getI8Type());
+    if (auto MT = dyn_cast<MemRefType>(LLVMTy))
+      return ValueCategory(
+          Builder.create<polygeist::Pointer2MemrefOp>(
+              Loc, MT,
+              Builder.create<mlir::LLVM::NullOp>(
+                  Loc, Glob.getTypes().getPointerType(
+                           Builder.getI8Type(), MT.getMemorySpaceAsInt()))),
+          false);
+    llvm_unreachable("illegal type for cast");
+  }
+  case clang::CastKind::CK_UserDefinedConversion:
     return Visit(E->getSubExpr());
-
-  case clang::CastKind::CK_ToVoid: {
-    Visit(E->getSubExpr());
-    return nullptr;
-  }
-  case clang::CastKind::CK_PointerToBoolean:
-    return EmitPointerToBoolConversion(Loc, Visit(E->getSubExpr()));
-  case clang::CastKind::CK_PointerToIntegral: {
-    const auto DestTy = E->getType();
-    assert(!DestTy->isBooleanType() && "bool should use PointerToBool");
-    const auto PtrExpr = Visit(E->getSubExpr());
-    return EmitPointerToIntegralConversion(
-        Loc, Glob.getTypes().getMLIRType(DestTy), PtrExpr);
-  }
-  case clang::CastKind::CK_IntegralToBoolean:
-    return EmitIntToBoolConversion(Loc, Visit(E->getSubExpr()));
-  case clang::CastKind::CK_FloatingToBoolean:
-    return EmitFloatToBoolConversion(Loc, Visit(E->getSubExpr()));
-  case clang::CastKind::CK_VectorSplat: {
-    const auto DstTy = Glob.getTypes().getMLIRType(E->getType());
-    const auto Elt = Visit(E->getSubExpr());
-    return Elt.Splat(Builder, Loc, DstTy);
-  }
   case clang::CastKind::CK_IntegralToPointer: {
     auto VC = Visit(E->getSubExpr());
 
@@ -1952,6 +1913,49 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto ElemTy = Glob.getTypes().getMLIRType(
         cast<clang::PointerType>(E->getType())->getPointeeType());
     return EmitIntegralToPointerConversion(Loc, PostTy, ElemTy, IntResult);
+  }
+  case clang::CastKind::CK_PointerToIntegral: {
+    const auto DestTy = E->getType();
+    assert(!DestTy->isBooleanType() && "bool should use PointerToBool");
+    const auto PtrExpr = Visit(E->getSubExpr());
+    return EmitPointerToIntegralConversion(
+        Loc, Glob.getTypes().getMLIRType(DestTy), PtrExpr);
+  }
+  case clang::CastKind::CK_PointerToBoolean:
+    return EmitPointerToBoolConversion(Loc, Visit(E->getSubExpr()));
+  case clang::CastKind::CK_IntegralToBoolean:
+    return EmitIntToBoolConversion(Loc, Visit(E->getSubExpr()));
+  case clang::CastKind::CK_FloatingToBoolean:
+    return EmitFloatToBoolConversion(Loc, Visit(E->getSubExpr()));
+  case clang::CastKind::CK_ToVoid: {
+    Visit(E->getSubExpr());
+    return nullptr;
+  }
+  case clang::CastKind::CK_VectorSplat: {
+    const auto DstTy = Glob.getTypes().getMLIRType(E->getType());
+    const auto Elt = Visit(E->getSubExpr());
+    return Elt.Splat(Builder, Loc, DstTy);
+  }
+  case clang::CastKind::CK_IntegralCast:
+  case clang::CastKind::CK_IntegralToFloating:
+  case clang::CastKind::CK_FloatingToIntegral:
+  case clang::CastKind::CK_BooleanToSignedIntegral:
+  case clang::CastKind::CK_FloatingCast:
+    return EmitScalarConversion(Visit(E->getSubExpr()),
+                                E->getSubExpr()->getType(), E->getType(),
+                                E->getExprLoc());
+  case clang::CastKind::CK_ZeroToOCLOpaqueType: {
+    E->dump();
+    llvm_unreachable("zero to OpenCL opaque cast not handled yet\n");
+  } break;
+  case clang::CastKind::CK_AddressSpaceConversion: {
+    ValueCategory Scalar = Visit(E->getSubExpr());
+    QualType DestTy = E->getType();
+    unsigned AS = Glob.getCGM().getContext().getTargetAddressSpace(
+        DestTy->isPointerType() ? DestTy->getPointeeType().getAddressSpace()
+                                : DestTy.getAddressSpace());
+    return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference,
+                         Scalar.ElementType);
   }
 
   default:
