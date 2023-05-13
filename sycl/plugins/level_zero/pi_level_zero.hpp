@@ -134,13 +134,18 @@ struct _pi_device : _ur_device_handle_t {
 
 // Structure describing the command queue descriptor when command lists are
 // created. This is used to ensure that the appropriate command list type is
-// reused from the context's cache.
+// reused from the context's cache. Only immediate command lists are recycled
+// across queues and then all fields are used. For standard command lists only
+// the ordinal is used.
 struct pi_command_list_and_desc_t {
-  ze_command_list_handle_t CmdList;
+  // Ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
+  uint32_t Ordinal{0};
+  // Index of the ZeQueue queue group.
   uint32_t Index{0};
   ze_command_queue_flags_t Flags{0};
   ze_command_queue_mode_t Mode{ZE_COMMAND_QUEUE_MODE_DEFAULT};
   ze_command_queue_priority_t Priority{ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
+  ze_command_list_handle_t CmdList{ nullptr };
 };
 
 // Structure describing the specific use of a command-list in a queue.
@@ -164,9 +169,8 @@ struct pi_command_list_info_t {
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};
-  // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
-  uint32_t ZeQueueGroupOrdinal{0};
-  // Keeps the queue descriptor of the command list.
+  // Record the queue descriptor fields used when creating the command list
+  // because we cannot recover these fields from the command list.
   pi_command_list_and_desc_t ZeQueueDesc;
 
   // Helper functions to tell if this is a copy command-list.
