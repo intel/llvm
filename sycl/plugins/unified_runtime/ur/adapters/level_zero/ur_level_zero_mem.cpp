@@ -13,8 +13,6 @@
 #include "ur_level_zero.hpp"
 #include "ur_level_zero_context.hpp"
 #include "ur_level_zero_event.hpp"
-#include "ur_level_zero.hpp"
-  
 
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
@@ -1604,6 +1602,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     void *Host,                       ///< [in] pointer to the buffer data
     ur_mem_handle_t *Mem ///< [out] pointer to handle of image object created
 ) {
+  // TODO: implement read-only, write-only
+  if ((Flags & UR_MEM_FLAG_READ_WRITE) == 0) {
+    die("urMemImageCreate: Level-Zero implements only read-write buffer,"
+        "no read-only or write-only yet.");
+  }
+
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;

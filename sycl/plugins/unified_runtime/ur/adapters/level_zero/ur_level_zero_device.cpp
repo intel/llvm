@@ -10,7 +10,6 @@
 #include "ur_level_zero.hpp"
 #include <algorithm>
 #include <climits>
-  
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
@@ -771,9 +770,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(capabilities);
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    return ReturnValue(ur_bool_t{false});
+    return ReturnValue(uint32_t{false});
   case UR_DEVICE_INFO_IMAGE_SRGB:
-    return ReturnValue(ur_bool_t{false});
+    return ReturnValue(uint32_t{false});
 
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
@@ -1197,7 +1196,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // Look for GEN binary, which we known can only be handled by Level-Zero now.
   const char *BinaryTarget =
-      UR_DEVICE_BINARY_TARGET_SPIRV64_GEN; //UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+      UR_DEVICE_BINARY_TARGET_SPIRV64_GEN; // UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
 
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
