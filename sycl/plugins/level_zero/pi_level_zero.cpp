@@ -5744,20 +5744,37 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Helper function for appending a barrier to a command list.
-  auto insertBarrierIntoCmdList =
-      [&Queue](pi_command_list_ptr_t CmdList,
-               const _pi_ze_event_list_t &EventWaitList, pi_event &Event,
-               bool IsInternal) {
-        if (auto Res = createEventAndAssociateQueue(
-                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
-          return Res;
+  auto insertBarrierIntoCmdList = [&Queue](
+                                      pi_command_list_ptr_t CmdList,
+                                      const _pi_ze_event_list_t &EventWaitList,
+                                      pi_event &Event, bool IsInternal) {
+    if (auto Res = createEventAndAssociateQueue(
+            Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
+      return Res;
 
-        Event->WaitList = EventWaitList;
-        ZE_CALL(zeCommandListAppendBarrier,
-                (CmdList->first, Event->ZeEvent, EventWaitList.Length,
-                 EventWaitList.ZeEventList));
-        return PI_SUCCESS;
-      };
+    Event->WaitList = EventWaitList;
+
+    // For in-order queue we don't need a real barrier, just add a "barrier"
+    // event signal because it is already guaranteed that previous commands
+    // are completed when the signal is started.
+    if (Queue->isInOrderQueue()) {
+      ZE_CALL(zeCommandListAppendSignalEvent, (CmdList->first, Event->ZeEvent));
+    } else {
+      ZE_CALL(zeCommandListAppendBarrier,
+              (CmdList->first, Event->ZeEvent, EventWaitList.Length,
+               EventWaitList.ZeEventList));
+    }
+    return PI_SUCCESS;
+  };
+
+  // If the queue is in-order then each command in it effectively acts as a
+  // barrier, so we don't need to do anything except if we were requested
+  // a "barrier" event to be created. If we have to create an event then
+  // the "barrier" will just be a signal of that event.
+  //
+  if (Queue->isInOrderQueue() && OutEvent == nullptr) {
+    return PI_SUCCESS;
+  }
 
   pi_event InternalEvent;
   bool IsInternal = OutEvent == nullptr;
