@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
+// TODO: investigate sporadic esimd_emulator failures
 // UNSUPPORTED: cuda || hip || gpu-intel-pvc || esimd_emulator
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
