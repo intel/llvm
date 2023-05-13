@@ -343,8 +343,11 @@ bool SSAIfConv::canPredicateInstrs(MachineBasicBlock *MBB) {
 // Apply predicate to all instructions in the machine block.
 void SSAIfConv::PredicateBlock(MachineBasicBlock *MBB, bool ReversePredicate) {
   auto Condition = Cond;
-  if (ReversePredicate)
-    TII->reverseBranchCondition(Condition);
+  if (ReversePredicate) {
+    bool CanRevCond = !TII->reverseBranchCondition(Condition);
+    assert(CanRevCond && "Reversed predicate is not supported");
+    (void)CanRevCond;
+  }
   // Terminators don't need to be predicated as they will be removed.
   for (MachineBasicBlock::iterator I = MBB->begin(),
                                    E = MBB->getFirstTerminator();
@@ -760,14 +763,14 @@ void SSAIfConv::convertIf(SmallVectorImpl<MachineBasicBlock *> &RemovedBlocks,
 
 namespace {
 class EarlyIfConverter : public MachineFunctionPass {
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
   MCSchedModel SchedModel;
-  MachineRegisterInfo *MRI;
-  MachineDominatorTree *DomTree;
-  MachineLoopInfo *Loops;
-  MachineTraceMetrics *Traces;
-  MachineTraceMetrics::Ensemble *MinInstr;
+  MachineRegisterInfo *MRI = nullptr;
+  MachineDominatorTree *DomTree = nullptr;
+  MachineLoopInfo *Loops = nullptr;
+  MachineTraceMetrics *Traces = nullptr;
+  MachineTraceMetrics::Ensemble *MinInstr = nullptr;
   SSAIfConv IfConv;
 
 public:
@@ -1084,13 +1087,13 @@ bool EarlyIfConverter::runOnMachineFunction(MachineFunction &MF) {
 
 namespace {
 class EarlyIfPredicator : public MachineFunctionPass {
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
   TargetSchedModel SchedModel;
-  MachineRegisterInfo *MRI;
-  MachineDominatorTree *DomTree;
-  MachineBranchProbabilityInfo *MBPI;
-  MachineLoopInfo *Loops;
+  MachineRegisterInfo *MRI = nullptr;
+  MachineDominatorTree *DomTree = nullptr;
+  MachineBranchProbabilityInfo *MBPI = nullptr;
+  MachineLoopInfo *Loops = nullptr;
   SSAIfConv IfConv;
 
 public:

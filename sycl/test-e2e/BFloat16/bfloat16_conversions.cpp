@@ -1,10 +1,9 @@
 // UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 // Currently the feature is supported only on CPU and GPU, natively or by
 // software emulation.
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: accelerator
 
 //==---------- bfloat16_conversions.cpp - SYCL bfloat16 type test ---------==//
 //

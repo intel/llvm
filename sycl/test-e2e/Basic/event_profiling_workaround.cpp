@@ -1,7 +1,9 @@
+// REQUIRES: accelerator
 // UNSUPPORTED: aspect-queue_profiling
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 //
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
+
 //==----------------- event_profiling_workaround.cpp -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

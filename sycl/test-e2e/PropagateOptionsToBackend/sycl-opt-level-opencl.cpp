@@ -1,22 +1,16 @@
 // REQUIRES: opencl
 
-// RUN: %clangxx -O0 -fsycl %s -o %t0.out
-// RUN: env SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t0.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL0
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t0.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL0
-// RUN: %clangxx -O1 -fsycl %s -o %t1.out
-// RUN: env SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t1.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL1
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t1.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL1
-// RUN: %clangxx -O2 -fsycl %s -o %t2.out
-// RUN: env SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t2.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL2
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t2.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL2
-// RUN: %clangxx -O3 -fsycl %s -o %t3.out
-// RUN: env SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t3.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t3.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
+// RUN: %{build} -O0 -o %t0.out
+// RUN: %if !acc %{ env SYCL_PI_TRACE=-1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL0 %}
+// RUN: %{build} -O1 -o %t1.out
+// RUN: %if !acc %{ env SYCL_PI_TRACE=-1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL1 %}
+// RUN: %{build} -O2 -o %t2.out
+// RUN: %if !acc %{ env SYCL_PI_TRACE=-1 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL2 %}
+// RUN: %{build} -O3 -o %t3.out
+// RUN: %if !acc %{ env SYCL_PI_TRACE=-1 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL3 %}
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -O0 %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -O0 -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies the propagation of front-end compiler optimization
 // option to the backend.

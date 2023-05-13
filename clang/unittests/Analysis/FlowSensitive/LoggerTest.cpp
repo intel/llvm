@@ -9,6 +9,7 @@
 
 namespace clang::dataflow::test {
 namespace {
+using testing::HasSubstr;
 
 struct TestLattice {
   int Elements = 0;
@@ -36,14 +37,16 @@ public:
 
   static TestLattice initialElement() { return TestLattice{}; }
   void transfer(const CFGElement &, TestLattice &L, Environment &E) {
-    E.logger().log([](llvm::raw_ostream &OS) { OS << "transfer()"; });
+    E.getDataflowAnalysisContext().getOptions().Log->log(
+        [](llvm::raw_ostream &OS) { OS << "transfer()"; });
     ++L.Elements;
   }
   void transferBranch(bool Branch, const Stmt *S, TestLattice &L,
                       Environment &E) {
-    E.logger().log([&](llvm::raw_ostream &OS) {
-      OS << "transferBranch(" << Branch << ")";
-    });
+    E.getDataflowAnalysisContext().getOptions().Log->log(
+        [&](llvm::raw_ostream &OS) {
+          OS << "transferBranch(" << Branch << ")";
+        });
     ++L.Branches;
   }
 };
@@ -83,19 +86,24 @@ private:
   void logText(llvm::StringRef Text) override { OS << Text << "\n"; }
 };
 
-TEST(LoggerTest, Sequence) {
+AnalysisInputs<TestAnalysis> makeInputs() {
   const char *Code = R"cpp(
 int target(bool b, int p, int q) {
   return b ? p : q;    
 }
 )cpp";
+  static const std::vector<std::string> Args = {
+      "-fsyntax-only", "-fno-delayed-template-parsing", "-std=c++17"};
 
   auto Inputs = AnalysisInputs<TestAnalysis>(
       Code, ast_matchers::hasName("target"),
       [](ASTContext &C, Environment &) { return TestAnalysis(C); });
-  std::vector<std::string> Args = {
-      "-fsyntax-only", "-fno-delayed-template-parsing", "-std=c++17"};
   Inputs.ASTBuildArgs = Args;
+  return Inputs;
+}
+
+TEST(LoggerTest, Sequence) {
+  auto Inputs = makeInputs();
   std::string Log;
   TestLogger Logger(Log);
   Inputs.BuiltinOptions.Log = &Logger;
@@ -146,6 +154,31 @@ recordState(Elements=9, Branches=2, Joins=1)
 
 endAnalysis()
 )");
+}
+
+TEST(LoggerTest, HTML) {
+  auto Inputs = makeInputs();
+  std::vector<std::string> Logs;
+  auto Logger = Logger::html([&]() {
+    Logs.emplace_back();
+    return std::make_unique<llvm::raw_string_ostream>(Logs.back());
+  });
+  Inputs.BuiltinOptions.Log = Logger.get();
+
+  ASSERT_THAT_ERROR(checkDataflow<TestAnalysis>(std::move(Inputs),
+                                                [](const AnalysisOutputs &) {}),
+                    llvm::Succeeded());
+
+  // Simple smoke tests: we can't meaningfully test the behavior.
+  ASSERT_THAT(Logs, testing::SizeIs(1));
+  EXPECT_THAT(Logs[0], HasSubstr("function updateSelection")) << "embeds JS";
+  EXPECT_THAT(Logs[0], HasSubstr("html {")) << "embeds CSS";
+  EXPECT_THAT(Logs[0], HasSubstr("b (ImplicitCastExpr")) << "has CFG elements";
+  EXPECT_THAT(Logs[0], HasSubstr("\"B3:1_B3.1\":"))
+      << "has analysis point state";
+  EXPECT_THAT(Logs[0], HasSubstr("transferBranch(0)")) << "has analysis logs";
+  EXPECT_THAT(Logs[0], HasSubstr("LocToVal")) << "has built-in lattice dump";
+  EXPECT_THAT(Logs[0], HasSubstr("\"type\": \"int\"")) << "has value dump";
 }
 
 } // namespace

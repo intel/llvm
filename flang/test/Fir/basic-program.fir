@@ -17,6 +17,9 @@ func.func @_QQmain() {
 // PASSES: Pass statistics report
 
 // PASSES:        Canonicalizer
+// PASSES-NEXT: 'func.func' Pipeline
+// PASSES-NEXT:   SimplifyHLFIRIntrinsics
+// PASSES-NEXT:   LowerHLFIROrderedAssignments
 // PASSES-NEXT:   LowerHLFIRIntrinsics
 // PASSES-NEXT:   BufferizeHLFIR
 // PASSES-NEXT:   ConvertHLFIRtoFIR

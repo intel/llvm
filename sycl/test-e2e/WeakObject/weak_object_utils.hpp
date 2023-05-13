@@ -15,6 +15,12 @@ void MaterializeTestKernels(sycl::queue Q) {
 template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   MaterializeTestKernels(Q);
 
+  // Auxiliary variables.
+  sycl::half Data[2 * 3 * 4];
+  sycl::image_sampler Sampler{sycl::addressing_mode::none,
+                              sycl::coordinate_normalization_mode::unnormalized,
+                              sycl::filtering_mode::linear};
+
   sycl::context Ctx = Q.get_context();
   sycl::device Dev = Q.get_device();
   sycl::platform Plt = Dev.get_platform();
@@ -25,6 +31,18 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   sycl::buffer<int, 1> Buf1D{1};
   sycl::buffer<int, 2> Buf2D{sycl::range<2>{1, 2}};
   sycl::buffer<int, 3> Buf3D{sycl::range<3>{1, 2, 3}};
+  sycl::unsampled_image<1> UImg1D{sycl::image_format::r8g8b8a8_uint,
+                                  sycl::range<1>{1}};
+  sycl::unsampled_image<2> UImg2D{sycl::image_format::r8g8b8a8_uint,
+                                  sycl::range<2>{1, 2}};
+  sycl::unsampled_image<3> UImg3D{sycl::image_format::r8g8b8a8_uint,
+                                  sycl::range<3>{1, 2, 3}};
+  sycl::sampled_image<1> SImg1D{Data, sycl::image_format::r8g8b8a8_uint,
+                                Sampler, sycl::range<1>{1}};
+  sycl::sampled_image<2> SImg2D{Data, sycl::image_format::r8g8b8a8_uint,
+                                Sampler, sycl::range<2>{1, 2}};
+  sycl::sampled_image<3> SImg3D{Data, sycl::image_format::r8g8b8a8_uint,
+                                Sampler, sycl::range<3>{1, 2, 3}};
   sycl::accessor PAcc1D{Buf1D, sycl::read_write};
   sycl::accessor PAcc2D{Buf2D, sycl::read_write};
   sycl::accessor PAcc3D{Buf3D, sycl::read_write};
@@ -51,6 +69,12 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   CallableT<decltype(Buf1D)>()(Buf1D);
   CallableT<decltype(Buf2D)>()(Buf2D);
   CallableT<decltype(Buf3D)>()(Buf3D);
+  CallableT<decltype(UImg1D)>()(UImg1D);
+  CallableT<decltype(UImg2D)>()(UImg2D);
+  CallableT<decltype(UImg3D)>()(UImg3D);
+  CallableT<decltype(SImg1D)>()(SImg1D);
+  CallableT<decltype(SImg2D)>()(SImg2D);
+  CallableT<decltype(SImg3D)>()(SImg3D);
   CallableT<decltype(PAcc1D)>()(PAcc1D);
   CallableT<decltype(PAcc2D)>()(PAcc2D);
   CallableT<decltype(PAcc3D)>()(PAcc3D);
@@ -84,6 +108,12 @@ template <template <typename> typename CallableT>
 void runTestMulti(sycl::queue Q1) {
   MaterializeTestKernels(Q1);
 
+  // Auxiliary variables.
+  sycl::half Data[2 * 3 * 4];
+  sycl::image_sampler Sampler{sycl::addressing_mode::none,
+                              sycl::coordinate_normalization_mode::unnormalized,
+                              sycl::filtering_mode::linear};
+
   sycl::context Ctx1 = Q1.get_context();
   sycl::device Dev = Q1.get_device();
   sycl::platform Plt = Dev.get_platform();
@@ -104,6 +134,30 @@ void runTestMulti(sycl::queue Q1) {
   sycl::buffer<int, 2> Buf2D2{sycl::range<2>{1, 2}};
   sycl::buffer<int, 3> Buf3D1{sycl::range<3>{1, 2, 3}};
   sycl::buffer<int, 3> Buf3D2{sycl::range<3>{1, 2, 3}};
+  sycl::unsampled_image<1> UImg1D1{sycl::image_format::r8g8b8a8_uint,
+                                   sycl::range<1>{1}};
+  sycl::unsampled_image<1> UImg1D2{sycl::image_format::r8g8b8a8_uint,
+                                   sycl::range<1>{1}};
+  sycl::unsampled_image<2> UImg2D1{sycl::image_format::r8g8b8a8_uint,
+                                   sycl::range<2>{1, 2}};
+  sycl::unsampled_image<2> UImg2D2{sycl::image_format::r8g8b8a8_uint,
+                                   sycl::range<2>{1, 2}};
+  sycl::unsampled_image<3> UImg3D1{sycl::image_format::r8g8b8a8_uint,
+                                   sycl::range<3>{1, 2, 3}};
+  sycl::unsampled_image<3> UImg3D2{sycl::image_format::r8g8b8a8_uint,
+                                   sycl::range<3>{1, 2, 3}};
+  sycl::sampled_image<1> SImg1D1{Data, sycl::image_format::r8g8b8a8_uint,
+                                 Sampler, sycl::range<1>{1}};
+  sycl::sampled_image<1> SImg1D2{Data, sycl::image_format::r8g8b8a8_uint,
+                                 Sampler, sycl::range<1>{1}};
+  sycl::sampled_image<2> SImg2D1{Data, sycl::image_format::r8g8b8a8_uint,
+                                 Sampler, sycl::range<2>{1, 2}};
+  sycl::sampled_image<2> SImg2D2{Data, sycl::image_format::r8g8b8a8_uint,
+                                 Sampler, sycl::range<2>{1, 2}};
+  sycl::sampled_image<3> SImg3D1{Data, sycl::image_format::r8g8b8a8_uint,
+                                 Sampler, sycl::range<3>{1, 2, 3}};
+  sycl::sampled_image<3> SImg3D2{Data, sycl::image_format::r8g8b8a8_uint,
+                                 Sampler, sycl::range<3>{1, 2, 3}};
   sycl::accessor PAcc1D1{Buf1D1, sycl::read_write};
   sycl::accessor PAcc1D2{Buf1D2, sycl::read_write};
   sycl::accessor PAcc2D1{Buf2D1, sycl::read_write};
@@ -143,6 +197,12 @@ void runTestMulti(sycl::queue Q1) {
   CallableT<decltype(Buf1D1)>()(Buf1D1, Buf1D2);
   CallableT<decltype(Buf2D1)>()(Buf2D1, Buf2D2);
   CallableT<decltype(Buf3D1)>()(Buf3D1, Buf3D2);
+  CallableT<decltype(UImg1D1)>()(UImg1D1, UImg1D2);
+  CallableT<decltype(UImg2D1)>()(UImg2D1, UImg2D2);
+  CallableT<decltype(UImg3D1)>()(UImg3D1, UImg3D2);
+  CallableT<decltype(SImg1D1)>()(SImg1D1, SImg1D2);
+  CallableT<decltype(SImg2D1)>()(SImg2D1, SImg2D2);
+  CallableT<decltype(SImg3D1)>()(SImg3D1, SImg3D2);
   CallableT<decltype(PAcc1D1)>()(PAcc1D1, PAcc1D2);
   CallableT<decltype(PAcc2D1)>()(PAcc2D1, PAcc2D2);
   CallableT<decltype(PAcc3D1)>()(PAcc3D1, PAcc3D2);

@@ -1,8 +1,8 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env ZE_DEBUG=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
-// RUN: env ZE_DEBUG=-1 %GPU_RUN_PLACEHOLDER %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s
+// RUN: %{build} -o %t.out
+// RUN: env ZE_DEBUG=-1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
+// RUN: env ZE_DEBUG=-1 %{run} %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s
 
 // Test case adapted from the SYCL version of Rodinia benchmark hotspot.
 

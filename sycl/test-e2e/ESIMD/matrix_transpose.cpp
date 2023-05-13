@@ -7,11 +7,10 @@
 //===----------------------------------------------------------------------===//
 // FIXME: Investigate Windows-specific failures
 // REQUIRES: TEMPORARY_DISABLED
-// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to unimplemented __esimd_oword_ld_unaligned
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
 

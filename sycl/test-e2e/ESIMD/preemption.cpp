@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip || esimd_emulator || gpu-intel-dg2 || gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: linux
+// UNSUPPORTED: esimd_emulator || gpu-intel-dg2 || gpu-intel-pvc
+// RUN: %{build} -o %t.out
+// RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 %{run} %t.out
 // RUN: grep enablePreemption %t.dump/*.asm
 
 // The test expects to see "enablePreemption" switch in the compilation
