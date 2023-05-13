@@ -39,7 +39,7 @@ int main() {
   static_assert(std::is_same<localCTADDep, localMPtr>::value);
 
   globlMPtr non_const_multi_ptr;
-  using constMPtr = sycl::multi_ptr<const int, address_space::global_space,
-                                    sycl::access::decorated::no>;
-  auto constMPtr = constMPtr(non_const_multi_ptr);
+  using constTypeMPtr = sycl::multi_ptr<const int, address_space::global_space,
+                                        sycl::access::decorated::no>;
+  auto constMPtr = constTypeMPtr(non_const_multi_ptr);
 }
