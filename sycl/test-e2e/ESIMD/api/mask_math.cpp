@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 // This test checks basic arithmetic operations between simd and simd_mask
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// UNSUPPORTED: gpu-intel-gen9 && windows
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
