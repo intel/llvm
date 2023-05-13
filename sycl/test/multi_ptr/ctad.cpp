@@ -42,5 +42,4 @@ int main() {
   using constTypeMPtr = sycl::multi_ptr<const int, address_space::global_space,
                                         sycl::access::decorated::no>;
   auto constTypeMultiPtr = constTypeMPtr(non_const_multi_ptr);
-  void(constTypeMultiPtr);
 }
