@@ -11,8 +11,8 @@
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // TODO: esimd_emulator doesn't support xchg operation
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
