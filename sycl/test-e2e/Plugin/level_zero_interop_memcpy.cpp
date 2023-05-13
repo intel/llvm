@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out
 
 #include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>

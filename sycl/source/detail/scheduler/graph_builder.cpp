@@ -1395,7 +1395,10 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
     Dep.MDepCommand->MUsers.erase(Node);
   }
 
-  Node->MDeps.clear();
+  // Clear all the dependencies to avoid cleanDepEventsThroughOneLevel, called
+  // from the destructor of the command to delete the dependencies of the
+  // command this command depends on.
+  Node->clearAllDependencies();
 }
 
 void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,

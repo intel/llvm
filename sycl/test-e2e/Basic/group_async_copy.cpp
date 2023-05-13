@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.run
-// RUN: %GPU_RUN_PLACEHOLDER %t.run
-// RUN: %CPU_RUN_PLACEHOLDER %t.run
-// RUN: %ACC_RUN_PLACEHOLDER %t.run
+// RUN: %{build} -std=c++17 -o %t.run
+// RUN: %{run} %t.run
 
 #include <iostream>
 #include <sycl/sycl.hpp>

@@ -32,10 +32,10 @@
 ; CHECK-SPIRV-200-DAG: ExtInst [[#]] [[#]] [[#Import]] DebugLocalVariable [[#]] [[#Type]]
 ; CHECK-SPIRV-200-DAG: ExtInst [[#]] [[#]] [[#Import]] DebugLocalVariable [[#]] [[#Type]]
 
-; CHECK-LLVM-200: ![[#]] = !DILocalVariable(name: "a", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type:]])
-; CHECK-LLVM-200: ![[#Type]] = !DIBasicType(name: "COMPLEX*8", size: 64, encoding: DW_ATE_complex_float)
-; CHECK-LLVM-200: ![[#]] = !DILocalVariable(name: "b", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
-; CHECK-LLVM-200: ![[#]] = !DILocalVariable(name: "c", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
+; CHECK-LLVM-200-DAG: ![[#]] = !DILocalVariable(name: "a", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type:]])
+; CHECK-LLVM-200-DAG: ![[#Type]] = !DIBasicType(name: "COMPLEX*8", size: 64, encoding: DW_ATE_complex_float)
+; CHECK-LLVM-200-DAG: ![[#]] = !DILocalVariable(name: "b", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
+; CHECK-LLVM-200-DAG: ![[#]] = !DILocalVariable(name: "c", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
 
 ; CHECK-SPIRV-100-DAG: ExtInstImport [[#Import:]] "NonSemantic.Shader.DebugInfo.100
 ; CHECK-SPIRV-100-DAG: String [[#Name:]] "COMPLEX*8"
@@ -46,10 +46,10 @@
 ; CHECK-SPIRV-100-DAG: ExtInst [[#]] [[#]] [[#Import]] DebugLocalVariable [[#]] [[#Type]]
 ; CHECK-SPIRV-100-DAG: ExtInst [[#]] [[#]] [[#Import]] DebugLocalVariable [[#]] [[#Type]]
 
-; CHECK-LLVM-100: ![[#]] = !DILocalVariable(name: "a", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type:]])
-; CHECK-LLVM-100: ![[#Type]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "COMPLEX*8")
-; CHECK-LLVM-100: ![[#]] = !DILocalVariable(name: "b", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
-; CHECK-LLVM-100: ![[#]] = !DILocalVariable(name: "c", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
+; CHECK-LLVM-100-DAG: ![[#]] = !DILocalVariable(name: "a", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type:]])
+; CHECK-LLVM-100-DAG: ![[#Type]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "COMPLEX*8")
+; CHECK-LLVM-100-DAG: ![[#]] = !DILocalVariable(name: "b", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
+; CHECK-LLVM-100-DAG: ![[#]] = !DILocalVariable(name: "c", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#Type]])
 
 ; ModuleID = 'test.f90'
 source_filename = "test.f90"

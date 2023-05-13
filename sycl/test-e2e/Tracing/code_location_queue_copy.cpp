@@ -1,11 +1,10 @@
+// REQUIRES: cpu
 // UNSUPPORTED: windows
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER sycl-trace --sycl  %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} sycl-trace --sycl %t.out | FileCheck %s
 
 // Test tracing of the code location data for queue.copy in case of failure
 // (exception generation)
-//
-// CHECK: code_location_queue_copy.cpp:18 main
 
 #include <sycl/sycl.hpp>
 
@@ -15,6 +14,7 @@ int main() {
   unsigned char *HostAllocSrc = (unsigned char *)sycl::malloc_host(1, Q);
   unsigned char *HostAllocDst = NULL;
   try {
+// CHECK: code_location_queue_copy.cpp:[[# @LINE + 1 ]] main
     Q.copy(HostAllocDst, HostAllocSrc, 1);
   } catch (sycl::exception &e) {
     std::ignore = e;

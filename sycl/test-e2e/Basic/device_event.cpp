@@ -1,12 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.run
-// RUN: %GPU_RUN_PLACEHOLDER %t.run
-// RUN: %CPU_RUN_PLACEHOLDER %t.run
-// RUN: %ACC_RUN_PLACEHOLDER %t.run
+// RUN: %{build} -o %t.run
+// RUN: %{run} %t.run
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DUSE_DEPRECATED_LOCAL_ACC %s -o %t.run
-// RUN: %GPU_RUN_PLACEHOLDER %t.run
-// RUN: %CPU_RUN_PLACEHOLDER %t.run
-// RUN: %ACC_RUN_PLACEHOLDER %t.run
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.run
+// RUN: %{run} %t.run
 //
 // Returns error "Barrier is not supported on the host device
 // yet." with Nvidia.

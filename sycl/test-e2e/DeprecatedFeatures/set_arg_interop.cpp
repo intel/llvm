@@ -1,9 +1,7 @@
 // REQUIRES: opencl, opencl_icd
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -D__SYCL_INTERNAL_API -o %t.out %opencl_lib -O3
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib -O3
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

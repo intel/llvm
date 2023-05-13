@@ -1,7 +1,6 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 || cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: gpu-intel-gen9
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // XFAIL: gpu && !esimd_emulator
 //==- bfloat16Constructor.cpp - Test to verify use of bfloat16 constructor -==//
 //

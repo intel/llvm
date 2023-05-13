@@ -86,6 +86,14 @@ public:
     return __atomic_fetch_add(&val, increment, int(mem_ord));
   }
 
+  T fetch_or(T mask, MemoryOrder mem_ord = MemoryOrder::SEQ_CST) {
+    return __atomic_fetch_or(&val, mask, int(mem_ord));
+  }
+
+  T fetch_and(T mask, MemoryOrder mem_ord = MemoryOrder::SEQ_CST) {
+    return __atomic_fetch_and(&val, mask, int(mem_ord));
+  }
+
   T fetch_sub(T decrement, MemoryOrder mem_ord = MemoryOrder::SEQ_CST) {
     return __atomic_fetch_sub(&val, decrement, int(mem_ord));
   }
