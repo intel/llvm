@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 // This test checks DWORD atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // TODO add support for __esimd_dword_atomic on esimd_emulator

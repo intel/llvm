@@ -9,9 +9,6 @@
 // enforced, i.e. accessor based accesses are automatically converted to
 // stateless accesses.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
 // TODO add support for __esimd_dword_atomic on esimd_emulator
