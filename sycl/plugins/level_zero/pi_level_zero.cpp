@@ -692,8 +692,8 @@ pi_result _pi_context::finalize() {
 
   std::scoped_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
-    for (pi_command_list_and_desc_t &Item : List.second) {
-      ze_command_list_handle_t &ZeCommandList = Item.CmdList;
+    for (auto &Item : List.second) {
+      ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -703,8 +703,8 @@ pi_result _pi_context::finalize() {
     }
   }
   for (auto &List : ZeCopyCommandListCache) {
-    for (pi_command_list_and_desc_t &Item : List.second) {
-      ze_command_list_handle_t &ZeCommandList = Item.CmdList;
+    for (auto &Item : List.second) {
+      ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -826,8 +826,8 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
         UseCopyEngine
             ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
             : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
-    CommandList->second.ZeQueueDesc.CmdList = CommandList->first;
-    ZeCommandListCache.push_back(CommandList->second.ZeQueueDesc);
+    ZeCommandListCache.push_back(
+        {CommandList->first, CommandList->second.ZeQueueDesc});
   }
 
   return PI_SUCCESS;
@@ -1289,7 +1289,7 @@ pi_result _pi_context::getAvailableCommandList(
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
-      auto &ZeCommandList = ZeCommandListIt->CmdList;
+      auto &ZeCommandList = ZeCommandListIt->first;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         if (ForcedCmdQueue && *ForcedCmdQueue != it->second.ZeQueue)
@@ -1835,13 +1835,12 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
-      const auto &Item = *ZeCommandListIt;
+      const auto &Item = (*ZeCommandListIt).second;
       if (Item.Index == ZeCommandQueueDesc.index &&
           Item.Flags == ZeCommandQueueDesc.flags &&
           Item.Mode == ZeCommandQueueDesc.mode &&
-          Item.Priority == ZeCommandQueueDesc.priority &&
-          Item.CmdList != nullptr) {
-        ZeCommandList = Item.CmdList;
+          Item.Priority == ZeCommandQueueDesc.priority && !Item.IsDummy) {
+        ZeCommandList = (*ZeCommandListIt).first;
         ZeCommandListCache.erase(ZeCommandListIt);
         break;
       }
@@ -1859,12 +1858,11 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
                      &ZeCommandQueueDesc, &ZeCommandList));
   }
-  pi_command_list_and_desc_t Desc{QueueOrdinal,
+  pi_command_list_desc_t Desc{QueueOrdinal,
                                   QueueIndex,
                                   ZeCommandQueueDesc.flags,
                                   ZeCommandQueueDesc.mode,
-                                  ZeCommandQueueDesc.priority,
-                                  ZeCommandList};
+                                  ZeCommandQueueDesc.priority};
 
   ImmCmdLists[Index] =
       Queue->CommandListMap
@@ -2900,7 +2898,7 @@ pi_result piQueueRelease(pi_queue Queue) {
                       ->ZeCopyCommandListCache[Queue->Device->ZeDevice]
                 : Queue->Context
                       ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
-        ZeCommandListCache.push_back(it->second.ZeQueueDesc);
+        ZeCommandListCache.push_back({it->first, it->second.ZeQueueDesc});
       }
     }
     Queue->CommandListMap.clear();
@@ -3113,12 +3111,12 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
   // An immediate command list was given to us but we don't have the queue
   // descriptor information. Create a dummy with the CmdList set to nullptr to
   // indicate that this is a dummy descriptor.
-  pi_command_list_and_desc_t Desc{0,
+  pi_command_list_desc_t Desc{0,
                                   0,
                                   0,
                                   ZE_COMMAND_QUEUE_MODE_DEFAULT,
                                   ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
-                                  nullptr};
+                                  /*IsDummy*/ true};
   ImmCmdLists = std::vector<pi_command_list_ptr_t>(
       1,
       Queue->CommandListMap
