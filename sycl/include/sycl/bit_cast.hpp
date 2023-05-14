@@ -23,14 +23,11 @@ template <typename To, typename From>
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
 constexpr
 #endif
-    To
+    std::enable_if_t<sizeof(To) == sizeof(From) &&
+                         std::is_trivially_copyable<From>::value &&
+                         std::is_trivially_copyable<To>::value,
+                     To>
     bit_cast(const From &from) noexcept {
-  static_assert(sizeof(To) == sizeof(From),
-                "Sizes of To and From must be equal");
-  static_assert(std::is_trivially_copyable<From>::value,
-                "From must be trivially copyable");
-  static_assert(std::is_trivially_copyable<To>::value,
-                "To must be trivially copyable");
 #if __cpp_lib_bit_cast
   return std::bit_cast<To>(from);
 #else // __cpp_lib_bit_cast

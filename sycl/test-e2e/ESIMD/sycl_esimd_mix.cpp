@@ -8,9 +8,6 @@
 // This is basic test for mixing SYCL and ESIMD kernels in the same source and
 // in the same program .
 
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // TODO/FIXME: esimd_emulator does not support online compilation that
 //             invokes 'piProgramBuild'/'piKernelCreate'
 // UNSUPPORTED: esimd_emulator
