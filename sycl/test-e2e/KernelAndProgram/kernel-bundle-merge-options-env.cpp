@@ -1,10 +1,10 @@
+// REQUIRES: gpu
 // Disable fallback assert here so, that build process isn't affected
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out %debug_option
-// RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %{run} %t.out | FileCheck %s
 // Check that options are overrided
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -Xsycl-target-linker=spir64 -bar -Xsycl-target-frontend=spir64 -bar_compile -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// REQUIRES: gpu
+// RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %{run} %t.out | FileCheck %s
 // UNSUPPORTED: hip
 
 #include "kernel-bundle-merge-options.hpp"

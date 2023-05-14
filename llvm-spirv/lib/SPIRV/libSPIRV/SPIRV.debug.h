@@ -55,6 +55,7 @@ enum Instruction {
   ModuleINTEL                   = 36,
   InstCount                     = 37,
   FunctionDefinition            = 101,
+  SourceContinued               = 102,
   EntryPoint                    = 107,
   Module                        = 200,
   TypeSubrange                  = 201,
@@ -302,9 +303,9 @@ enum {
 
 namespace Source {
 enum {
-  FileIdx      = 0,
-  TextIdx      = 1,
-  OperandCount = 2
+  FileIdx         = 0,
+  TextIdx         = 1,
+  MinOperandCount = 1
 };
 }
 
@@ -570,6 +571,13 @@ enum {
   FunctionIdx     = 0,
   DefinitionIdx   = 1,
   OperandCount    = 2
+};
+}
+
+namespace SourceContinued {
+enum {
+  TextIdx      = 0,
+  OperandCount = 1
 };
 }
 
