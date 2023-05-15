@@ -1439,6 +1439,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         hNativeSampler,           ///< [in] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_sampler_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native sampler properties struct.
     ur_sampler_handle_t *
         phSampler ///< [out] pointer to the handle of the sampler object created.
 ) {
@@ -1461,7 +1463,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeSampler, hContext, phSampler);
+    result = pfnCreateWithNativeHandle(hNativeSampler, hContext, pProperties,
+                                       phSampler);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

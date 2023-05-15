@@ -594,6 +594,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnSamplerGetNativeHandle_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnSamplerCreateWithNativeHandle_t)(
     ur_native_handle_t,
     ur_context_handle_t,
+    const ur_sampler_native_properties_t *,
     ur_sampler_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
