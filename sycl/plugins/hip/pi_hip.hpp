@@ -41,21 +41,19 @@
 
 #include <ur/adapters/hip/context.hpp>
 #include <ur/adapters/hip/device.hpp>
+#include <ur/adapters/hip/kernel.hpp>
 #include <ur/adapters/hip/memory.hpp>
 #include <ur/adapters/hip/platform.hpp>
 #include <ur/adapters/hip/sampler.hpp>
+#include <ur/adapters/hip/program.hpp>
 
 #include "pi2ur.hpp"
 
 extern "C" {
 
 /// \cond INGORE_BLOCK_IN_DOXYGEN
-pi_result hip_piProgramRetain(pi_program);
-pi_result hip_piProgramRelease(pi_program);
 pi_result hip_piQueueRelease(pi_queue);
 pi_result hip_piQueueRetain(pi_queue);
-pi_result hip_piKernelRetain(pi_kernel);
-pi_result hip_piKernelRelease(pi_kernel);
 /// \endcond
 }
 
@@ -482,36 +480,8 @@ private:
 
 /// Implementation of PI Program on HIP Module object
 ///
-struct _pi_program {
-  using native_type = hipModule_t;
-  native_type module_;
-  const char *binary_;
-  size_t binarySizeInBytes_;
-  std::atomic_uint32_t refCount_;
-  _pi_context *context_;
-
-  constexpr static size_t MAX_LOG_SIZE = 8192u;
-
-  char errorLog_[MAX_LOG_SIZE], infoLog_[MAX_LOG_SIZE];
-  std::string buildOptions_;
-  pi_program_build_status buildStatus_ = PI_PROGRAM_BUILD_STATUS_NONE;
-
-  _pi_program(pi_context ctxt);
-  ~_pi_program();
-
-  pi_result set_binary(const char *binary, size_t binarySizeInBytes);
-
-  pi_result build_program(const char *build_options);
-
-  pi_context get_context() const { return context_; };
-
-  native_type get() const noexcept { return module_; };
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
+struct _pi_program : ur_program_handle_t_ {
+  using ur_program_handle_t_::ur_program_handle_t_;
 };
 
 /// Implementation of a PI Kernel for HIP
@@ -530,165 +500,8 @@ struct _pi_program {
 /// HIP shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
 ///
-struct _pi_kernel {
-  using native_type = hipFunction_t;
-
-  native_type function_;
-  native_type functionWithOffsetParam_;
-  std::string name_;
-  pi_context context_;
-  pi_program program_;
-  std::atomic_uint32_t refCount_;
-
-  /// Structure that holds the arguments to the kernel.
-  /// Note earch argument size is known, since it comes
-  /// from the kernel signature.
-  /// This is not something can be queried from the HIP API
-  /// so there is a hard-coded size (\ref MAX_PARAM_BYTES)
-  /// and a storage.
-  ///
-  struct arguments {
-    static constexpr size_t MAX_PARAM_BYTES = 4000u;
-    using args_t = std::array<char, MAX_PARAM_BYTES>;
-    using args_size_t = std::vector<size_t>;
-    using args_index_t = std::vector<void *>;
-    args_t storage_;
-    args_size_t paramSizes_;
-    args_index_t indices_;
-    args_size_t offsetPerIndex_;
-
-    std::uint32_t implicitOffsetArgs_[3] = {0, 0, 0};
-
-    arguments() {
-      // Place the implicit offset index at the end of the indicies collection
-      indices_.emplace_back(&implicitOffsetArgs_);
-    }
-
-    /// Adds an argument to the kernel.
-    /// If the argument existed before, it is replaced.
-    /// Otherwise, it is added.
-    /// Gaps are filled with empty arguments.
-    /// Implicit offset argument is kept at the back of the indices collection.
-    void add_arg(size_t index, size_t size, const void *arg,
-                 size_t localSize = 0) {
-      if (index + 2 > indices_.size()) {
-        // Move implicit offset argument index with the end
-        indices_.resize(index + 2, indices_.back());
-        // Ensure enough space for the new argument
-        paramSizes_.resize(index + 1);
-        offsetPerIndex_.resize(index + 1);
-      }
-      paramSizes_[index] = size;
-      // calculate the insertion point on the array
-      size_t insertPos = std::accumulate(std::begin(paramSizes_),
-                                         std::begin(paramSizes_) + index, 0);
-      // Update the stored value for the argument
-      std::memcpy(&storage_[insertPos], arg, size);
-      indices_[index] = &storage_[insertPos];
-      offsetPerIndex_[index] = localSize;
-    }
-
-    void add_local_arg(size_t index, size_t size) {
-      size_t localOffset = this->get_local_size();
-
-      // maximum required alignment is the size of the largest vector type
-      const size_t max_alignment = sizeof(double) * 16;
-
-      // for arguments smaller than the maximum alignment simply align to the
-      // size of the argument
-      const size_t alignment = std::min(max_alignment, size);
-
-      // align the argument
-      size_t alignedLocalOffset = localOffset;
-      if (localOffset % alignment != 0) {
-        alignedLocalOffset += alignment - (localOffset % alignment);
-      }
-
-      add_arg(index, sizeof(size_t), (const void *)&(alignedLocalOffset),
-              size + (alignedLocalOffset - localOffset));
-    }
-
-    void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
-      assert(size == sizeof(std::uint32_t) * 3);
-      std::memcpy(implicitOffsetArgs_, implicitOffset, size);
-    }
-
-    void clear_local_size() {
-      std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
-    }
-
-    args_index_t get_indices() const noexcept { return indices_; }
-
-    pi_uint32 get_local_size() const {
-      return std::accumulate(std::begin(offsetPerIndex_),
-                             std::end(offsetPerIndex_), 0);
-    }
-  } args_;
-
-  _pi_kernel(hipFunction_t func, hipFunction_t funcWithOffsetParam,
-             const char *name, pi_program program, pi_context ctxt)
-      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
-        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
-    hip_piProgramRetain(program_);
-    pi2ur::piContextRetain(context_);
-  }
-
-  _pi_kernel(hipFunction_t func, const char *name, pi_program program,
-             pi_context ctxt)
-      : _pi_kernel{func, nullptr, name, program, ctxt} {}
-
-  ~_pi_kernel() {
-    hip_piProgramRelease(program_);
-    pi2ur::piContextRelease(context_);
-  }
-
-  pi_program get_program() const noexcept { return program_; }
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  native_type get() const noexcept { return function_; };
-
-  native_type get_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_;
-  };
-
-  bool has_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_ != nullptr;
-  }
-
-  pi_context get_context() const noexcept { return context_; };
-
-  const char *get_name() const noexcept { return name_.c_str(); }
-
-  /// Returns the number of arguments, excluding the implicit global offset.
-  /// Note this only returns the current known number of arguments, not the
-  /// real one required by the kernel, since this cannot be queried from
-  /// the HIP Driver API
-  pi_uint32 get_num_args() const noexcept { return args_.indices_.size() - 1; }
-
-  void set_kernel_arg(int index, size_t size, const void *arg) {
-    args_.add_arg(index, size, arg);
-  }
-
-  void set_kernel_local_arg(int index, size_t size) {
-    args_.add_local_arg(index, size);
-  }
-
-  void set_implicit_offset_arg(size_t size, std::uint32_t *implicitOffset) {
-    args_.set_implicit_offset(size, implicitOffset);
-  }
-
-  arguments::args_index_t get_arg_indices() const {
-    return args_.get_indices();
-  }
-
-  pi_uint32 get_local_size() const noexcept { return args_.get_local_size(); }
-
-  void clear_local_size() { args_.clear_local_size(); }
+struct _pi_kernel : ur_kernel_handle_t_ {
+  using ur_kernel_handle_t_::ur_kernel_handle_t_;
 };
 
 /// Implementation of samplers for HIP
