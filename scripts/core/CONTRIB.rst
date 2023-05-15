@@ -66,6 +66,6 @@ under ``test/conformance/<component>``, where component refers to a set of
 entry-points i.e. platform, enqueue, device. The conformance tests, at a 
 minimum, should cover at least one test for each of the possible error codes 
 returned, excluding any disaster cases like 
-``${X}_RESULT_ERROR_OUT_OF_HOST_MEMORY`` or similar.Conformance tests should not
+``${X}_RESULT_ERROR_OUT_OF_HOST_MEMORY`` or similar. Conformance tests should not
 assume anything about the underlying adapter on which they are run against and
 should pass on any conformant adapter.
