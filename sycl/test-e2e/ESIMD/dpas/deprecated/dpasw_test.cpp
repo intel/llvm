@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-dg2
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

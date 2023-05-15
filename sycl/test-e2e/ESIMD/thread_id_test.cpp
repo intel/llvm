@@ -1,5 +1,3 @@
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: linux && gpu && !esimd_emulator
