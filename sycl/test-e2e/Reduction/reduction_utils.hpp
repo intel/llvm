@@ -29,7 +29,7 @@ void initInputData(buffer<T, 1> &InBuf, std::optional<T> &ExpectedOut,
                    IdFilterFuncT IdFilterFunc = {}) {
   size_t N = Range.size();
   assert(N != 0);
-  auto In = InBuf.template get_access<access::mode::write>();
+  host_accessor In(InBuf, write_only);
   for (int I = 0; I < N; ++I) {
     if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
         std::is_same_v<BinaryOperation, std::multiplies<>>)

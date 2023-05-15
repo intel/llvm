@@ -20,5 +20,6 @@
 
 int main() {
   sycl::buffer<int, 1> Buf(sycl::range<1>{1});
-  auto Acc = Buf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor Acc(Buf, sycl::read_only);
+  return 0;
 }
