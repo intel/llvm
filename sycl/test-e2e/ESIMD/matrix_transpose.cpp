@@ -5,10 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// FIXME: Investigate Windows-specific failures
-// REQUIRES: TEMPORARY_DISABLED
-// TODO: esimd_emulator fails due to unimplemented __esimd_oword_ld_unaligned
-// XFAIL: esimd_emulator
+// TODO: investigate sporadic esimd_emulator failures
+// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
