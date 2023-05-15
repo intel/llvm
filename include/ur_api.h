@@ -244,6 +244,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
     UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
     UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
+    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -506,6 +507,18 @@ urPlatformGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Native platform creation properties
+typedef struct ur_platform_native_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an
+                               ///< interoperability operation in the application that asked to not
+                               ///< transfer the ownership to the unified-runtime.
+
+} ur_platform_native_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime platform object from native platform handle.
 ///
 /// @details
@@ -524,8 +537,9 @@ urPlatformGetNativeHandle(
 ///         + `NULL == phPlatform`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
-    ur_native_handle_t hNativePlatform, ///< [in] the native handle of the platform.
-    ur_platform_handle_t *phPlatform    ///< [out] pointer to the handle of the platform object created.
+    ur_native_handle_t hNativePlatform,                 ///< [in] the native handle of the platform.
+    const ur_platform_native_properties_t *pProperties, ///< [in][optional] pointer to native platform properties struct.
+    ur_platform_handle_t *phPlatform                    ///< [out] pointer to the handle of the platform object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5745,6 +5759,7 @@ typedef struct ur_platform_get_native_handle_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_create_with_native_handle_params_t {
     ur_native_handle_t *phNativePlatform;
+    const ur_platform_native_properties_t **ppProperties;
     ur_platform_handle_t **pphPlatform;
 } ur_platform_create_with_native_handle_params_t;
 

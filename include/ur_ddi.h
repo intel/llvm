@@ -45,6 +45,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetNativeHandle_t)(
 /// @brief Function-pointer for urPlatformCreateWithNativeHandle
 typedef ur_result_t(UR_APICALL *ur_pfnPlatformCreateWithNativeHandle_t)(
     ur_native_handle_t,
+    const ur_platform_native_properties_t *,
     ur_platform_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

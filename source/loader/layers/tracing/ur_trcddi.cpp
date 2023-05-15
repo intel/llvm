@@ -185,6 +185,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in] the native handle of the platform.
+    const ur_platform_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
         phPlatform ///< [out] pointer to the handle of the platform object created.
 ) {
@@ -195,13 +197,14 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_platform_create_with_native_handle_params_t params = {&hNativePlatform,
-                                                             &phPlatform};
+    ur_platform_create_with_native_handle_params_t params = {
+        &hNativePlatform, &pProperties, &phPlatform};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                              "urPlatformCreateWithNativeHandle", &params);
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, phPlatform);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
 
     context.notify_end(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                        "urPlatformCreateWithNativeHandle", &params, &result,

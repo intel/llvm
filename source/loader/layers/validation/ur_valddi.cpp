@@ -188,6 +188,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in] the native handle of the platform.
+    const ur_platform_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
         phPlatform ///< [out] pointer to the handle of the platform object created.
 ) {
@@ -208,7 +210,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         }
     }
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, phPlatform);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
 
     return result;
 }
