@@ -27,7 +27,7 @@ from templates import helper as th
     %if iname == "pNext":
         ${x}_params::serializeStruct(os, ${caller.body()});
     %elif th.type_traits.is_flags(itype):
-        ${x}_params::serializeFlag_${itype}(os, ${caller.body()});
+        ${x}_params::serializeFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
     %elif not loop and th.type_traits.is_pointer(itype):
         ${x}_params::serializePtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
@@ -69,7 +69,7 @@ from templates import helper as th
         os << "]";
     %elif typename is not None:
         os << ".${iname} = ";
-        ${x}_params::serializeTaggedTyped_${underlying_type}(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
+        ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
     %else:
         os << ".${iname} = ";
         <%call expr="member(iname, itype, False)">
@@ -80,19 +80,23 @@ from templates import helper as th
 
 namespace ${x}_params {
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
+template <typename T> inline void serializeFlag(std::ostream &os, uint32_t flag);
+template <typename T> inline void serializeTagged(std::ostream &os, const void *ptr, T value, size_t size);
 
 %for spec in specs:
 %for obj in spec['objects']:
 ## ENUM #######################################################################
 %if re.match(r"enum", obj['type']):
     %if obj.get('typed_etors', False) is True:
-    inline void serializeTaggedTyped_${th.make_enum_name(n, tags, obj)}(std::ostream &os, const void *ptr, enum ${th.make_enum_name(n, tags, obj)} value, size_t size);
+    template <> inline void serializeTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size);
     %elif "structure_type" in obj['name']:
     inline void serializeStruct(std::ostream &os, const void *ptr);
     %endif
 %endif
+
+
 %if th.type_traits.is_flags(obj['name']):
-    inline void serializeFlag_${th.make_type_name(n, tags, obj)}(std::ostream &os, ${th.make_type_name(n, tags, obj)} flag);
+    template<> inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag);
 %endif
 %endfor # obj in spec['objects']
 %endfor
@@ -138,7 +142,8 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
     %endif
     %if obj.get('typed_etors', False) is True:
     namespace ${x}_params {
-    inline void serializeTaggedTyped_${th.make_enum_name(n, tags, obj)}(std::ostream &os, const void *ptr, enum ${th.make_enum_name(n, tags, obj)} value, size_t size) {
+    template <>
+    inline void serializeTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size) {
         if (ptr == NULL) {
             serializePtr(os, ptr);
             return;
@@ -218,7 +223,9 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
     %endif
 %if th.type_traits.is_flags(obj['name']):
 namespace ${x}_params {
-inline void serializeFlag_${th.make_type_name(n, tags, obj)}(std::ostream &os, ${th.make_type_name(n, tags, obj)} flag) {
+
+template<>
+inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
     %for n, item in enumerate(obj['etors']):
