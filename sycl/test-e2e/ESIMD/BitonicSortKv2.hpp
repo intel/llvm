@@ -1,17 +1,21 @@
-//==---------------- BitonicSortK.hpp  - DPC++ ESIMD on-device test --------==//
+//==------------- BitonicSortKv2.hpp  - DPC++ ESIMD on-device test -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
-
+//==--------------------------------------------------------------------==//
 #include "esimd_test_utils.hpp"
 
 #include <algorithm>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
+
+using namespace sycl;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
+using namespace std;
 
 // Disable unrolling with the esmid emulator
 // due to huge stack size requirement
@@ -20,10 +24,6 @@
 #else
 #define ESIMD_UNROLL _Pragma("unroll")
 #endif
-
-using namespace sycl;
-using namespace sycl::ext::intel::esimd;
-using namespace std;
 
 #define LOG2_ELEMENTS 16 // 24
 
@@ -41,110 +41,26 @@ using namespace std;
  * based on the sorting order directions, ascending or descending.
  */
 
-template <typename ty, uint32_t size, typename AccTy>
-ESIMD_INLINE simd<ty, size> cmk_read(AccTy buf, uint32_t offset) {
+template <typename ty, uint32_t size>
+ESIMD_INLINE simd<ty, size> cmk_read(ty *buf, uint32_t offset) {
   simd<ty, size> v;
-  offset *= sizeof(ty);
   ESIMD_UNROLL
   for (uint32_t i = 0; i < size; i += 32) {
     simd<ty, 32> data;
-    data.copy_from(buf, offset);
+    data.copy_from(buf + offset + i);
     v.template select<32, 1>(i) = data;
-    offset += 32 * sizeof(ty);
   }
   return v;
 }
 
-template <typename ty, uint32_t size, typename AccTy>
-ESIMD_INLINE void cmk_write(AccTy buf, uint32_t offset, simd<ty, size> v) {
-  offset *= sizeof(ty);
+template <typename ty, uint32_t size>
+ESIMD_INLINE void cmk_write(ty *buf, uint32_t offset, simd<ty, size> v) {
   ESIMD_UNROLL
   for (uint32_t i = 0; i < size; i += 32) {
     simd<ty, 32> vals = v.template select<32, 1>(i);
-    vals.copy_to(buf, offset);
-    offset += 32 * sizeof(ty);
+    vals.copy_to(buf + offset + i);
   }
 }
-
-const mask_type_t<32> init_mask1 = {0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1,
-                                    0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
-                                    1, 0, 0, 1, 1, 0, 0, 1, 1, 0};
-
-const mask_type_t<32> init_mask2 = {0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1,
-                                    1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1,
-                                    0, 0, 0, 0, 1, 1, 1, 1, 0, 0};
-
-const mask_type_t<32> init_mask3 = {0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0,
-                                    1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0,
-                                    1, 0, 0, 1, 0, 1, 1, 0, 1, 0};
-
-const mask_type_t<32> init_mask4 = {0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
-                                    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-                                    1, 1, 1, 1, 1, 1, 0, 0, 0, 0};
-
-const mask_type_t<32> init_mask5 = {0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0,
-                                    0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0,
-                                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0};
-
-const mask_type_t<32> init_mask6 = {0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1,
-                                    0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1,
-                                    0, 1, 1, 0, 1, 0, 1, 0, 1, 0};
-
-const mask_type_t<32> init_mask7 = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
-                                    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                                    1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
-
-const mask_type_t<32> init_mask8 = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0,
-                                    0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
-                                    0, 0, 1, 1, 1, 1, 0, 0, 0, 0};
-
-const mask_type_t<32> init_mask9 = {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
-                                    1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1,
-                                    0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-
-const mask_type_t<32> init_mask10 = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
-                                     1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0,
-                                     1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
-
-const mask_type_t<32> init_mask11 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
-                                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-
-const mask_type_t<32> init_mask12 = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                                     1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
-                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-const mask_type_t<32> init_mask13 = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
-                                     1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
-                                     0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
-
-const mask_type_t<32> init_mask14 = {1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
-                                     0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
-                                     1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
-
-const mask_type_t<32> init_mask15 = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0,
-                                     0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1,
-                                     1, 1, 0, 0, 0, 0, 1, 1, 1, 1};
-
-const mask_type_t<32> init_mask16 = {1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1,
-                                     1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0,
-                                     0, 0, 1, 1, 1, 1, 0, 0, 0, 0};
-
-const mask_type_t<32> init_mask17 = {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
-                                     1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0,
-                                     1, 1, 0, 0, 1, 1, 0, 0, 1, 1};
-
-const mask_type_t<32> init_mask18 = {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0,
-                                     0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1,
-                                     0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-
-const mask_type_t<32> init_mask19 = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
-                                     1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-                                     0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
-
-const mask_type_t<32> init_mask20 = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-                                     0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
-                                     1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
 
 #define BASE_SZ 256
 #define MAX_TS_WIDTH 512
@@ -306,8 +222,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   // similar to bitonic_exchange{1,2,4,8}.
 
   // exchange 8
-  simd_mask<32> flip13(init_mask13);
-  simd_mask<32> flip14(init_mask14);
+  simd_mask<32> flip13 = esimd::unpack_mask<32>(0xff00ff00); //(init_mask13);
+  simd_mask<32> flip14 = esimd::unpack_mask<32>(0x00ff00ff); //(init_mask14);
   simd<uint32_t, BASE_SZ> B;
   for (int i = 0; i < BASE_SZ; i += 32) {
     B.select<8, 1>(i) = A.select<8, 1>(i + 8);
@@ -326,8 +242,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   }
 
   // exchange 4
-  simd_mask<32> flip15(init_mask15);
-  simd_mask<32> flip16(init_mask16);
+  simd_mask<32> flip15 = esimd::unpack_mask<32>(0xf0f0f0f0); //(init_mask15);
+  simd_mask<32> flip16 = esimd::unpack_mask<32>(0x0f0f0f0f); //(init_mask16);
   ESIMD_UNROLL
   for (int i = 0; i < BASE_SZ; i += 32) {
     auto MA = A.select<32, 1>(i).bit_cast_view<uint32_t, 4, 8>();
@@ -346,8 +262,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   }
 
   // exchange 2
-  simd_mask<32> flip17(init_mask17);
-  simd_mask<32> flip18(init_mask18);
+  simd_mask<32> flip17 = esimd::unpack_mask<32>(0xcccccccc); //(init_mask17);
+  simd_mask<32> flip18 = esimd::unpack_mask<32>(0x33333333); //(init_mask18);
   ESIMD_UNROLL
   for (int i = 0; i < BASE_SZ; i += 32) {
     auto MB = B.select<32, 1>(i).bit_cast_view<long long, 4, 4>();
@@ -366,8 +282,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
                                    flip18);
   }
   // exchange 1
-  simd_mask<32> flip19(init_mask19);
-  simd_mask<32> flip20(init_mask20);
+  simd_mask<32> flip19 = esimd::unpack_mask<32>(0xaaaaaaaa); //(init_mask19);
+  simd_mask<32> flip20 = esimd::unpack_mask<32>(0x55555555); //(init_mask20);
   ESIMD_UNROLL
   // Each iteration compares and swaps 2 32-element chunks
   for (int i = 0; i < BASE_SZ; i += 32) {
@@ -396,8 +312,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
 }
 
 // sorting 256 elements in ascending or descending order
-template <typename AccTy1, typename AccTy2>
-ESIMD_INLINE void cmk_bitonic_sort_256(AccTy1 buf1, AccTy2 buf2, uint32_t idx) {
+ESIMD_INLINE void cmk_bitonic_sort_256(uint32_t *buf1, uint32_t *buf2,
+                                       uint32_t idx) {
   uint h_pos = idx;
   uint32_t offset = (h_pos * BASE_SZ);
 
@@ -408,29 +324,29 @@ ESIMD_INLINE void cmk_bitonic_sort_256(AccTy1 buf1, AccTy2 buf2, uint32_t idx) {
   // indicate what the desired sorting order for swapping.
   simd<uint32_t, BASE_SZ> A;
   simd<uint32_t, BASE_SZ> B;
-  A = cmk_read<uint32_t, BASE_SZ, AccTy1>(buf1, offset);
+  A = cmk_read<uint32_t, BASE_SZ>(buf1, offset);
 
-  simd_mask<32> flip1(init_mask1);
+  simd_mask<32> flip1 = esimd::unpack_mask<32>(0x66666666); //(init_mask1);
 
   // stage 0
   B = bitonic_exchange1(A, flip1);
   // stage 1
-  simd_mask<32> flip2(init_mask2);
-  simd_mask<32> flip3(init_mask3);
+  simd_mask<32> flip2 = esimd::unpack_mask<32>(0x3c3c3c3c); //(init_mask2);
+  simd_mask<32> flip3 = esimd::unpack_mask<32>(0x5a5a5a5a); //(init_mask3);
   A = bitonic_exchange2(B, flip2);
   B = bitonic_exchange1(A, flip3);
   // stage 2
-  simd_mask<32> flip4(init_mask4);
-  simd_mask<32> flip5(init_mask5);
-  simd_mask<32> flip6(init_mask6);
+  simd_mask<32> flip4 = esimd::unpack_mask<32>(0x0ff00ff0); //(init_mask4);
+  simd_mask<32> flip5 = esimd::unpack_mask<32>(0x33cc33cc); //(init_mask5);
+  simd_mask<32> flip6 = esimd::unpack_mask<32>(0x55aa55aa); //(init_mask6);
   A = bitonic_exchange4(B, flip4);
   B = bitonic_exchange2(A, flip5);
   A = bitonic_exchange1(B, flip6);
   // stage 3
-  simd_mask<32> flip7(init_mask7);
-  simd_mask<32> flip8(init_mask8);
-  simd_mask<32> flip9(init_mask9);
-  simd_mask<32> flip10(init_mask10);
+  simd_mask<32> flip7 = esimd::unpack_mask<32>(0x00ffff00);  //(init_mask7);
+  simd_mask<32> flip8 = esimd::unpack_mask<32>(0x0f0ff0f0);  //(init_mask8);
+  simd_mask<32> flip9 = esimd::unpack_mask<32>(0x3333cccc);  //(init_mask9);
+  simd_mask<32> flip10 = esimd::unpack_mask<32>(0x5555aaaa); //(init_mask10);
   B = bitonic_exchange8(A, flip7);
   A = bitonic_exchange4(B, flip8);
   B = bitonic_exchange2(A, flip9);
@@ -440,11 +356,10 @@ ESIMD_INLINE void cmk_bitonic_sort_256(AccTy1 buf1, AccTy2 buf2, uint32_t idx) {
     bitonic_merge(h_pos * BASE_SZ, A, i, i);
 
   // cmk_write writes out sorted data to the output buffer.
-  cmk_write<uint32_t, BASE_SZ, AccTy2>(buf2, offset, A);
+  cmk_write<uint32_t, BASE_SZ>(buf2, offset, A);
 }
 
-template <typename AccTy>
-ESIMD_INLINE void cmk_bitonic_merge(AccTy buf, uint32_t n, uint32_t m,
+ESIMD_INLINE void cmk_bitonic_merge(uint32_t *buf, uint32_t n, uint32_t m,
                                     uint32_t idx) {
   // threads are mapped to a 2D space. take 2D origin (x,y) and unfold them
   // to get the thread position in 1D space. use tid read the data chunks
@@ -474,9 +389,8 @@ ESIMD_INLINE void cmk_bitonic_merge(AccTy buf, uint32_t n, uint32_t m,
   ESIMD_UNROLL
   for (int i = 0; i < BASE_SZ; i += 32) {
     // byte offset
-    A.select<32, 1>(i) = cmk_read<uint32_t, 32, AccTy>(buf, (offset + i));
-    B.select<32, 1>(i) =
-        cmk_read<uint32_t, 32, AccTy>(buf, (offset + i + dist));
+    A.select<32, 1>(i) = cmk_read<uint32_t, 32>(buf, (offset + i));
+    B.select<32, 1>(i) = cmk_read<uint32_t, 32>(buf, (offset + i + dist));
     // compare 32 elements at a time and merge the result based on
     // the sorting direction
     simd<uint32_t, 32> T = A.select<32, 1>(i);
@@ -503,12 +417,12 @@ ESIMD_INLINE void cmk_bitonic_merge(AccTy buf, uint32_t n, uint32_t m,
     // because A's lifetime ends without interfering with
     // bitonic_merge(... B ...)
     bitonic_merge(offset, A, 7, m);
-    cmk_write<uint32_t, BASE_SZ, AccTy>(buf, offset, A);
+    cmk_write<uint32_t, BASE_SZ>(buf, offset, A);
     bitonic_merge(offset + dist, B, 7, m);
-    cmk_write<uint32_t, BASE_SZ, AccTy>(buf, (offset + dist), B);
+    cmk_write<uint32_t, BASE_SZ>(buf, (offset + dist), B);
   } else {
-    cmk_write<uint32_t, BASE_SZ, AccTy>(buf, offset, A);
-    cmk_write<uint32_t, BASE_SZ, AccTy>(buf, (offset + dist), B);
+    cmk_write<uint32_t, BASE_SZ>(buf, offset, A);
+    cmk_write<uint32_t, BASE_SZ>(buf, (offset + dist), B);
   }
 }
 
@@ -546,7 +460,10 @@ public:
 void BitonicSort::Setup(queue *pQ, uint32_t size) {
   size_ = size;
   pQueue_ = pQ;
-  pSortDirections_ = new uint32_t[size_ / base_sort_size_];
+  auto dev = pQueue_->get_device();
+  auto ctxt = pQueue_->get_context();
+  pSortDirections_ = static_cast<uint32_t *>(
+      malloc_shared(size_ * sizeof(int) / base_sort_size_, dev, ctxt));
   memset(pSortDirections_, 0, sizeof(uint32_t) * (size_ / base_sort_size_));
 
   pSortDirections_[0] = 0;
@@ -556,16 +473,19 @@ void BitonicSort::Setup(queue *pQ, uint32_t size) {
     }
   }
 
-  pInputs_ = new uint32_t[size_];
+  pInputs_ =
+      static_cast<uint32_t *>(malloc_shared(size_ * sizeof(int), dev, ctxt));
   for (uint32_t i = 0; i < size_; ++i) {
     pInputs_[i] = rand();
     // pInputs_[i] = rand() % (1 << 15);
   }
 
-  pActualOutputs_ = new uint32_t[size_];
+  pActualOutputs_ =
+      static_cast<uint32_t *>(malloc_shared(size_ * sizeof(int), dev, ctxt));
   memset(pActualOutputs_, 0, sizeof(uint32_t) * size_);
 
-  pExpectOutputs_ = new uint32_t[size_];
+  pExpectOutputs_ =
+      static_cast<uint32_t *>(malloc_shared(size_ * sizeof(int), dev, ctxt));
   memcpy(pExpectOutputs_, pInputs_, sizeof(uint32_t) * size_);
 }
 
@@ -599,6 +519,8 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   // Start Timer
   esimd_test::Timer timer;
   double start;
+  const bool profiling =
+      pQueue_->has_property<sycl::property::queue::enable_profiling>();
 
   // Launches the task on the GPU.
   double kernel_times = 0;
@@ -610,22 +532,15 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     num_iters = 2;
   }
 
-  const bool profiling =
-      pQueue_->has_property<property::queue::enable_profiling>();
-
   // num_iters + 1, iteration#0 is for warmup
   for (int iter = 0; iter <= num_iters; ++iter) {
+    // enqueue sort265 kernel
     try {
-      buffer<uint32_t, 1> bufi(pInputs, range<1>(size));
-      buffer<uint32_t, 1> bufo(pOutputs, range<1>(size));
-      // enqueue sort265 kernel
       auto e = pQueue_->submit([&](handler &cgh) {
-        auto acci = bufi.get_access<access::mode::read>(cgh);
-        auto acco = bufo.get_access<access::mode::write>(cgh);
         cgh.parallel_for<class Sort256>(
             SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
               using namespace sycl::ext::intel::esimd;
-              cmk_bitonic_sort_256(acci, acco, i);
+              cmk_bitonic_sort_256(pInputs, pOutputs, i);
             });
       });
       e.wait();
@@ -663,16 +578,15 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
         // compare-and-swap and then performs stride 128, 64, 32, 16, 8, 4, 2, 1
         // locally.
         for (int j = i; j >= 8; j--) {
-          buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
           mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
-            auto acc = buf.get_access<access::mode::read_write>(cgh);
             cgh.parallel_for<class Merge>(
                 MergeGlobalRange * MergeLocalRange,
                 [=](id<1> tid) SYCL_ESIMD_KERNEL {
                   using namespace sycl::ext::intel::esimd;
-                  cmk_bitonic_merge(acc, j, i, tid);
+                  cmk_bitonic_merge(pOutputs, j, i, tid);
                 });
           });
+          // mergeEvent[k].wait();
           k++;
         }
       }
@@ -701,17 +615,18 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
 }
 
 void BitonicSort::Teardown() {
-  delete[] pExpectOutputs_;
-  delete[] pInputs_;
-  delete[] pActualOutputs_;
-  delete[] pSortDirections_;
+  auto ctxt = pQueue_->get_context();
+  free(pExpectOutputs_, ctxt);
+  free(pInputs_, ctxt);
+  free(pActualOutputs_, ctxt);
+  free(pSortDirections_, ctxt);
 }
 
 int main(int argc, char *argv[]) {
   int size = 1 << LOG2_ELEMENTS;
   cout << "BitonicSort (" << size << ") Start..." << std::endl;
 
-  queue q = esimd_test::createQueue();
+  queue q = esimd_test::createQueue(/*inOrder*/ true);
 
   BitonicSort bitonicSort;
 
