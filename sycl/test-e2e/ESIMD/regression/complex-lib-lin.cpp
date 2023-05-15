@@ -5,8 +5,8 @@
 // device images, but at the same time it stated that they contain some kernels.
 // More details can be found in intel/llvm#4927.
 //
-// REQUIRES: linux,gpu
-// UNSUPPORTED: cuda || hip || esimd_emulator
+// REQUIRES: linux
+// UNSUPPORTED: esimd_emulator
 // TODO: running non-ESIMD kernels on esimd_emulator backend.
 //
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-sycl.cpp -c -o %t-lib-sycl.o
