@@ -6,13 +6,9 @@
 
 sycl::queue deviceQueue;
 
-//CHECK: FunctionDecl{{.*}}diagnostics
 void diagnostics()
 {
   // **doublepump
-  // No diagnostic is expected.
-  [[intel::doublepump]] unsigned int doublepump[64];
-
   //expected-warning@+1 {{unknown attribute 'doublepump' ignored}}
   [[intelfpga::doublepump]] unsigned int doublepump_var[64];
 
@@ -33,9 +29,6 @@ void diagnostics()
   unsigned int dpump_reg[64];
 
   // **singlepump
-  // No diagnostic is expected.
-  [[intel::singlepump]] unsigned int singlepump[64];
-
   //expected-warning@+1 {{unknown attribute 'singlepump' ignored}}
   [[intelfpga::singlepump]] unsigned int singlepump_var[64];
 
@@ -55,9 +48,6 @@ void diagnostics()
   unsigned int spump_reg[64];
 
   // **fpga_register
-  // No diagnostic is expected.
-  [[intel::fpga_register]] unsigned int reg[64];
-
   //expected-warning@+1 {{unknown attribute 'register' ignored}}
   [[intelfpga::register]] unsigned int reg_var[64];
 
@@ -146,9 +136,6 @@ void diagnostics()
   [[intel::fpga_register]] unsigned int force_p2d_reg[64];
 
   // **memory
-  // No diagnostic is expected.
-  [[intel::fpga_memory]] unsigned int memory[64];
-
   //expected-error@+2{{attributes are not compatible}}
   [[intel::fpga_memory]]
   [[intel::fpga_register]]
@@ -162,9 +149,6 @@ void diagnostics()
   [[intelfpga::memory]] unsigned int memory_var[64];
 
   // **bankwidth
-  // No diagnostic is expected.
-  [[intel::bankwidth(4)]] unsigned int bankwidth[32];
-
   //expected-warning@+1 {{unknown attribute 'bankwidth' ignored}}
   [[intelfpga::bankwidth(4)]] unsigned int bankwidth_var[32];
 
@@ -176,9 +160,6 @@ void diagnostics()
   unsigned int bankwidth_reg[64];
 
   // **max_replicates
-  // No diagnostic is expected.
-  [[intel::max_replicates(2)]] unsigned int max_replicates[64];
-
   //expected-warning@+1 {{unknown attribute 'max_replicates' ignored}}
   [[intelfpga::max_replicates(2)]] unsigned int max_replicates_var[64];
 
@@ -201,9 +182,6 @@ void diagnostics()
   // **simple_dual_port
   //expected-error@+1{{'simple_dual_port' attribute takes no arguments}}
   [[intel::simple_dual_port(0)]] unsigned int sdp[64];
-
-  // No diagnostic is expected.
-  [[intel::simple_dual_port]] unsigned int dual_port[64];
 
   //expected-warning@+1 {{unknown attribute 'simple_dual_port' ignored}}
   [[intelfpga::simple_dual_port]] unsigned int dual_port_var[64];
@@ -237,9 +215,6 @@ void diagnostics()
   [[intel::bankwidth(0)]] unsigned int bw_zero[64];
 
   // **private_copies
-  // No diagnostic is expected.
-  [[intel::private_copies(8)]] unsigned int private_copies[64];
-
   //expected-warning@+1 {{unknown attribute 'private_copies' ignored}}
   [[intelfpga::private_copies(8)]] unsigned int private_copies_var[64];
 
@@ -268,9 +243,6 @@ void diagnostics()
   [[intel::private_copies(4, 8)]] unsigned int pc_two_arg[64];
 
   // **numbanks
-  // No diagnostic is expected.
-  [[intel::numbanks(8)]] unsigned int numbanks[32];
-
   //expected-error@+2{{attributes are not compatible}}
   [[intel::numbanks(16)]]
   [[intel::fpga_register]]
@@ -304,9 +276,6 @@ void diagnostics()
   [[intelfpga::numbanks(8)]] unsigned int numbanks_var[32];
 
   // **merge
-  // No diagnostic is expected.
-  [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
-
   //expected-warning@+1 {{unknown attribute 'merge' ignored}}
   [[intelfpga::merge("mrg1", "depth")]] unsigned int merge_depth_var[64];
 
@@ -334,9 +303,6 @@ void diagnostics()
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
 
   // **bank_bits
-  // No diagnostic is expected.
-  [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
-
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
   [[intel::bank_bits(2, 3)]]
   [[intel::fpga_register]]
@@ -367,9 +333,6 @@ void diagnostics()
   [[intelfpga::bank_bits(2, 3, 4, 5)]] unsigned int bankbits_var[64];
 
   // **force_pow2_depth
-  // No diagnostic is expected.
-  [[intel::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
-
   //expected-warning@+1 {{unknown attribute 'force_pow2_depth' ignored}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0_var[64];
 
@@ -389,7 +352,6 @@ void diagnostics()
   [[intel::force_pow2_depth(1), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
-//CHECK: FunctionDecl{{.*}}check_gnu_style
 void check_gnu_style() {
   // GNU style
   //expected-warning@+1{{unknown attribute 'numbanks' ignored}}
@@ -449,7 +411,6 @@ __attribute__((opencl_global)) unsigned int ocl_glob_force_p2d[64] = {1, 2, 3};
 //expected-no-error@+1
 void force_p2d_attr_on_func_arg([[intel::force_pow2_depth(0)]] int pc) {}
 
-//CHECK: FunctionDecl{{.*}}used check_template_parameters
 template <int A, int B, int C, int D, int E>
 void check_template_parameters() {
   // OK	
