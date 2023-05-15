@@ -46,7 +46,7 @@ _Z13get_global_idmP15nativecpu_state(__attribute((address_space(0)))
 
 extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
 _Z13get_global_rangemP15nativecpu_state(__attribute((address_space(0)))
-                                     nativecpu_state *s) {
+                                        nativecpu_state *s) {
   return &(s->MGlobal_range[0]);
 }
 #undef __SYCL_HC_ATTRS

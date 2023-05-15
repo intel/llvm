@@ -6,29 +6,31 @@
 int main() {
   const size_t dim = 4;
   using dataT = std::tuple<size_t, size_t, size_t>;
-  sycl::range<3> NumOfWorkItems{dim,dim+1,dim+2};
+  sycl::range<3> NumOfWorkItems{dim, dim + 1, dim + 2};
   sycl::buffer<dataT, 3> Buffer(NumOfWorkItems);
 
   sycl::queue Queue;
-
 
   // Basic test for get_global_id and get_global_range,
   // we perform acc[id] = range on 3 dimensions.
   Queue.submit([&](sycl::handler &cgh) {
     sycl::accessor Accessor{Buffer, cgh, sycl::write_only};
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::item<3> WIid) {
-      Accessor[WIid[0]][WIid[1]][WIid[2]] = {WIid.get_range(0), WIid.get_range(1), WIid.get_range(2)};
+      Accessor[WIid[0]][WIid[1]][WIid[2]] = {
+          WIid.get_range(0), WIid.get_range(1), WIid.get_range(2)};
     });
   });
 
   sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 
   for (size_t I = 0; I < dim; I++) {
-    for(size_t J = 0; J < dim; J++) {
-      for(size_t K = 0; K < dim; K++){
+    for (size_t J = 0; J < dim; J++) {
+      for (size_t K = 0; K < dim; K++) {
         auto t = HostAccessor[I][J][K];
-        if(std::get<0>(t) != dim ||  std::get<1>(t) != dim+1 ||  std::get<2>(t) != dim+2) {
-          std::cout << "Mismatch at element " << I << ", " << J << ", " << K << "\n";
+        if (std::get<0>(t) != dim || std::get<1>(t) != dim + 1 ||
+            std::get<2>(t) != dim + 2) {
+          std::cout << "Mismatch at element " << I << ", " << J << ", " << K
+                    << "\n";
           return 1;
         }
       }
