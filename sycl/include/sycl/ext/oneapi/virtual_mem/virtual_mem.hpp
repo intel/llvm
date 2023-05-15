@@ -63,9 +63,6 @@ __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
                                    address_access_mode Mode,
                                    const context &SyclContext);
 
-__SYCL_EXPORT void set_inaccessible(const void *Ptr, size_t NumBytes,
-                                    const context &SyclContext);
-
 __SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
                                                   size_t NumBytes,
                                                   const context &SyclContext);
