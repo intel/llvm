@@ -61,7 +61,7 @@ struct UrPlatformGet {
 struct UrPlatformGetEmptyArray : UrPlatformGet {
     UrPlatformGetEmptyArray() : UrPlatformGet() {}
     const char *get_expected() {
-        return ".NumEntries = 0, .phPlatforms = \\[\\], .pNumPlatforms = "
+        return ".NumEntries = 0, .phPlatforms = \\{\\}, .pNumPlatforms = "
                "nullptr";
     };
 };
@@ -77,7 +77,7 @@ struct UrPlatformGetTwoPlatforms : UrPlatformGet {
         pNumPlatforms = &num_platforms;
     }
     const char *get_expected() {
-        return ".NumEntries = 2, .phPlatforms = \\[.+, .+\\], "
+        return ".NumEntries = 2, .phPlatforms = \\{.+, .+\\}, "
                ".pNumPlatforms = .+ \\(2\\)";
     };
 };
@@ -251,7 +251,7 @@ struct UrDeviceGetInfoParamsPartitionArray : UrDeviceGetInfoParams {
     const char *get_expected() {
         return ".hDevice = nullptr, .propName = "
                "UR_DEVICE_INFO_PARTITION_PROPERTIES, .propSize "
-               "= 24, .pPropValue = \\[4231, 4232, 4233\\], .pPropSizeRet = .+ "
+               "= 24, .pPropValue = \\{4231, 4232, 4233\\}, .pPropSizeRet = .+ "
                "\\(24\\)";
         // TODO: should resolve type values for ur_device_partition_property_t...
     };
@@ -298,7 +298,7 @@ struct UrContextGetInfoParamsDevicesArray : UrContextGetInfoParams {
     const char *get_expected() {
         return ".hContext = nullptr, .propName = "
                "UR_CONTEXT_INFO_DEVICES, .propSize "
-               "= 24, .pPropValue = \\[.+, .+, .+\\], .pPropSizeRet = .+ "
+               "= 24, .pPropValue = \\{.+, .+, .+\\}, .pPropSizeRet = .+ "
                "\\(24\\)";
     };
 };
