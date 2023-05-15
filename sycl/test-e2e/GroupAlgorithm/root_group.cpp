@@ -80,16 +80,19 @@ void testRootGroupFunctions() {
   q.parallel_for<class RootGroupFunctionsKernel>(
       range, props, [=](sycl::nd_item<1> it) {
         const auto root = it.ext_oneapi_get_root_group();
-        if (root.leader()) {
+        if (root.leader() || root.get_local_id() == 3) {
           testResults[0] = root.get_group_id() == sycl::id<1>(0);
-          testResults[1] = root.get_local_id() == sycl::id<1>(0);
+          testResults[1] = root.leader()
+                               ? root.get_local_id() == sycl::id<1>(0)
+                               : root.get_local_id() == sycl::id<1>(3);
           testResults[2] = root.get_group_range() == sycl::range<1>(1);
           testResults[3] =
               root.get_local_range() == sycl::range<1>(WorkGroupSize);
           testResults[4] =
               root.get_max_local_range() == sycl::range<1>(WorkGroupSize);
           testResults[5] = root.get_group_linear_id() == 0;
-          testResults[6] = root.get_local_linear_id() == 0;
+          testResults[6] =
+              root.get_local_linear_id() == root.get_local_id().get(0);
           testResults[7] = root.get_group_linear_range() == 1;
           testResults[8] = root.get_local_linear_range() == WorkGroupSize;
 
@@ -98,6 +101,10 @@ void testRootGroupFunctions() {
           const auto grandchild =
               sycl::ext::oneapi::experimental::get_child_group(child);
           testResults[9] = child == it.get_group();
+          static_assert(
+              std::is_same_v<std::remove_cv<decltype(grandchild)>::type,
+                             sycl::sub_group>,
+              "get_child_group(sycl::group) must return a sycl::subgroup");
         }
       });
   q.wait();
