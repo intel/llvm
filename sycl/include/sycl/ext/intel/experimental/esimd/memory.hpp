@@ -760,9 +760,7 @@ template <
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred);
 }
 
 template <
@@ -773,9 +771,8 @@ __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
            __ESIMD_NS::simd_mask<N> pred,
            __ESIMD_NS::simd<T, N * NElts> old_values) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), pred, old_values);
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred,
+                                               old_values);
 }
 
 template <typename T, int NElts = 1,
@@ -1432,9 +1429,7 @@ template <
 __ESIMD_API void lsc_prefetch(const T *p,
                               __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  lsc_prefetch<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
-                                          pred);
+  lsc_prefetch<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred);
 }
 
 template <typename T, int NElts = 1,
@@ -1722,9 +1717,7 @@ __ESIMD_API void lsc_scatter(T *p,
                              __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                              __ESIMD_NS::simd<T, N * NElts> vals,
                              __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  lsc_scatter<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
-                                         vals, pred);
+  lsc_scatter<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), vals, pred);
 }
 
 template <typename T, int NElts = 1,
@@ -2366,9 +2359,9 @@ public:
   /// </summary>
   /// <returns>surface base address</returns>
   T *get_data_pointer() const {
-    return (T *)(const_cast<config_2d_mem_access *>(this)
-                     ->payload_data.template bit_cast_view<uint64_t>()
-                     .template select<1, 1>(0));
+    return (T *)((
+        uint64_t)(const_cast<config_2d_mem_access *>(this)
+                      ->payload_data.template bit_cast_view<uint64_t>()[0]));
   }
 
   /// <summary>
@@ -2877,9 +2870,7 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
@@ -2956,9 +2947,8 @@ __ESIMD_API std::enable_if_t<
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd<T, N> src0,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), src0, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), src0,
+                                                   pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
@@ -3041,9 +3031,8 @@ __ESIMD_API std::enable_if_t<
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), src0, src1, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), src0,
+                                                   src1, pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
@@ -3081,16 +3070,18 @@ lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -3135,16 +3126,18 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -3191,17 +3184,18 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
 #else
-  static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -3281,7 +3275,9 @@ namespace esimd {
 /// <tt>native::lsc::atomic_op</tt> instead of <tt>atomic_op</tt> as atomic
 /// operation template argument.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0,
+                             simd<T, N>>
 atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, mask);
@@ -3289,7 +3285,9 @@ atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask) {
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0,
+                             simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
               simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
@@ -3307,8 +3305,10 @@ atomic_update(T *p, Toffset offset, simd_mask<N> mask = 1) {
 
 /// LSC version of the single-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API __ESIMD_API
-    std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1,
+                                 simd<T, N>>
     atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0,
                   simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
@@ -3317,8 +3317,10 @@ __ESIMD_API __ESIMD_API
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_API
-    std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1,
+                                 simd<T, N>>
     atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
@@ -3336,7 +3338,9 @@ atomic_update(T *p, Toffset offset, simd<T, N> src0, simd_mask<N> mask = 1) {
 
 /// LSC version of the two-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2,
+                             simd<T, N>>
 atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0, simd<T, N> src1,
               simd_mask<N> mask) {
   // 2-argument lsc_atomic_update arguments order matches the standard one -
@@ -3348,7 +3352,9 @@ atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0, simd<T, N> src1,
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2,
+                             simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
@@ -3363,6 +3369,122 @@ atomic_update(T *p, Toffset offset, simd<T, N> src0, simd<T, N> src1,
               simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offsets, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, mask);
+}
+
+/// LSC version of the single-argument atomic update.
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                     !std::is_pointer<AccessorTy>::value,
+                                 simd<T, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
+                  simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
+          typename AccessorTy>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                     !std::is_pointer<AccessorTy>::value,
+                                 simd<T, N>>
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+                  simd<T, N> src0, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offsets, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0,
+              simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src0, mask);
+}
+
+/// LSC version of the two-argument atomic update.
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
+              simd<T, N> src1, simd_mask<N> mask) {
+  // 2-argument lsc_atomic_update arguments order matches the standard one -
+  // expected value first, then new value. But atomic_update uses reverse
+  // order, hence the src1/src0 swap.
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offsets, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             __ESIMD_NS::simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0, simd<T, N> src1,
+              simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src1, src0, mask);
 }
 
 /// RAII-style class used to implement "semi-dynamic" SLM allocation.
