@@ -7249,7 +7249,14 @@ static uint32_t USMAllocationForceResidency = [] {
   const char *UrRet = std::getenv("UR_L0_USM_RESIDENT");
   const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
   const char *Str = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-  return Str ? std::atoi(Str) : 0x2;
+  try {
+    if (Str) {
+      // Auto-detect radix to allow more convinient hex base
+      return std::stoi(Str, nullptr, 0);
+    }
+  } catch (...) {
+  }
+  return 0x2;
 }();
 
 // Convert from an integer value to USMAllocationForceResidencyType enum value
@@ -7284,7 +7291,6 @@ USMAllocationMakeResident(USMAllocationForceResidencyType ForceResidency,
                           pi_context Context,
                           pi_device Device, // nullptr for host allocation
                           void *Ptr, size_t Size) {
-
   if (ForceResidency == USMAllocationForceResidencyType::None)
     return PI_SUCCESS;
 
