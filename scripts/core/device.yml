@@ -679,6 +679,19 @@ params:
       desc: |
             [out] a pointer to the native handle of the device.
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Native device creation properties"
+class: $xDevice
+name: $x_device_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: >
+          [in] Indicates UR owns the native handle or if it came from an
+          interoperability operation in the application that asked to not
+          transfer the ownership to the unified-runtime.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime device object from native device handle."
 class: $xDevice
@@ -692,15 +705,16 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeDevice
-      desc: |
-            [in] the native handle of the device.
+      desc: "[in] the native handle of the device."
     - type: $x_platform_handle_t
       name: hPlatform
       desc: "[in] handle of the platform instance"
+    - type: const $x_device_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native device properties struct."
     - type: "$x_device_handle_t*"
       name: phDevice
-      desc: |
-            [out] pointer to the handle of the device object created.
+      desc: "[out] pointer to the handle of the device object created."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Returns synchronized Host and Device global timestamps."

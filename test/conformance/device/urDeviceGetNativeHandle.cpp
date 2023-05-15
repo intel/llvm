@@ -14,8 +14,8 @@ TEST_F(urDeviceGetNativeHandleTest, Success) {
         // We can however convert the native_handle back into a unified-runtime handle
         // and perform some query on it to verify that it works.
         ur_device_handle_t dev = nullptr;
-        ASSERT_SUCCESS(
-            urDeviceCreateWithNativeHandle(native_handle, platform, &dev));
+        ASSERT_SUCCESS(urDeviceCreateWithNativeHandle(native_handle, platform,
+                                                      nullptr, &dev));
         ASSERT_NE(dev, nullptr);
 
         uint32_t dev_id = 0;

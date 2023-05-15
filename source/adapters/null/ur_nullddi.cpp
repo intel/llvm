@@ -442,6 +442,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
     ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    const ur_device_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
         *phDevice ///< [out] pointer to the handle of the device object created.
     ) try {
@@ -451,7 +453,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     auto pfnCreateWithNativeHandle =
         d_context.urDdiTable.Device.pfnCreateWithNativeHandle;
     if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform, phDevice);
+        result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
+                                           pProperties, phDevice);
     } else {
         // generic implementation
         *phDevice = reinterpret_cast<ur_device_handle_t>(d_context.get());

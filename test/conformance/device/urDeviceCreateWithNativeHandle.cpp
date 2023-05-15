@@ -8,5 +8,5 @@ TEST_F(urDeviceCreateWithNativeHandleTest, InvalidNullHandleNativeDevice) {
     ur_device_handle_t device = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urDeviceCreateWithNativeHandle(nullptr, platform, &device));
+        urDeviceCreateWithNativeHandle(nullptr, platform, nullptr, &device));
 }
