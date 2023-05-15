@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %BE_RUN_PLACEHOLDER %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>

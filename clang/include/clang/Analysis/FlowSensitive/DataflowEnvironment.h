@@ -179,18 +179,6 @@ public:
   /// with a symbolic representation of the `this` pointee.
   Environment(DataflowAnalysisContext &DACtx, const DeclContext &DeclCtx);
 
-  LLVM_DEPRECATED("Use getDataflowAnalysisContext().getOptions() instead.", "")
-  const DataflowAnalysisContext::Options &getAnalysisOptions() const {
-    return DACtx->getOptions();
-  }
-
-  LLVM_DEPRECATED("Use getDataflowAnalysisContext().arena() instead.", "")
-  Arena &arena() const { return DACtx->arena(); }
-
-  LLVM_DEPRECATED("Use getDataflowAnalysisContext().getOptions().Log instead.",
-                  "")
-  Logger &logger() const { return *DACtx->getOptions().Log; }
-
   /// Creates and returns an environment to use for an inline analysis  of the
   /// callee. Uses the storage location from each argument in the `Call` as the
   /// storage location for the corresponding parameter in the callee.
@@ -269,13 +257,19 @@ public:
   ///
   /// Requirements:
   ///
-  ///  `D` must not be assigned a storage location in the environment.
+  ///  `D` must not already have a storage location in the environment.
+  ///
+  ///  If `D` has reference type, `Loc` must refer directly to the referenced
+  ///  object (if any), not to a `ReferenceValue`, and it is not permitted to
+  ///  later change `Loc` to refer to a `ReferenceValue.`
   void setStorageLocation(const ValueDecl &D, StorageLocation &Loc);
 
-  /// Returns the storage location assigned to `D` in the environment, applying
-  /// the `SP` policy for skipping past indirections, or null if `D` isn't
-  /// assigned a storage location in the environment.
-  StorageLocation *getStorageLocation(const ValueDecl &D, SkipPast SP) const;
+  /// Returns the storage location assigned to `D` in the environment, or null
+  /// if `D` isn't assigned a storage location in the environment.
+  ///
+  /// Note that if `D` has reference type, the storage location that is returned
+  /// refers directly to the referenced object, not a `ReferenceValue`.
+  StorageLocation *getStorageLocation(const ValueDecl &D) const;
 
   /// Assigns `Loc` as the storage location of `E` in the environment.
   ///
@@ -320,7 +314,11 @@ public:
 
   /// Equivalent to `getValue(getStorageLocation(D, SP), SkipPast::None)` if `D`
   /// is assigned a storage location in the environment, otherwise returns null.
-  Value *getValue(const ValueDecl &D, SkipPast SP) const;
+  ///
+  /// The `SP` parameter is deprecated and has no effect. In addition, it is
+  /// not permitted to pass `SkipPast::ReferenceThenPointer` for this parameter.
+  /// New uses of this function should use the default argument for `SP`.
+  Value *getValue(const ValueDecl &D, SkipPast SP = SkipPast::None) const;
 
   /// Equivalent to `getValue(getStorageLocation(E, SP), SkipPast::None)` if `E`
   /// is assigned a storage location in the environment, otherwise returns null.
@@ -411,14 +409,6 @@ public:
   /// `Callee` (i.e. if `pushCall` can be used), with recursion disallowed and a
   /// given `MaxDepth`.
   bool canDescend(unsigned MaxDepth, const DeclContext *Callee) const;
-
-  /// Returns the `ControlFlowContext` registered for `F`, if any. Otherwise,
-  /// returns null.
-  LLVM_DEPRECATED(
-      "Use getDataflowAnalysisContext().getControlFlowContext(F) instead.", "")
-  const ControlFlowContext *getControlFlowContext(const FunctionDecl *F) {
-    return DACtx->getControlFlowContext(F);
-  }
 
   /// Returns the `DataflowAnalysisContext` used by the environment.
   DataflowAnalysisContext &getDataflowAnalysisContext() const { return *DACtx; }

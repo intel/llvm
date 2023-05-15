@@ -226,14 +226,80 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
+static inline unsigned F2I32(float Val) {
+  union {
+    float FVal;
+    unsigned I32Val;
+  } Internal;
+  Internal.FVal = Val;
+  return Internal.I32Val;
+}
+
+static inline unsigned long long D2I64(double Val) {
+  union {
+    double DVal;
+    unsigned long long I64Val;
+  } Internal;
+  Internal.DVal = Val;
+  return Internal.I64Val;
+}
+
 template <typename T>
-inline typename std::enable_if_t<
-    std::is_same_v<T, float> || std::is_same_v<T, double>, unsigned>
+inline typename detail::enable_if_t<
+    std::is_same<T, float>::value || std::is_same<T, double>::value, bool>
+isFastMathInf(T Val) {
+  if constexpr (sizeof(Val) == 4) {
+    return (F2I32(Val) & 0x7fffffff) == 0x7f800000;
+  } else if constexpr (sizeof(Val) == 8) {
+    return (D2I64(Val) & -1ULL >> 1) == 0x7ffULL << 52;
+  }
+
+  return false;
+}
+
+template <typename T>
+inline typename detail::enable_if_t<
+    std::is_same<T, float>::value || std::is_same<T, double>::value, bool>
+isFastMathNan(T Val) {
+  if constexpr (sizeof(Val) == 4) {
+    return (F2I32(Val) & 0x7fffffff) > 0x7f800000;
+  } else if constexpr (sizeof(Val) == 8) {
+    return (D2I64(Val) & -1ULL >> 1) > 0x7ffULL << 52;
+  }
+
+  return false;
+}
+
+template <typename T>
+inline typename detail::enable_if_t<
+    std::is_same<T, float>::value || std::is_same<T, double>::value, bool>
+isFastMathSignBit(T Val) {
+  if constexpr (sizeof(Val) == 4) {
+    return F2I32(Val) >> 31;
+  } else if constexpr (sizeof(Val) == 8) {
+    return D2I64(Val) >> 63;
+  }
+
+  return false;
+}
+
+template <typename T>
+typename detail::enable_if_t<
+    std::is_same<T, float>::value || std::is_same<T, double>::value, unsigned>
 checkForInfNan(char *Buf, T Val) {
+#ifdef __FAST_MATH__
+  if (isFastMathNan(Val))
+#else
   if (isnan(Val))
+#endif
     return append(Buf, "nan");
+#ifdef __FAST_MATH__
+  if (isFastMathInf(Val)) {
+    if (isFastMathSignBit(Val))
+#else
   if (isinf(Val)) {
     if (signbit(Val))
+#endif
       return append(Buf, "-inf");
     return append(Buf, "inf");
   }

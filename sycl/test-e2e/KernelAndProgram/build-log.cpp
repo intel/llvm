@@ -1,5 +1,5 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip || ze_debug4 || ze_debug-1
+// UNSUPPORTED: cuda || hip || ze_debug
 
 // RUN: %{build} -DGPU -o %t_gpu.out
 // RUN: %{build} -o %t.out
