@@ -57,7 +57,7 @@ from templates import helper as th
     %endif
     ## can't iterate over 'void *'...
     %if th.param_traits.is_range(item) and "void*" not in itype:
-        os << ".${iname} = [";
+        os << ".${iname} = {";
         for (size_t i = ${th.param_traits.range_start(item)}; ${deref}(params${access}${pname}) != NULL && i < ${deref}params${access}${prefix + th.param_traits.range_end(item)}; ++i) {
             if (i != 0) {
                 os << ", ";
@@ -66,7 +66,7 @@ from templates import helper as th
                 (${deref}(params${access}${pname}))[i]
             </%call>
         }
-        os << "]";
+        os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
         ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
@@ -162,7 +162,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                         %if "char" in atype: ## print char* arrays as simple NULL-terminated strings
                             serializePtr(os, tptr);
                         %else:
-                            os << "[";
+                            os << "{";
                             size_t nelems = size / sizeof(${atype});
                             for (size_t i = 0; i < nelems; ++i) {
                                 if (i != 0) {
@@ -172,7 +172,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                                     tptr[i]
                                 </%call>
                             }
-                            os << "]";
+                            os << "}";
                         %endif
                     %else:
                     const ${vtype} *tptr = (const ${vtype} *)ptr;
