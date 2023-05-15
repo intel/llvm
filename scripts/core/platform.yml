@@ -148,6 +148,19 @@ params:
       desc: |
             [out] a pointer to the native handle of the platform.
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Native platform creation properties"
+class: $xPlatform
+name: $x_platform_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: >
+          [in] Indicates UR owns the native handle or if it came from an
+          interoperability operation in the application that asked to not
+          transfer the ownership to the unified-runtime.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime platform object from native platform handle."
 class: $xPlatform
@@ -161,12 +174,13 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativePlatform
-      desc: |
-            [in] the native handle of the platform.
+      desc: "[in] the native handle of the platform."
+    - type: const $x_platform_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native platform properties struct."
     - type: "$x_platform_handle_t*"
       name: phPlatform
-      desc: |
-            [out] pointer to the handle of the platform object created.
+      desc: "[out] pointer to the handle of the platform object created."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get the platform specific compiler backend option from a generic frontend option."

@@ -220,6 +220,7 @@ class ur_structure_type_v(IntEnum):
     QUEUE_NATIVE_PROPERTIES = 18                    ## ::ur_queue_native_properties_t
     MEM_NATIVE_PROPERTIES = 19                      ## ::ur_mem_native_properties_t
     EVENT_NATIVE_PROPERTIES = 20                    ## ::ur_event_native_properties_t
+    PLATFORM_NATIVE_PROPERTIES = 21                 ## ::ur_platform_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -309,6 +310,18 @@ class ur_api_version_t(c_int):
     def __str__(self):
         return str(ur_api_version_v(self.value))
 
+
+###############################################################################
+## @brief Native platform creation properties
+class ur_platform_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an
+                                                                        ## interoperability operation in the application that asked to not
+                                                                        ## transfer the ownership to the unified-runtime.
+    ]
 
 ###############################################################################
 ## @brief Identifies native backend adapters
@@ -1755,9 +1768,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urPlatformCreateWithNativeHandle
 if __use_win_types:
-    _urPlatformCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_handle_t) )
+    _urPlatformCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_native_properties_t), POINTER(ur_platform_handle_t) )
 else:
-    _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_handle_t) )
+    _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_native_properties_t), POINTER(ur_platform_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urPlatformGetApiVersion

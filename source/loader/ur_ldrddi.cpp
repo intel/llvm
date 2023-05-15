@@ -239,6 +239,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in] the native handle of the platform.
+    const ur_platform_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
         phPlatform ///< [out] pointer to the handle of the platform object created.
 ) {
@@ -258,7 +260,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         reinterpret_cast<ur_native_object_t *>(hNativePlatform)->handle;
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativePlatform, phPlatform);
+    result =
+        pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

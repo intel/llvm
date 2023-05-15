@@ -304,6 +304,8 @@ etors:
       desc: $x_mem_native_properties_t
     - name: EVENT_NATIVE_PROPERTIES
       desc: $x_event_native_properties_t
+    - name: PLATFORM_NATIVE_PROPERTIES
+      desc: $x_platform_native_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
