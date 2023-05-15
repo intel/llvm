@@ -44,7 +44,6 @@ namespace {
 
 
 void fixCallingConv(Function* F) {
-  llvm::errs() << "fixing " << F->getName() << "\n";
   F->setCallingConv(llvm::CallingConv::C);
   // The frame-pointer=all and the "byval" attributes lead to code generation
   // that conflicts with the Kernel declaration that we emit in the Native CPU
