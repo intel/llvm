@@ -21,11 +21,11 @@ int main() {
              acc[id[1]] = 42;
             });
       });
-  sycl::nd_range<2> r3({1,1},{1,1,},{1,1});
+  sycl::nd_range<3> r3({1,1,1},{1,1,1});
   deviceQueue.submit([&](sycl::handler& h){
         
-        h.parallel_for<Test3>(r3, [=](sycl::id<3> id){
-             acc[id[2]] = 42;
+        h.parallel_for<Test3>(r3, [=](sycl::item<3> item){
+             acc[item[2]] = item.get_range(0);
             });
       });
 }
@@ -35,11 +35,12 @@ int main() {
 // We disable index flipping for SYCL Native CPU, so id.get_global_id(1) maps to 
 // dimension 1 for a 2-D kernel (as opposed to dim 0), etc
 
-// CHECK: @_Z5Test1(ptr %0, ptr %1, ptr %2)
+// CHECK: @_Z5Test1(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
 // CHECK: call{{.*}}_Z13get_global_idmP15nativecpu_state(ptr %2)
 
-// CHECK: @_Z5Test2(ptr %0, ptr %1, ptr %2)
+// CHECK: @_Z5Test2(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
 // CHECK: call{{.*}}_Z13get_global_idmP15nativecpu_state(ptr %2)
 
-// CHECK: @_Z5Test3(ptr %0, ptr %1, ptr %2)
+// CHECK: @_Z5Test3(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
+// CHECK: call{{.*}}_Z13get_global_rangemP15nativecpu_state(ptr %2)
 // CHECK: call{{.*}}_Z13get_global_idmP15nativecpu_state(ptr %2)

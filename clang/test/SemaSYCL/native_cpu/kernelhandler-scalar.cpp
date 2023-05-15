@@ -88,10 +88,10 @@ int main() {
 // CHECK-NEXT:};
 
 
-// CHECK-LL-DAG: @_Z6init_aIiE(ptr %0, ptr %1, i32 %2, ptr %3){{.*}}!kernel_arg_type ![[TYPE1:[0-9]*]]
-// CHECK-LL-DAG: @_Z6init_aIjE(ptr %0, ptr %1, i32 %2, ptr %3){{.*}}!kernel_arg_type ![[TYPE2:[0-9]*]]
-// CHECK-LL-DAG: @_Z6init_aIfE(ptr %0, ptr %1, float %2, ptr %3){{.*}}!kernel_arg_type ![[TYPE3:[0-9]*]]
-// CHECK-LL-DAG: @_Z6init_aIdE(ptr %0, ptr %1, double %2, ptr %3){{.*}}!kernel_arg_type ![[TYPE4:[0-9]*]]
+// CHECK-LL-DAG: @_Z6init_aIiE(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE1:[0-9]*]]
+// CHECK-LL-DAG: @_Z6init_aIjE(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE2:[0-9]*]]
+// CHECK-LL-DAG: @_Z6init_aIfE(ptr {{.*}}%0, ptr {{.*}}%1, float {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE3:[0-9]*]]
+// CHECK-LL-DAG: @_Z6init_aIdE(ptr {{.*}}%0, ptr {{.*}}%1, double {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE4:[0-9]*]]
 // CHECK-LL-DAG: ![[TYPE1]] = !{!"int*", !"sycl::range<>", !"sycl::range<>", !"sycl::id<>", !"int"}
 // CHECK-LL-DAG: ![[TYPE2]] = !{!"uint*", !"sycl::range<>", !"sycl::range<>", !"sycl::id<>", !"unsigned int"}
 // CHECK-LL-DAG: ![[TYPE3]] = !{!"float*", !"sycl::range<>", !"sycl::range<>", !"sycl::id<>", !"float"}
