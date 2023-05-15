@@ -332,7 +332,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(&hProgram->binarySizeInBytes_, 1);
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->binary_, 1);
-  case UR_PROGRAM_INFO_NUM_KERNELS:
+  case UR_PROGRAM_INFO_KERNEL_NAMES:
     return getKernelNames(hProgram);
   default:
     break;
