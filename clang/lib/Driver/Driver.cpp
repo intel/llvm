@@ -1204,32 +1204,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
-          // Warn about deprecated `sycldevice` environment component.
-          llvm::Triple TT(MakeSYCLDeviceTriple(UserTargetName));
-          if (TT.getEnvironmentName() == "sycldevice") {
-            // Build a string with suggested target triple.
-            std::string SuggestedTriple = TT.getArchName().str();
-            if (TT.getOS() != llvm::Triple::UnknownOS) {
-              SuggestedTriple += '-';
-              if (TT.getVendor() != llvm::Triple::UnknownVendor)
-                SuggestedTriple += TT.getVendorName();
-              SuggestedTriple += Twine("-" + TT.getOSName()).str();
-            } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
-              SuggestedTriple += Twine("-" + TT.getVendorName()).str();
-            Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << SuggestedTriple;
-            // Drop environment component.
-            std::string EffectiveTriple =
-                Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
-                      TT.getOSName())
-                    .str();
-            TT.setTriple(EffectiveTriple);
-          }
-
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(TT);
+          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1734,8 +1712,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
   ModulesModeCXX20 =
       !Args.hasArg(options::OPT_fmodules) && Std &&
-      (Std->containsValue("c++20") || Std->containsValue("c++2b") ||
-       Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      (Std->containsValue("c++20") || Std->containsValue("c++2a") ||
+       Std->containsValue("c++23") || Std->containsValue("c++2b") ||
+       Std->containsValue("c++latest"));
 
   // Process -fmodule-header{=} flags.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,

@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to random timeouts
 // UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out

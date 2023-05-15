@@ -1,7 +1,7 @@
+// REQUIRES: fusion
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion, aspect-usm_shared_allocations
 
 // Test complete fusion where one kernel in the fusion list specifies an
 // explicit dependency (via events) on another kernel in the fusion list.

@@ -151,9 +151,11 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
   SPIRVBasicBlock *BB = DV->getBasicBlock();
   Value *Val = DbgValue->getVariableLocationOp(0);
   DIExpression *Expr = DbgValue->getExpression();
-  if (DbgValue->getNumVariableLocationOps() > 1) {
-    Val = UndefValue::get(Val->getType());
-    Expr = DIExpression::get(M->getContext(), {});
+  if (!isNonSemanticDebugInfo()) {
+    if (DbgValue->getNumVariableLocationOps() > 1) {
+      Val = UndefValue::get(Val->getType());
+      Expr = DIExpression::get(M->getContext(), {});
+    }
   }
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount);
@@ -1341,17 +1343,44 @@ SPIRVExtInst *LLVMToSPIRVDbgTran::getSource(const T *DIEntry) {
     return It->second;
 
   using namespace SPIRVDebug::Operand::Source;
-  SPIRVWordVec Ops(OperandCount);
+  SPIRVWordVec Ops(MinOperandCount);
   Ops[FileIdx] = BM->getString(FileName)->getId();
   DIFile *F = DIEntry ? DIEntry->getFile() : nullptr;
-  if (F && F->getRawChecksum()) {
+
+  if (F && F->getRawChecksum() && !isNonSemanticDebugInfo()) {
     auto CheckSum = F->getChecksum().value();
-    Ops[TextIdx] = BM->getString("//__" + CheckSum.getKindAsString().str() +
-                                 ":" + CheckSum.Value.str())
-                       ->getId();
-  } else {
-    Ops[TextIdx] = getDebugInfoNone()->getId();
+    Ops.push_back(BM->getString("//__" + CheckSum.getKindAsString().str() +
+                                ":" + CheckSum.Value.str())
+                      ->getId());
   }
+
+  if (F && F->getRawSource() && isNonSemanticDebugInfo()) {
+    std::string Str = F->getSource().value().str();
+    constexpr size_t MaxNumWords =
+        MaxWordCount - 2 /*Fixed WC for SPIRVString*/;
+    constexpr size_t MaxStrSize = MaxNumWords * 4 - 1;
+    const size_t NumWords = getSizeInWords(Str);
+
+    Ops.push_back(BM->getString(Str.substr(0, MaxStrSize))->getId());
+    SPIRVExtInst *Source = static_cast<SPIRVExtInst *>(
+        BM->addDebugInfo(SPIRVDebug::Source, getVoidTy(), Ops));
+    FileMap[FileName] = Source;
+    Str.erase(0, MaxStrSize);
+
+    // No need to generate source continued instructions
+    if (NumWords < MaxNumWords)
+      return Source;
+
+    uint64_t NumOfContinuedInstructions =
+        NumWords / MaxNumWords - 1 + (NumWords % MaxNumWords ? 1 : 0);
+    for (uint64_t J = 0; J < NumOfContinuedInstructions; J++) {
+      SPIRVWord Op = BM->getString(Str.substr(0, MaxStrSize))->getId();
+      BM->addDebugInfo(SPIRVDebug::SourceContinued, getVoidTy(), {Op});
+      Str.erase(0, MaxStrSize);
+    }
+    return Source;
+  }
+
   SPIRVExtInst *Source = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::Source, getVoidTy(), Ops));
   FileMap[FileName] = Source;
