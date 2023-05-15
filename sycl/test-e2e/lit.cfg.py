@@ -42,6 +42,20 @@ possibly_dangerous_env_vars = ['COMPILER_PATH', 'RC_DEBUG_OPTIONS',
                                'LIBCLANG_BGPRIO_EDIT', 'LIBCLANG_NOTHREADS',
                                'LIBCLANG_RESOURCE_USAGE',
                                'LIBCLANG_CODE_COMPLETION_LOGGING']
+
+if not config.sycl_be:
+     lit_config.error("SYCL backend is not specified")
+
+# Replace deprecated backend names
+deprecated_names_mapping = {'cuda'       : 'ext_oneapi_cuda',
+                            'hip'        : 'ext_oneapi_hip',
+                            'level_zero' : 'ext_oneapi_level_zero',
+                            'esimd_cpu'  : 'ext_intel_esimd_emulator'}
+if config.sycl_be in deprecated_names_mapping.keys():
+    config.sycl_be = deprecated_names_mapping[config.sycl_be]
+
+lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
+
 # Clang/Win32 may refer to %INCLUDE%. vsvarsall.bat sets it.
 if platform.system() != 'Windows':
     possibly_dangerous_env_vars.append('INCLUDE')
@@ -256,25 +270,6 @@ if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 
 config.substitutions.append( ('%gpu_aot_target_opts',  config.gpu_aot_target_opts ) )
-
-if not config.sycl_be:
-     lit_config.error("SYCL backend is not specified")
-
-# Transforming from SYCL_BE backend definition style to SYCL_DEVICE_FILTER used
-# for backward compatibility : e.g. 'PI_ABC_XYZ' -> 'abc_xyz'
-if config.sycl_be.startswith("PI_"):
-    config.sycl_be = config.sycl_be[3:]
-config.sycl_be = config.sycl_be.lower()
-
-# Replace deprecated backend names
-deprecated_names_mapping = {'cuda'       : 'ext_oneapi_cuda',
-                            'hip'        : 'ext_oneapi_hip',
-                            'level_zero' : 'ext_oneapi_level_zero',
-                            'esimd_cpu'  : 'ext_intel_esimd_emulator'}
-if config.sycl_be in deprecated_names_mapping.keys():
-    config.sycl_be = deprecated_names_mapping[config.sycl_be]
-
-lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 
 # Use short names for LIT rules
 config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))

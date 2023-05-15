@@ -202,7 +202,7 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
-            MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
                 &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
@@ -829,9 +829,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      detail::RT::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
-  Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
-                                                   InfoQuery, sizeof(pi_bool),
-                                                   &SupportsOp, nullptr);
+  Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
+                                                    InfoQuery, sizeof(pi_bool),
+                                                    &SupportsOp, nullptr);
   return SupportsOp;
 }
 

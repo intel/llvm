@@ -62,11 +62,11 @@ TEST(PiMockTest, ConstructFromQueue) {
   }
 
   const auto &NormalPiPlugin =
-      detail::getSyclObjImpl(NormalQ)->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(NormalQ)->getPlugin()->getPiPlugin();
   const auto &MockedQueuePiPlugin =
-      detail::getSyclObjImpl(MockQ)->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(MockQ)->getPlugin()->getPiPlugin();
   const auto &PiMockPlugin =
-      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin()->getPiPlugin();
   EXPECT_EQ(&MockedQueuePiPlugin, &PiMockPlugin)
       << "The mocked object and the PiMock instance must share the same plugin";
   EXPECT_EQ(&NormalPiPlugin, &MockedQueuePiPlugin)
@@ -79,11 +79,11 @@ TEST(PiMockTest, ConstructFromPlatform) {
   platform NormalPlatform(default_selector{});
 
   const auto &NormalPiPlugin =
-      detail::getSyclObjImpl(NormalPlatform)->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(NormalPlatform)->getPlugin()->getPiPlugin();
   const auto &MockedPlatformPiPlugin =
-      detail::getSyclObjImpl(MockPlatform)->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(MockPlatform)->getPlugin()->getPiPlugin();
   const auto &PiMockPlugin =
-      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin()->getPiPlugin();
   EXPECT_EQ(&MockedPlatformPiPlugin, &PiMockPlugin)
       << "The mocked object and the PiMock instance must share the same plugin";
   EXPECT_EQ(&NormalPiPlugin, &MockedPlatformPiPlugin)
@@ -93,7 +93,7 @@ TEST(PiMockTest, ConstructFromPlatform) {
 TEST(PiMockTest, RedefineAPI) {
   sycl::unittest::PiMock Mock;
   const auto &MockPiPlugin =
-      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin()->getPiPlugin();
   const auto &Table = MockPiPlugin.PiFunctionTable;
 
   // Pass a function pointer
@@ -130,7 +130,7 @@ TEST(PiMockTest, RedefineAfterAPI) {
   sycl::unittest::PiMock Mock;
 
   const auto &MockPiPlugin =
-      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin()->getPiPlugin();
   const auto &Table = MockPiPlugin.PiFunctionTable;
 
   // Pass a function pointer
@@ -151,7 +151,7 @@ TEST(PiMockTest, RedefineBeforeAPI) {
   sycl::unittest::PiMock Mock;
 
   const auto &MockPiPlugin =
-      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
+      detail::getSyclObjImpl(Mock.getPlatform())->getPlugin()->getPiPlugin();
   const auto &Table = MockPiPlugin.PiFunctionTable;
 
   // Pass a function pointer
