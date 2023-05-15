@@ -98,6 +98,10 @@ add_sycl_plugin(hip
 )
 set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
+if (not WIN32)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-cpp")
+endif()
+
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   # Import HIP runtime library
   add_library(rocmdrv SHARED IMPORTED GLOBAL)
