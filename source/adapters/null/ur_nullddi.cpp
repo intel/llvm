@@ -1594,6 +1594,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
         hNativeProgram,           ///< [in] the native handle of the program.
     ur_context_handle_t hContext, ///< [in] handle of the context instance
+    const ur_program_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native program properties struct.
     ur_program_handle_t *
         phProgram ///< [out] pointer to the handle of the program object created.
     ) try {
@@ -1603,7 +1605,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     auto pfnCreateWithNativeHandle =
         d_context.urDdiTable.Program.pfnCreateWithNativeHandle;
     if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeProgram, hContext, phProgram);
+        result = pfnCreateWithNativeHandle(hNativeProgram, hContext,
+                                           pProperties, phProgram);
     } else {
         // generic implementation
         *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());

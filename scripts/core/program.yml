@@ -494,6 +494,19 @@ params:
       desc: |
             [out] a pointer to the native handle of the program.
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Native program creation properties"
+class: $xProgram
+name: $x_program_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: >
+          [in] Indicates UR owns the native handle or if it came from an
+          interoperability operation in the application that asked to not
+          transfer the ownership to the unified-runtime.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime program object from native program handle."
 class: $xProgram
@@ -507,12 +520,13 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeProgram
-      desc: |
-            [in] the native handle of the program.
+      desc: "[in] the native handle of the program."
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context instance"
+    - type: const $x_program_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native program properties struct."
     - type: "$x_program_handle_t*"
       name: phProgram
-      desc: |
-            [out] pointer to the handle of the program object created.
+      desc: "[out] pointer to the handle of the program object created."

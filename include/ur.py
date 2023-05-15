@@ -222,6 +222,7 @@ class ur_structure_type_v(IntEnum):
     EVENT_NATIVE_PROPERTIES = 20                    ## ::ur_event_native_properties_t
     PLATFORM_NATIVE_PROPERTIES = 21                 ## ::ur_platform_native_properties_t
     DEVICE_NATIVE_PROPERTIES = 22                   ## ::ur_device_native_properties_t
+    PROGRAM_NATIVE_PROPERTIES = 23                  ## ::ur_program_native_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1330,6 +1331,18 @@ class ur_specialization_constant_info_t(Structure):
     ]
 
 ###############################################################################
+## @brief Native program creation properties
+class ur_program_native_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("isNativeHandleOwned", c_bool)                                 ## [in] Indicates UR owns the native handle or if it came from an
+                                                                        ## interoperability operation in the application that asked to not
+                                                                        ## transfer the ownership to the unified-runtime.
+    ]
+
+###############################################################################
 ## @brief Get Kernel object information
 class ur_kernel_info_v(IntEnum):
     FUNCTION_NAME = 0                               ## [char[]] Return null-terminated kernel function name.
@@ -2033,9 +2046,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urProgramCreateWithNativeHandle
 if __use_win_types:
-    _urProgramCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_program_handle_t) )
+    _urProgramCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_program_native_properties_t), POINTER(ur_program_handle_t) )
 else:
-    _urProgramCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_program_handle_t) )
+    _urProgramCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_program_native_properties_t), POINTER(ur_program_handle_t) )
 
 
 ###############################################################################
