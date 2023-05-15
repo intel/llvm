@@ -1033,7 +1033,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // TODO: add proper event dep management
   sycl::detail::NDRDescT ndr =
       getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
-  nativecpu_state state;
+  nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2]);
   for (unsigned dim0 = 0; dim0 < ndr.GlobalSize[0]; dim0++) {
     for (unsigned dim1 = 0; dim1 < ndr.GlobalSize[1]; dim1++) {
       for (unsigned dim2 = 0; dim2 < ndr.GlobalSize[2]; dim2++) {

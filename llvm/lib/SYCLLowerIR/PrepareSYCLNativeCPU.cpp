@@ -81,7 +81,8 @@ Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
 
 // Todo: add support for more SPIRV builtins here
 static std::map<std::string, std::string> BuiltinNamesMap{
-    {"__spirv_BuiltInGlobalInvocationId", "_Z13get_global_idmP15nativecpu_state"}};
+    {"__spirv_BuiltInGlobalInvocationId", "_Z13get_global_idmP15nativecpu_state"},
+    {"__spirv_BuiltInGlobalSize", "_Z13get_global_rangemP15nativecpu_state"}};
 
 Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
   Function *F = M.getFunction(Name);
