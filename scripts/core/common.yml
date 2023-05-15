@@ -308,6 +308,8 @@ etors:
       desc: $x_platform_native_properties_t
     - name: DEVICE_NATIVE_PROPERTIES
       desc: $x_device_native_properties_t
+    - name: PROGRAM_NATIVE_PROPERTIES
+      desc: $x_program_native_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
