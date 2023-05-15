@@ -150,11 +150,11 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   if (Handler.MSubgraphNode) {
     return Handler.MSubgraphNode;
   }
-  // TODO: Do we need to pass event dependencies here for the explicit API?
+
   return this->add(Handler.MKernel, Handler.MNDRDesc, Handler.MOSModuleHandle,
                    Handler.MKernelName, Handler.MAccStorage,
                    Handler.MLocalAccStorage, Handler.MCGType, Handler.MArgs,
-                   Handler.MImpl->MAuxiliaryResources, Dep);
+                   Handler.MImpl->MAuxiliaryResources, Dep, Handler.MEvents);
 }
 
 std::shared_ptr<node_impl> graph_impl::add(
