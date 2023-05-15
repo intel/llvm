@@ -28,9 +28,7 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-22.04
-    container:
-      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
+    runs-on: Linux
     steps:
     - name: 'PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
