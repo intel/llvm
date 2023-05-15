@@ -247,6 +247,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
     UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
     UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
+    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2320,6 +2321,18 @@ urSamplerGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Native sampler creation properties
+typedef struct ur_sampler_native_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an
+                               ///< interoperability operation in the application that asked to not
+                               ///< transfer the ownership to the unified-runtime.
+
+} ur_sampler_native_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime sampler object from native sampler handle.
 ///
 /// @details
@@ -2339,9 +2352,10 @@ urSamplerGetNativeHandle(
 ///         + `NULL == phSampler`
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreateWithNativeHandle(
-    ur_native_handle_t hNativeSampler, ///< [in] the native handle of the sampler.
-    ur_context_handle_t hContext,      ///< [in] handle of the context object
-    ur_sampler_handle_t *phSampler     ///< [out] pointer to the handle of the sampler object created.
+    ur_native_handle_t hNativeSampler,                 ///< [in] the native handle of the sampler.
+    ur_context_handle_t hContext,                      ///< [in] handle of the context object
+    const ur_sampler_native_properties_t *pProperties, ///< [in][optional] pointer to native sampler properties struct.
+    ur_sampler_handle_t *phSampler                     ///< [out] pointer to the handle of the sampler object created.
 );
 
 #if !defined(__GNUC__)
@@ -6310,6 +6324,7 @@ typedef struct ur_sampler_get_native_handle_params_t {
 typedef struct ur_sampler_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeSampler;
     ur_context_handle_t *phContext;
+    const ur_sampler_native_properties_t **ppProperties;
     ur_sampler_handle_t **pphSampler;
 } ur_sampler_create_with_native_handle_params_t;
 

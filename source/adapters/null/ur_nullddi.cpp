@@ -1069,6 +1069,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         hNativeSampler,           ///< [in] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_sampler_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native sampler properties struct.
     ur_sampler_handle_t *
         phSampler ///< [out] pointer to the handle of the sampler object created.
     ) try {
@@ -1078,7 +1080,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     auto pfnCreateWithNativeHandle =
         d_context.urDdiTable.Sampler.pfnCreateWithNativeHandle;
     if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeSampler, hContext, phSampler);
+        result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
+                                           pProperties, phSampler);
     } else {
         // generic implementation
         *phSampler = reinterpret_cast<ur_sampler_handle_t>(d_context.get());

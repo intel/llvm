@@ -1340,6 +1340,8 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         hNativeSampler,           ///< [in] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_sampler_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native sampler properties struct.
     ur_sampler_handle_t *
         phSampler ///< [out] pointer to the handle of the sampler object created.
 ) {

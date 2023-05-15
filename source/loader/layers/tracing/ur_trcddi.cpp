@@ -1209,6 +1209,8 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         hNativeSampler,           ///< [in] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_sampler_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native sampler properties struct.
     ur_sampler_handle_t *
         phSampler ///< [out] pointer to the handle of the sampler object created.
 ) {
@@ -1220,13 +1222,13 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     }
 
     ur_sampler_create_with_native_handle_params_t params = {
-        &hNativeSampler, &hContext, &phSampler};
+        &hNativeSampler, &hContext, &pProperties, &phSampler};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
                              "urSamplerCreateWithNativeHandle", &params);
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativeSampler, hContext, phSampler);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
+                                                   pProperties, phSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
                        "urSamplerCreateWithNativeHandle", &params, &result,
