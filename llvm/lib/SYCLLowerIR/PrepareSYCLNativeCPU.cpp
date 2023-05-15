@@ -16,6 +16,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -26,6 +27,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -42,9 +44,21 @@ namespace {
 
 
 void fixCallingConv(Function* F) {
+  llvm::errs() << "fixing " << F->getName() << "\n";
   F->setCallingConv(llvm::CallingConv::C);
-  // TODO: the frame-pointer=all attribute apparently makes the kernel crash at runtime
-  F->setAttributes({});
+  // The frame-pointer=all and the "byval" attributes lead to code generation
+  // that conflicts with the Kernel declaration that we emit in the Native CPU
+  // helper header (in which all the kernel argument are void* or scalars).
+  auto AttList = F->getAttributes();
+  for (unsigned ArgNo = 0; ArgNo < F->getFunctionType()->getNumParams();
+       ArgNo++) {
+    if (AttList.hasParamAttr(ArgNo, Attribute::AttrKind::ByVal)) {
+      AttList = AttList.removeParamAttribute(F->getContext(), ArgNo,
+                                             Attribute::AttrKind::ByVal);
+    }
+  }
+  F->setAttributes(AttList);
+  F->addFnAttr("frame-pointer", "none");
 }
 
 // Clone the function and returns a new function with a new argument on type T added as 
@@ -81,7 +95,8 @@ Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
 
 // Todo: add support for more SPIRV builtins here
 static std::map<std::string, std::string> BuiltinNamesMap{
-    {"__spirv_BuiltInGlobalInvocationId", "_Z13get_global_idmP15nativecpu_state"},
+    {"__spirv_BuiltInGlobalInvocationId",
+     "_Z13get_global_idmP15nativecpu_state"},
     {"__spirv_BuiltInGlobalSize", "_Z13get_global_rangemP15nativecpu_state"}};
 
 Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
@@ -255,8 +270,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     Glob->eraseFromParent();
   }
 
-  for (auto F : NewKernels) {
-    fixCallingConv(F);
+  for (auto &F : M) {
+    fixCallingConv(&F);
   }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
