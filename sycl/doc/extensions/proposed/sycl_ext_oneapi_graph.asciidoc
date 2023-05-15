@@ -1506,16 +1506,17 @@ submitted in its entirety for execution via
 Enable an instance of a graph in executable state to be submitted for execution
 when a previous submission of the same graph has yet to complete execution.
 
-**Outcome:** Backend support for this is inconsistent, but the runtime could
-schedule the submissions sequentially for backends which don't support it.
+**UNRESOLVED:** Trending "yes". Backend support for this is inconsistent, but 
+the runtime could schedule the submissions sequentially for backends which don't
+support it.
 
 === Multi Device Graph
 
 Allow an executable graph to contain nodes targeting different devices.
 
-**Outcome:** This feature is something that we are considering introducing into
-the extension in later revisions. It has been planned for to the extent that the
-definition of a graph node is device specific.
+**UNRESOLVED:** Trending "yes". This feature is something that we are considering 
+introducing into the extension in later revisions. It has been planned for to the 
+extent that the definition of a graph node is device specific.
 
 === Memory Allocation API
 
@@ -1525,7 +1526,36 @@ the allocation. No mechanism is currently provided, but see the
 section on <<memory-allocation-nodes, Memory Allocation Nodes>> for
 some designs being considered.
 
-**Outcome:** Designs under consideration
+**UNRESOLVED:** Trending "yes". Design is under consideration.
+
+=== Device Agnostic Graph
+
+Explicit API could support device-agnostic graphs that can be submitted 
+through queues to a particular device. This issue is related to multi-device 
+graphs.
+
+**UNRESOLVED:** Trending "no". Because of current runtime limitations this 
+can't be implemented with a reasonable effort.
+
+=== Execution Property
+
+Current proposal contains extensive extensions to existing API in SYCL.
+Can we achieve something similar with user control over the flush behavior
+of a queue and providing a handler that can be replayed?
+
+**UNRESOLVED:** Trending "no". Needs reconsideration of the design and
+possible restrictions.
+
+=== User Guided Scheduling
+
+For specific workloads it could be beneficial to provide hints to the
+runtime how to schedule a command graph onto a device. This info could effect
+the scheduling policy like breadth or depth-first, or a combination with a
+block size.
+
+**UNRESOLVED:** Trending "yes". A new property could be added to 
+the finalize call either extending the basic command graph proposal
+or layered as a separate extension proposal. 
 
 == Revision History
 
