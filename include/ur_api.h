@@ -245,6 +245,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
     UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
     UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
+    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1204,6 +1205,18 @@ urDeviceGetNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Native device creation properties
+typedef struct ur_device_native_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    bool isNativeHandleOwned;  ///< [in] Indicates UR owns the native handle or if it came from an
+                               ///< interoperability operation in the application that asked to not
+                               ///< transfer the ownership to the unified-runtime.
+
+} ur_device_native_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime device object from native device handle.
 ///
 /// @details
@@ -1223,9 +1236,10 @@ urDeviceGetNativeHandle(
 ///         + `NULL == phDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
-    ur_device_handle_t *phDevice      ///< [out] pointer to the handle of the device object created.
+    ur_native_handle_t hNativeDevice,                 ///< [in] the native handle of the device.
+    ur_platform_handle_t hPlatform,                   ///< [in] handle of the platform instance
+    const ur_device_native_properties_t *pProperties, ///< [in][optional] pointer to native device properties struct.
+    ur_device_handle_t *phDevice                      ///< [out] pointer to the handle of the device object created.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7056,6 +7070,7 @@ typedef struct ur_device_get_native_handle_params_t {
 typedef struct ur_device_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeDevice;
     ur_platform_handle_t *phPlatform;
+    const ur_device_native_properties_t **ppProperties;
     ur_device_handle_t **pphDevice;
 } ur_device_create_with_native_handle_params_t;
 

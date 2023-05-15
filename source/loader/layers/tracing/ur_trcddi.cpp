@@ -491,6 +491,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
     ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    const ur_device_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
         *phDevice ///< [out] pointer to the handle of the device object created.
 ) {
@@ -502,13 +504,13 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     ur_device_create_with_native_handle_params_t params = {
-        &hNativeDevice, &hPlatform, &phDevice};
+        &hNativeDevice, &hPlatform, &pProperties, &phDevice};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
                              "urDeviceCreateWithNativeHandle", &params);
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativeDevice, hPlatform, phDevice);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
+                                                   pProperties, phDevice);
 
     context.notify_end(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
                        "urDeviceCreateWithNativeHandle", &params, &result,

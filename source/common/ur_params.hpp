@@ -152,6 +152,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_exec_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_affinity_domain_flag_t value);
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_device_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_order_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -645,6 +647,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -782,6 +788,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES: {
         const ur_platform_native_properties_t *pstruct =
             (const ur_platform_native_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES: {
+        const ur_device_native_properties_t *pstruct =
+            (const ur_device_native_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -3542,6 +3554,28 @@ inline void serializeFlag_ur_device_affinity_domain_flags_t(
     }
 }
 } // namespace ur_params
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_device_native_properties_t params) {
+    os << "(struct ur_device_native_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".isNativeHandleOwned = ";
+
+    os << (params.isNativeHandleOwned);
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_order_capability_flag_t value) {
     switch (value) {
@@ -11426,6 +11460,11 @@ operator<<(std::ostream &os,
     os << ".hPlatform = ";
 
     ur_params::serializePtr(os, *(params->phPlatform));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".phDevice = ";
