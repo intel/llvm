@@ -105,6 +105,23 @@ void check_ast()
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
   [[intel::bank_bits(2, 3), intel::bankwidth(16)]] unsigned int bank_bits_width[64];
 
+  // Check user-specified numbanks attribute overrides implicit numbanks
+  // attribute computed from the bank_bits attribute.
+  //CHECK: VarDecl{{.*}}bank_bits_num 'unsigned int[64]'
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: SYCLIntelBankBitsAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: value:{{.*}}2
+  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: value:{{.*}}3
+  //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+  //CHECK-NEXT: SYCLIntelNumBanksAttr
+  //CHECK-NEXT: ConstantExpr
+  //CHECK-NEXT: value:{{.*}}4
+  //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
+  [[intel::bank_bits(2, 3), intel::numbanks(4)]] unsigned int bank_bits_num[64];
+
   //CHECK: VarDecl{{.*}}doublepump_mlab
   //CHECK: SYCLIntelDoublePumpAttr
   //CHECK: SYCLIntelMemoryAttr{{.*}}MLAB{{$}}
