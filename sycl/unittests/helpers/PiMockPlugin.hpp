@@ -1224,6 +1224,6 @@ mock_piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
     *static_cast<pi_int32 *>(param_value) = 1;
   if (param_value_size_ret)
     *param_value_size_ret = sizeof(pi_int32);
-  
+
   return PI_SUCCESS;
 }

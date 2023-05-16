@@ -6124,7 +6124,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDisablePeerAccess, cuda_piextDisablePeerAccess)
   _PI_CL(piextPeerAccessGetInfo, cuda_piextPeerAccessGetInfo)
 
-
 #undef _PI_CL
 
   return PI_SUCCESS;

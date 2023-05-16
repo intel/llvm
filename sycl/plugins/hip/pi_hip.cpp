@@ -5803,7 +5803,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
 
   _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
-  
+
   // Peer to Peer
   _PI_CL(piextEnablePeerAccess, hip_piextEnablePeerAccess)
   _PI_CL(piextDisablePeerAccess, hip_piextDisablePeerAccess)
