@@ -78,7 +78,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     }
   } else {
     pi_context C = CtxImpl->getHandleRef();
-    const detail::plugin &Plugin = CtxImpl->getPlugin();
+    const PluginPtr &Plugin = CtxImpl->getPlugin();
     pi_result Error;
 
     switch (Kind) {
@@ -100,7 +100,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
       assert(PropsIter >= Props.begin() && PropsIter < Props.end());
       *PropsIter++ = 0; // null-terminate property list
 
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMHostAlloc>(
+      Error = Plugin->call_nocheck<PiApiKind::piextUSMHostAlloc>(
           &RetVal, C, Props.data(), Size, Alignment);
 
       break;
@@ -149,7 +149,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     }
   } else {
     pi_context C = CtxImpl->getHandleRef();
-    const detail::plugin &Plugin = CtxImpl->getPlugin();
+    const PluginPtr &Plugin = CtxImpl->getPlugin();
     pi_result Error;
     pi_device Id;
 
@@ -174,7 +174,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       assert(PropsIter >= Props.begin() && PropsIter < Props.end());
       *PropsIter++ = 0; // null-terminate property list
 
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
+      Error = Plugin->call_nocheck<PiApiKind::piextUSMDeviceAlloc>(
           &RetVal, C, Id, Props.data(), Size, Alignment);
 
       break;
@@ -204,7 +204,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       assert(PropsIter >= Props.begin() && PropsIter < Props.end());
       *PropsIter++ = 0; // null-terminate property list
 
-      Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+      Error = Plugin->call_nocheck<PiApiKind::piextUSMSharedAlloc>(
           &RetVal, C, Id, Props.data(), Size, Alignment);
 
       break;
@@ -259,8 +259,8 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
     detail::OSUtil::alignedFree(Ptr);
   } else {
     pi_context C = CtxImpl->getHandleRef();
-    const detail::plugin &Plugin = CtxImpl->getPlugin();
-    Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
+    const PluginPtr &Plugin = CtxImpl->getPlugin();
+    Plugin->call<PiApiKind::piextUSMFree>(C, Ptr);
   }
 }
 
@@ -578,9 +578,9 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   pi_usm_type AllocTy;
 
   // query type using PI function
-  const detail::plugin &Plugin = CtxImpl->getPlugin();
+  const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   RT::PiResult Err =
-      Plugin.call_nocheck<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      Plugin->call_nocheck<detail::PiApiKind::piextUSMGetMemAllocInfo>(
           PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy,
           nullptr);
 
@@ -589,7 +589,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
     return alloc::unknown;
   // otherwise PI_SUCCESS is expected
   if (Err != PI_SUCCESS) {
-    Plugin.reportPiError(Err, "get_pointer_type()");
+    Plugin->reportPiError(Err, "get_pointer_type()");
   }
 
   alloc ResultAlloc;
@@ -642,8 +642,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   pi_device DeviceId;
 
   // query device using PI function
-  const detail::plugin &Plugin = CtxImpl->getPlugin();
-  Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+  const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
       PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
 
   // The device is not necessarily a member of the context, it could be a

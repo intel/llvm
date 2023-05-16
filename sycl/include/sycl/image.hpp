@@ -623,63 +623,6 @@ public:
                     ext::oneapi::accessor_property_list<>>(*this);
   }
 
-  template <typename Destination = std::nullptr_t>
-  void set_final_data(Destination finalData = nullptr) {
-    this->set_final_data_internal(finalData);
-  }
-
-  void set_final_data_internal(std::nullptr_t) {
-    common_base::set_final_data_internal();
-  }
-
-  template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
-  set_final_data_internal(WeakPtrT<WeakT> FinalData) {
-    std::weak_ptr<WeakT> TempFinalData(FinalData);
-    this->set_final_data_internal(TempFinalData);
-  }
-
-  template <typename WeakT>
-  void set_final_data_internal(std::weak_ptr<WeakT> FinalData) {
-    common_base::set_final_data_internal(
-        [FinalData](const std::function<void(void *const Ptr)> &F) {
-          if (std::shared_ptr<WeakT> LockedFinalData = FinalData.lock())
-            F(LockedFinalData.get());
-        });
-  }
-
-  template <typename Destination>
-  detail::EnableIfOutputPointerT<Destination>
-  set_final_data_internal(Destination FinalData) {
-    if (!FinalData)
-      common_base::set_final_data_internal();
-    else
-      common_base::set_final_data_internal(
-          [FinalData](const std::function<void(void *const Ptr)> &F) {
-            F(FinalData);
-          });
-  }
-
-  template <typename Destination>
-  detail::EnableIfOutputIteratorT<Destination>
-  set_final_data_internal(Destination FinalData) {
-    const size_t Size = common_base::size();
-    common_base::set_final_data_internal(
-        [FinalData, Size](const std::function<void(void *const Ptr)> &F) {
-          using DestinationValueT = detail::iterator_value_type_t<Destination>;
-          // TODO if Destination is ContiguousIterator then don't create
-          // ContiguousStorage. updateHostMemory works only with pointer to
-          // continuous data.
-          std::unique_ptr<DestinationValueT[]> ContiguousStorage(
-              new DestinationValueT[Size]);
-          F(ContiguousStorage.get());
-          std::copy(ContiguousStorage.get(), ContiguousStorage.get() + Size,
-                    FinalData);
-        });
-  }
-
-  void set_write_back(bool flag = true) { common_base::set_write_back(flag); }
-
 private:
   image(pi_native_handle MemObject, const context &SyclContext,
         event AvailableEvent, image_channel_order Order,
