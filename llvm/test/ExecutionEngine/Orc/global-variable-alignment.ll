@@ -7,7 +7,9 @@
 ; A failure may indicate a problem with alignment handling in the JIT linker or
 ; JIT memory manager.
 ;
-; RUN: %lli %s
+; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+; RUN: %lli -opaque-pointers %s
+; endif
 
 @A = internal global i8 1, align 1
 @B = global i64 1, align 8
