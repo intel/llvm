@@ -1066,7 +1066,7 @@
 ?get_kernel_ids@kernel_bundle_plain@detail@_V1@sycl@@QEBA?AV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@std@@XZ
 ?get_max_statement_size@stream@_V1@sycl@@QEBA_KXZ
 ?get_max_statement_size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
-?get_minimum_mem_granularity@experimental@oneapi@ext@_V1@sycl@@YA_KAEBVdevice@45@AEBVcontext@45@@Z
+?get_mem_granularity@experimental@oneapi@ext@_V1@sycl@@YA_KAEBVdevice@45@AEBVcontext@45@W4granularity_mode@12345@@Z
 ?get_name@kernel_id@_V1@sycl@@QEBAPEBDXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
 ?get_pitch@image_impl@detail@_V1@sycl@@QEBA?AV?$range@$01@34@XZ
@@ -1080,7 +1080,6 @@
 ?get_queue@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEBA?AVqueue@56@XZ
 ?get_range@image_impl@detail@_V1@sycl@@QEBA?AV?$range@$02@34@XZ
 ?get_range@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$02@34@XZ
-?get_recommended_mem_granularity@experimental@oneapi@ext@_V1@sycl@@YA_KAEBVdevice@45@AEBVcontext@45@@Z
 ?get_size@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_size@stream@_V1@sycl@@QEBA_KXZ
 ?get_size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
