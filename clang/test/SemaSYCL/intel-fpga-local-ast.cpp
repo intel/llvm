@@ -443,7 +443,7 @@ int main() {
 // Test that checks global constant variable (which allows the redeclaration) since
 // SYCLIntelConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
 
-// Check redeclaration of duplicate argument values with implicit memory.
+// Check redeclaration of duplicate argument values with implicit memory
 // attribute. No diagnostic is generated.
 //CHECK: VarDecl{{.*}}var_max_replicates 'const int' extern
 //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
