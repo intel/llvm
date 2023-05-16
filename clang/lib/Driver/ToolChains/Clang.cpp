@@ -5456,6 +5456,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  Args.AddLastArg(CmdArgs, options::OPT_dumpdir);
+
   if (const Arg *A = Args.getLastArg(options::OPT_fthinlto_index_EQ)) {
     if (!types::isLLVMIR(Input.getType()))
       D.Diag(diag::err_drv_arg_requires_bitcode_input) << A->getAsString(Args);
@@ -5852,6 +5854,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Triple.isOSAIX())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << RawTriple.str();
+  }
+
+  if (Args.hasArg(options::OPT_mxcoff_roptr) ||
+      Args.hasArg(options::OPT_mno_xcoff_roptr)) {
+    bool HasRoptr = Args.hasFlag(options::OPT_mxcoff_roptr,
+                                 options::OPT_mno_xcoff_roptr, false);
+    StringRef OptStr = HasRoptr ? "-mxcoff-roptr" : "-mno-xcoff-roptr";
+    if (!Triple.isOSAIX())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << OptStr << RawTriple.str();
+
+    if (HasRoptr)
+      CmdArgs.push_back("-mxcoff-roptr");
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
@@ -6980,6 +6995,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_K);
+      A && !TC.getTriple().isOSAIX())
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << A->getAsString(Args) << TripleStr;
+
   if (Args.getLastArg(options::OPT_fapple_kext) ||
       (Args.hasArg(options::OPT_mkernel) && types::isCXX(InputType)))
     CmdArgs.push_back("-fapple-kext");
@@ -6991,12 +7011,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fdiagnostics_parseable_fixits);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_report);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_report_EQ);
-  Args.AddLastArg(CmdArgs, options::OPT_ftime_trace);
-  Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
-  Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_EQ);
   Args.AddLastArg(CmdArgs, options::OPT_ftrapv);
   Args.AddLastArg(CmdArgs, options::OPT_malign_double);
   Args.AddLastArg(CmdArgs, options::OPT_fno_temp_file);
+
+  if (const char *Name = C.getTimeTraceFile(&JA)) {
+    CmdArgs.push_back(Args.MakeArgString("-ftime-trace=" + Twine(Name)));
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+  }
 
   if (Arg *A = Args.getLastArg(options::OPT_ftrapv_handler_EQ)) {
     CmdArgs.push_back("-ftrapv-handler");

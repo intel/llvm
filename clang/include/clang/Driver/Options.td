@@ -1180,6 +1180,10 @@ def module_dependency_dir : Separate<["-"], "module-dependency-dir">,
 def dsym_dir : JoinedOrSeparate<["-"], "dsym-dir">,
   Flags<[NoXarchOption, RenderAsInput]>,
   HelpText<"Directory to output dSYM's (if any) to">, MetaVarName<"<dir>">;
+// GCC style -dumpdir. We intentionally don't implement the less useful -dumpbase{,-ext}.
+def dumpdir : Separate<["-"], "dumpdir">, Flags<[CC1Option]>,
+  MetaVarName<"<dumppfx>">,
+  HelpText<"Use <dumpfpx> as a prefix to form auxiliary and dump file names">;
 def dumpmachine : Flag<["-"], "dumpmachine">;
 def dumpspecs : Flag<["-"], "dumpspecs">, Flags<[Unsupported]>;
 def dumpversion : Flag<["-"], "dumpversion">;
@@ -3167,8 +3171,7 @@ def ftime_trace : Flag<["-"], "ftime-trace">, Group<f_Group>,
 Turn on time profiler. Generates JSON file based on output filename. Results
 can be analyzed with chrome://tracing or `Speedscope App
 <https://www.speedscope.app>`_ for flamegraph visualization.}]>,
-  Flags<[CC1Option, CoreOption]>,
-  MarshallingInfoFlag<FrontendOpts<"TimeTrace">>;
+  Flags<[CoreOption]>;
 def ftime_trace_granularity_EQ : Joined<["-"], "ftime-trace-granularity=">, Group<f_Group>,
   HelpText<"Minimum time granularity (in microseconds) traced by time profiler">,
   Flags<[CC1Option, CoreOption]>,
@@ -3588,6 +3591,7 @@ def vfsoverlay : JoinedOrSeparate<["-", "--"], "vfsoverlay">, Flags<[CC1Option, 
   HelpText<"Overlay the virtual filesystem described by file over the real file system. "
            "Additionally, pass this overlay file to the linker if it supports it">;
 def imultilib : Separate<["-"], "imultilib">, Group<gfortran_Group>;
+def K : Flag<["-"], "K">, Flags<[LinkerInput]>;
 def keep__private__externs : Flag<["-"], "keep_private_externs">;
 def l : JoinedOrSeparate<["-"], "l">, Flags<[LinkerInput, RenderJoined]>,
         Group<Link_Group>;
@@ -4070,6 +4074,9 @@ def maix_struct_return : Flag<["-"], "maix-struct-return">,
 def msvr4_struct_return : Flag<["-"], "msvr4-struct-return">,
   Group<m_Group>, Flags<[CC1Option]>,
   HelpText<"Return small structs in registers (PPC32 only)">;
+def mxcoff_roptr : Flag<["-"], "mxcoff-roptr">, Group<m_Group>, Flags<[CC1Option]>,
+  HelpText<"Place constant objects with relocatable address values in the RO data section and add -bforceimprw to the linker flags (AIX only)">;
+def mno_xcoff_roptr : Flag<["-"], "mno-xcoff-roptr">, Group<m_Group>;
 
 def mvx : Flag<["-"], "mvx">, Group<m_Group>;
 def mno_vx : Flag<["-"], "mno-vx">, Group<m_Group>;
