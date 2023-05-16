@@ -31,7 +31,7 @@ void handleErrorOrWarning(pi_result, const device_impl &, pi_kernel,
 
 namespace kernel_get_group_info {
 /// Analyzes error code of piKernelGetGroupInfo.
-void handleErrorOrWarning(pi_result, pi_kernel_group_info, const plugin &);
+void handleErrorOrWarning(pi_result, pi_kernel_group_info, const PluginPtr &);
 } // namespace kernel_get_group_info
 
 } // namespace detail
