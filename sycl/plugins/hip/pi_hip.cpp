@@ -2177,144 +2177,6 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return {};
 }
 
-/// Creates a PI sampler object
-///
-/// \param[in] context The context the sampler is created for.
-/// \param[in] sampler_properties The properties for the sampler.
-/// \param[out] result_sampler Set to the resulting sampler object.
-///
-/// \return PI_SUCCESS on success. PI_ERROR_INVALID_VALUE if given an invalid
-/// property
-///         or if there is multiple of properties from the same category.
-pi_result hip_piSamplerCreate(pi_context context,
-                              const pi_sampler_properties *sampler_properties,
-                              pi_sampler *result_sampler) {
-  std::unique_ptr<_pi_sampler> retImplSampl{new _pi_sampler(context)};
-
-  bool propSeen[3] = {false, false, false};
-  for (size_t i = 0; sampler_properties[i] != 0; i += 2) {
-    switch (sampler_properties[i]) {
-    case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS:
-      if (propSeen[0]) {
-        return PI_ERROR_INVALID_VALUE;
-      }
-      propSeen[0] = true;
-      retImplSampl->props_ |= sampler_properties[i + 1];
-      break;
-    case PI_SAMPLER_PROPERTIES_FILTER_MODE:
-      if (propSeen[1]) {
-        return PI_ERROR_INVALID_VALUE;
-      }
-      propSeen[1] = true;
-      retImplSampl->props_ |=
-          (sampler_properties[i + 1] - PI_SAMPLER_FILTER_MODE_NEAREST) << 1;
-      break;
-    case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE:
-      if (propSeen[2]) {
-        return PI_ERROR_INVALID_VALUE;
-      }
-      propSeen[2] = true;
-      retImplSampl->props_ |=
-          (sampler_properties[i + 1] - PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
-      break;
-    default:
-      return PI_ERROR_INVALID_VALUE;
-    }
-  }
-
-  if (!propSeen[0]) {
-    retImplSampl->props_ |= PI_TRUE;
-  }
-  // Default filter mode to CL_FILTER_NEAREST
-  if (!propSeen[2]) {
-    retImplSampl->props_ |=
-        (PI_SAMPLER_ADDRESSING_MODE_CLAMP % PI_SAMPLER_ADDRESSING_MODE_NONE)
-        << 2;
-  }
-
-  *result_sampler = retImplSampl.release();
-  return PI_SUCCESS;
-}
-
-/// Gets information from a PI sampler object
-///
-/// \param[in] sampler The sampler to get the information from.
-/// \param[in] param_name The name of the information to get.
-/// \param[in] param_value_size The size of the param_value.
-/// \param[out] param_value Set to information value.
-/// \param[out] param_value_size_ret Set to the size of the information value.
-///
-/// \return PI_SUCCESS on success.
-pi_result hip_piSamplerGetInfo(pi_sampler sampler, pi_sampler_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret) {
-  assert(sampler != nullptr);
-
-  switch (param_name) {
-  case PI_SAMPLER_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   sampler->get_reference_count());
-  case PI_SAMPLER_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   sampler->context_);
-  case PI_SAMPLER_INFO_NORMALIZED_COORDS: {
-    pi_bool norm_coords_prop = static_cast<pi_bool>(sampler->props_ & 0x1);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   norm_coords_prop);
-  }
-  case PI_SAMPLER_INFO_FILTER_MODE: {
-    pi_sampler_filter_mode filter_prop = static_cast<pi_sampler_filter_mode>(
-        ((sampler->props_ >> 1) & 0x1) + PI_SAMPLER_FILTER_MODE_NEAREST);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   filter_prop);
-  }
-  case PI_SAMPLER_INFO_ADDRESSING_MODE: {
-    pi_sampler_addressing_mode addressing_prop =
-        static_cast<pi_sampler_addressing_mode>(
-            (sampler->props_ >> 2) + PI_SAMPLER_ADDRESSING_MODE_NONE);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   addressing_prop);
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  return {};
-}
-
-/// Retains a PI sampler object, incrementing its reference count.
-///
-/// \param[in] sampler The sampler to increment the reference count of.
-///
-/// \return PI_SUCCESS.
-pi_result hip_piSamplerRetain(pi_sampler sampler) {
-  assert(sampler != nullptr);
-  sampler->increment_reference_count();
-  return PI_SUCCESS;
-}
-
-/// Releases a PI sampler object, decrementing its reference count. If the
-/// reference count reaches zero, the sampler object is destroyed.
-///
-/// \param[in] sampler The sampler to decrement the reference count of.
-///
-/// \return PI_SUCCESS.
-pi_result hip_piSamplerRelease(pi_sampler sampler) {
-  assert(sampler != nullptr);
-
-  // double delete or someone is messing with the ref count.
-  // either way, cannot safely proceed.
-  sycl::detail::pi::assertion(
-      sampler->get_reference_count() != 0,
-      "Reference count overflow detected in hip_piSamplerRelease.");
-
-  // decrement ref count. If it is 0, delete the sampler.
-  if (sampler->decrement_reference_count() == 0) {
-    delete sampler;
-  }
-
-  return PI_SUCCESS;
-}
-
 /// General 3D memory copy operation.
 /// This function requires the corresponding HIP context to be at the top of
 /// the context stack
@@ -3152,106 +3014,6 @@ pi_result hip_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
   return ret_err;
 }
 
-/// USM: Implements USM Host allocations using HIP Pinned Memory
-///
-pi_result
-hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
-                      [[maybe_unused]] pi_usm_mem_properties *properties,
-                      size_t size, [[maybe_unused]] pi_uint32 alignment) {
-  assert(result_ptr != nullptr);
-  assert(context != nullptr);
-  assert(properties == nullptr || *properties == 0);
-  pi_result result = PI_SUCCESS;
-  try {
-    ScopedContext active(context);
-    result = PI_CHECK_ERROR(hipHostMalloc(result_ptr, size));
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  assert(alignment == 0 ||
-         (result == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
-  return result;
-}
-
-/// USM: Implements USM device allocations using a normal HIP device pointer
-///
-pi_result
-hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                        [[maybe_unused]] pi_device device,
-                        [[maybe_unused]] pi_usm_mem_properties *properties,
-                        size_t size, [[maybe_unused]] pi_uint32 alignment) {
-  assert(result_ptr != nullptr);
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(properties == nullptr || *properties == 0);
-  pi_result result = PI_SUCCESS;
-  try {
-    ScopedContext active(context);
-    result = PI_CHECK_ERROR(hipMalloc(result_ptr, size));
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  assert(alignment == 0 ||
-         (result == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
-  return result;
-}
-
-/// USM: Implements USM Shared allocations using HIP Managed Memory
-///
-pi_result
-hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                        [[maybe_unused]] pi_device device,
-                        [[maybe_unused]] pi_usm_mem_properties *properties,
-                        size_t size, [[maybe_unused]] pi_uint32 alignment) {
-  assert(result_ptr != nullptr);
-  assert(context != nullptr);
-  assert(device != nullptr);
-  assert(properties == nullptr || *properties == 0);
-  pi_result result = PI_SUCCESS;
-  try {
-    ScopedContext active(context);
-    result =
-        PI_CHECK_ERROR(hipMallocManaged(result_ptr, size, hipMemAttachGlobal));
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  assert(alignment == 0 ||
-         (result == PI_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
-  return result;
-}
-
-/// USM: Frees the given USM pointer associated with the context.
-///
-pi_result hip_piextUSMFree(pi_context context, void *ptr) {
-
-  assert(context != nullptr);
-  pi_result result = PI_SUCCESS;
-  try {
-    ScopedContext active(context);
-    unsigned int type;
-    hipPointerAttribute_t hipPointerAttributeType;
-    result =
-        PI_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-    type = hipPointerAttributeType.memoryType;
-    assert(type == hipMemoryTypeDevice or type == hipMemoryTypeHost);
-    if (type == hipMemoryTypeDevice) {
-      result = PI_CHECK_ERROR(hipFree(ptr));
-    }
-    if (type == hipMemoryTypeHost) {
-      result = PI_CHECK_ERROR(hipFreeHost(ptr));
-    }
-  } catch (pi_result error) {
-    result = error;
-  }
-  return result;
-}
-
 pi_result hip_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                     size_t count,
                                     pi_uint32 num_events_in_waitlist,
@@ -3450,104 +3212,6 @@ pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     }
   } catch (pi_result err) {
     result = err;
-  }
-
-  return result;
-}
-
-/// API to query information about USM allocated pointers
-/// Valid Queries:
-///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
-///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
-///                         the queried pointer fell inside an allocation.
-///                         Result must fit in void *
-///   PI_MEM_ALLOC_SIZE returns how big the queried pointer's
-///                     allocation is in bytes. Result is a size_t.
-///   PI_MEM_ALLOC_DEVICE returns the pi_device this was allocated against
-///
-/// \param context is the pi_context
-/// \param ptr is the pointer to query
-/// \param param_name is the type of query to perform
-/// \param param_value_size is the size of the result in bytes
-/// \param param_value is the result
-/// \param param_value_ret is how many bytes were written
-pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                      pi_mem_alloc_info param_name,
-                                      size_t param_value_size,
-                                      void *param_value,
-                                      size_t *param_value_size_ret) {
-
-  assert(context != nullptr);
-  assert(ptr != nullptr);
-  pi_result result = PI_SUCCESS;
-  hipPointerAttribute_t hipPointerAttributeType;
-
-  try {
-    ScopedContext active(context);
-    switch (param_name) {
-    case PI_MEM_ALLOC_TYPE: {
-      unsigned int value;
-      // do not throw if hipPointerGetAttribute returns hipErrorInvalidValue
-      hipError_t ret = hipPointerGetAttributes(&hipPointerAttributeType, ptr);
-      if (ret == hipErrorInvalidValue) {
-        // pointer not known to the HIP subsystem
-        return getInfo(param_value_size, param_value, param_value_size_ret,
-                       PI_MEM_TYPE_UNKNOWN);
-      }
-      result = check_error(ret, __func__, __LINE__ - 5, __FILE__);
-      value = hipPointerAttributeType.isManaged;
-      if (value) {
-        // pointer to managed memory
-        return getInfo(param_value_size, param_value, param_value_size_ret,
-                       PI_MEM_TYPE_SHARED);
-      }
-      result = PI_CHECK_ERROR(
-          hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-      value = hipPointerAttributeType.memoryType;
-      assert(value == hipMemoryTypeDevice or value == hipMemoryTypeHost);
-      if (value == hipMemoryTypeDevice) {
-        // pointer to device memory
-        return getInfo(param_value_size, param_value, param_value_size_ret,
-                       PI_MEM_TYPE_DEVICE);
-      }
-      if (value == hipMemoryTypeHost) {
-        // pointer to host memory
-        return getInfo(param_value_size, param_value, param_value_size_ret,
-                       PI_MEM_TYPE_HOST);
-      }
-      // should never get here
-      __builtin_unreachable();
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     PI_MEM_TYPE_UNKNOWN);
-    }
-    case PI_MEM_ALLOC_BASE_PTR: {
-      return PI_ERROR_INVALID_VALUE;
-    }
-    case PI_MEM_ALLOC_SIZE: {
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    case PI_MEM_ALLOC_DEVICE: {
-      // get device index associated with this pointer
-      result = PI_CHECK_ERROR(
-          hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-      int device_idx = hipPointerAttributeType.device;
-
-      // currently each device is in its own platform, so find the platform at
-      // the same index
-      std::vector<pi_platform> platforms;
-      platforms.resize(device_idx + 1);
-      result = pi2ur::piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
-
-      // get the device from the platform
-      pi_device device =
-          reinterpret_cast<pi_device>(platforms[device_idx]->devices_[0].get());
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     device);
-    }
-    }
-  } catch (pi_result error) {
-    result = error;
   }
 
   return result;
@@ -3765,10 +3429,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEventGetNativeHandle, hip_piextEventGetNativeHandle)
   _PI_CL(piextEventCreateWithNativeHandle, hip_piextEventCreateWithNativeHandle)
   // Sampler
-  _PI_CL(piSamplerCreate, hip_piSamplerCreate)
-  _PI_CL(piSamplerGetInfo, hip_piSamplerGetInfo)
-  _PI_CL(piSamplerRetain, hip_piSamplerRetain)
-  _PI_CL(piSamplerRelease, hip_piSamplerRelease)
+  _PI_CL(piSamplerCreate, pi2ur::piSamplerCreate)
+  _PI_CL(piSamplerGetInfo, pi2ur::piSamplerGetInfo)
+  _PI_CL(piSamplerRetain, pi2ur::piSamplerRetain)
+  _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
@@ -3788,10 +3452,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueMemBufferMap, hip_piEnqueueMemBufferMap)
   _PI_CL(piEnqueueMemUnmap, hip_piEnqueueMemUnmap)
   // USM
-  _PI_CL(piextUSMHostAlloc, hip_piextUSMHostAlloc)
-  _PI_CL(piextUSMDeviceAlloc, hip_piextUSMDeviceAlloc)
-  _PI_CL(piextUSMSharedAlloc, hip_piextUSMSharedAlloc)
-  _PI_CL(piextUSMFree, hip_piextUSMFree)
+  _PI_CL(piextUSMHostAlloc, pi2ur::piextUSMHostAlloc)
+  _PI_CL(piextUSMDeviceAlloc, pi2ur::piextUSMDeviceAlloc)
+  _PI_CL(piextUSMSharedAlloc, pi2ur::piextUSMSharedAlloc)
+  _PI_CL(piextUSMFree, pi2ur::piextUSMFree)
   _PI_CL(piextUSMEnqueueMemset, hip_piextUSMEnqueueMemset)
   _PI_CL(piextUSMEnqueueMemcpy, hip_piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, hip_piextUSMEnqueuePrefetch)
@@ -3799,7 +3463,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemcpy2D, hip_piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMEnqueueFill2D, hip_piextUSMEnqueueFill2D)
   _PI_CL(piextUSMEnqueueMemset2D, hip_piextUSMEnqueueMemset2D)
-  _PI_CL(piextUSMGetMemAllocInfo, hip_piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMGetMemAllocInfo, pi2ur::piextUSMGetMemAllocInfo)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          hip_piextEnqueueDeviceGlobalVariableWrite)

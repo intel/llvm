@@ -187,6 +187,9 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/platform.hpp"
       "ur/adapters/hip/memory.cpp"
       "ur/adapters/hip/memory.hpp"
+      "ur/adapters/hip/sampler.cpp"
+      "ur/adapters/hip/sampler.hpp"
+      "ur/adapters/hip/usm.cpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}

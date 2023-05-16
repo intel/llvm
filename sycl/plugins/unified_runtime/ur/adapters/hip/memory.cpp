@@ -297,7 +297,8 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
       return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
     }
   }
-  *phNativeMem = static_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
+  *phNativeMem =
+      reinterpret_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
 #elif defined(__HIP_PLATFORM_AMD__)
   *phNativeMem =
       reinterpret_cast<ur_native_handle_t>(hMem->mem_.buffer_mem_.get());
