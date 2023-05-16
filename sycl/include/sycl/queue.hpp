@@ -471,6 +471,9 @@ public:
   /// \return SYCL device this queue was constructed with.
   device get_device() const;
 
+  /// \return State the queue is currently in.
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state() const;
+
   /// \return true if this queue is a SYCL host queue.
   __SYCL2020_DEPRECATED(
       "is_host() is deprecated as the host device is no longer supported.")
