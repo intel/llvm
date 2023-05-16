@@ -5,13 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
 // On Windows vector compute backend (as a part of IGC) uses llvm-7 and llvm-7
 // based spirv translator. This test should start working on Windows when the
 // llvm version is switched to 9.
 // UNSUPPORTED: windows
 // RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: ze_debug
+// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: ze_debug-1,ze_debug4
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's PHI function.

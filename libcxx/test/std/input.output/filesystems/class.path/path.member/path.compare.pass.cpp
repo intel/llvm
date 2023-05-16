@@ -25,7 +25,6 @@
 // strong_ordering operator<=>(path const&, path const&) noexcept;
 //
 // size_t hash_value(path const&) noexcept;
-// template<> struct hash<filesystem::path>;
 
 #include "filesystem_include.h"
 #include <type_traits>

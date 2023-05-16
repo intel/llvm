@@ -214,28 +214,19 @@ processDataOperands(llvm::IRBuilderBase &builder,
   unsigned index = 0;
 
   // Host operands are handled as `from` call.
-  // Device operands are handled as `to` call.
-  llvm::SmallVector<mlir::Value> from, to;
-  for (mlir::Value dataOp : op.getDataClauseOperands()) {
-    if (auto getDevicePtrOp = mlir::dyn_cast_or_null<acc::GetDevicePtrOp>(
-            dataOp.getDefiningOp())) {
-      from.push_back(getDevicePtrOp.getVarPtr());
-    } else if (auto updateDeviceOp =
-                   mlir::dyn_cast_or_null<acc::UpdateDeviceOp>(
-                       dataOp.getDefiningOp())) {
-      to.push_back(updateDeviceOp.getVarPtr());
-    }
-  }
-
-  if (failed(processOperands(builder, moduleTranslation, op, from, from.size(),
+  if (failed(processOperands(builder, moduleTranslation, op,
+                             op.getHostOperands(), op.getNumDataOperands(),
                              kHostCopyoutFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
 
-  if (failed(processOperands(builder, moduleTranslation, op, to, to.size(),
+  // Device operands are handled as `to` call.
+  if (failed(processOperands(builder, moduleTranslation, op,
+                             op.getDeviceOperands(), op.getNumDataOperands(),
                              kDeviceCopyinFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
+
   return success();
 }
 
@@ -493,10 +484,6 @@ LogicalResult OpenACCDialectLLVMIRTranslationInterface::convertOperation(
         // created in the function that handles their parent operation.
         assert(op->getNumOperands() == 0 &&
                "unexpected OpenACC terminator with operands");
-        return success();
-      })
-      .Case([&](acc::UpdateDeviceOp) {
-        // NOP
         return success();
       })
       .Default([&](Operation *op) {

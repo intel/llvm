@@ -5,12 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
 // Test currently timeouts on Windows Level Zero and OpenCL
 // UNSUPPORTED: windows
 // Temporarily disabled due to flaky behavior
 // REQUIRES: TEMPORARY_DISABLED
 // RUN: %{build} -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
+// UNSUPPORTED: cuda || hip
 //
 // The test checks that ESIMD kernels support call of noinline function from
 // within other functions.

@@ -73,8 +73,9 @@ public:
   PlainCFGBuilder(Loop *Lp, LoopInfo *LI, VPlan &P)
       : TheLoop(Lp), LI(LI), Plan(P) {}
 
-  /// Build plain CFG for TheLoop  and connects it to Plan's entry.
-  void buildPlainCFG();
+  /// Build plain CFG for TheLoop. Return the pre-header VPBasicBlock connected
+  /// to a new VPRegionBlock (TopRegion) enclosing the plain CFG.
+  VPBasicBlock *buildPlainCFG();
 };
 } // anonymous namespace
 
@@ -253,7 +254,7 @@ void PlainCFGBuilder::createVPInstructionsForVPBB(VPBasicBlock *VPBB,
 }
 
 // Main interface to build the plain CFG.
-void PlainCFGBuilder::buildPlainCFG() {
+VPBasicBlock *PlainCFGBuilder::buildPlainCFG() {
   // 1. Scan the body of the loop in a topological order to visit each basic
   // block after having visited its predecessor basic blocks. Create a VPBB for
   // each BB and link it to its successor and predecessor VPBBs. Note that
@@ -266,8 +267,7 @@ void PlainCFGBuilder::buildPlainCFG() {
   BasicBlock *ThePreheaderBB = TheLoop->getLoopPreheader();
   assert((ThePreheaderBB->getTerminator()->getNumSuccessors() == 1) &&
          "Unexpected loop preheader");
-  VPBasicBlock *ThePreheaderVPBB = Plan.getEntry();
-  BB2VPBB[ThePreheaderBB] = ThePreheaderVPBB;
+  VPBasicBlock *ThePreheaderVPBB = getOrCreateVPBB(ThePreheaderBB);
   ThePreheaderVPBB->setName("vector.ph");
   for (auto &I : *ThePreheaderBB) {
     if (I.getType()->isVoidTy())
@@ -371,17 +371,20 @@ void PlainCFGBuilder::buildPlainCFG() {
   // have a VPlan couterpart. Fix VPlan phi nodes by adding their corresponding
   // VPlan operands.
   fixPhiNodes();
+
+  return ThePreheaderVPBB;
 }
 
-void VPlanHCFGBuilder::buildPlainCFG() {
+VPBasicBlock *VPlanHCFGBuilder::buildPlainCFG() {
   PlainCFGBuilder PCFGBuilder(TheLoop, LI, Plan);
-  PCFGBuilder.buildPlainCFG();
+  return PCFGBuilder.buildPlainCFG();
 }
 
 // Public interface to build a H-CFG.
 void VPlanHCFGBuilder::buildHierarchicalCFG() {
-  // Build Top Region enclosing the plain CFG.
-  buildPlainCFG();
+  // Build Top Region enclosing the plain CFG and set it as VPlan entry.
+  VPBasicBlock *EntryVPBB = buildPlainCFG();
+  Plan.setEntry(EntryVPBB);
   LLVM_DEBUG(Plan.setName("HCFGBuilder: Plain CFG\n"); dbgs() << Plan);
 
   VPRegionBlock *TopRegion = Plan.getVectorLoopRegion();

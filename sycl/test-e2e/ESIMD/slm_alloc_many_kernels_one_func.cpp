@@ -1,4 +1,6 @@
-// UNSUPPORTED: esimd_emulator
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip || esimd_emulator
 //
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out

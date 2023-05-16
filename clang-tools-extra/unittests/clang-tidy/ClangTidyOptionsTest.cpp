@@ -120,7 +120,6 @@ TEST(ParseConfiguration, MergeConfigurations) {
       ExtraArgs: ['arg1', 'arg2']
       ExtraArgsBefore: ['arg-before1', 'arg-before2']
       UseColor: false
-      SystemHeaders: false
   )",
                                                "Options1"));
   ASSERT_TRUE(!!Options1);
@@ -135,7 +134,6 @@ TEST(ParseConfiguration, MergeConfigurations) {
       ExtraArgs: ['arg3', 'arg4']
       ExtraArgsBefore: ['arg-before3', 'arg-before4']
       UseColor: true
-      SystemHeaders: true
   )",
                                                "Options2"));
   ASSERT_TRUE(!!Options2);
@@ -156,9 +154,6 @@ TEST(ParseConfiguration, MergeConfigurations) {
                        Options.ExtraArgsBefore->end(), ","));
   ASSERT_TRUE(Options.UseColor.has_value());
   EXPECT_TRUE(*Options.UseColor);
-
-  ASSERT_TRUE(Options.SystemHeaders.has_value());
-  EXPECT_TRUE(*Options.SystemHeaders);
 }
 
 namespace {
@@ -246,17 +241,6 @@ TEST(ParseConfiguration, CollectDiags) {
 
   Options = llvm::Annotations(R"(
     UseColor: [[NotABool]]
-  )");
-  ParsedOpt = ParseWithDiags(Options.code());
-  EXPECT_TRUE(!ParsedOpt);
-  EXPECT_THAT(Collector.getDiags(),
-              testing::ElementsAre(AllOf(DiagMessage("invalid boolean"),
-                                         DiagKind(llvm::SourceMgr::DK_Error),
-                                         DiagPos(Options.range().Begin),
-                                         DiagRange(Options.range()))));
-
-  Options = llvm::Annotations(R"(
-    SystemHeaders: [[NotABool]]
   )");
   ParsedOpt = ParseWithDiags(Options.code());
   EXPECT_TRUE(!ParsedOpt);

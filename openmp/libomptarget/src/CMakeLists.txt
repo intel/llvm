@@ -20,7 +20,7 @@ add_llvm_library(omptarget
   interface.cpp
   interop.cpp
   omptarget.cpp
-  OmptCallback.cpp
+  ompt_callback.cpp
   rtl.cpp
   LegacyAPI.cpp
 
@@ -30,10 +30,6 @@ add_llvm_library(omptarget
   LINK_COMPONENTS
   Support
   Object
-
-  LINK_LIBS
-  PUBLIC
-  omp
 
   NO_INSTALL_RPATH
 )

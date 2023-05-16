@@ -587,7 +587,7 @@ LeftRightQualifierAlignmentFixer::analyze(
   assert(QualifierToken != tok::identifier && "Unrecognised Qualifier");
 
   for (AnnotatedLine *Line : AnnotatedLines) {
-    if (!Line->Affected || Line->InPPDirective)
+    if (Line->InPPDirective)
       continue;
     FormatToken *First = Line->First;
     assert(First);

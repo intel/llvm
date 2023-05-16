@@ -163,9 +163,8 @@ VPBasicBlock *VPBlockBase::getEntryBasicBlock() {
 }
 
 void VPBlockBase::setPlan(VPlan *ParentPlan) {
-  assert(
-      (ParentPlan->getEntry() == this || ParentPlan->getPreheader() == this) &&
-      "Can only set plan on its entry or preheader block.");
+  assert(ParentPlan->getEntry() == this &&
+         "Can only set plan on its entry block.");
   Plan = ParentPlan;
 }
 
@@ -247,19 +246,11 @@ void VPTransformState::addNewMetadata(Instruction *To,
 }
 
 void VPTransformState::addMetadata(Instruction *To, Instruction *From) {
-  // No source instruction to transfer metadata from?
-  if (!From)
-    return;
-
   propagateMetadata(To, From);
   addNewMetadata(To, From);
 }
 
 void VPTransformState::addMetadata(ArrayRef<Value *> To, Instruction *From) {
-  // No source instruction to transfer metadata from?
-  if (!From)
-    return;
-
   for (Value *V : To) {
     if (Instruction *I = dyn_cast<Instruction>(V))
       addMetadata(I, From);
@@ -599,23 +590,13 @@ VPlan::~VPlan() {
       Block->dropAllReferences(&DummyValue);
 
     VPBlockBase::deleteCFG(Entry);
-
-    Preheader->dropAllReferences(&DummyValue);
-    delete Preheader;
   }
   for (VPValue *VPV : VPLiveInsToFree)
     delete VPV;
+  if (TripCount)
+    delete TripCount;
   if (BackedgeTakenCount)
     delete BackedgeTakenCount;
-}
-
-VPlanPtr VPlan::createInitialVPlan(const SCEV *TripCount, ScalarEvolution &SE) {
-  VPBasicBlock *Preheader = new VPBasicBlock("ph");
-  VPBasicBlock *VecPreheader = new VPBasicBlock("vector.ph");
-  auto Plan = std::make_unique<VPlan>(Preheader, VecPreheader);
-  Plan->TripCount =
-      vputils::getOrCreateVPValueForSCEVExpr(*Plan, TripCount, SE);
-  return Plan;
 }
 
 VPActiveLaneMaskPHIRecipe *VPlan::getActiveLaneMaskPhi() {
@@ -631,6 +612,13 @@ void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
                              Value *CanonicalIVStartValue,
                              VPTransformState &State,
                              bool IsEpilogueVectorization) {
+
+  // Check if the trip count is needed, and if so build it.
+  if (TripCount && TripCount->getNumUsers()) {
+    for (unsigned Part = 0, UF = State.UF; Part < UF; ++Part)
+      State.set(TripCount, TripCountV, Part);
+  }
+
   // Check if the backedge taken count is needed, and if so build it.
   if (BackedgeTakenCount && BackedgeTakenCount->getNumUsers()) {
     IRBuilder<> Builder(State.CFG.PrevBB->getTerminator());
@@ -759,29 +747,30 @@ void VPlan::print(raw_ostream &O) const {
 
   O << "VPlan '" << getName() << "' {";
 
+  bool AnyLiveIn = false;
   if (VectorTripCount.getNumUsers() > 0) {
     O << "\nLive-in ";
     VectorTripCount.printAsOperand(O, SlotTracker);
     O << " = vector-trip-count";
+    AnyLiveIn = true;
+  }
+
+  if (TripCount && TripCount->getNumUsers() > 0) {
+    O << "\nLive-in ";
+    TripCount->printAsOperand(O, SlotTracker);
+    O << " = original trip-count";
+    AnyLiveIn = true;
   }
 
   if (BackedgeTakenCount && BackedgeTakenCount->getNumUsers()) {
     O << "\nLive-in ";
     BackedgeTakenCount->printAsOperand(O, SlotTracker);
     O << " = backedge-taken count";
+    AnyLiveIn = true;
   }
 
-  O << "\n";
-  if (TripCount->isLiveIn())
-    O << "Live-in ";
-  TripCount->printAsOperand(O, SlotTracker);
-  O << " = original trip-count";
-  O << "\n";
-
-  if (!getPreheader()->empty()) {
+  if (AnyLiveIn)
     O << "\n";
-    getPreheader()->print(O, "", SlotTracker);
-  }
 
   for (const VPBlockBase *Block : vp_depth_first_shallow(getEntry())) {
     O << '\n';
@@ -907,8 +896,6 @@ void VPlanPrinter::dump() {
   OS << "node [shape=rect, fontname=Courier, fontsize=30]\n";
   OS << "edge [fontname=Courier, fontsize=30]\n";
   OS << "compound=true\n";
-
-  dumpBlock(Plan.getPreheader());
 
   for (const VPBlockBase *Block : vp_depth_first_shallow(Plan.getEntry()))
     dumpBlock(Block);
@@ -1122,7 +1109,8 @@ void VPSlotTracker::assignSlots(const VPlan &Plan) {
   assignSlot(&Plan.VectorTripCount);
   if (Plan.BackedgeTakenCount)
     assignSlot(Plan.BackedgeTakenCount);
-  assignSlots(Plan.getPreheader());
+  if (Plan.TripCount)
+    assignSlot(Plan.TripCount);
 
   ReversePostOrderTraversal<VPBlockDeepTraversalWrapper<const VPBlockBase *>>
       RPOT(VPBlockDeepTraversalWrapper<const VPBlockBase *>(Plan.getEntry()));
@@ -1144,17 +1132,13 @@ bool vputils::onlyFirstLaneUsed(VPValue *Def) {
 
 VPValue *vputils::getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
                                                 ScalarEvolution &SE) {
-  if (auto *Expanded = Plan.getSCEVExpansion(Expr))
-    return Expanded;
-  VPValue *Expanded = nullptr;
   if (auto *E = dyn_cast<SCEVConstant>(Expr))
-    Expanded = Plan.getVPValueOrAddLiveIn(E->getValue());
-  else if (auto *E = dyn_cast<SCEVUnknown>(Expr))
-    Expanded = Plan.getVPValueOrAddLiveIn(E->getValue());
-  else {
-    Expanded = new VPExpandSCEVRecipe(Expr, SE);
-    Plan.getPreheader()->appendRecipe(Expanded->getDefiningRecipe());
-  }
-  Plan.addSCEVExpansion(Expr, Expanded);
-  return Expanded;
+    return Plan.getVPValueOrAddLiveIn(E->getValue());
+  if (auto *E = dyn_cast<SCEVUnknown>(Expr))
+    return Plan.getVPValueOrAddLiveIn(E->getValue());
+
+  VPBasicBlock *Preheader = Plan.getEntry();
+  VPExpandSCEVRecipe *Step = new VPExpandSCEVRecipe(Expr, SE);
+  Preheader->appendRecipe(Step);
+  return Step;
 }

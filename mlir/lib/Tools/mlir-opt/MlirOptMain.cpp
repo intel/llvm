@@ -113,10 +113,6 @@ struct MlirOptMainConfigCLOptions : public MlirOptMainConfig {
                  "parsing"),
         cl::location(useExplicitModuleFlag), cl::init(false));
 
-    static cl::opt<bool, /*ExternalStorage=*/true> runReproducer(
-        "run-reproducer", cl::desc("Run the pipeline stored in the reproducer"),
-        cl::location(runReproducerFlag), cl::init(false));
-
     static cl::opt<bool, /*ExternalStorage=*/true> showDialects(
         "show-dialects",
         cl::desc("Print the list of registered dialects and exit"),
@@ -240,8 +236,7 @@ performActions(raw_ostream &os,
   FallbackAsmResourceMap fallbackResourceMap;
   ParserConfig parseConfig(context, /*verifyAfterParse=*/true,
                            &fallbackResourceMap);
-  if (config.shouldRunReproducer())
-    reproOptions.attachResourceParser(parseConfig);
+  reproOptions.attachResourceParser(parseConfig);
 
   // Parse the input file and reset the context threading state.
   TimingScope parserTiming = timing.nest("Parser");
@@ -258,9 +253,7 @@ performActions(raw_ostream &os,
   if (failed(applyPassManagerCLOptions(pm)))
     return failure();
   pm.enableTiming(timing);
-  if (config.shouldRunReproducer() && failed(reproOptions.apply(pm)))
-    return failure();
-  if (failed(config.setupPassPipeline(pm)))
+  if (failed(reproOptions.apply(pm)) || failed(config.setupPassPipeline(pm)))
     return failure();
 
   // Run the pipeline.

@@ -37,7 +37,6 @@ set(NVPTXCodeGen_sources
   NVVMIntrRange.cpp
   NVVMReflect.cpp
   NVPTXProxyRegErasure.cpp
-  NVPTXCtorDtorLowering.cpp
   )
 
 add_llvm_target(NVPTXCodeGen

@@ -1720,7 +1720,6 @@ cc_library(
         "//llvm:ExecutionEngine",
         "//llvm:Option",
         "//llvm:OrcJIT",
-        "//llvm:OrcShared",
         "//llvm:OrcTargetProcess",
         "//llvm:Support",
         "//llvm:Target",

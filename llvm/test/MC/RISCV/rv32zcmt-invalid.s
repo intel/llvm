@@ -6,8 +6,5 @@
 # CHECK-ERROR: error: immediate must be an integer in the range [0, 31]
 cm.jt 64
 
-# CHECK-ERROR: error: immediate must be an integer in the range [32, 255]
+# CHECK-ERROR: error: immediate must be an integer in the range [0, 255]
 cm.jalt 256
-
-# CHECK-ERROR: error: immediate must be an integer in the range [32, 255]
-cm.jalt 31

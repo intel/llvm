@@ -19,13 +19,12 @@ TEST(VPVerifierTest, VPInstructionUseBeforeDefSameBB) {
   VPInstruction *DefI = new VPInstruction(Instruction::Add, {});
   VPInstruction *UseI = new VPInstruction(Instruction::Sub, {DefI});
 
-  VPBasicBlock *VPPH = new VPBasicBlock("ph");
   VPBasicBlock *VPBB1 = new VPBasicBlock();
   VPBB1->appendRecipe(UseI);
   VPBB1->appendRecipe(DefI);
 
-  auto TC = std::make_unique<VPValue>();
-  VPlan Plan(VPPH, &*TC, VPBB1);
+  VPlan Plan;
+  Plan.setEntry(VPBB1);
 
 #if GTEST_HAS_STREAM_REDIRECTION
   ::testing::internal::CaptureStderr();
@@ -44,7 +43,6 @@ TEST(VPVerifierTest, VPInstructionUseBeforeDefDifferentBB) {
   VPInstruction *BranchOnCond =
       new VPInstruction(VPInstruction::BranchOnCond, {CanIV});
 
-  VPBasicBlock *VPPH = new VPBasicBlock("ph");
   VPBasicBlock *VPBB1 = new VPBasicBlock();
   VPBasicBlock *VPBB2 = new VPBasicBlock();
 
@@ -56,8 +54,8 @@ TEST(VPVerifierTest, VPInstructionUseBeforeDefDifferentBB) {
   VPRegionBlock *R1 = new VPRegionBlock(VPBB2, VPBB2, "R1");
   VPBlockUtils::connectBlocks(VPBB1, R1);
 
-  auto TC = std::make_unique<VPValue>();
-  VPlan Plan(VPPH, &*TC, VPBB1);
+  VPlan Plan;
+  Plan.setEntry(VPBB1);
 
 #if GTEST_HAS_STREAM_REDIRECTION
   ::testing::internal::CaptureStderr();
@@ -81,7 +79,6 @@ TEST(VPVerifierTest, VPBlendUseBeforeDefDifferentBB) {
       new VPInstruction(VPInstruction::BranchOnCond, {CanIV});
   auto *Blend = new VPBlendRecipe(Phi, {DefI});
 
-  VPBasicBlock *VPPH = new VPBasicBlock("ph");
   VPBasicBlock *VPBB1 = new VPBasicBlock();
   VPBasicBlock *VPBB2 = new VPBasicBlock();
   VPBasicBlock *VPBB3 = new VPBasicBlock();
@@ -98,8 +95,8 @@ TEST(VPVerifierTest, VPBlendUseBeforeDefDifferentBB) {
   VPRegionBlock *R1 = new VPRegionBlock(VPBB2, VPBB4, "R1");
   VPBlockUtils::connectBlocks(VPBB1, R1);
 
-  auto TC = std::make_unique<VPValue>();
-  VPlan Plan(VPPH, &*TC, VPBB1);
+  VPlan Plan;
+  Plan.setEntry(VPBB1);
 
 #if GTEST_HAS_STREAM_REDIRECTION
   ::testing::internal::CaptureStderr();

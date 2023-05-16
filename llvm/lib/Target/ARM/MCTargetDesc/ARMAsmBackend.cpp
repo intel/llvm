@@ -448,6 +448,7 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
 
   switch (Kind) {
   default:
+    Ctx.reportError(Fixup.getLoc(), "bad relocation fixup type");
     return 0;
   case FK_Data_1:
   case FK_Data_2:

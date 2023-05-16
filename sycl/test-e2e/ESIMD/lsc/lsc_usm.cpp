@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
+// UNSUPPORTED: cuda || hip
 // TODO : esimd_emulator does not support lsc-atomic yet
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

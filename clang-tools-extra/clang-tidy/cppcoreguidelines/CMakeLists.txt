@@ -15,7 +15,6 @@ add_clang_library(clangTidyCppCoreGuidelinesModule
   InterfacesGlobalInitCheck.cpp
   MacroUsageCheck.cpp
   MisleadingCaptureDefaultByValueCheck.cpp
-  MissingStdForwardCheck.cpp
   NarrowingConversionsCheck.cpp
   NoMallocCheck.cpp
   OwningMemoryCheck.cpp

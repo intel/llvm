@@ -25,7 +25,6 @@ end program
 ! ALL: Pass statistics report
 
 ! ALL: Fortran::lower::VerifierPass
-! ALL-NEXT: LowerHLFIROrderedAssignments
 ! ALL-NEXT: LowerHLFIRIntrinsics
 ! ALL-NEXT: BufferizeHLFIR
 ! ALL-NEXT: ConvertHLFIRtoFIR

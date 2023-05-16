@@ -10,6 +10,7 @@
 #include "PECallFrameInfo.h"
 #include "WindowsMiniDump.h"
 
+#include "lldb/Core/FileSpecList.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
@@ -24,7 +25,6 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/FileSpec.h"
-#include "lldb/Utility/FileSpecList.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
@@ -90,8 +90,9 @@ public:
   }
 
   llvm::Triple::EnvironmentType ABI() const {
-    return GetPropertyAtIndexAs<llvm::Triple::EnvironmentType>(
-        ePropertyABI, llvm::Triple::UnknownEnvironment);
+    return (llvm::Triple::EnvironmentType)m_collection_sp
+        ->GetPropertyAtIndexAsEnumeration(ePropertyABI)
+        .value_or(llvm::Triple::UnknownEnvironment);
   }
 
   OptionValueDictionary *ModuleABIMap() const {
@@ -1046,6 +1047,7 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
     unified_section_list.AddSection(header_sp);
 
     const uint32_t nsects = m_sect_headers.size();
+    ModuleSP module_sp(GetModule());
     for (uint32_t idx = 0; idx < nsects; ++idx) {
       llvm::StringRef sect_name = GetSectionName(m_sect_headers[idx]);
       ConstString const_sect_name(sect_name);

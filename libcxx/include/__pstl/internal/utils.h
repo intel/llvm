@@ -15,8 +15,6 @@
 #include <__utility/forward.h>
 #include <new>
 
-#if !defined(_LIBCPP_HAS_NO_INCOMPLETE_PSTL) && _LIBCPP_STD_VER >= 17
-
 namespace __pstl {
 namespace __internal {
 
@@ -71,58 +69,58 @@ struct __no_op {
 
 template <typename _Pred>
 class __reorder_pred {
-  _Pred __pred_;
+  _Pred _M_pred;
 
 public:
-  _LIBCPP_HIDE_FROM_ABI explicit __reorder_pred(_Pred __pred) : __pred_(__pred) {}
+  _LIBCPP_HIDE_FROM_ABI explicit __reorder_pred(_Pred __pred) : _M_pred(__pred) {}
 
   template <typename _FTp, typename _STp>
   _LIBCPP_HIDE_FROM_ABI bool operator()(_FTp&& __a, _STp&& __b) {
-    return __pred_(std::forward<_STp>(__b), std::forward<_FTp>(__a));
+    return _M_pred(std::forward<_STp>(__b), std::forward<_FTp>(__a));
   }
 };
 
 //! Like a polymorphic lambda for pred(...,value)
 template <typename _Tp, typename _Predicate>
 class __equal_value_by_pred {
-  const _Tp& __value_;
-  _Predicate __pred_;
+  const _Tp& _M_value;
+  _Predicate _M_pred;
 
 public:
   _LIBCPP_HIDE_FROM_ABI __equal_value_by_pred(const _Tp& __value, _Predicate __pred)
-      : __value_(__value), __pred_(__pred) {}
+      : _M_value(__value), _M_pred(__pred) {}
 
   template <typename _Arg>
   _LIBCPP_HIDE_FROM_ABI bool operator()(_Arg&& __arg) {
-    return __pred_(std::forward<_Arg>(__arg), __value_);
+    return _M_pred(std::forward<_Arg>(__arg), _M_value);
   }
 };
 
 //! Like a polymorphic lambda for ==value
 template <typename _Tp>
 class __equal_value {
-  const _Tp& __value_;
+  const _Tp& _M_value;
 
 public:
-  _LIBCPP_HIDE_FROM_ABI explicit __equal_value(const _Tp& __value) : __value_(__value) {}
+  _LIBCPP_HIDE_FROM_ABI explicit __equal_value(const _Tp& __value) : _M_value(__value) {}
 
   template <typename _Arg>
   _LIBCPP_HIDE_FROM_ABI bool operator()(_Arg&& __arg) const {
-    return std::forward<_Arg>(__arg) == __value_;
+    return std::forward<_Arg>(__arg) == _M_value;
   }
 };
 
 //! Logical negation of ==value
 template <typename _Tp>
 class __not_equal_value {
-  const _Tp& __value_;
+  const _Tp& _M_value;
 
 public:
-  _LIBCPP_HIDE_FROM_ABI explicit __not_equal_value(const _Tp& __value) : __value_(__value) {}
+  _LIBCPP_HIDE_FROM_ABI explicit __not_equal_value(const _Tp& __value) : _M_value(__value) {}
 
   template <typename _Arg>
   _LIBCPP_HIDE_FROM_ABI bool operator()(_Arg&& __arg) const {
-    return !(std::forward<_Arg>(__arg) == __value_);
+    return !(std::forward<_Arg>(__arg) == _M_value);
   }
 };
 
@@ -138,7 +136,5 @@ __cmp_iterators_by_values(_ForwardIterator __a, _ForwardIterator __b, _Compare _
 
 } // namespace __internal
 } // namespace __pstl
-
-#endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_PSTL) && _LIBCPP_STD_VER >= 17
 
 #endif /* _PSTL_UTILS_H */

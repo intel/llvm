@@ -26,7 +26,6 @@
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
-#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -316,8 +315,9 @@ TemplateNameKind Sema::isTemplateName(Scope *S,
 }
 
 bool Sema::isDeductionGuideName(Scope *S, const IdentifierInfo &Name,
-                                SourceLocation NameLoc, CXXScopeSpec &SS,
-                                ParsedTemplateTy *Template /*=nullptr*/) {
+                                SourceLocation NameLoc,
+                                ParsedTemplateTy *Template) {
+  CXXScopeSpec SS;
   bool MemberOfUnknownSpecialization = false;
 
   // We could use redeclaration lookup here, but we don't need to: the

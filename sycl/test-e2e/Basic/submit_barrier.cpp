@@ -2,6 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: accelerator
+
 #include <stdlib.h>
 #include <sycl/sycl.hpp>
 

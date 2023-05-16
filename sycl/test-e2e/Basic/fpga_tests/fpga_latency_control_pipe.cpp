@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: opencl-aot, accelerator
-// RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
+// RUN: %{build} -fintelfpga -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>

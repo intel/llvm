@@ -21,7 +21,6 @@
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
-#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
@@ -3697,12 +3696,11 @@ void Parser::ParseDeclarationSpecifiers(
 
       // Likewise, if this is a context where the identifier could be a template
       // name, check whether this is a deduction guide declaration.
-      CXXScopeSpec SS;
       if (getLangOpts().CPlusPlus17 &&
           (DSContext == DeclSpecContext::DSC_class ||
            DSContext == DeclSpecContext::DSC_top_level) &&
           Actions.isDeductionGuideName(getCurScope(), *Tok.getIdentifierInfo(),
-                                       Tok.getLocation(), SS) &&
+                                       Tok.getLocation()) &&
           isConstructorDeclarator(/*Unqualified*/ true,
                                   /*DeductionGuide*/ true))
         goto DoneWithDeclSpec;

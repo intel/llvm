@@ -74,8 +74,9 @@ bool Parser::isCXXDeclarationStatement(
       switch (Tok.getKind()) {
       case tok::identifier: {
         IdentifierInfo *II = Tok.getIdentifierInfo();
-        bool isDeductionGuide = Actions.isDeductionGuideName(
-            getCurScope(), *II, Tok.getLocation(), SS, /*Template=*/nullptr);
+        bool isDeductionGuide =
+            Actions.isDeductionGuideName(getCurScope(), *II, Tok.getLocation(),
+                                         /*Template=*/nullptr);
         if (Actions.isCurrentClassName(*II, getCurScope(), &SS) ||
             isDeductionGuide) {
           if (isConstructorDeclarator(/*Unqualified=*/SS.isEmpty(),

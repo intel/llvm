@@ -2506,11 +2506,15 @@ void transform::TileToForallOp::build(OpBuilder &builder,
 
 DiagnosedSilenceableFailure transform::tileToForallOpImpl(
     RewriterBase &rewriter, transform::TransformState &state,
-    TransformOpInterface transformOp, Operation *target,
+    TransformOpInterface transformOp, ArrayRef<Operation *> targets,
     ArrayRef<OpFoldResult> mixedNumThreads,
     ArrayRef<OpFoldResult> mixedTileSizes, std::optional<ArrayAttr> mapping,
-    linalg::ForallTilingResult &tilingResult) {
+    SmallVector<Operation *> &tileOps, SmallVector<Operation *> &tiledOps) {
+  if (targets.empty())
+    return DiagnosedSilenceableFailure::success();
+
   // Transform all targets one by one.
+  for (Operation *target : targets) {
     auto tileableOp = dyn_cast<TilingInterface>(target);
     if (!tileableOp) {
       DiagnosedSilenceableFailure diag =
@@ -2520,21 +2524,23 @@ DiagnosedSilenceableFailure transform::tileToForallOpImpl(
       return diag;
     }
     rewriter.setInsertionPoint(tileableOp);
-    FailureOr<linalg::ForallTilingResult> maybeTilingResult = failure();
+    FailureOr<linalg::ForallTilingResult> tilingResult = failure();
     if (!mixedNumThreads.empty()) {
-      maybeTilingResult = linalg::tileToForallOp(rewriter, tileableOp,
-                                                 mixedNumThreads, mapping);
+      tilingResult = linalg::tileToForallOp(rewriter, tileableOp,
+                                            mixedNumThreads, mapping);
     } else {
-      maybeTilingResult = linalg::tileToForallOpUsingTileSizes(
+      tilingResult = linalg::tileToForallOpUsingTileSizes(
           rewriter, tileableOp, mixedTileSizes, mapping);
     }
 
-    if (failed(maybeTilingResult))
+    if (failed(tilingResult))
       return transformOp.emitDefaultSilenceableFailure(tileableOp);
-    rewriter.replaceOp(tileableOp, maybeTilingResult->tileOp->getResults());
+    rewriter.replaceOp(tileableOp, tilingResult->tileOp->getResults());
 
-    tilingResult = *maybeTilingResult;
-    return DiagnosedSilenceableFailure::success();
+    tileOps.push_back(tilingResult->tileOp);
+    tiledOps.push_back(tilingResult->tiledOp);
+  }
+  return DiagnosedSilenceableFailure::success();
 }
 
 DiagnosedSilenceableFailure
@@ -2571,16 +2577,12 @@ transform::TileToForallOp::apply(transform::TransformResults &transformResults,
   if (!status.succeeded())
     return status;
 
-  for (Operation *target : targets) {
-    linalg::ForallTilingResult tilingResult;
-    DiagnosedSilenceableFailure diag = tileToForallOpImpl(
-        rewriter, state, transformOp, target, mixedNumThreads, mixedTileSizes,
-        getMapping(), tilingResult);
-    if (!diag.succeeded())
-      return diag;
-    tileOps.push_back(tilingResult.tileOp);
-    tiledOps.push_back(tilingResult.tiledOp);
-  }
+  DiagnosedSilenceableFailure diag =
+      tileToForallOpImpl(rewriter, state, transformOp, targets, mixedNumThreads,
+                         mixedTileSizes, getMapping(), tileOps, tiledOps);
+
+  if (!diag.succeeded())
+    return diag;
 
   transformResults.set(getForallOp().cast<OpResult>(), tileOps);
   transformResults.set(getTiledOp().cast<OpResult>(), tiledOps);

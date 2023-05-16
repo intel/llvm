@@ -42,7 +42,7 @@ static cl::opt<std::string> InputFilename(cl::Positional,
 static cl::opt<std::string> Output("o", cl::value_desc("output IR filename"),
                                    cl::desc("output filename"));
 
-// LlvmSpirvOpts - Options to pass along to llvm-spirv.
+// LlvmSpirvOpts - The filename to output to.
 static cl::opt<std::string>
     LlvmSpirvOpts("llvm-spirv-opts", cl::value_desc("llvm-spirv options"),
                   cl::desc("options to pass to llvm-spirv"));

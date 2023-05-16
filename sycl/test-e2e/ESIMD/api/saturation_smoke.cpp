@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to unimplemented 'half' type
 // XFAIL: esimd_emulator
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out

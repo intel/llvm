@@ -41,11 +41,12 @@ public:
   }
 
   llvm::StringRef GetArchitecture() {
-    return GetPropertyAtIndexAs<llvm::StringRef>(ePropertyArchitecture, "");
+    return m_collection_sp->GetPropertyAtIndexAsString(ePropertyArchitecture)
+        .value_or("");
   }
 
   FileSpec GetEmulatorPath() {
-    return GetPropertyAtIndexAs<FileSpec>(ePropertyEmulatorPath, {});
+    return m_collection_sp->GetPropertyAtIndexAsFileSpec(ePropertyEmulatorPath);
   }
 
   Args GetEmulatorArgs() {

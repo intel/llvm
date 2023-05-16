@@ -112,36 +112,39 @@ ThreadProperties::~ThreadProperties() = default;
 
 const RegularExpression *ThreadProperties::GetSymbolsToAvoidRegexp() {
   const uint32_t idx = ePropertyStepAvoidRegex;
-  return GetPropertyAtIndexAs<const RegularExpression *>(idx);
+  return m_collection_sp->GetPropertyAtIndexAsOptionValueRegex(idx);
 }
 
 FileSpecList ThreadProperties::GetLibrariesToAvoid() const {
   const uint32_t idx = ePropertyStepAvoidLibraries;
-  return GetPropertyAtIndexAs<FileSpecList>(idx, {});
+  const OptionValueFileSpecList *option_value =
+      m_collection_sp->GetPropertyAtIndexAsOptionValueFileSpecList(idx);
+  assert(option_value);
+  return option_value->GetCurrentValue();
 }
 
 bool ThreadProperties::GetTraceEnabledState() const {
   const uint32_t idx = ePropertyEnableThreadTrace;
-  return GetPropertyAtIndexAs<bool>(
-      idx, g_thread_properties[idx].default_uint_value != 0);
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
+      g_thread_properties[idx].default_uint_value != 0);
 }
 
 bool ThreadProperties::GetStepInAvoidsNoDebug() const {
   const uint32_t idx = ePropertyStepInAvoidsNoDebug;
-  return GetPropertyAtIndexAs<bool>(
-      idx, g_thread_properties[idx].default_uint_value != 0);
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
+      g_thread_properties[idx].default_uint_value != 0);
 }
 
 bool ThreadProperties::GetStepOutAvoidsNoDebug() const {
   const uint32_t idx = ePropertyStepOutAvoidsNoDebug;
-  return GetPropertyAtIndexAs<bool>(
-      idx, g_thread_properties[idx].default_uint_value != 0);
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
+      g_thread_properties[idx].default_uint_value != 0);
 }
 
 uint64_t ThreadProperties::GetMaxBacktraceDepth() const {
   const uint32_t idx = ePropertyMaxBacktraceDepth;
-  return GetPropertyAtIndexAs<uint64_t>(
-      idx, g_thread_properties[idx].default_uint_value);
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(idx).value_or(
+      g_thread_properties[idx].default_uint_value != 0);
 }
 
 // Thread Event Data

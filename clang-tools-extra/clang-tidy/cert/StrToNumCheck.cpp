@@ -61,7 +61,7 @@ ConversionKind classifyFormatString(StringRef Fmt, const LangOptions &LO,
   // specifiers, but that is acceptable behavior.
 
   class Handler : public analyze_format_string::FormatStringHandler {
-    ConversionKind CK = ConversionKind::None;
+    ConversionKind CK;
 
     bool HandleScanfSpecifier(const analyze_scanf::ScanfSpecifier &FS,
                               const char *StartSpecifier,
@@ -117,7 +117,7 @@ ConversionKind classifyFormatString(StringRef Fmt, const LangOptions &LO,
     }
 
   public:
-    Handler() = default;
+    Handler() : CK(ConversionKind::None) {}
 
     ConversionKind get() const { return CK; }
   };

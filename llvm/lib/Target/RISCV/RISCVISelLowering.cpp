@@ -252,7 +252,6 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction({ISD::ADD, ISD::SUB, ISD::SHL, ISD::SRA, ISD::SRL},
                        MVT::i32, Custom);
 
-    setOperationAction(ISD::SADDO, MVT::i32, Custom);
     setOperationAction({ISD::UADDO, ISD::USUBO, ISD::UADDSAT, ISD::USUBSAT},
                        MVT::i32, Custom);
   } else {
@@ -936,8 +935,6 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
         setOperationAction({ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT}, VT,
                            Custom);
 
-        setOperationAction(ISD::VECTOR_SHUFFLE, VT, Custom);
-
         // Operations below are different for between masks and other vectors.
         if (VT.getVectorElementType() == MVT::i1) {
           setOperationAction({ISD::VP_AND, ISD::VP_OR, ISD::VP_XOR, ISD::AND,
@@ -959,6 +956,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
           setOperationAction(ISD::SPLAT_VECTOR, VT, Legal);
           setOperationAction(ISD::SPLAT_VECTOR_PARTS, VT, Custom);
         }
+
+        setOperationAction(ISD::VECTOR_SHUFFLE, VT, Custom);
 
         setOperationAction(
             {ISD::MLOAD, ISD::MSTORE, ISD::MGATHER, ISD::MSCATTER}, VT, Custom);
@@ -1698,8 +1697,6 @@ bool RISCVTargetLowering::canSplatOperand(Instruction *I, int Operand) const {
   case Intrinsic::vp_xor:
   case Intrinsic::vp_fadd:
   case Intrinsic::vp_fmul:
-  case Intrinsic::vp_icmp:
-  case Intrinsic::vp_fcmp:
     // These intrinsics have 'vr' versions.
   case Intrinsic::vp_sub:
   case Intrinsic::vp_fsub:
@@ -3830,17 +3827,6 @@ static SDValue lowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG,
   MVT VT = Op.getSimpleValueType();
   unsigned NumElts = VT.getVectorNumElements();
   ShuffleVectorSDNode *SVN = cast<ShuffleVectorSDNode>(Op.getNode());
-
-  // Promote i1 shuffle to i8 shuffle.
-  if (VT.getVectorElementType() == MVT::i1) {
-    MVT WidenVT = MVT::getVectorVT(MVT::i8, VT.getVectorElementCount());
-    V1 = DAG.getNode(ISD::ZERO_EXTEND, DL, WidenVT, V1);
-    V2 = V2.isUndef() ? DAG.getUNDEF(WidenVT)
-                      : DAG.getNode(ISD::ZERO_EXTEND, DL, WidenVT, V2);
-    SDValue Shuffled = DAG.getVectorShuffle(WidenVT, DL, V1, V2, SVN->getMask());
-    return DAG.getSetCC(DL, VT, Shuffled, DAG.getConstant(0, DL, WidenVT),
-                        ISD::SETNE);
-  }
 
   MVT ContainerVT = getContainerForFixedLengthVector(DAG, VT, Subtarget);
 
@@ -6179,7 +6165,7 @@ SDValue RISCVTargetLowering::lowerEXTRACT_VECTOR_ELT(SDValue Op,
       SDValue Vfirst =
           DAG.getNode(RISCVISD::VFIRST_VL, DL, XLenVT, Vec, Mask, VL);
       return DAG.getSetCC(DL, XLenVT, Vfirst, DAG.getConstant(0, DL, XLenVT),
-                          ISD::SETNE);
+                          ISD::SETEQ);
     }
     if (VecVT.isFixedLengthVector()) {
       unsigned NumElts = VecVT.getVectorNumElements();
@@ -7332,9 +7318,9 @@ static SDValue widenVectorOpsToi8(SDValue N, SDLoc &DL, SelectionDAG &DAG) {
   SDValue WideN = DAG.getNode(N.getOpcode(), DL, VTs, WideOps);
   SmallVector<SDValue, 4> TruncVals;
   for (unsigned I = 0; I < NumVals; I++) {
-    TruncVals.push_back(
-        DAG.getSetCC(DL, N->getSimpleValueType(I), WideN.getValue(I),
-                     DAG.getConstant(0, DL, WideVT), ISD::SETNE));
+    TruncVals.push_back(DAG.getNode(ISD::TRUNCATE, DL,
+                                    N->getSimpleValueType(I),
+                                    SDValue(WideN.getNode(), I)));
   }
 
   if (TruncVals.size() > 1)
@@ -9033,39 +9019,6 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
 
     Results.push_back(customLegalizeToWOp(N, DAG, ExtOpc));
     break;
-  }
-  case ISD::SADDO: {
-    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
-           "Unexpected custom legalisation");
-
-    // If the RHS is a constant, we can simplify ConditionRHS below. Otherwise
-    // use the default legalization.
-    if (!isa<ConstantSDNode>(N->getOperand(1)))
-      return;
-
-    SDValue LHS = DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, N->getOperand(0));
-    SDValue RHS = DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, N->getOperand(1));
-    SDValue Res = DAG.getNode(ISD::ADD, DL, MVT::i64, LHS, RHS);
-    Res = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, Res,
-                      DAG.getValueType(MVT::i32));
-
-    SDValue Zero = DAG.getConstant(0, DL, MVT::i64);
-
-    // For an addition, the result should be less than one of the operands (LHS)
-    // if and only if the other operand (RHS) is negative, otherwise there will
-    // be overflow.
-    // For a subtraction, the result should be less than one of the operands
-    // (LHS) if and only if the other operand (RHS) is (non-zero) positive,
-    // otherwise there will be overflow.
-    EVT OType = N->getValueType(1);
-    SDValue ResultLowerThanLHS = DAG.getSetCC(DL, OType, Res, LHS, ISD::SETLT);
-    SDValue ConditionRHS = DAG.getSetCC(DL, OType, RHS, Zero, ISD::SETLT);
-
-    SDValue Overflow =
-        DAG.getNode(ISD::XOR, DL, OType, ConditionRHS, ResultLowerThanLHS);
-    Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
-    Results.push_back(Overflow);
-    return;
   }
   case ISD::UADDO:
   case ISD::USUBO: {
@@ -12187,23 +12140,6 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   return SDValue();
-}
-
-bool RISCVTargetLowering::shouldTransformSignedTruncationCheck(
-    EVT XVT, unsigned KeptBits) const {
-  // For vectors, we don't have a preference..
-  if (XVT.isVector())
-    return false;
-
-  if (XVT != MVT::i32 && XVT != MVT::i64)
-    return false;
-
-  // We can use sext.w for RV64 or an srai 31 on RV32.
-  if (KeptBits == 32 || KeptBits == 64)
-    return true;
-
-  // With Zbb we can use sext.h. sext.b does not seem to be profitable.
-  return Subtarget.hasStdExtZbb() && KeptBits == 16;
 }
 
 bool RISCVTargetLowering::isDesirableToCommuteWithShift(

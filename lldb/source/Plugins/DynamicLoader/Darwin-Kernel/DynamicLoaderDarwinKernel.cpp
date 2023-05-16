@@ -113,17 +113,15 @@ public:
 
   bool GetLoadKexts() const {
     const uint32_t idx = ePropertyLoadKexts;
-    return GetPropertyAtIndexAs<bool>(
-        idx,
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
         g_dynamicloaderdarwinkernel_properties[idx].default_uint_value != 0);
   }
 
   KASLRScanType GetScanType() const {
     const uint32_t idx = ePropertyScanType;
-    return GetPropertyAtIndexAs<KASLRScanType>(
-        idx,
-        static_cast<KASLRScanType>(
-            g_dynamicloaderdarwinkernel_properties[idx].default_uint_value));
+    return (KASLRScanType)m_collection_sp->GetPropertyAtIndexAsEnumeration(idx)
+        .value_or(
+            g_dynamicloaderdarwinkernel_properties[idx].default_uint_value);
   }
 };
 

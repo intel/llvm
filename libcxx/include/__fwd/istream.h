@@ -24,12 +24,12 @@ class _LIBCPP_TEMPLATE_VIS basic_istream;
 template <class _CharT, class _Traits = char_traits<_CharT> >
 class _LIBCPP_TEMPLATE_VIS basic_iostream;
 
-using istream  = basic_istream<char>;
-using iostream = basic_iostream<char>;
+typedef basic_istream<char> istream;
+typedef basic_iostream<char> iostream;
 
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-using wistream  = basic_istream<wchar_t>;
-using wiostream = basic_iostream<wchar_t>;
+typedef basic_istream<wchar_t> wistream;
+typedef basic_iostream<wchar_t> wiostream;
 #endif
 
 template <class _CharT, class _Traits>

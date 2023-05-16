@@ -19,7 +19,6 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
-#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/STLExtras.h"
@@ -1053,7 +1052,7 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 
 void Parser::DiagnoseLabelAtEndOfCompoundStatement() {
   if (getLangOpts().CPlusPlus) {
-    Diag(Tok, getLangOpts().CPlusPlus23
+    Diag(Tok, getLangOpts().CPlusPlus2b
                   ? diag::warn_cxx20_compat_label_end_of_compound_statement
                   : diag::ext_cxx_label_end_of_compound_statement);
   } else {
@@ -1457,7 +1456,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     }
 
     if (Tok.is(tok::kw_consteval)) {
-      Diag(Tok, getLangOpts().CPlusPlus23 ? diag::warn_cxx20_compat_consteval_if
+      Diag(Tok, getLangOpts().CPlusPlus2b ? diag::warn_cxx20_compat_consteval_if
                                           : diag::ext_consteval_if);
       IsConsteval = true;
       ConstevalLoc = ConsumeToken();
@@ -1929,7 +1928,7 @@ bool Parser::isForRangeIdentifier() {
 /// [C++] for-init-statement:
 /// [C++]   expression-statement
 /// [C++]   simple-declaration
-/// [C++23] alias-declaration
+/// [C++2b] alias-declaration
 ///
 /// [C++0x] for-range-declaration:
 /// [C++0x]   attribute-specifier-seq[opt] type-specifier-seq declarator

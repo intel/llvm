@@ -11,13 +11,12 @@
 
 // ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_NODISCARD_EXT
 
-// UNSUPPORTED: libcpp-has-no-incomplete-pstl
+// REQUIRES: with-pstl
 
 // UNSUPPORTED: c++03, c++11, c++14
 
 #include <algorithm>
 #include <execution>
-#include <iterator>
 
 void test() {
   int a[] = {1};

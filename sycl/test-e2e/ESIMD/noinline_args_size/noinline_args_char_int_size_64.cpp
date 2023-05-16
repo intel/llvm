@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 

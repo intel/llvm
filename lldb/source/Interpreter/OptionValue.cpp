@@ -296,14 +296,14 @@ bool OptionValue::SetEnumerationValue(int64_t value) {
   return false;
 }
 
-std::optional<FileSpec> OptionValue::GetFileSpecValue() const {
+FileSpec OptionValue::GetFileSpecValue() const {
   const OptionValueFileSpec *option_value = GetAsFileSpec();
   if (option_value)
     return option_value->GetCurrentValue();
-  return {};
+  return FileSpec();
 }
 
-bool OptionValue::SetFileSpecValue(FileSpec file_spec) {
+bool OptionValue::SetFileSpecValue(const FileSpec &file_spec) {
   OptionValueFileSpec *option_value = GetAsFileSpec();
   if (option_value) {
     option_value->SetCurrentValue(file_spec, false);
@@ -312,18 +312,11 @@ bool OptionValue::SetFileSpecValue(FileSpec file_spec) {
   return false;
 }
 
-bool OptionValue::AppendFileSpecValue(FileSpec file_spec) {
-  if (OptionValueFileSpecList *option_value = GetAsFileSpecList()) {
-    option_value->AppendCurrentValue(file_spec);
-    return true;
-  }
-  return false;
-}
-
-std::optional<FileSpecList> OptionValue::GetFileSpecListValue() const {
-  if (const OptionValueFileSpecList *option_value = GetAsFileSpecList())
+FileSpecList OptionValue::GetFileSpecListValue() const {
+  const OptionValueFileSpecList *option_value = GetAsFileSpecList();
+  if (option_value)
     return option_value->GetCurrentValue();
-  return {};
+  return FileSpecList();
 }
 
 std::optional<lldb::Format> OptionValue::GetFormatValue() const {
@@ -426,20 +419,6 @@ bool OptionValue::SetUUIDValue(const UUID &uuid) {
   OptionValueUUID *option_value = GetAsUUID();
   if (option_value) {
     option_value->SetCurrentValue(uuid);
-    return true;
-  }
-  return false;
-}
-
-std::optional<ArchSpec> OptionValue::GetArchSpecValue() const {
-  if (const OptionValueArch *option_value = GetAsArch())
-    return option_value->GetCurrentValue();
-  return {};
-}
-
-bool OptionValue::SetArchSpecValue(ArchSpec arch_spec) {
-  if (OptionValueArch *option_value = GetAsArch()) {
-    option_value->SetCurrentValue(arch_spec, false);
     return true;
   }
   return false;

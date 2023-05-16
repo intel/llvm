@@ -1296,16 +1296,13 @@ static bool isParallelFor(CodegenEnv &env, bool isOuter, bool isSparse) {
 
 /// Generates a for-loop on a single index.
 static Operation *genFor(CodegenEnv &env, OpBuilder &builder, bool isOuter,
-                         bool isInner, LoopId ldx,
-                         ArrayRef<TensorLevel> tidLvls) {
+                         bool isInner, LoopId ldx, ArrayRef<TensorId> tids,
+                         ArrayRef<Level> lvls) {
   linalg::GenericOp op = env.op();
   Location loc = op.getLoc();
   auto iteratorTypes = op.getIteratorTypesArray();
-  bool isSparse = llvm::any_of(tidLvls, [ldx, &env](TensorLevel tidLvl) {
-    // Queries the DLT based on the tensor id and loop idx, as requested by
-    // `CodegenEnv::dlt(TensorId, LoopIdx)`. The returned DLT from CodegenEnv
-    // should be consistent with the DLT indexed by <TensorId, Level>.
-    const auto dlt = env.dlt(env.unpackTensorLevel(tidLvl).first, ldx);
+  bool isSparse = llvm::any_of(tids, [ldx, &env](TensorId tid) {
+    const auto dlt = env.dlt(tid, ldx);
     return isCompressedDLT(dlt) || isSingletonDLT(dlt);
   });
 
@@ -1313,10 +1310,11 @@ static Operation *genFor(CodegenEnv &env, OpBuilder &builder, bool isOuter,
 
   Operation *loop = *env.genLoopBoundary([&](MutableArrayRef<Value> reduc) {
     if (env.merger().isFilterLoop(ldx)) {
-      const auto [tid, lvl] = env.unpackTensorLevel(tidLvls.front());
+      const TensorId tid = tids.front();
+      const Level lvl = lvls.front();
       // tids/lvls must only have one value because filter loops only
       // corresponding to the one and only sparse tensor level.
-      assert(isSparse && tidLvls.size() == 1);
+      assert(isSparse && tids.size() == 1 && lvls.size() == 1);
       OpOperand *t = &op->getOpOperand(tid);
       auto enc = getSparseTensorEncoding(t->get().getType());
       // Retrieves the affine expression for the filter loop.
@@ -1326,8 +1324,8 @@ static Operation *genFor(CodegenEnv &env, OpBuilder &builder, bool isOuter,
       return env.emitter().enterFilterLoopOverTensorAtLvl(builder, loc, tid,
                                                           lvl, a, reduc);
     }
-    return env.emitter().enterLoopOverTensorAtLvl(builder, loc, tidLvls, reduc,
-                                                  isParallel);
+    return env.emitter().enterLoopOverTensorAtLvl(builder, loc, tids, lvls,
+                                                  reduc, isParallel);
   });
   assert(loop);
   return loop;
@@ -1335,12 +1333,13 @@ static Operation *genFor(CodegenEnv &env, OpBuilder &builder, bool isOuter,
 
 /// Emit a while-loop for co-iteration over multiple indices.
 static Operation *genWhile(CodegenEnv &env, OpBuilder &builder, LoopId idx,
-                           bool needsUniv, ArrayRef<TensorLevel> tidLvls) {
+                           bool needsUniv, ArrayRef<TensorId> tids,
+                           ArrayRef<Level> lvls) {
   Operation *loop = *env.genLoopBoundary([&](MutableArrayRef<Value> reduc) {
     // Construct the while-loop with a parameter for each
     // index.
     return env.emitter().enterCoIterationOverTensorsAtLvls(
-        builder, env.op().getLoc(), tidLvls, needsUniv, reduc);
+        builder, env.op().getLoc(), tids, lvls, needsUniv, reduc);
   });
   assert(loop);
   return loop;
@@ -1349,15 +1348,16 @@ static Operation *genWhile(CodegenEnv &env, OpBuilder &builder, LoopId idx,
 /// Generates a for-loop or a while-loop, depending on whether it implements
 /// singleton iteration or co-iteration over the given conjunction.
 static Operation *genLoop(CodegenEnv &env, OpBuilder &builder, LoopOrd at,
-                          bool needsUniv, ArrayRef<TensorLevel> tidLvls,
-                          bool isFor) {
+                          bool needsUniv, ArrayRef<TensorId> tids,
+                          ArrayRef<Level> lvls, bool isFor) {
+  assert(tids.size() == lvls.size());
   const LoopId idx = env.topSortAt(at);
   if (isFor) {
     bool isOuter = at == 0;
     bool isInner = at == env.topSortSize() - 1;
-    return genFor(env, builder, isOuter, isInner, idx, tidLvls);
+    return genFor(env, builder, isOuter, isInner, idx, tids, lvls);
   }
-  return genWhile(env, builder, idx, needsUniv, tidLvls);
+  return genWhile(env, builder, idx, needsUniv, tids, lvls);
 }
 
 /// Generates the induction structure for a while-loop.
@@ -1480,7 +1480,8 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, ExprId exp,
   const LatPointId l0 = env.set(lts)[0];
   bool needsUniv = false;
 
-  SmallVector<TensorLevel> tidLvls;
+  SmallVector<TensorId> tids;
+  SmallVector<Level> lvls;
   env.merger().foreachTensorLoopId(l0, [&](TensorLoopId b, TensorId tid,
                                            std::optional<Level> lvl,
                                            DimLevelType dlt, bool isIdxReduc) {
@@ -1492,11 +1493,12 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, ExprId exp,
       // Only when this is a index reduction loop, can the dlt be undefined.
       assert(!isUndefDLT(dlt) || isIdxReduc);
       // sparse/singleton levels, or a dense/sparse index reduction loop.
-      tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+      tids.push_back(tid);
+      lvls.push_back(*lvl);
     }
   });
 
-  env.emitter().enterNewLoopSeq(builder, env.op().getLoc(), tidLvls);
+  env.emitter().enterNewLoopSeq(builder, env.op().getLoc(), tids, lvls);
 
   // Maintain the universal index only if it is actually
   // consumed by a subsequent lattice point.
@@ -1527,8 +1529,7 @@ static void genConstantDenseAddressFromLevel(CodegenEnv &env,
       // FIXME: `toOrigDim` is deprecated.
       AffineExpr lvlExpr = lvlExprs[toOrigDim(enc, l)];
       if (enc.isDenseLvl(l) && lvlExpr.isa<AffineConstantExpr>())
-        env.emitter().genDenseAffineAddress(
-            builder, loc, env.makeTensorLevel(tid, l), lvlExpr);
+        env.emitter().genDenseAffineAddress(builder, loc, tid, l, lvlExpr);
       else
         return; // break on first non-dense non-constant level
     }
@@ -1547,21 +1548,23 @@ static void genInitConstantDenseAddress(CodegenEnv &env,
 
 /// Return true if the lattices bit can be iterated by a for loop.
 static bool translateBitsToTidLvlPairs(
-    CodegenEnv &env, LatPointId li, LoopId ldx,
-    SmallVectorImpl<TensorLevel> &tidLvls,
-    SmallVectorImpl<std::pair<TensorLevel, AffineExpr>> &affineTidLvls) {
+    CodegenEnv &env, LatPointId li, LoopId ldx, SmallVectorImpl<TensorId> &tids,
+    SmallVectorImpl<Level> &lvls, SmallVectorImpl<TensorId> &affineTids,
+    SmallVectorImpl<Level> &affineLvls, SmallVectorImpl<AffineExpr> &exps) {
   const BitVector &simple = env.lat(li).simple;
   const TensorId outTid = env.merger().getOutTensorID();
   const std::optional<Level> outLvl = env.merger().getLvl(outTid, ldx);
 
   unsigned numloopCond = 0;
   bool hasNonUnique = false;
+
   env.merger().foreachTensorLoopId(
       li, [&, ldx](TensorLoopId b, TensorId tid, std::optional<Level> lvl,
                    DimLevelType dlt, bool isIdxReduc) {
         if (simple[b]) {
           if (isIdxReduc) {
-            tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+            tids.push_back(tid);
+            lvls.push_back(*lvl);
             numloopCond++;
             return;
           }
@@ -1579,10 +1582,12 @@ static bool translateBitsToTidLvlPairs(
               return;
           }
           hasNonUnique = !isUniqueDLT(dlt) || hasNonUnique;
-          tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+          tids.push_back(tid);
+          lvls.push_back(*lvl);
           numloopCond++;
         } else if (isDenseDLT(dlt) || isIdxReduc) {
-          tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+          tids.push_back(tid);
+          lvls.push_back(*lvl);
         } else {
           assert(isUndefDLT(dlt));
           linalg::GenericOp op = env.op();
@@ -1620,7 +1625,9 @@ static bool translateBitsToTidLvlPairs(
                 // computeIterationGraph), another more admissible approach
                 // might be accepting out-of-order access between consecutive
                 // dense levels.
-                affineTidLvls.emplace_back(env.makeTensorLevel(tid, l), exp);
+                affineTids.push_back(tid);
+                affineLvls.push_back(l);
+                exps.push_back(exp);
               }
             }
           }
@@ -1631,7 +1638,8 @@ static bool translateBitsToTidLvlPairs(
     // Note that we generate dense indices of the output tensor
     // unconditionally, since they may not appear in the lattice, but may be
     // needed for linearized env.
-    tidLvls.push_back(env.makeTensorLevel(outTid, *outLvl));
+    tids.push_back(outTid);
+    lvls.push_back(*outLvl);
   }
 
   assert(numloopCond > 0);
@@ -1645,27 +1653,29 @@ static std::pair<Operation *, bool> startLoop(CodegenEnv &env,
                                               OpBuilder &builder, LoopOrd at,
                                               LatPointId li, bool needsUniv) {
   // The set of tensors + lvls to generate loops on
-  SmallVector<TensorLevel> tidLvls;
+  SmallVector<TensorId> tids, affineTids;
+  SmallVector<Level> lvls, affineLvls;
   // The set of dense tensors with non-trivial affine expression that just
   // becomes invariant and the address shall now be generated at the current
   // level.
-  SmallVector<std::pair<TensorLevel, AffineExpr>> affineTidLvls;
-  bool isSingleCond = translateBitsToTidLvlPairs(env, li, env.topSortAt(at),
-                                                 tidLvls, affineTidLvls);
+  SmallVector<AffineExpr> affines;
+  bool isSingleCond = translateBitsToTidLvlPairs(
+      env, li, env.topSortAt(at), tids, lvls, affineTids, affineLvls, affines);
 
   // Emit the for/while-loop control.
-  Operation *loop = genLoop(env, builder, at, needsUniv, tidLvls, isSingleCond);
+  Operation *loop =
+      genLoop(env, builder, at, needsUniv, tids, lvls, isSingleCond);
   Location loc = env.op().getLoc();
-  for (auto [tidLvl, exp] : affineTidLvls) {
-    env.emitter().genDenseAffineAddress(builder, loc, tidLvl, exp);
+  for (auto [tid, lvl, exp] : llvm::zip(affineTids, affineLvls, affines)) {
+    env.emitter().genDenseAffineAddress(builder, loc, tid, lvl, exp);
   }
 
   // Until now, we have entered every <tid, lvl> pair in {cond, extra,
   // affine}Tids/Lvls. The addresses of the upcoming levels which are dependent
   // on constant affines expression may now be determined.
-  auto allTidLvls =
-      llvm::concat<TensorLevel>(tidLvls, llvm::make_first_range(affineTidLvls));
-  for (auto [tid, lvl] : env.unpackTensorLevelRange(allTidLvls)) {
+  auto allTids = llvm::concat<TensorId>(tids, affineTids);
+  auto allLvls = llvm::concat<Level>(lvls, affineLvls);
+  for (auto [tid, lvl] : llvm::zip(allTids, allLvls)) {
     if (tid != env.merger().getOutTensorID())
       genConstantDenseAddressFromLevel(env, builder, tid, lvl + 1);
   }
