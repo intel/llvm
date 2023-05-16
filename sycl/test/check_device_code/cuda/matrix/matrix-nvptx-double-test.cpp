@@ -55,26 +55,26 @@ int main() {
           joint_matrix<sub_group, double, use::b, K, N, layout::row_major>
               sub_b{};
 
-          // CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.row.stride.f64.p0f64(double* %0, i32 8
-          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.row.stride.f64.p0(ptr %0, i32 8
+          // CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.row.stride.f64.p0f64(double* %{{.*}}, i32 8
+          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.row.stride.f64.p0(ptr %{{.*}}, i32 8
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               N, layout::row_major);
-          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.a.row.stride.f64.p0f64(double* %4, i32 4
-          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.a.row.stride.f64.p0(ptr %4, i32 4
+          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.a.row.stride.f64.p0f64(double* %{{.*}}, i32 4
+          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.a.row.stride.f64.p0(ptr %{{.*}}, i32 4
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               K);
-          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p0f64(double* %6, i32 8
-          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p0(ptr %6, i32 8
+          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p0f64(double* %{{.*}}, i32 8
+          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p0(ptr %{{.*}}, i32 8
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               N);
-          // CHECK: = tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %5, double %7, double %2, double %3
-          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %5, double %7, double %2, double %3
+          // CHECK: = tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double %{{.*}}
+          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double %{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p0f64(double* %11, double %9, double %10, i32 8
-          // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p0(ptr %11, double %9, double %10, i32 8
+          // CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p0f64(double* %{{.*}}, double %{{.*}}, double %{{.*}}, i32 8
+          // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p0(ptr %{{.*}}, double %{{.*}}, double %{{.*}}, i32 8
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
               N, layout::row_major);
@@ -91,26 +91,26 @@ int main() {
           joint_matrix<sub_group, double, use::b, K, N, layout::col_major>
               sub_b{};
 
-          // CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.col.stride.f64.p0f64(double* %0, i32 8
-          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.col.stride.f64.p0(ptr %0, i32 8
+          // CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.col.stride.f64.p0f64(double* %{{.*}}, i32 8
+          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.col.stride.f64.p0(ptr %{{.*}}, i32 8
           joint_matrix_load(
               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
               M, layout::col_major);
-          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.a.col.stride.f64.p0f64(double* %4, i32 8
-          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.a.col.stride.f64.p0(ptr %4, i32 8
+          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.a.col.stride.f64.p0f64(double* %{{.*}}, i32 8
+          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.a.col.stride.f64.p0(ptr %{{.*}}, i32 8
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
               M);
-          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p0f64(double* %6, i32 4
-          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p0(ptr %6, i32 4
+          // CHECK: = tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p0f64(double* %{{.*}}, i32 4
+          // CHECK-OPAQUE: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p0(ptr %{{.*}}, i32 4
           joint_matrix_load(
               sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
               K);
-          // CHECK: = tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %5, double %7, double %2, double %3
-          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %5, double %7, double %2, double %3
+          // CHECK: = tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double %{{.*}}
+          // CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %{{.*}}, double %{{.*}}, double %{{.*}}, double %{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-          // CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p0f64(double* %11, double %9, double %10, i32 8
-          // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p0(ptr %11, double %9, double %10, i32 8
+          // CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p0f64(double* %{{.*}}, double %{{.*}}, double %{{.*}}, i32 8
+          // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p0(ptr %{{.*}}, double %{{.*}}, double %{{.*}}, i32 8
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::no>(),
               M, layout::col_major);
