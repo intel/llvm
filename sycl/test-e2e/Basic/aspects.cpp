@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %BE_RUN_PLACEHOLDER %t.out
 //
 // Hip is missing some of the parameters tested here so it fails with NVIDIA
 // XFAIL: hip_nvidia

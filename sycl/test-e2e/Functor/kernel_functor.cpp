@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: accelerator
+
 //==--- kernel_functor.cpp -
 // This test illustrates defining kernels as named function objects (functors)
 //

@@ -10,7 +10,6 @@
 #ifndef _PSTL_NUMERIC_IMPL_H
 #define _PSTL_NUMERIC_IMPL_H
 
-#include <__assert>
 #include <iterator>
 #include <type_traits>
 #include <numeric>
@@ -467,7 +466,7 @@ _RandomAccessIterator2 __brick_adjacent_difference(
     _RandomAccessIterator2 __d_first,
     BinaryOperation __op,
     /*is_vector=*/std::true_type) noexcept {
-  _LIBCPP_ASSERT(__first != __last, "Range cannot be empty");
+  _PSTL_ASSERT(__first != __last);
 
   typedef typename std::iterator_traits<_RandomAccessIterator1>::reference _ReferenceType1;
   typedef typename std::iterator_traits<_RandomAccessIterator2>::reference _ReferenceType2;
@@ -505,7 +504,7 @@ _RandomAccessIterator2 __pattern_adjacent_difference(
     _RandomAccessIterator1 __last,
     _RandomAccessIterator2 __d_first,
     _BinaryOperation __op) {
-  _LIBCPP_ASSERT(__first != __last, "range cannot be empty");
+  _PSTL_ASSERT(__first != __last);
   typedef typename std::iterator_traits<_RandomAccessIterator1>::reference _ReferenceType1;
   typedef typename std::iterator_traits<_RandomAccessIterator2>::reference _ReferenceType2;
 

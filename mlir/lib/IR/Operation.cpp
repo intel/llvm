@@ -20,7 +20,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include <numeric>
-#include <optional>
 
 using namespace mlir;
 
@@ -329,7 +328,7 @@ void Operation::setInherentAttr(StringAttr name, Attribute value) {
 }
 
 Attribute Operation::getPropertiesAsAttribute() {
-  std::optional<RegisteredOperationName> info = getRegisteredInfo();
+  Optional<RegisteredOperationName> info = getRegisteredInfo();
   if (LLVM_UNLIKELY(!info))
     return *getPropertiesStorage().as<Attribute *>();
   return info->getOpPropertiesAsAttribute(this);
@@ -337,7 +336,7 @@ Attribute Operation::getPropertiesAsAttribute() {
 LogicalResult
 Operation::setPropertiesFromAttribute(Attribute attr,
                                       InFlightDiagnostic *diagnostic) {
-  std::optional<RegisteredOperationName> info = getRegisteredInfo();
+  Optional<RegisteredOperationName> info = getRegisteredInfo();
   if (LLVM_UNLIKELY(!info)) {
     *getPropertiesStorage().as<Attribute *>() = attr;
     return success();

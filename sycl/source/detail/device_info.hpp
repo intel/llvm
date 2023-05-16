@@ -689,14 +689,6 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
   }
 };
 
-// Specialization for image_support
-template <> struct get_device_info_impl<bool, info::device::image_support> {
-  static bool get(const DeviceImplPtr &) {
-    // No devices currently support SYCL 2020 images.
-    return false;
-  }
-};
-
 // USM
 
 // Specialization for device usm query.
@@ -785,22 +777,6 @@ struct get_device_info_impl<
     (void)Dev;
     return false;
 #endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-  }
-};
-
-// Specialization for max registers per work-group
-template <>
-struct get_device_info_impl<
-    uint32_t,
-    ext::codeplay::experimental::info::device::max_registers_per_work_group> {
-  static uint32_t get(const DeviceImplPtr &Dev) {
-    uint32_t maxRegsPerWG;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<ext::codeplay::experimental::info::device::
-                       max_registers_per_work_group>::value,
-        sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
-    return maxRegsPerWG;
   }
 };
 
@@ -1682,14 +1658,6 @@ inline bool get_device_info_host<
     ext::codeplay::experimental::info::device::supports_fusion>() {
   // No support for fusion on the host device.
   return false;
-}
-
-template <>
-inline uint32_t get_device_info_host<
-    ext::codeplay::experimental::info::device::max_registers_per_work_group>() {
-  throw runtime_error("Obtaining the maximum number of available registers per "
-                      "work-group is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
 }
 
 } // namespace detail

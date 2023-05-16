@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // FIXME: Investigate Windows-specific failures
 // REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to unimplemented __esimd_oword_ld_unaligned
 // XFAIL: esimd_emulator
 // RUN: %{build} -o %t.out

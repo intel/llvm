@@ -318,10 +318,6 @@ add_libc_unittest(
     libc.src.stdio.setvbuf
 )
 
-if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
-  return()
-endif()
-
 add_subdirectory(printf_core)
 add_subdirectory(scanf_core)
 add_subdirectory(testdata)

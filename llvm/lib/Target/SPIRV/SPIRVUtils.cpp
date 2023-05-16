@@ -293,11 +293,16 @@ std::string getOclOrSpirvBuiltinDemangledName(StringRef Name) {
     return std::string();
 
   // Try to use the itanium demangler.
-  if (char *DemangledName = itaniumDemangle(Name.data())) {
+  size_t n;
+  int Status;
+  char *DemangledName = itaniumDemangle(Name.data(), nullptr, &n, &Status);
+
+  if (Status == demangle_success) {
     std::string Result = DemangledName;
     free(DemangledName);
     return Result;
   }
+  free(DemangledName);
   // Otherwise use simple demangling to return the function name.
   if (IsNonMangledOCL || IsNonMangledSPIRV)
     return Name.str();

@@ -780,9 +780,8 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
 /// toolchain.
 NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                                const llvm::Triple &HostTriple,
-                               const ArgList &Args, bool Freestanding = false)
-    : ToolChain(D, Triple, Args), CudaInstallation(D, HostTriple, Args),
-      Freestanding(Freestanding) {
+                               const ArgList &Args)
+    : ToolChain(D, Triple, Args), CudaInstallation(D, HostTriple, Args) {
   if (CudaInstallation.isValid()) {
     CudaInstallation.WarnIfUnsupportedVersion();
     getProgramPaths().push_back(std::string(CudaInstallation.getBinPath()));
@@ -797,8 +796,7 @@ NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
 NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                                const ArgList &Args)
     : NVPTXToolChain(D, Triple,
-                     llvm::Triple(llvm::sys::getDefaultTargetTriple()), Args,
-                     /*Freestanding=*/true) {}
+                     llvm::Triple(llvm::sys::getDefaultTargetTriple()), Args) {}
 
 llvm::opt::DerivedArgList *
 NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
@@ -828,16 +826,6 @@ static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
   if (HostTC.getTriple().isOSWindows())
     return "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
   return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
-}
-
-void NVPTXToolChain::addClangTargetOptions(
-    const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    Action::OffloadKind DeviceOffloadingKind) const {
-  // If we are compiling with a standalone NVPTX toolchain we want to try to
-  // mimic a standard environment as much as possible. So we enable lowering
-  // ctor / dtor functions to global symbols that can be registered.
-  if (Freestanding)
-    CC1Args.append({"-mllvm", "--nvptx-lower-global-ctor-dtor"});
 }
 
 bool NVPTXToolChain::supportsDebugInfoOption(const llvm::opt::Arg *A) const {

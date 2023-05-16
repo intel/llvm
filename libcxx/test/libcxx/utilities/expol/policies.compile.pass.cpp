@@ -10,7 +10,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// UNSUPPORTED: libcpp-has-no-incomplete-pstl
+// REQUIRES: with-pstl
 
 #include <execution>
 #include <type_traits>

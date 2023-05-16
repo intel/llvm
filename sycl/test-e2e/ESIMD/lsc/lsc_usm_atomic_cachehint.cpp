@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
+// UNSUPPORTED: cuda || hip
 // TODO : Test uses 'kernel_bundle' that is not supported in ESIMD_EMULATOR
 // XFAIL: esimd_emulator
 // RUN: %{build} -o %t.out

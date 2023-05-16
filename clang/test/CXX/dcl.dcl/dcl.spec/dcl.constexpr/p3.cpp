@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,beforecxx14,beforecxx20,beforecxx23 -std=c++11 %s
-// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,aftercxx14,beforecxx20,beforecxx23 -std=c++14 %s
-// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,aftercxx14,aftercxx20,beforecxx23 -std=c++20  %s
-// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,aftercxx14,aftercxx20 -std=c++23 %s
+// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,beforecxx14,beforecxx20,beforecxx2b -std=c++11 %s
+// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,aftercxx14,beforecxx20,beforecxx2b -std=c++14 %s
+// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,aftercxx14,aftercxx20,beforecxx2b -std=c++20  %s
+// RUN: %clang_cc1 -fcxx-exceptions -verify=expected,aftercxx14,aftercxx20 -std=c++2b %s
 
 namespace N {
   typedef char C;
@@ -41,8 +41,6 @@ struct T : SS, NonLiteral {
   virtual constexpr int OutOfLineVirtual() const; // beforecxx20-error {{virtual function cannot be constexpr}}
 
   //  - its return type shall be a literal type;
-  // Once we support P2448R2 constexpr functions will be allowd to return non-literal types
-  // The destructor will also be allowed
   constexpr NonLiteral NonLiteralReturn() const { return {}; } // expected-error {{constexpr function's return type 'NonLiteral' is not a literal type}}
   constexpr void VoidReturn() const { return; }                // beforecxx14-error {{constexpr function's return type 'void' is not a literal type}}
   constexpr ~T();                                              // beforecxx20-error {{destructor cannot be declared constexpr}}
@@ -51,7 +49,6 @@ struct T : SS, NonLiteral {
   constexpr F NonLiteralReturn2; // ok until definition
 
   //  - each of its parameter types shall be a literal type;
-  // Once we support P2448R2 constexpr functions will be allowd to have parameters of non-literal types
   constexpr int NonLiteralParam(NonLiteral) const { return 0; } // expected-error {{constexpr function's 1st parameter type 'NonLiteral' is not a literal type}}
   typedef int G(NonLiteral) const;
   constexpr G NonLiteralParam2; // ok until definition
@@ -127,12 +124,12 @@ constexpr int DisallowedStmtsCXX14_1(bool b) {
 constexpr int DisallowedStmtsCXX14_2() {
   return 0; // beforecxx14-note {{previous}}
   //  - a goto statement
-  goto x; // beforecxx23-warning {{use of this statement in a constexpr function is a C++23 extension}}
+  goto x; // beforecxx2b-warning {{use of this statement in a constexpr function is a C++2b extension}}
   x:;
     return 0; // beforecxx14-warning {{multiple return}}
 }
 constexpr int DisallowedStmtsCXX14_2_1() {
-merp: // beforecxx23-warning {{use of this statement in a constexpr function is a C++23 extension}}
+merp: // beforecxx2b-warning {{use of this statement in a constexpr function is a C++2b extension}}
   return 0;
 }
 constexpr int DisallowedStmtsCXX14_3() {
@@ -144,14 +141,14 @@ constexpr int DisallowedStmtsCXX14_3() {
 constexpr int DisallowedStmtsCXX14_4() {
   //  - a definition of a variable of non-literal type
   return 0;
-  NonLiteral nl; // beforecxx23-error {{variable of non-literal type 'NonLiteral' cannot be defined in a constexpr function before C++23}} \
-                 // beforecxx23-note@14  {{'NonLiteral' is not literal}}
+  NonLiteral nl; // beforecxx2b-error {{variable of non-literal type 'NonLiteral' cannot be defined in a constexpr function before C++2b}} \
+                 // beforecxx2b-note@14  {{'NonLiteral' is not literal}}
 }
 
 constexpr int DisallowedStmtsCXX14_5() {
   return 0;
   //  - a definition of a variable of static storage duration
-  static constexpr int n = 123; // beforecxx23-warning {{definition of a static variable in a constexpr function is a C++23 extension}} \
+  static constexpr int n = 123; // beforecxx2b-warning {{definition of a static variable in a constexpr function is a C++2b extension}} \
                                //  beforecxx14-warning {{variable declaration in a constexpr function is a C++14 extension}}
 }
 
@@ -159,7 +156,7 @@ constexpr int DisallowedStmtsCXX14_6() {
   //  - a definition of a variable of thread storage duration
   return 0;
   thread_local constexpr int n = 123; // beforecxx14-warning {{variable declaration in a constexpr function is a C++14 extension}} \
-                                      // beforecxx23-warning {{definition of a thread_local variable in a constexpr function is a C++23 extension}}
+                                      // beforecxx2b-warning {{definition of a thread_local variable in a constexpr function is a C++2b extension}}
 }
 constexpr int DisallowedStmtsCXX14_7() {
   //  - a definition of a variable for which no initialization is performed
@@ -265,7 +262,7 @@ namespace std_example {
   }
   constexpr int first(int n) {
     return 0;
-    static int value = n; // beforecxx23-warning {{definition of a static variable in a constexpr function is a C++23 extension}} \
+    static int value = n; // beforecxx2b-warning {{definition of a static variable in a constexpr function is a C++2b extension}} \
                           // beforecxx14-warning {{variable declaration in a constexpr function is a C++14 extension}}
   }
   constexpr int uninit() {

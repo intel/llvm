@@ -1,5 +1,6 @@
 // TODO enable on Windows
-// REQUIRES: linux
+// REQUIRES: linux && gpu
+// UNSUPPORTED: cuda || hip
 // TODO online_compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
 // RUN: %{build} -o %t.out

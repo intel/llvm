@@ -12,9 +12,7 @@ else()
 endif()
 
 find_package(CUDAToolkit QUIET)
-# The CUDA loader requires LLVM to traverse the ELF image for symbols.
-find_package(LLVM QUIET)
-if(CUDAToolkit_FOUND AND LLVM_FOUND)
+if(CUDAToolkit_FOUND)
   add_subdirectory(nvptx)
 else()
   message(STATUS "Skipping CUDA loader for gpu target, no CUDA was detected")

@@ -226,7 +226,6 @@ public:
 
   /// Print this value as if it were an operand.
   void printAsOperand(raw_ostream &os, AsmState &state);
-  void printAsOperand(raw_ostream &os, const OpPrintingFlags &flags);
 
   /// Methods for supporting PointerLikeTypeTraits.
   void *getAsOpaquePointer() const { return impl; }

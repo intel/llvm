@@ -172,7 +172,6 @@ template <> struct MappingTraits<ClangTidyOptions> {
     IO.mapOptional("ExtraArgsBefore", Options.ExtraArgsBefore);
     IO.mapOptional("InheritParentConfig", Options.InheritParentConfig);
     IO.mapOptional("UseColor", Options.UseColor);
-    IO.mapOptional("SystemHeaders", Options.SystemHeaders);
   }
 };
 

@@ -531,7 +531,9 @@ void MachObjectWriter::bindIndirectSymbols(MCAssembler &Asm) {
     // Set the symbol type to undefined lazy, but only on construction.
     //
     // FIXME: Do not hardcode.
-    if (Asm.registerSymbol(*it->Symbol))
+    bool Created;
+    Asm.registerSymbol(*it->Symbol, &Created);
+    if (Created)
       cast<MCSymbolMachO>(it->Symbol)->setReferenceTypeUndefinedLazy(true);
   }
 }

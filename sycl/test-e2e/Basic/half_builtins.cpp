@@ -2,6 +2,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// Intel OpenCL CPU and FPGA emulator drivers do not support cl_khr_fp16
+// extension
+// UNSUPPORTED: (cpu || accelerator) && opencl
+
 #include <sycl/sycl.hpp>
 
 #include <cmath>

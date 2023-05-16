@@ -37,7 +37,9 @@ constexpr size_t max_buff_size() {
 constexpr size_t ERR_BUFFER_SIZE = max_buff_size();
 thread_local char error_buffer[ERR_BUFFER_SIZE];
 
-constexpr size_t TOTAL_STR_LEN = total_str_len(PLATFORM_ERRORS);
+constexpr size_t RAW_ARRAY_LEN = PLATFORM_ERRORS.size();
+constexpr size_t TOTAL_STR_LEN =
+    total_str_len(PLATFORM_ERRORS.data(), RAW_ARRAY_LEN);
 
 // Since the StringMappings array is a map from error numbers to their
 // corresponding strings, we have to have an array large enough we can use the
@@ -45,10 +47,11 @@ constexpr size_t TOTAL_STR_LEN = total_str_len(PLATFORM_ERRORS);
 // the maximum value being 133 (41 and 58 are skipped). If other platforms use
 // negative numbers or discontiguous ranges, then the array should be turned
 // into a proper hashmap.
-constexpr size_t ERR_ARRAY_SIZE = max_key_val(PLATFORM_ERRORS) + 1;
+constexpr size_t ERR_ARRAY_SIZE =
+    max_key_val(PLATFORM_ERRORS.data(), RAW_ARRAY_LEN) + 1;
 
-constexpr MessageMapper<ERR_ARRAY_SIZE, TOTAL_STR_LEN>
-    error_mapper(PLATFORM_ERRORS);
+static constexpr MessageMapper<ERR_ARRAY_SIZE, TOTAL_STR_LEN>
+    error_mapper(PLATFORM_ERRORS.data(), RAW_ARRAY_LEN);
 
 cpp::string_view build_error_string(int err_num, cpp::span<char> buffer) {
   // if the buffer can't hold "Unknown error" + ' ' + num_str, then just

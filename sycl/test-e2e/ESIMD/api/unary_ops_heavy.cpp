@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // Exclude PVC not to run same test cases twice (via the *_pvc.cpp variant).
-// UNSUPPORTED: gpu-intel-pvc
+// REQUIRES: gpu && !gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 

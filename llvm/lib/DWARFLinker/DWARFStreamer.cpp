@@ -650,13 +650,14 @@ void DwarfStreamer::emitLineTableForUnit(MCDwarfLineTableParams Params,
   LineSectionSize += PrologueBytes.size() + 4;
 
   SmallString<128> EncodingBuffer;
+  raw_svector_ostream EncodingOS(EncodingBuffer);
 
   if (Rows.empty()) {
     // We only have the dummy entry, dsymutil emits an entry with a 0
     // address in that case.
-    MCDwarfLineAddr::encode(*MC, Params, std::numeric_limits<int64_t>::max(), 0,
-                            EncodingBuffer);
-    MS->emitBytes(EncodingBuffer);
+    MCDwarfLineAddr::Encode(*MC, Params, std::numeric_limits<int64_t>::max(), 0,
+                            EncodingOS);
+    MS->emitBytes(EncodingOS.str());
     LineSectionSize += EncodingBuffer.size();
     MS->emitLabel(LineEndSym);
     return;
@@ -734,8 +735,8 @@ void DwarfStreamer::emitLineTableForUnit(MCDwarfLineTableParams Params,
 
     int64_t LineDelta = int64_t(Row.Line) - LastLine;
     if (!Row.EndSequence) {
-      MCDwarfLineAddr::encode(*MC, Params, LineDelta, AddressDelta, EncodingBuffer);
-      MS->emitBytes(EncodingBuffer);
+      MCDwarfLineAddr::Encode(*MC, Params, LineDelta, AddressDelta, EncodingOS);
+      MS->emitBytes(EncodingOS.str());
       LineSectionSize += EncodingBuffer.size();
       EncodingBuffer.resize(0);
       Address = Row.Address.Address;
@@ -752,9 +753,9 @@ void DwarfStreamer::emitLineTableForUnit(MCDwarfLineTableParams Params,
         MS->emitULEB128IntValue(AddressDelta);
         LineSectionSize += 1 + getULEB128Size(AddressDelta);
       }
-      MCDwarfLineAddr::encode(*MC, Params, std::numeric_limits<int64_t>::max(),
-                              0, EncodingBuffer);
-      MS->emitBytes(EncodingBuffer);
+      MCDwarfLineAddr::Encode(*MC, Params, std::numeric_limits<int64_t>::max(),
+                              0, EncodingOS);
+      MS->emitBytes(EncodingOS.str());
       LineSectionSize += EncodingBuffer.size();
       EncodingBuffer.resize(0);
       Address = -1ULL;
@@ -764,9 +765,9 @@ void DwarfStreamer::emitLineTableForUnit(MCDwarfLineTableParams Params,
   }
 
   if (RowsSinceLastSequence) {
-    MCDwarfLineAddr::encode(*MC, Params, std::numeric_limits<int64_t>::max(), 0,
-                            EncodingBuffer);
-    MS->emitBytes(EncodingBuffer);
+    MCDwarfLineAddr::Encode(*MC, Params, std::numeric_limits<int64_t>::max(), 0,
+                            EncodingOS);
+    MS->emitBytes(EncodingOS.str());
     LineSectionSize += EncodingBuffer.size();
     EncodingBuffer.resize(0);
   }

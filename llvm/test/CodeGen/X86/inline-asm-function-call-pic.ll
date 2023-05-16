@@ -15,7 +15,6 @@
 ;   __asm {
 ;           call static_func
 ;           call extern_func
-;           jmp extern_func
 ;           shr eax, 0
 ;           shr ebx, 0
 ;           shr ecx, 0
@@ -41,7 +40,6 @@ define void @func() local_unnamed_addr #0 {
 ; CHECK-EMPTY:
 ; CHECK-NEXT:    calll static_func
 ; CHECK-NEXT:    calll extern_func@PLT
-; CHECK-NEXT:    jmp extern_func@PLT
 ; CHECK-NEXT:    shrl $0, %eax
 ; CHECK-NEXT:    shrl $0, %ebx
 ; CHECK-NEXT:    shrl $0, %ecx
@@ -54,8 +52,7 @@ define void @func() local_unnamed_addr #0 {
 ; CHECK-NEXT:    #NO_APP
 entry:
   %call = tail call i32 @static_func()
-;; We test call, CALL, and jmp.
-  tail call void asm sideeffect inteldialect "call ${0:P}\0A\09CALL ${1:P}\0A\09jmp ${1:P}\0A\09shr eax, $$0\0A\09shr ebx, $$0\0A\09shr ecx, $$0\0A\09shr edx, $$0\0A\09shr edi, $$0\0A\09shr esi, $$0\0A\09shr ebp, $$0\0A\09shr esp, $$0", "*m,*m,~{eax},~{ebp},~{ebx},~{ecx},~{edi},~{edx},~{flags},~{esi},~{esp},~{dirflag},~{fpsr},~{flags}"(ptr nonnull elementtype(i32 (...)) @static_func, ptr nonnull elementtype(i32 (...)) @extern_func) #0
+  tail call void asm sideeffect inteldialect "call dword ptr ${0:P}\0A\09call dword ptr ${1:P}\0A\09shr eax, $$0\0A\09shr ebx, $$0\0A\09shr ecx, $$0\0A\09shr edx, $$0\0A\09shr edi, $$0\0A\09shr esi, $$0\0A\09shr ebp, $$0\0A\09shr esp, $$0", "*m,*m,~{eax},~{ebp},~{ebx},~{ecx},~{edi},~{edx},~{flags},~{esi},~{esp},~{dirflag},~{fpsr},~{flags}"(ptr nonnull elementtype(i32 (...)) @static_func, ptr nonnull elementtype(i32 (...)) @extern_func) #0
   ret void
 }
 

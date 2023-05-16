@@ -142,29 +142,29 @@ public:
 
   uint64_t GetPacketTimeout() {
     const uint32_t idx = ePropertyPacketTimeout;
-    return GetPropertyAtIndexAs<uint64_t>(
-        idx, g_processgdbremote_properties[idx].default_uint_value);
+    return m_collection_sp->GetPropertyAtIndexAsUInt64(idx).value_or(
+        g_processgdbremote_properties[idx].default_uint_value);
   }
 
   bool SetPacketTimeout(uint64_t timeout) {
     const uint32_t idx = ePropertyPacketTimeout;
-    return SetPropertyAtIndex(idx, timeout);
+    return m_collection_sp->SetPropertyAtIndexAsUInt64(idx, timeout);
   }
 
   FileSpec GetTargetDefinitionFile() const {
     const uint32_t idx = ePropertyTargetDefinitionFile;
-    return GetPropertyAtIndexAs<FileSpec>(idx, {});
+    return m_collection_sp->GetPropertyAtIndexAsFileSpec(idx);
   }
 
   bool GetUseSVR4() const {
     const uint32_t idx = ePropertyUseSVR4;
-    return GetPropertyAtIndexAs<bool>(
-        idx, g_processgdbremote_properties[idx].default_uint_value != 0);
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
+        g_processgdbremote_properties[idx].default_uint_value != 0);
   }
 
   bool GetUseGPacketForReading() const {
     const uint32_t idx = ePropertyUseGPacketForReading;
-    return GetPropertyAtIndexAs<bool>(idx, true);
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(true);
   }
 };
 
@@ -2257,13 +2257,6 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
         StreamString ostr;
         ostr.Printf("%" PRIu64 " %" PRIu64, pid_tid->first, pid_tid->second);
         description = std::string(ostr.GetString());
-      } else if (key.compare("addressing_bits") == 0) {
-        uint64_t addressing_bits;
-        if (!value.getAsInteger(0, addressing_bits)) {
-          addr_t address_mask = ~((1ULL << addressing_bits) - 1);
-          SetCodeAddressMask(address_mask);
-          SetDataAddressMask(address_mask);
-        }
       } else if (key.size() == 2 && ::isxdigit(key[0]) && ::isxdigit(key[1])) {
         uint32_t reg = UINT32_MAX;
         if (!key.getAsInteger(16, reg))

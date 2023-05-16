@@ -8,8 +8,6 @@
 define void @foo(i64 %n) {
 ; CHECK:      VPlan 'HCFGBuilder: Plain CFG
 ; CHECK-NEXT: {
-; CHECK-NEXT: ir<8> = original trip-count
-; CHECK-EMPTY:
 ; CHECK-NEXT: vector.ph:
 ; CHECK-NEXT: Successor(s): outer.header
 ; CHECK-EMPTY:

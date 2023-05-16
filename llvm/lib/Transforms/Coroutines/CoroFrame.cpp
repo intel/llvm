@@ -89,7 +89,7 @@ public:
 //             crosses a suspend point.
 //
 namespace {
-class SuspendCrossingInfo {
+struct SuspendCrossingInfo {
   BlockToIndexMapping Mapping;
 
   struct BlockData {
@@ -98,26 +98,18 @@ class SuspendCrossingInfo {
     bool Suspend = false;
     bool End = false;
     bool KillLoop = false;
-    bool Changed = false;
   };
   SmallVector<BlockData, SmallVectorThreshold> Block;
 
-  iterator_range<pred_iterator> predecessors(BlockData const &BD) const {
+  iterator_range<succ_iterator> successors(BlockData const &BD) const {
     BasicBlock *BB = Mapping.indexToBlock(&BD - &Block[0]);
-    return llvm::predecessors(BB);
+    return llvm::successors(BB);
   }
 
   BlockData &getBlockData(BasicBlock *BB) {
     return Block[Mapping.blockToIndex(BB)];
   }
 
-  /// Compute the BlockData for the current function in one iteration.
-  /// Returns whether the BlockData changes in this iteration.
-  /// Initialize - Whether this is the first iteration, we can optimize
-  /// the initial case a little bit by manual loop switch.
-  template <bool Initialize = false> bool computeBlockData();
-
-public:
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void dump() const;
   void dump(StringRef Label, BitVector const &BV) const;
@@ -223,72 +215,6 @@ LLVM_DUMP_METHOD void SuspendCrossingInfo::dump() const {
 }
 #endif
 
-template <bool Initialize> bool SuspendCrossingInfo::computeBlockData() {
-  const size_t N = Mapping.size();
-  bool Changed = false;
-
-  for (size_t I = 0; I < N; ++I) {
-    auto &B = Block[I];
-
-    // We don't need to count the predecessors when initialization.
-    if constexpr (!Initialize)
-      // If all the predecessors of the current Block don't change,
-      // the BlockData for the current block must not change too.
-      if (all_of(predecessors(B), [this](BasicBlock *BB) {
-            return !Block[Mapping.blockToIndex(BB)].Changed;
-          })) {
-        B.Changed = false;
-        continue;
-      }
-
-    // Saved Consumes and Kills bitsets so that it is easy to see
-    // if anything changed after propagation.
-    auto SavedConsumes = B.Consumes;
-    auto SavedKills = B.Kills;
-
-    for (BasicBlock *PI : predecessors(B)) {
-      auto PrevNo = Mapping.blockToIndex(PI);
-      auto &P = Block[PrevNo];
-
-      // Propagate Kills and Consumes from predecessors into B.
-      B.Consumes |= P.Consumes;
-      B.Kills |= P.Kills;
-
-      // If block P is a suspend block, it should propagate kills into block
-      // B for every block P consumes.
-      if (P.Suspend)
-        B.Kills |= P.Consumes;
-    }
-
-    if (B.Suspend) {
-      // If block S is a suspend block, it should kill all of the blocks it
-      // consumes.
-      B.Kills |= B.Consumes;
-    } else if (B.End) {
-      // If block B is an end block, it should not propagate kills as the
-      // blocks following coro.end() are reached during initial invocation
-      // of the coroutine while all the data are still available on the
-      // stack or in the registers.
-      B.Kills.reset();
-    } else {
-      // This is reached when B block it not Suspend nor coro.end and it
-      // need to make sure that it is not in the kill set.
-      B.KillLoop |= B.Kills[I];
-      B.Kills.reset(I);
-    }
-
-    if constexpr (!Initialize) {
-      B.Changed = (B.Kills != SavedKills) || (B.Consumes != SavedConsumes);
-      Changed |= B.Changed;
-    }
-  }
-
-  if constexpr (Initialize)
-    return true;
-
-  return Changed;
-}
-
 SuspendCrossingInfo::SuspendCrossingInfo(Function &F, coro::Shape &Shape)
     : Mapping(F) {
   const size_t N = Mapping.size();
@@ -300,7 +226,6 @@ SuspendCrossingInfo::SuspendCrossingInfo(Function &F, coro::Shape &Shape)
     B.Consumes.resize(N);
     B.Kills.resize(N);
     B.Consumes.set(I);
-    B.Changed = true;
   }
 
   // Mark all CoroEnd Blocks. We do not propagate Kills beyond coro.ends as
@@ -325,11 +250,71 @@ SuspendCrossingInfo::SuspendCrossingInfo(Function &F, coro::Shape &Shape)
       markSuspendBlock(Save);
   }
 
-  computeBlockData</*Initialize=*/true>();
+  // Iterate propagating consumes and kills until they stop changing.
+  int Iteration = 0;
+  (void)Iteration;
 
-  while (computeBlockData())
-    ;
+  bool Changed;
+  do {
+    LLVM_DEBUG(dbgs() << "iteration " << ++Iteration);
+    LLVM_DEBUG(dbgs() << "==============\n");
 
+    Changed = false;
+    for (size_t I = 0; I < N; ++I) {
+      auto &B = Block[I];
+      for (BasicBlock *SI : successors(B)) {
+
+        auto SuccNo = Mapping.blockToIndex(SI);
+
+        // Saved Consumes and Kills bitsets so that it is easy to see
+        // if anything changed after propagation.
+        auto &S = Block[SuccNo];
+        auto SavedConsumes = S.Consumes;
+        auto SavedKills = S.Kills;
+
+        // Propagate Kills and Consumes from block B into its successor S.
+        S.Consumes |= B.Consumes;
+        S.Kills |= B.Kills;
+
+        // If block B is a suspend block, it should propagate kills into the
+        // its successor for every block B consumes.
+        if (B.Suspend) {
+          S.Kills |= B.Consumes;
+        }
+        if (S.Suspend) {
+          // If block S is a suspend block, it should kill all of the blocks it
+          // consumes.
+          S.Kills |= S.Consumes;
+        } else if (S.End) {
+          // If block S is an end block, it should not propagate kills as the
+          // blocks following coro.end() are reached during initial invocation
+          // of the coroutine while all the data are still available on the
+          // stack or in the registers.
+          S.Kills.reset();
+        } else {
+          // This is reached when S block it not Suspend nor coro.end and it
+          // need to make sure that it is not in the kill set.
+          S.KillLoop |= S.Kills[SuccNo];
+          S.Kills.reset(SuccNo);
+        }
+
+        // See if anything changed.
+        Changed |= (S.Kills != SavedKills) || (S.Consumes != SavedConsumes);
+
+        if (S.Kills != SavedKills) {
+          LLVM_DEBUG(dbgs() << "\nblock " << I << " follower " << SI->getName()
+                            << "\n");
+          LLVM_DEBUG(dump("S.Kills", S.Kills));
+          LLVM_DEBUG(dump("SavedKills", SavedKills));
+        }
+        if (S.Consumes != SavedConsumes) {
+          LLVM_DEBUG(dbgs() << "\nblock " << I << " follower " << SI << "\n");
+          LLVM_DEBUG(dump("S.Consume", S.Consumes));
+          LLVM_DEBUG(dump("SavedCons", SavedConsumes));
+        }
+      }
+    }
+  } while (Changed);
   LLVM_DEBUG(dump());
 }
 

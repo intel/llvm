@@ -5,8 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
 // Recursion is not supported in ESIMD (intel/llvm PR#3390)
 // REQUIRES: TEMPORARY_DISBLED
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: %{run} %t.out
 //

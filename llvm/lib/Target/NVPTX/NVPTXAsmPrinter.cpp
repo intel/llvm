@@ -92,11 +92,6 @@
 
 using namespace llvm;
 
-static cl::opt<bool>
-    LowerCtorDtor("nvptx-lower-global-ctor-dtor",
-                  cl::desc("Lower GPU ctor / dtors to globals on the device."),
-                  cl::init(false), cl::Hidden);
-
 #define DEPOTNAME "__local_depot"
 
 /// DiscoverDependentGlobals - Return a set of GlobalVariables on which \p V
@@ -793,14 +788,12 @@ bool NVPTXAsmPrinter::doInitialization(Module &M) {
     report_fatal_error("Module has aliases, which NVPTX does not support.");
     return true; // error
   }
-  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_ctors")) &&
-      !LowerCtorDtor) {
+  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_ctors"))) {
     report_fatal_error(
         "Module has a nontrivial global ctor, which NVPTX does not support.");
     return true;  // error
   }
-  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_dtors")) &&
-      !LowerCtorDtor) {
+  if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_dtors"))) {
     report_fatal_error(
         "Module has a nontrivial global dtor, which NVPTX does not support.");
     return true;  // error

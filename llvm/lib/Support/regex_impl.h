@@ -35,8 +35,8 @@
  *	@(#)regex.h	8.1 (Berkeley) 6/2/93
  */
 
-#ifndef LLVM_SUPPORT_REGEX_IMPL_H
-#define LLVM_SUPPORT_REGEX_IMPL_H
+#ifndef _REGEX_H_
+#define	_REGEX_H_
 
 #include <sys/types.h>
 typedef off_t llvm_regoff_t;
@@ -105,4 +105,4 @@ size_t  llvm_strlcpy(char *dst, const char *src, size_t siz);
 }
 #endif
 
-#endif /* LLVM_SUPPORT_REGEX_IMPL_H */
+#endif /* !_REGEX_H_ */

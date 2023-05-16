@@ -120,6 +120,9 @@ private:
   // Helpers for emitStartOfAsmFile() and emitEndOfAsmFile()
   void emitAttributes();
 
+  // Generic helper used to emit e.g. ARMv5 mul pseudos
+  void EmitPatchedInstruction(const MachineInstr *MI, unsigned TargetOpc);
+
   void EmitUnwindingInstruction(const MachineInstr *MI);
 
   // emitPseudoExpansionLowering - tblgen'erated.

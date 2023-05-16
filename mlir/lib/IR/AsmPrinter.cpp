@@ -44,8 +44,8 @@
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/Threading.h"
 
-#include <optional>
 #include <tuple>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -3673,7 +3673,10 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
                                                  os);
 }
 
-static Operation *findParent(Operation *op, bool shouldUseLocalScope) {
+void Operation::print(raw_ostream &os, const OpPrintingFlags &printerFlags) {
+  // Find the operation to number from based upon the provided flags.
+  Operation *op = this;
+  bool shouldUseLocalScope = printerFlags.shouldUseLocalScope();
   do {
     // If we are printing local scope, stop at the first operation that is
     // isolated from above.
@@ -3686,28 +3689,7 @@ static Operation *findParent(Operation *op, bool shouldUseLocalScope) {
       break;
     op = parentOp;
   } while (true);
-  return op;
-}
 
-void Value::printAsOperand(raw_ostream &os, const OpPrintingFlags &flags) {
-  Operation *op;
-  if (auto result = dyn_cast<OpResult>()) {
-    op = result.getOwner();
-  } else {
-    op = cast<BlockArgument>().getOwner()->getParentOp();
-    if (!op) {
-      os << "<<UNKNOWN SSA VALUE>>";
-      return;
-    }
-  }
-  op = findParent(op, flags.shouldUseLocalScope());
-  AsmState state(op, flags);
-  printAsOperand(os, state);
-}
-
-void Operation::print(raw_ostream &os, const OpPrintingFlags &printerFlags) {
-  // Find the operation to number from based upon the provided flags.
-  Operation *op = findParent(this, printerFlags.shouldUseLocalScope());
   AsmState state(op, printerFlags);
   print(os, state);
 }

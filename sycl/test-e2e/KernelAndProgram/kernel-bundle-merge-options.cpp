@@ -1,6 +1,6 @@
-// REQUIRES: gpu
 // RUN: %{build} -o %t.out %debug_option
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// REQUIRES: gpu
 // UNSUPPORTED: hip
 
 // Debug option -g is not passed to device code compiler when CL-style driver

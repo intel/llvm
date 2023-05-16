@@ -1,6 +1,5 @@
-// RUN: %{build} -o %t.out
-// TODO: Consider moving to sycl/test as this is device-independent.
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %BE_RUN_PLACEHOLDER %t.out
 
 // Tests the members of the unsampled_image class.
 

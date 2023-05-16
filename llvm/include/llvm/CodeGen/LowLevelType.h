@@ -265,7 +265,10 @@ public:
   void print(raw_ostream &OS) const;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-  LLVM_DUMP_METHOD void dump() const;
+  LLVM_DUMP_METHOD void dump() const {
+    print(dbgs());
+    dbgs() << '\n';
+  }
 #endif
 
   constexpr bool operator==(const LLT &RHS) const {

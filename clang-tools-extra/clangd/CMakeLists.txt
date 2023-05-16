@@ -148,7 +148,6 @@ add_clang_library(clangDaemon
 
   DEPENDS
   omp_gen
-  ClangDriverOptions
   )
 
 # Include generated CompletionModel headers.

@@ -564,14 +564,6 @@ public:
       ArrayRef<BasicBlock *> BypassBlocks,
       std::pair<BasicBlock *, Value *> AdditionalBypass = {nullptr, nullptr});
 
-  /// Returns the original loop trip count.
-  Value *getTripCount() const { return TripCount; }
-
-  /// Used to set the trip count after ILV's construction and after the
-  /// preheader block has been executed. Note that this always holds the trip
-  /// count of the original loop for both main loop and epilogue vectorization.
-  void setTripCount(Value *TC) { TripCount = TC; }
-
 protected:
   friend class LoopVectorizationPlanner;
 
@@ -588,7 +580,7 @@ protected:
   void fixupIVUsers(PHINode *OrigPhi, const InductionDescriptor &II,
                     Value *VectorTripCount, Value *EndValue,
                     BasicBlock *MiddleBlock, BasicBlock *VectorHeader,
-                    VPlan &Plan, VPTransformState &State);
+                    VPlan &Plan);
 
   /// Handle all cross-iteration phis in the header.
   void fixCrossIterationPHIs(VPTransformState &State);
@@ -612,6 +604,9 @@ protected:
   /// Shrinks vector element sizes to the smallest bitwidth they can be legally
   /// represented as.
   void truncateToMinimalBitwidths(VPTransformState &State);
+
+  /// Returns (and creates if needed) the original loop trip count.
+  Value *getOrCreateTripCount(BasicBlock *InsertBlock);
 
   /// Returns (and creates if needed) the trip count of the widened loop.
   Value *getOrCreateVectorTripCount(BasicBlock *InsertBlock);
@@ -1073,17 +1068,11 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
         continue;
 
       // This recipe contributes to the address computation of a widen
-      // load/store. If the underlying instruction has poison-generating flags,
-      // either drop them directly if the recipe already models the flags or
-      // collect them in a set.
-      // TODO: Migrate all relevant recipes to hold their own flags.
+      // load/store. Collect recipe if its underlying instruction has
+      // poison-generating flags.
       Instruction *Instr = CurRec->getUnderlyingInstr();
-      if (Instr && Instr->hasPoisonGeneratingFlags()) {
-        if (auto *RecWithFlags = dyn_cast<VPRecipeWithIRFlags>(CurRec))
-          RecWithFlags->dropPoisonGeneratingFlags();
-        else
-          State.MayGeneratePoisonRecipes.insert(CurRec);
-      }
+      if (Instr && Instr->hasPoisonGeneratingFlags())
+        State.MayGeneratePoisonRecipes.insert(CurRec);
 
       // Add new definitions to the worklist.
       for (VPValue *operand : CurRec->operands())
@@ -2880,12 +2869,41 @@ void InnerLoopVectorizer::scalarizeInstruction(const Instruction *Instr,
     PredicatedInstructions.push_back(Cloned);
 }
 
+Value *InnerLoopVectorizer::getOrCreateTripCount(BasicBlock *InsertBlock) {
+  if (TripCount)
+    return TripCount;
+
+  assert(InsertBlock);
+  IRBuilder<> Builder(InsertBlock->getTerminator());
+  // Find the loop boundaries.
+  Type *IdxTy = Legal->getWidestInductionType();
+  assert(IdxTy && "No type for induction");
+  const SCEV *ExitCount = createTripCountSCEV(IdxTy, PSE, OrigLoop);
+
+  const DataLayout &DL = InsertBlock->getModule()->getDataLayout();
+
+  // Expand the trip count and place the new instructions in the preheader.
+  // Notice that the pre-header does not change, only the loop body.
+  SCEVExpander Exp(*PSE.getSE(), DL, "induction");
+
+  // Count holds the overall loop count (N).
+  TripCount = Exp.expandCodeFor(ExitCount, ExitCount->getType(),
+                                InsertBlock->getTerminator());
+
+  if (TripCount->getType()->isPointerTy())
+    TripCount =
+        CastInst::CreatePointerCast(TripCount, IdxTy, "exitcount.ptrcnt.to.int",
+                                    InsertBlock->getTerminator());
+
+  return TripCount;
+}
+
 Value *
 InnerLoopVectorizer::getOrCreateVectorTripCount(BasicBlock *InsertBlock) {
   if (VectorTripCount)
     return VectorTripCount;
 
-  Value *TC = getTripCount();
+  Value *TC = getOrCreateTripCount(InsertBlock);
   IRBuilder<> Builder(InsertBlock->getTerminator());
 
   Type *Ty = TC->getType();
@@ -2963,7 +2981,7 @@ Value *InnerLoopVectorizer::createBitOrPointerCast(Value *V, VectorType *DstVTy,
 }
 
 void InnerLoopVectorizer::emitIterationCountCheck(BasicBlock *Bypass) {
-  Value *Count = getTripCount();
+  Value *Count = getOrCreateTripCount(LoopVectorPreHeader);
   // Reuse existing vector loop preheader for TC checks.
   // Note that new preheader block is generated for vector loop.
   BasicBlock *const TCCheckBlock = LoopVectorPreHeader;
@@ -3223,7 +3241,7 @@ void InnerLoopVectorizer::createInductionResumeValues(
 
 BasicBlock *InnerLoopVectorizer::completeLoopSkeleton() {
   // The trip counts should be cached by now.
-  Value *Count = getTripCount();
+  Value *Count = getOrCreateTripCount(LoopVectorPreHeader);
   Value *VectorTripCount = getOrCreateVectorTripCount(LoopVectorPreHeader);
 
   auto *ScalarLatchTerm = OrigLoop->getLoopLatch()->getTerminator();
@@ -3263,9 +3281,8 @@ InnerLoopVectorizer::createVectorizedLoopSkeleton() {
    the vectorized instructions while the old loop will continue to run the
    scalar remainder.
 
-       [ ] <-- old preheader - loop iteration number check and SCEVs in Plan's
-     /  |      preheader are expanded here. Eventually all required SCEV
-    /   |      expansion should happen here.
+       [ ] <-- loop iteration number check.
+    /   |
    /    v
   |    [ ] <-- vector loop bypass (may consist of multiple blocks).
   |  /  |
@@ -3325,8 +3342,7 @@ void InnerLoopVectorizer::fixupIVUsers(PHINode *OrigPhi,
                                        const InductionDescriptor &II,
                                        Value *VectorTripCount, Value *EndValue,
                                        BasicBlock *MiddleBlock,
-                                       BasicBlock *VectorHeader, VPlan &Plan,
-                                       VPTransformState &State) {
+                                       BasicBlock *VectorHeader, VPlan &Plan) {
   // There are two kinds of external IV usages - those that use the value
   // computed in the last iteration (the PHI) and those that use the penultimate
   // value (the value that feeds into the phi from the loop latch).
@@ -3354,6 +3370,7 @@ void InnerLoopVectorizer::fixupIVUsers(PHINode *OrigPhi,
     auto *UI = cast<Instruction>(U);
     if (!OrigLoop->contains(UI)) {
       assert(isa<PHINode>(UI) && "Expected LCSSA form");
+
       IRBuilder<> B(MiddleBlock->getTerminator());
 
       // Fast-math-flags propagate from the original induction instruction.
@@ -3363,11 +3380,8 @@ void InnerLoopVectorizer::fixupIVUsers(PHINode *OrigPhi,
       Value *CountMinusOne = B.CreateSub(
           VectorTripCount, ConstantInt::get(VectorTripCount->getType(), 1));
       CountMinusOne->setName("cmo");
-
-      VPValue *StepVPV = Plan.getSCEVExpansion(II.getStep());
-      assert(StepVPV && "step must have been expanded during VPlan execution");
-      Value *Step = StepVPV->isLiveIn() ? StepVPV->getLiveInIRValue()
-                                        : State.get(StepVPV, {0, 0});
+      Value *Step = CreateStepValue(II.getStep(), *PSE.getSE(),
+                                    VectorHeader->getTerminator());
       Value *Escape =
           emitTransformedIndex(B, CountMinusOne, II.getStartValue(), Step, II);
       Escape->setName("ind.escape");
@@ -3726,7 +3740,7 @@ void InnerLoopVectorizer::fixVectorizedLoop(VPTransformState &State,
       fixupIVUsers(Entry.first, Entry.second,
                    getOrCreateVectorTripCount(VectorLoop->getLoopPreheader()),
                    IVEndValues[Entry.first], LoopMiddleBlock,
-                   VectorLoop->getHeader(), Plan, State);
+                   VectorLoop->getHeader(), Plan);
   }
 
   // Fix LCSSA phis not already fixed earlier. Extracts may need to be generated
@@ -7687,27 +7701,23 @@ void LoopVectorizationPlanner::executePlan(ElementCount BestVF, unsigned BestUF,
   LLVM_DEBUG(dbgs() << "Executing best plan with VF=" << BestVF << ", UF=" << BestUF
                     << '\n');
 
+  // Workaround!  Compute the trip count of the original loop and cache it
+  // before we start modifying the CFG.  This code has a systemic problem
+  // wherein it tries to run analysis over partially constructed IR; this is
+  // wrong, and not simply for SCEV.  The trip count of the original loop
+  // simply happens to be prone to hitting this in practice.  In theory, we
+  // can hit the same issue for any SCEV, or ValueTracking query done during
+  // mutation.  See PR49900.
+  ILV.getOrCreateTripCount(OrigLoop->getLoopPreheader());
+
   if (!IsEpilogueVectorization)
     VPlanTransforms::optimizeForVFAndUF(BestVPlan, BestVF, BestUF, PSE);
 
   // Perform the actual loop transformation.
-  VPTransformState State{BestVF, BestUF, LI, DT, ILV.Builder, &ILV, &BestVPlan};
-
-  // 0. Generate SCEV-dependent code into the preheader, including TripCount,
-  // before making any changes to the CFG.
-  if (!BestVPlan.getPreheader()->empty()) {
-    State.CFG.PrevBB = OrigLoop->getLoopPreheader();
-    State.Builder.SetInsertPoint(OrigLoop->getLoopPreheader()->getTerminator());
-    BestVPlan.getPreheader()->execute(&State);
-  }
-  if (!ILV.getTripCount())
-    ILV.setTripCount(State.get(BestVPlan.getTripCount(), {0, 0}));
-  else
-    assert(IsEpilogueVectorization && "should only re-use the existing trip "
-                                      "count during epilogue vectorization");
 
   // 1. Set up the skeleton for vectorization, including vector pre-header and
   // middle block. The vector loop is created during VPlan execution.
+  VPTransformState State{BestVF, BestUF, LI, DT, ILV.Builder, &ILV, &BestVPlan};
   Value *CanonicalIVStartValue;
   std::tie(State.CFG.PrevBB, CanonicalIVStartValue) =
       ILV.createVectorizedLoopSkeleton();
@@ -7743,9 +7753,10 @@ void LoopVectorizationPlanner::executePlan(ElementCount BestVF, unsigned BestUF,
   //===------------------------------------------------===//
 
   // 2. Copy and widen instructions from the old loop into the new loop.
-  BestVPlan.prepareToExecute(
-      ILV.getTripCount(), ILV.getOrCreateVectorTripCount(nullptr),
-      CanonicalIVStartValue, State, IsEpilogueVectorization);
+  BestVPlan.prepareToExecute(ILV.getOrCreateTripCount(nullptr),
+                             ILV.getOrCreateVectorTripCount(nullptr),
+                             CanonicalIVStartValue, State,
+                             IsEpilogueVectorization);
 
   BestVPlan.execute(&State);
 
@@ -7860,7 +7871,7 @@ EpilogueVectorizerMainLoop::emitIterationCountCheck(BasicBlock *Bypass,
   assert(Bypass && "Expected valid bypass basic block.");
   ElementCount VFactor = ForEpilogue ? EPI.EpilogueVF : VF;
   unsigned UFactor = ForEpilogue ? EPI.EpilogueUF : UF;
-  Value *Count = getTripCount();
+  Value *Count = getOrCreateTripCount(LoopVectorPreHeader);
   // Reuse existing vector loop preheader for TC checks.
   // Note that new preheader block is generated for vector loop.
   BasicBlock *const TCCheckBlock = LoopVectorPreHeader;
@@ -8179,7 +8190,7 @@ VPValue *VPRecipeBuilder::createBlockInMask(BasicBlock *BB, VPlan &Plan) {
     VPBuilder::InsertPointGuard Guard(Builder);
     Builder.setInsertPoint(HeaderVPBB, NewInsertionPoint);
     if (useActiveLaneMask(TFStyle)) {
-      VPValue *TC = Plan.getTripCount();
+      VPValue *TC = Plan.getOrCreateTripCount();
       BlockMask = Builder.createNaryOp(VPInstruction::ActiveLaneMask, {IV, TC},
                                        nullptr, "active.lane.mask");
     } else {
@@ -8515,21 +8526,33 @@ VPRecipeBase *VPRecipeBuilder::tryToWiden(Instruction *I,
   case Instruction::Add:
   case Instruction::And:
   case Instruction::AShr:
+  case Instruction::BitCast:
   case Instruction::FAdd:
   case Instruction::FCmp:
   case Instruction::FDiv:
   case Instruction::FMul:
   case Instruction::FNeg:
+  case Instruction::FPExt:
+  case Instruction::FPToSI:
+  case Instruction::FPToUI:
+  case Instruction::FPTrunc:
   case Instruction::FRem:
   case Instruction::FSub:
   case Instruction::ICmp:
+  case Instruction::IntToPtr:
   case Instruction::LShr:
   case Instruction::Mul:
   case Instruction::Or:
+  case Instruction::PtrToInt:
   case Instruction::Select:
+  case Instruction::SExt:
   case Instruction::Shl:
+  case Instruction::SIToFP:
   case Instruction::Sub:
+  case Instruction::Trunc:
+  case Instruction::UIToFP:
   case Instruction::Xor:
+  case Instruction::ZExt:
   case Instruction::Freeze:
     return new VPWidenRecipe(*I, make_range(Operands.begin(), Operands.end()));
   };
@@ -8682,11 +8705,6 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
         *SI, make_range(Operands.begin(), Operands.end())));
   }
 
-  if (auto *CI = dyn_cast<CastInst>(Instr)) {
-    return toVPRecipeResult(
-        new VPWidenCastRecipe(CI->getOpcode(), Operands[0], CI->getType(), CI));
-  }
-
   return toVPRecipeResult(tryToWiden(Instr, Operands, VPBB, Plan));
 }
 
@@ -8749,7 +8767,7 @@ static void addCanonicalIVRecipes(VPlan &Plan, Type *IdxTy, DebugLoc DL,
     VecPreheader->appendRecipe(CanonicalIVIncrementParts);
 
     // Create the ActiveLaneMask instruction using the correct start values.
-    VPValue *TC = Plan.getTripCount();
+    VPValue *TC = Plan.getOrCreateTripCount();
 
     VPValue *TripCount, *IncrementValue;
     if (Style == TailFoldingStyle::DataAndControlFlowWithoutRuntimeCheck) {
@@ -8891,19 +8909,17 @@ std::optional<VPlanPtr> LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(
   // visit each basic block after having visited its predecessor basic blocks.
   // ---------------------------------------------------------------------------
 
-  // Create initial VPlan skeleton, having a basic block for the pre-header
-  // which contains SCEV expansions that need to happen before the CFG is
-  // modified; a basic block for the vector pre-header, followed by a region for
-  // the vector loop, followed by the middle basic block. The skeleton vector
-  // loop region contains a header and latch basic blocks.
-  VPlanPtr Plan = VPlan::createInitialVPlan(
-      createTripCountSCEV(Legal->getWidestInductionType(), PSE, OrigLoop),
-      *PSE.getSE());
+  // Create initial VPlan skeleton, starting with a block for the pre-header,
+  // followed by a region for the vector loop, followed by the middle block. The
+  // skeleton vector loop region contains a header and latch block.
+  VPBasicBlock *Preheader = new VPBasicBlock("vector.ph");
+  auto Plan = std::make_unique<VPlan>(Preheader);
+
   VPBasicBlock *HeaderVPBB = new VPBasicBlock("vector.body");
   VPBasicBlock *LatchVPBB = new VPBasicBlock("vector.latch");
   VPBlockUtils::insertBlockAfter(LatchVPBB, HeaderVPBB);
   auto *TopRegion = new VPRegionBlock(HeaderVPBB, LatchVPBB, "vector loop");
-  VPBlockUtils::insertBlockAfter(TopRegion, Plan->getEntry());
+  VPBlockUtils::insertBlockAfter(TopRegion, Preheader);
   VPBasicBlock *MiddleVPBB = new VPBasicBlock("middle.block");
   VPBlockUtils::insertBlockAfter(MiddleVPBB, TopRegion);
 
@@ -9051,13 +9067,14 @@ std::optional<VPlanPtr> LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(
     unsigned J = 0;
     for (unsigned i = 0; i < IG->getFactor(); ++i)
       if (Instruction *Member = IG->getMember(i)) {
-        VPRecipeBase *MemberR = RecipeBuilder.getRecipe(Member);
         if (!Member->getType()->isVoidTy()) {
-          VPValue *OriginalV = MemberR->getVPSingleValue();
+          VPValue *OriginalV = Plan->getVPValue(Member);
+          Plan->removeVPValueFor(Member);
+          Plan->addVPValue(Member, VPIG->getVPValue(J));
           OriginalV->replaceAllUsesWith(VPIG->getVPValue(J));
           J++;
         }
-        MemberR->eraseFromParent();
+        RecipeBuilder.getRecipe(Member)->eraseFromParent();
       }
   }
 
@@ -9090,9 +9107,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
   assert(EnableVPlanNativePath && "VPlan-native path is not enabled.");
 
   // Create new empty VPlan
-  auto Plan = VPlan::createInitialVPlan(
-      createTripCountSCEV(Legal->getWidestInductionType(), PSE, OrigLoop),
-      *PSE.getSE());
+  auto Plan = std::make_unique<VPlan>();
 
   // Build hierarchical CFG
   VPlanHCFGBuilder HCFGBuilder(OrigLoop, LI, *Plan);
@@ -9813,11 +9828,9 @@ Value *VPTransformState::get(VPValue *Def, unsigned Part) {
   unsigned LastLane = IsUniform ? 0 : VF.getKnownMinValue() - 1;
   // Check if there is a scalar value for the selected lane.
   if (!hasScalarValue(Def, {Part, LastLane})) {
-    // At the moment, VPWidenIntOrFpInductionRecipes, VPScalarIVStepsRecipes and
-    // VPExpandSCEVRecipes can also be uniform.
+    // At the moment, VPWidenIntOrFpInductionRecipes and VPScalarIVStepsRecipes can also be uniform.
     assert((isa<VPWidenIntOrFpInductionRecipe>(Def->getDefiningRecipe()) ||
-            isa<VPScalarIVStepsRecipe>(Def->getDefiningRecipe()) ||
-            isa<VPExpandSCEVRecipe>(Def->getDefiningRecipe())) &&
+            isa<VPScalarIVStepsRecipe>(Def->getDefiningRecipe())) &&
            "unexpected recipe found to be invariant");
     IsUniform = true;
     LastLane = 0;
@@ -10403,16 +10416,6 @@ bool LoopVectorizePass::processLoop(Loop *L) {
         VPRegionBlock *VectorLoop = BestEpiPlan.getVectorLoopRegion();
         VPBasicBlock *Header = VectorLoop->getEntryBasicBlock();
         Header->setName("vec.epilog.vector.body");
-
-        // Re-use the trip count expanded for the main loop, as skeleton
-        // creation needs it as a value that dominates both the scalar and
-        // vector epilogue loops
-        EpilogILV.setTripCount(MainILV.getTripCount());
-        if (auto *R = BestEpiPlan.getTripCount()->getDefiningRecipe()) {
-          assert(BestEpiPlan.getTripCount()->getNumUsers() == 0 &&
-                 "trip count VPValue cannot be used in epilogue plan");
-          R->eraseFromParent();
-        }
 
         // Ensure that the start values for any VPWidenIntOrFpInductionRecipe,
         // VPWidenPointerInductionRecipe and VPReductionPHIRecipes are updated
