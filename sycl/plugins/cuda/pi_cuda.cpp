@@ -58,8 +58,7 @@ pi_result map_error(CUresult result) {
   case CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES:
     return PI_ERROR_OUT_OF_RESOURCES;
   default:
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-    //return PI_ERROR_UNKNOWN;
+    return PI_ERROR_UNKNOWN;
   }
 }
 
@@ -133,15 +132,13 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 /// \return PI_SUCCESS if \param result was CUDA_SUCCESS.
 /// \throw pi_error exception (integer) if input was not success.
 ///
-//TODO this needs some thought!
 pi_result check_error(CUresult result, const char *function, int line,
                       const char *file) {
   if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return PI_SUCCESS;
   }
 
-// can't throw cuda errors from UR!!
-  /*if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *errorString = nullptr;
     const char *errorName = nullptr;
     cuGetErrorName(result, &errorName);
@@ -159,7 +156,7 @@ pi_result check_error(CUresult result, const char *function, int line,
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
-  }*/
+  }
 
   throw map_error(result);
 }
