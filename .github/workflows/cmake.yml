@@ -1,20 +1,21 @@
-name: CMake
+name: Build and test
 
 on: [push, pull_request]
-
-env:
-  BUILD_TYPE: Release
 
 jobs:
   ubuntu-build:
     name: Build - Ubuntu
     strategy:
       matrix:
-        config:
-          - {os: 'ubuntu-20.04', compiler: {c: gcc, cxx: g++}}
-          - {os: 'ubuntu-22.04', compiler: {c: gcc, cxx: g++}}
-          - {os: 'ubuntu-22.04', compiler: {c: clang, cxx: clang++}}
-    runs-on: ${{matrix.config.os}}
+        os: ['ubuntu-20.04', 'ubuntu-22.04']
+        build_type: [Debug, Release]
+        compiler: [{c: gcc, cxx: g++}]
+        include:
+          - os: 'ubuntu-22.04'
+            build_type: Release
+            compiler: {c: clang, cxx: clang++}
+
+    runs-on: ${{matrix.os}}
 
     steps:
     - uses: actions/checkout@v3
@@ -31,33 +32,32 @@ jobs:
       run: >
         cmake
         -B${{github.workspace}}/build
-        -DCMAKE_C_COMPILER=${{matrix.config.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.config.compiler.cxx}}
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
-        -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
 
     - name: Generate source from spec, check for uncommitted diff
-      if: matrix.config.os == 'ubuntu-22.04'
+      if: matrix.os == 'ubuntu-22.04'
       run: cmake --build ${{github.workspace}}/build --target check-generated
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build
+      run: cmake --build ${{github.workspace}}/build -j $(nproc)
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure -L "python|uma|loader|validation|tracing|unit|urtrace"
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "python|uma|loader|validation|tracing|unit|urtrace"
 
   windows-build:
     name: Build - Windows
     strategy:
       matrix:
-        config:
-          - {os: 'windows-2019'}
-          - {os: 'windows-2022'}
-    runs-on: ${{matrix.config.os}}
+        os: ['windows-2019', 'windows-2022']
+        build_type: [Debug, Release]
+    runs-on: ${{matrix.os}}
 
     steps:
     - uses: actions/checkout@v3
@@ -80,12 +80,12 @@ jobs:
         -DUR_FORMAT_CPP_STYLE=ON
 
     - name: Generate source from spec, check for uncommitted diff
-      if: matrix.config.os == 'windows-2022'
-      run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{env.BUILD_TYPE}}
+      if: matrix.os == 'windows-2022'
+      run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
 
     - name: Build all
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 2
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure -L "python|uma|loader|validation|tracing|unit|urtrace"
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "python|uma|loader|validation|tracing|unit|urtrace"
