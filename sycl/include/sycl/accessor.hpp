@@ -3548,7 +3548,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   bool operator==(const unsampled_image_accessor &Rhs) const;
 #else
-    bool operator==(const unsampled_image_accessor &Rhs) const {
+  bool operator==(const unsampled_image_accessor &Rhs) const {
     std::ignore = Rhs;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -3583,7 +3583,7 @@ public:
   DataT read(const CoordT &Coords) const noexcept {
     std::ignore = Coords;
 #ifdef __SYCL_DEVICE_ONLY__
-    return {0,0,0,0};
+    return {0, 0, 0, 0};
 #else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -3817,7 +3817,7 @@ public:
   DataT read(const CoordT &Coords) const noexcept {
     std::ignore = Coords;
 #ifdef __SYCL_DEVICE_ONLY__
-    return {0,0,0,0};
+    return {0, 0, 0, 0};
 #else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
