@@ -3545,12 +3545,16 @@ public:
 
   ~unsampled_image_accessor() = default;
 
-  bool operator==(const unsampled_image_accessor &Rhs) const {
+#ifdef __SYCL_DEVICE_ONLY__
+  bool operator==(const unsampled_image_accessor &Rhs) const;
+#else
+    bool operator==(const unsampled_image_accessor &Rhs) const {
     std::ignore = Rhs;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "operator== is not yet implemented.");
   }
+#endif // __SYCL_DEVICE_ONLY__
 
   bool operator!=(const unsampled_image_accessor &Rhs) const {
     return !(Rhs == *this);
@@ -3559,9 +3563,13 @@ public:
   /* -- property interface members -- */
 
   size_t size() const noexcept {
+#ifdef __SYCL_DEVICE_ONLY__
+    return 0;
+#else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "size() is not yet implemented.");
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   /* Available only when: AccessMode == access_mode::read
@@ -3574,9 +3582,13 @@ public:
                                             Dimensions, CoordT>::value>>
   DataT read(const CoordT &Coords) const noexcept {
     std::ignore = Coords;
+#ifdef __SYCL_DEVICE_ONLY__
+    return {0,0,0,0};
+#else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "read() is not yet implemented.");
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   /* Available only when: AccessMode == access_mode::write
@@ -3590,9 +3602,11 @@ public:
   void write(const CoordT &Coords, const DataT &Color) const {
     std::ignore = Coords;
     std::ignore = Color;
+#ifndef __SYCL_DEVICE_ONLY__
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "write() is not yet implemented.");
+#endif // __SYCL_DEVICE_ONLY__
   }
 };
 
@@ -3767,12 +3781,16 @@ public:
 
   ~sampled_image_accessor() = default;
 
+#ifdef __SYCL_DEVICE_ONLY__
+  bool operator==(const sampled_image_accessor &Rhs) const;
+#else
   bool operator==(const sampled_image_accessor &Rhs) const {
     std::ignore = Rhs;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "operator== is not yet implemented.");
   }
+#endif // __SYCL_DEVICE_ONLY__
 
   bool operator!=(const sampled_image_accessor &Rhs) const {
     return !(Rhs == *this);
@@ -3781,9 +3799,13 @@ public:
   /* -- property interface members -- */
 
   size_t size() const noexcept {
+#ifdef __SYCL_DEVICE_ONLY__
+    return 0;
+#else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "size() is not yet implemented.");
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   /* if Dimensions == 1, CoordT = float
@@ -3794,9 +3816,13 @@ public:
                 Dimensions, CoordT>::value>>
   DataT read(const CoordT &Coords) const noexcept {
     std::ignore = Coords;
+#ifdef __SYCL_DEVICE_ONLY__
+    return {0,0,0,0};
+#else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "read() is not yet implemented.");
+#endif // __SYCL_DEVICE_ONLY__
   }
 };
 
