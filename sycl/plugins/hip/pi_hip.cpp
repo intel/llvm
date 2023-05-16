@@ -5369,9 +5369,10 @@ pi_result hip_piextEnablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  sycl::detail::pi::die("hip_piextEnablePeerAccess not "
-                        "implemented");
-  return {};
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
 pi_result hip_piextDisablePeerAccess(pi_device command_device,
@@ -5380,8 +5381,10 @@ pi_result hip_piextDisablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  sycl::detail::pi::die("hip_piextDisablePeerAccess not "
-                        "implemented");
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   return {};
 }
 
@@ -5397,9 +5400,10 @@ pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
   std::ignore = param_value;
   std::ignore = param_value_size_ret;
 
-  sycl::detail::pi::die("hip_piextPeerAccessGetInfo not "
-                        "implemented");
-  return {};
+  setErrorMessage("piextPeerAccessGetInfo not "
+                  "implemented in hip backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;

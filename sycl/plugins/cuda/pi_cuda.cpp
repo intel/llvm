@@ -5594,24 +5594,30 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
 pi_result cuda_piextEnablePeerAccess(pi_device command_device,
                                      pi_device peer_device) {
-
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(command_device->get_context());
 
-    auto curesult = cuCtxEnablePeerAccess(peer_device->get_context(), 0);
-    if (curesult != CUDA_SUCCESS) {
-      const char *errorString = nullptr;
-      //unused atm
-      const char *errorName = nullptr;
-      cuGetErrorName(curesult, &errorName);
-      cuGetErrorString(curesult, &errorString);
+    CUresult cu_res = cuCtxEnablePeerAccess(peer_device->get_context(), 0);
+    if (cu_res != CUDA_SUCCESS) {
+      const char *error_string = nullptr;
+      const char *error_name = nullptr;
+      cuGetErrorName(cu_res, &error_name);
+      cuGetErrorString(cu_res, &error_string);
+      char *message =
+          (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+      strcpy(message, error_name);
+      strcat(message, "\n");
+      strcat(message, error_string);
 
-      setErrorMessage(errorString, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+      setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+      free(message);
+
+      result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
-    result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 
   } catch (pi_result err) {
+    setErrorMessage("", err);
     result = err;
   }
   return result;
@@ -5619,25 +5625,30 @@ pi_result cuda_piextEnablePeerAccess(pi_device command_device,
 
 pi_result cuda_piextDisablePeerAccess(pi_device command_device,
                                       pi_device peer_device) {
-
   pi_result result = PI_SUCCESS;
   try {
+
     ScopedContext active(command_device->get_context());
-    result = PI_CHECK_ERROR(cuCtxDisablePeerAccess(peer_device->get_context()));
 
-    auto curesult = cuCtxDisablePeerAccess(peer_device->get_context());
-    if (curesult != CUDA_SUCCESS) {
-      const char *errorString;
-      // unused atm
-      const char *errorName;
-      cuGetErrorName(curesult, &errorName);
-      cuGetErrorString(curesult, &errorString);
+    CUresult cu_res = cuCtxDisablePeerAccess(peer_device->get_context());
+    if (cu_res != CUDA_SUCCESS) {
+      const char *error_string;
+      const char *error_name;
+      cuGetErrorName(cu_res, &error_name);
+      cuGetErrorString(cu_res, &error_string);
+      char *message =
+          (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+      strcpy(message, error_name);
+      strcat(message, "\n");
+      strcat(message, error_string);
 
-      setErrorMessage(errorString, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+      setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+      free(message);
+      result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
-    result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 
   } catch (pi_result err) {
+    setErrorMessage("", err);
     result = err;
   }
   return result;
@@ -5661,13 +5672,28 @@ pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
       CUattr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
       break;
     }
-    default: {
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(attr);
+    default: { __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(attr); }
     }
+
+    CUresult cu_res = cuDeviceGetP2PAttribute(
+        &value, CUattr, command_device->get(), peer_device->get());
+    if (cu_res != CUDA_SUCCESS) {
+      const char *error_string;
+      const char *error_name;
+      cuGetErrorName(cu_res, &error_name);
+      cuGetErrorString(cu_res, &error_string);
+      char *message =
+          (char *)malloc(2 + strlen(error_string) + strlen(error_name));
+      strcpy(message, error_name);
+      strcat(message, "\n");
+      strcat(message, error_string);
+
+      setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+      free(message);
+      return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
-    PI_CHECK_ERROR(cuDeviceGetP2PAttribute(
-        &value, CUattr, command_device->get(), peer_device->get()));
   } catch (pi_result err) {
+    setErrorMessage("", err);
     return err;
   }
   return getInfo(param_value_size, param_value, param_value_size_ret, value);

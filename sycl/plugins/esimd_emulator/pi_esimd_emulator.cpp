@@ -2113,7 +2113,10 @@ pi_result piextEnablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  DIE_NO_IMPLEMENTATION;
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
 pi_result piextDisablePeerAccess(pi_device command_device,
@@ -2122,7 +2125,10 @@ pi_result piextDisablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  DIE_NO_IMPLEMENTATION;
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
 pi_result piextPeerAccessGetInfo(pi_device command_device,
@@ -2137,7 +2143,10 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
   std::ignore = param_value;
   std::ignore = param_value_size_ret;
 
-  DIE_NO_IMPLEMENTATION;
+  setErrorMessage("piextPeerAccessGetInfo not "
+                  "implemented in esimd_emulator backend",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
 #ifdef _WIN32
