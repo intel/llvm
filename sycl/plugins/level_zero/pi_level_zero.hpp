@@ -134,7 +134,7 @@ struct _pi_device : _ur_device_handle_t {
 
 // Structure describing the command queue descriptor when command lists are
 // created. This is used to ensure that the appropriate command list type is
-// reused from the context's cache. Only immediate command lists are recycled
+// reused from the context's cache. Immediate command lists are recycled
 // across queues and then all fields are used. For standard command lists only
 // the ordinal is used. For queues created through the make_queue API the
 // descriptor is unavailable so a dummy descriptor is used, marked with the
@@ -193,7 +193,6 @@ using pi_command_list_map_t =
     std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>;
 // The iterator pointing to a specific command-list in use.
 using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
-// The type that holds a command list and the queue descriptor.
 
 struct _pi_context : _ur_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
