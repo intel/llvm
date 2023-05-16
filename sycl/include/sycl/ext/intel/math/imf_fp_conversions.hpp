@@ -11,6 +11,100 @@
 #pragma once
 
 extern "C" {
+int __imf_float2int_rd(float);
+int __imf_float2int_rn(float);
+int __imf_float2int_ru(float);
+int __imf_float2int_rz(float);
+unsigned int __imf_float2uint_rd(float);
+unsigned int __imf_float2uint_rn(float);
+unsigned int __imf_float2uint_ru(float);
+unsigned int __imf_float2uint_rz(float);
+long long int __imf_float2ll_rd(float);
+long long int __imf_float2ll_rn(float);
+long long int __imf_float2ll_ru(float);
+long long int __imf_float2ll_rz(float);
+unsigned long long int __imf_float2ull_rd(float);
+unsigned long long int __imf_float2ull_rn(float);
+unsigned long long int __imf_float2ull_ru(float);
+unsigned long long int __imf_float2ull_rz(float);
+int __imf_float_as_int(float);
+unsigned int __imf_float_as_uint(float);
+float __imf_int2float_rd(int);
+float __imf_int2float_rn(int);
+float __imf_int2float_ru(int);
+float __imf_int2float_rz(int);
+float __imf_int_as_float(int);
+float __imf_ll2float_rd(long long int);
+float __imf_ll2float_rn(long long int);
+float __imf_ll2float_ru(long long int);
+float __imf_ll2float_rz(long long int);
+float __imf_uint2float_rd(unsigned int);
+float __imf_uint2float_rn(unsigned int);
+float __imf_uint2float_ru(unsigned int);
+float __imf_uint2float_rz(unsigned int);
+float __imf_uint_as_float(unsigned int);
+float __imf_ull2float_rd(unsigned long long int);
+float __imf_ull2float_rn(unsigned long long int);
+float __imf_ull2float_ru(unsigned long long int);
+float __imf_ull2float_rz(unsigned long long int);
+float __imf_half2float(_Float16);
+_Float16 __imf_float2half_rd(float);
+_Float16 __imf_float2half_rn(float);
+_Float16 __imf_float2half_ru(float);
+_Float16 __imf_float2half_rz(float);
+int __imf_half2int_rd(_Float16);
+int __imf_half2int_rn(_Float16);
+int __imf_half2int_ru(_Float16);
+int __imf_half2int_rz(_Float16);
+long long __imf_half2ll_rd(_Float16);
+long long __imf_half2ll_rn(_Float16);
+long long __imf_half2ll_ru(_Float16);
+long long __imf_half2ll_rz(_Float16);
+short __imf_half2short_rd(_Float16);
+short __imf_half2short_rn(_Float16);
+short __imf_half2short_ru(_Float16);
+short __imf_half2short_rz(_Float16);
+unsigned int __imf_half2uint_rd(_Float16);
+unsigned int __imf_half2uint_rn(_Float16);
+unsigned int __imf_half2uint_ru(_Float16);
+unsigned int __imf_half2uint_rz(_Float16);
+unsigned long long __imf_half2ull_rd(_Float16);
+unsigned long long __imf_half2ull_rn(_Float16);
+unsigned long long __imf_half2ull_ru(_Float16);
+unsigned long long __imf_half2ull_rz(_Float16);
+unsigned short __imf_half2ushort_rd(_Float16);
+unsigned short __imf_half2ushort_rn(_Float16);
+unsigned short __imf_half2ushort_ru(_Float16);
+unsigned short __imf_half2ushort_rz(_Float16);
+short __imf_half_as_short(_Float16);
+unsigned short __imf_half_as_ushort(_Float16);
+_Float16 __imf_int2half_rd(int);
+_Float16 __imf_int2half_rn(int);
+_Float16 __imf_int2half_ru(int);
+_Float16 __imf_int2half_rz(int);
+_Float16 __imf_ll2half_rd(long long);
+_Float16 __imf_ll2half_rn(long long);
+_Float16 __imf_ll2half_ru(long long);
+_Float16 __imf_ll2half_rz(long long);
+_Float16 __imf_short2half_rd(short);
+_Float16 __imf_short2half_rn(short);
+_Float16 __imf_short2half_ru(short);
+_Float16 __imf_short2half_rz(short);
+_Float16 __imf_short_as_half(short);
+_Float16 __imf_uint2half_rd(unsigned int);
+_Float16 __imf_uint2half_rn(unsigned int);
+_Float16 __imf_uint2half_ru(unsigned int);
+_Float16 __imf_uint2half_rz(unsigned int);
+_Float16 __imf_ull2half_rd(unsigned long long);
+_Float16 __imf_ull2half_rn(unsigned long long);
+_Float16 __imf_ull2half_ru(unsigned long long);
+_Float16 __imf_ull2half_rz(unsigned long long);
+_Float16 __imf_ushort2half_rd(unsigned short);
+_Float16 __imf_ushort2half_rn(unsigned short);
+_Float16 __imf_ushort2half_ru(unsigned short);
+_Float16 __imf_ushort2half_rz(unsigned short);
+_Float16 __imf_ushort_as_half(unsigned short);
+_Float16 __imf_double2half(double);
 unsigned short __imf_bfloat162ushort_rd(uint16_t);
 unsigned short __imf_bfloat162ushort_rn(uint16_t);
 unsigned short __imf_bfloat162ushort_ru(uint16_t);
@@ -75,6 +169,509 @@ uint16_t __imf_ushort_as_bfloat16(unsigned short);
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::math {
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2int_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2int_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2int_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2int_rz(x);
+}
+
+template <typename To = int, typename From = float> To float2int_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = int, typename From = float> To float2int_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = int, typename From = float> To float2int_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = int, typename From = float> To float2int_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2uint_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2uint_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2uint_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2uint_rz(x);
+}
+
+template <typename To = unsigned int, typename From = float>
+To float2uint_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = unsigned int, typename From = float>
+To float2uint_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = unsigned int, typename From = float>
+To float2uint_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = unsigned int, typename From = float>
+To float2uint_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ll_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ll_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ll_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ll_rz(x);
+}
+
+template <typename To = long long, typename From = float>
+To float2ll_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = long long, typename From = float>
+To float2ll_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = long long, typename From = float>
+To float2ll_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = long long, typename From = float>
+To float2ll_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ull_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ull_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ull_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float2ull_rz(x);
+}
+
+template <typename To = unsigned long long, typename From = float>
+To float2ull_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = unsigned long long, typename From = float>
+To float2ull_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = unsigned long long, typename From = float>
+To float2ull_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = unsigned long long, typename From = float>
+To float2ull_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, long long>, long long> x) {
+  return __imf_ll2float_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, long long>, long long> x) {
+  return __imf_ll2float_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, long long>, long long> x) {
+  return __imf_ll2float_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, long long>, long long> x) {
+  return __imf_ll2float_rz(x);
+}
+
+template <typename To = float, typename From = long long>
+To ll2float_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, long long>, long long>>(x);
+}
+
+template <typename To = float, typename From = long long>
+To ll2float_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, long long>, long long>>(x);
+}
+
+template <typename To = float, typename From = long long>
+To ll2float_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, long long>, long long>>(x);
+}
+
+template <typename To = float, typename From = long long>
+To ll2float_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, long long>, long long>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                     unsigned long long>
+        x) {
+  return __imf_ull2float_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                     unsigned long long>
+        x) {
+  return __imf_ull2float_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                     unsigned long long>
+        x) {
+  return __imf_ull2float_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                     unsigned long long>
+        x) {
+  return __imf_ull2float_rz(x);
+}
+
+template <typename To = float, typename From = unsigned long long>
+To ull2float_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                       unsigned long long>>(x);
+}
+
+template <typename To = float, typename From = unsigned long long>
+To ull2float_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                       unsigned long long>>(x);
+}
+
+template <typename To = float, typename From = unsigned long long>
+To ull2float_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                       unsigned long long>>(x);
+}
+
+template <typename To = float, typename From = unsigned long long>
+To ull2float_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned long long>,
+                       unsigned long long>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rd(std::enable_if_t<std::is_same_v<From, int>, int> x) {
+  return __imf_int2float_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rn(std::enable_if_t<std::is_same_v<From, int>, int> x) {
+  return __imf_int2float_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_ru(std::enable_if_t<std::is_same_v<From, int>, int> x) {
+  return __imf_int2float_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rz(std::enable_if_t<std::is_same_v<From, int>, int> x) {
+  return __imf_int2float_rz(x);
+}
+
+template <typename To = float, typename From = int> To int2float_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, int>, int>>(x);
+}
+
+template <typename To = float, typename From = int> To int2float_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, int>, int>>(x);
+}
+
+template <typename To = float, typename From = int> To int2float_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, int>, int>>(x);
+}
+
+template <typename To = float, typename From = int> To int2float_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, int>, int>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int> x) {
+  return __imf_uint2float_rd(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int> x) {
+  return __imf_uint2float_rn(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int> x) {
+  return __imf_uint2float_ru(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int> x) {
+  return __imf_uint2float_rz(x);
+}
+
+template <typename To = float, typename From = unsigned int>
+To uint2float_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int>>(x);
+}
+
+template <typename To = float, typename From = unsigned int>
+To uint2float_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int>>(x);
+}
+
+template <typename To = float, typename From = unsigned int>
+To uint2float_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int>>(x);
+}
+
+template <typename To = float, typename From = unsigned int>
+To uint2float_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int>
+__internal_fp_as(std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float_as_int(x);
+}
+
+template <typename To = int, typename From = float> To float_as_int(From x) {
+  return __internal_fp_as<std::enable_if_t<std::is_same_v<To, int>, int>,
+                          std::enable_if_t<std::is_same_v<From, float>, float>>(
+      x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_as(std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __imf_float_as_uint(x);
+}
+
+template <typename To = unsigned int, typename From = float>
+To float_as_uint(From x) {
+  return __internal_fp_as<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_as(std::enable_if_t<std::is_same_v<From, int>, int> x) {
+  return __imf_int_as_float(x);
+  ;
+}
+
+template <typename To = float, typename From = int> To int_as_float(From x) {
+  return __internal_fp_as<std::enable_if_t<std::is_same_v<To, float>, float>,
+                          std::enable_if_t<std::is_same_v<From, int>, int>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float> __internal_fp_as(
+    std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int> x) {
+  return __imf_uint_as_float(x);
+  ;
+}
+
+template <typename To = float, typename From = unsigned int>
+To uint_as_float(From x) {
+  return __internal_fp_as<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int>>(x);
+}
 
 template <typename To, typename From>
 static std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>
