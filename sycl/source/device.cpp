@@ -215,7 +215,7 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
     auto Plugin = impl->getPlugin();
     pi_result result =
         Plugin->call_nocheck<detail::PiApiKind::piextEnablePeerAccess>(Device,
-                                                                      Peer);
+                                                                       Peer);
     if (result != PI_SUCCESS) {
       char *message = nullptr;
       Plugin->call<detail::PiApiKind::piPluginGetLastError>(&message);
@@ -231,7 +231,7 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
     auto Plugin = impl->getPlugin();
     pi_result result =
         Plugin->call_nocheck<detail::PiApiKind::piextDisablePeerAccess>(Device,
-                                                                       Peer);
+                                                                        Peer);
     if (result != PI_SUCCESS) {
       char *message = nullptr;
       Plugin->call<detail::PiApiKind::piPluginGetLastError>(&message);
@@ -245,13 +245,11 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   const RT::PiDevice Device = impl->getHandleRef();
   const RT::PiDevice Peer = peer.impl->getHandleRef();
 
-  if (Device == Peer)
-  {
+  if (Device == Peer) {
     return true;
   }
 
-  if (peer.get_backend() != backend::ext_oneapi_cuda)
-  {
+  if (peer.get_backend() != backend::ext_oneapi_cuda) {
     return false;
   }
 
